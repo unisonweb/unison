@@ -878,6 +878,12 @@ foreignCallHelper = \case
     evaluate $ Map.fromList l
   Map_eq -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
     pure $ l == r
+  Map_union -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
+    evaluate $ Map.union l r
+  Map_intersect -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
+    evaluate $ Map.intersection l r
+  Map_toList -> mkForeign $ \(m :: Map Val Val) ->
+    evaluate $ Map.toList m
   List_range -> mkForeign $ \(m :: Word64, n :: Word64) ->
     let sz
           | m < n = fromIntegral $ n - m
@@ -886,6 +892,17 @@ foreignCallHelper = \case
         force s = foldl (\u x -> x `seq` u) s s
      in evaluate . force $ Sq.fromFunction sz mk
   List_sort -> mkForeign $ \(l :: Seq Val) -> pure $ Sq.unstableSort l
+  Multimap_fromList -> mkForeign $ \(l :: [(Val, Val)]) -> do
+    let listVals = l <&> \(k, v) -> (k, Sq.singleton v)
+    evaluate $ Map.fromListWith (<>) listVals
+  Set_fromList -> mkForeign $ \(l :: [Val]) -> do
+    evaluate $ Map.fromList $ zip l (repeat ())
+  Set_union -> mkForeign $ \(l :: Map Val (), r :: Map Val ()) ->
+    evaluate $ Map.union l r
+  Set_intersect -> mkForeign $ \(l :: Map Val (), r :: Map Val ()) ->
+    evaluate $ Map.intersection l r
+  Set_toList -> mkForeign $ \(s :: Map Val ()) ->
+    evaluate $ Map.keys s
   where
     chop = reverse . dropWhile isPathSeparator . reverse
 
