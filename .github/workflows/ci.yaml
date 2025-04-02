@@ -51,19 +51,28 @@ jobs:
           # allows the `separator` to actually be a newline (see tj-actions/changed-files#2148)
           safe_output: false
           separator: "\n"
+      # The job doesn't have permission to push back to contributor forks on contributor PRs, or on protected branches,
+      # so in those cases, we only check the formatting.
       - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
+        if: |
+          github.ref_protected
+            || !(github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name)
+        with:
+          version: ${{ env.ormolu_version }}
+          mode: check
+          pattern: ${{ steps.changed-files.outputs.all_changed_files }}
+      - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
+        if: |
+          !github.ref_protected
+            && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
         with:
           version: ${{ env.ormolu_version }}
           mode: inplace
           pattern: ${{ steps.changed-files.outputs.all_changed_files }}
       - name: apply formatting changes
-        uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79
-        # v5
-        # and not on a protected branch.
-        # The job doesn't have permission to push back to contributor forks on contributor PRs.
+        uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5
         if: |
-          always()
-            && !github.ref_protected
+          !github.ref_protected
             && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
         with:
           commit_message: automatically run ormolu
