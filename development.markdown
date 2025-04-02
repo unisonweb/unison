@@ -22,17 +22,19 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 
 ## Autoformatting your code with Ormolu
 
-We use 0.5.0.1 of Ormolu and CI will add an extra commit, if needed, to autoformat your code.
+We use Ormolu (see [the specific version](./nix/versions.nix)) and CI will add an extra commit, if needed, to autoformat your code.
 
 Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
 
 ```haskell
 {- ORMOLU_DISABLE -}
+{- because we carefully formatted this code for readability -}
 dontFormatMe = do blah
                     blah
                   blah
 {- ORMOLU_ENABLE -}
 ```
+__NB__: Always include an extra comment (as above) to explain _why_ you’re disabling Ormolu.
 
 ## Running Tests
 
