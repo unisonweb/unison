@@ -1471,39 +1471,39 @@ filterTermsByReferentHavingType typ terms = create *> for_ terms insert *> selec
     select =
       queryListRow
         [sql|
-      SELECT
-        q.term_referent_object_id,
-        q.term_referent_component_index,
-        q.term_referent_constructor_index
-      FROM filter_query q, find_type_index t
-      WHERE t.type_reference_builtin IS :typeBuiltin
-        AND t.type_reference_hash_id IS :typeHashId
-        AND t.type_reference_component_index IS :typeComponentIndex
-        AND t.term_referent_object_id = q.term_referent_object_id
-        AND t.term_referent_component_index = q.term_referent_component_index
-        AND t.term_referent_constructor_index IS q.term_referent_constructor_index
-    |]
+          SELECT
+            q.term_referent_object_id,
+            q.term_referent_component_index,
+            q.term_referent_constructor_index
+          FROM filter_query q, find_type_index t
+          WHERE t.type_reference_builtin IS :typeBuiltin
+            AND t.type_reference_hash_id IS :typeHashId
+            AND t.type_reference_component_index IS :typeComponentIndex
+            AND t.term_referent_object_id = q.term_referent_object_id
+            AND t.term_referent_component_index = q.term_referent_component_index
+            AND t.term_referent_constructor_index IS q.term_referent_constructor_index
+        |]
     insert r =
       execute
         [sql|
-      INSERT INTO filter_query (
-        term_referent_object_id,
-        term_referent_component_index,
-        term_referent_constructor_index
-      ) VALUES (@r, @, @)
-    |]
+          INSERT INTO filter_query (
+            term_referent_object_id,
+            term_referent_component_index,
+            term_referent_constructor_index
+          ) VALUES (@r, @, @)
+        |]
     typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
     typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
     typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
     create =
       execute
         [sql|
-        CREATE TEMPORARY TABLE filter_query (
-          term_referent_object_id INTEGER NOT NULL,
-          term_referent_component_index INTEGER NOT NULL,
-          term_referent_constructor_index INTEGER NULL
-        )
-      |]
+          CREATE TEMPORARY TABLE filter_query (
+            term_referent_object_id INTEGER NOT NULL,
+            term_referent_component_index INTEGER NOT NULL,
+            term_referent_constructor_index INTEGER NULL
+          )
+        |]
     drop = execute [sql|DROP TABLE filter_query|]
 
 filterTermsByReferenceHavingType :: S.ReferenceH -> [S.Reference.Id] -> Transaction [S.Reference.Id]
@@ -1512,36 +1512,36 @@ filterTermsByReferenceHavingType typ terms = create *> for_ terms insert *> sele
     select =
       queryListRow
         [sql|
-      SELECT
-        q.term_reference_object_id,
-        q.term_reference_component_index
-      FROM filter_query q, find_type_index t
-      WHERE t.type_reference_builtin IS :typeBuiltin
-        AND t.type_reference_hash_id IS :typeHashId
-        AND t.type_reference_component_index IS :typeComponentIndex
-        AND t.term_referent_object_id = q.term_reference_object_id
-        AND t.term_referent_component_index = q.term_reference_component_index
-        AND t.term_referent_constructor_index IS NULL
-    |]
+          SELECT
+            q.term_reference_object_id,
+            q.term_reference_component_index
+          FROM filter_query q, find_type_index t
+          WHERE t.type_reference_builtin IS :typeBuiltin
+            AND t.type_reference_hash_id IS :typeHashId
+            AND t.type_reference_component_index IS :typeComponentIndex
+            AND t.term_referent_object_id = q.term_reference_object_id
+            AND t.term_referent_component_index = q.term_reference_component_index
+            AND t.term_referent_constructor_index IS NULL
+        |]
     insert r =
       execute
         [sql|
-      INSERT INTO filter_query (
-        term_reference_object_id,
-        term_reference_component_index
-      ) VALUES (@r, @)
-    |]
+          INSERT INTO filter_query (
+            term_reference_object_id,
+            term_reference_component_index
+          ) VALUES (@r, @)
+        |]
     typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
     typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
     typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
     create =
       execute
         [sql|
-        CREATE TEMPORARY TABLE filter_query (
-          term_reference_object_id INTEGER NOT NULL,
-          term_reference_component_index INTEGER NOT NULL
-        )
-      |]
+          CREATE TEMPORARY TABLE filter_query (
+            term_reference_object_id INTEGER NOT NULL,
+            term_reference_component_index INTEGER NOT NULL
+          )
+        |]
     drop = execute [sql|DROP TABLE filter_query|]
 
 addToTypeMentionsIndex :: S.ReferenceH -> S.Referent.Id -> Transaction ()
@@ -1804,45 +1804,45 @@ getDependenciesBetweenTerms oid1 oid2 =
     theSql :: Sql
     theSql =
       [sql|
-      WITH RECURSIVE paths(level, path_last, path_init) AS (
-        SELECT
-          0,
-          dependents_index.dependency_object_id,
-          ''
-        FROM dependents_index
-          JOIN object ON dependents_index.dependency_object_id = object.id
-        WHERE dependents_index.dependent_object_id = :oid1
-          AND object.type_id = 0 -- Note (1)
-          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-        UNION ALL
-        SELECT
-          paths.level + 1 AS level,
-          dependents_index.dependency_object_id,
-          dependents_index.dependent_object_id || ',' || paths.path_init
-        FROM paths
-          JOIN dependents_index
-            ON paths.path_last = dependents_index.dependent_object_id
-          JOIN object ON dependents_index.dependency_object_id = object.id
-        WHERE object.type_id = 0 -- Note (1)
-          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-          AND paths.path_last != :oid2 -- Note (2)
-        ORDER BY level DESC
-      ),
-      elems(path_elem, path_init) AS (
-        SELECT null, path_init
-        FROM paths
-        WHERE paths.path_last = :oid2
-        UNION ALL
-        SELECT
-          substr(path_init, 0, instr(path_init, ',')),
-          substr(path_init, instr(path_init, ',') + 1)
+        WITH RECURSIVE paths(level, path_last, path_init) AS (
+          SELECT
+            0,
+            dependents_index.dependency_object_id,
+            ''
+          FROM dependents_index
+            JOIN object ON dependents_index.dependency_object_id = object.id
+          WHERE dependents_index.dependent_object_id = :oid1
+            AND object.type_id = 0 -- Note (1)
+            AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+          UNION ALL
+          SELECT
+            paths.level + 1 AS level,
+            dependents_index.dependency_object_id,
+            dependents_index.dependent_object_id || ',' || paths.path_init
+          FROM paths
+            JOIN dependents_index
+              ON paths.path_last = dependents_index.dependent_object_id
+            JOIN object ON dependents_index.dependency_object_id = object.id
+          WHERE object.type_id = 0 -- Note (1)
+            AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+            AND paths.path_last != :oid2 -- Note (2)
+          ORDER BY level DESC
+        ),
+        elems(path_elem, path_init) AS (
+          SELECT null, path_init
+          FROM paths
+          WHERE paths.path_last = :oid2
+          UNION ALL
+          SELECT
+            substr(path_init, 0, instr(path_init, ',')),
+            substr(path_init, instr(path_init, ',') + 1)
+          FROM elems
+          WHERE path_init != ''
+        )
+        SELECT DISTINCT CAST(path_elem AS integer) AS path_elem -- Note (3)
         FROM elems
-        WHERE path_init != ''
-      )
-      SELECT DISTINCT CAST(path_elem AS integer) AS path_elem -- Note (3)
-      FROM elems
-      WHERE path_elem IS NOT null
-    |]
+        WHERE path_elem IS NOT null
+      |]
 
 getDirectDependenciesOfScope ::
   (S.Reference -> Transaction Bool) ->
