@@ -48,6 +48,8 @@ jobs:
           files: |
             **/*.hs
             **/*.hs-boot
+          # allows the `separator` to actually be a newline (see tj-actions/changed-files#2148)
+          safe_output: false
           separator: "\n"
       - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
         with:
