@@ -228,7 +228,7 @@ pokeSentinelOff (Stack _ _ sp ustk bstk) off = do
 type DebugCallStack = (() :: Constraint)
 #endif
 
-newtype Callback = Hook (XStack -> IO ())
+newtype Callback = Hook      (XStack -> IO ())
 
 instance Eq Callback where _ == _ = True
 

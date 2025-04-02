@@ -945,7 +945,7 @@ hashIdWithVersionForObject oId =
 -- | @recordObjectRehash old new@ records that object @old@ was rehashed and inserted as a new object, @new@.
 --
 -- This function rewrites @old@'s @hash_object@ rows in place to point at the new object.
-recordObjectRehash :: ObjectId -> ObjectId -> Transaction ()
+recordObjectRehash :: ObjectId ->      ObjectId -> Transaction ()
 recordObjectRehash old new =
   execute
     [sql|
