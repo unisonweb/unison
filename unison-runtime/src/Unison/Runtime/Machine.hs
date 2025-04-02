@@ -50,7 +50,7 @@ import Unison.Reference
   ( Reference,
     Reference' (Builtin),
   )
-import Unison.Referent (pattern      Ref)
+import Unison.Referent (pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
     Code (..),
