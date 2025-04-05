@@ -117,6 +117,8 @@ data AmbientContext = AmbientContext
 data BlockContext
   = -- This ABT node is at the top level of a TermParser.block.
     Block
+  | -- This ABT node is the first within the body of a `->` lambda.
+    LamStart
   | Normal
   deriving (Eq, Show)
 
@@ -279,7 +281,6 @@ pretty0
               numQuotes = max 3 $ longestRun '"' s + 1
               longestRun :: Char -> Text -> Int
               longestRun c = maximum . (0 :) . map Text.length . filter ((== c) . Text.head) . Text.group
-
           Text' s -> pure . fmt S.TextLiteral $ l $ U.ushow s
           Char' c -> pure
             . fmt S.CharLiteral
@@ -384,8 +385,8 @@ pretty0
             | p <= Control && isDestructuringBind scrutinee cs -> do
                 env <- ask
                 let letIntro = case bc of
-                      Block -> id
-                      Normal -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
+                      LamStart -> \x -> fmt S.ControlKeyword "let" `PP.hang` x
+                      _ -> id
                 lhs <- do
                   let (lhs, _) = prettyPattern env.ppe (ac Annotation Block im doc) Application vs pat
                   guard' <- printGuard guard
@@ -641,7 +642,7 @@ pretty0
                     pure . paren (p >= InfixOp Lowest) $
                       PP.group (fmt S.ControlKeyword "cases") `PP.hang` pbs
                   LamsNamedPred' vs body -> do
-                    prettyBody <- pretty0 (ac Control Normal im doc) body
+                    prettyBody <- pretty0 (ac Control LamStart im doc) body
                     let hang = case body of
                           Delay' (Lets' _ _) -> PP.softHang
                           Lets' _ _ -> PP.softHang
@@ -685,7 +686,7 @@ printLet context sc bs e uses = do
       e -> List.singleton <$> pretty0 (ac Annotation Normal context.imports context.docContext) e
     letIntro = case sc of
       Block -> id
-      Normal -> (fmt S.ControlKeyword "let" `PP.hang`)
+      _ -> (fmt S.ControlKeyword "let" `PP.hang`)
 
 printLetBindings ::
   (MonadPretty v m) =>
