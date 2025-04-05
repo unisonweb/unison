@@ -309,8 +309,8 @@ jobs:
       matrix:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
-          - ubuntu-20.04
-          - macOS-13
+          - ubuntu-24.04
+          - macos-13
           - windows-2019
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
