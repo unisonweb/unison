@@ -52,7 +52,7 @@ run :: Gen v loc a -> GenState v loc -> (a, GenState v loc)
 run (Gen ma) st0 = ma st0
 
 -- | Create a unique @UVar@ associated with @typ@
-freshVar :: Var v => T.Type v loc -> Gen v loc (UVar v loc)
+freshVar :: (Var v) => T.Type v loc -> Gen v loc (UVar v loc)
 freshVar typ = do
   st@GenState {unifVars, newVars} <- get
   let var :: Symbol
@@ -63,7 +63,7 @@ freshVar typ = do
   pure uvar
 
 -- | Associate a fresh @UVar@ with @t@, push onto context
-pushType :: Var v => T.Type v loc -> Gen v loc (UVar v loc)
+pushType :: (Var v) => T.Type v loc -> Gen v loc (UVar v loc)
 pushType t = do
   GenState {typeMap} <- get
   (var, newTypeMap) <-
@@ -75,13 +75,13 @@ pushType t = do
   pure var
 
 -- | Lookup the @UVar@ associated with a @Type@
-lookupType :: Var v => T.Type v loc -> Gen v loc (Maybe (UVar v loc))
+lookupType :: (Var v) => T.Type v loc -> Gen v loc (Maybe (UVar v loc))
 lookupType t = do
   GenState {typeMap} <- get
   pure (NonEmpty.head <$> Map.lookup t typeMap)
 
 -- | Remove a @Type@ from the context
-popType :: Var v => T.Type v loc -> Gen v loc ()
+popType :: (Var v) => T.Type v loc -> Gen v loc ()
 popType t = do
   modify \st -> st {typeMap = del (typeMap st)}
   where
@@ -94,7 +94,7 @@ popType t = do
        in Map.alter f t m
 
 -- | Helper to run an action with the given @Type@ in the context
-scopedType :: Var v => T.Type v loc -> (UVar v loc -> Gen v loc r) -> Gen v loc r
+scopedType :: (Var v) => T.Type v loc -> (UVar v loc -> Gen v loc r) -> Gen v loc r
 scopedType t m = do
   s <- pushType t
   r <- m s

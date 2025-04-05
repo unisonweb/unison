@@ -4,9 +4,12 @@
 
 * [Overview](#overview)
 * [Installation and setup](#installation-and-setup)
-  * [Settings](#settings)
   * [NeoVim](#neovim)
   * [VSCode](#vscode)
+  * [Helix Editor](#helix-editor)
+  * [Emacs](#emacs)
+  * [other editors](#other-editors)
+* [Configuration](#configuration)
 
 ## Overview
 
@@ -31,7 +34,7 @@ Note for Windows users: Due to an outstanding issue with GHC's IO manager on Win
 Enabling the LSP on windows can cause UCM to hang on exit and may require the process to be killed by the operating system or via Ctrl-C.
 Note that this doesn't pose any risk of codebase corruption or cause any known issues, it's simply an annoyance.
 
-If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable. 
+If you accept this annoyance, you can enable the LSP server on Windows by exporting the `UNISON_LSP_ENABLED=true` environment variable.
 
 You can set this persistently in powershell using:
 
@@ -40,17 +43,6 @@ You can set this persistently in powershell using:
 ```
 
 See [this issue](https://github.com/unisonweb/unison/issues/3487) for more details.
-
-### Settings
-
-Supported settings and their defaults. See information for your language server client about where to provide these.
-
-```json
-{
-  // A suggestion for the formatter about how wide (in columns) to print definitions.
-  "formattingWidth": 80
-}
-```
 
 ### NeoVim
 
@@ -193,6 +185,18 @@ language-servers = [ "ucm" ]
 
 or follow the instructions for Unison in "[How to install the default language servers](https://github.com/helix-editor/helix/wiki/How-to-install-the-default-language-servers#unison)" wiki page.
 
+### Emacs
+
+In Emacs 29 (or earlier, if you install the [Eglot](https://elpa.gnu.org/packages/eglot.html) package), add the following to your init file:
+
+```elisp
+(push '((unison-ts-mode unisonlang-mode) "127.0.0.1" 5757)
+      eglot-server-programs)
+```
+
+This requires having either [unison-ts-mode](https://github.com/fmguerreiro/unison-ts-mode) or [unisonlang-mode](https://melpa.org/#/unisonlang-mode) installed. unison-ts-mode is newer, supported, and more complete, but isn’t in [MELPA](https://melpa.org/) yet and requires a couple commands to set up [tree-sitter-unison](https://github.com/kylegoetz/tree-sitter-unison).
+
+You can then use `M-x eglot` in a Unison scratch file buffer. You can also [configure Eglot to start automatically](https://www.gnu.org/software/emacs/manual/html_node/eglot/Starting-Eglot.html).
 
 ### Other Editors
 
@@ -205,11 +209,14 @@ Note that some editors require passing the command and arguments as separate par
 
 Supported settings and their defaults. See information for your language server client about where to provide these.
 
+* `formattingWidth`: A suggestion for the formatter about how wide (in columns) to print definitions.
+* `maxCompletions`: The number of completions the server should collect and send based on a single query.  Increasing this limit will provide more completion results, but at the cost of being slower to respond.
+
+    If explicitly set to `null` the server will return ALL completions available.
+
 ```json
 {
-  // The number of completions the server should collect and send based on a single query.
-  // Increasing this limit will provide more completion results, but at the cost of being slower to respond.
-  // If explicitly set to `null` the server will return ALL completions available.
+  "formattingWidth": 80,
   "maxCompletions": 100
 }
 ```

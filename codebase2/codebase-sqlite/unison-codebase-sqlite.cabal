@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -20,6 +20,11 @@ extra-source-files:
     sql/008-add-most-recent-namespace-table.sql
     sql/009-add-squash-cache-table.sql
     sql/010-ensure-squash-cache-table.sql
+    sql/011-cd-to-project-root.sql
+    sql/012-add-current-project-path-table.sql
+    sql/013-add-project-branch-reflog-table.sql
+    sql/014-add-project-branch-causal-hash-id.sql
+    sql/015-add-project-branch-last-accessed.sql
     sql/create.sql
 
 source-repository head
@@ -53,6 +58,7 @@ library
       U.Codebase.Sqlite.Patch.TypeEdit
       U.Codebase.Sqlite.Project
       U.Codebase.Sqlite.ProjectBranch
+      U.Codebase.Sqlite.ProjectReflog
       U.Codebase.Sqlite.Queries
       U.Codebase.Sqlite.Reference
       U.Codebase.Sqlite.Referent
@@ -60,7 +66,6 @@ library
       U.Codebase.Sqlite.RemoteProjectBranch
       U.Codebase.Sqlite.Serialization
       U.Codebase.Sqlite.Symbol
-      U.Codebase.Sqlite.Sync22
       U.Codebase.Sqlite.TempEntity
       U.Codebase.Sqlite.TempEntityType
       U.Codebase.Sqlite.Term.Format
@@ -90,6 +95,7 @@ library
       MultiParamTypeClasses
       NamedFieldPuns
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
       QuasiQuotes
@@ -103,8 +109,7 @@ library
       TypeOperators
       ViewPatterns
   build-depends:
-      Only
-    , aeson
+      aeson
     , base
     , bytes
     , bytestring
@@ -112,24 +117,22 @@ library
     , extra
     , generic-lens
     , lens
-    , monad-validate
     , mtl
     , network-uri
     , network-uri-orphans-sqlite
     , nonempty-containers
-    , safe
     , text
+    , time
     , transformers
     , unison-codebase
-    , unison-codebase-sync
     , unison-core
     , unison-core-orphans-sqlite
+    , unison-core1
     , unison-hash
     , unison-hash-orphans-sqlite
     , unison-prelude
     , unison-sqlite
     , unison-util-base32hex
-    , unison-util-cache
     , unison-util-file-embed
     , unison-util-serialization
     , unison-util-term
@@ -137,5 +140,4 @@ library
     , uuid
     , uuid-orphans-sqlite
     , vector
-    , witch
   default-language: Haskell2010

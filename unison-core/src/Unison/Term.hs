@@ -3,38 +3,43 @@
 
 module Unison.Term where
 
-import Control.Lens (Lens', Prism', lens, view, _2)
+import Control.Lens (Lens', Prism', lens, _2)
 import Control.Monad.State (evalState)
 import Control.Monad.State qualified as State
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
+import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
 import Data.Sequence qualified as Sequence
 import Data.Set qualified as Set
-import Data.Set.NonEmpty qualified as NES
 import Data.Text qualified as Text
 import Text.Show
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.Names.ResolvesTo (ResolvesTo (..), partitionResolutions)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, pattern Builtin)
+import Unison.Reference (Reference, TermReference, TypeReference, pattern Builtin)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List (multimap, validate)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -146,69 +151,56 @@ bindNames ::
   forall v a.
   (Var v) =>
   (v -> Name.Name) ->
+  (Name.Name -> v) ->
   Set v ->
   Names ->
   Term v a ->
-  Names.ResolutionResult v a (Term v a)
-bindNames unsafeVarToName keepFreeTerms ns e = do
-  let freeTmVars = [(v, a) | (v, a) <- ABT.freeVarOccurrences keepFreeTerms e]
-      -- !_ = trace "bindNames.free term vars: " ()
-      -- !_ = traceShow $ fst <$> freeTmVars
-      freeTyVars =
-        [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations e), a <- as
-        ]
-      -- !_ = trace "bindNames.free type vars: " ()
-      -- !_ = traceShow $ fst <$> freeTyVars
-      okTm :: (v, a) -> Names.ResolutionResult v a (v, Term v a)
-      okTm (v, a) = case Names.lookupHQTerm Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
-        rs
-          | Set.size rs == 1 ->
-              pure (v, fromReferent a $ Set.findMin rs)
-          | otherwise -> case NES.nonEmptySet rs of
-              Nothing -> Left (pure (Names.TermResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TermResolutionFailure v a (Names.Ambiguous ns refs)))
-      okTy (v, a) = case Names.lookupHQType Names.IncludeSuffixes (Name.convert $ unsafeVarToName v) ns of
-        rs
-          | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
-          | otherwise -> case NES.nonEmptySet rs of
-              Nothing -> Left (pure (Names.TypeResolutionFailure v a Names.NotFound))
-              Just refs -> Left (pure (Names.TypeResolutionFailure v a (Names.Ambiguous ns refs)))
-  termSubsts <- validate okTm freeTmVars
-  typeSubsts <- validate okTy freeTyVars
-  pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
+  Names.ResolutionResult a (Term v a)
+bindNames unsafeVarToName nameToVar localVars namespace =
+  -- term is bound here because the where-clause binds a data structure that we only want to compute once, then share
+  -- across all calls to `bindNames` with different terms
+  \term -> do
+    let freeTmVars = ABT.freeVarOccurrences localVars term
+        freeTyVars =
+          [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
+          ]
 
--- This function replaces free term and type variables with
--- hashes found in the provided `Names`, using suffix-based
--- lookup. Any terms not found in the `Names` are kept free.
-bindSomeNames ::
-  forall v a.
-  (Var v) =>
-  (v -> Name.Name) ->
-  Set v ->
-  Names ->
-  Term v a ->
-  Names.ResolutionResult v a (Term v a)
--- bindSomeNames ns e | trace "Term.bindSome" False
---                   || trace "Names =" False
---                   || traceShow ns False
---                   || trace "Free type vars:" False
---                   || traceShow (freeTypeVars e) False
---                   || trace "Free term vars:" False
---                   || traceShow (freeVars e) False
---                   || traceShow e False
---                   = undefined
-bindSomeNames unsafeVarToName avoid ns e = bindNames unsafeVarToName (avoid <> varsToTDNR) ns e
+        okTm :: (v, a) -> Maybe (v, ResolvesTo Referent)
+        okTm (v, _) =
+          case Set.size matches of
+            1 -> Just (v, Set.findMin matches)
+            0 -> Nothing -- not found: leave free for telling user about expected type
+            _ -> Nothing -- ambiguous: leave free for TDNR
+          where
+            matches :: Set (ResolvesTo Referent)
+            matches =
+              resolveTermName (unsafeVarToName v)
+
+        okTy :: (v, a) -> Names.ResolutionResult a (v, Type v a)
+        okTy (v, a) =
+          case Names.lookupHQType Names.IncludeSuffixes hqName namespace of
+            rs
+              | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
+              | Set.size rs == 0 -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a Names.NotFound))
+              | otherwise -> Left (Seq.singleton (Names.TypeResolutionFailure hqName a (Names.Ambiguous namespace rs Set.empty)))
+          where
+            hqName = HQ.NameOnly (unsafeVarToName v)
+
+    let (namespaceTermResolutions, localTermResolutions) =
+          partitionResolutions (mapMaybe okTm freeTmVars)
+
+        termSubsts =
+          [(v, fromReferent () ref) | (v, ref) <- namespaceTermResolutions]
+            ++ [(v, var () (nameToVar name)) | (v, name) <- localTermResolutions]
+    typeSubsts <- validate okTy freeTyVars
+    pure $
+      term
+        & ABT.substsInheritAnnotation termSubsts
+        & substTypeVars typeSubsts
   where
-    -- `Term.bindNames` takes a set of variables that are not substituted.
-    -- These should be the variables that will be subject to TDNR, which
-    -- we compute as the set of variables whose names cannot be found in `ns`.
-    --
-    -- This allows TDNR to disambiguate those names (if multiple definitions
-    -- share the same suffix) or to report the type expected for that name
-    -- (if a free variable is being used as a typed hole).
-    varsToTDNR = Set.filter notFound (freeVars e)
-    notFound var =
-      Set.size (Name.searchByRankedSuffix (unsafeVarToName var) (Names.terms ns)) /= 1
+    resolveTermName :: Name.Name -> Set (ResolvesTo Referent)
+    resolveTermName =
+      Names.resolveName (Names.terms namespace) (Set.map unsafeVarToName localVars)
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -396,7 +388,7 @@ substTypeVar vt ty = go Set.empty
                           t2 = ABT.bindInheritAnnotation body (Type.var () v2)
                        in uncapture ((ABT.annotation t, v2) : vs) (renameTypeVar v v2 e) t2
                 uncapture vs e t0 =
-                  let t = foldl (\body (loc, v) -> Type.forall loc v body) t0 vs
+                  let t = foldl (\body (loc, v) -> Type.forAll loc v body) t0 vs
                       bound' = case Type.unForalls (Type.stripIntroOuters t) of
                         Nothing -> bound
                         Just (vs, _) -> bound <> Set.fromList vs
@@ -597,6 +589,13 @@ pattern BinaryAppsPred' ::
   Term2 vt at ap v a ->
   (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
+
+pattern BinaryAppPred' ::
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a ->
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool)
+pattern BinaryAppPred' f arg1 arg2 <- (unBinaryAppPred -> Just (f, arg1, arg2))
 
 pattern OverappliedBinaryAppPred' ::
   Term2 vt at ap v a ->
@@ -865,19 +864,39 @@ ann ::
   Term2 vt at ap v a
 ann a e t = ABT.tm' a (Ann e t)
 
--- arya: are we sure we want the two annotations to be the same?
-lam :: (Ord v) => a -> v -> Term2 vt at ap v a -> Term2 vt at ap v a
-lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
+-- | Add a lambda with a single argument.
+lam ::
+  (Ord v) =>
+  -- | Annotation of the whole lambda
+  a ->
+  -- Annotation of just the arg binding
+  (a, v) ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
+lam spanAnn (bindingAnn, v) body = ABT.tm' spanAnn (Lam (ABT.abs' bindingAnn v body))
+
+-- | Add a lambda with a list of arguments.
+lam' ::
+  (Ord v) =>
+  -- | Annotation of the whole lambda
+  a ->
+  [(a {- Annotation of the arg binding -}, v)] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
+lam' a vs body = foldr (lam a) body vs
+
+-- | Only use this variant if you don't have source annotations for the binding arguments available.
+lamWithoutBindingAnns ::
+  (Ord v) =>
+  a ->
+  [v] ->
+  Term2 vt at ap v a ->
+  Term2 vt at ap v a
+lamWithoutBindingAnns a vs body = lam' a ((a,) <$> vs) body
 
 delay :: (Var v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a
 delay a body =
   ABT.tm' a (Lam (ABT.abs' a (ABT.freshIn (ABT.freeVars body) (Var.typed Var.Delay)) body))
-
-lam' :: (Ord v) => a -> [v] -> Term2 vt at ap v a -> Term2 vt at ap v a
-lam' a vs body = foldr (lam a) body vs
-
-lam'' :: (Ord v) => [(a, v)] -> Term2 vt at ap v a -> Term2 vt at ap v a
-lam'' vs body = foldr (uncurry lam) body vs
 
 isLam :: Term2 vt at ap v a -> Bool
 isLam t = arity t > 0
@@ -946,7 +965,7 @@ letRec isTop blockAnn bindings e =
     (foldr addAbs body bindings)
   where
     addAbs :: ((a, v), b) -> ABT.Term f v a -> ABT.Term f v a
-    addAbs ((_a, v), _b) t = ABT.abs' blockAnn v t
+    addAbs ((a, v), _b) t = ABT.abs' a v t
     body :: Term' vt v a
     body = ABT.tm' blockAnn (LetRec isTop (map snd bindings) e)
 
@@ -977,7 +996,7 @@ let1 ::
   Term2 vt at ap v a
 let1 isTop bindings e = foldr f e bindings
   where
-    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' (ABT.annotation body) v body))
+    f ((ann, v), b) body = ABT.tm' (ann <> ABT.annotation body) (Let isTop b (ABT.abs' ann v body))
 
 let1' ::
   (Semigroup a, Ord v) =>
@@ -996,12 +1015,14 @@ let1' isTop bindings e = foldr f e bindings
 singleLet ::
   (Ord v) =>
   IsTop ->
-  -- Annotation spanning the whole let-binding
+  -- Annotation spanning the let-binding and its body
+  a ->
+  -- Annotation for just the binding, not the body it's used in.
   a ->
   (v, Term2 vt at ap v a) ->
   Term2 vt at ap v a ->
   Term2 vt at ap v a
-singleLet isTop a (v, body) e = ABT.tm' a (Let isTop body (ABT.abs' a v e))
+singleLet isTop spanAnn absAnn (v, body) e = ABT.tm' spanAnn (Let isTop body (ABT.abs' absAnn v e))
 
 -- let1' :: Var v => [(Text, Term0 vt v)] -> Term0 vt v -> Term0 vt v
 -- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
@@ -1142,10 +1163,21 @@ unBinaryAppsPred ::
       ],
       Term2 vt at ap v a
     )
-unBinaryAppsPred (t, pred) = case unBinaryApp t of
-  Just (f, x, y) | pred f -> case unBinaryAppsPred (x, pred) of
+unBinaryAppsPred (t, pred) = case unBinaryAppPred (t, pred) of
+  Just (f, x, y) -> case unBinaryAppsPred (x, pred) of
     Just (as, xLast) -> Just ((xLast, f) : as, y)
     Nothing -> Just ([(x, f)], y)
+  _ -> Nothing
+
+unBinaryAppPred ::
+  (Term2 vt at ap v a, Term2 vt at ap v a -> Bool) ->
+  Maybe
+    ( Term2 vt at ap v a,
+      Term2 vt at ap v a,
+      Term2 vt at ap v a
+    )
+unBinaryAppPred (t, pred) = case unBinaryApp t of
+  Just (f, x, y) | pred f -> Just (f, x, y)
   _ -> Nothing
 
 unLams' ::
@@ -1188,27 +1220,27 @@ unReqOrCtor (Request' r) = Just r
 unReqOrCtor _ = Nothing
 
 -- Dependencies including referenced data and effect decls
-dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
-dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
+dependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> DefnsF Set TermReference TypeReference
+dependencies =
+  List.foldl' f (Defns Set.empty Set.empty) . Set.toList . labeledDependencies
+  where
+    f ::
+      DefnsF Set TermReference TypeReference ->
+      LabeledDependency ->
+      DefnsF Set TermReference TypeReference
+    f deps = \case
+      LD.TermReferent (Referent.Con ref _) -> deps & over #types (Set.insert (ref ^. ConstructorReference.reference_))
+      LD.TermReferent (Referent.Ref ref) -> deps & over #terms (Set.insert ref)
+      LD.TypeReference ref -> deps & over #types (Set.insert ref)
 
 termDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set TermReference
 termDependencies =
-  Set.fromList
-    . mapMaybe
-      ( LD.fold
-          (\_typeRef -> Nothing)
-          ( Referent.fold
-              (\termRef -> Just termRef)
-              (\_typeConRef _i _ct -> Nothing)
-          )
-      )
-    . toList
-    . labeledDependencies
+  (.terms) . dependencies
 
 -- gets types from annotations and constructors
 typeDependencies :: (Ord v, Ord vt) => Term2 vt at ap v a -> Set Reference
 typeDependencies =
-  Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
+  (.types) . dependencies
 
 -- Gets the types to which this term contains references via patterns and
 -- data constructors.
@@ -1322,7 +1354,7 @@ betaNormalForm e = e
 -- x -> f x => f
 etaNormalForm :: (Ord v) => Term0 v -> Term0 v
 etaNormalForm tm = case tm of
-  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaNormalForm body
+  LamNamed' v body -> step . lam () ((), v) $ etaNormalForm body
     where
       step (LamNamed' v (App' f (Var' v')))
         | v == v', v `Set.notMember` freeVars f = f
@@ -1332,7 +1364,7 @@ etaNormalForm tm = case tm of
 -- x -> f x => f as long as `x` is a variable of type `Var.Eta`
 etaReduceEtaVars :: (Var v) => Term0 v -> Term0 v
 etaReduceEtaVars tm = case tm of
-  LamNamed' v body -> step . lam (ABT.annotation tm) v $ etaReduceEtaVars body
+  LamNamed' v body -> step . lam (ABT.annotation tm) ((), v) $ etaReduceEtaVars body
     where
       ok v v' f =
         v == v'
@@ -1382,7 +1414,7 @@ containsExpression = ABT.containsExpression
 -- Used to find matches of `@rewrite case` rules
 -- Returns `Nothing` if `pat` can't be interpreted as a `Pattern`
 -- (like `1 + 1` is not a valid pattern, but `Some x` can be)
-containsCaseTerm :: Var v1 => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
+containsCaseTerm :: (Var v1) => Term2 tv ta tb v1 loc -> Term2 typeVar typeAnn loc v2 a -> Maybe Bool
 containsCaseTerm pat =
   (\tm -> containsCase <$> pat' <*> pure tm)
   where
@@ -1455,7 +1487,7 @@ rewriteCasesLHS pat0 pat0' =
         go t = t
 
 -- Implementation detail of `@rewrite case` rules (both find and replace)
-toPattern :: Var v => Term2 tv ta tb v loc -> Maybe (Pattern loc)
+toPattern :: (Var v) => Term2 tv ta tb v loc -> Maybe (Pattern loc)
 toPattern tm = case tm of
   Var' v | "_" `Text.isPrefixOf` Var.name v -> pure $ Pattern.Unbound loc
   Var' _ -> pure $ Pattern.Var loc
@@ -1483,7 +1515,7 @@ toPattern tm = case tm of
     loc = ABT.annotation tm
 
 -- Implementation detail of `@rewrite case` rules (both find and replace)
-matchCaseFromTerm :: Var v => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a (Term2 typeVar typeAnn a v a))
+matchCaseFromTerm :: (Var v) => Term2 typeVar typeAnn a v a -> Maybe (MatchCase a (Term2 typeVar typeAnn a v a))
 matchCaseFromTerm (App' (Builtin' "#case") (ABT.unabsA -> (_, Apps' _ci [pat, guard, body]))) = do
   p <- toPattern pat
   let g = unguard guard

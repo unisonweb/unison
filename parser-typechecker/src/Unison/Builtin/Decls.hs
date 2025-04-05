@@ -1,11 +1,10 @@
 module Unison.Builtin.Decls where
 
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Data.List (elemIndex, find)
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
-import Data.Sequence (Seq)
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Unison.ABT qualified as ABT
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -14,6 +13,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Convert (hashDataDecls, typeToReference)
 import Unison.Pattern qualified as Pattern
+import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -107,11 +107,20 @@ constructorId ref name = do
   (_, _, dd) <- find (\(_, r, _) -> Reference.DerivedId r == ref) builtinDataDecls
   fmap fromIntegral . elemIndex name $ DD.constructorNames dd
 
+effectId :: Reference -> Text -> Maybe ConstructorId
+effectId ref name = do
+  (_, _, ed) <- find (\(_, r, _) -> Reference.DerivedId r == ref) builtinEffectDecls
+  fmap fromIntegral . elemIndex name . DD.constructorNames $ DD.toDataDecl ed
+
 noneId, someId, okConstructorId, failConstructorId, docBlobId, docLinkId, docSignatureId, docSourceId, docEvaluateId, docJoinId, linkTermId, linkTypeId, eitherRightId, eitherLeftId :: ConstructorId
 isPropagatedConstructorId, isTestConstructorId, bufferModeNoBufferingId, bufferModeLineBufferingId, bufferModeBlockBufferingId, bufferModeSizedBlockBufferingId :: ConstructorId
 seqViewEmpty, seqViewElem :: ConstructorId
 noneId = Maybe.fromJust $ constructorId optionalRef "Optional.None"
 someId = Maybe.fromJust $ constructorId optionalRef "Optional.Some"
+
+mapTip, mapBin :: ConstructorId
+mapTip = Maybe.fromJust $ constructorId mapRef "Map.Tip"
+mapBin = Maybe.fromJust $ constructorId mapRef "Map.Bin"
 
 isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRef "IsPropagated.IsPropagated"
 
@@ -153,6 +162,25 @@ bufferModeBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.B
 
 bufferModeSizedBlockBufferingId = Maybe.fromJust $ constructorId bufferModeRef "io2.BufferMode.SizedBlockBuffering"
 
+fileModeReadId, fileModeWriteId, fileModeAppendId, fileModeReadWriteId :: ConstructorId
+fileModeReadId = Maybe.fromJust $ constructorId fileModeRef "io2.FileMode.Read"
+fileModeWriteId = Maybe.fromJust $ constructorId fileModeRef "io2.FileMode.Write"
+fileModeAppendId = Maybe.fromJust $ constructorId fileModeRef "io2.FileMode.Append"
+fileModeReadWriteId = Maybe.fromJust $ constructorId fileModeRef "io2.FileMode.ReadWrite"
+
+seekModeAbsoluteId, seekModeRelativeId, seekModeEndId :: ConstructorId
+seekModeAbsoluteId = Maybe.fromJust $ constructorId seekModeRef "io2.SeekMode.AbsoluteSeek"
+seekModeRelativeId = Maybe.fromJust $ constructorId seekModeRef "io2.SeekMode.RelativeSeek"
+seekModeEndId = Maybe.fromJust $ constructorId seekModeRef "io2.SeekMode.SeekFromEnd"
+
+stdInId, stdOutId, stdErrId :: ConstructorId
+stdInId = Maybe.fromJust $ constructorId stdHandleRef "io2.StdHandle.StdIn"
+stdOutId = Maybe.fromJust $ constructorId stdHandleRef "io2.StdHandle.StdOut"
+stdErrId = Maybe.fromJust $ constructorId stdHandleRef "io2.StdHandle.StdErr"
+
+exceptionRaiseId :: ConstructorId
+exceptionRaiseId = Maybe.fromJust $ effectId exceptionRef "Exception.raise"
+
 okConstructorReferent, failConstructorReferent :: Referent.Referent
 okConstructorReferent = Referent.Con (ConstructorReference testResultRef okConstructorId) CT.Data
 failConstructorReferent = Referent.Con (ConstructorReference testResultRef failConstructorId) CT.Data
@@ -174,13 +202,13 @@ rewriteCaseRef = lookupDeclRef "RewriteCase"
 pattern RewriteCase' :: Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 pattern RewriteCase' lhs rhs <- (unRewriteCase -> Just (lhs, rhs))
 
-rewriteCase :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteCase :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteCase a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
     r = ConstructorReference rewriteCaseRef 0
 
-rewriteTerm :: Ord v => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+rewriteTerm :: (Ord v) => a -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 rewriteTerm a tm1 tm2 = Term.app a (Term.app a1 (Term.constructor a1 r) tm1) tm2
   where
     a1 = ABT.annotation tm1
@@ -222,6 +250,9 @@ unRewriteSignature _ = Nothing
 
 rewritesRef :: Reference
 rewritesRef = lookupDeclRef "Rewrites"
+
+mapRef :: Reference
+mapRef = lookupDeclRef "Map"
 
 pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Rewrites' ts <- (unRewrites -> Just ts)
@@ -277,7 +308,8 @@ builtinDataDecls = rs1 ++ rs
           (v "RewriteTerm", rewriteTerm),
           (v "RewriteSignature", rewriteType),
           (v "RewriteCase", rewriteCase),
-          (v "Rewrites", rewrites)
+          (v "Rewrites", rewrites),
+          (v "Map", map)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -286,6 +318,7 @@ builtinDataDecls = rs1 ++ rs
       _ -> error "builtinDataDecls: Expected a single linkRef"
     v = Var.named
     var name = Type.var () (v name)
+    infixr 7 `arr`
     arr = Type.arrow'
     -- see note on `hashDecls` above for why ctor must be called `Unit.Unit`.
     unit = DataDeclaration Structural () [] [((), v "Unit.Unit", var "Unit")]
@@ -580,6 +613,21 @@ builtinDataDecls = rs1 ++ rs
         [ ((), v "Link.Term", Type.termLink () `arr` var "Link"),
           ((), v "Link.Type", Type.typeLink () `arr` var "Link")
         ]
+    map =
+      DataDeclaration
+        (Unique "s9drbo3urtmpecjn6ivkj5mn0vr11gfn")
+        ()
+        [v "k", v "v"]
+        let forke = Type.foralls () [v "k", v "v"]
+            k = var "k"
+            e = var "v"
+            mapke = Type.apps' (var "Map") [k, e] in
+        [ ( (),
+            v "Map.Bin",
+            forke $ Type.nat () `arr` k `arr` e `arr` mapke `arr` mapke `arr` mapke
+          ),
+          ((), v "Map.Tip", forke mapke)
+        ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =
@@ -596,7 +644,7 @@ builtinEffectDecls =
         Structural
         ()
         []
-        [ ((), v "Exception.raise", Type.forall () (v "x") (failureType () `arr` self (var "x")))
+        [ ((), v "Exception.raise", Type.forAll () (v "x") (failureType () `arr` self (var "x")))
         ]
 
 pattern UnitRef :: Reference
@@ -776,8 +824,8 @@ tupleTerm = foldr tupleConsTerm (unitTerm mempty)
 forceTerm :: (Var v) => a -> a -> Term v a -> Term v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
-delayTerm :: (Var v) => a -> Term v a -> Term v a
-delayTerm a = Term.lam a $ Var.typed Var.Delay
+delayTerm :: (Var v) => a -> a -> Term v a -> Term v a
+delayTerm spanAnn argAnn = Term.lam spanAnn (argAnn, Var.typed Var.Delay)
 
 unTupleTerm ::
   Term.Term2 vt at ap v a ->

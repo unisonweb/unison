@@ -31,7 +31,7 @@ type TypeP v m = P v m (Type v Ann)
 -- the right of a function arrow:
 --   valueType ::= Int | Text | App valueType valueType | Arrow valueType computationType
 valueType :: (Monad m, Var v) => TypeP v m
-valueType = forall type1 <|> type1
+valueType = forAll type1 <|> type1
 
 -- Computation
 -- computationType ::= [{effect*}] valueType
@@ -101,7 +101,7 @@ sequenceTyp = do
   let a = ann open <> ann close
   pure $ Type.app a (Type.list a) t
 
-tupleOrParenthesizedType :: Var v => TypeP v m -> TypeP v m
+tupleOrParenthesizedType :: (Var v) => TypeP v m -> TypeP v m
 tupleOrParenthesizedType rec = do
   (spanAnn, ty) <- tupleOrParenthesized rec DD.unitType pair
   pure (ty {ABT.annotation = ABT.annotation ty <> spanAnn})
@@ -119,8 +119,8 @@ arrow rec =
    in chainr1 (effect <|> rec) (reserved "->" *> eff)
 
 -- "forall a b . List a -> List b -> Maybe Text"
-forall :: (Var v) => TypeP v m -> TypeP v m
-forall rec = do
+forAll :: (Var v) => TypeP v m -> TypeP v m
+forAll rec = do
   kw <- reserved "forall" <|> reserved "∀"
   vars <- fmap (fmap L.payload) . some $ prefixDefinitionName
   _ <- reserved "."

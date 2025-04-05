@@ -12,7 +12,7 @@ import Control.Lens
 import Data.List qualified as List
 import Data.Set qualified as Set
 import Unison.HashQualified qualified as HQ
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.NamesWithHistory (SearchType (..))
 import Unison.Prelude

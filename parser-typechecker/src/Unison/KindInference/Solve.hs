@@ -10,7 +10,7 @@ module Unison.KindInference.Solve
   )
 where
 
-import Control.Lens (Prism', prism', review, (%~))
+import Control.Lens (Prism', prism', review)
 import Control.Monad.Reader (asks)
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
@@ -89,7 +89,7 @@ step e st cs =
           Right () -> Right finalState
 
 -- | Default any unconstrained vars to @Type@
-defaultUnconstrainedVars :: Var v => SolveState v loc -> SolveState v loc
+defaultUnconstrainedVars :: (Var v) => SolveState v loc -> SolveState v loc
 defaultUnconstrainedVars st =
   let newConstraints = foldl' phi (constraints st) (newUnifVars st)
       phi b a = U.alter a handleNothing handleJust b
@@ -127,19 +127,19 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
           -- Signal that we solved something on this pass (by passing
           -- @True@) and continue
           Right () -> go True acc cs
-  
-    -- | tracing helper
+
+    -- \| tracing helper
     dbg ::
       forall a.
-      -- | A hanging prefix or header
+      -- \| A hanging prefix or header
       P.Pretty P.ColorText ->
-      -- | The constraints to print
+      -- \| The constraints to print
       [GeneratedConstraint v loc] ->
       ([GeneratedConstraint v loc] -> Solve v loc a) ->
       Solve v loc a
     dbg = traceApp \ppe cs -> prettyConstraints ppe (map (review _Generated) cs)
 
-    -- | Like @dbg@, but for a single constraint
+    -- \| Like @dbg@, but for a single constraint
     dbgSingle ::
       forall a.
       P.Pretty P.ColorText ->
@@ -148,7 +148,7 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
       Solve v loc a
     dbgSingle = traceApp \ppe c -> prettyConstraintD' ppe (review _Generated c)
 
-    -- | A helper for @dbg*@
+    -- \| A helper for @dbg*@
     traceApp ::
       forall a b.
       (PrettyPrintEnv -> a -> P.Pretty P.ColorText) ->
@@ -167,8 +167,7 @@ reduce cs0 = dbg "reduce" cs0 (go False [])
 -- contradictory constraint.
 addConstraint ::
   forall v loc.
-  Ord loc =>
-  Var v =>
+  (Ord loc, Var v) =>
   GeneratedConstraint v loc ->
   Solve v loc (Either (KindError v loc) ())
 addConstraint constraint = do
@@ -200,8 +199,7 @@ addConstraint constraint = do
 -- satisfied.
 addConstraint' ::
   forall v loc.
-  Ord loc =>
-  Var v =>
+  (Ord loc, Var v) =>
   UnsolvedConstraint v loc ->
   Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
 addConstraint' = \case
@@ -231,21 +229,21 @@ addConstraint' = \case
       _ -> Nothing
   Unsolved.Unify l a b -> Right <$> union l a b
   where
-    -- | A helper for solving various @Is*@ constraints. In each case
+    -- \| A helper for solving various @Is*@ constraints. In each case
     -- we want to lookup any existing constraints on the constrained
     -- variable. If none exist then we simply add the new constraint,
     -- as it can't conflict with anything. If there is an existing
     -- constraint we defer to the passed in function.
     handleConstraint ::
-      -- | The variable mentioned in the input constraint
+      -- \| The variable mentioned in the input constraint
       UVar v loc ->
-      -- | The new constraint
+      -- \| The new constraint
       Solved.Constraint (UVar v loc) v loc ->
-      -- | How to handle the an existing constraint
+      -- \| How to handle the an existing constraint
       ( Solved.Constraint (UVar v loc) v loc ->
         Maybe (Solved.Constraint (UVar v loc) v loc, [UnsolvedConstraint v loc])
       ) ->
-      -- | An error or a list of implied constraints
+      -- \| An error or a list of implied constraints
       Solve v loc (Either (ConstraintConflict v loc) [UnsolvedConstraint v loc])
     handleConstraint s solvedConstraint phi = do
       st@SolveState {constraints} <- M.get
@@ -304,7 +302,7 @@ union _unionLoc a b = do
 -- | Do an occurence check and return an error or the resulting solve
 -- state
 verify ::
-  Var v =>
+  (Var v) =>
   SolveState v loc ->
   Either (NonEmpty (KindError v loc)) (SolveState v loc)
 verify st =
@@ -321,7 +319,6 @@ initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) 
 initialState env =
   let ((), finalState) = run env emptyState initializeState
    in finalState
-
 
 initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Show loc, Var v) => Solve v loc ()
 initializeState = assertGen do
@@ -348,7 +345,7 @@ assertGen gen = do
 -- | occurence check and report any errors
 occCheck ::
   forall v loc.
-  Var v =>
+  (Var v) =>
   ConstraintMap v loc ->
   Either (NonEmpty (KindError v loc)) (ConstraintMap v loc)
 occCheck constraints0 =
@@ -402,7 +399,7 @@ data OccCheckState v loc = OccCheckState
     kindErrors :: [KindError v loc]
   }
 
-markVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
+markVisiting :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) CycleCheck
 markVisiting x = do
   OccCheckState {visitingSet, visitingStack} <- M.get
   case Set.member x visitingSet of
@@ -421,7 +418,7 @@ markVisiting x = do
           }
       pure NoCycle
 
-unmarkVisiting :: Var v => UVar v loc -> M.State (OccCheckState v loc) ()
+unmarkVisiting :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) ()
 unmarkVisiting x = M.modify \st ->
   st
     { visitingSet = Set.delete x (visitingSet st),
@@ -432,7 +429,7 @@ unmarkVisiting x = M.modify \st ->
 addError :: KindError v loc -> M.State (OccCheckState v loc) ()
 addError ke = M.modify \st -> st {kindErrors = ke : kindErrors st}
 
-isSolved :: Var v => UVar v loc -> M.State (OccCheckState v loc) Bool
+isSolved :: (Var v) => UVar v loc -> M.State (OccCheckState v loc) Bool
 isSolved x = do
   OccCheckState {solvedSet} <- M.get
   pure $ Set.member x solvedSet
@@ -445,7 +442,7 @@ data CycleCheck
 -- Debug output helpers
 --------------------------------------------------------------------------------
 
-prettyConstraintD' :: Show loc => Var v => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
+prettyConstraintD' :: (Show loc, Var v) => PrettyPrintEnv -> UnsolvedConstraint v loc -> P.Pretty P.ColorText
 prettyConstraintD' ppe =
   P.wrap . \case
     Unsolved.IsType v p -> prettyUVar ppe v <> " ~ Type" <> prettyProv p
@@ -456,10 +453,10 @@ prettyConstraintD' ppe =
     prettyProv x =
       "[" <> P.string (show x) <> "]"
 
-prettyConstraints :: Show loc => Var v => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
+prettyConstraints :: (Show loc, Var v) => PrettyPrintEnv -> [UnsolvedConstraint v loc] -> P.Pretty P.ColorText
 prettyConstraints ppe = P.sep "\n" . map (prettyConstraintD' ppe)
 
-prettyUVar :: Var v => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
+prettyUVar :: (Var v) => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
 prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
 
 tracePretty :: P.Pretty P.ColorText -> a -> a

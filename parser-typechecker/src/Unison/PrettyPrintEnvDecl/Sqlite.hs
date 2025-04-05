@@ -13,7 +13,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE

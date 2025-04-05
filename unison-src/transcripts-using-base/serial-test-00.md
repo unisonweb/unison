@@ -1,17 +1,13 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
-```unison
+``` unison
 structural type Tree a = Leaf | Node (Tree a) a (Tree a)
 
 foldMap  : r -> (r -> r -> r) -> (a -> r) -> Tree a -> r
 foldMap z m f =
   walk = cases
     Leaf -> z
-    Node l x r -> m (walk l) (m (f x) (walk r)) 
+    Node l x r -> m (walk l) (m (f x) (walk r))
 
-  walk 
+  walk
 
 tree0 : Tree Nat
 tree0 =
@@ -71,7 +67,7 @@ mkTestCase = do
   saveTestCase "case-00" "v4" f tup
 ```
 
-```ucm
-.> add
-.> run mkTestCase
+``` ucm
+scratch/main> add
+scratch/main> run mkTestCase
 ```

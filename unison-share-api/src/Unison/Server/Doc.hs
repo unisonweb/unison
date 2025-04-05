@@ -1,16 +1,7 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Server.Doc where
 
-import Control.Lens (view, (^.))
 import Control.Monad
-import Data.Aeson (ToJSON)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Foldable
 import Data.Functor
 import Data.Map qualified as Map
@@ -91,22 +82,22 @@ data DocG specialForm
   | UntitledSection [(DocG specialForm)]
   | Column [(DocG specialForm)]
   | Group (DocG specialForm)
-  deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
-  deriving anyclass (ToJSON)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  deriving anyclass (ToJSON, FromJSON)
 
 deriving instance (ToSchema specialForm) => ToSchema (DocG specialForm)
 
 type UnisonHash = Text
 
 data Ref a = Term a | Type a
-  deriving stock (Eq, Show, Generic, Functor, Foldable, Traversable)
-  deriving anyclass (ToJSON)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  deriving anyclass (ToJSON, FromJSON)
 
 instance (ToSchema a) => ToSchema (Ref a)
 
 data MediaSource = MediaSource {mediaSourceUrl :: Text, mediaSourceMimeType :: Maybe Text}
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, ToSchema)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON, ToSchema)
 
 data RenderedSpecialForm
   = Source [SrcRefs]
@@ -125,8 +116,8 @@ data RenderedSpecialForm
   | LaTeXInline Text
   | Svg Text
   | RenderError (RenderError SyntaxText)
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, ToSchema)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON, ToSchema)
 
 data EvaluatedSpecialForm v
   = ESource [(EvaluatedSrc v)]
@@ -147,12 +138,12 @@ data EvaluatedSpecialForm v
   | ELaTeXInline Text
   | ESvg Text
   | ERenderError (RenderError (Term v ()))
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
 
 -- `Src folded unfolded`
 data Src = Src SyntaxText SyntaxText
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, ToSchema)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON, ToSchema)
 
 -- | Evaluate the doc, then render it.
 evalAndRenderDoc ::
@@ -247,8 +238,20 @@ renderDoc pped doc = renderSpecial <$> doc
              in [Type (Reference.toText r, DO.BuiltinObject name)]
           FoundDecl r decl -> [Type (Reference.toText r, DO.UserObject (Src folded full))]
             where
-              full = formatPretty (DeclPrinter.prettyDecl pped r (PPE.typeName suffixifiedPPE r) decl)
-              folded = formatPretty (DeclPrinter.prettyDeclHeader (PPE.typeName suffixifiedPPE r) decl)
+              full =
+                formatPretty $
+                  DeclPrinter.prettyDecl
+                    pped
+                    DeclPrinter.RenderUniqueTypeGuids'No
+                    r
+                    (PPE.typeName suffixifiedPPE r)
+                    decl
+              folded =
+                formatPretty $
+                  DeclPrinter.prettyDeclHeader
+                    DeclPrinter.RenderUniqueTypeGuids'No
+                    (PPE.typeName suffixifiedPPE r)
+                    decl
         EvaluatedSrcTerm srcTerm -> case srcTerm of
           MissingBuiltinTypeSig r -> [(Type (Reference.toText r, DO.BuiltinObject "🆘 missing type signature"))]
           BuiltinTypeSig r typ -> [Type (Reference.toText r, DO.BuiltinObject (formatPrettyType suffixifiedPPE typ))]
@@ -334,11 +337,13 @@ evalDoc terms typeOf eval types tm =
       DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
         pure $ EExample ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          annotatedVs = ((),) <$> vs
+          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) annotatedVs) body
       DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
         pure $ EExampleBlock ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          annotatedVs = ((),) <$> vs
+          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) annotatedVs) body
 
       -- Link (Either Link.Type Doc2.Term)
       DD.Doc2SpecialFormLink e ->
@@ -446,28 +451,28 @@ evalDoc terms typeOf eval types tm =
 
 data RenderError trm
   = InvalidTerm trm
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 deriving anyclass instance (ToSchema trm) => ToSchema (RenderError trm)
 
 data EvaluatedSrc v
   = EvaluatedSrcDecl (EvaluatedDecl v)
   | EvaluatedSrcTerm (EvaluatedTerm v)
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Ord, Eq, Generic)
 
 data EvaluatedDecl v
   = MissingDecl Reference
   | BuiltinDecl Reference
   | FoundDecl Reference (DD.Decl v ())
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Ord, Eq, Generic)
 
 data EvaluatedTerm v
   = MissingTerm Reference
   | BuiltinTypeSig Reference (Type v ())
   | MissingBuiltinTypeSig Reference
   | FoundTerm Reference (Type v ()) (Term v ())
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Show, Eq, Ord, Generic)
 
 -- Determines all dependencies which will be required to render a doc.
 dependencies :: (Ord v) => EvaluatedDoc v -> Set LD.LabeledDependency

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.UnisonFile.Type where
@@ -18,15 +17,15 @@ import Unison.WatchKind (WatchKind)
 data UnisonFile v a = UnisonFileId
   { dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
-    terms :: [(v, a {- ann for whole binding -}, Term v a)],
+    terms :: Map v (a {- ann for whole binding -}, Term v a),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
-  deriving (Generic, Show)
+  deriving stock (Generic, Show)
 
 pattern UnisonFile ::
   Map v (TypeReference, DataDeclaration v a) ->
   Map v (TypeReference, EffectDeclaration v a) ->
-  [(v, a, Term v a)] ->
+  Map v (a, Term v a) ->
   Map WatchKind [(v, a, Term v a)] ->
   UnisonFile v a
 pattern UnisonFile ds es tms ws <-

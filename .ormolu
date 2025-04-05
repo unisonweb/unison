@@ -1,0 +1,4 @@
+infixl 8 ^?
+infixr 4 %%~, %~
+infixl 3 <|>
+infixl 1 &, <&>

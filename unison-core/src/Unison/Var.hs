@@ -58,7 +58,7 @@ named n = typed (User n)
 
 -- This bakes the fresh id into the name portion of the variable
 -- and resets the id to 0.
-bakeId :: Var v => v -> v
+bakeId :: (Var v) => v -> v
 bakeId v = named (name v)
 
 rawName :: Type -> Text

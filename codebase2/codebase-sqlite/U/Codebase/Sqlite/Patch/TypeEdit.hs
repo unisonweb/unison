@@ -17,7 +17,7 @@ type TypeEdit = TypeEdit' Db.TextId Db.ObjectId
 type HashTypeEdit = TypeEdit' Text ComponentHash
 
 data TypeEdit' t h = Replace (Reference' t h) | Deprecate
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Functor, Ord, Show)
 
 _Replace :: Prism (TypeEdit' t h) (TypeEdit' t' h') (Reference' t h) (Reference' t' h')
 _Replace = prism Replace project

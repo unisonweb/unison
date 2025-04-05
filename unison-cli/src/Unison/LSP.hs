@@ -15,6 +15,8 @@ import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import GHC.IO.Exception (ioe_errno)
 import Ki qualified
 import Language.LSP.Logging qualified as LSP
@@ -26,12 +28,9 @@ import Language.LSP.Server
 import Language.LSP.VFS
 import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
-import System.IO (hPutStrLn)
-import U.Codebase.HashTags
 import Unison.Codebase
-import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
-import Unison.Debug qualified as Debug
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import Unison.LSP.CodeLens (codeLensHandler)
@@ -47,6 +46,7 @@ import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
+import Unison.LSP.Util.Signal (Signal)
 import Unison.LSP.VFS qualified as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
@@ -61,8 +61,13 @@ getLspPort :: IO String
 getLspPort = fromMaybe "5757" <$> lookupEnv "UNISON_LSP_PORT"
 
 -- | Spawn an LSP server on the configured port.
-spawnLsp :: LspFormattingConfig -> Codebase IO Symbol Ann -> Runtime Symbol -> STM CausalHash -> STM (Path.Absolute) -> IO ()
-spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
+spawnLsp ::
+  LspFormattingConfig ->
+  Codebase IO Symbol Ann ->
+  Runtime Symbol ->
+  Signal PP.ProjectPathIds ->
+  IO ()
+spawnLsp lspFormattingConfig codebase runtime signal =
   ifEnabled . TCP.withSocketsDo $ do
     lspPort <- getLspPort
     UnliftIO.handleIO (handleFailure lspPort) $ do
@@ -80,20 +85,18 @@ spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
 
           -- currently we have an independent VFS for each LSP client since each client might have
           -- different un-saved state for the same file.
-          initVFS $ \vfs -> do
-            vfsVar <- newMVar vfs
-            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition lspFormattingConfig vfsVar codebase runtime scope latestRootHash latestPath)
+          do
+            vfsVar <- newMVar emptyVFS
+            void $ runServerWith lspServerLogger lspClientLogger clientInput clientOutput (serverDefinition lspFormattingConfig vfsVar codebase runtime scope signal)
   where
     handleFailure :: String -> IOException -> IO ()
     handleFailure lspPort ioerr =
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-              putStrLn $ "Note: Port " <> lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              Text.hPutStrLn UnliftIO.stderr $ "Note: Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
-          Debug.debugM Debug.LSP "LSP Exception" ioerr
-          Debug.debugM Debug.LSP "LSP Errno" (ioe_errno ioerr)
-          putStrLn "LSP server failed to start."
+          Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
     -- Where to send logs that occur before a client connects
     lspServerLogger = Colog.filterBySeverity Colog.Error Colog.getSeverity $ Colog.cmap (fmap tShow) (LogAction print)
     -- Where to send logs that occur after a client connects
@@ -104,7 +107,7 @@ spawnLsp lspFormattingConfig codebase runtime latestRootHash latestPath =
       lookupEnv "UNISON_LSP_ENABLED" >>= \case
         Just (fmap toLower -> "false") -> pure ()
         Just (fmap toLower -> "true") -> runServer
-        Just x -> hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> x
+        Just x -> Text.hPutStrLn stderr $ "Invalid value for UNISON_LSP_ENABLED, expected 'true' or 'false' but found: " <> Text.pack x
         Nothing -> when (not onWindows) runServer
 
 serverDefinition ::
@@ -113,16 +116,15 @@ serverDefinition ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM CausalHash ->
-  STM (Path.Absolute) ->
+  Signal PP.ProjectPathIds ->
   ServerDefinition Config
-serverDefinition lspFormattingConfig vfsVar codebase runtime scope latestRootHash latestPath =
+serverDefinition lspFormattingConfig vfsVar codebase runtime scope signal =
   ServerDefinition
     { defaultConfig = defaultLSPConfig,
       configSection = "unison",
       parseConfig = Config.parseConfig,
       onConfigChange = Config.updateConfig,
-      doInitialize = lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath,
+      doInitialize = lspDoInitialize vfsVar codebase runtime scope signal,
       staticHandlers = lspStaticHandlers lspFormattingConfig,
       interpretHandler = lspInterpretHandler,
       options = lspOptions
@@ -134,12 +136,11 @@ lspDoInitialize ::
   Codebase IO Symbol Ann ->
   Runtime Symbol ->
   Ki.Scope ->
-  STM CausalHash ->
-  STM (Path.Absolute) ->
+  Signal PP.ProjectPathIds ->
   LanguageContextEnv Config ->
   Msg.TMessage 'Msg.Method_Initialize ->
   IO (Either Msg.ResponseError Env)
-lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath lspContext _initMsg = do
+lspDoInitialize vfsVar codebase runtime scope signal lspContext _initMsg = do
   checkedFilesVar <- newTVarIO mempty
   dirtyFilesVar <- newTVarIO mempty
   ppedCacheVar <- newEmptyTMVarIO
@@ -152,13 +153,13 @@ lspDoInitialize vfsVar codebase runtime scope latestRootHash latestPath lspConte
         Env
           { ppedCache = atomically $ readTMVar ppedCacheVar,
             currentNamesCache = atomically $ readTMVar currentNamesCacheVar,
-            currentPathCache = atomically $ readTMVar currentPathCacheVar,
+            currentProjectPathCache = atomically $ readTMVar currentPathCacheVar,
             nameSearchCache = atomically $ readTMVar nameSearchCacheVar,
             ..
           }
   let lspToIO = flip runReaderT lspContext . unLspT . flip runReaderT env . runLspM
-  Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
-  Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar currentNamesCacheVar nameSearchCacheVar currentPathCacheVar latestRootHash latestPath)
+  _ <- Ki.fork scope (lspToIO Analysis.fileAnalysisWorker)
+  _ <- Ki.fork scope (lspToIO $ ucmWorker ppedCacheVar currentNamesCacheVar nameSearchCacheVar currentPathCacheVar signal)
   pure $ Right $ env
 
 -- | LSP request handlers that don't register/unregister dynamically

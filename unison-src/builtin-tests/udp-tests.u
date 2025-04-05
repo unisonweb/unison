@@ -1,0 +1,66 @@
+UDP.client' h p = Either.toException (##IO.UDP.clientSocket.impl.v1 h p)
+UDP.server' i p = Either.toException (##IO.UDP.serverSocket.impl.v1 i p)
+closeClient' = ##IO.UDP.UDPSocket.close.impl.v1 >> Either.toException
+send' s b = Either.toException (##IO.UDP.UDPSocket.send.impl.v1 s b)
+closeServer' = ##IO.UDP.ListenSocket.close.impl.v1 >> Either.toException
+sendTo' s b a = Either.toException (##IO.UDP.ListenSocket.sendTo.impl.v1 s b a)
+recvFrom' = ##IO.UDP.ListenSocket.recvFrom.impl.v1 >> Either.toException
+recv' = ##IO.UDP.UDPSocket.recv.impl.v1 >> Either.toException
+
+badPort = "what"
+badIp = "what"
+goodPort = "8000"
+goodIp = "127.0.0.1"
+
+shouldFail fn =
+  result = catchAll fn
+  isLeft result
+
+udp.tests = do
+  check "client rejects invalid port" do shouldFail do UDP.client' goodIp badPort
+  check "server rejects invalid port" do shouldFail do UDP.server' goodIp badPort
+  check "server rejects invalid IP address" do shouldFail do UDP.server' badIp goodPort
+  check "client: no send after close" do shouldFail do
+    socket = UDP.client' goodIp goodPort
+    closeClient' socket
+    send' socket (toUtf8 "hello") -- should fail here
+  check "server no send after close" do shouldFail do
+    ssocket = UDP.server' goodIp goodPort
+    csocket = UDP.client' goodIp goodPort
+    send' csocket (toUtf8 "hello")
+    (_, clientSockAddr) = recvFrom' ssocket
+    closeServer' ssocket
+    sendTo' ssocket (toUtf8 "hello") clientSockAddr -- should fail here
+  check "no receive after close" do shouldFail do
+    socket = UDP.client' goodIp goodPort
+    closeClient' socket
+    recv' socket
+  !testServerAndClient
+
+testServerAndClient = do
+  fromServerMsg = "from server"
+  fromClientMsg = "from client"
+  setup = catchAll do
+    UDP.server' goodIp goodPort
+  match setup with
+    Left e ->
+      Tests.fail "Unable to open a socket for UDP server" (Debug.evalToText e)
+    Right ssocket ->
+      serve = do
+        (data, sockAddr) = recvFrom' ssocket
+        sendTo' ssocket (toUtf8 fromServerMsg) sockAddr
+        closeServer' ssocket
+        fromUtf8 data
+
+      serveResult = !Promise.new
+      _ = fork do Promise.write serveResult (catchAll serve)
+
+      data = catchAll do
+        csocket = UDP.client' goodIp goodPort
+        send' csocket (toUtf8 fromClientMsg)
+        d = recv' csocket
+        closeClient' csocket
+        fromUtf8 d
+
+      checkEqual "Server received data" (Promise.read serveResult) (Right fromClientMsg)
+      checkEqual "Client received data" data (Right fromServerMsg)

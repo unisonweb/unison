@@ -4,11 +4,12 @@ module Unison.Codebase.Editor.HandleInput.ProjectSwitch
   )
 where
 
-import Control.Lens ((^.))
 import Data.These (These (..))
+import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
@@ -27,25 +28,22 @@ import Witch (unsafeFrom)
 projectSwitch :: ProjectAndBranchNames -> Cli ()
 projectSwitch projectNames = do
   case projectNames of
-    ProjectAndBranchNames'Ambiguous projectName branchName ->
-      ProjectUtils.getCurrentProjectBranch >>= \case
-        Nothing -> switchToProjectAndBranchByTheseNames (This projectName)
-        Just (ProjectAndBranch currentProject _currentBranch, _restPath) -> do
-          let currentProjectName = currentProject ^. #name
-          (projectExists, branchExists) <-
-            Cli.runTransaction do
-              (,)
-                <$> Queries.projectExistsByName projectName
-                <*> Queries.projectBranchExistsByName (currentProject ^. #projectId) branchName
-          case (projectExists, branchExists) of
-            (False, False) -> Cli.respond (Output.LocalProjectNorProjectBranchExist projectName branchName)
-            (False, True) -> switchToProjectAndBranchByTheseNames (These currentProjectName branchName)
-            (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
-            (True, True) ->
-              Cli.respondNumbered $
-                Output.AmbiguousSwitch
-                  projectName
-                  (ProjectAndBranch currentProjectName branchName)
+    ProjectAndBranchNames'Ambiguous projectName branchName -> do
+      ProjectAndBranch currentProject _currentBranch <- Cli.getCurrentProjectAndBranch
+      (projectExists, branchExists) <-
+        Cli.runTransaction do
+          (,)
+            <$> Queries.projectExistsByName projectName
+            <*> Queries.projectBranchExistsByName currentProject.projectId branchName
+      case (projectExists, branchExists) of
+        (False, False) -> Cli.respond (Output.LocalProjectNorProjectBranchExist projectName branchName)
+        (False, True) -> switchToProjectAndBranchByTheseNames (These currentProject.name branchName)
+        (True, False) -> switchToProjectAndBranchByTheseNames (This projectName)
+        (True, True) ->
+          Cli.respondNumbered $
+            Output.AmbiguousSwitch
+              projectName
+              (ProjectAndBranch currentProject.name branchName)
     ProjectAndBranchNames'Unambiguous projectAndBranchNames0 ->
       switchToProjectAndBranchByTheseNames projectAndBranchNames0
 
@@ -61,22 +59,15 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
           Nothing -> do
             let branchName = unsafeFrom @Text "main"
             branch <-
-              Queries.loadProjectBranchByName (project ^. #projectId) branchName & onNothingM do
+              Queries.loadProjectBranchByName project.projectId branchName & onNothingM do
                 rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
-            setMostRecentBranch branch
-          Just branchId ->
-            Queries.loadProjectBranch (project ^. #projectId) branchId >>= \case
-              Nothing -> error "impossible"
-              Just branch -> pure branch
+            pure branch
+          Just branchId -> Queries.expectProjectBranch project.projectId branchId
     _ -> do
       projectAndBranchNames@(ProjectAndBranch projectName branchName) <- ProjectUtils.hydrateNames projectAndBranchNames0
       Cli.runTransactionWithRollback \rollback -> do
         branch <-
           Queries.loadProjectBranchByNames projectName branchName & onNothingM do
             rollback (Output.LocalProjectBranchDoesntExist projectAndBranchNames)
-        setMostRecentBranch branch
-  Cli.cd (ProjectUtils.projectBranchPath (ProjectAndBranch (branch ^. #projectId) (branch ^. #branchId)))
-  where
-    setMostRecentBranch branch = do
-      Queries.setMostRecentBranch (branch ^. #projectId) (branch ^. #branchId)
-      pure branch
+        pure branch
+  Cli.switchProject (ProjectAndBranch (branch ^. #projectId) (branch ^. #branchId))

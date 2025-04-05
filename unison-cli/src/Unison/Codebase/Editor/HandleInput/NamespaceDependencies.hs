@@ -3,19 +3,17 @@ module Unison.Codebase.Editor.HandleInput.NamespaceDependencies
   )
 where
 
-import Control.Lens (over)
 import Control.Monad.Reader (ask)
 import Control.Monad.Trans.Maybe
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
+import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration qualified as DD
@@ -23,9 +21,10 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names qualified as Names
 import Unison.Prelude
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Sqlite qualified as Sqlite
@@ -36,19 +35,18 @@ import Unison.Util.Relation qualified as Relation
 handleNamespaceDependencies :: Maybe Path.Path' -> Cli.Cli ()
 handleNamespaceDependencies namespacePath' = do
   Cli.Env {codebase} <- ask
-  path <- maybe Cli.getCurrentPath Cli.resolvePath' namespacePath'
+  pp <- maybe Cli.getCurrentProjectPath Cli.resolvePath' namespacePath'
+  let pb = pp ^. #branch
   branch <-
-    Cli.getMaybeBranch0At path & onNothingM do
-      Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath (Path.absoluteToPath' path)))
+    Cli.getMaybeBranch0FromProjectPath pp & onNothingM do
+      Cli.returnEarly (Output.BranchEmpty (Output.WhichBranchEmptyPath pp))
   externalDependencies <-
     Cli.runTransaction (namespaceDependencies codebase branch)
-  currentPPED <- Cli.currentPrettyPrintEnvDecl
-  globalNames <- Names.makeAbsolute . Branch.toNames <$> Cli.getRootBranch0
-  globalPPED <- Cli.prettyPrintEnvDeclFromNames globalNames
-  -- We explicitly include a global unsuffixified fallback on namespace dependencies since
-  -- the things we want names for are obviously outside of our scope.
-  let ppeWithFallback = PPED.unsuffixifiedPPE $ PPED.addFallback globalPPED currentPPED
-  Cli.respondNumbered $ Output.ListNamespaceDependencies ppeWithFallback path externalDependencies
+  names <- Cli.projectBranchNames pb
+
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+  let ppe = PPED.unsuffixifiedPPE pped
+  Cli.respondNumbered $ Output.ListNamespaceDependencies ppe pp externalDependencies
 
 -- | Check the dependencies of all types and terms in the current namespace,
 -- returns a map of dependencies which do not have a name within the current namespace,

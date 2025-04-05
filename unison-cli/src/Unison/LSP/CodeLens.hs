@@ -6,7 +6,6 @@
 module Unison.LSP.CodeLens where
 
 import Control.Lens hiding (List)
-import Control.Monad.Except
 import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text

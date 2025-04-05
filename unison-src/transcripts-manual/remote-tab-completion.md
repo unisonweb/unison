@@ -2,6 +2,6 @@
 
 Note: this makes a network call to share to get completions
 
-```ucm
-.> debug.tab-complete pull unison.pub
+``` ucm
+scratch/main> debug.tab-complete pull unison.pub
 ```

@@ -7,21 +7,21 @@ on:
   workflow_dispatch:
 
 env:
-  ormolu_version: "0.5.2.0"
+  ormolu_version: "0.7.2.0"
 
 jobs:
   ormolu:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: haskell-actions/run-ormolu@v15
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
         with:
           version: ${{ env.ormolu_version }}
           mode: inplace
       - name: create pull request with formatting changes
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
-          commit_message: automatically run ormolu
+          commit-message: automatically run ormolu
           branch: autoformat/${{github.ref_name}}
-          # branch_suffix: random
+          branch-suffix: short-commit-hash
           title: format `${{github.ref_name}}` with ormolu ${{env.ormolu_version}}

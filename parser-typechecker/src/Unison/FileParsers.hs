@@ -9,20 +9,22 @@ import Control.Lens
 import Control.Monad.State (evalStateT)
 import Data.Foldable qualified as Foldable
 import Data.List (partition)
-import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as Blank
 import Unison.Builtin qualified as Builtin
-import Unison.Name qualified as Name
+import Unison.ConstructorReference qualified as ConstructorReference
+import Unison.Name (Name)
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as Names
+import Unison.Names.ResolvesTo (ResolvesTo (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.Reference (Reference)
+import Unison.Reference (TermReference, TypeReference)
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
 import Unison.Result qualified as Result
@@ -37,7 +39,10 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile (definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
+import Unison.Util.Map qualified as Map (upsert)
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -73,10 +78,11 @@ data ShouldUseTndr m
 --     * The parsing environment that was used to parse the parsed Unison file.
 --     * The parsed Unison file for which the typechecking environment is applicable.
 computeTypecheckingEnvironment ::
+  forall m v.
   (Var v, Monad m) =>
   ShouldUseTndr m ->
   [Type v] ->
-  (Set Reference -> m (TL.TypeLookup v Ann)) ->
+  (DefnsF Set TermReference TypeReference -> m (TL.TypeLookup v Ann)) ->
   UnisonFile v ->
   m (Typechecker.Env v Ann)
 computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
@@ -87,52 +93,53 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
         Typechecker.Env
           { ambientAbilities = ambientAbilities,
             typeLookup = tl,
-            termsByShortname = Map.empty
+            termsByShortname = Map.empty,
+            topLevelComponents = Map.empty
           }
     ShouldUseTndr'Yes parsingEnv -> do
-      let preexistingNames = Parser.names parsingEnv
-          tm = UF.typecheckingTerm uf
-          possibleDeps =
-            [ (name, shortname, r)
-              | (name, r) <- Rel.toList (Names.terms preexistingNames),
-                v <- Set.toList (Term.freeVars tm),
-                let shortname = Name.unsafeParseVar v,
-                name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname)
-            ]
-          possibleRefs = Referent.toReference . view _3 <$> possibleDeps
-      tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> Set.fromList possibleRefs))
-      -- For populating the TDNR environment, we pick definitions
-      -- from the namespace and from the local file whose full name
-      -- has a suffix that equals one of the free variables in the file.
-      -- Example, the namespace has [foo.bar.baz, qux.quaffle] and
-      -- the file has definitons [utils.zonk, utils.blah] and
-      -- the file has free variables [bar.baz, zonk].
-      --
-      -- In this case, [foo.bar.baz, utils.zonk] are used to create
-      -- the TDNR environment.
-      let fqnsByShortName =
-            List.multimap $
-              -- external TDNR possibilities
-              [ (shortname, nr)
-                | (name, shortname, r) <- possibleDeps,
-                  typ <- toList $ TL.typeOfReferent tl r,
-                  let nr = Typechecker.NamedReference name typ (Context.ReplacementRef r)
-              ]
-                <>
-                -- local file TDNR possibilities
-                [ (shortname, nr)
-                  | (name, r) <- Rel.toList (Names.terms $ UF.toNames uf),
-                    v <- Set.toList (Term.freeVars tm),
-                    let shortname = Name.unsafeParseVar v,
-                    name `Name.endsWithReverseSegments` List.NonEmpty.toList (Name.reverseSegments shortname),
-                    typ <- toList $ TL.typeOfReferent tl r,
-                    let nr = Typechecker.NamedReference name typ (Context.ReplacementRef r)
-                ]
+      let tm = UF.typecheckingTerm uf
+          resolveName :: Name -> Relation Name (ResolvesTo Referent)
+          resolveName =
+            Names.resolveNameIncludingNames
+              (Names.shadowing1 (Names.terms (UF.toNames uf)) (Names.terms (Parser.names parsingEnv)))
+              (Set.map Name.unsafeParseVar (UF.toTermAndWatchNames uf))
+          possibleDeps = do
+            v <- Set.toList (Term.freeVars tm)
+            let shortname = Name.unsafeParseVar v
+            (name, ref) <- Rel.toList (resolveName shortname)
+            [(name, shortname, ref)]
+          possibleRefs =
+            List.foldl'
+              ( \acc -> \case
+                  (_, _, ResolvesToNamespace ref0) ->
+                    case ref0 of
+                      Referent.Con ref _ -> acc & over #types (Set.insert (ref ^. ConstructorReference.reference_))
+                      Referent.Ref ref -> acc & over #terms (Set.insert ref)
+                  (_, _, ResolvesToLocal _) -> acc
+              )
+              (Defns Set.empty Set.empty)
+              possibleDeps
+      tl <- fmap (UF.declsToTypeLookup uf <>) (typeLookupf (UF.dependencies uf <> possibleRefs))
+      let termsByShortname :: Map Name [Either Name (Typechecker.NamedReference v Ann)]
+          termsByShortname =
+            List.foldl'
+              ( \acc -> \case
+                  (name, shortname, ResolvesToLocal _) -> let v = Left name in Map.upsert (maybe [v] (v :)) shortname acc
+                  (name, shortname, ResolvesToNamespace ref) ->
+                    case TL.typeOfReferent tl ref of
+                      Just ty ->
+                        let v = Right (Typechecker.NamedReference name ty (Context.ReplacementRef ref))
+                         in Map.upsert (maybe [v] (v :)) shortname acc
+                      Nothing -> acc
+              )
+              Map.empty
+              possibleDeps
       pure
         Typechecker.Env
-          { ambientAbilities = ambientAbilities,
+          { ambientAbilities,
             typeLookup = tl,
-            termsByShortname = fqnsByShortName
+            termsByShortname,
+            topLevelComponents = Map.empty
           }
 
 synthesizeFile ::

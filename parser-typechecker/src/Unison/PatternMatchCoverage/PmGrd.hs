@@ -17,39 +17,39 @@ data
     loc -- annotation
   = -- | @PmCon x Con xs ys@ corresponds to the constraint @Con ys <- x@
     PmCon
+      -- | Variable
       v
-      -- ^ Variable
+      -- | Constructor
       ConstructorReference
-      -- ^ Constructor
+      -- | Constructor argument values and types
       [(v, Type vt loc)]
-      -- ^ Constructor argument values and types
   | PmEffect
+      -- | Variable
       v
-      -- ^ Variable
+      -- | Constructor
       ConstructorReference
-      -- ^ Constructor
+      -- | Constructor argument values and types
       [(v, Type vt loc)]
-      -- ^ Constructor argument values and types
   | PmEffectPure v (v, Type vt loc)
   | PmLit v PmLit
   | PmListHead
+      -- | list root
       v
-      -- ^ list root
+      -- | cons position (0 is head)
       Int
-      -- ^ cons position (0 is head)
+      -- | element variable
       v
-      -- ^ element variable
+      -- | element type
       (Type vt loc)
-      -- ^ element type
   | PmListTail
+      -- | list root
       v
-      -- ^ list root
+      -- | snoc position (0 is last)
       Int
-      -- ^ snoc position (0 is last)
+      -- | element variable
       v
-      -- ^ element variable
+      -- | element type
       (Type vt loc)
-      -- ^ element type
   | -- | The size of the list must fall within this inclusive range
     PmListInterval v Int Int
   | -- | If a guard performs an effect

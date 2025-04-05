@@ -1,13 +1,4 @@
-
-```ucm:hide
-.> builtins.merge
-.> builtins.mergeio
-.> load unison-src/transcripts-using-base/base.u
-.> add
-.> find
-```
-
-```unison
+``` unison
 unique type EncDec = EncDec Text (Nat -> Bytes) (Bytes -> Optional (Nat, Bytes))
 
 BE64 = EncDec "64 bit Big Endian" encodeNat64be decodeNat64be
@@ -62,7 +53,7 @@ testABunchOfNats _ =
   (runTest (testNat 0))
 ```
 
-```ucm
-.> add
-.> io.test testABunchOfNats
+``` ucm
+scratch/main> add
+scratch/main> io.test testABunchOfNats
 ```

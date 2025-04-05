@@ -12,6 +12,7 @@ import U.Core.ABT qualified as ABT
 import U.Core.ABT.Var qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
+import Unison.Util.Recursion
 
 type ConstructorId = Word64
 
@@ -41,11 +42,11 @@ data DeclR r v = DataDeclaration
   }
   deriving (Show)
 
-allVars :: Ord v => DeclR r v -> Set v
+allVars :: (Ord v) => DeclR r v -> Set v
 allVars (DataDeclaration _ _ bound constructorTypes) =
   (Set.fromList $ foldMap ABT.allVars constructorTypes) <> Set.fromList bound
 
-vmap :: Ord v' => (v -> v') -> DeclR r v -> DeclR r v'
+vmap :: (Ord v') => (v -> v') -> DeclR r v -> DeclR r v'
 vmap f (DataDeclaration {declType, modifier, bound, constructorTypes}) =
   DataDeclaration
     { declType,
@@ -82,7 +83,7 @@ data F a
 -- to the relevant piece of the component in the component map.
 unhashComponent ::
   forall v extra.
-  ABT.Var v =>
+  (ABT.Var v) =>
   Hash ->
   -- | A function to convert a reference to a variable. The actual var names aren't important.
   (Reference.Id -> v) ->
@@ -107,7 +108,7 @@ unhashComponent componentHash refToVar m =
         { declType,
           modifier,
           bound,
-          constructorTypes = ABT.cata alg <$> constructorTypes
+          constructorTypes = cata alg <$> constructorTypes
         }
       where
         rewriteTypeReference :: Reference.Id' (Maybe Hash) -> Either v Reference.Reference
@@ -126,8 +127,8 @@ unhashComponent componentHash refToVar m =
               case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of
                 Nothing -> error "unhashComponent: self-reference not found in component map"
                 Just (v, _, _) -> Left v
-        alg :: () -> ABT.ABT (Type.F' TypeRef) v (HashableType v) -> HashableType v
-        alg () = \case
+        alg :: ABT.Term' (Type.F' TypeRef) v () (HashableType v) -> HashableType v
+        alg (ABT.Term' _ () abt) = case abt of
           ABT.Var v -> ABT.var () v
           ABT.Cycle body -> ABT.cycle () body
           ABT.Abs v body -> ABT.abs () v body

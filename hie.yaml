@@ -98,6 +98,11 @@ cradle:
 
     - path: "parser-typechecker/tests"
       component: "unison-parser-typechecker:test:parser-typechecker-tests"
+    - path: "unison-runtime/src"
+      component: "unison-runtime:lib"
+
+    - path: "unison-runtime/tests"
+      component: "unison-runtime:test:runtime-tests"
 
     - path: "unison-cli/src"
       component: "unison-cli:lib"
@@ -129,8 +134,14 @@ cradle:
     - path: "unison-hashing-v2/src"
       component: "unison-hashing-v2:lib"
 
+    - path: "unison-merge/src"
+      component: "unison-merge:lib"
+
     - path: "unison-share-api/src"
       component: "unison-share-api:lib"
+
+    - path: "unison-share-api/tests"
+      component: "unison-share-api:test:unison-share-api-tests"
 
     - path: "unison-share-projects-api/src"
       component: "unison-share-projects-api:lib"

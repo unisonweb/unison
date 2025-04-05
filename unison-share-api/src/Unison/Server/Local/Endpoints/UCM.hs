@@ -11,5 +11,5 @@ import Unison.Server.Local.Endpoints.Current (Current, CurrentEndpoint, serveCur
 type UCMAPI =
   CurrentEndpoint
 
-ucmServer :: MonadIO m => Codebase m v a -> Backend m Current
+ucmServer :: (MonadIO m) => Codebase m v a -> Backend m Current
 ucmServer codebase = serveCurrent codebase

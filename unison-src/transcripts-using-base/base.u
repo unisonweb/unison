@@ -1,4 +1,3 @@
-
 a |> f = f a
 f <| a = f a
 
@@ -97,6 +96,10 @@ List.forEach l f =
     [] -> ()
   go l
 
+List.head = cases
+  []     -> None
+  a +: _ -> Some a
+
 List.zip : [a] -> [b] -> [(a,b)]
 List.zip = cases
   [], _ -> []
@@ -117,6 +120,10 @@ List.reverse =
     [] -> acc
     x +: xs -> loop (x +: acc) xs
   loop []
+
+Optional.getOrBug msg = cases
+  None -> bug msg
+  Some a -> a
 
 first : (a -> b) -> (a,c) -> (b,c)
 first f = cases (x,y) -> (f x, y)
@@ -178,21 +185,21 @@ Stream.collect s =
   handle !s with Stream.collect.handler
 
 
--- An ability that facilitates creating temoporary directories that can be 
+-- An ability that facilitates creating temoporary directories that can be
 -- automatically cleaned up
 structural ability TempDirs where
   newTempDir: Text -> Text
   removeDir: Text -> ()
 
 -- A handler for TempDirs which cleans up temporary directories
--- This will be useful for IO tests which need to interact with 
+-- This will be useful for IO tests which need to interact with
 -- the filesystem
 
 autoCleaned.handler: '{io2.IO} (Request {TempDirs} r -> r)
 autoCleaned.handler _ =
   remover : [Text] -> {io2.IO} ()
   remover = cases
-    a +: as -> match removeDirectory.impl a with 
+    a +: as -> match removeDirectory.impl a with
                    Left (Failure _ e _) -> watch e ()
                    _ -> ()
                remover as
@@ -214,6 +221,9 @@ autoCleaned.handler _ =
 
 autoCleaned: '{io2.IO, TempDirs} r -> r
 autoCleaned comp = handle !comp with !autoCleaned.handler
+
+getArgs : '{IO, Exception} [Text]
+getArgs _ = Exception.reraise getArgs.impl()
 
 stdout = IO.stdHandle StdOut
 printText : Text -> {io2.IO} Either Failure ()
@@ -277,12 +287,12 @@ putBytes = compose2 reraise putBytes.impl
 getLine = compose reraise getLine.impl
 systemTime = compose reraise systemTime.impl
 decodeCert = compose reraise decodeCert.impl
-serverSocket = compose2 reraise serverSocket.impl
+serverSocket = compose2 reraise IO.serverSocket.impl
 listen = compose reraise listen.impl
-handshake = compose reraise handshake.impl 
-send = compose2 reraise send.impl 
+handshake = compose reraise handshake.impl
+send = compose2 reraise Tls.send.impl
 closeSocket = compose reraise closeSocket.impl
-clientSocket = compose2 reraise clientSocket.impl
+clientSocket = compose2 reraise IO.clientSocket.impl
 receive = compose reraise receive.impl
 terminate = compose reraise terminate.impl
 newServer = compose2 reraise newServer.impl
@@ -452,3 +462,15 @@ saveTestCase name ver f i =
   writeFile ofile (toUtf8 output)
   writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))
 
+unique[s9drbo3urtmpecjn6ivkj5mn0vr11gfn] type Map k v =
+  Tip | Bin Nat k v (Map k v) (Map k v)
+
+Map.get : k -> Map k v -> Optional v
+Map.get k = cases
+  Tip -> None
+  Bin _ kx x l r ->
+    match compare k kx with
+      -1 -> Map.get k l
+      +1 -> Map.get k r
+      +0 -> Some x
+      _ -> bug "impossible: Universal.compare returns {-1,0,+1}"

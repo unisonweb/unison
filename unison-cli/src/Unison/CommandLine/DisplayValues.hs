@@ -1,9 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.CommandLine.DisplayValues where
 
-import Control.Lens ((^.))
 import Data.Map qualified as Map
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
@@ -179,12 +175,12 @@ displayPretty pped terms typeOf eval types tm = go tm
       DD.Doc2SpecialFormExample n (DD.Doc2Example vs body) ->
         P.backticked <$> displayTerm pped terms typeOf eval types ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          ex = Term.lamWithoutBindingAnns (ABT.annotation body) (drop (fromIntegral n) vs) body
       DD.Doc2SpecialFormExampleBlock n (DD.Doc2Example vs body) ->
         -- todo: maybe do something with `vs` to indicate the variables are free
         P.indentN 4 <$> displayTerm' True pped terms typeOf eval types ex
         where
-          ex = Term.lam' (ABT.annotation body) (drop (fromIntegral n) vs) body
+          ex = Term.lamWithoutBindingAnns (ABT.annotation body) (drop (fromIntegral n) vs) body
 
       -- Link (Either Link.Type Doc2.Term)
       DD.Doc2SpecialFormLink e ->
@@ -336,7 +332,15 @@ displayDoc pped terms typeOf evaluated types = go
       let ppe = PPE.declarationPPE pped r
        in types r >>= \case
             Nothing -> pure $ "😶  Missing type source for: " <> typeName ppe r
-            Just ty -> pure . P.syntaxToColor $ P.group $ DP.prettyDecl pped r (PPE.typeName ppe r) ty
+            Just ty ->
+              pure . P.syntaxToColor $
+                P.group $
+                  DP.prettyDecl
+                    pped
+                    DP.RenderUniqueTypeGuids'No
+                    r
+                    (PPE.typeName ppe r)
+                    ty
 
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r =

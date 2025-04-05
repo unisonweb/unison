@@ -12,6 +12,12 @@
   have-code?
 
   (struct-out unison-data)
+  (struct-out unison-continuation)
+  (struct-out unison-cont-wrapped)
+  (struct-out unison-cont-reflected)
+  (struct-out unison-frame)
+  (struct-out unison-frame-push)
+  (struct-out unison-frame-mark)
   (struct-out unison-sum)
   (struct-out unison-pure)
   (struct-out unison-request)
@@ -23,9 +29,17 @@
   (struct-out unison-typelink)
   (struct-out unison-typelink-builtin)
   (struct-out unison-typelink-derived)
+  (struct-out unison-groupref)
+  (struct-out unison-groupref-builtin)
+  (struct-out unison-groupref-derived)
   (struct-out unison-code)
   (struct-out unison-quote)
   (struct-out unison-timespec)
+
+  build-closure
+
+  call-with-handler
+  call-with-marks
 
   define-builtin-link
   declare-builtin-link
@@ -45,9 +59,9 @@
   left?
   either-get
   either-get
-  unit
-  false
-  true
+  sum-unit
+  sum-false
+  sum-true
   bool
   char
   ord
@@ -80,6 +94,9 @@
   builtin-timespec:typelink
   builtin-threadid:typelink
   builtin-value:typelink
+  builtin-udpsocket:typelink
+  builtin-listensocket:typelink
+  builtin-clientsockaddr:typelink
 
   builtin-crypto.hashalgorithm:typelink
   builtin-char.class:typelink
@@ -97,12 +114,19 @@
   builtin-tls.version:typelink
 
   unison-tuple->list
+  unison-pair->cons
 
   typelink->string
-  termlink->string)
+  termlink->string
+  groupref->string
+
+  groupref->termlink
+  termlink->groupref)
 
 (require
-  racket
+  (rename-in racket
+    [make-continuation-prompt-tag make-prompt])
+  (only-in racket/control prompt0-at control0-at)
   racket/fixnum
   (only-in "vector-trie.rkt" ->fx/wraparound)
   unison/bytevector)
@@ -208,6 +232,48 @@
   (hash i)
   #:reflection-name 'termlink)
 
+; A groupref is like a termlink, but is used for reflection of
+; functions. As such, there is no con case. Also, there's an extra
+; level of indexing involved in grouprefs, because multiple scheme
+; functions can be generated from the same top level unison
+; definition, even after floating.
+(struct unison-groupref ()
+  #:methods gen:custom-write
+  [(define (write-proc gr port mode)
+     (write-string (groupref->string gr #t) port))]
+  #:property prop:equal+hash
+  (let ()
+    (define (equal-proc grl grr rec)
+      (match grl
+        [(unison-groupref-builtin nl)
+         (match grr
+           [(unison-groupref-builtin nr)
+            (rec nl nr)]
+           [else #f])]
+        [(unison-groupref-derived hl il ll)
+         (match grr
+           [(unison-groupref-derived hr ir lr)
+            (and (rec hl hr) (= il ir) (= ll lr))]
+           [else #f])]))
+
+    (define ((hash-proc init) gr rec)
+      (match gr
+        [(unison-groupref-builtin n)
+         (fxxor (fx*/wraparound (rec n) 113)
+                (fx*/wraparound init 109))]
+        [(unison-groupref-derived h i l)
+         (fxxor (fx*/wraparound (rec h) 127)
+                (fx*/wraparound (rec i) 131)
+                (fx*/wraparound (rec l) 137))]))
+
+    (list equal-proc (hash-proc 3) (hash-proc 5))))
+
+(struct unison-groupref-builtin unison-groupref
+  (name))
+
+(struct unison-groupref-derived unison-groupref
+  (hash index local))
+
 (struct unison-typelink ()
   #:transparent
   #:reflection-name 'typelink
@@ -287,13 +353,10 @@
   (write-string ")" port))
 
 (struct unison-closure
-  (code env)
+  (ref code env)
   #:transparent
   #:methods gen:custom-write
   [(define (write-proc clo port mode)
-     (define code-tl
-       (lookup-function-link (unison-closure-code clo)))
-
      (define rec
        (case mode
          [(#t) write]
@@ -305,12 +368,47 @@
      (write-string " " port)
      (write-sequence (unison-closure-env clo) port mode)
      (write-string ")" port))]
+
+  ; This has essentially becomes the slow path for unison function
+  ; application. The definition macro immediately creates a closure
+  ; for any statically under-saturated call or unapplied occurrence.
+  ; This means that there is never a bare unison function being passed
+  ; as a value. So, we can define the slow path here once and for all.
   #:property prop:procedure
-  (case-lambda
-    [(clo) clo]
-    [(clo . rest)
-     (apply (unison-closure-code clo)
-            (append (unison-closure-env clo) rest))]))
+  (lambda (clo . rest)
+    (define code (unison-closure-code clo))
+    (define arity (procedure-arity code))
+    (define old-env (unison-closure-env clo))
+
+    (define new-env (append old-env rest))
+    (define k (length rest))
+    (define l (length new-env))
+    (cond
+      [(= arity l) ; saturated
+       (apply code new-env)]
+      [(= k 0) clo] ; special case, 0-applying undersaturated
+      [(< arity l)
+       ; TODO: pending arg annotation if no pure?
+       (define-values (now pending) (split-at new-env arity))
+       (apply (apply code now) pending)]
+      [else ; still undersaturated
+        (struct-copy unison-closure clo [env new-env])])))
+
+(define (reflect-procedure f)
+  (if (unison-closure? f)
+    f
+    (let-values ([(req opt) (procedure-keywords f)])
+      (if (member '#:reflect opt)
+        ; 0-arg case
+        (f #:reflect #t)
+        ; otherwise, by convention, applying enough to 0 args reflects
+        ((f))))))
+
+(define (build-closure f . args)
+  (define clo (reflect-procedure f))
+  (define env (unison-closure-env clo))
+
+  (struct-copy unison-closure clo [env (append env args)]))
 
 (struct unison-timespec (sec nsec)
   #:transparent
@@ -332,6 +430,115 @@
 
     (list equal-proc (hash-proc 3) (hash-proc 5))))
 
+; This is the base struct for continuation representations. It has
+; two possibilities seen below.
+(struct unison-continuation () #:transparent)
+
+; This is a wrapper that allows for a struct representation of all
+; continuations involved in unison. I.E. instead of just passing
+; around a raw racket continuation, we wrap it in a box for easier
+; identification.
+(struct unison-cont-wrapped unison-continuation (cont)
+  ; Use the wrapped continuation for procedure calls. Continuations
+  ; will always be called via the jumpCont wrapper which exactly
+  ; applies them to one argument.
+  #:property prop:procedure 0)
+
+; Basic mechanism for installing handlers, defined here so that it
+; can be used in the implementation of reflected continuations.
+;
+; Note: this uses the prompt _twice_ to achieve the sort of dynamic
+; scoping we want. First we push an outer delimiter, then install
+; the continuation marks corresponding to the handled abilities
+; (which tells which propt to use for that ability and which
+; functions to use for each request). Then we re-delimit by the same
+; prompt.
+;
+; If we just used one delimiter, we'd have a problem. If we pushed
+; the marks _after_ the delimiter, then the continuation captured
+; when handling would contain those marks, and would effectively
+; retain the handler for requests within the continuation. If the
+; marks were outside the prompt, we'd be in a similar situation,
+; except where the handler would be automatically handling requests
+; within its own implementation (although, in both these cases we'd
+; get control errors, because we would be using the _function_ part
+; of the handler without the necessary delimiters existing on the
+; continuation). Both of these situations are wrong for _shallow_
+; handlers.
+;
+; Instead, what we need to be able to do is capture the continuation
+; _up to_ the marks, then _discard_ the marks, and this is what the
+; multiple delimiters accomplish. There might be more efficient ways
+; to accomplish this with some specialized mark functions, but I'm
+; uncertain of what pitfalls there are with regard to that (whehter
+; they work might depend on exact frame structure of the
+; metacontinuation).
+(define (call-with-handler rs h f)
+  (let ([p (make-prompt)])
+    (prompt0-at p
+      (let ([v (call-with-marks rs (cons p h)
+                 (lambda () (prompt0-at p (f))))])
+        (h (make-pure v))))))
+
+(define (call-with-marks rs v f)
+  (cond
+    [(null? rs) (f)]
+    [else
+      (with-continuation-mark (car rs) v
+        (call-with-marks (cdr rs) v f))]))
+
+; Version of the above for re-installing a handlers in the serialized
+; format. In that case, there is an association list of links and
+; handlers, rather than a single handler (although the separate
+; handlers are likely duplicates).
+(define (call-with-assoc-marks p hs f)
+  (match hs
+    ['() (f)]
+    [(cons (cons r h) rest)
+     (with-continuation-mark r (cons p h)
+       (call-with-assoc-marks rest f))]))
+
+(define (call-with-handler-assocs hs f)
+  (let ([p (make-prompt)])
+    (prompt0-at p
+      (call-with-assoc-marks p hs
+        (lambda () (prompt0-at p (f)))))))
+
+(define (repush frames v)
+  (match frames
+    ['() v]
+    [(cons (unison-frame-mark as tls hs) frames)
+     ; handler frame; as are pending arguments, tls are typelinks
+     ; for handled abilities; hs are associations from links to
+     ; handler values.
+     ;
+     ; todo: args
+     (call-with-handler-assocs hs
+       (lambda () (repush frames v)))]
+    [(cons (unison-frame-push ls as rt) rest)
+     (displayln (list ls as rt))
+     (raise "repush push: not implemented yet")]))
+
+; This is a *reflected* representation of continuations amenable
+; to serialization. Most continuations won't be in this format,
+; because it's foolish to eagerly parse the racket continuation if
+; it's just going to be applied. But, a continuation that we've
+; gotten from serialization will be in this format.
+;
+; `frames` should be a list of the below `unison-frame` structs.
+(struct unison-cont-reflected unison-continuation (frames)
+  #:property prop:procedure
+  (lambda (cont v) (repush (unison-cont-reflected-frames cont) v)))
+
+; Stack frames for reflected continuations
+(struct unison-frame () #:transparent)
+
+(struct unison-frame-push unison-frame
+  (locals args return-to))
+
+(struct unison-frame-mark unison-frame
+  (args abilities handlers))
+
 (define-syntax (define-builtin-link stx)
   (syntax-case stx ()
     [(_ name)
@@ -341,9 +548,11 @@
             [dname (datum->syntax stx
                      (string->symbol
                        (string-append
-                         "builtin-" txt ":termlink")))])
-       #`(define #,dname
-           (unison-termlink-builtin #,(datum->syntax stx txt))))]))
+                         "builtin-" txt ":termlink"))
+                     #'name)])
+       (quasisyntax/loc stx
+         (define #,dname
+           (unison-termlink-builtin #,(datum->syntax stx txt)))))]))
 
 (define-syntax (declare-builtin-link stx)
   (syntax-case stx ()
@@ -354,7 +563,8 @@
             [dname (datum->syntax stx
                      (string->symbol
                        (string-append txt ":termlink")))])
-       #`(declare-function-link name #,dname))]))
+       (quasisyntax/loc stx
+         (declare-function-link name #,dname)))]))
 
 (define (partial-app f . args) (unison-closure f args))
 
@@ -379,11 +589,11 @@
 
 ; #<void> works as well
 ; Unit
-(define unit (sum 0))
+(define sum-unit (sum 0))
 
 ; Booleans are represented as numbers
-(define false 0)
-(define true 1)
+(define sum-false 0)
+(define sum-true 1)
 
 (define (bool b) (if b 1 0))
 
@@ -440,6 +650,9 @@
 (define builtin-timespec:typelink (unison-typelink-builtin "TimeSpec"))
 (define builtin-threadid:typelink (unison-typelink-builtin "ThreadId"))
 (define builtin-value:typelink (unison-typelink-builtin "Value"))
+(define builtin-udpsocket:typelink (unison-typelink-builtin "UDPSocket"))
+(define builtin-listensocket:typelink (unison-typelink-builtin "ListenSocket"))
+(define builtin-clientsockaddr:typelink (unison-typelink-builtin "ClientSockAddr"))
 
 (define builtin-crypto.hashalgorithm:typelink
   (unison-typelink-builtin "crypto.HashAlgorithm"))
@@ -516,7 +729,8 @@
 (define code-associations (make-hash))
 
 (define (declare-code hs co)
-  (hash-set! code-associations hs co))
+  (unless (hash-has-key? code-associations hs)
+    (hash-set! code-associations hs co)))
 
 (define (lookup-code hs)
   (let ([mco (hash-ref code-associations hs #f)])
@@ -536,24 +750,41 @@
       [else
         (raise "unison-tuple->list: unexpected value")])))
 
+(define (unison-pair->cons t)
+  (match t
+    [(unison-data _ _ (list x (unison-data _ _ (list y _))))
+     (cons x y)]
+    [else
+     (raise "unison-pair->cons: unexpected value")]))
+
 (define (hash-string hs)
   (string-append
     "#"
     (bytevector->base32-string hs #:alphabet 'hex)))
 
-(define (ix-string i)
+(define (ix-string #:sep [sep "."] i)
   (if (= i 0)
     ""
-    (string-append "." (number->string i))))
+    (string-append sep (number->string i))))
+
+(define (clip short s) (if short (substring s 0 8) s))
 
 (define (typelink->string ln [short #f])
-  (define (clip s) (if short (substring s 0 8) s))
-
   (match ln
     [(unison-typelink-builtin name)
      (string-append "##" name)]
     [(unison-typelink-derived hs i)
-     (string-append (clip (hash-string hs)) (ix-string i))]))
+     (string-append (clip short (hash-string hs)) (ix-string i))]))
+
+(define (groupref->string gr [short #f])
+  (match gr
+    [(unison-groupref-builtin name)
+     (string-append "##" name)]
+    [(unison-groupref-derived hs i l)
+     (string-append
+       (clip short (hash-string hs))
+       (ix-string i)
+       (ix-string #:sep "-" l))]))
 
 (define (termlink->string ln [short #f])
   (define (clip s) (if short (substring s 0 8) s))
@@ -567,3 +798,22 @@
      (string-append
        (typelink->string rf short) "#" (number->string t))]))
 
+(define (groupref->termlink gr)
+  (match gr
+    [(unison-groupref-builtin name)
+     (unison-termlink-builtin name)]
+    [(unison-groupref-derived hs i _)
+     (unison-termlink-derived hs i)]))
+
+(define (termlink->groupref ln l)
+  (match ln
+    [#f #f]
+    [(unison-termlink-builtin name)
+     (unison-groupref-builtin name)]
+    [(unison-termlink-derived hs i)
+     (unison-groupref-derived hs i l)]
+    [(unison-termlink-con r i)
+     (raise-argument-error
+       'termlink->groupref
+       "builtin or derived link"
+       ln)]))

@@ -9,6 +9,7 @@ import Control.Monad.Writer.Class qualified as Writer
 import Control.Monad.Writer.Lazy (runWriterT)
 import Data.Char qualified as Char
 import Data.Foldable
+import Data.List (intersperse)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe
@@ -357,7 +358,8 @@ toHtml docNamesByRef document =
                 [d] ->
                   currentSectionLevelToHtml d
                 ds ->
-                  span_ [class_ "span"] <$> renderSequence currentSectionLevelToHtml (mergeWords " " ds)
+                  span_ [class_ "span"]
+                    <$> (renderSequence currentSectionLevelToHtml (intersperse (Word " ") (mergeWords " " ds)))
             BulletedList items ->
               let itemToHtml i =
                     li_ [] <$> currentSectionLevelToHtml i

@@ -14,20 +14,21 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
-import Data.Tuple qualified as Tuple
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
+import Unison.Cli.Pretty qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Input (TestInput (..))
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.HashQualified qualified as HQ
@@ -37,7 +38,10 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Reference (TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash qualified as SH
@@ -50,45 +54,49 @@ import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
+import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation qualified as R
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as WK
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
-handleTest :: TestInput -> Cli ()
-handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
+handleTest :: Bool -> TestInput -> Cli ()
+handleTest native TestInput {includeLibNamespace, path, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
-  testRefs <- findTermsOfTypes codebase includeLibNamespace (NESet.singleton (DD.testResultListType mempty))
+  testRefs <- findTermsOfTypes codebase includeLibNamespace path (NESet.singleton (DD.testResultListType mempty))
 
   cachedTests <-
     Map.fromList <$> Cli.runTransaction do
       Set.toList testRefs & wither \case
         rid -> fmap (rid,) <$> Codebase.getWatch codebase WK.TestWatch rid
-  let (oks, fails) = passFails cachedTests
-      passFails :: (Ord r) => Map r (Term v a) -> ([(r, Text)], [(r, Text)])
-      passFails = Tuple.swap . partitionEithers . concat . map p . Map.toList
+  let (fails, oks) = passFails cachedTests
+      passFails :: (Ord r) => Map r (Term v a) -> (Map r [Text], Map r [Text])
+      passFails =
+        Map.foldrWithKey
+          (\r v (f, o) -> bimap (\ts -> if null ts then f else Map.insert r ts f) (\ts -> if null ts then o else Map.insert r ts o) . partitionEithers $ p v)
+          (Map.empty, Map.empty)
         where
-          p :: (r, Term v a) -> [Either (r, Text) (r, Text)]
-          p (r, tm) = case tm of
-            Term.List' ts -> mapMaybe (q r) (toList ts)
+          p :: Term v a -> [Either Text Text]
+          p = \case
+            Term.List' ts -> mapMaybe q $ toList ts
             _ -> []
-          q r = \case
+          q = \case
             Term.App' (Term.Constructor' (ConstructorReference ref cid)) (Term.Text' msg) ->
               if
-                  | ref == DD.testResultRef ->
-                      if
-                          | cid == DD.okConstructorId -> Just (Right (r, msg))
-                          | cid == DD.failConstructorId -> Just (Left (r, msg))
-                          | otherwise -> Nothing
-                  | otherwise -> Nothing
+                | ref == DD.testResultRef ->
+                    if
+                      | cid == DD.okConstructorId -> Just (Right msg)
+                      | cid == DD.failConstructorId -> Just (Left msg)
+                      | otherwise -> Nothing
+                | otherwise -> Nothing
             _ -> Nothing
   let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
   names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let fqnPPE = PPED.unsuffixifiedPPE pped
-  Cli.respond $
+  Cli.respondNumbered $
     TestResults
       stats
       fqnPPE
@@ -108,11 +116,14 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
         Just tm -> do
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
-          tm' <- RuntimeUtils.evalPureUnison fqnPPE False tm
+          tm' <- RuntimeUtils.evalPureUnison native fqnPPE False tm
           case tm' of
             Left e -> do
-              Cli.respond (EvaluationFailure e)
-              pure []
+              Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
+              let
+                testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
+                e' = P.callout ("Error while evaluating test " <> P.backticked testName) e
+              Cli.returnEarly (EvaluationFailure e')
             Right tm' -> do
               -- After evaluation, cache the result of the test
               Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
@@ -120,27 +131,33 @@ handleTest TestInput {includeLibNamespace, showFailures, showSuccesses} = do
               pure [(r, tm')]
 
     let m = Map.fromList computedTests
-        (mOks, mFails) = passFails m
-    Cli.respond $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
+        (mFails, mOks) = passFails m
+    Cli.respondNumbered $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
 
-handleIOTest :: HQ.HashQualified Name -> Cli ()
-handleIOTest main = do
-  Cli.Env {runtime} <- ask
+handleIOTest :: Bool -> HQ.HashQualified Name -> Cli ()
+handleIOTest native main = do
+  let mode = if native then Native else Permissive
+  runtime <- RuntimeUtils.selectRuntime mode
   names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let isIOTest typ = Foldable.any (Typechecker.isSubtype typ) $ Runtime.ioTestTypes runtime
   refs <- resolveHQNames names (Set.singleton main)
   (fails, oks) <-
-    refs & foldMapM \(ref, typ) -> do
-      when (not $ isIOTest typ) do
-        Cli.returnEarly (BadMainFunction "io.test" (HQ.toText main) typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
-      runIOTest suffixifiedPPE ref
-  Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
+    Foldable.foldrM
+      ( \(ref, typ) (f, o) -> do
+          when (not $ isIOTest typ) $
+            Cli.returnEarly (BadMainFunction "io.test" main typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
+          bimap (\ts -> if null ts then f else Map.insert ref ts f) (\ts -> if null ts then o else Map.insert ref ts o) <$> runIOTest suffixifiedPPE ref
+      )
+      (Map.empty, Map.empty)
+      refs
+  Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
-findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> NESet (Type.Type Symbol Ann) -> Cli (Set Reference.Id)
-findTermsOfTypes codebase includeLib filterTypes = do
-  branch <- Cli.getCurrentBranch0
+findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> Path.Relative -> NESet (Type.Type Symbol Ann) -> Cli (Set TermReferenceId)
+findTermsOfTypes codebase includeLib path filterTypes = do
+  branch <- Cli.expectBranch0AtPath path
+
   let possibleTests =
         branch
           & (if includeLib then id else Branch.withoutLib)
@@ -151,24 +168,31 @@ findTermsOfTypes codebase includeLib filterTypes = do
     filterTypes & foldMapM \matchTyp -> do
       Codebase.filterTermsByReferenceIdHavingType codebase matchTyp possibleTests
 
-handleAllIOTests :: Cli ()
-handleAllIOTests = do
-  Cli.Env {codebase, runtime} <- ask
+handleAllIOTests :: Bool -> Cli ()
+handleAllIOTests native = do
+  Cli.Env {codebase} <- ask
+  let mode = if native then Native else Permissive
+  runtime <- RuntimeUtils.selectRuntime mode
   names <- Cli.currentNames
-  pped <- Cli.prettyPrintEnvDeclFromNames names
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
-  ioTestRefs <- findTermsOfTypes codebase False (Runtime.ioTestTypes runtime)
+  ioTestRefs <- findTermsOfTypes codebase False mempty (Runtime.ioTestTypes runtime)
   case NESet.nonEmptySet ioTestRefs of
-    Nothing -> Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True [] []
+    Nothing -> Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True Map.empty Map.empty
     Just neTestRefs -> do
       let total = NESet.size neTestRefs
       (fails, oks) <-
-        toList neTestRefs & zip [1 :: Int ..] & foldMapM \(n, r) -> do
-          Cli.respond $ TestIncrementalOutputStart suffixifiedPPE (n, total) r
-          (fails, oks) <- runIOTest suffixifiedPPE r
-          Cli.respond $ TestIncrementalOutputEnd suffixifiedPPE (n, total) r (null fails)
-          pure (fails, oks)
-      Cli.respond $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
+        toList neTestRefs
+          & zip [1 :: Int ..]
+          & Foldable.foldrM
+            ( \(n, r) (f, o) -> do
+                Cli.respond $ TestIncrementalOutputStart suffixifiedPPE (n, total) r
+                (fails, oks) <- runIOTest suffixifiedPPE r
+                Cli.respond $ TestIncrementalOutputEnd suffixifiedPPE (n, total) r (null fails)
+                pure (if null fails then f else Map.insert r fails f, if null oks then o else Map.insert r oks o)
+            )
+            (Map.empty, Map.empty)
+      Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
 resolveHQNames :: Names -> Set (HQ.HashQualified Name) -> Cli (Set (Reference.Id, Type.Type Symbol Ann))
 resolveHQNames parseNames hqNames =
@@ -193,19 +217,16 @@ resolveHQNames parseNames hqNames =
           typ <- MaybeT (Codebase.getTypeOfReferent codebase (Referent.fromTermReferenceId ref))
           pure (ref, typ)
 
-runIOTest :: PPE.PrettyPrintEnv -> Reference.Id -> Cli ([(Reference.Id, Text)], [(Reference.Id, Text)])
+runIOTest :: PPE.PrettyPrintEnv -> Reference.Id -> Cli ([Text], [Text])
 runIOTest ppe ref = do
   let a = ABT.annotation tm
       tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
-  tm' <- RuntimeUtils.evalUnisonTerm False ppe False tm
-  pure $ partitionTestResults [(ref, tm')]
+  tm' <- RuntimeUtils.evalUnisonTerm Permissive ppe False tm
+  pure $ partitionTestResults tm'
 
-partitionTestResults ::
-  [(Reference.Id, Term Symbol Ann)] ->
-  ([(Reference.Id, Text {- fails -})], [(Reference.Id, Text {- oks -})])
-partitionTestResults results = fold $ do
-  (ref, tm) <- results
+partitionTestResults :: Term Symbol Ann -> ([Text {- fails -}], [Text {- oks -}])
+partitionTestResults tm = fold $ do
   element <- case tm of
     Term.List' ts -> toList ts
     _ -> empty
@@ -213,9 +234,9 @@ partitionTestResults results = fold $ do
     Term.App' (Term.Constructor' (ConstructorReference conRef cid)) (Term.Text' msg) -> do
       guard (conRef == DD.testResultRef)
       if
-          | cid == DD.okConstructorId -> pure (mempty, [(ref, msg)])
-          | cid == DD.failConstructorId -> pure ([(ref, msg)], mempty)
-          | otherwise -> empty
+        | cid == DD.okConstructorId -> pure (mempty, [msg])
+        | cid == DD.failConstructorId -> pure ([msg], mempty)
+        | otherwise -> empty
     _ -> empty
 
 isTestOk :: Term v Ann -> Bool

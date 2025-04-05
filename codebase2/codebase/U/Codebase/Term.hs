@@ -16,6 +16,7 @@ import U.Core.ABT qualified as ABT
 import U.Core.ABT.Var qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Prelude
+import Unison.Util.Recursion
 
 type ConstructorId = Word64
 
@@ -207,7 +208,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
 rmapPattern :: (t -> t') -> (r -> r') -> Pattern t r -> Pattern t' r'
 rmapPattern ft fr p = runIdentity . rmapPatternM (pure . ft) (pure . fr) $ p
 
-rmapPatternM :: Applicative m => (t -> m t') -> (r -> m r') -> Pattern t r -> m (Pattern t' r')
+rmapPatternM :: (Applicative m) => (t -> m t') -> (r -> m r') -> Pattern t r -> m (Pattern t' r')
 rmapPatternM ft fr = go
   where
     go = \case
@@ -260,7 +261,7 @@ dependencies =
 -- to the relevant piece of the component in the component map.
 unhashComponent ::
   forall v extra.
-  ABT.Var v =>
+  (ABT.Var v) =>
   -- | The hash of the component, this is used to fill in self-references.
   Hash ->
   -- | A function to convert a reference to a variable. The actual var names aren't important.
@@ -281,7 +282,7 @@ unhashComponent componentHash refToVar m =
     assignVar :: Reference.Id -> (trm, extra) -> StateT (Set v) Identity (v, trm, extra)
     assignVar r (trm, extra) = (,trm,extra) <$> ABT.freshenS (refToVar r)
     fillSelfReferences :: Term v -> HashableTerm v
-    fillSelfReferences = (ABT.cata alg)
+    fillSelfReferences = cata alg
       where
         rewriteTermReference :: Reference.Id' (Maybe Hash) -> Either v Reference.Reference
         rewriteTermReference rid@(Reference.Id mayH pos) =
@@ -299,8 +300,8 @@ unhashComponent componentHash refToVar m =
               case Map.lookup (fromMaybe componentHash <$> rid) withGeneratedVars of
                 Nothing -> error "unhashComponent: self-reference not found in component map"
                 Just (v, _, _) -> Left v
-        alg :: () -> ABT.ABT (F v) v (HashableTerm v) -> HashableTerm v
-        alg () = \case
+        alg :: ABT.Term' (F v) v () (HashableTerm v) -> HashableTerm v
+        alg (ABT.Term' _ () abt) = case abt of
           ABT.Var v -> ABT.var () v
           ABT.Cycle body -> ABT.cycle () body
           ABT.Abs v body -> ABT.abs () v body

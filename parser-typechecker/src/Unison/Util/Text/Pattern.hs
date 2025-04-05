@@ -157,8 +157,9 @@ compile (Many correct p) !_ !success = case p of
   Char cp -> walker (charPatternPred cp)
   p -> go
     where
-      go | correct = try "Many" (compile p) success success'
-         | otherwise = compile p success success'
+      go
+        | correct = try "Many" (compile p) success success'
+        | otherwise = compile p success success'
       success' acc rem
         | Text.size rem == 0 = success acc rem
         | otherwise = go acc rem

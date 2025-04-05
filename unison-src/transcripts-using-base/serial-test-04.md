@@ -1,8 +1,4 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
-```unison
+``` unison
 
 mutual0 = cases
   0 -> "okay"
@@ -17,7 +13,7 @@ mkTestCase = do
   saveTestCase "case-04" "v4" mutual1 5
 ```
 
-```ucm
-.> add
-.> run mkTestCase
+``` ucm
+scratch/main> add
+scratch/main> run mkTestCase
 ```

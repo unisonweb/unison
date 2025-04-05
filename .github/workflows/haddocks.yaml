@@ -13,9 +13,9 @@ on:
 jobs:
   build:
     name: Haddocks
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           path: unison
 
@@ -27,6 +27,8 @@ jobs:
 
       - name: install stack
         uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 2.15.5
 
       - name: build with haddocks
         working-directory: unison
@@ -40,7 +42,7 @@ jobs:
 
       # Haddocks
       - name: Checkout haddocks branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: haddocks
           path: haddocks

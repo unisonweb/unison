@@ -6,6 +6,7 @@ module Unison.Util.Text where
 
 import Data.Foldable (toList)
 import Data.List (foldl', unfoldr)
+import Data.List qualified as L
 import Data.String (IsString (..))
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -130,6 +131,25 @@ indexOf needle haystack =
   where
     needle' = toLazyText needle
     haystack' = toLazyText haystack
+
+-- | Return the ordinal representation of a number in English.
+--   A number ending with '1' must finish with 'st'
+--   A number ending with '2' must finish with 'nd'
+--   A number ending with '3' must finish with 'rd'
+--   _except_ for 11, 12, and 13 which must finish with 'th'
+ordinal :: (IsString s) => Int -> s
+ordinal n = do
+  let s = show n
+  fromString $
+    s ++ case L.drop (L.length s - 2) s of
+      ['1', '1'] -> "th"
+      ['1', '2'] -> "th"
+      ['1', '3'] -> "th"
+      _ -> case last s of
+        '1' -> "st"
+        '2' -> "nd"
+        '3' -> "rd"
+        _ -> "th"
 
 -- Drop with both a maximum size and a predicate. Yields actual number of
 -- dropped characters.

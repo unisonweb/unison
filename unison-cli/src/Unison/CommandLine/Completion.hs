@@ -20,9 +20,7 @@ module Unison.CommandLine.Completion
   )
 where
 
-import Control.Lens (ifoldMap)
-import Control.Lens qualified as Lens
-import Control.Lens.Cons (unsnoc)
+import Control.Lens
 import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
 import Data.List qualified as List
@@ -48,11 +46,12 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
 import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
@@ -73,9 +72,9 @@ haskelineTabComplete ::
   Map String IP.InputPattern ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   Line.CompletionFunc m
-haskelineTabComplete patterns codebase authedHTTPClient currentPath = Line.completeWordWithPrev Nothing " " $ \prev word ->
+haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWordWithPrev Nothing " " $ \prev word ->
   -- User hasn't finished a command name, complete from command names
   if null prev
     then pure . exactComplete word $ Map.keys patterns
@@ -83,8 +82,8 @@ haskelineTabComplete patterns codebase authedHTTPClient currentPath = Line.compl
     case words $ reverse prev of
       h : t -> fromMaybe (pure []) $ do
         p <- Map.lookup h patterns
-        argType <- IP.argType p (length t)
-        pure $ IP.suggestions argType word codebase authedHTTPClient currentPath
+        paramType <- IP.paramType (IP.params p) (length t)
+        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
       _ -> pure []
 
 -- | Things which we may want to complete for.
@@ -101,7 +100,7 @@ noCompletions ::
   String ->
   Codebase m v a ->
   AuthenticatedHttpClient ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   m [System.Console.Haskeline.Completion.Completion]
 noCompletions _ _ _ _ = pure []
 
@@ -141,18 +140,18 @@ completeWithinNamespace ::
   NESet CompletionType ->
   -- | The portion of this are that the user has already typed.
   String ->
-  Path.Absolute ->
+  PP.ProjectPath ->
   Sqlite.Transaction [System.Console.Haskeline.Completion.Completion]
-completeWithinNamespace compTypes query currentPath = do
+completeWithinNamespace compTypes query ppCtx = do
   shortHashLen <- Codebase.hashLength
-  b <- Codebase.getShallowBranchAtPath (Path.unabsolute absQueryPath) Nothing
+  b <- Codebase.getShallowBranchAtProjectPath queryProjectPath
   currentBranchSuggestions <- do
     nib <- namesInBranch shortHashLen b
     nib
       & fmap
         ( \(ty, isFinished, match) ->
             ( isFinished,
-              Text.unpack (dotifyNamespace ty (Path.toText' (queryPathPrefix Lens.:> NameSegment match)))
+              Text.unpack (dotifyNamespace ty (Path.toText (Path.descend queryPathPrefix $ NameSegment match)))
             )
         )
       & filter (\(_isFinished, match) -> List.isPrefixOf query match)
@@ -168,8 +167,8 @@ completeWithinNamespace compTypes query currentPath = do
     queryPathPrefix :: Path.Path'
     querySuffix :: Text
     (queryPathPrefix, querySuffix) = parseLaxPath'Query (Text.pack query)
-    absQueryPath :: Path.Absolute
-    absQueryPath = Path.resolve currentPath queryPathPrefix
+    queryProjectPath :: PP.ProjectPath
+    queryProjectPath = ppCtx & PP.absPath_ %~ \curPath -> Path.resolve curPath queryPathPrefix
     getChildSuggestions :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [Completion]
     getChildSuggestions shortHashLen b
       | Text.null querySuffix = pure []
@@ -187,7 +186,7 @@ completeWithinNamespace compTypes query currentPath = do
                     & fmap
                       ( \(ty, isFinished, match) ->
                           ( isFinished,
-                            Text.unpack (dotifyNamespace ty (Path.toText' (queryPathPrefix Lens.:> suffix Lens.:> NameSegment match)))
+                            Text.unpack (dotifyNamespace ty (Path.toText (Path.descend (Path.descend queryPathPrefix suffix) $ NameSegment match)))
                           )
                       )
                     & filter (\(_isFinished, match) -> List.isPrefixOf query match)
@@ -196,12 +195,6 @@ completeWithinNamespace compTypes query currentPath = do
     namesInBranch :: Int -> V2Branch.Branch Sqlite.Transaction -> Sqlite.Transaction [(CompletionType, Bool, Text)]
     namesInBranch hashLen b = do
       nonEmptyChildren <- V2Branch.nonEmptyChildren b
-      let textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
-          textifyHQ f xs =
-            xs
-              & hashQualifyCompletions f
-              & fmap (HQ'.toTextWith NameSegment.toEscapedText)
-              & fmap (True,)
       pure $
         concat
           [ (NamespaceCompletion,False,) <$> (fmap NameSegment.toEscapedText . Map.keys $ nonEmptyChildren),
@@ -216,6 +209,12 @@ completeWithinNamespace compTypes query currentPath = do
               (fmap ((PatchCompletion,True,) . NameSegment.toEscapedText) . Map.keys $ V2Branch.patches b)
           ]
 
+    textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
+    textifyHQ f xs =
+      xs
+        & hashQualifyCompletions f
+        & fmap (HQ'.toTextWith NameSegment.toEscapedText)
+        & fmap (True,)
     -- Regrettably there'shqFromNamedV2Referencenot a great spot to combinators for V2 references and shorthashes right now.
     hqFromNamedV2Referent :: Int -> NameSegment -> Referent.Referent -> HQ'.HashQualified NameSegment
     hqFromNamedV2Referent hashLen n r = HQ'.HashQualified n (Cv.referent2toshorthash1 (Just hashLen) r)
@@ -265,44 +264,44 @@ completeWithinNamespace compTypes query currentPath = do
 parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
   case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
-    Left _err -> (Path.relativeEmpty', txt)
-    Right ((path, segment), rest) ->
+    Left _err -> (Path.Current', txt)
+    Right (name, rest) ->
       if take 1 rest == "."
-        then (Path.unsplit' (path, segment), Text.empty)
-        else (path, NameSegment.toEscapedText segment)
+        then (Path.unsplit name, Text.empty)
+        else NameSegment.toEscapedText <$> name
 
 -- | Completes a namespace argument by prefix-matching against the query.
 prefixCompleteNamespace ::
   String ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteNamespace = completeWithinNamespace (NESet.singleton NamespaceCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteTermOrType ::
   String ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteTermOrType = completeWithinNamespace (NESet.fromList (TermCompletion NE.:| [TypeCompletion]))
 
 -- | Completes a term argument by prefix-matching against the query.
 prefixCompleteTerm ::
   String ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteTerm = completeWithinNamespace (NESet.singleton TermCompletion)
 
 -- | Completes a term or type argument by prefix-matching against the query.
 prefixCompleteType ::
   String ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteType = completeWithinNamespace (NESet.singleton TypeCompletion)
 
 -- | Completes a patch argument by prefix-matching against the query.
 prefixCompletePatch ::
   String ->
-  Path.Absolute -> -- Current path
+  PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
@@ -376,7 +375,7 @@ shareCompletion completionTypes authHTTPClient str =
         let (path, pathSuffix) =
               case unsnoc path0 of
                 Just (path, pathSuffix) -> (Path.fromList path, NameSegment.toEscapedText pathSuffix)
-                Nothing -> (Path.empty, "")
+                Nothing -> (mempty, "")
         NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient (NameSegment.toEscapedText userHandle) path
         namespaceListingChildren
           & fmap

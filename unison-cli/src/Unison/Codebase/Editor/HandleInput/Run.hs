@@ -3,7 +3,7 @@ module Unison.Codebase.Editor.HandleInput.Run
   )
 where
 
-import Control.Lens (view, (.=), _1)
+import Control.Lens ((.=), _1)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -13,17 +13,20 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
-import Unison.Cli.PrettyPrintUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Native, Permissive), evalUnisonFile)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Hash qualified as Hash
+import Unison.HashQualified qualified as HQ
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
@@ -38,9 +41,12 @@ import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Defns (Defns (..))
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Recursion
 import Unison.Var qualified as Var
 
-handleRun :: Bool -> Text -> [String] -> Cli ()
+handleRun :: Bool -> HQ.HashQualified Name -> [String] -> Cli ()
 handleRun native main args = do
   (unisonFile, mainResType) <- do
     (sym, term, typ, otyp) <- getTerm main
@@ -48,10 +54,12 @@ handleRun native main args = do
     pure (uf, otyp)
   names <- Cli.currentNames
   let namesWithFileDefinitions = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
-  pped <- Cli.prettyPrintEnvDeclFromNames namesWithFileDefinitions
+  let pped = PPED.makePPED (PPE.hqNamer 10 namesWithFileDefinitions) (PPE.suffixifyByHash namesWithFileDefinitions)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
   let mode | native = Native | otherwise = Permissive
-  (_, xs) <- evalUnisonFile mode suffixifiedPPE unisonFile args
+  (_, xs) <-
+    evalUnisonFile mode suffixifiedPPE unisonFile args & onLeftM \err ->
+      Cli.returnEarly (Output.EvaluationFailure err)
   mainRes :: Term Symbol () <-
     case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
       Nothing ->
@@ -75,22 +83,24 @@ data GetTermResult
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and
 -- the type of the evaluated term.
-getTerm :: Text -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
+getTerm :: HQ.HashQualified Name -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann)
 getTerm main =
   getTerm' main >>= \case
     NoTermWithThatName -> do
       mainType <- Runtime.mainType <$> view #runtime
-      pped <- Cli.currentPrettyPrintEnvDecl
+      names <- Cli.currentNames
+      let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
       let suffixifiedPPE = PPED.suffixifiedPPE pped
       Cli.returnEarly $ Output.NoMainFunction main suffixifiedPPE [mainType]
     TermHasBadType ty -> do
       mainType <- Runtime.mainType <$> view #runtime
-      pped <- Cli.currentPrettyPrintEnvDecl
+      names <- Cli.currentNames
+      let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
       let suffixifiedPPE = PPED.suffixifiedPPE pped
       Cli.returnEarly $ Output.BadMainFunction "run" main ty suffixifiedPPE [mainType]
     GetTermSuccess x -> pure x
 
-getTerm' :: Text -> Cli GetTermResult
+getTerm' :: HQ.HashQualified Name -> Cli GetTermResult
 getTerm' mainName =
   let getFromCodebase = do
         Cli.Env {codebase, runtime} <- ask
@@ -99,31 +109,35 @@ getTerm' mainName =
         mainToFile
           =<< MainTerm.getMainTerm loadTypeOfTerm names mainName (Runtime.mainType runtime)
         where
-          mainToFile (MainTerm.NotAFunctionName _) = pure NoTermWithThatName
           mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
           mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
           mainToFile (MainTerm.Success hq tm typ) =
             let v = Var.named (HQ.toText hq)
-             in checkType typ \otyp ->
+             in checkType Nothing typ \otyp ->
                   pure (GetTermSuccess (v, tm, typ, otyp))
       getFromFile uf = do
         let components = join $ UF.topLevelComponents uf
-        let mainComponent = filter ((\v -> Var.name v == mainName) . view _1) components
+        -- __TODO__: We shouldn’t need to serialize mainName` for this check
+        let mainComponent = filter ((\v -> Var.name v == HQ.toText mainName) . view _1) components
         case mainComponent of
           [(v, _, tm, ty)] ->
-            checkType ty \otyp ->
+            checkType (Just uf) ty \otyp ->
               let runMain = DD.forceTerm a a (Term.var a v)
                   v2 = Var.freshIn (Set.fromList [v]) v
                   a = ABT.annotation tm
                in pure (GetTermSuccess (v2, runMain, ty, otyp))
           _ -> getFromCodebase
-      checkType :: Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
-      checkType ty f = do
+      checkType :: Maybe (TypecheckedUnisonFile Symbol Ann) -> Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
+      checkType mayTuf ty f = do
         Cli.Env {codebase, runtime} <- ask
+        let ufDeps = maybe mempty UF.externalTypeDependencies mayTuf
         case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
           True -> do
-            typeLookup <- Cli.runTransaction (Codebase.typeLookupForDependencies codebase (Type.dependencies ty))
-            f $! synthesizeForce typeLookup ty
+            tlCodebase <-
+              Cli.runTransaction $
+                Codebase.typeLookupForDependencies codebase Defns {terms = Set.empty, types = Type.dependencies ty <> ufDeps}
+            let tlTuf = Monoid.fromMaybe (fmap UF.typecheckedToTypeLookup mayTuf)
+            f $! synthesizeForce (tlTuf <> tlCodebase) ty
           False -> pure (TermHasBadType ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
@@ -157,7 +171,8 @@ synthesizeForce tl typeOfFunc = do
         Typechecker.Env
           { ambientAbilities = [DD.exceptionType External, Type.builtinIO External],
             typeLookup = mempty {TypeLookup.typeOfTerms = Map.singleton ref typeOfFunc} <> tl,
-            termsByShortname = Map.empty
+            termsByShortname = Map.empty,
+            topLevelComponents = Map.empty
           }
   case Result.runResultT
     ( Typechecker.synthesize
@@ -192,7 +207,7 @@ stripUnisonFileReferences :: TypecheckedUnisonFile Symbol a -> Term Symbol () ->
 stripUnisonFileReferences unisonFile term =
   let refMap :: Map Reference.Id Symbol
       refMap = Map.fromList . map (\(sym, (_, refId, _, _, _)) -> (refId, sym)) . Map.toList . UF.hashTermsId $ unisonFile
-      alg () = \case
+      alg (ABT.Term' _ () abt) = case abt of
         ABT.Var x -> ABT.var x
         ABT.Cycle x -> ABT.cycle x
         ABT.Abs v x -> ABT.abs v x
@@ -200,7 +215,7 @@ stripUnisonFileReferences unisonFile term =
           Term.Ref ref
             | Just var <- (\k -> Map.lookup k refMap) =<< Reference.toId ref -> ABT.var var
           x -> ABT.tm x
-   in ABT.cata alg term
+   in cata alg term
 
 magicMainWatcherString :: String
 magicMainWatcherString = "main"

@@ -21,20 +21,21 @@ import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical
 
--- | A name is an absolute-or-relative non-empty list of name segments.
+-- | A name is an absolute-or-relative non-empty list of name segments. It is used to represent the path to a
+--   definition.
+--
+--   A few example names:
+--
+-- - "foo.bar"  --> Name Relative ("bar" :| ["foo"])
+-- - ".foo.bar" --> Name Absolute ("bar" :| ["foo"])
+-- - "|>.<|"    --> Name Relative ("<|" :| ["|>"])
+-- - "."        --> Name Relative ("." :| [])
+-- - ".."       --> Name Absolute (".." :| [])
 data Name
-  = -- A few example names:
-    --
-    --   "foo.bar"  --> Name Relative ["bar", "foo"]
-    --   ".foo.bar" --> Name Absolute ["bar", "foo"]
-    --   "|>.<|"    --> Name Relative ["<|", "|>"]
-    --   "."        --> Name Relative ["."]
-    --   ".."       --> Name Absolute ["."]
-    --
-    Name
-      -- whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
+  = Name
+      -- | whether the name is positioned absolutely (to some arbitrary root namespace), or relatively
       Position
-      -- the name segments in reverse order
+      -- | the name segments in reverse order
       (List.NonEmpty NameSegment)
   deriving stock (Eq, Generic, Show)
 
@@ -48,10 +49,11 @@ instance Alphabetical Name where
       _ -> compareAlphabetical (segments n1) (segments n2)
 
 instance
-  TypeError
-    ( 'TypeError.Text
-        "You cannot make a Name from a string literal because there may (some day) be more than one syntax"
-    ) =>
+  ( TypeError
+      ( 'TypeError.Text
+          "You cannot make a Name from a string literal because there may (some day) be more than one syntax"
+      )
+  ) =>
   IsString Name
   where
   fromString = undefined

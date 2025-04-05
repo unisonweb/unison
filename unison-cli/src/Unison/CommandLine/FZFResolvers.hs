@@ -18,6 +18,7 @@ module Unison.CommandLine.FZFResolvers
     projectAndOrBranchArg,
     projectOrBranchResolver,
     projectBranchResolver,
+    projectBranchWithinCurrentProjectResolver,
     projectNameResolver,
     fuzzySelectHeader,
   )
@@ -36,13 +37,13 @@ import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Position qualified as Position
 import Unison.Prelude
-import Unison.Project.Util (ProjectContext (..))
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
@@ -50,7 +51,7 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation qualified as Relation
 
-type OptionFetcher = Codebase IO Symbol Ann -> ProjectContext -> Branch0 IO -> IO [Text]
+type OptionFetcher = Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
 
 data FZFResolver = FZFResolver
   { getOptions :: OptionFetcher
@@ -90,12 +91,12 @@ typeDefinitionOptions = genericDefinitionOptions False True
 namespaceOptions :: OptionFetcher
 namespaceOptions _codebase _projCtx searchBranch0 = do
   let intoPath' :: Path -> Path'
-      intoPath' = Path' . Right . Path.Relative
+      intoPath' = Path.RelativePath' . Path.Relative
   searchBranch0
     & Branch.deepPaths
-    & Set.delete (Path.empty {- The current path just renders as an empty string which isn't a valid arg -})
+    & Set.delete mempty {- The current path just renders as an empty string which isn't a valid arg -}
     & Set.toList
-    & map (Path.toText' . intoPath')
+    & map (Path.toText . intoPath')
     & pure
 
 -- | Lists all dependencies of the current project.
@@ -120,7 +121,7 @@ fuzzySelectFromList options =
 -- | Combine multiple option fetchers into one resolver.
 multiResolver :: [OptionFetcher] -> FZFResolver
 multiResolver resolvers =
-  let getOptions :: Codebase IO Symbol Ann -> ProjectContext -> Branch0 IO -> IO [Text]
+  let getOptions :: Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
       getOptions codebase projCtx searchBranch0 = do
         List.nubOrd <$> foldMapM (\f -> f codebase projCtx searchBranch0) resolvers
    in (FZFResolver {getOptions})
@@ -153,6 +154,9 @@ projectOrBranchResolver = multiResolver [projectBranchOptions, namespaceOptions]
 projectBranchResolver :: FZFResolver
 projectBranchResolver = FZFResolver {getOptions = projectBranchOptions}
 
+projectBranchWithinCurrentProjectResolver :: FZFResolver
+projectBranchWithinCurrentProjectResolver = FZFResolver {getOptions = projectBranchOptionsWithinCurrentProject}
+
 projectNameResolver :: FZFResolver
 projectNameResolver = FZFResolver {getOptions = projectNameOptions}
 
@@ -160,24 +164,28 @@ projectNameResolver = FZFResolver {getOptions = projectNameOptions}
 -- E.g. '@unison/base'
 projectNameOptions :: OptionFetcher
 projectNameOptions codebase _projCtx _searchBranch0 = do
-  fmap (into @Text . SqliteProject.name) <$> Codebase.runTransaction codebase Q.loadAllProjects
+  fmap (into @Text . SqliteProject.name) <$> Codebase.runTransaction codebase Q.loadAllProjectsByRecentlyAccessed
 
 -- | All possible local project/branch names.
 -- E.g. '@unison/base/main'
 projectBranchOptions :: OptionFetcher
-projectBranchOptions codebase _projCtx _searchBranch0 = do
-  Codebase.runTransaction codebase Q.loadAllProjectBranchNamePairs
-    <&> fmap (into @Text . fst)
+projectBranchOptions codebase projCtx _searchBranch0 = do
+  projs <- Codebase.runTransaction codebase Q.loadAllProjectBranchNamePairs
+  projs
+    & filter
+      ( \(_names, projIds) ->
+          -- If it's the same as the current branch, just omit it.
+          projIds.branch /= projCtx.branch.branchId
+      )
+    & fmap (into @Text . fst)
+    & pure
 
 -- | All possible local branch names within the current project.
 -- E.g. '@unison/base/main'
 projectBranchOptionsWithinCurrentProject :: OptionFetcher
 projectBranchOptionsWithinCurrentProject codebase projCtx _searchBranch0 = do
-  case projCtx of
-    LooseCodePath _ -> pure []
-    ProjectBranchPath currentProjectId _projectBranchId _path -> do
-      Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith currentProjectId Nothing)
-        <&> fmap (into @Text . snd)
+  Codebase.runTransaction codebase (Q.loadAllProjectBranchesBeginningWith (projCtx ^. #project . #projectId) Nothing)
+    <&> fmap (into @Text . snd)
 
 -- | Exported from here just so the debug command and actual implementation can use the same
 -- messaging.

@@ -1,10 +1,7 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.Causal
-  ( Causal (currentHash, head, tail, tails),
+  ( Causal (currentHash, valueHash, head, tail, tails),
     pattern One,
     pattern Cons,
     pattern Merge,
@@ -12,6 +9,7 @@ module Unison.Codebase.Causal
     one,
     cons,
     consDistinct,
+    mergeNode,
     uncons,
     predecessors,
     threeWayMerge,
@@ -42,7 +40,8 @@ import Unison.Codebase.Causal.Type
         currentHash,
         head,
         tail,
-        tails
+        tails,
+        valueHash
       ),
     before,
     lca,

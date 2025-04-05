@@ -1,14 +1,9 @@
-
 Test for code serialization operations.
-
-```ucm:hide
-.> builtins.merge
-```
 
 Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
-```unison
+``` unison
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
@@ -138,8 +133,8 @@ verified name link =
   with handleTest ("verified " ++ name)
 
 rejected : Text -> [(Link.Term,Code)] ->{io2.IO} Result
-rejected name rco = 
-  handle verify name rco 
+rejected name rco =
+  handle verify name rco
   with expectFailure ("rejected " ++ name)
 
 missed : Text -> Link.Term -> Result
@@ -156,11 +151,11 @@ swapped name link =
   rejected ("swapped " ++ name) rco
 ```
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 ```
 
-```unison
+``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
 
@@ -239,13 +234,13 @@ This simply runs some functions to make sure there isn't a crash. Once
 we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
-```ucm
-.> add
-.> io.test tests
-.> io.test badLoad
+``` ucm
+scratch/main> add
+scratch/main> io.test tests
+scratch/main> io.test badLoad
 ```
 
-```unison
+``` unison
 codeTests : '{io2.IO} [Result]
 codeTests =
   '[ idempotence "idem f" (termLink f)
@@ -281,12 +276,12 @@ codeTests =
    ]
 ```
 
-```ucm
-.> add
-.> io.test codeTests
+``` ucm
+scratch/main> add
+scratch/main> io.test codeTests
 ```
 
-```unison
+``` unison
 validateTest : Link.Term ->{IO} Result
 validateTest l = match Code.lookup l with
   None -> Fail "Couldn't look up link"
@@ -312,7 +307,7 @@ vtests _ =
     ]
 ```
 
-```ucm
-.> add
-.> io.test vtests
+``` ucm
+scratch/main> add
+scratch/main> io.test vtests
 ```

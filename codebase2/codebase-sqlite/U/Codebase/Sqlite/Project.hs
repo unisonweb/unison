@@ -11,8 +11,8 @@ import Unison.Sqlite (FromRow, ToRow)
 
 -- | A project.
 data Project = Project
-  { projectId :: ProjectId,
-    name :: ProjectName
+  { projectId :: !ProjectId,
+    name :: !ProjectName
   }
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Eq)
   deriving anyclass (ToRow, FromRow)

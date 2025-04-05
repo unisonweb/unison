@@ -18,7 +18,7 @@ type ResultT notes f = MaybeT (WriterT notes f)
 
 data Note v loc
   = Parsing (Parser.Err v)
-  | NameResolutionFailures [Names.ResolutionFailure v loc]
+  | NameResolutionFailures [Names.ResolutionFailure loc]
   | UnknownSymbol v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
@@ -39,7 +39,7 @@ pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
 
 {-# COMPLETE Result #-}
 
-makeResult :: Applicative m => notes -> Maybe a -> ResultT notes m a
+makeResult :: (Applicative m) => notes -> Maybe a -> ResultT notes m a
 makeResult notes value =
   MaybeT (WriterT (pure (value, notes)))
 

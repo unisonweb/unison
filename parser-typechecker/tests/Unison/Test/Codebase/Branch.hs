@@ -13,6 +13,7 @@ import Unison.Codebase.Branch (Branch (Branch), Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Metadata qualified as Metadata
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Util.Relation qualified as Relation
@@ -34,7 +35,7 @@ branch0Tests =
             Branch.branch0
               mempty
               ( mempty
-                  & Star2.insertD1 (dummy, "b")
+                  & Star2.insertD1 (dummy, NameSegment "b")
                   & Metadata.insert (dummy, dummy)
               )
               Map.empty
@@ -45,10 +46,10 @@ branch0Tests =
             Branch.branch0
               mempty
               ( mempty
-                  & Star2.insertD1 (dummy, "b")
+                  & Star2.insertD1 (dummy, NameSegment "b")
                   & Metadata.insert (dummy, dummy)
               )
-              (Map.singleton "a" (Branch (Causal.one b0)))
+              (Map.singleton (NameSegment "a") (Branch (Causal.one b0)))
               Map.empty
 
       let -- b.a.b
@@ -57,7 +58,7 @@ branch0Tests =
             Branch.branch0
               mempty
               mempty
-              (Map.singleton "b" (Branch (Causal.one b1)))
+              (Map.singleton (NameSegment "b") (Branch (Causal.one b1)))
               Map.empty
 
       expect (Set.valid (Relation.ran (Branch.deepTypes b2)))

@@ -3,25 +3,22 @@ module Unison.PatternMatchCoverage.Desugar
   )
 where
 
-import Data.List.NonEmpty (NonEmpty (..))
 import U.Core.ABT qualified as ABT
 import Unison.Pattern
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage.Class
-import Unison.PatternMatchCoverage.Fix
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.PmGrd
 import Unison.PatternMatchCoverage.PmLit qualified as PmLit
 import Unison.Term (MatchCase (..), Term', app, var)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Util.Recursion
 
 -- | Desugar a match into a 'GrdTree'
 desugarMatch ::
   forall loc vt v m.
   (Pmc vt v loc m) =>
-  -- | loc of match
-  loc ->
   -- | scrutinee type
   Type vt loc ->
   -- | scrutinee variable
@@ -29,10 +26,7 @@ desugarMatch ::
   -- | match cases
   [MatchCase loc (Term' vt v loc)] ->
   m (GrdTree (PmGrd vt v loc) loc)
-desugarMatch loc0 scrutineeType v0 cs0 =
-  traverse desugarClause cs0 >>= \case
-    [] -> pure $ Leaf loc0
-    x : xs -> pure $ Fork (x :| xs)
+desugarMatch scrutineeType v0 cs0 = Fork <$> traverse desugarClause cs0
   where
     desugarClause :: MatchCase loc (Term' vt v loc) -> m (GrdTree (PmGrd vt v loc) loc)
     desugarClause MatchCase {matchPattern, matchGuard} =
@@ -120,32 +114,31 @@ listToGrdTree ::
   [v] ->
   m (GrdTree (PmGrd vt v loc) loc)
 listToGrdTree _listTyp elemTyp listVar nl0 k0 vs0 =
-  let (minLen, maxLen) = countMinListLen nl0
-   in Grd (PmListInterval listVar minLen maxLen) <$> go 0 0 nl0 k0 vs0
+  let (minLen, maxLen) = cata countMinListLen nl0 0
+   in Grd (PmListInterval listVar minLen maxLen) <$> cata go nl0 0 0 k0 vs0
   where
-    go consCount snocCount (Fix pat) k vs = case pat of
+    go pat consCount snocCount k vs = case pat of
       N'ConsF x xs -> do
         element <- fresh
         let grd = PmListHead listVar consCount element elemTyp
         let !consCount' = consCount + 1
-        Grd grd <$> desugarPattern elemTyp element x (go consCount' snocCount xs k) vs
+        Grd grd <$> desugarPattern elemTyp element x (xs consCount' snocCount k) vs
       N'SnocF xs x -> do
         element <- fresh
         let grd = PmListTail listVar snocCount element elemTyp
         let !snocCount' = snocCount + 1
-        Grd grd <$> go consCount snocCount' xs (desugarPattern elemTyp element x k) vs
+        Grd grd <$> xs consCount snocCount' (desugarPattern elemTyp element x k) vs
       N'NilF -> k vs
       N'VarF _ -> k (listVar : vs)
       N'UnboundF _ -> k vs
 
-    countMinListLen :: NormalizedList loc -> (Int, Int)
-    countMinListLen =
-      ($ 0) . cata \case
-        N'ConsF _ b -> \acc -> b $! acc + 1
-        N'SnocF b _ -> \acc -> b $! acc + 1
-        N'NilF -> \ !n -> (n, n)
-        N'VarF _ -> \ !n -> (n, maxBound)
-        N'UnboundF _ -> \ !n -> (n, maxBound)
+    countMinListLen :: Algebra (NormalizedListF loc) (Int -> (Int, Int))
+    countMinListLen = \case
+      N'ConsF _ b -> \acc -> b $! acc + 1
+      N'SnocF b _ -> \acc -> b $! acc + 1
+      N'NilF -> \ !n -> (n, n)
+      N'VarF _ -> \ !n -> (n, maxBound)
+      N'UnboundF _ -> \ !n -> (n, maxBound)
 
 data NormalizedListF loc a
   = N'ConsF (Pattern loc) a

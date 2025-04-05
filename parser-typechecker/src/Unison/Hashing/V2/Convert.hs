@@ -15,17 +15,11 @@ module Unison.Hashing.V2.Convert
 where
 
 import Control.Applicative
-import Control.Lens (over, _3)
+import Control.Lens (_3)
 import Control.Lens qualified as Lens
 import Control.Monad.Trans.Writer.CPS (Writer)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
-import Data.Bifunctor (bimap)
-import Data.Foldable (toList)
-import Data.Function ((&))
-import Data.Functor ((<&>))
-import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Set (Set)
 import Data.Set qualified as Set
 import U.Codebase.HashTags (CausalHash (..), PatchHash (..))
 import Unison.ABT qualified as ABT
@@ -40,9 +34,11 @@ import Unison.DataDeclaration qualified as Memory.DD
 import Unison.Hash (Hash, HashFor (HashFor))
 import Unison.Hashing.V2 qualified as Hashing
 import Unison.Kind qualified as Memory.Kind
-import Unison.NameSegment qualified as Memory.NameSegment
+import Unison.NameSegment qualified as Memory (NameSegment)
+import Unison.NameSegment.Internal qualified as Memory.NameSegment
 import Unison.Names.ResolutionResult (ResolutionResult)
 import Unison.Pattern qualified as Memory.Pattern
+import Unison.Prelude
 import Unison.Reference qualified as Memory.Reference
 import Unison.Referent qualified as Memory.Referent
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
@@ -231,7 +227,7 @@ h2mReferent getCT = \case
 hashDataDecls ::
   (Var v) =>
   Map v (Memory.DD.DataDeclaration v a) ->
-  ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
+  ResolutionResult a [(v, Memory.Reference.Id, Memory.DD.DataDeclaration v a)]
 hashDataDecls memDecls = do
   let hashingDecls = fmap m2hDecl memDecls
   hashingResult <- Hashing.hashDecls Name.unsafeParseVar hashingDecls
@@ -243,7 +239,7 @@ hashDataDecls memDecls = do
 hashDecls ::
   (Var v) =>
   Map v (Memory.DD.Decl v a) ->
-  ResolutionResult v a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
+  ResolutionResult a [(v, Memory.Reference.Id, Memory.DD.Decl v a)]
 hashDecls memDecls = do
   -- want to unwrap the decl before doing the rehashing, and then wrap it back up the same way
   let howToReassemble =
@@ -366,14 +362,14 @@ hashCausal e tails =
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch
 m2hBranch0 b =
   Hashing.Branch
-    (doTerms (Memory.Branch._terms b))
-    (doTypes (Memory.Branch._types b))
-    (doPatches (Memory.Branch._edits b))
-    (doChildren (Memory.Branch._children b))
+    (doTerms (b ^. Memory.Branch.terms))
+    (doTypes (b ^. Memory.Branch.types))
+    (doPatches (b ^. Memory.Branch.edits))
+    (doChildren (b ^. Memory.Branch.children))
   where
     -- is there a more readable way to structure these that's also linear?
     doTerms ::
-      Memory.Branch.Star Memory.Referent.Referent Memory.NameSegment.NameSegment ->
+      Memory.Branch.Star Memory.Referent.Referent Memory.NameSegment ->
       Map Hashing.NameSegment (Map Hashing.Referent Hashing.MdValues)
     doTerms s =
       Map.fromList
@@ -388,7 +384,7 @@ m2hBranch0 b =
         ]
 
     doTypes ::
-      Memory.Branch.Star Memory.Reference.Reference Memory.NameSegment.NameSegment ->
+      Memory.Branch.Star Memory.Reference.Reference Memory.NameSegment ->
       Map Hashing.NameSegment (Map Hashing.Reference Hashing.MdValues)
     doTypes s =
       Map.fromList
@@ -409,10 +405,10 @@ m2hBranch0 b =
     doPatches = Map.bimap m2hNameSegment (unPatchHash . fst)
 
     doChildren ::
-      Map Memory.NameSegment.NameSegment (Memory.Branch.Branch m) ->
+      Map Memory.NameSegment (Memory.Branch.Branch m) ->
       Map Hashing.NameSegment Hash
     doChildren = Map.bimap m2hNameSegment (unCausalHash . Memory.Branch.headHash)
 
-m2hNameSegment :: Memory.NameSegment.NameSegment -> Hashing.NameSegment
+m2hNameSegment :: Memory.NameSegment -> Hashing.NameSegment
 m2hNameSegment =
   Hashing.NameSegment . Memory.NameSegment.toUnescapedText

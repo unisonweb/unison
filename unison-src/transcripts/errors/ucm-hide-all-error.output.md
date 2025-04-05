@@ -1,16 +1,14 @@
-
 ### Transcript parser hidden errors
 
-Dangerous scary words!
+Dangerous scary words\!
 
-When an expected error is not encountered in a `ucm:hide:all` block
+When an expected error is not encountered in a `ucm :hide-all` block
 then the transcript parser should print the stanza
 and surface a helpful message.
 
-```ucm
-.> history
+``` ucm :hide-all :error
+scratch/main> history
 ```
-
 
 🛑
 

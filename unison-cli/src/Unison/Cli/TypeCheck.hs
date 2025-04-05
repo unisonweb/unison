@@ -43,13 +43,14 @@ typecheckTerm ::
     )
 typecheckTerm codebase tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
-  let file = UF.UnisonFileId mempty mempty [(v, External, tm)] mempty
+  let file = UF.UnisonFileId mempty mempty (Map.singleton v (External, tm)) mempty
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   let typecheckingEnv =
         Typechecker.Env
           { ambientAbilities = [],
             typeLookup,
-            termsByShortname = Map.empty
+            termsByShortname = Map.empty,
+            topLevelComponents = Map.empty
           }
   pure $ fmap extract $ FileParsers.synthesizeFile typecheckingEnv file
   where

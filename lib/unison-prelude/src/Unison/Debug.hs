@@ -13,20 +13,19 @@ module Unison.Debug
   )
 where
 
-import Control.Applicative (empty)
-import Control.Monad (when)
-import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Debug.Pretty.Simple (pTrace, pTraceM, pTraceShowId, pTraceShowM)
+import Debug.Pretty.Simple (pTrace, pTraceM)
 import System.IO.Unsafe (unsafePerformIO)
+import Text.Pretty.Simple (pShow)
+import Unison.Prelude
 import UnliftIO.Environment (lookupEnv)
 
 data DebugFlag
   = Auth
   | Codebase
-  | Git
   | Integrity
+  | Merge
   | Migration
   | Sqlite
   | Sync
@@ -37,6 +36,8 @@ data DebugFlag
   | -- | Useful for adding temporary debugging statements during development.
     -- Remove uses of Debug.Temp before merging to keep things clean for the next person :)
     Temp
+  | -- | Debugging the interpreter
+    Interpreter
   | -- | Shows Annotations when printing terms
     Annotations
   | -- | Debug endpoints of the local UI (or Share) server
@@ -58,14 +59,15 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
     case Text.toUpper . Text.strip $ w of
       "AUTH" -> pure Auth
       "CODEBASE" -> pure Codebase
-      "GIT" -> pure Git
       "INTEGRITY" -> pure Integrity
+      "MERGE" -> pure Merge
       "MIGRATION" -> pure Migration
       "SQLITE" -> pure Sqlite
       "SYNC" -> pure Sync
       "LSP" -> pure LSP
       "TIMING" -> pure Timing
       "TEMP" -> pure Temp
+      "INTERPRETER" -> pure Interpreter
       "ANNOTATIONS" -> pure Annotations
       "SERVER" -> pure Server
       "PATTERN_COVERAGE" -> pure PatternCoverage
@@ -74,10 +76,6 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "UPDATE" -> pure Update
       _ -> empty
 {-# NOINLINE debugFlags #-}
-
-debugGit :: Bool
-debugGit = Git `Set.member` debugFlags
-{-# NOINLINE debugGit #-}
 
 debugSqlite :: Bool
 debugSqlite = Sqlite `Set.member` debugFlags
@@ -90,6 +88,10 @@ debugCodebase = Codebase `Set.member` debugFlags
 debugAuth :: Bool
 debugAuth = Auth `Set.member` debugFlags
 {-# NOINLINE debugAuth #-}
+
+debugMerge :: Bool
+debugMerge = Merge `Set.member` debugFlags
+{-# NOINLINE debugMerge #-}
 
 debugMigration :: Bool
 debugMigration = Migration `Set.member` debugFlags
@@ -114,6 +116,10 @@ debugTiming = Timing `Set.member` debugFlags
 debugTemp :: Bool
 debugTemp = Temp `Set.member` debugFlags
 {-# NOINLINE debugTemp #-}
+
+debugInterpreter :: Bool
+debugInterpreter = Interpreter `Set.member` debugFlags
+{-# NOINLINE debugInterpreter #-}
 
 debugAnnotations :: Bool
 debugAnnotations = Annotations `Set.member` debugFlags
@@ -140,27 +146,26 @@ debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.memb
 {-# NOINLINE debugPatternCoverageConstraintSolver #-}
 
 -- | Use for trace-style selective debugging.
--- E.g. 1 + (debug Git "The second number" 2)
+-- E.g. 1 + (debug Sync "The second number" 2)
 --
 -- Or, use in pattern matching to view arguments.
 -- E.g.
--- myFunc (debug Git "argA" -> argA) = ...
+-- myFunc (debug Sync "argA" -> argA) = ...
 debug :: (Show a) => DebugFlag -> String -> a -> a
 debug flag msg a =
   if shouldDebug flag
-    then pTraceShowId (pTrace (msg <> ":\n") a)
+    then (trace (msg <> ":\n" <> into @String (pShow a)) a)
     else a
 
 -- | Use for selective debug logging in monadic contexts.
 -- E.g.
 -- do
---   debugM Git "source repo" srcRepo
+--   debugM Sync "source repo" srcRepo
 --   ...
 debugM :: (Show a, Monad m) => DebugFlag -> String -> a -> m ()
 debugM flag msg a =
   whenDebug flag do
-    pTraceM (msg <> ":\n")
-    pTraceShowM a
+    traceM (msg <> ":\n" <> into @String (pShow a))
 
 debugLog :: DebugFlag -> String -> a -> a
 debugLog flag msg =
@@ -181,14 +186,15 @@ shouldDebug :: DebugFlag -> Bool
 shouldDebug = \case
   Auth -> debugAuth
   Codebase -> debugCodebase
-  Git -> debugGit
   Integrity -> debugIntegrity
+  Merge -> debugMerge
   Migration -> debugMigration
   Sqlite -> debugSqlite
   Sync -> debugSync
   LSP -> debugLSP
   Timing -> debugTiming
   Temp -> debugTemp
+  Interpreter -> debugInterpreter
   Annotations -> debugAnnotations
   Server -> debugServer
   PatternCoverage -> debugPatternCoverage

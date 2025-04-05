@@ -3,10 +3,10 @@
 Ref support a CAS operation that can be used as a building block to
 change state atomically without locks.
 
-```unison
+``` unison
 casTest: '{io2.IO} [Result]
 casTest = do
-  test = do
+  testPrim = do
     ref = IO.ref 0
     ticket = Ref.readForCas ref
     v1 = Ref.cas ref ticket 5
@@ -14,45 +14,54 @@ casTest = do
     Ref.write ref 10
     v2 = Ref.cas ref ticket 15
     check "CAS fails when there was an intervening write" (not v2)
+  testBoxed = do
+    ref = IO.ref ("a", "b")
+    ticket = Ref.readForCas ref
+    v1 = Ref.cas ref ticket ("c", "d")
+    check "CAS is successful is there were no conflicting writes" v1
+    Ref.write ref ("e", "f")
+    v2 = Ref.cas ref ticket ("g", "h")
+    check "CAS fails when there was an intervening write" (not v2)
 
-  runTest test
+  runTest testPrim ++ runTest testBoxed
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       casTest : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     casTest : '{IO} [Result]
 
-.> io.test casTest
+scratch/main> io.test casTest
 
     New test results:
-  
-  ◉ casTest   CAS is successful is there were no conflicting writes
-  ◉ casTest   CAS fails when there was an intervening write
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view casTest to view the source of a test.
 
+    1. casTest   ◉ CAS is successful is there were no conflicting writes
+                 ◉ CAS fails when there was an intervening write
+                 ◉ CAS is successful is there were no conflicting writes
+                 ◉ CAS fails when there was an intervening write
+
+  ✅ 4 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
+
 Promise is a simple one-shot awaitable condition.
 
-```unison
+``` unison
 promiseSequentialTest : '{IO} [Result]
 promiseSequentialTest = do
   test = do
@@ -80,55 +89,52 @@ promiseConcurrentTest = do
   runTest test
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       promiseConcurrentTest : '{IO} [Result]
       promiseSequentialTest : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     promiseConcurrentTest : '{IO} [Result]
     promiseSequentialTest : '{IO} [Result]
 
-.> io.test promiseSequentialTest
+scratch/main> io.test promiseSequentialTest
 
     New test results:
-  
-  ◉ promiseSequentialTest   Should read a value that's been written
-  ◉ promiseSequentialTest   Promise can only be written to once
-  
+
+    1. promiseSequentialTest   ◉ Should read a value that's been written
+                               ◉ Promise can only be written to once
+
   ✅ 2 test(s) passing
-  
-  Tip: Use view promiseSequentialTest to view the source of a
-       test.
 
-.> io.test promiseConcurrentTest
+  Tip: Use view 1 to view the source of a test.
+
+scratch/main> io.test promiseConcurrentTest
 
     New test results:
-  
-  ◉ promiseConcurrentTest   Reads awaits for completion of the Promise
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view promiseConcurrentTest to view the source of a
-       test.
 
+    1. promiseConcurrentTest   ◉ Reads awaits for completion of the Promise
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
+
 CAS can be used to write an atomic update function.
 
-```unison
+``` unison
 atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 atomicUpdate ref f =
   ticket = Ref.readForCas ref
@@ -136,31 +142,30 @@ atomicUpdate ref f =
   if Ref.cas ref ticket value then () else atomicUpdate ref f
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
+    atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 ```
+
 Promise can be used to write an operation that spawns N concurrent
 tasks and collects their results
 
-```unison
+``` unison
 spawnN : Nat -> '{IO} a ->{IO} [a]
 spawnN n fa =
   use Nat eq drop
@@ -175,36 +180,35 @@ spawnN n fa =
   map Promise.read (go n [])
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       spawnN : Nat -> '{IO} a ->{IO} [a]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
-    spawnN : Nat -> '{IO} a ->{IO} [a]
 
+    spawnN : Nat -> '{IO} a ->{IO} [a]
 ```
+
 We can use these primitives to write a more interesting example, where
 multiple threads repeatedly update an atomic counter, we check that
 the value of the counter is correct after all threads are done.
 
-```unison
+``` unison
 fullTest : '{IO} [Result]
 fullTest = do
   use Nat * + eq drop
-  
+
   numThreads = 100
   iterations = 100
   expected = numThreads * iterations
@@ -214,44 +218,42 @@ fullTest = do
     thread n =
       if eq n 0
       then ()
-      else 
+      else
         atomicUpdate state (v -> v + 1)
         thread (drop n 1)
     void (spawnN numThreads '(thread iterations))
     result = Ref.read state
     check "The state of the counter is consistent "(eq result expected)
-      
+
   runTest test
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       fullTest : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     fullTest : '{IO} [Result]
 
-.> io.test fullTest
+scratch/main> io.test fullTest
 
     New test results:
-  
-  ◉ fullTest   The state of the counter is consistent 
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view fullTest to view the source of a test.
 
+    1. fullTest   ◉ The state of the counter is consistent 
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

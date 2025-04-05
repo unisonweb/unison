@@ -14,6 +14,7 @@ module Unison.Cli.Monad
     -- * Immutable state
     LoopState (..),
     loopState0,
+    getProjectPathIds,
 
     -- * Lifting IO actions
     ioE,
@@ -25,6 +26,7 @@ module Unison.Cli.Monad
 
     -- * Short-circuiting
     label,
+    labelE,
     returnEarly,
     returnEarlyWithoutOutput,
     haltRepl,
@@ -32,10 +34,12 @@ module Unison.Cli.Monad
     -- * Changing the current directory
     cd,
     popd,
+    switchProject,
 
     -- * Communicating output to the user
     respond,
     respondNumbered,
+    withRespondRegion,
     setNumberedArgs,
 
     -- * Debug-timing actions
@@ -44,6 +48,7 @@ module Unison.Cli.Monad
     -- * Running transactions
     runTransaction,
     runTransactionWithRollback,
+    runTransactionWithRollback2,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -51,36 +56,38 @@ module Unison.Cli.Monad
 where
 
 import Control.Exception (throwIO)
-import Control.Lens (lens, (.=))
+import Control.Lens
 import Control.Monad.Reader (MonadReader (..))
 import Control.Monad.State.Strict (MonadState)
 import Control.Monad.State.Strict qualified as State
-import Data.Configurator.Types qualified as Configurator
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Unique (Unique, newUnique)
-import GHC.OverloadedLabels (IsLabel (..))
 import System.CPUTime (getCPUTime)
+import System.Console.Regions qualified as Console.Regions
 import Text.Printf (printf)
-import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.Queries qualified as Queries
+import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
+import Unison.CommandLine.OutputMessages qualified as OutputMessages
+import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Debug qualified as Debug
-import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyTerminal qualified as PrettyTerminal
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -88,7 +95,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import UnliftIO.STM
+import Unison.Util.Pretty qualified as Pretty
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The main command-line app monad.
@@ -154,14 +161,15 @@ type SourceName = Text
 data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
     codebase :: Codebase IO Symbol Ann,
-    config :: Configurator.Config,
     credentialManager :: CredentialManager,
     -- | Generate a unique name.
     generateUniqueName :: IO Parser.UniqueName,
     -- | How to load source code.
     loadSource :: SourceName -> IO LoadSourceResult,
-    -- | How to write source code.
-    writeSource :: SourceName -> Text -> IO (),
+    -- | Notify the LSP that this ProjectPathIds might be different from the last (e.g. on branch update, switch, etc).
+    lspCheckForChanges :: PP.ProjectPathIds -> IO (),
+    -- | How to write source code. Bool = make new fold?
+    writeSource :: SourceName -> Text -> Bool -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
     -- | What to do with numbered output for the user.
@@ -170,7 +178,10 @@ data Env = Env
     sandboxedRuntime :: Runtime Symbol,
     nativeRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
-    ucmVersion :: UCMVersion
+    ucmVersion :: UCMVersion,
+    -- | Whether we're running in a transcript test or not.
+    -- Avoid using this except when absolutely necessary.
+    isTranscriptTest :: Bool
   }
   deriving stock (Generic)
 
@@ -178,10 +189,8 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { root :: TMVar (Branch IO),
-    lastSavedRootHash :: CausalHash,
-    -- the current position in the namespace
-    currentPathStack :: List.NonEmpty Path.Absolute,
+  { -- the current position in the codebase, with the head being the most recent lcoation.
+    projectPathStack :: List.NonEmpty PP.ProjectPathIds,
     -- TBD
     -- , _activeEdits :: Set Branch.EditGuid
 
@@ -206,26 +215,11 @@ data LoopState = LoopState
   }
   deriving stock (Generic)
 
-instance
-  {-# OVERLAPS #-}
-  (Functor f) =>
-  IsLabel "currentPath" ((Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState))
-  where
-  fromLabel :: (Path.Absolute -> f Path.Absolute) -> (LoopState -> f LoopState)
-  fromLabel =
-    lens
-      (\LoopState {currentPathStack} -> List.NonEmpty.head currentPathStack)
-      ( \loopState@LoopState {currentPathStack = _ List.NonEmpty.:| paths} path ->
-          loopState {currentPathStack = path List.NonEmpty.:| paths}
-      )
-
 -- | Create an initial loop state given a root branch and the current path.
-loopState0 :: CausalHash -> TMVar (Branch IO) -> Path.Absolute -> LoopState
-loopState0 lastSavedRootHash b p = do
+loopState0 :: PP.ProjectPathIds -> LoopState
+loopState0 p = do
   LoopState
-    { root = b,
-      lastSavedRootHash = lastSavedRootHash,
-      currentPathStack = pure p,
+    { projectPathStack = pure p,
       latestFile = Nothing,
       latestTypecheckedFile = Nothing,
       lastInput = Nothing,
@@ -336,6 +330,12 @@ label f =
         | otherwise -> throwIO err
       Right a -> feed k a
 
+-- | A variant of @label@ for the common case that early-return values are tagged with a Left.
+labelE :: ((forall void. a -> Cli void) -> Cli b) -> Cli (Either a b)
+labelE f =
+  label \goto ->
+    Right <$> f (goto . Left)
+
 -- | Time an action.
 time :: String -> Cli a -> Cli a
 time label action =
@@ -381,11 +381,30 @@ time label action =
         ms = ns / 1_000_000
         s = ns / 1_000_000_000
 
+getProjectPathIds :: Cli PP.ProjectPathIds
+getProjectPathIds = do
+  NonEmpty.head <$> use #projectPathStack
+
 cd :: Path.Absolute -> Cli ()
 cd path = do
-  setMostRecentNamespace path
-  State.modify' \state ->
-    state {currentPathStack = List.NonEmpty.cons path (currentPathStack state)}
+  env <- ask
+  pp <- getProjectPathIds
+  let newPP = pp & PP.absPath_ .~ path
+  runTransaction (Codebase.setCurrentProjectPath newPP)
+  #projectPathStack %= NonEmpty.cons newPP
+  liftIO (env.lspCheckForChanges newPP)
+
+switchProject :: ProjectAndBranch ProjectId ProjectBranchId -> Cli ()
+switchProject pab@(ProjectAndBranch projectId branchId) = do
+  env <- ask
+  let newPP = PP.ProjectPath projectId branchId Path.Root
+  #projectPathStack %= NonEmpty.cons newPP
+  runTransaction do
+    Q.setMostRecentBranch projectId branchId
+    Codebase.setCurrentProjectPath newPP
+  liftIO do
+    Codebase.preloadProjectBranch env.codebase pab
+    env.lspCheckForChanges newPP
 
 -- | Pop the latest path off the stack, if it's not the only path in the stack.
 --
@@ -393,16 +412,15 @@ cd path = do
 popd :: Cli Bool
 popd = do
   state <- State.get
-  case List.NonEmpty.uncons (currentPathStack state) of
+  case List.NonEmpty.uncons (projectPathStack state) of
     (_, Nothing) -> pure False
     (_, Just paths) -> do
-      setMostRecentNamespace (List.NonEmpty.head paths)
-      State.put state {currentPathStack = paths}
+      let path = List.NonEmpty.head paths
+      runTransaction (Codebase.setCurrentProjectPath path)
+      State.put state {projectPathStack = paths}
+      env <- ask
+      liftIO (env.lspCheckForChanges path)
       pure True
-
-setMostRecentNamespace :: Path.Absolute -> Cli ()
-setMostRecentNamespace =
-  runTransaction . Queries.setMostRecentNamespace . map NameSegment.toUnescapedText . Path.toList . Path.unabsolute
 
 respond :: Output -> Cli ()
 respond output = do
@@ -414,6 +432,23 @@ respondNumbered output = do
   Env {notifyNumbered} <- ask
   args <- liftIO (notifyNumbered output)
   setNumberedArgs args
+
+-- | Perform a Cli action with access to a console region, which is closed upon completion.
+--
+-- (In transcripts, this just outputs messages as normal).
+withRespondRegion :: ((Output -> Cli ()) -> Cli a) -> Cli a
+withRespondRegion action = do
+  env <- ask
+  case env.isTranscriptTest of
+    False ->
+      with_ Console.Regions.displayConsoleRegions do
+        with (Console.Regions.withConsoleRegion Console.Regions.Linear) \region ->
+          action \output ->
+            liftIO do
+              string <- (OutputMessages.notifyUser "." output)
+              width <- PrettyTerminal.getAvailableWidth
+              Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
+    True -> action respond
 
 -- | Updates the numbered args, but only if the new args are non-empty.
 setNumberedArgs :: NumberedArgs -> Cli ()
@@ -433,3 +468,10 @@ runTransactionWithRollback action = do
   Env {codebase} <- ask
   liftIO (Codebase.runTransactionWithRollback codebase \rollback -> Right <$> action (\output -> rollback (Left output)))
     & onLeftM returnEarly
+
+-- | Run a transaction that can abort early.
+-- todo: rename to runTransactionWithRollback
+runTransactionWithRollback2 :: ((forall void. a -> Sqlite.Transaction void) -> Sqlite.Transaction a) -> Cli a
+runTransactionWithRollback2 action = do
+  env <- ask
+  liftIO (Codebase.runTransactionWithRollback env.codebase action)

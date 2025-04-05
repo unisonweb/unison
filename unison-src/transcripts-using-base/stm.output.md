@@ -1,6 +1,7 @@
 Loops that access a shared counter variable, accessed in transactions.
 Some thread delaying is just accomplished by counting in a loop.
-```unison
+
+``` unison
 count : Nat -> ()
 count = cases
   0 -> ()
@@ -27,36 +28,35 @@ body k out v =
   atomically '(TVar.write out (Some n))
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
       count : Nat -> ()
       inc   : TVar Nat ->{IO} Nat
       loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
     count : Nat -> ()
     inc   : TVar Nat ->{IO} Nat
     loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
-
 ```
+
 Test case.
 
-```unison
+``` unison
 spawn : Nat ->{io2.IO} Result
 spawn k = let
   out1 = TVar.newIO None
@@ -89,49 +89,47 @@ tests : '{io2.IO} [Result]
 tests = '(map spawn nats)
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       display : Nat -> Nat -> Nat -> Text
       nats    : [Nat]
       spawn   : Nat ->{IO} Result
       tests   : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     display : Nat -> Nat -> Nat -> Text
     nats    : [Nat]
     spawn   : Nat ->{IO} Result
     tests   : '{IO} [Result]
 
-.> io.test tests
+scratch/main> io.test tests
 
     New test results:
-  
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  ◉ tests   verified
-  
-  ✅ 10 test(s) passing
-  
-  Tip: Use view tests to view the source of a test.
 
+    1. tests   ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+               ◉ verified
+
+  ✅ 10 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

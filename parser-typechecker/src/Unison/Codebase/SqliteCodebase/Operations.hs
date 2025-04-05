@@ -1,4 +1,6 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | This module contains sqlite-specific operations on high-level "parser-typechecker" types all in the Transaction
 -- monad.
@@ -16,6 +18,7 @@ import Data.List.NonEmpty.Extra (NonEmpty ((:|)), maximum1)
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
+import Data.UUID.V4 qualified as UUID
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Branch.Diff (TreeDiff (TreeDiff))
 import U.Codebase.Branch.Diff qualified as BranchDiff
@@ -24,15 +27,20 @@ import U.Codebase.Projects qualified as Projects
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Referent qualified as C.Referent
 import U.Codebase.Sqlite.DbId (ObjectId)
+import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as OT
 import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.Project (Project (..))
+import U.Codebase.Sqlite.Project qualified as Project
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
 import Unison.Codebase.Branch (Branch (..))
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
@@ -41,13 +49,14 @@ import Unison.Codebase.SqliteCodebase.Branch.Cache (BranchCache)
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -66,10 +75,41 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.Cache qualified as Cache
+import Unison.Util.Recursion (XNor (Both, Neither), project)
 import Unison.Util.Relation qualified as Rel
 import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as UF
 import UnliftIO.STM
+
+createSchema :: Transaction ()
+createSchema = do
+  Q.runCreateSql
+  Q.addTempEntityTables
+  Q.addNamespaceStatsTables
+  Q.addReflogTable
+  Q.fixScopedNameLookupTables
+  Q.addProjectTables
+  Q.addMostRecentBranchTable
+  Q.addNameLookupMountTables
+  Q.addMostRecentNamespaceTable
+  Sqlite.execute insertSchemaVersionSql
+  Q.addSquashResultTable
+  Q.addCurrentProjectPathTable
+  Q.addProjectBranchReflogTable
+  Q.addProjectBranchCausalHashIdColumn
+  Q.addProjectBranchLastAccessedColumn
+  (_, emptyCausalHashId) <- emptyCausalHash
+  (_, ProjectBranch {projectId, branchId}) <- insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
+  Q.setCurrentProjectPath projectId branchId []
+  where
+    scratchProjectName = UnsafeProjectName "scratch"
+    scratchBranchName = UnsafeProjectBranchName "main"
+    currentSchemaVersion = Q.currentSchemaVersion
+    insertSchemaVersionSql =
+      [Sqlite.sql|
+        INSERT INTO schema_version (version)
+        VALUES (:currentSchemaVersion)
+      |]
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Buffer entry
@@ -228,6 +268,13 @@ getDeclComponent h =
     decl2 <- Ops.loadDeclComponent h
     pure (map (Cv.decl2to1 h) decl2)
 
+-- | Like 'getDeclComponent', for when the decl component is known to exist in the codebase.
+expectDeclComponent :: (HasCallStack) => Hash -> Transaction [Decl Symbol Ann]
+expectDeclComponent hash =
+  getDeclComponent hash <&> \case
+    Nothing -> error (reportBug "E101611" ("decl component " ++ show hash ++ " not found"))
+    Just decls -> decls
+
 putTermComponent ::
   TVar (Map Hash TermBufferEntry) ->
   TVar (Map Hash DeclBufferEntry) ->
@@ -371,25 +418,6 @@ tryFlushDeclBuffer termBuffer declBuffer =
           (\h -> tryFlushTermBuffer termBuffer h >> loop h)
           h
    in loop
-
-uncachedLoadRootBranch ::
-  BranchCache Sqlite.Transaction ->
-  (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
-  Transaction (Branch Transaction)
-uncachedLoadRootBranch branchCache getDeclType = do
-  causal2 <- Ops.expectRootCausal
-  Cv.causalbranch2to1 branchCache getDeclType causal2
-
--- | Get whether the root branch exists.
-getRootBranchExists :: Transaction Bool
-getRootBranchExists =
-  isJust <$> Ops.loadRootCausalHash
-
-putRootBranch :: Branch Transaction -> Transaction ()
-putRootBranch branch1 = do
-  -- todo: check to see if root namespace hash has been externally modified
-  -- and do something (merge?) it if necessary. But for now, we just overwrite it.
-  void (Ops.saveRootBranch v2HashHandle (Cv.causalbranch1to2 branch1))
 
 -- if this blows up on cromulent hashes, then switch from `hashToHashId`
 -- to one that returns Maybe.
@@ -596,13 +624,13 @@ namesAtPath bh path = do
   let termsInPath = convertTerms termNamesInPerspective
   let typesInPath = convertTypes typeNamesInPerspective
   let relativeScopedNames =
-        case relativePath of
-          Path.Empty -> (Names {terms = Rel.fromList termsInPath, types = Rel.fromList typesInPath})
-          p ->
-            let reversedPathSegments = reverse . Path.toList $ p
-                relativeTerms = mapMaybe (stripPathPrefix reversedPathSegments) termsInPath
-                relativeTypes = mapMaybe (stripPathPrefix reversedPathSegments) typesInPath
-             in (Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes})
+        if relativePath == mempty
+          then Names {terms = Rel.fromList termsInPath, types = Rel.fromList typesInPath}
+          else
+            let discardPathsNotUnder = mapMaybe . stripPathPrefix . reverse . Path.toList
+                relativeTerms = discardPathsNotUnder relativePath termsInPath
+                relativeTypes = discardPathsNotUnder relativePath typesInPath
+             in Names {terms = Rel.fromList relativeTerms, types = Rel.fromList relativeTypes}
   pure $ relativeScopedNames
   where
     convertTypes names =
@@ -670,9 +698,9 @@ ensureNameLookupForBranchHash getDeclType mayFromBranchHash toBranchHash = do
   where
     alterTreeDiffAtPath :: (Functor m) => Path -> (TreeDiff m -> TreeDiff m) -> TreeDiff m -> TreeDiff m
     alterTreeDiffAtPath path f (TreeDiff cfr) =
-      case path of
-        Path.Empty -> f (TreeDiff cfr)
-        (segment Path.:< rest) ->
+      case project path of
+        Neither -> f (TreeDiff cfr)
+        Both segment rest ->
           let (a Cofree.:< (Compose rest')) = cfr
            in TreeDiff (a Cofree.:< Compose (Map.adjust (fmap (coerce $ alterTreeDiffAtPath rest f)) segment rest'))
     -- Delete portions of the diff which are covered by dependency mounts.
@@ -724,3 +752,35 @@ makeMaybeCachedTransaction size action = do
   pure \x -> do
     conn <- Sqlite.unsafeGetConnection
     Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
+
+-- | Creates a project by name if one doesn't already exist, creates a branch in that project, then returns the project and branch ids. Fails if a branch by that name already exists in the project.
+insertProjectAndBranch :: ProjectName -> ProjectBranchName -> Db.CausalHashId -> Sqlite.Transaction (Project, ProjectBranch)
+insertProjectAndBranch projectName branchName chId = do
+  projectId <- whenNothingM (fmap Project.projectId <$> Q.loadProjectByName projectName) do
+    projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
+    Q.insertProject projectId projectName
+    pure projectId
+  branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
+  let projectBranch =
+        ProjectBranch
+          { projectId,
+            branchId,
+            name = branchName,
+            parentBranchId = Nothing
+          }
+  Q.insertProjectBranch
+    "Project Created"
+    chId
+    projectBranch
+  Q.setMostRecentBranch projectId branchId
+  pure (Project {name = projectName, projectId}, ProjectBranch {projectId, name = branchName, branchId, parentBranchId = Nothing})
+
+-- | Often we need to assign something to an empty causal, this ensures the empty causal
+-- exists in the codebase and returns its hash.
+emptyCausalHash :: Sqlite.Transaction (CausalHash, Db.CausalHashId)
+emptyCausalHash = do
+  let emptyBranch = Branch.empty
+  putBranch emptyBranch
+  let causalHash = Branch.headHash emptyBranch
+  causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
+  pure (causalHash, causalHashId)

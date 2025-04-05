@@ -4,6 +4,10 @@ __General:__ `./scripts/test.sh` compiles and builds the Haskell code and runs a
 
 _Disclaimer_ If you have trouble getting started, please get in touch via [Discord](https://unison-lang.org/discord) so we can help.  If you have any fixes to the process, please send us a PR!
 
+## Development Dependencies
+
+If you are having trouble with a build, please ensure that your tooling matches the versions we expect. Some build mechanisms will guarantee this to some extent (e.g., the Nix build, or [the Haskell extension for VS Code](https://marketplace.visualstudio.com/items?itemName=haskell.haskell)), but you can see versions listed in [our version file](./nix/versions.nix) (some of which is inherited from [this repo’s VS Code settings](./.vscode/settings.json)).
+
 ## Running Unison
 
 To get cracking with Unison:
@@ -18,17 +22,19 @@ On startup, Unison prints a url for the codebase UI. If you did step 3 above, th
 
 ## Autoformatting your code with Ormolu
 
-We use 0.5.0.1 of Ormolu and CI will add an extra commit, if needed, to autoformat your code.
+We use Ormolu (see [the specific version](./nix/versions.nix)) and CI will add an extra commit, if needed, to autoformat your code.
 
 Also note that you can always wrap a comment around some code you don't want Ormolu to touch, using:
 
-```
+```haskell
 {- ORMOLU_DISABLE -}
+{- because we carefully formatted this code for readability -}
 dontFormatMe = do blah
                     blah
                   blah
 {- ORMOLU_ENABLE -}
 ```
+__NB__: Always include an extra comment (as above) to explain _why_ you’re disabling Ormolu.
 
 ## Running Tests
 
@@ -42,7 +48,7 @@ Some tests are executables instead:
 
 * `stack exec transcripts` runs the transcripts-related integration tests, found in `unison-src/transcripts`. You can add more tests to this directory.
 * `stack exec transcripts -- prefix-of-filename` runs only transcript tests with a matching filename prefix.
-* `stack exec integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `trancscripts`.
+* `stack exec cli-integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `transcripts`.
 * `stack exec unison -- transcript unison-src/transcripts-round-trip/main.md` runs the pretty-printing round trip tests
 * `stack exec unison -- transcript unison-src/transcripts-manual/benchmarks.md` runs the benchmark suite. Output goes in unison-src/transcripts-manual/benchmarks/output.txt.
 
@@ -96,11 +102,13 @@ This codebase uses symlinks as a workaround for some inconveniences in the `here
 
 First you'll need to enable "Developer Mode" in your Windows settings.
 
-	See https://consumer.huawei.com/en/support/content/en-us15594140/
+> See https://consumer.huawei.com/en/support/content/en-us15594140/
 
 Then you'll need to enable symlink support in your `git` configuration, e.g.
 
-    `git config core.symlinks true`
+```shell
+git config core.symlinks true
+```
 
 And then ask `git` to fix up your symlinks with `git checkout .`
 
@@ -111,79 +119,10 @@ More context at: https://stackoverflow.com/a/59761201/310162
 
 Stack doesn't work deterministically in Windows due to mismatched expectations about how file deletion works. If you get this error, you can just retry the build and it will probably make more progress than the last time.
 
-## Building with Nix
+## Nix support
 
-## Building package components with nix
+See the [readme](./nix/README.md).
 
-### Build the unison executable
-```
-nix build
-```
+## Native compilation
 
-### Build a specific component
-This is specified with the normal
-`<package>:<component-type>:<component-name>` triple.
-
-Some examples:
-```
-nix build '.#haskell-nix.unison-cli:lib:unison-cli'
-nix build '.#haskell-nix.unison-syntax:test:syntax-tests'
-nix build '.#haskell-nix.unison-cli:exe:transcripts'
-```
-
-### Development environments
-
-#### Get into a development environment for building with stack
-This gets you into a development environment with the preferred
-versions of the compiler and other development tools. These
-include:
-
-- ghc
-- stack
-- ormolu
-- haskell-language-server
-
-```
-nix develop
-```
-
-#### Get into a development environment for building with cabal
-This gets you into a development environment with the preferred
-versions of the compiler and other development tools. Additionally,
-all non-local haskell dependencies (including profiling dependencies)
-are provided in the nix shell.
-
-```
-nix develop '.#haskell-nix.local'
-```
-
-#### Get into a development environment for building a specific package
-This gets you into a development environment with the preferred
-versions of the compiler and other development tools. Additionally,
-all haskell dependencies of this package are provided by the nix shell
-(including profiling dependencies).
-
-```
-nix develop '.#haskell-nix.<package-name>'
-```
-
-for example:
-
-```
-nix develop '.#haskell-nix.unison-cli'
-```
-or
-```
-nix develop '.#haskell-nix.unison-parser-typechecker'
-```
-
-This is useful if you wanted to profile a package. For example, if you
-want to profile `unison-cli-main:exe:unison` then you could get into one of these
-shells, cd into its directory, then run the program with
-profiling.
-
-```
-nix develop '.#unison-parser-typechecker'
-cd unison-cli
-cabal run --enable-profiling unison-cli-main:exe:unison -- +RTS -p
-```
+See the [readme](scheme-libs/racket/unison/Readme.md).

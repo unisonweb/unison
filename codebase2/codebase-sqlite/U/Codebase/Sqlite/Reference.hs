@@ -14,11 +14,19 @@ import Unison.Sqlite (FromField, FromRow (fromRow), Only (..), RowParser, SQLDat
 
 type Reference = Reference' TextId ObjectId
 
+type TermReference = Reference
+
+type TypeReference = Reference
+
 -- | The name lookup table uses this because normalizing/denormalizing hashes to ids is slower
 -- than we'd like when writing/reading the entire name lookup table.
 type TextReference = Reference' Text Base32Hex
 
 type Id = Id' ObjectId
+
+type TermReferenceId = Id
+
+type TypeReferenceId = Id
 
 type LocalReferenceH = Reference' LocalTextId LocalHashId
 

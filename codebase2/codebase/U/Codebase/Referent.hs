@@ -48,6 +48,11 @@ toReference = \case
   Ref termRef -> termRef
   Con typeRef _ -> typeRef
 
+toReferenceId :: Referent -> Maybe Reference.Id
+toReferenceId = \case
+  Ref termRef -> Reference.toId termRef
+  Con typeRef _ -> Reference.toId typeRef
+
 toTermReference :: Referent' termRef typeRef -> Maybe termRef
 toTermReference = \case
   Ref termRef -> Just termRef
@@ -58,7 +63,7 @@ type Id = Id' Hash Hash
 data Id' hTm hTp
   = RefId (Reference.Id' hTm)
   | ConId (Reference.Id' hTp) ConstructorId
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Functor, Ord, Show)
 
 instance Bifunctor Referent' where
   bimap f g = \case

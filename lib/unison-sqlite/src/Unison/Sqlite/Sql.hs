@@ -193,7 +193,7 @@ sqlQQ input =
         Nothing -> fail ("Not in scope: " ++ Text.unpack var)
         Just name -> (,) <$> [|valuesSql $(TH.varE name)|] <*> [|foldMap Sqlite.Simple.toRow $(TH.varE name)|]
 
-inSql :: Sqlite.Simple.ToField a => [a] -> Text
+inSql :: (Sqlite.Simple.ToField a) => [a] -> Text
 inSql scalars =
   Text.Builder.run ("IN (" <> b_commaSep (map (\_ -> b_qmark) scalars) <> b_rparen)
 

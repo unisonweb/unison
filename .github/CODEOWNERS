@@ -1,0 +1,3 @@
+# Require approval from ucm team when editing repository workflows
+# This helps prevent users from sneaking in malicious changes to CI workflows.
+/.github/ @unisonweb/ucm

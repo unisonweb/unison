@@ -55,7 +55,7 @@ patchT_ f Patch {termEdits, typeEdits} = do
   newTypeEdits <- traverseOf (Map.bitraversed (Reference.t_) (Set.traverse . traverseFirst)) f typeEdits
   pure Patch {termEdits = newTermEdits, typeEdits = newTypeEdits}
   where
-    traverseFirst :: Bitraversable b => Traversal (b a c) (b a' c) a a'
+    traverseFirst :: (Bitraversable b) => Traversal (b a c) (b a' c) a a'
     traverseFirst f = bitraverse f pure
 
 patchH_ :: (Ord t, Ord h') => Traversal (Patch' t h o) (Patch' t h' o) h h'

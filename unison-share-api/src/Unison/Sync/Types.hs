@@ -48,17 +48,6 @@ module Unison.Sync.Types
     UploadEntitiesResponse (..),
     UploadEntitiesError (..),
 
-    -- ** Fast-forward path
-    FastForwardPathRequest (..),
-    FastForwardPathResponse (..),
-    FastForwardPathError (..),
-
-    -- ** Update path
-    UpdatePathRequest (..),
-    UpdatePathResponse (..),
-    UpdatePathError (..),
-    HashMismatch (..),
-
     -- * Common/shared error types
     HashMismatchForEntity (..),
     InvalidParentage (..),
@@ -67,7 +56,11 @@ module Unison.Sync.Types
   )
 where
 
-import Control.Lens (both, traverseOf)
+import Codec.CBOR.Decoding qualified as CBOR
+import Codec.CBOR.Encoding qualified as CBOR
+import Codec.Serialise
+import Codec.Serialise qualified as CBOR
+import Control.Lens (both, foldMapOf, traverseOf)
 import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
@@ -84,6 +77,7 @@ import U.Codebase.Sqlite.Branch.Format (LocalBranchBytes (..))
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
 import Unison.Prelude
+import Unison.Server.Orphans ()
 import Unison.Share.API.Hash (HashJWT)
 import Unison.Util.Set qualified as Set
 
@@ -102,6 +96,7 @@ instance FromJSON Base64Bytes where
 
 newtype RepoInfo = RepoInfo {unRepoInfo :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
+  deriving (Serialise) via Text
 
 data Path = Path
   { -- This is a nonempty list, where we require the first segment to be the repo name / user name / whatever,
@@ -179,31 +174,11 @@ entityHashes_ f = \case
   C causal -> C <$> causalHashes_ f causal
 
 -- | Get the direct dependencies of an entity (which are actually sync'd).
---
--- FIXME use generic-lens here? (typed @hash)
 entityDependencies :: (Ord hash) => Entity text noSyncHash hash -> Set hash
-entityDependencies = \case
-  TC (TermComponent terms) -> flip foldMap terms \(LocalIds {hashes}, _term) -> Set.fromList hashes
-  DC (DeclComponent decls) -> flip foldMap decls \(LocalIds {hashes}, _decl) -> Set.fromList hashes
-  P Patch {newHashLookup} -> Set.fromList newHashLookup
-  PD PatchDiff {parent, newHashLookup} -> Set.insert parent (Set.fromList newHashLookup)
-  N Namespace {defnLookup, patchLookup, childLookup} ->
-    Set.unions
-      [ Set.fromList defnLookup,
-        Set.fromList patchLookup,
-        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
-      ]
-  ND NamespaceDiff {parent, defnLookup, patchLookup, childLookup} ->
-    Set.unions
-      [ Set.singleton parent,
-        Set.fromList defnLookup,
-        Set.fromList patchLookup,
-        foldMap (\(namespaceHash, causalHash) -> Set.fromList [namespaceHash, causalHash]) childLookup
-      ]
-  C Causal {namespaceHash, parents} -> Set.insert namespaceHash parents
+entityDependencies = foldMapOf entityHashes_ Set.singleton
 
 data TermComponent text hash = TermComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable TermComponent where
   bifoldMap = bifoldMapDefault
@@ -252,7 +227,7 @@ decodeComponentPiece = Aeson.withObject "Component Piece" \obj -> do
   pure (localIDs, bytes)
 
 data DeclComponent text hash = DeclComponent [(LocalIds text hash, ByteString)]
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable DeclComponent where
   bifoldMap = bifoldMapDefault
@@ -280,7 +255,7 @@ data LocalIds text hash = LocalIds
   { texts :: [text],
     hashes :: [hash]
   }
-  deriving stock (Show, Eq, Ord)
+  deriving stock (Show, Eq, Functor, Ord)
 
 instance Bifoldable LocalIds where
   bifoldMap = bifoldMapDefault
@@ -381,7 +356,7 @@ data Namespace text hash = Namespace
     childLookup :: [(hash, hash)], -- (namespace hash, causal hash)
     bytes :: LocalBranchBytes
   }
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Functor, Ord, Show)
 
 instance Bifoldable Namespace where
   bifoldMap = bifoldMapDefault
@@ -492,6 +467,27 @@ data EntityType
   | NamespaceDiffType
   | CausalType
   deriving stock (Eq, Ord, Show)
+
+instance Serialise EntityType where
+  encode = \case
+    TermComponentType -> CBOR.encodeWord8 0
+    DeclComponentType -> CBOR.encodeWord8 1
+    PatchType -> CBOR.encodeWord8 2
+    PatchDiffType -> CBOR.encodeWord8 3
+    NamespaceType -> CBOR.encodeWord8 4
+    NamespaceDiffType -> CBOR.encodeWord8 5
+    CausalType -> CBOR.encodeWord8 6
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure TermComponentType
+      1 -> pure DeclComponentType
+      2 -> pure PatchType
+      3 -> pure PatchDiffType
+      4 -> pure NamespaceType
+      5 -> pure NamespaceDiffType
+      6 -> pure CausalType
+      _ -> fail "invalid tag"
 
 instance ToJSON EntityType where
   toJSON =
@@ -629,6 +625,43 @@ data EntityValidationError
   deriving stock (Show, Eq, Ord)
   deriving anyclass (Exception)
 
+data EntityValidationErrorTag
+  = HashMismatchTag
+  | UnsupportedTypeTag
+  | InvalidByteEncodingTag
+  | HashResolutionFailureTag
+  deriving stock (Eq, Show)
+
+instance Serialise EntityValidationErrorTag where
+  encode = \case
+    HashMismatchTag -> CBOR.encodeWord8 0
+    UnsupportedTypeTag -> CBOR.encodeWord8 1
+    InvalidByteEncodingTag -> CBOR.encodeWord8 2
+    HashResolutionFailureTag -> CBOR.encodeWord8 3
+  decode = do
+    tag <- CBOR.decodeWord8
+    case tag of
+      0 -> pure HashMismatchTag
+      1 -> pure UnsupportedTypeTag
+      2 -> pure InvalidByteEncodingTag
+      3 -> pure HashResolutionFailureTag
+      _ -> fail "invalid tag"
+
+instance Serialise EntityValidationError where
+  encode = \case
+    EntityHashMismatch typ mismatch -> CBOR.encode HashMismatchTag <> CBOR.encode typ <> CBOR.encode mismatch
+    UnsupportedEntityType hash typ -> CBOR.encode UnsupportedTypeTag <> CBOR.encode hash <> CBOR.encode typ
+    InvalidByteEncoding hash typ errMsg -> CBOR.encode InvalidByteEncodingTag <> CBOR.encode hash <> CBOR.encode typ <> CBOR.encode errMsg
+    HashResolutionFailure hash -> CBOR.encode HashResolutionFailureTag <> CBOR.encode hash
+
+  decode = do
+    tag <- CBOR.decode
+    case tag of
+      HashMismatchTag -> EntityHashMismatch <$> CBOR.decode <*> CBOR.decode
+      UnsupportedTypeTag -> UnsupportedEntityType <$> CBOR.decode <*> CBOR.decode
+      InvalidByteEncodingTag -> InvalidByteEncoding <$> CBOR.decode <*> CBOR.decode <*> CBOR.decode
+      HashResolutionFailureTag -> HashResolutionFailure <$> CBOR.decode
+
 instance ToJSON EntityValidationError where
   toJSON = \case
     EntityHashMismatch typ mismatch -> jsonUnion "mismatched_hash" (object ["type" .= typ, "mismatch" .= mismatch])
@@ -704,6 +737,10 @@ data HashMismatchForEntity = HashMismatchForEntity
   }
   deriving stock (Show, Eq, Ord)
 
+instance Serialise HashMismatchForEntity where
+  encode (HashMismatchForEntity supplied computed) = CBOR.encode supplied <> CBOR.encode computed
+  decode = HashMismatchForEntity <$> CBOR.decode <*> CBOR.decode
+
 instance ToJSON UploadEntitiesResponse where
   toJSON = \case
     UploadEntitiesSuccess -> jsonUnion "success" (Object mempty)
@@ -751,110 +788,8 @@ instance FromJSON HashMismatchForEntity where
         <*> obj
           .: "computed"
 
-------------------------------------------------------------------------------------------------------------------------
--- Fast-forward path
-
--- | A non-empty list of causal hashes, latest first, that show the lineage from wherever the client wants to
--- fast-forward to back to wherever the (client believes the) server is (including the server head, in a separate
--- field).
---
--- For example, if the client wants to update
---
--- @
--- A -> B -> C
--- @
---
--- to
---
--- @
--- A -> B -> C -> D -> E -> F
--- @
---
--- then it would send hashes
---
--- @
--- expectedHash = C
--- hashes = [D, E, F]
--- @
---
--- Note that if the client wants to begin a history at a new path on the server, it would use the "update path" endpoint
--- instead.
-data FastForwardPathRequest = FastForwardPathRequest
-  { -- | The causal that the client believes exists at `path`
-    expectedHash :: Hash32,
-    -- | The sequence of causals to fast-forward with, starting from the oldest new causal to the newest new causal
-    hashes :: NonEmpty Hash32,
-    -- | The path to fast-forward
-    path :: Path
-  }
-  deriving stock (Show)
-
-instance ToJSON FastForwardPathRequest where
-  toJSON FastForwardPathRequest {expectedHash, hashes, path} =
-    object
-      [ "expected_hash" .= expectedHash,
-        "hashes" .= hashes,
-        "path" .= path
-      ]
-
-instance FromJSON FastForwardPathRequest where
-  parseJSON =
-    Aeson.withObject "FastForwardPathRequest" \o -> do
-      expectedHash <- o .: "expected_hash"
-      hashes <- o .: "hashes"
-      path <- o .: "path"
-      pure FastForwardPathRequest {expectedHash, hashes, path}
-
-data FastForwardPathResponse
-  = FastForwardPathSuccess
-  | FastForwardPathFailure FastForwardPathError
-  deriving stock (Show)
-
-data FastForwardPathError
-  = FastForwardPathError'MissingDependencies (NeedDependencies Hash32)
-  | FastForwardPathError'NoWritePermission Path
-  | -- | This wasn't a fast-forward. Here's a JWT to download the causal head, if you want it.
-    FastForwardPathError'NotFastForward HashJWT
-  | -- | There was no history at this path; the client should use the "update path" endpoint instead.
-    FastForwardPathError'NoHistory
-  | -- | This wasn't a fast-forward. You said the first hash was a parent of the second hash, but I disagree.
-    FastForwardPathError'InvalidParentage InvalidParentage
-  | FastForwardPathError'InvalidRepoInfo Text RepoInfo
-  | FastForwardPathError'UserNotFound
-  deriving stock (Show)
-
 data InvalidParentage = InvalidParentage {parent :: Hash32, child :: Hash32}
   deriving stock (Show)
-
-instance ToJSON FastForwardPathResponse where
-  toJSON = \case
-    FastForwardPathSuccess -> jsonUnion "success" (Object mempty)
-    (FastForwardPathFailure (FastForwardPathError'MissingDependencies deps)) -> jsonUnion "missing_dependencies" deps
-    (FastForwardPathFailure (FastForwardPathError'NoWritePermission path)) -> jsonUnion "no_write_permission" path
-    (FastForwardPathFailure (FastForwardPathError'NotFastForward hashJwt)) -> jsonUnion "not_fast_forward" hashJwt
-    (FastForwardPathFailure FastForwardPathError'NoHistory) -> jsonUnion "no_history" (Object mempty)
-    (FastForwardPathFailure (FastForwardPathError'InvalidParentage invalidParentage)) ->
-      jsonUnion "invalid_parentage" invalidParentage
-    (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo)) ->
-      jsonUnion "invalid_repo_info" (msg, repoInfo)
-    (FastForwardPathFailure FastForwardPathError'UserNotFound) ->
-      jsonUnion "user_not_found" (Object mempty)
-
-instance FromJSON FastForwardPathResponse where
-  parseJSON =
-    Aeson.withObject "FastForwardPathResponse" \o ->
-      o .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure FastForwardPathSuccess
-        "missing_dependencies" -> FastForwardPathFailure . FastForwardPathError'MissingDependencies <$> o .: "payload"
-        "no_write_permission" -> FastForwardPathFailure . FastForwardPathError'NoWritePermission <$> o .: "payload"
-        "not_fast_forward" -> FastForwardPathFailure . FastForwardPathError'NotFastForward <$> o .: "payload"
-        "no_history" -> pure (FastForwardPathFailure FastForwardPathError'NoHistory)
-        "invalid_parentage" -> FastForwardPathFailure . FastForwardPathError'InvalidParentage <$> o .: "payload"
-        "invalid_repo_info" -> do
-          (msg, repoInfo) <- o .: "payload"
-          pure (FastForwardPathFailure (FastForwardPathError'InvalidRepoInfo msg repoInfo))
-        "user_not_found" -> pure (FastForwardPathFailure FastForwardPathError'UserNotFound)
-        t -> failText $ "Unexpected FastForwardPathResponse type: " <> t
 
 instance ToJSON InvalidParentage where
   toJSON (InvalidParentage parent child) = object ["parent" .= parent, "child" .= child]
@@ -862,89 +797,6 @@ instance ToJSON InvalidParentage where
 instance FromJSON InvalidParentage where
   parseJSON =
     Aeson.withObject "InvalidParentage" \o -> InvalidParentage <$> o .: "parent" <*> o .: "child"
-
-------------------------------------------------------------------------------------------------------------------------
--- Update path
-
-data UpdatePathRequest = UpdatePathRequest
-  { path :: Path,
-    expectedHash :: Maybe Hash32, -- Nothing requires empty history at destination
-    newHash :: Hash32
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UpdatePathRequest where
-  toJSON (UpdatePathRequest path expectedHash newHash) =
-    object
-      [ "path" .= path,
-        "expected_hash" .= expectedHash,
-        "new_hash" .= newHash
-      ]
-
-instance FromJSON UpdatePathRequest where
-  parseJSON = Aeson.withObject "UpdatePathRequest" \obj -> do
-    path <- obj .: "path"
-    expectedHash <- obj .: "expected_hash"
-    newHash <- obj .: "new_hash"
-    pure UpdatePathRequest {..}
-
-data UpdatePathResponse
-  = UpdatePathSuccess
-  | UpdatePathFailure UpdatePathError
-  deriving stock (Show, Eq, Ord)
-
-data UpdatePathError
-  = UpdatePathError'HashMismatch HashMismatch
-  | UpdatePathError'InvalidRepoInfo Text RepoInfo -- err msg, repo info
-  | UpdatePathError'MissingDependencies (NeedDependencies Hash32)
-  | UpdatePathError'NoWritePermission Path
-  | UpdatePathError'UserNotFound
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON UpdatePathResponse where
-  toJSON = \case
-    UpdatePathSuccess -> jsonUnion "success" (Object mempty)
-    UpdatePathFailure (UpdatePathError'HashMismatch hm) -> jsonUnion "hash_mismatch" hm
-    UpdatePathFailure (UpdatePathError'MissingDependencies md) -> jsonUnion "missing_dependencies" md
-    UpdatePathFailure (UpdatePathError'NoWritePermission path) -> jsonUnion "no_write_permission" path
-    UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo) -> jsonUnion "invalid_repo_info" (errMsg, repoInfo)
-    UpdatePathFailure UpdatePathError'UserNotFound -> jsonUnion "user_not_found" (Object mempty)
-
-instance FromJSON UpdatePathResponse where
-  parseJSON v =
-    v & Aeson.withObject "UpdatePathResponse" \obj ->
-      obj .: "type" >>= Aeson.withText "type" \case
-        "success" -> pure UpdatePathSuccess
-        "hash_mismatch" -> UpdatePathFailure . UpdatePathError'HashMismatch <$> obj .: "payload"
-        "missing_dependencies" -> UpdatePathFailure . UpdatePathError'MissingDependencies <$> obj .: "payload"
-        "no_write_permission" -> UpdatePathFailure . UpdatePathError'NoWritePermission <$> obj .: "payload"
-        "invalid_repo_info" -> do
-          (errMsg, repoInfo) <- obj .: "payload"
-          pure (UpdatePathFailure (UpdatePathError'InvalidRepoInfo errMsg repoInfo))
-        "user_not_found" -> pure (UpdatePathFailure UpdatePathError'UserNotFound)
-        t -> failText $ "Unexpected UpdatePathResponse type: " <> t
-
-data HashMismatch = HashMismatch
-  { path :: Path,
-    expectedHash :: Maybe Hash32,
-    actualHash :: Maybe Hash32
-  }
-  deriving stock (Show, Eq, Ord)
-
-instance ToJSON HashMismatch where
-  toJSON (HashMismatch path expectedHash actualHash) =
-    object
-      [ "path" .= path,
-        "expected_hash" .= expectedHash,
-        "actual_hash" .= actualHash
-      ]
-
-instance FromJSON HashMismatch where
-  parseJSON = Aeson.withObject "HashMismatch" \obj -> do
-    path <- obj .: "path"
-    expectedHash <- obj .: "expected_hash"
-    actualHash <- obj .: "actual_hash"
-    pure HashMismatch {..}
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Common/shared error types

@@ -25,6 +25,7 @@ module Unison.Prelude
     whenJustM,
     eitherToMaybe,
     maybeToEither,
+    eitherToThese,
     altSum,
     altMap,
     hoistMaybe,
@@ -38,12 +39,21 @@ module Unison.Prelude
     throwEitherMWith,
     throwExceptT,
     throwExceptTWith,
+
+    -- * Basic lensy stuff we use all over
+    (^.),
+    (.~),
+    (%~),
+    view,
+    set,
+    over,
   )
 where
 
 import Control.Applicative as X
 import Control.Category as X ((>>>))
 import Control.Exception as X (Exception, IOException, SomeException)
+import Control.Lens (over, set, view, (%~), (.~), (^.))
 import Control.Monad as X
 import Control.Monad.Extra as X (ifM, mapMaybeM, unlessM, whenM)
 import Control.Monad.IO.Class as X (MonadIO (liftIO))
@@ -73,6 +83,7 @@ import Data.Text as X (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding as X (decodeUtf8, encodeUtf8)
 import Data.Text.IO qualified as Text
+import Data.These (These (..))
 import Data.Traversable as X (for)
 import Data.Typeable as X (Typeable)
 import Data.Void as X (Void)
@@ -82,6 +93,7 @@ import GHC.Generics as X (Generic, Generic1)
 import GHC.IO.Handle qualified as Handle
 import GHC.Stack as X (HasCallStack)
 import Safe as X (atMay, headMay, lastMay, readMay)
+import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
 import System.IO qualified as IO
 import Text.Read as X (readMaybe)
@@ -92,7 +104,7 @@ import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromExce
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
 -- | Can be removed when we upgrade transformers to a more recent version.
-hoistMaybe :: Applicative m => Maybe a -> MaybeT m a
+hoistMaybe :: (Applicative m) => Maybe a -> MaybeT m a
 hoistMaybe = MaybeT . pure
 
 -- | Like 'fold' but for Alternative.
@@ -195,6 +207,9 @@ throwEitherM = throwEitherMWith id
 throwEitherMWith :: forall e e' m a. (MonadIO m, Exception e') => (e -> e') -> m (Either e a) -> m a
 throwEitherMWith f action = throwExceptT . withExceptT f $ (ExceptT action)
 
+eitherToThese :: Either a b -> These a b
+eitherToThese = either This That
+
 tShow :: (Show a) => a -> Text
 tShow = Text.pack . show
 
@@ -236,23 +251,28 @@ writeUtf8 fileName txt = do
     Handle.hSetEncoding handle IO.utf8
     Text.hPutStr handle txt
 
--- | Atomically prepend some text to a file
+-- | Atomically prepend some text to a file, creating the file if it doesn't already exist
 prependUtf8 :: FilePath -> Text -> IO ()
 prependUtf8 path txt = do
-  let withTempFile tmpFilePath tmpHandle = do
-        Text.hPutStrLn tmpHandle txt
-        IO.withFile path IO.ReadMode \currentScratchFile -> do
-          let copyLoop = do
-                chunk <- Text.hGetChunk currentScratchFile
-                case Text.length chunk == 0 of
-                  True -> pure ()
-                  False -> do
-                    Text.hPutStr tmpHandle chunk
-                    copyLoop
-          copyLoop
-        IO.hClose tmpHandle
-        UnliftIO.renameFile tmpFilePath path
-  UnliftIO.withTempFile (FilePath.takeDirectory path) ".unison-scratch" withTempFile
+  Directory.doesFileExist path >>= \case
+    False -> writeUtf8 path txt
+    True -> do
+      let withTempFile tmpFilePath tmpHandle = do
+            Handle.hSetEncoding tmpHandle IO.utf8
+            Text.hPutStrLn tmpHandle txt
+            IO.withFile path IO.ReadMode \currentScratchFile -> do
+              Handle.hSetEncoding currentScratchFile IO.utf8
+              let copyLoop = do
+                    chunk <- Text.hGetChunk currentScratchFile
+                    case Text.length chunk == 0 of
+                      True -> pure ()
+                      False -> do
+                        Text.hPutStr tmpHandle chunk
+                        copyLoop
+              copyLoop
+            IO.hClose tmpHandle
+            UnliftIO.renameFile tmpFilePath path
+      UnliftIO.withTempFile (FilePath.takeDirectory path) ".unison-scratch" withTempFile
 
 reportBug :: String -> String -> String
 reportBug bugId msg =

@@ -10,6 +10,7 @@ import U.Codebase.Branch qualified as Codebase.Branch
 import U.Codebase.Decl qualified as Codebase.Decl
 import U.Codebase.Reference qualified as Codebase.Reference
 import U.Codebase.Sqlite.Operations qualified as Operations
+import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.NameSegment (NameSegment)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
@@ -21,8 +22,8 @@ import Witherable (witherM)
 -- For (potential) efficiency, this function accepts an argument that loads a namespace at a path, which may be backed
 -- by a cache.
 loadUniqueTypeGuid ::
-  ([NameSegment] -> Sqlite.Transaction (Maybe (Codebase.Branch.Branch Sqlite.Transaction))) ->
-  [NameSegment] ->
+  (ProjectPath -> Sqlite.Transaction (Maybe (Codebase.Branch.Branch Sqlite.Transaction))) ->
+  ProjectPath ->
   NameSegment ->
   Sqlite.Transaction (Maybe Text)
 loadUniqueTypeGuid loadNamespaceAtPath path name =

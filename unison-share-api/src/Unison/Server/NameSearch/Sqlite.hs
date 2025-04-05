@@ -17,11 +17,11 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
-import Unison.HashQualified' qualified as HQ'
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment (..))
+import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NamesWithHistory (SearchType (ExactName, IncludeSuffixes))
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -130,7 +130,8 @@ nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToM
 
     -- Fully qualify a name by prepending the current namespace perspective's path
     fullyQualifyName :: Name -> Name
-    fullyQualifyName name = Path.prefixName (Path.Absolute (Path.fromList . coerce $ pathToMountedNameLookup)) name
+    fullyQualifyName =
+      Path.prefixNameIfRel (Path.AbsolutePath' . Path.Absolute . Path.fromList $ coerce pathToMountedNameLookup)
 
 -- | Look up types in the codebase by short hash, and include builtins.
 typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)

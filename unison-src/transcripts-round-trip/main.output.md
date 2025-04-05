@@ -1,44 +1,64 @@
 This transcript verifies that the pretty-printer produces code that can be successfully parsed, for a variety of examples. Terms or types that fail to round-trip can be added  to either `reparses-with-same-hash.u` or `reparses.u` as regression tests.
 
-```unison
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+
+scratch/a1> builtins.mergeio lib.builtins
+
+scratch/a2> builtins.mergeio lib.builtins
+```
+
+``` ucm :hide
+scratch/a1> load unison-src/transcripts-round-trip/reparses-with-same-hash.u
+
+scratch/a1> add
+```
+
+``` unison
 x = ()
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       x : ()
-
 ```
+
+``` ucm :hide
+scratch/a1> find
+```
+
 So we can see the pretty-printed output:
 
-```ucm
-.a1> edit 1-1000
+``` ucm
+scratch/a1> edit.new 1-1000
 
   ☝️
-  
-  I added 105 definitions to the top of scratch.u
-  
+
+  I added 111 definitions to the top of scratch.u
+
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
-
 ```
-```unison:added-by-ucm scratch.u
-structural ability Abort where abort : {Abort} a
 
-structural ability Ask a where ask : {Ask a} a
+````` unison :added-by-ucm scratch.u
+structural ability Abort where
+  abort : {Abort} a
+
+structural ability Ask a where
+  ask : {Ask a} a
 
 structural type Fix_2337
   = Fix_2337 Boolean Boolean
 
-structural ability Fix_2392 where zonk : {Fix_2392} Nat
+structural ability Fix_2392 where
+  zonk : {Fix_2392} Nat
 
 structural type Fix_2392a x y
   = Oog Nat Nat (Nat, Nat)
@@ -73,13 +93,13 @@ structural ability Zoink where
 Abort.toDefault! : a -> '{g, Abort} a ->{g} a
 Abort.toDefault! default thunk =
   h x = Abort.toDefault! (handler_1778 default x) thunk
-  handle !thunk with h
+  handle thunk() with h
 
 Abort.toOptional : '{g, Abort} a -> '{g} Optional a
 Abort.toOptional thunk = do toOptional! thunk
 
 Abort.toOptional! : '{g, Abort} a ->{g} Optional a
-Abort.toOptional! thunk = toDefault! None do Some !thunk
+Abort.toOptional! thunk = toDefault! None do Some thunk()
 
 catchAll : x -> Nat
 catchAll x = 99
@@ -87,7 +107,7 @@ catchAll x = 99
 Decode.remainder : '{Ask (Optional Bytes)} Bytes
 Decode.remainder = do match ask with
   None   -> Bytes.empty
-  Some b -> b Bytes.++ !Decode.remainder
+  Some b -> b Bytes.++ Decode.remainder()
 
 ex1 : Nat
 ex1 =
@@ -121,6 +141,46 @@ ex3a =
   use Nat +
   a = do qux3 + qux3
   ()
+
+fixity : '('())
+fixity =
+  do
+    use Nat * +
+    (===) = (==)
+    f <| x = f x
+    (<<) f g x = f (g x)
+    (>>) f g x = g (f x)
+    id x = x
+    (do
+      (%) = Nat.mod
+      ($) = (+)
+      c = 1 * (2 + 3) * 4
+      plus = 1 + 2 + 3
+      plus2 = 1 + (2 + 3)
+      d = true && (false || true)
+      z = true || false && true
+      e = 1 + 2 >= 3 + 4
+      f = 9 % 2 === 0
+      g = 0 == 9 % 2
+      h = 2 * (10 $ 20)
+      i1 = 1 * 2 $ (3 * 4) $ 5
+      i2 = (1 * 2 $ 3) * 4 $ 5
+      oo = (2 * 10 $ 20) * 30 $ 40
+      ffffffffffffffffffff x = x + 1
+      gg x = x * 2
+      j = 10 |> ffffffffffffffffffff |> gg |> gg |> gg |> gg |> gg
+      k = ffffffffffffffffffff << gg << ffffffffffffffffffff <| 10
+      l = 10 |> (ffffffffffffffffffff >> gg >> ffffffffffffffffffff)
+      zzz = 1 + 2 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12
+      zz =
+        (1 * 2 + 3 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12)
+          === (1 + 3 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12)
+      zzzz =
+        1 * 2 + 3 * 3 < 4 + 5 * 6
+          && 7 + 8 * 9 > 10 + 11 * 12 === 1 + 3 * 3 < 4 + 5 * 6
+          && 7 + 8 * 9 > 10 + 11 * 12
+      ())
+      |> id
 
 fix_1035 : Text
 fix_1035 =
@@ -168,7 +228,7 @@ fix_2271 =
   # Full doc body indented
   
     ``` raw
-    myVal1 = 42 
+    myVal1 = 42
     myVal2 = 43
     myVal4 = 44
     ```
@@ -194,7 +254,7 @@ fix_2650 =
     use Nat +
     y = 12
     13 + y
-  !addNumbers
+  addNumbers()
 
 fix_2650a : tvar -> fun -> ()
 fix_2650a tvar fun = ()
@@ -331,6 +391,85 @@ fix_4384e =
   }}
   }}
 
+fix_4727 : Doc2
+fix_4727 = {{ `` 0xs900dc0ffee `` }}
+
+fix_4729a : Doc2
+fix_4729a =
+  {{
+  # H1A
+  
+    ## H2A
+    
+       ```
+       {{
+       # H1B
+       
+         ## B2B
+         
+            
+       }}
+       ```
+    
+    ## H2A
+    
+       
+  }}
+
+fix_4729b : Doc2
+fix_4729b =
+  {{
+  # H1A
+  
+    ## H2A
+    
+       {{ docTable
+         [[{{
+             # HA
+             
+               
+             }}, {{
+             # HB
+             
+               
+             }}], [{{
+             # a
+             
+               
+             }}, {{
+             # b
+             
+               
+             }}]] }}
+    
+    ## H2A
+    
+       
+  }}
+
+fix_4729c : Doc2
+fix_4729c =
+  {{
+  # Examples ``
+  docCallout
+    (Some
+      (syntax.docUntitledSection
+        [syntax.docSection (syntax.docParagraph [syntax.docWord "Title"]) []]))
+    (syntax.docUntitledSection
+      [ syntax.docParagraph
+          [ syntax.docWord "This"
+          , syntax.docWord "is"
+          , syntax.docWord "a"
+          , syntax.docWord "callout"
+          , syntax.docWord "with"
+          , syntax.docWord "a"
+          , syntax.docWord "title"
+          ]
+      ]) ``
+  
+    
+  }}
+
 Fix_525.bar.quaffle : Nat
 Fix_525.bar.quaffle = 32
 
@@ -341,6 +480,16 @@ fix_525_exampleTerm quaffle =
 
 fix_525_exampleType : Id qualifiedName -> Id Fully.qualifiedName
 fix_525_exampleType z = Id (Dontcare () 19)
+
+fnApplicationSyntax : Nat
+fnApplicationSyntax =
+  use Nat +
+  Environment.default = do 1 + 1
+  oog = do 2 + 2
+  blah : Nat -> Float -> Nat
+  blah x y = x + 1
+  _ = blah Environment.default() 1.0
+  blah oog() (max 1.0 2.0)
 
 Foo.bar.qux1 : Nat
 Foo.bar.qux1 = 42
@@ -421,7 +570,7 @@ nested_fences : Doc2
 nested_fences =
   {{
   ```` raw
-  ```unison
+  ``` unison
   r = "boopydoo"
   ```
   ````
@@ -501,8 +650,8 @@ softhang22 = softhang2 [0, 1, 2, 3, 4, 5] cases
 
 softhang23 : 'Nat
 softhang23 = do
-  use Nat +
   catchAll do
+    use Nat +
     x = 1
     y = 2
     x + y
@@ -672,41 +821,67 @@ UUID.random = do UUID 0 (0, 0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
-  (UUID a (b, _)) = !random
+  (UUID a (b, _)) = random()
   encodeNat64be a Bytes.++ encodeNat64be b
 
 (|>) : a -> (a ->{e} b) ->{e} b
 a |> f = f a
+`````
+
+``` ucm :hide
+scratch/a1> delete.namespace.force lib.builtins
+```
+
+``` ucm :hide
+scratch/a2> load
+```
+
+``` ucm :hide
+scratch/a2> add
+
+scratch/a2> delete.namespace.force lib.builtins
 ```
 
 This diff should be empty if the two namespaces are equivalent. If it's nonempty, the diff will show us the hashes that differ.
 
-```ucm
-.> diff.namespace a1 a2
+``` ucm :error
+scratch/main> diff.namespace /a1: /a2:
 
   The namespaces are identical.
-
 ```
+
 Now check that definitions in 'reparses.u' at least parse on round trip:
+
+``` ucm :hide
+scratch/a3> builtins.mergeio lib.builtins
+
+scratch/a3> load unison-src/transcripts-round-trip/reparses.u
+
+scratch/a3> add
+```
 
 This just makes 'roundtrip.u' the latest scratch file.
 
-```unison
+``` unison :hide
 x = ()
 ```
 
-```ucm
-.a3> edit 1-5000
+``` ucm :hide
+scratch/a3> find
+```
+
+``` ucm
+scratch/a3> edit.new 1-5000
 
   ☝️
-  
+
   I added 2 definitions to the top of scratch.u
-  
+
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
-
 ```
-```unison:added-by-ucm scratch.u
+
+```` unison :added-by-ucm scratch.u
 explanationOfThisFile : Text
 explanationOfThisFile =
   """
@@ -726,23 +901,59 @@ sloppyDocEval =
   1 + 1
   ```
   }}
+````
+
+``` ucm :hide
+scratch/a3_new> builtins.mergeio lib.builtins
+
+scratch/a3_new> load
+
+scratch/a3_new> add
+
+scratch/a3> delete.namespace.force lib.builtins
+
+scratch/a3_new> delete.namespace.force lib.builtins
 ```
 
 These are currently all expected to have different hashes on round trip.
 
-```ucm
-.> diff.namespace a3 a3_old
+``` ucm
+scratch/main> diff.namespace /a3_new: /a3:
 
   Updates:
-  
+
     1. sloppyDocEval : Doc2
        ↓
     2. sloppyDocEval : Doc2
-
 ```
+
 ## Other regression tests not covered by above
 
-### Comment out builtins in the edit command
+### Builtins should appear commented out in the edit.new command
 
 Regression test for https://github.com/unisonweb/unison/pull/3548
 
+``` ucm
+scratch/regressions> alias.term ##Nat.+ plus
+
+  Done.
+
+scratch/regressions> edit.new plus
+
+  ☝️
+
+  I added 1 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
+
+scratch/regressions> load
+
+  Loading changes detected in scratch.u.
+
+  I loaded scratch.u and didn't find anything.
+```
+
+``` unison :added-by-ucm scratch.u
+-- builtin plus : ##Nat -> ##Nat -> ##Nat
+```

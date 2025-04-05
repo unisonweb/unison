@@ -9,10 +9,9 @@
          file/gunzip
          file/gzip)
 
-(provide (prefix-out unison-FOp-Bytes.
-    (combine-out
-        zlib.compress
-        zlib.decompress)))
+(provide
+  zlib-deflate-bytes
+  zlib-inflate-bytes)
 
 
 (define (read-byte-only what i)
@@ -31,13 +30,14 @@
 ;; ADLER32 implementation
 ;; https://www.ietf.org/rfc/rfc1950.txt
 ;; Modified from racket/collects/net/git-checkout.rkt
-(define (adler32-through-ports in out)
+(define (adler32-through-ports in out #:close-out [close #f])
   (define ADLER 65521)
   (define bstr (make-bytes 4096))
   (let loop ([s1 1] [s2 0])
     (define n (read-bytes! bstr in))
     (cond
       [(eof-object? n)
+       (when close (close-output-port out))
        (bitwise-ior (arithmetic-shift s2 16) s1)]
       [else
        (write-bytes bstr out 0 n)
@@ -65,7 +65,10 @@
   (define uncompressed-adler #f)
   (define checksum-thread
     (thread
-     (lambda () (set! uncompressed-adler (adler32-through-ports checksum-in o)))))
+     (lambda ()
+       (set! uncompressed-adler
+         (adler32-through-ports checksum-in o)))))
+
   ;; Inflate, sending output to checksum (and then to `o`):
   (inflate i checksum-out)
   (close-output-port checksum-out)
@@ -84,11 +87,12 @@
     (define uncompressed-adler #f)
     (define checksum-thread
         (thread
-     (lambda () (set! uncompressed-adler (adler32-through-ports i checksum-out)))))
+     (lambda ()
+       (set! uncompressed-adler
+         (adler32-through-ports i checksum-out #:close-out #t)))))
 
-    (sync checksum-thread)
-    (close-output-port checksum-out)
     (deflate checksum-in o)
+    (sync checksum-thread)
     (write-bytes (integer->integer-bytes uncompressed-adler 4 #f #t) o)
     (void))
 

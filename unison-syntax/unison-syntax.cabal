@@ -20,12 +20,15 @@ library
       Unison.Lexer.Pos
       Unison.Parser.Ann
       Unison.Syntax.HashQualified
-      Unison.Syntax.HashQualified'
+      Unison.Syntax.HashQualifiedPrime
       Unison.Syntax.Lexer
       Unison.Syntax.Lexer.Token
+      Unison.Syntax.Lexer.Unison
       Unison.Syntax.Name
       Unison.Syntax.NameSegment
       Unison.Syntax.Parser
+      Unison.Syntax.Parser.Doc
+      Unison.Syntax.Parser.Doc.Data
       Unison.Syntax.ReservedWords
       Unison.Syntax.ShortHash
       Unison.Syntax.Var
@@ -68,13 +71,14 @@ library
     , bytes
     , containers
     , cryptonite
+    , deriving-compat
     , extra
+    , free
     , lens
     , megaparsec
     , mtl
     , parser-combinators
     , text
-    , text-builder
     , unison-core
     , unison-core1
     , unison-hash
@@ -86,6 +90,9 @@ library
 test-suite syntax-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
+  other-modules:
+      Unison.Test.Doc
+      Unison.Test.Unison
   hs-source-dirs:
       test
   default-extensions:
@@ -121,23 +128,13 @@ test-suite syntax-tests
   ghc-options: -Wall
   build-depends:
       base
-    , bytes
     , code-page
-    , containers
-    , cryptonite
     , easytest
-    , extra
-    , lens
+    , free
     , megaparsec
-    , mtl
-    , parser-combinators
     , text
-    , text-builder
-    , unison-core
     , unison-core1
-    , unison-hash
     , unison-prelude
     , unison-syntax
-    , unison-util-base32hex
-    , unison-util-bytes
+    , unison-util-recursion
   default-language: Haskell2010

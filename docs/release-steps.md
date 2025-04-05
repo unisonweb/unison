@@ -19,7 +19,11 @@ Edit `releases._<ReleaseName>.README` to include `Release: <ReleaseName>`.
 .basedev.release> push git(git@github.com:unisonweb/base)
 ```
 
-## 2. Run Release script
+## 2. Check or run cloud client tests
+
+https://github.com/unisoncomputing/cloud-client-tests/actions/workflows/cloud-client-tests.yml
+
+## 3. Run Release script
 
 * **Milestone Release**: Look up the most recent release; bump the number and remove any trailing letters, e.g. `./scripts/make-release release/M5 trunk`
 * **Minor Release**: Increment the trailing letter of the previous release, or add an `a` to the previous milestone release, e.g. `./scripts/make-release release/M5a trunk`
@@ -40,11 +44,11 @@ Including:
 
 After successfully executing the script you just have to sit tight and wait for all the jobs to complete.
 
-## 3
+## 4
 
 Smoke test of the new release. Try `brew upgrade unison-language`, launch it, launch `ui`.
 
-## 4
+## 5
 
 Write up release notes, template below.
 
@@ -85,5 +89,5 @@ curl -L https://github.com/unisonweb/unison/releases/latest/download/ucm-linux.t
 
 **Windows manual install:**
 * Recommended: [Set your default Terminal application](https://devblogs.microsoft.com/commandline/windows-terminal-as-your-default-command-line-experience/) to “Windows Terminal”.
-* Download [the release](https://github.com/unisonweb/unison/releases/download/release%2FM5h/ucm-windows.zip) and extract it to a location of your choosing.
+* Download [the release](https://github.com/unisonweb/unison/releases/latest/download/ucm-windows.zip) and extract it to a location of your choosing.
 * Run `ucm.exe`

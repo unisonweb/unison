@@ -39,7 +39,7 @@ import Unison.Var qualified as Var
 
 -- | Format a file, returning a list of Text replacements to apply to the file.
 formatFile ::
-  Monad m =>
+  (Monad m) =>
   (Maybe (UnisonFile Symbol Ann.Ann) -> Maybe (TypecheckedUnisonFile Symbol Ann.Ann) -> m PPED.PrettyPrintEnvDecl) ->
   Int ->
   Path.Absolute ->
@@ -78,7 +78,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
         -- Doesn't work unless we alter it before building the pped
         -- let deterministicDecl = decl & Decl.declAsDataDecl_ . Decl.constructors_ %~ sortOn (view _1)
         pure $
-          (tldAnn, DeclPrinter.prettyDecl biasedPPED (Reference.DerivedId ref) hqName decl)
+          (tldAnn, DeclPrinter.prettyDecl biasedPPED DeclPrinter.RenderUniqueTypeGuids'No (Reference.DerivedId ref) hqName decl)
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
@@ -197,10 +197,10 @@ annToInterval ann = annToRange ann <&> rangeToInterval
 
 -- | Returns 'True' if the given symbol is a term with a user provided type signature in the
 -- parsed file, false otherwise.
-hasUserTypeSignature :: Eq v => UnisonFile v a -> v -> Bool
+hasUserTypeSignature :: (Eq v) => UnisonFile v a -> v -> Bool
 hasUserTypeSignature parsedFile sym =
-  UF.terms parsedFile
-    & any (\(v, _, trm) -> v == sym && isJust (Term.getTypeAnnotation trm))
+  Map.toList (UF.terms parsedFile)
+    & any (\(v, (_, trm)) -> v == sym && isJust (Term.getTypeAnnotation trm))
 
 -- | A text replacement to apply to a file.
 data TextReplacement = TextReplacement

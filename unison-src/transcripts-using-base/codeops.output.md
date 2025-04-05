@@ -1,10 +1,9 @@
-
 Test for code serialization operations.
 
 Define a function, serialize it, then deserialize it back to an actual
 function. Also ask for its dependencies for display later.
 
-```unison
+``` unison
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
@@ -134,8 +133,8 @@ verified name link =
   with handleTest ("verified " ++ name)
 
 rejected : Text -> [(Link.Term,Code)] ->{io2.IO} Result
-rejected name rco = 
-  handle verify name rco 
+rejected name rco =
+  handle verify name rco
   with expectFailure ("rejected " ++ name)
 
 missed : Text -> Link.Term -> Result
@@ -152,14 +151,13 @@ swapped name link =
   rejected ("swapped " ++ name) rco
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural type Three a b c
@@ -197,13 +195,13 @@ swapped name link =
       verify         : Text
                        -> [(Link.Term, Code)]
                        ->{Throw Text} ()
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     structural type Three a b c
     Code.get       : Link.Term ->{IO, Throw Text} Code
     Code.load      : Bytes ->{IO, Throw Text} Code
@@ -239,9 +237,9 @@ swapped name link =
     verify         : Text
                      -> [(Link.Term, Code)]
                      ->{Throw Text} ()
-
 ```
-```unison
+
+``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
 
@@ -316,14 +314,13 @@ badLoad _ =
     Left _ -> [Fail "Exception"]
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural ability Zap
@@ -337,17 +334,17 @@ badLoad _ =
       rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
       tests   : '{IO} [Result]
       zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
-
 ```
+
 This simply runs some functions to make sure there isn't a crash. Once
 we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
-```ucm
-.> add
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     structural ability Zap
     badLoad : '{IO} [Result]
     bigFun  : Nat -> Nat -> Nat -> Nat
@@ -360,40 +357,40 @@ to actual show that the serialization works.
     tests   : '{IO} [Result]
     zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
-.> io.test tests
+scratch/main> io.test tests
 
     New test results:
-  
-  ◉ tests   (ext f) passed
-  ◉ tests   (ext h) passed
-  ◉ tests   (ident compound) passed
-  ◉ tests   (ident fib10) passed
-  ◉ tests   (ident effect) passed
-  ◉ tests   (ident zero) passed
-  ◉ tests   (ident h) passed
-  ◉ tests   (ident text) passed
-  ◉ tests   (ident int) passed
-  ◉ tests   (ident float) passed
-  ◉ tests   (ident termlink) passed
-  ◉ tests   (ident bool) passed
-  ◉ tests   (ident bytes) passed
-  
+
+    1. tests   ◉ (ext f) passed
+               ◉ (ext h) passed
+               ◉ (ident compound) passed
+               ◉ (ident fib10) passed
+               ◉ (ident effect) passed
+               ◉ (ident zero) passed
+               ◉ (ident h) passed
+               ◉ (ident text) passed
+               ◉ (ident int) passed
+               ◉ (ident float) passed
+               ◉ (ident termlink) passed
+               ◉ (ident bool) passed
+               ◉ (ident bytes) passed
+
   ✅ 13 test(s) passing
-  
-  Tip: Use view tests to view the source of a test.
 
-.> io.test badLoad
+  Tip: Use view 1 to view the source of a test.
+
+scratch/main> io.test badLoad
 
     New test results:
-  
-  ◉ badLoad   serialized77
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view badLoad to view the source of a test.
 
+    1. badLoad   ◉ serialized77
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
-```unison
+
+``` unison
 codeTests : '{io2.IO} [Result]
 codeTests =
   '[ idempotence "idem f" (termLink f)
@@ -429,67 +426,66 @@ codeTests =
    ]
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       codeTests : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     codeTests : '{IO} [Result]
 
-.> io.test codeTests
+scratch/main> io.test codeTests
 
     New test results:
-  
-  ◉ codeTests   (idem f) passed
-  ◉ codeTests   (idem h) passed
-  ◉ codeTests   (idem rotate) passed
-  ◉ codeTests   (idem zapper) passed
-  ◉ codeTests   (idem showThree) passed
-  ◉ codeTests   (idem concatMap) passed
-  ◉ codeTests   (idem big) passed
-  ◉ codeTests   (idem extensionality) passed
-  ◉ codeTests   (idem identicality) passed
-  ◉ codeTests   (verified f) passed
-  ◉ codeTests   (verified h) passed
-  ◉ codeTests   (verified rotate) passed
-  ◉ codeTests   (verified zapper) passed
-  ◉ codeTests   (verified showThree) passed
-  ◉ codeTests   (verified concatMap) passed
-  ◉ codeTests   (verified big) passed
-  ◉ codeTests   (verified extensionality) passed
-  ◉ codeTests   (verified identicality) passed
-  ◉ codeTests   (verified mutual0) passed
-  ◉ codeTests   (verified mutual1) passed
-  ◉ codeTests   (verified mutual2) passed
-  ◉ codeTests   (rejected missing mutual0) passed
-  ◉ codeTests   (rejected missing mutual1) passed
-  ◉ codeTests   (rejected missing mutual2) passed
-  ◉ codeTests   (rejected swapped zapper) passed
-  ◉ codeTests   (rejected swapped extensionality) passed
-  ◉ codeTests   (rejected swapped identicality) passed
-  ◉ codeTests   (rejected swapped mututal0) passed
-  ◉ codeTests   (rejected swapped mututal1) passed
-  ◉ codeTests   (rejected swapped mututal2) passed
-  
-  ✅ 30 test(s) passing
-  
-  Tip: Use view codeTests to view the source of a test.
 
+    1. codeTests   ◉ (idem f) passed
+                   ◉ (idem h) passed
+                   ◉ (idem rotate) passed
+                   ◉ (idem zapper) passed
+                   ◉ (idem showThree) passed
+                   ◉ (idem concatMap) passed
+                   ◉ (idem big) passed
+                   ◉ (idem extensionality) passed
+                   ◉ (idem identicality) passed
+                   ◉ (verified f) passed
+                   ◉ (verified h) passed
+                   ◉ (verified rotate) passed
+                   ◉ (verified zapper) passed
+                   ◉ (verified showThree) passed
+                   ◉ (verified concatMap) passed
+                   ◉ (verified big) passed
+                   ◉ (verified extensionality) passed
+                   ◉ (verified identicality) passed
+                   ◉ (verified mutual0) passed
+                   ◉ (verified mutual1) passed
+                   ◉ (verified mutual2) passed
+                   ◉ (rejected missing mutual0) passed
+                   ◉ (rejected missing mutual1) passed
+                   ◉ (rejected missing mutual2) passed
+                   ◉ (rejected swapped zapper) passed
+                   ◉ (rejected swapped extensionality) passed
+                   ◉ (rejected swapped identicality) passed
+                   ◉ (rejected swapped mututal0) passed
+                   ◉ (rejected swapped mututal1) passed
+                   ◉ (rejected swapped mututal2) passed
+
+  ✅ 30 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
-```unison
+
+``` unison
 validateTest : Link.Term ->{IO} Result
 validateTest l = match Code.lookup l with
   None -> Fail "Couldn't look up link"
@@ -515,43 +511,41 @@ vtests _ =
     ]
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       validateTest : Link.Term ->{IO} Result
       vtests       : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     validateTest : Link.Term ->{IO} Result
     vtests       : '{IO} [Result]
 
-.> io.test vtests
+scratch/main> io.test vtests
 
     New test results:
-  
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  ◉ vtests   validated
-  
-  ✅ 8 test(s) passing
-  
-  Tip: Use view vtests to view the source of a test.
 
+    1. vtests   ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+                ◉ validated
+
+  ✅ 8 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

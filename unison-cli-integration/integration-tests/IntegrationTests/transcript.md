@@ -1,18 +1,13 @@
 # Integration test: transcript
 
-```ucm:hide
-.> builtins.mergeio
-.> load ./unison-src/transcripts-using-base/base.u
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+scratch/main> load ./unison-src/transcripts-using-base/base.u
+scratch/main> add
 ```
 
-```ucm:hide
-.> builtins.mergeio
-.> load ./unison-src/transcripts-using-base/base.u
-.> add
-```
-
-```unison
-use .builtin
+``` unison
+use lib.builtins
 
 unique type MyBool = MyTrue | MyFalse
 
@@ -38,7 +33,7 @@ main = do
     _ -> ()
 ```
 
-```ucm
-.> add
-.> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
+``` ucm
+scratch/main> add
+scratch/main> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 ```

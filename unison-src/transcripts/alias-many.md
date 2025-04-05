@@ -1,7 +1,7 @@
-```ucm:hide
-.> builtins.merge
+``` ucm :hide
+scratch/main> builtins.merge lib.builtins
 ```
-```unison:hide:all
+``` unison :hide-all
 List.adjacentPairs : [a] -> [(a, a)]
 List.adjacentPairs as =
   go xs acc =
@@ -94,15 +94,15 @@ List.takeWhile p xs =
       _ -> acc
   go xs []
 ```
-```ucm:hide
-.stuff> add
+``` ucm :hide
+scratch/main> add
 ```
 
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
 The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
 ```
-.> help alias.many
+scratch/main> help alias.many
 
   alias.many (or copy)
   `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
@@ -112,9 +112,9 @@ The names that will be used in the target namespace are the names you specify, r
 
 Let's try it!
 
-```ucm
-.> alias.many stuff.List.adjacentPairs stuff.List.all stuff.List.any stuff.List.chunk stuff.List.chunksOf stuff.List.dropWhile stuff.List.first stuff.List.init stuff.List.intersperse stuff.List.isEmpty stuff.List.last stuff.List.replicate stuff.List.splitAt stuff.List.tail stuff.List.takeWhile .mylib
-.> find-in mylib
+``` ucm
+scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.chunksOf List.dropWhile List.first List.init List.intersperse List.isEmpty List.last List.replicate List.splitAt List.tail List.takeWhile mylib
+scratch/main> find-in mylib
 ```
 
 Thanks, `alias.many`!

@@ -65,6 +65,7 @@ library
       base
     , bytestring
     , containers
+    , directory
     , either
     , extra
     , filepath
@@ -74,6 +75,7 @@ library
     , pretty-simple
     , safe
     , text
+    , these
     , time
     , transformers
     , unliftio

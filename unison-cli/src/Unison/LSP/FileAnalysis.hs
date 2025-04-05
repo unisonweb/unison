@@ -35,9 +35,9 @@ import Unison.KindInference.Error qualified as KindInference
 import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
 import Unison.LSP.Diagnostics (DiagnosticSeverity (..), mkDiagnostic, reportDiagnostics)
+import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
-import Unison.LSP.Types qualified as LSP
 import Unison.LSP.VFS qualified as VFS
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -56,8 +56,8 @@ import Unison.Referent qualified as Referent
 import Unison.Result (Note)
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified' qualified as HQ' (toText)
-import Unison.Syntax.Lexer qualified as L
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (toText)
+import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
@@ -78,7 +78,7 @@ import Witherable
 -- | Lex, parse, and typecheck a file.
 checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
 checkFile doc = runMaybeT do
-  currentPath <- lift getCurrentPath
+  pp <- lift getCurrentProjectPath
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
   parseNames <- lift getCurrentNames
@@ -91,8 +91,10 @@ checkFile doc = runMaybeT do
   let parsingEnv =
         Parser.ParsingEnv
           { uniqueNames = uniqueName,
-            uniqueTypeGuid = Cli.loadUniqueTypeGuid currentPath,
-            names = parseNames
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
+            names = parseNames,
+            maybeNamespace = Nothing,
+            localNamespacePrefixedTypesAndConstructors = mempty
           }
   (notes, parsedFile, typecheckedFile) <- do
     liftIO do
@@ -104,19 +106,21 @@ checkFile doc = runMaybeT do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
             pure (typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
-  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText notes
+  filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
+  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
+  let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
       lift $ computeConflictWarningDiagnostics fileUri fs
   let diagnosticRanges =
-        (errDiagnostics <> conflictWarningDiagnostics)
+        (errDiagnostics <> conflictWarningDiagnostics <> unusedBindingDiagnostics)
           & fmap (\d -> (d ^. range, d))
           & toRangeMap
   let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
@@ -155,10 +159,10 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: (Foldable f) => Uri -> Text -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
-analyseFile fileUri srcText notes = do
-  pped <- PPED.suffixifiedPPE <$> LSP.currentPPED
-  (noteDiags, noteActions) <- analyseNotes fileUri pped (Text.unpack srcText) notes
+analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile fileUri srcText pped notes = do
+  let ppe = PPED.suffixifiedPPE pped
+  (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
@@ -192,6 +196,7 @@ computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = 
                       fileUri
                       newRange
                       DiagnosticSeverity_Information
+                      []
                       msg
                       mempty
   pure $ toDiagnostics conflictedTermLocations <> toDiagnostics conflictedTypeLocations
@@ -278,7 +283,7 @@ analyseNotes fileUri ppe src notes = do
             (errMsg, ranges) <- PrintError.renderParseErrors src err
             let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
             range <- ranges
-            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error txtMsg []
+            pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error [] txtMsg []
       -- TODO: Some parsing errors likely have reasonable code actions
       pure (diags, [])
     Result.UnknownSymbol _ loc ->
@@ -334,7 +339,7 @@ analyseNotes fileUri ppe src notes = do
       let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
        in do
             (range, references) <- ranges
-            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error msg references
+            pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error [] msg references
     -- Suggest name replacements or qualifications when there's ambiguity
     nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do
@@ -357,7 +362,6 @@ analyseNotes fileUri ppe src notes = do
       | not (isUserBlank v) = pure []
       | otherwise = do
           Env {codebase} <- ask
-          ppe <- PPED.suffixifiedPPE <$> currentPPED
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
           refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
@@ -444,9 +448,9 @@ mkTypeSignatureHints :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Sym
 mkTypeSignatureHints parsedFile typecheckedFile = do
   let symbolsWithoutTypeSigs :: Map Symbol Ann
       symbolsWithoutTypeSigs =
-        UF.terms parsedFile
+        Map.toList (UF.terms parsedFile)
           & mapMaybe
-            ( \(v, ann, trm) -> do
+            ( \(v, (ann, trm)) -> do
                 -- We only want hints for terms without a user signature
                 guard (isNothing $ Term.getTypeAnnotation trm)
                 pure (v, ann)

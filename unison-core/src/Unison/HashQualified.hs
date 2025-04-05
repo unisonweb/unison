@@ -3,7 +3,7 @@ module Unison.HashQualified where
 import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorReference qualified as ConstructorReference
-import Unison.Name (Convert, Name)
+import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Prelude hiding (fromString)
 import Unison.Reference (Reference)
@@ -139,9 +139,3 @@ instance (Name.Alphabetical n) => Name.Alphabetical (HashQualified n) where
         (Nothing, Just _) -> LT -- prefer NameOnly to HashQualified
         (Just _, Nothing) -> GT
         (Just sh, Just sh2) -> compare sh sh2
-
-instance (Convert n n2) => Convert (HashQualified n) (HashQualified n2) where
-  convert = fmap Name.convert
-
-instance Convert n (HashQualified n) where
-  convert = NameOnly

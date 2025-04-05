@@ -16,7 +16,6 @@ import Unison.Parser.Ann qualified as Parser.Ann
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
-import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -26,43 +25,39 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 
 data MainTerm v
-  = NotAFunctionName Text
-  | NotFound Text
-  | BadType Text (Maybe (Type v Ann))
+  = NotFound (HQ.HashQualified Name)
+  | BadType (HQ.HashQualified Name) (Maybe (Type v Ann))
   | Success (HQ.HashQualified Name) (Term v Ann) (Type v Ann)
 
 getMainTerm ::
   (Monad m, Var v) =>
   (Reference -> m (Maybe (Type v Ann))) ->
   Names.Names ->
-  Text ->
+  HQ.HashQualified Name ->
   Type.Type v Ann ->
   m (MainTerm v)
-getMainTerm loadTypeOfTerm parseNames mainName mainType =
-  case HQ.parseText mainName of
-    Nothing -> pure (NotAFunctionName mainName)
-    Just hq -> do
-      let refs = Names.lookupHQTerm Names.IncludeSuffixes hq parseNames
-      let a = Parser.Ann.External
-      case toList refs of
-        [] -> pure (NotFound mainName)
-        [Referent.Ref ref] -> do
-          typ <- loadTypeOfTerm ref
-          case typ of
-            Just typ ->
-              if Typechecker.fitsScheme typ mainType
-                then do
-                  let tm = DD.forceTerm a a (Term.ref a ref)
-                  return (Success hq tm typ)
-                else pure (BadType mainName $ Just typ)
-            _ -> pure (BadType mainName Nothing)
-        _ -> pure (error "multiple matching refs") -- TODO: make a real exception
+getMainTerm loadTypeOfTerm parseNames mainName mainType = do
+  let refs = Names.lookupHQTerm Names.IncludeSuffixes mainName parseNames
+  let a = Parser.Ann.External
+  case toList refs of
+    [] -> pure (NotFound mainName)
+    [Referent.Ref ref] -> do
+      typ <- loadTypeOfTerm ref
+      case typ of
+        Just typ ->
+          if Typechecker.fitsScheme typ mainType
+            then do
+              let tm = DD.forceTerm a a (Term.ref a ref)
+              return (Success mainName tm typ)
+            else pure (BadType mainName $ Just typ)
+        _ -> pure (BadType mainName Nothing)
+    _ -> pure (error "multiple matching refs") -- TODO: make a real exception
 
 -- forall x. '{ io2.IO, Exception } x
 builtinMain :: (Var v) => a -> Type.Type v a
 builtinMain a =
   let result = Var.named "result"
-   in Type.forall a result (builtinMainWithResultType a (Type.var a result))
+   in Type.forAll a result (builtinMainWithResultType a (Type.var a result))
 
 -- '{io2.IO, Exception} res
 builtinMainWithResultType :: (Var v) => a -> Type.Type v a -> Type.Type v a

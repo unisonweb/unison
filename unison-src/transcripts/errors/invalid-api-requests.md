@@ -1,0 +1,3 @@
+``` api
+DELETE /something/important
+```

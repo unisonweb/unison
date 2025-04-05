@@ -1,6 +1,6 @@
 # Tests for TLS builtins
 
-```unison
+``` unison :hide
 -- generated with:
 -- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
 
@@ -11,11 +11,15 @@ self_signed_cert_pem2 = "-----BEGIN CERTIFICATE-----\nMIIDVTCCAj2gAwIBAgIUdMNT5s
 not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 ```
 
+``` ucm :hide
+scratch/main> add
+```
+
 # Using an alternative certificate store
 
 First lets make sure we can load our cert and private key
 
-```unison
+``` unison
 this_should_work=match (decodeCert.impl (toUtf8 self_signed_cert_pem2) with
   Left (Failure _ t _) -> [Fail t]
   Right _ -> [Ok "succesfully decoded self_signed_pem"]
@@ -27,42 +31,41 @@ this_should_not_work=match (decodeCert.impl (toUtf8 not_a_cert) with
 what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       this_should_not_work : [Result]
       this_should_work     : [Result]
       what_should_work     : ∀ _. _ -> [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     this_should_not_work : [Result]
     this_should_work     : [Result]
     what_should_work     : ∀ _. _ -> [Result]
 
-.> io.test what_should_work
+scratch/main> io.test what_should_work
 
     New test results:
-  
-  ◉ what_should_work   succesfully decoded self_signed_pem
-  ◉ what_should_work   failed
-  
-  ✅ 2 test(s) passing
-  
-  Tip: Use view what_should_work to view the source of a test.
 
+    1. what_should_work   ◉ succesfully decoded self_signed_pem
+                          ◉ failed
+
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
+
 Test handshaking a client/server a local TCP connection using our
 self-signed cert.
 
@@ -71,7 +74,7 @@ We'll create a server and a client, and start threads for each.
 The server will report the port it is bound to via a passed MVar which
 the client can read.
 
-```unison
+``` unison
 serverThread: MVar Nat -> Text -> '{io2.IO}()
 serverThread portVar toSend = 'let
   go: '{io2.IO, Exception}()
@@ -217,14 +220,13 @@ testCNReject _ =
   runTest test
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       serverThread          : MVar Nat -> Text -> '{IO} ()
@@ -235,13 +237,13 @@ testCNReject _ =
                               -> MVar Nat
                               -> '{IO, Exception} Text
       testConnectSelfSigned : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     serverThread          : MVar Nat -> Text -> '{IO} ()
     testCAReject          : '{IO} [Result]
     testCNReject          : '{IO} [Result]
@@ -251,35 +253,33 @@ testCNReject _ =
                             -> '{IO, Exception} Text
     testConnectSelfSigned : '{IO} [Result]
 
-.> io.test testConnectSelfSigned
+scratch/main> io.test testConnectSelfSigned
 
     New test results:
-  
-  ◉ testConnectSelfSigned   should have reaped what we've sown
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view testConnectSelfSigned to view the source of a
-       test.
 
-.> io.test testCAReject
+    1. testConnectSelfSigned   ◉ should have reaped what we've sown
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+scratch/main> io.test testCAReject
 
     New test results:
-  
-  ◉ testCAReject   correctly rejected self-signed cert
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view testCAReject to view the source of a test.
 
-.> io.test testCNReject
+    1. testCAReject   ◉ correctly rejected self-signed cert
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+scratch/main> io.test testCNReject
 
     New test results:
-  
-  ◉ testCNReject   correctly rejected self-signed cert
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view testCNReject to view the source of a test.
 
+    1. testCNReject   ◉ correctly rejected self-signed cert
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

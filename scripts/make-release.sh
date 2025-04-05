@@ -38,7 +38,7 @@ if ! [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ; then
 fi
 
 version="${1}"
-target=${2:-origin/trunk}
+src=${2:-origin/trunk}
 tag="release/$version"
 
 echo "Creating release in unison-local-ui."
@@ -50,18 +50,18 @@ gh release create "release/${version}" \
 echo "Kicking off release workflow in unisonweb/unison"
 # Make sure our origin/trunk ref is up to date, since that's usually what gets tagged.
 git fetch origin trunk
-git tag "${tag}" "${target}"
+git tag "${tag}" "${src}"
 git push origin "${tag}"
-gh workflow run release --repo unisonweb/unison \
+gh workflow run release.yaml --repo unisonweb/unison \
   --ref "${tag}" \
   --field "version=${version}"
 
 echo "Kicking off Homebrew update task"
-gh workflow run release --repo unisonweb/homebrew-unison --field "version=${version}"
+gh workflow run release.yaml --repo unisonweb/homebrew-unison --field "version=${version}"
 
 echo "Opening relevant workflows in browser"
-gh workflow view release --web --repo unisonweb/homebrew-unison || true
-gh workflow view release --web --repo unisonweb/unison || true
+gh workflow view release.yaml --web --repo unisonweb/homebrew-unison || true
+gh workflow view release.yaml --web --repo unisonweb/unison || true
 
 echo "Okay! All the work has been kicked off, it may take several hours to complete."
 echo "Run '$0 --status' to see job status."

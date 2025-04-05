@@ -15,7 +15,7 @@ be listed here, please [file a ticket](https://github.com/unisonweb/unison/issue
 
 This file was generated using [unisonweb/credits-generator](http://github.com/unisonweb/credits-generator).
 
-### Listing 
+### Listing
 These are listed in alphabetical order.
 
 | Package name | License  |
@@ -52,7 +52,6 @@ These are listed in alphabetical order.
 | [comonad-5.0.6](https://hackage.haskell.org/package/comonad-5.0.6) | [BSD3](https://hackage.haskell.org/package/comonad-5.0.6/src/LICENSE) |
 | [concurrent-supply-0.1.8](https://hackage.haskell.org/package/concurrent-supply-0.1.8) | [BSD3](https://hackage.haskell.org/package/concurrent-supply-0.1.8/src/LICENSE) |
 | [conduit-1.3.2](https://hackage.haskell.org/package/conduit-1.3.2) | [MIT](https://hackage.haskell.org/package/conduit-1.3.2/src/LICENSE) |
-| [configurator-0.3.0.0](https://hackage.haskell.org/package/configurator-0.3.0.0) | [BSD3](https://hackage.haskell.org/package/configurator-0.3.0.0/src/LICENSE) |
 | [containers-0.6.2.1](https://hackage.haskell.org/package/containers-0.6.2.1) | [BSD3](https://hackage.haskell.org/package/containers-0.6.2.1/src/LICENSE) |
 | [contravariant-1.5.2](https://hackage.haskell.org/package/contravariant-1.5.2) | [BSD3](https://hackage.haskell.org/package/contravariant-1.5.2/src/LICENSE) |
 | [cryptohash-md5-0.11.100.1](https://hackage.haskell.org/package/cryptohash-md5-0.11.100.1) | [BSD3](https://hackage.haskell.org/package/cryptohash-md5-0.11.100.1/src/LICENSE) |
@@ -109,6 +108,7 @@ These are listed in alphabetical order.
 | [network-bsd-2.8.1.0](https://hackage.haskell.org/package/network-bsd-2.8.1.0) | [BSD3](https://hackage.haskell.org/package/network-bsd-2.8.1.0/src/LICENSE) |
 | [network-info-0.2.0.10](https://hackage.haskell.org/package/network-info-0.2.0.10) | [BSD3](https://hackage.haskell.org/package/network-info-0.2.0.10/src/LICENSE) |
 | [network-simple-0.4.5](https://hackage.haskell.org/package/network-simple-0.4.5) | [BSD3](https://hackage.haskell.org/package/network-simple-0.4.5/src/LICENSE) |
+| [network-udp-0.0.0](https://hackage.haskell.org/package/network-udp-0.0.0) | [BSD3](https://hackage.haskell.org/package/network-udp-0.0.0/src/LICENSE) |
 | [nonempty-containers-0.3.3.0](https://hackage.haskell.org/package/nonempty-containers-0.3.3.0) | [BSD3](https://hackage.haskell.org/package/nonempty-containers-0.3.3.0/src/LICENSE) |
 | [nonempty-vector-0.2.0.2](https://hackage.haskell.org/package/nonempty-vector-0.2.0.2) | [BSD3](https://hackage.haskell.org/package/nonempty-vector-0.2.0.2/src/LICENSE) |
 | [parallel-3.2.2.0](https://hackage.haskell.org/package/parallel-3.2.2.0) | [BSD3](https://hackage.haskell.org/package/parallel-3.2.2.0/src/LICENSE) |

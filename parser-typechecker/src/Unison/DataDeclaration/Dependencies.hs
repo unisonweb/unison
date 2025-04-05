@@ -40,7 +40,7 @@ import Unison.Var qualified as Var
 --
 -- Note that we can't actually tell whether the Decl was originally a record or not, so we
 -- include all possible accessors, but they may or may not exist in the codebase.
-labeledDeclDependenciesIncludingSelfAndFieldAccessors :: Var v => TypeReference -> (DD.Decl v a) -> Set LD.LabeledDependency
+labeledDeclDependenciesIncludingSelfAndFieldAccessors :: (Var v) => TypeReference -> (DD.Decl v a) -> Set LD.LabeledDependency
 labeledDeclDependenciesIncludingSelfAndFieldAccessors selfRef decl =
   DD.labeledDeclDependenciesIncludingSelf selfRef decl
     <> case decl of
@@ -121,5 +121,6 @@ hashFieldAccessors ppe declName vars declRef dd = do
                 dataDecls = Map.singleton declRef (void dd),
                 effectDecls = mempty
               },
-          termsByShortname = mempty
+          termsByShortname = mempty,
+          topLevelComponents = Map.empty
         }

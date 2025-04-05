@@ -8,7 +8,6 @@ module Unison.KindInference.Generate
   )
 where
 
-import Control.Lens ((^.))
 import Data.Foldable (foldlM)
 import Data.Set qualified as Set
 import U.Core.ABT qualified as ABT
@@ -28,8 +27,8 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
+import Unison.Util.Recursion
 import Unison.Var (Type (User), Var (typed), freshIn)
-
 
 --------------------------------------------------------------------------------
 -- Constraints arising from Types
@@ -103,13 +102,12 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
         restConstraints <- typeConstraintTree resultVar b
         pure $ Node [effConstraints, restConstraints]
       Type.Effects effs -> do
-        Node <$> for effs \eff -> do
+        ParentConstraint (IsAbility resultVar (Provenance EffectsList annotation)) . Node <$> for effs \eff -> do
           effKind <- freshVar eff
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
 
-
-handleIntroOuter :: Var v => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
+handleIntroOuter :: (Var v) => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
 handleIntroOuter v loc k = do
   let typ = Type.var loc v
   new <- freshVar typ
@@ -141,7 +139,6 @@ termConstraintTree = fmap Node . dfAnns processAnn cons nil . hackyStripAnns
     cons mlhs mrhs = (++) <$> mlhs <*> mrhs
     nil = pure []
 
-
 -- | Helper for @termConstraints@ that instantiates the outermost
 -- foralls and keeps the type in scope (in the type map) while
 -- checking lexically nested type annotations.
@@ -164,7 +161,7 @@ instantiateType type0 k =
 -- | Process type annotations depth-first. Allows processing
 -- annotations with lexical scoping.
 dfAnns :: (loc -> Type.Type v loc -> b -> b) -> (b -> b -> b) -> b -> Term.Term v loc -> b
-dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
+dfAnns annAlg cons nil = cata \(ABT.Term' _ ann abt0) -> case abt0 of
   ABT.Var _ -> nil
   ABT.Cycle x -> x
   ABT.Abs _ x -> x
@@ -175,9 +172,9 @@ dfAnns annAlg cons nil = ABT.cata \ann abt0 -> case abt0 of
 -- Our rewrite signature machinery generates type annotations that are
 -- not well kinded. Work around this for now by stripping those
 -- annotations.
-hackyStripAnns :: Ord v => Term.Term v loc -> Term.Term v loc
+hackyStripAnns :: (Ord v) => Term.Term v loc -> Term.Term v loc
 hackyStripAnns =
-  snd . ABT.cata \ann abt0 -> case abt0 of
+  snd . cata \(ABT.Term' _ ann abt0) -> case abt0 of
     ABT.Var v -> (False, ABT.var ann v)
     ABT.Cycle (_, x) -> (False, ABT.cycle ann x)
     ABT.Abs v (_, x) -> (False, ABT.abs ann v x)
@@ -192,7 +189,7 @@ hackyStripAnns =
          in (isHack, Term.constructor ann cref)
       t -> (False, ABT.tm ann (snd <$> t))
   where
-    stripAnns = ABT.cata \ann abt0 -> case abt0 of
+    stripAnns = cata \(ABT.Term' _ ann abt0) -> case abt0 of
       ABT.Var v -> ABT.var ann v
       ABT.Cycle x -> ABT.cycle ann x
       ABT.Abs v x -> ABT.abs ann v x
@@ -356,6 +353,9 @@ builtinConstraintTree =
           flip Type.ref Type.filePathRef,
           Type.threadId,
           Type.socket,
+          Type.udpSocket,
+          Type.udpListenSocket,
+          Type.udpClientSockAddr,
           Type.processHandle,
           Type.ibytearrayType,
           flip Type.ref Type.charClassRef,

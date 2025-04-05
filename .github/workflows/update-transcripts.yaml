@@ -12,9 +12,9 @@ jobs:
     strategy:
       matrix:
         os:
-          - macOS-12
+          - macos-13
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - uses: unisonweb/actions/stack/cache/restore@main
         with:
           # take cache from the ci job, read-only
@@ -22,6 +22,8 @@ jobs:
 
       - name: install stack
         uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 2.15.5
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
@@ -36,7 +38,10 @@ jobs:
           stack exec unison transcript unison-src/transcripts-manual/rewrites.md
       - name: transcripts
         run: stack exec transcripts
+      - name: docs.to-html
+        run: |
+          stack exec unison transcript unison-src/transcripts-manual/docs.to-html.md
       - name: save transcript changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5
         with:
           commit_message: rerun transcripts (reminder to rerun CI!)

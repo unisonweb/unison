@@ -13,7 +13,7 @@ on:
         required: true
 
 env:
-  racket_version: "8.7"
+  racket_version: "8.14"
 
 defaults:
   run:
@@ -25,10 +25,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2019]
     runs-on: ${{matrix.os}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{inputs.ref}}
 
@@ -39,6 +39,8 @@ jobs:
 
       - name: install stack
         uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 2.15.5
 
       - name: build
         run: |
@@ -53,12 +55,14 @@ jobs:
           # Just keep retrying on these failures.
           tries=5
           for (( i = 0; i < $tries; i++ )); do
-              stack build :unison \
-                --flag unison-parser-typechecker:optimized \
+              stack build --only-dependencies && break
+          done
+
+          stack build :unison \
+                --ghc-options='-O2' \
                 --local-bin-path ucm-bin \
                 --copy-bins \
-                && break;
-          done
+                --flag unison-runtime:optchecks
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
             ucm=$(stack exec where unison)
@@ -74,7 +78,7 @@ jobs:
           cache-prefix: release
 
       - name: upload ucm
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: unison-${{matrix.os}}
           path: ${{ env.ucm }}
@@ -83,19 +87,28 @@ jobs:
   package-racket-lib:
     strategy:
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-24.04]
     needs: build-ucm
     name: package racket lib
     runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
-        run: echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+        run: |
+          echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
+          case "$RUNNER_ARCH" in
+            X86) racket_arch=x86 ;;
+            X64) racket_arch=x64 ;;
+            ARM) racket_arch=arm32 ;;
+            ARM64) racket_arch=arm64 ;;
+            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
+          esac
+          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
       - name: download racket `unison` source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{inputs.ref}}
       - name: download ucm artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-${{matrix.os}}
           path: ${{ runner.temp }}
@@ -103,9 +116,9 @@ jobs:
         run: |
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
-      - uses: Bogdanp/setup-racket@v1.11
+      - uses: Bogdanp/setup-racket@0094a9d8bd157633293a2210f373bb542687fa6d # v1.11
         with:
-          architecture: "x64"
+          architecture: ${{ env.racket_arch }}
           distribution: "full"
           variant: "CS"
           version: ${{env.racket_version}}
@@ -114,7 +127,7 @@ jobs:
           raco pkg create scheme-libs/racket/unison
           ls -l scheme-libs/racket/unison.zip{,.CHECKSUM}
       - name: upload racket lib
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: racket-lib
           path: |
@@ -129,22 +142,23 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
-          - macos-12
+          - ubuntu-24.04
+          - macos-13
+          - macos-14
           - windows-2019
     runs-on: ${{matrix.os}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{inputs.ref}}
       - name: download racket lib
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: racket-lib
           path: scheme-libs/racket/
       - name: Cache Racket dependencies
         id: cache-racket-deps
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: |
             ~/.cache/racket
@@ -153,9 +167,19 @@ jobs:
           # This isn't right because unison.zip is going to include different dates each time.
           # Maybe we can unpack it and hash the contents.
           key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
-      - uses: Bogdanp/setup-racket@v1.11
+      - name: set up environment
+        run: |
+          case "$RUNNER_ARCH" in
+            X86) racket_arch=x86 ;;
+            X64) racket_arch=x64 ;;
+            ARM) racket_arch=arm32 ;;
+            ARM64) racket_arch=arm64 ;;
+            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
+          esac
+          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
+      - uses: Bogdanp/setup-racket@0094a9d8bd157633293a2210f373bb542687fa6d # v1.11
         with:
-          architecture: "x64"
+          architecture: ${{ env.racket_arch }}
           distribution: "full"
           variant: "CS"
           version: ${{env.racket_version}}
@@ -176,7 +200,7 @@ jobs:
           raco distribute runtime scheme-libs/racket/unison-runtime$exe
           ls -l runtime/
       - name: upload unison-runtime
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: unison-runtime-${{matrix.os}}
           path: runtime/
@@ -189,28 +213,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2019]
     steps:
       - name: set up environment
         run: |
           staging_dir="${RUNNER_TEMP//\\//}/ucm-staging"
-          artifact_os="$(echo $RUNNER_OS | tr '[:upper:]' '[:lower:]')"
+          artifact_os="$(echo "${RUNNER_OS}-${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
           echo "staging_dir=$staging_dir" >> $GITHUB_ENV
           echo "artifact_os=$artifact_os" >> $GITHUB_ENV
       - name: download ucm
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-${{matrix.os}}
           path: ${{env.staging_dir}}/unison/
       - name: restore permissions on ucm
         run: chmod +x ${{env.staging_dir}}/unison/unison
       - name: download racket lib
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: racket-lib
           path: ${{env.staging_dir}}/racket/
       - name: download unison-runtime
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-runtime-${{matrix.os}}
           path: ${{env.staging_dir}}/runtime
@@ -227,21 +251,24 @@ jobs:
           unzip -d ${{env.staging_dir}}/ui /tmp/unisonLocal.zip
       - name: create startup script (non-Windows)
         if: runner.os != 'Windows'
-        uses: 1arp/create-a-file-action@0.4.4
+        uses: 1arp/create-a-file-action@29bab1af4675373aad48a2157c09f1917f85f008 # 0.4.4
         with:
           path: ${{env.staging_dir}}
           file: ucm
           content: |
             #!/bin/bash
-            "$(dirname "$0")/unison/unison" --runtime-path "$(dirname "$0")/runtime/bin/unison-runtime" "$@"
+            unison_root="$(dirname "$(readlink -f "$0")")"
+            export UCM_WEB_UI="${unison_root}/ui"
+            "${unison_root}/unison/unison" --runtime-path "${unison_root}/runtime/bin/unison-runtime" "$@"
       - name: create startup script (Windows)
         if: runner.os == 'Windows'
-        uses: 1arp/create-a-file-action@0.4.4
+        uses: 1arp/create-a-file-action@29bab1af4675373aad48a2157c09f1917f85f008 # 0.4.4
         with:
           path: ${{env.staging_dir}}
           file: ucm.cmd
           content: |
             @echo off
+            SET UCM_WEB_UI=%~dp0ui
             "%~dp0unison\unison.exe" --runtime-path "%~dp0runtime\unison-runtime.exe" %*
       - name: package everything together
         run: |
@@ -255,7 +282,7 @@ jobs:
           fi
           echo "artifact_archive=${artifact_archive}" >> $GITHUB_ENV
       - name: upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: bundle-${{env.artifact_os}}
           path: ${{env.artifact_archive}}

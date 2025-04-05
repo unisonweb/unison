@@ -6,9 +6,10 @@ module Unison.Syntax.Lexer.Token
 where
 
 import Data.Text qualified as Text
-import Text.Megaparsec (ParsecT, TraversableStream)
+import Text.Megaparsec (MonadParsec, TraversableStream)
 import Text.Megaparsec qualified as P
 import Unison.Lexer.Pos (Pos (Pos))
+import Unison.Parser.Ann (Ann (Ann), Annotated (..))
 import Unison.Prelude
 
 data Token a = Token
@@ -17,6 +18,9 @@ data Token a = Token
     end :: !Pos
   }
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+instance Annotated (Token a) where
+  ann (Token _ s e) = Ann s e
 
 instance Applicative Token where
   pure a = Token a (Pos 0 0) (Pos 0 0)
@@ -39,14 +43,14 @@ instance Applicative Token where
 instance P.ShowErrorComponent (Token Text) where
   showErrorComponent = Text.unpack . payload
 
-tokenP :: (Ord e, TraversableStream s) => ParsecT e s m a -> ParsecT e s m (Token a)
+tokenP :: (Ord e, TraversableStream s, MonadParsec e s m) => m a -> m (Token a)
 tokenP p = do
   start <- posP
   payload <- p
   end <- posP
   pure Token {payload, start, end}
 
-posP :: (Ord e, TraversableStream s) => ParsecT e s m Pos
+posP :: (Ord e, TraversableStream s, MonadParsec e s m) => m Pos
 posP = do
   p <- P.getSourcePos
   pure (Pos (P.unPos (P.sourceLine p)) (P.unPos (P.sourceColumn p)))

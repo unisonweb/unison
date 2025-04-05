@@ -1,13 +1,13 @@
-```unison
+``` unison
 structural type Tree a = Leaf | Node (Tree a) a (Tree a)
 
 foldMap  : r -> (r -> r -> r) -> (a -> r) -> Tree a -> r
 foldMap z m f =
   walk = cases
     Leaf -> z
-    Node l x r -> m (walk l) (m (f x) (walk r)) 
+    Node l x r -> m (walk l) (m (f x) (walk r))
 
-  walk 
+  walk
 
 tree0 : Tree Nat
 tree0 =
@@ -67,14 +67,13 @@ mkTestCase = do
   saveTestCase "case-00" "v4" f tup
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       structural type Tree a
@@ -92,13 +91,13 @@ mkTestCase = do
       tree1      : Tree Nat
       tree2      : Tree Nat
       tree3      : Tree Text
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     structural type Tree a
     evaluate   : (Tree Nat -> Nat)
                  -> (Tree Text -> Text)
@@ -115,8 +114,7 @@ mkTestCase = do
     tree2      : Tree Nat
     tree3      : Tree Text
 
-.> run mkTestCase
+scratch/main> run mkTestCase
 
   ()
-
 ```

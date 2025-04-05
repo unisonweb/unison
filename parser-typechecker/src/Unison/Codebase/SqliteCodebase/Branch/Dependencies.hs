@@ -5,13 +5,9 @@
 
 module Unison.Codebase.SqliteCodebase.Branch.Dependencies where
 
-import Data.Foldable (toList)
-import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
-import Data.Set (Set)
 import Data.Set qualified as Set
-import GHC.Generics (Generic)
 import U.Codebase.HashTags (CausalHash, PatchHash)
 import Unison.Codebase.Branch.Type as Branch
 import Unison.Codebase.Causal qualified as Causal
@@ -19,6 +15,7 @@ import Unison.Codebase.Patch (Patch)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hash (Hash)
 import Unison.NameSegment (NameSegment)
+import Unison.Prelude
 import Unison.Reference (Reference, pattern Derived)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -58,10 +55,10 @@ fromBranch (Branch c) = case c of
 
 fromBranch0 :: (Applicative m) => Branch0 m -> (Branches m, Dependencies)
 fromBranch0 b =
-  ( fromChildren (Branch._children b),
-    fromTermsStar (Branch._terms b)
-      <> fromTypesStar (Branch._types b)
-      <> fromEdits (Branch._edits b)
+  ( fromChildren (b ^. Branch.children),
+    fromTermsStar (b ^. Branch.terms)
+      <> fromTypesStar (b ^. Branch.types)
+      <> fromEdits (b ^. Branch.edits)
   )
   where
     fromChildren :: (Applicative m) => Map NameSegment (Branch m) -> Branches m

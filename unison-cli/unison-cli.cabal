@@ -17,10 +17,6 @@ source-repository head
   type: git
   location: https://github.com/unisonweb/unison
 
-flag optimized
-  manual: True
-  default: False
-
 library
   exposed-modules:
       ArgParse
@@ -34,18 +30,20 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.DownloadUtils
+      Unison.Cli.MergeTypes
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
+      Unison.Cli.NameResolutionUtils
       Unison.Cli.NamesUtils
       Unison.Cli.Pretty
-      Unison.Cli.PrettyPrintUtils
       Unison.Cli.ProjectUtils
       Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Projects
       Unison.Cli.Share.Projects.Types
       Unison.Cli.TypeCheck
       Unison.Cli.UniqueTypeGuidLookup
-      Unison.Cli.UnisonConfigUtils
+      Unison.Cli.UpdateUtils
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AddRun
@@ -53,18 +51,31 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
+      Unison.Codebase.Editor.HandleInput.CommitMerge
+      Unison.Codebase.Editor.HandleInput.CommitUpgrade
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
+      Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
       Unison.Codebase.Editor.HandleInput.DeleteBranch
+      Unison.Codebase.Editor.HandleInput.DeleteNamespace
       Unison.Codebase.Editor.HandleInput.DeleteProject
+      Unison.Codebase.Editor.HandleInput.Dependencies
+      Unison.Codebase.Editor.HandleInput.Dependents
+      Unison.Codebase.Editor.HandleInput.EditDependents
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
+      Unison.Codebase.Editor.HandleInput.Global
+      Unison.Codebase.Editor.HandleInput.InstallLib
       Unison.Codebase.Editor.HandleInput.Load
+      Unison.Codebase.Editor.HandleInput.Ls
+      Unison.Codebase.Editor.HandleInput.LSPDebug
+      Unison.Codebase.Editor.HandleInput.Merge2
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.MoveTerm
       Unison.Codebase.Editor.HandleInput.MoveType
+      Unison.Codebase.Editor.HandleInput.Names
       Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
       Unison.Codebase.Editor.HandleInput.ProjectClone
@@ -74,12 +85,15 @@ library
       Unison.Codebase.Editor.HandleInput.ProjectSwitch
       Unison.Codebase.Editor.HandleInput.Pull
       Unison.Codebase.Editor.HandleInput.Push
+      Unison.Codebase.Editor.HandleInput.Reflogs
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.ShowDefinition
+      Unison.Codebase.Editor.HandleInput.SyncV2
       Unison.Codebase.Editor.HandleInput.TermResolution
       Unison.Codebase.Editor.HandleInput.Tests
+      Unison.Codebase.Editor.HandleInput.Todo
       Unison.Codebase.Editor.HandleInput.UI
       Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
@@ -93,10 +107,12 @@ library
       Unison.Codebase.Editor.Slurp
       Unison.Codebase.Editor.SlurpComponent
       Unison.Codebase.Editor.SlurpResult
-      Unison.Codebase.Editor.TodoOutput
+      Unison.Codebase.Editor.StructuredArgument
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.TranscriptParser
+      Unison.Codebase.Transcript
+      Unison.Codebase.Transcript.Parser
+      Unison.Codebase.Transcript.Runner
       Unison.Codebase.Watch
       Unison.CommandLine
       Unison.CommandLine.BranchRelativePath
@@ -104,6 +120,7 @@ library
       Unison.CommandLine.DisplayValues
       Unison.CommandLine.FuzzySelect
       Unison.CommandLine.FZFResolvers
+      Unison.CommandLine.Helpers
       Unison.CommandLine.InputPattern
       Unison.CommandLine.InputPatterns
       Unison.CommandLine.Main
@@ -120,6 +137,7 @@ library
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.FileAnalysis
+      Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
       Unison.LSP.Formatting
       Unison.LSP.HandlerUtils
@@ -129,25 +147,27 @@ library
       Unison.LSP.Queries
       Unison.LSP.Types
       Unison.LSP.UCMWorker
+      Unison.LSP.Util.Signal
       Unison.LSP.VFS
       Unison.Main
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
       Unison.Share.Sync.Types
+      Unison.Share.SyncV2
       Unison.Util.HTTP
       Unison.Version
   hs-source-dirs:
       src
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
+      DataKinds
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -165,46 +185,49 @@ library
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      PolyKinds
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      IntervalMap
+      Diff
+    , IntervalMap
     , ListLike
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
-    , async
+    , attoparsec
     , base
-    , bytes
     , bytestring
+    , cmark
     , co-log-core
     , code-page
     , concurrent-output
-    , configurator
+    , conduit
+    , conduit-extra
     , containers >=0.6.3
     , cryptonite
     , directory
     , either
     , errors
-    , exceptions
     , extra
     , filepath
     , free
     , friendly-time
     , fsnotify
-    , fuzzyfind
     , generic-lens
     , haskeline
     , http-client >=0.7.6
     , http-client-tls
     , http-types
-    , jwt
     , ki
     , lens
     , lock-file
@@ -213,31 +236,30 @@ library
     , megaparsec
     , memory
     , mtl
-    , network
     , network-simple
     , network-uri
     , nonempty-containers
+    , numerals
     , open-browser
     , optparse-applicative >=0.16.1.0
     , pretty-simple
     , process
-    , random >=1.2.0
     , random-shuffle
     , recover-rtti
     , regex-tdfa
     , semialign
-    , semigroups
+    , serialise
     , servant
     , servant-client
-    , shellmet
+    , servant-conduit
     , stm
-    , template-haskell
+    , stm-chans
     , temporary
     , text
+    , text-ansi
     , text-builder
     , text-rope
     , these
-    , these-lens
     , time
     , transformers
     , unison-codebase
@@ -246,19 +268,19 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-share-api
     , unison-share-projects-api
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
-    , unison-util-nametree
+    , unison-util-recursion
     , unison-util-relation
     , unliftio
-    , unordered-containers
-    , uri-encode
     , uuid
     , vector
     , wai
@@ -266,8 +288,6 @@ library
     , witch
     , witherable
   default-language: Haskell2010
-  if flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields
   if !os(windows)
     build-depends:
         unix
@@ -277,14 +297,14 @@ executable transcripts
   hs-source-dirs:
       transcripts
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
+      DataKinds
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -302,112 +322,32 @@ executable transcripts
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      PolyKinds
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
-      IntervalMap
-    , ListLike
-    , aeson >=2.0.0.0
-    , aeson-pretty
-    , ansi-terminal
-    , async
-    , base
-    , bytes
-    , bytestring
-    , co-log-core
+      base
     , code-page
-    , concurrent-output
-    , configurator
-    , containers >=0.6.3
-    , cryptonite
     , directory
     , easytest
-    , either
-    , errors
-    , exceptions
-    , extra
     , filepath
-    , free
-    , friendly-time
-    , fsnotify
-    , fuzzyfind
-    , generic-lens
-    , haskeline
-    , http-client >=0.7.6
-    , http-client-tls
-    , http-types
-    , jwt
-    , ki
-    , lens
-    , lock-file
-    , lsp >=2.2.0.0
-    , lsp-types >=2.0.2.0
     , megaparsec
-    , memory
-    , mtl
-    , network
-    , network-simple
-    , network-uri
-    , nonempty-containers
-    , open-browser
-    , optparse-applicative >=0.16.1.0
-    , pretty-simple
-    , process
-    , random >=1.2.0
-    , random-shuffle
-    , recover-rtti
-    , regex-tdfa
-    , semialign
-    , semigroups
-    , servant
-    , servant-client
-    , shellmet
     , silently
-    , stm
-    , template-haskell
-    , temporary
     , text
-    , text-builder
-    , text-rope
-    , these
-    , these-lens
-    , time
-    , transformers
     , unison-cli
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
-    , unison-core
-    , unison-core1
-    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
-    , unison-pretty-printer
-    , unison-share-api
-    , unison-share-projects-api
-    , unison-sqlite
-    , unison-syntax
-    , unison-util-base32hex
-    , unison-util-nametree
-    , unison-util-relation
     , unliftio
-    , unordered-containers
-    , uri-encode
-    , uuid
-    , vector
-    , wai
-    , warp
-    , witch
-    , witherable
   default-language: Haskell2010
-  if flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields
 
 test-suite cli-tests
   type: exitcode-stdio-1.0
@@ -415,21 +355,20 @@ test-suite cli-tests
   other-modules:
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
-      Unison.Test.GitSync
       Unison.Test.LSP
       Unison.Test.Ucm
       Unison.Test.UriParser
   hs-source-dirs:
       tests
   default-extensions:
-      ApplicativeDo
       BangPatterns
       BlockArguments
+      DataKinds
       DeriveAnyClass
-      DeriveFunctor
       DeriveFoldable
-      DeriveTraversable
+      DeriveFunctor
       DeriveGeneric
+      DeriveTraversable
       DerivingStrategies
       DerivingVia
       DoAndIfThenElse
@@ -447,109 +386,39 @@ test-suite cli-tests
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
+      OverloadedRecordDot
       OverloadedStrings
       PatternSynonyms
+      PolyKinds
+      QuasiQuotes
       RankNTypes
       ScopedTypeVariables
       TupleSections
       TypeApplications
+      TypeOperators
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      IntervalMap
-    , ListLike
-    , aeson >=2.0.0.0
-    , aeson-pretty
-    , ansi-terminal
-    , async
-    , base
-    , bytes
-    , bytestring
-    , co-log-core
+      base
     , code-page
-    , concurrent-output
-    , configurator
-    , containers >=0.6.3
+    , containers
     , cryptonite
     , directory
     , easytest
-    , either
-    , errors
-    , exceptions
     , extra
-    , filepath
-    , free
-    , friendly-time
-    , fsnotify
-    , fuzzyfind
-    , generic-lens
-    , haskeline
     , here
-    , http-client >=0.7.6
-    , http-client-tls
-    , http-types
-    , jwt
-    , ki
     , lens
-    , lock-file
-    , lsp >=2.2.0.0
-    , lsp-types >=2.0.2.0
+    , lsp-types
     , megaparsec
-    , memory
-    , mtl
-    , network
-    , network-simple
-    , network-uri
-    , nonempty-containers
-    , open-browser
-    , optparse-applicative >=0.16.1.0
-    , pretty-simple
-    , process
-    , random >=1.2.0
-    , random-shuffle
-    , recover-rtti
-    , regex-tdfa
-    , semialign
-    , semigroups
-    , servant
-    , servant-client
-    , shellmet
-    , stm
-    , template-haskell
     , temporary
     , text
-    , text-builder
-    , text-rope
     , these
-    , these-lens
-    , time
-    , transformers
     , unison-cli
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
-    , unison-hash
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
-    , unison-share-api
-    , unison-share-projects-api
-    , unison-sqlite
     , unison-syntax
-    , unison-util-base32hex
-    , unison-util-nametree
-    , unison-util-relation
-    , unliftio
-    , unordered-containers
-    , uri-encode
-    , uuid
-    , vector
-    , wai
-    , warp
-    , witch
-    , witherable
+    , unison-util-recursion
   default-language: Haskell2010
-  if flag(optimized)
-    ghc-options: -O2 -funbox-strict-fields

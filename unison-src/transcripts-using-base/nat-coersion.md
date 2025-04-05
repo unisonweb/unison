@@ -1,11 +1,4 @@
->
-```ucm:hide
-.> builtins.merge
-.> load unison-src/transcripts-using-base/base.u
-.> add
-```
-
-```unison
+``` unison
 
 testNat: Nat -> Optional Int -> Optional Float -> {Stream Result}()
 testNat n expectInt expectFloat =
@@ -39,7 +32,7 @@ test = 'let
    runTest testABunchOfNats
 ```
 
-```ucm
-.> add
-.> io.test test
+``` ucm
+scratch/main> add
+scratch/main> io.test test
 ```

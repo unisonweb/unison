@@ -4,8 +4,8 @@
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7 (migrateSchema6To7) where
 
-import Control.Monad.Except
 import Control.Monad.State
+import U.Codebase.Branch.Type (NamespaceStats)
 import U.Codebase.Sqlite.DbId qualified as DB
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Operations qualified as Ops
@@ -50,7 +50,7 @@ addStatsForBranch :: DB.BranchObjectId -> Sqlite.Transaction (Sync.TrySyncResult
 addStatsForBranch boId = do
   bhId <- Db.BranchHashId <$> Q.expectPrimaryHashIdForObject (Db.unBranchObjectId boId)
   -- "expectNamespaceStatsByHashId" computes stats if they are missing.
-  Ops.expectNamespaceStatsByHashId bhId
+  _ :: NamespaceStats <- Ops.expectNamespaceStatsByHashId bhId
   pure Sync.Done
 
 debugLog :: String -> Sqlite.Transaction ()

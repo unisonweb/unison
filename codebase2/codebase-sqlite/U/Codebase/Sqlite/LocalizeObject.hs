@@ -109,23 +109,23 @@ localizePatchG (Patch termEdits typeEdits) =
 -- General-purpose localization
 
 -- Contains references to branch objects.
-class Ord c => ContainsBranches c s where
+class (Ord c) => ContainsBranches c s where
   branches_ :: Lens' s (Map c LocalBranchChildId)
 
 -- Contains references to definition objects i.e. term/decl component objects.
-class Ord d => ContainsDefns d s where
+class (Ord d) => ContainsDefns d s where
   defns_ :: Lens' s (Map d LocalDefnId)
 
 -- Contains references to objects by their hash.
-class Ord h => ContainsHashes h s where
+class (Ord h) => ContainsHashes h s where
   hashes_ :: Lens' s (Map h LocalHashId)
 
 -- Contains references to patch objects.
-class Ord p => ContainsPatches p s where
+class (Ord p) => ContainsPatches p s where
   patches_ :: Lens' s (Map p LocalPatchObjectId)
 
 -- Contains text.
-class Ord t => ContainsText t s where
+class (Ord t) => ContainsText t s where
   texts_ :: Lens' s (Map t LocalTextId)
 
 -- The inner state of the localization of a branch object.
@@ -137,16 +137,16 @@ data LocalizeBranchState t d p c = LocalizeBranchState
   }
   deriving (Show, Generic)
 
-instance Ord t => ContainsText t (LocalizeBranchState t d p c) where
+instance (Ord t) => ContainsText t (LocalizeBranchState t d p c) where
   texts_ = field @"texts"
 
-instance Ord d => ContainsDefns d (LocalizeBranchState t d p c) where
+instance (Ord d) => ContainsDefns d (LocalizeBranchState t d p c) where
   defns_ = field @"defns"
 
-instance Ord p => ContainsPatches p (LocalizeBranchState t d p c) where
+instance (Ord p) => ContainsPatches p (LocalizeBranchState t d p c) where
   patches_ = field @"patches"
 
-instance Ord c => ContainsBranches c (LocalizeBranchState t d p c) where
+instance (Ord c) => ContainsBranches c (LocalizeBranchState t d p c) where
   branches_ = field @"branches"
 
 -- | Run a computation that localizes a branch object, returning the local ids recorded within.
@@ -171,13 +171,13 @@ data LocalizePatchState t h d = LocalizePatchState
   }
   deriving (Show, Generic)
 
-instance Ord t => ContainsText t (LocalizePatchState t h d) where
+instance (Ord t) => ContainsText t (LocalizePatchState t h d) where
   texts_ = field @"texts"
 
-instance Ord h => ContainsHashes h (LocalizePatchState t h d) where
+instance (Ord h) => ContainsHashes h (LocalizePatchState t h d) where
   hashes_ = field @"hashes"
 
-instance Ord d => ContainsDefns d (LocalizePatchState t h d) where
+instance (Ord d) => ContainsDefns d (LocalizePatchState t h d) where
   defns_ = field @"defns"
 
 -- Run a computation that localizes a patch object, returning the local ids recorded within.

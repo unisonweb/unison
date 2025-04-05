@@ -10,7 +10,7 @@ defaults:
 env:
   jit_src: unison-jit-src/
   jit_dist: unison-jit-dist/
-  racket_version: "8.7"
+  racket_version: "8.14"
 
 jobs:
   build-jit-binary:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macOS-12, windows-2019]
+        os: [ubuntu-24.04, macos-13, windows-2019]
     runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
@@ -45,26 +45,26 @@ jobs:
           echo "ucm=$ucm" >> $GITHUB_ENV
 
       - name: get workflow files, for checking hashes
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           sparse-checkout: .github
 
       - name: download jit source
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: jit-source
           path: ${{ env.jit_src }}
 
       - name: cache/restore jit binaries
         id: cache-jit-binaries
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**.rkt',env.jit_src),format('{0}/**.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**/*.rkt',env.jit_src),format('{0}/**/*.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: cache racket dependencies
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: |
             ~/.cache/racket
@@ -81,8 +81,18 @@ jobs:
         if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'
         run: |
           brew install libb2
-          racket_lib_dir="$(dirname "$(readlink -f "$(which raco)")")/../lib"
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib "$racket_lib_dir/"
+          brew_lib_dir=$(brew --prefix)/lib
+          racket_lib_dir=$(dirname $(dirname $(readlink -f $(which raco))))/lib
+
+          # link libb2 if not already present/cached
+          for dll in $brew_lib_dir/libb2.*.dylib; do
+            file=$(basename "$dll")
+            if [ ! -e "$racket_lib_dir/$file" ]; then
+              ln -s "$brew_lib_dir/$file" "$racket_lib_dir/$file"
+            else
+              echo "$racket_lib_dir/$file" already exists.
+            fi
+          done
 
       - name: build jit binary
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
@@ -101,13 +111,13 @@ jobs:
 
       - name: cache/save jit binaries
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{ env.jit_dist }}
-          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**.rkt',env.jit_src),format('{0}/**.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
+          key: jit-dist_${{matrix.os}}.racket_${{env.racket_version}}.jit-src_${{hashFiles(format('{0}/**/*.rkt',env.jit_src),format('{0}/**/*.ss',env.jit_src))}}.yaml_${{hashFiles('**/ci-build-jit-binary.yaml')}}
 
       - name: save jit binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: jit-binary-${{ matrix.os }}
           path: ${{ env.jit_dist }}/**

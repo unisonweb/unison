@@ -23,7 +23,7 @@ jobs:
 
   release:
     name: create release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     needs:
       - bundle-ucm
 
@@ -32,7 +32,7 @@ jobs:
         run: mkdir /tmp/ucm
 
       - name: "download artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           path: /tmp/ucm
 
@@ -52,7 +52,7 @@ jobs:
 
           gh release create "release/${{inputs.version}}" \
             --repo unisonweb/unison \
-            --target "${{github.ref}}" \
+            --target "${{github.sha}}" \
             --generate-notes \
             --notes-start-tag "${prev_tag}" \
             \

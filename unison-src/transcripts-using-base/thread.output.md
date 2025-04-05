@@ -1,6 +1,6 @@
 Lets just make sure we can start a thread
 
-```unison
+``` unison
 otherThread : '{io2.IO}()
 otherThread = 'let
   watch "I'm the other Thread" ()
@@ -16,23 +16,28 @@ testBasicFork = 'let
 
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       otherThread   : '{IO} ()
       testBasicFork : '{IO} [Result]
-
 ```
+
 See if we can get another thread to stuff a value into a MVar
 
-```unison
+``` ucm :hide
+scratch/main> add
+
+scratch/main> io.test testBasicFork
+```
+
+``` unison
 thread1 : Nat -> MVar Nat -> '{io2.IO}()
 thread1 x mv = 'let
   go = 'let
@@ -56,41 +61,39 @@ testBasicMultiThreadMVar = 'let
 
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       testBasicMultiThreadMVar : '{IO} [Result]
       thread1                  : Nat -> MVar Nat -> '{IO} ()
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     testBasicMultiThreadMVar : '{IO} [Result]
     thread1                  : Nat -> MVar Nat -> '{IO} ()
 
-.> io.test testBasicMultiThreadMVar
+scratch/main> io.test testBasicMultiThreadMVar
 
     New test results:
-  
-  ◉ testBasicMultiThreadMVar   other thread should have incremented
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view testBasicMultiThreadMVar to view the source of a
-       test.
 
+    1. testBasicMultiThreadMVar   ◉ other thread should have incremented
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
-```unison
+
+``` unison
 sendingThread: Nat -> MVar Nat -> '{io2.IO}()
 sendingThread toSend mv = 'let
   go = 'let
@@ -128,40 +131,38 @@ testTwoThreads = 'let
 
 ```
 
-```ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       receivingThread : MVar Nat -> MVar Text -> '{IO} ()
       sendingThread   : Nat -> MVar Nat -> '{IO} ()
         (also named thread1)
       testTwoThreads  : '{IO} [Result]
-
 ```
-```ucm
-.> add
+
+``` ucm
+scratch/main> add
 
   ⍟ I've added these definitions:
-  
+
     receivingThread : MVar Nat -> MVar Text -> '{IO} ()
     sendingThread   : Nat -> MVar Nat -> '{IO} ()
       (also named thread1)
     testTwoThreads  : '{IO} [Result]
 
-.> io.test testTwoThreads
+scratch/main> io.test testTwoThreads
 
     New test results:
-  
-  ◉ testTwoThreads   
-  
-  ✅ 1 test(s) passing
-  
-  Tip: Use view testTwoThreads to view the source of a test.
 
+    1. testTwoThreads   ◉ 
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```

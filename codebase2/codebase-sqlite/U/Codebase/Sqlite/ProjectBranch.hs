@@ -11,10 +11,10 @@ import Unison.Sqlite (FromRow, ToRow)
 
 -- | A project branch.
 data ProjectBranch = ProjectBranch
-  { projectId :: ProjectId,
-    branchId :: ProjectBranchId,
-    name :: ProjectBranchName,
-    parentBranchId :: Maybe ProjectBranchId
+  { projectId :: !ProjectId,
+    branchId :: !ProjectBranchId,
+    name :: !ProjectBranchName,
+    parentBranchId :: !(Maybe ProjectBranchId)
   }
   deriving stock (Eq, Generic, Show)
   deriving anyclass (ToRow, FromRow)

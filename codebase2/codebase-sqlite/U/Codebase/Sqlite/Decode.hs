@@ -173,7 +173,7 @@ decodeWatchResultFormat =
 ------------------------------------------------------------------------------------------------------------------------
 -- unsyncs
 
-unsyncTermComponent :: HasCallStack => TermFormat.SyncLocallyIndexedComponent' t d -> Either DecodeError (TermFormat.LocallyIndexedComponent' t d)
+unsyncTermComponent :: (HasCallStack) => TermFormat.SyncLocallyIndexedComponent' t d -> Either DecodeError (TermFormat.LocallyIndexedComponent' t d)
 unsyncTermComponent (TermFormat.SyncLocallyIndexedComponent terms) = do
   let phi (localIds, bs) = do
         (a, b) <- decodeSyncTermAndType bs

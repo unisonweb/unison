@@ -1,4 +1,10 @@
-module Unison.Hashable (accumulate', hash, toBytes) where
+module Unison.Hashable
+  ( accumulate',
+    hash,
+    Accumulate (..),
+    Token (..),
+  )
+where
 
 import Crypto.Hash qualified as CH
 import Data.ByteArray qualified as BA
@@ -25,6 +31,7 @@ data Token h
   | Double !Double
   | Hashed !h
   | Nat !Word64
+  deriving stock (Show)
 
 class Accumulate h where
   accumulate :: [Token h] -> h

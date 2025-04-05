@@ -18,10 +18,10 @@ import Data.Text (Text)
 class (Eq n) => Alphabetical n where
   compareAlphabetical :: n -> n -> Ordering
 
-sortAlphabetically :: Alphabetical a => [a] -> [a]
+sortAlphabetically :: (Alphabetical a) => [a] -> [a]
 sortAlphabetically as = (\(OrderAlphabetically a) -> a) <$> List.sort (map OrderAlphabetically as)
 
-sortAlphabeticallyOn :: Alphabetical a => (b -> a) -> [b] -> [b]
+sortAlphabeticallyOn :: (Alphabetical a) => (b -> a) -> [b] -> [b]
 sortAlphabeticallyOn f = List.sortOn (OrderAlphabetically . f)
 
 instance Alphabetical Text where

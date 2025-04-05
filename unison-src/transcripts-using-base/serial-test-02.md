@@ -1,8 +1,4 @@
-```ucm:hide
-.> builtins.mergeio
-```
-
-```unison
+``` unison
 structural ability Exit a where
   exit : a -> b
 
@@ -33,7 +29,7 @@ mkTestCase = do
 
 ```
 
-```ucm
-.> add
-.> run mkTestCase
+``` ucm
+scratch/main> add
+scratch/main> run mkTestCase
 ```
