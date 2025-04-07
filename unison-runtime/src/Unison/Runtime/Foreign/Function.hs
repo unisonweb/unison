@@ -883,14 +883,13 @@ foreignCallHelper = \case
   Map_intersect -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
     evaluate $ Map.intersection l r
   Map_toList -> mkForeign $ \(m :: Map Val Val) ->
-    evaluate $ Map.toList m
+    evaluate . forceListSpine $ Map.toList m
   List_range -> mkForeign $ \(m :: Word64, n :: Word64) ->
     let sz
           | m < n = fromIntegral $ n - m
           | otherwise = 0
         mk i = NatVal $ m + fromIntegral i
-        force s = foldl (\u x -> x `seq` u) s s
-     in evaluate . force $ Sq.fromFunction sz mk
+     in evaluate . forceListSpine $ Sq.fromFunction sz mk
   List_sort -> mkForeign $ \(l :: Seq Val) -> pure $ Sq.unstableSort l
   Multimap_fromList -> mkForeign $ \(l :: [(Val, Val)]) -> do
     let listVals = l <&> \(k, v) -> (k, Sq.singleton v)
@@ -902,8 +901,9 @@ foreignCallHelper = \case
   Set_intersect -> mkForeign $ \(l :: Map Val (), r :: Map Val ()) ->
     evaluate $ Map.intersection l r
   Set_toList -> mkForeign $ \(s :: Map Val ()) ->
-    evaluate $ Map.keys s
+    evaluate . forceListSpine $ Map.keys s
   where
+    forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
 
     hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
