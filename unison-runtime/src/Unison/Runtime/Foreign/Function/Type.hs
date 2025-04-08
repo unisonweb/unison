@@ -260,16 +260,8 @@ data ForeignFunc
   | Map_lookup
   | Map_fromList
   | Map_eq
-  | Map_union
-  | Map_intersect
-  | Map_toList
   | List_range
   | List_sort
-  | Multimap_fromList
-  | Set_fromList
-  | Set_union
-  | Set_intersect
-  | Set_toList
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -526,13 +518,5 @@ foreignFuncBuiltinName = \case
   Map_lookup -> "Map.lookup"
   Map_fromList -> "Map.fromList"
   Map_eq -> "Map.=="
-  Map_union -> "Map.union"
-  Map_intersect -> "Map.intersect"
-  Map_toList -> "Map.toList"
   List_range -> "List.range"
   List_sort -> "List.sort"
-  Multimap_fromList -> "Multimap.fromList"
-  Set_fromList -> "Set.fromList"
-  Set_union -> "Set.union"
-  Set_intersect -> "Set.intersect"
-  Set_toList -> "Set.toList"
