@@ -84,6 +84,15 @@ jobs:
           path: ${{ env.ucm }}
           if-no-files-found: error
 
+      - name: report errors
+        if: github.ref == 'refs/heads/trunk' && failure()
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # https://github.com/slackapi/slack-github-action/releases/tag/v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+              text: "build-ucm failed on ${{ github.ref }}. See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} cc <@UF924D5S7>"
+
   package-racket-lib:
     strategy:
       matrix:
@@ -134,7 +143,15 @@ jobs:
             scheme-libs/racket/unison.zip
             scheme-libs/racket/unison.zip.CHECKSUM
           if-no-files-found: error
-
+      - name: report errors
+        if: github.ref == 'refs/heads/trunk' && failure()
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # https://github.com/slackapi/slack-github-action/releases/tag/v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+              text: "package-racket-lib failed on ${{ github.ref }}. See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} cc <@UF924D5S7>"
+  
   build-dist-unison-runtime:
     needs: package-racket-lib
     name: build unison-runtime
