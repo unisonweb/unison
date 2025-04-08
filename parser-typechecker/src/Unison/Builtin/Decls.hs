@@ -639,13 +639,13 @@ builtinDataDecls = rs1 ++ rs
       DataDeclaration
         Structural
         ()
-        [v "v"]
-        let vv = var "v"
-            mapvu = Type.apps' (var "Map") [vv, var "Unit"]
-            setv = Type.apps' (var "Set") [vv] in
+        [v "a"]
+        let va = var "a"
+            mapau = Type.apps' (var "Map") [va, var "Unit"]
+            seta = Type.apps' (var "Set") [va] in
         [ ( (),
             v "Set.Set",
-            Type.foralls () [v "v"] $ mapvu `arr` setv)
+            Type.foralls () [v "a"] $ mapau `arr` seta)
         ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
