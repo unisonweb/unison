@@ -41,6 +41,7 @@ module Unison.Runtime.TypeTags
     seqViewEmptyTag,
     mapTipTag,
     mapBinTag,
+    setWrapTag,
   )
 where
 
@@ -250,6 +251,13 @@ mapTipTag, mapBinTag :: PackedTag
           Ty.mapBin
         ] = (mtt, mbt)
   | otherwise = error "internal error: map tags"
+
+setWrapTag :: PackedTag
+setWrapTag
+  | [swt] <-
+      mkTags "set tag" Ty.setRef
+        [ Ty.setWrap ] = swt
+  | otherwise = error "internal error: set tag"
 
 -- | A tag we use to represent the 'pure' effect case.
 pureEffectTag :: PackedTag

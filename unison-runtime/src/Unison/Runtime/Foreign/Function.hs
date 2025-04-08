@@ -895,13 +895,27 @@ foreignCallHelper = \case
     let listVals = l <&> \(k, v) -> (k, Sq.singleton v)
     evaluate $ Map.fromListWith (<>) listVals
   Set_fromList -> mkForeign $ \(l :: [Val]) -> do
-    evaluate $ Map.fromList $ zip l (repeat ())
-  Set_union -> mkForeign $ \(l :: Map Val (), r :: Map Val ()) ->
-    evaluate $ Map.union l r
-  Set_intersect -> mkForeign $ \(l :: Map Val (), r :: Map Val ()) ->
-    evaluate $ Map.intersection l r
-  Set_toList -> mkForeign $ \(s :: Map Val ()) ->
-    evaluate . forceListSpine $ Map.keys s
+    m <- evaluate $ Map.fromList $ zip l (repeat unitValue)
+    pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+  Set_union -> mkForeign $ \case
+    (Data1 _ _ vl, Data1 _ _ vr) -> do
+      (l :: Map Val Val) <- decodeVal vl
+      (r :: Map Val Val) <- decodeVal vr
+      m <- evaluate $ Map.union l r
+      pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+    _ -> die "Set.union: bad closure"
+  Set_intersect -> mkForeign $ \case
+    (Data1 _ _ vl, Data1 _ _ vr) -> do
+      (l :: Map Val Val) <- decodeVal vl
+      (r :: Map Val Val) <- decodeVal vr
+      m <- evaluate $ Map.intersection l r
+      pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+    _ -> die "Set.insersect: bad closure"
+  Set_toList -> mkForeign $ \case
+    (Data1 _ _ vs) -> do
+      (s :: Map Val Val) <- decodeVal vs
+      evaluate . forceListSpine $ Map.keys s
+    _ -> die "Set.toList: bad closure"
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
