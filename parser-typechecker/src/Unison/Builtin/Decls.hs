@@ -122,6 +122,9 @@ mapTip, mapBin :: ConstructorId
 mapTip = Maybe.fromJust $ constructorId mapRef "Map.Tip"
 mapBin = Maybe.fromJust $ constructorId mapRef "Map.Bin"
 
+setWrap :: ConstructorId
+setWrap = Maybe.fromJust $ constructorId setRef "Set.Set"
+
 isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRef "IsPropagated.IsPropagated"
 
 isTestConstructorId = Maybe.fromJust $ constructorId isTestRef "IsTest.IsTest"
@@ -254,6 +257,9 @@ rewritesRef = lookupDeclRef "Rewrites"
 mapRef :: Reference
 mapRef = lookupDeclRef "Map"
 
+setRef :: Reference
+setRef = lookupDeclRef "Set"
+
 pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Rewrites' ts <- (unRewrites -> Just ts)
 
@@ -309,7 +315,8 @@ builtinDataDecls = rs1 ++ rs
           (v "RewriteSignature", rewriteType),
           (v "RewriteCase", rewriteCase),
           (v "Rewrites", rewrites),
-          (v "Map", map)
+          (v "Map", map),
+          (v "Set", set)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -627,6 +634,18 @@ builtinDataDecls = rs1 ++ rs
             forke $ Type.nat () `arr` k `arr` e `arr` mapke `arr` mapke `arr` mapke
           ),
           ((), v "Map.Tip", forke mapke)
+        ]
+    set =
+      DataDeclaration
+        Structural
+        ()
+        [v "a"]
+        let va = var "a"
+            mapau = Type.apps' (var "Map") [va, var "Unit"]
+            seta = Type.apps' (var "Set") [va] in
+        [ ( (),
+            v "Set.Set",
+            Type.foralls () [v "a"] $ mapau `arr` seta)
         ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
