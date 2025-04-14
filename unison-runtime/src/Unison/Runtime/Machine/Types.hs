@@ -3,7 +3,7 @@ module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
-import Control.Exception
+import Control.Exception hiding (Handler)
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -35,9 +35,6 @@ import Unison.Util.Text as UText
 type ActiveThreads = Maybe (IORef (Set ThreadId))
 
 type Tag = Word64
-
--- dynamic environment
-type DEnv = EnumMap Word64 Val
 
 type MCombs = RCombs Val
 

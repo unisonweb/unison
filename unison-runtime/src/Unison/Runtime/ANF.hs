@@ -96,7 +96,7 @@ where
 
 import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
-import Control.Monad.Reader (ReaderT (..), ask, local)
+import Control.Monad.Reader (ReaderT (..), asks, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
@@ -133,6 +133,14 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
+
+tracePrettyNormal ::
+  (Var v) =>
+  Bool ->
+  ANormal v ->
+  ANormal v
+tracePrettyNormal False tm = tm
+tracePrettyNormal True tm = trace (prettyANF False 0 tm "") tm
 
 -- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -1619,7 +1627,7 @@ equivocate g0@(Rec bs0 e0) g1@(Rec bs1 e1)
 
 type ANFM v =
   ReaderT
-    (Set v)
+    (Reference, Set v, [v])
     (State (Word64, Word16, [(v, SuperNormal v)]))
 
 type ANFD v = Compose (ANFM v) (Directed ())
@@ -1695,11 +1703,21 @@ data BLit
   | Float Double
   deriving (Show, Eq)
 
+selfRef :: ANFM v Reference
+selfRef = asks \(r, _, _) -> r
+
 groupVars :: ANFM v (Set v)
-groupVars = ask
+groupVars = asks \(_, vs, _) -> vs
+
+combVars :: ANFM v [v]
+combVars = asks \(_, _, us) -> us
 
 bindLocal :: (Ord v) => [v] -> ANFM v r -> ANFM v r
-bindLocal vs = local (Set.\\ Set.fromList vs)
+bindLocal vs =
+  local \(r, vs0, us) -> (r, vs0 Set.\\ Set.fromList vs, us)
+
+withCombVars :: [v] -> ANFM v r -> ANFM v r
+withCombVars us = local \(r, vs, _) -> (r, vs, us)
 
 freshANF :: (Var v) => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
@@ -1730,15 +1748,15 @@ bindDirection = traverse (const binder)
 record :: (Var v) => (v, SuperNormal v) -> ANFM v ()
 record p = modify $ \(fr, bnd, to) -> (fr, bnd, p : to)
 
-superNormalize :: (Var v) => Term v a -> SuperGroup v
-superNormalize tm = Rec l c
+superNormalize :: (Var v) => Reference -> Term v a -> SuperGroup v
+superNormalize self tm = Rec l c
   where
     (bs, e)
       | LetRecNamed' bs e <- tm = (bs, e)
       | otherwise = ([], tm)
     grp = Set.fromList $ fst <$> bs
     comp = traverse_ superBinding bs *> toSuperNormal e
-    subc = runReaderT comp grp
+    subc = runReaderT comp (self, grp, [])
     (c, (_, _, l)) = runState subc (0, 1, [])
 
 superBinding :: (Var v) => (v, Term v a) -> ANFM v ()
@@ -1747,7 +1765,7 @@ superBinding (v, tm) = do
   modify $ \(cvs, bnd, ctx) -> (cvs, bnd, (v, nf) : ctx)
 
 toSuperNormal :: (Var v) => Term v a -> ANFM v (SuperNormal v)
-toSuperNormal tm = do
+toSuperNormal tm = withCombVars vs do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
     then internalBug $ "free variables in supercombinator: " ++ show tm
@@ -1988,10 +2006,9 @@ anfBlock (Match' scrut cas) = do
       (r, vs) <- do
         r <- fresh
         v <- fresh
-        gvs <- groupVars
-        let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
-            hfvs = Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
-        record (r, Lambda (BX <$ hfvs ++ [v]) . ABTN.TAbss hfvs $ hfb)
+        (hfvs, hcomb) <-
+          makeAffineHandler v abr df
+        record (r, hcomb)
         pure (r, hfvs)
       hv <- fresh
       let (d, msc)
@@ -2123,6 +2140,99 @@ anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
 anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
+
+
+type ReqBranches v = Map Reference (EnumMap CTag ([Mem], ANormal v))
+
+makeHandler ::
+  (Var v) =>
+  v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
+makeHandler v abr df = do
+  hfvs <- groupVars <&> \gvs ->
+    Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
+  pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
+  where
+    hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
+
+-- Checks for the final part of a term in an affine handler branch.
+-- These should look like:
+--
+--    h = recursiveCall <vs>
+--    lazy e = x |> k
+--    h e
+--
+-- where `k` is the continuation. The `e` expression might be more
+-- complicated, actually. Handling that is TBD.
+affineTail :: Var v => Reference -> v -> ANormal v -> Maybe ([v], v)
+affineTail self kf tm
+  | TLet _ hr _ (TCom r us) tm <- tm,
+    TName e (Left _) [x, k] tm <- tm,
+    TApv f [y] <- tm,
+    e == y && f == hr && r == self && k == kf =
+      trace "affineTail ok" $ Just (us, x)
+  | otherwise = Nothing
+
+-- Splits a term into an initial segment of bindings and a result
+-- value computed from valid tail terms. A predicate also determines
+-- if bindings in the initial segment would cause problems, yielding a
+-- null result.
+peel ::
+  (Var v) =>
+  (v -> Bool) ->
+  (ANormal v -> Maybe r) ->
+  ANormal v -> Maybe (ANormal v -> ANormal v, Set v, r)
+peel abort finish = go Set.empty id . tracePrettyNormal True
+  where
+    go bound mid (finish -> Just result) = Just (mid, bound, result)
+    go bound mid (TLet d v cc e rest)
+      | abort v = Nothing
+      | otherwise = go (Set.insert v bound) (mid . TLet d v cc e) rest
+    go bound mid (TName v f us rest)
+      | abort v = Nothing
+      | otherwise = go (Set.insert v bound) (mid . TName v f us) rest
+    -- TODO: consider some other cases. Matching seems fine, but needs
+    -- a different strategy.
+    go _ _ _ = Nothing
+
+splitTerm ::
+  (Var v) =>
+  Reference ->
+  v ->
+  ANormal v ->
+  Maybe (ANormal v -> ANormal v, Set v, ([v], v))
+splitTerm self kf = peel (== kf) (affineTail self kf)
+
+tweakBranch :: (Var v) => Reference -> [v] -> ANormal v -> Maybe (ANormal v)
+tweakBranch self cvs br
+  | ABTN.TAbss us br <- br,
+    TShift _ kf0 br <- br,
+    TName kf (Left (Builtin "jumpCont")) [kf1] br <- br,
+    kf0 == kf1 = do
+      (exps, bound0, (hArgs, kArg)) <- splitTerm self kf br
+      let bound = bound0 `Set.union` Set.fromList us
+      guard $ all (`Set.notMember` bound) cvs
+      guard $ all (uncurry (==)) (zip cvs hArgs)
+      pure $ exps (TVar kArg)
+  | otherwise = Nothing
+
+makeAffineHandler ::
+  (Var v) =>
+  v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
+makeAffineHandler v abr df = do
+  self <- selfRef
+  cvs <- combVars
+  case (traverse . traverse . traverse) (tweakBranch self cvs) abr of
+    Just tbrs -> groupVars <&> \gvs ->
+      let hfb = ABTN.TAbs v . TMatch v $ MatchRequest tbrs df
+          hfvs = Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
+      in (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
+    Nothing -> makeHandler v abr df
+
+  -- hfvs <- groupVars <&> \gvs ->
+  --   Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
+  -- pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
+  -- where
+  --   hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
@@ -2483,6 +2593,10 @@ prettyANF m ind tm =
         . prettyANF False (ind + 1) bo
         . showString " with "
         . pvar v
+    ABTN.TAbs v (ABTN.TAbss vs bo) ->
+      prettyVars (v:vs) .
+      showString " ->" .
+      prettyANF True (ind + 1) bo
     _ -> shows tm
 
 prettySpace :: Bool -> Int -> ShowS

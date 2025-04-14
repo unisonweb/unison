@@ -22,6 +22,10 @@ module Unison.Runtime.Stack
         BlackHole,
         UnboxedTypeTag
       ),
+    AffineHandler (..),
+    AEnv,
+    DEnv,
+    HEnv (..),
     closureTag,
     formDataReplaced,
     unitClosure,
@@ -246,7 +250,7 @@ data K
     Mark
       !Int -- pending args
       !(EnumSet Word64)
-      !(EnumMap Word64 Val)
+      !DEnv
       !K
   | -- save information about a frame for later resumption
     Push
@@ -259,6 +263,53 @@ data K
 
 newtype Closure = Closure {unClosure :: (GClosure (RComb Val))}
   deriving stock (Show)
+
+-- A handler is 'affine' if its action does not change the structure
+-- of the stack except possibly by truncation to that handler. The two
+-- scenarios that satisfy this are:
+--
+--   1. Exception-like handlers that never resume the continuation
+--      (this is the truncation case).
+--   2. Handlers that call the continuation _in tail position_ and
+--      also _with an (affine) handler for the same abilities_. The
+--      simplest case is when a handler calls itself recursively to
+--      implement a "deep" handler.
+--
+-- The advantage of affine handlers is that they do not need to be
+-- implemented by continuation capture. Case 1 can be implemented by
+-- simply _discarding_ the continuation. For case 2, as long as all
+-- handlers are affine, it is sufficient to simply keep track of the
+-- current state of each handler, and the local environment the
+-- handler executes in. The restrictions ensure that these don't
+-- change in an arbitrary way—just by stateful updates.
+--
+-- Non-affine handlers spoil this when they are higher in the stack,
+-- because they could change the dynamic environment of handlers below
+-- them, and it is no longer simple to properly update the state in
+-- place. Possibly this could be handled by modifying affine handler
+-- state when reinstating copied continuations in the future.
+--
+-- If we arrange things such that we use affine versions of handlers
+-- until a non-affine one is installed, then we can avoid affine
+-- handlers ever being captured in a continuation. This lets us avoid
+-- issues with equality of mutable references for efficient affine
+-- implementation.
+data AffineHandler = Affine AEnv (IORef Val)
+
+-- affine environment
+type AEnv = EnumMap Word64 AffineHandler
+
+-- dynamic environment
+type DEnv = EnumMap Word64 Val
+
+data HEnv = HEnv { aenv :: !AEnv, denv :: !DEnv }
+
+instance Semigroup HEnv where
+  HEnv la ld <> HEnv ra rd = HEnv (la <> ra) (ld <> rd)
+
+instance Monoid HEnv where
+  mempty = HEnv mempty mempty
+  mappend = (<>)
 
 -- | Implementation for Unison sequences.
 type USeq = Seq Val
