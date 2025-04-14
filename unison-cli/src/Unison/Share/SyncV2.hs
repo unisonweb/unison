@@ -680,7 +680,7 @@ withEntityLoadingCallback action = do
 
 withCausalNegotiationCallback :: (MonadUnliftIO m) => Int -> ((Int -> m ()) -> m a) -> m a
 withCausalNegotiationCallback maxEntities action = do
-  let msg n = "\n    🔎 Identifying missing entities: " <> tShow n <> "/" <> tShow maxEntities <> "\n\n"
+  let msg n = "\n    Identifying missing entities:  " <> tShow n <> "/" <> tShow maxEntities <> " 🔎 \n\n"
   counterProgress msg action
 
 withStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
