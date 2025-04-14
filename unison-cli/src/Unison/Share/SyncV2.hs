@@ -607,17 +607,15 @@ negotiateKnownCausals ::
   Cli (Either (SyncError SyncV2.PullError) (Set Hash32))
 negotiateKnownCausals unisonShareUrl branchRef hashJwt = Timing.time "Causal Negotiation" $ do
   Cli.Env {authHTTPClient, codebase} <- ask
-  liftIO $ Console.Regions.displayConsoleRegions do
-    Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-      Console.Regions.setConsoleRegion @Text @IO region $ "  🔎 Identifying missing entities..."
-      C.runResourceT
-        . runExceptT
-        $ httpStreamCausalDependencies
-          authHTTPClient
-          unisonShareUrl
-          SyncV2.CausalDependenciesRequest {branchRef, rootCausal = hashJwt}
-          \stream -> do
-            Set.fromList <$> C.runConduit (stream C..| C.map unpack C..| findKnownDeps codebase C..| C.sinkList)
+  liftIO $ withCausalNegotiationCallback maxNegotiationEntities \counter -> do
+    C.runResourceT
+      . runExceptT
+      $ httpStreamCausalDependencies
+        authHTTPClient
+        unisonShareUrl
+        SyncV2.CausalDependenciesRequest {branchRef, rootCausal = hashJwt}
+        \stream -> do
+          Set.fromList <$> C.runConduit (stream C..| C.takeC maxNegotiationEntities C..| C.iterM (\_ -> liftIO $ counter 1) C..| C.map unpack C..| findKnownDeps codebase C..| C.sinkList)
   where
     -- Go through the dependencies of the remote root from top-down, yielding all causal hashes that we already
     -- have until we find one in the causal spine we already have, then yield that one and stop since we'll implicitly
@@ -648,6 +646,8 @@ negotiateKnownCausals unisonShareUrl branchRef hashJwt = Timing.time "Causal Neg
     haveCausalHash codebase causalHash = do
       liftIO $ Codebase.runTransaction codebase do
         Q.causalExistsByHash32 causalHash
+    maxNegotiationEntities :: Int
+    maxNegotiationEntities = 1000
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Progress Tracking
@@ -676,6 +676,11 @@ syncToFileProgress total action = do
 withEntityLoadingCallback :: (MonadUnliftIO m) => ((Int -> m ()) -> m a) -> m a
 withEntityLoadingCallback action = do
   let msg n = "\n  Loading entities from codebase: " <> tShow n <> " 📦\n\n"
+  counterProgress msg action
+
+withCausalNegotiationCallback :: (MonadUnliftIO m) => Int -> ((Int -> m ()) -> m a) -> m a
+withCausalNegotiationCallback maxEntities action = do
+  let msg n = "\n    🔎 Identifying missing entities: " <> tShow n <> "/" <> tShow maxEntities <> "\n\n"
   counterProgress msg action
 
 withStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
