@@ -3,6 +3,7 @@ module Unison.Runtime.TypeTags
     RTag (..),
     CTag (..),
     PackedTag (..),
+    FieldTag (..),
     packTags,
     unpackTags,
     maskTags,
@@ -84,6 +85,11 @@ newtype CTag = CTag Word16
 newtype PackedTag = PackedTag Word64
   deriving stock (Eq, Ord, Show, Read)
   deriving newtype (EC.EnumKey)
+
+-- | A unique tag used for pulling out record fields.
+-- TODO: replace with Word64s
+newtype FieldTag = FieldTag Text
+  deriving stock (Eq, Ord, Show, Read)
 
 class Tag t where rawTag :: t -> Word64
 
@@ -170,53 +176,75 @@ failureTag = mkEnumTag "failureTag" Ty.failureRef 0
 noneTag, someTag :: PackedTag
 (noneTag, someTag)
   | [nt, st] <-
-      mkTags "optional tags" Ty.optionalRef
-        [Ty.noneId, Ty.someId] = (nt, st)
+      mkTags
+        "optional tags"
+        Ty.optionalRef
+        [Ty.noneId, Ty.someId] =
+      (nt, st)
   | otherwise = error "internal error: optional tags"
 
 leftTag, rightTag :: PackedTag
 (leftTag, rightTag)
   | [lt, rt] <-
-      mkTags "either tags" Ty.eitherRef
-        [Ty.eitherLeftId, Ty.eitherRightId] = (lt, rt)
+      mkTags
+        "either tags"
+        Ty.eitherRef
+        [Ty.eitherLeftId, Ty.eitherRightId] =
+      (lt, rt)
   | otherwise = error "internal error: either tags"
 
 noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag :: PackedTag
 (noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag)
-  | [nt,lt,bt,st] <-
-      mkTags "buffer mode tags" Ty.bufferModeRef
+  | [nt, lt, bt, st] <-
+      mkTags
+        "buffer mode tags"
+        Ty.bufferModeRef
         [ Ty.bufferModeNoBufferingId,
           Ty.bufferModeLineBufferingId,
           Ty.bufferModeBlockBufferingId,
-          Ty.bufferModeSizedBlockBufferingId ] = (nt, lt, bt, st)
+          Ty.bufferModeSizedBlockBufferingId
+        ] =
+      (nt, lt, bt, st)
   | otherwise = error "internal error: buffer mode tags"
 
 readModeTag, writeModeTag, appendModeTag, readWriteModeTag :: PackedTag
 (readModeTag, writeModeTag, appendModeTag, readWriteModeTag)
-  | [rt,wt,at,rwt] <-
-      mkTags "file mode tags" Ty.fileModeRef
+  | [rt, wt, at, rwt] <-
+      mkTags
+        "file mode tags"
+        Ty.fileModeRef
         [ Ty.fileModeReadId,
           Ty.fileModeWriteId,
           Ty.fileModeAppendId,
-          Ty.fileModeReadWriteId ] = (rt, wt, at, rwt)
+          Ty.fileModeReadWriteId
+        ] =
+      (rt, wt, at, rwt)
   | otherwise = error "internal error: file mode tags"
 
 seekAbsoluteTag, seekRelativeTag, seekEndTag :: PackedTag
 (seekAbsoluteTag, seekRelativeTag, seekEndTag)
   | [at, rt, et] <-
-      mkTags "seek mode tags" Ty.seekModeRef
+      mkTags
+        "seek mode tags"
+        Ty.seekModeRef
         [ Ty.seekModeAbsoluteId,
           Ty.seekModeRelativeId,
-          Ty.seekModeEndId ] = (at, rt, et)
+          Ty.seekModeEndId
+        ] =
+      (at, rt, et)
   | otherwise = error "internal error: seek mode tags"
 
 stdInTag, stdOutTag, stdErrTag :: PackedTag
 (stdInTag, stdOutTag, stdErrTag)
   | [it, ot, et] <-
-      mkTags "standard handle tags" Ty.stdHandleRef
+      mkTags
+        "standard handle tags"
+        Ty.stdHandleRef
         [ Ty.stdInId,
           Ty.stdOutId,
-          Ty.stdErrId ] = (it, ot, et)
+          Ty.stdErrId
+        ] =
+      (it, ot, et)
   | otherwise = error "internal error: standard handle tags"
 
 exceptionTag :: Word64
@@ -238,25 +266,35 @@ pairTag
 seqViewEmptyTag, seqViewElemTag :: PackedTag
 (seqViewEmptyTag, seqViewElemTag)
   | [emt, elt] <-
-      mkTags "seq view tags" Ty.seqViewRef
+      mkTags
+        "seq view tags"
+        Ty.seqViewRef
         [ Ty.seqViewEmpty,
-          Ty.seqViewElem ] = (emt, elt)
+          Ty.seqViewElem
+        ] =
+      (emt, elt)
   | otherwise = error "internal error: seq view tags"
 
 mapTipTag, mapBinTag :: PackedTag
 (mapTipTag, mapBinTag)
   | [mtt, mbt] <-
-      mkTags "map tags" Ty.mapRef
+      mkTags
+        "map tags"
+        Ty.mapRef
         [ Ty.mapTip,
           Ty.mapBin
-        ] = (mtt, mbt)
+        ] =
+      (mtt, mbt)
   | otherwise = error "internal error: map tags"
 
 setWrapTag :: PackedTag
 setWrapTag
   | [swt] <-
-      mkTags "set tag" Ty.setRef
-        [ Ty.setWrap ] = swt
+      mkTags
+        "set tag"
+        Ty.setRef
+        [Ty.setWrap] =
+      swt
   | otherwise = error "internal error: set tag"
 
 -- | A tag we use to represent the 'pure' effect case.

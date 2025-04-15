@@ -55,6 +55,7 @@ import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.Functor ((<&>))
+import Data.Map (Map)
 import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
@@ -94,6 +95,7 @@ import Unison.Runtime.ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
+import Unison.Runtime.TypeTags (FieldTag)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -295,8 +297,8 @@ countArgs (VArgV {}) = internalBug "countArgs: DArgV"
 {-# INLINEABLE countArgs #-}
 
 data Prim1
-  -- integral
-  = DECI -- decrement
+  = -- integral
+    DECI -- decrement
   | DECN
   | INCI -- increment
   | INCN
@@ -372,8 +374,8 @@ data Prim1
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
-  -- integral
-  = ADDI -- +
+  = -- integral
+    ADDI -- +
   | ADDN
   | SUBI -- -
   | SUBN
@@ -514,6 +516,11 @@ data GInstr comb
       !Reference -- data type reference
       !PackedTag -- tag
       !Args -- arguments to pack
+  | -- Pack a record type into a closure and place it on the stack.
+    RecPack
+      !Reference -- data type reference
+      !PackedTag -- tag
+      !(Map FieldTag (GRef comb)) -- fields to pack
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack

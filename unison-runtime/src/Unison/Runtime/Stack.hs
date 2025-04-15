@@ -17,6 +17,7 @@ module Unison.Runtime.Stack
         Data1,
         Data2,
         DataG,
+        DataR,
         Captured,
         Foreign,
         BlackHole,
@@ -294,6 +295,7 @@ data GClosure comb
   | GData1 !Reference !PackedTag !Val
   | GData2 !Reference !PackedTag !Val !Val
   | GDataG !Reference !PackedTag {-# UNPACK #-} !Seg
+  | GDataR !Reference PackedTag !(Map TT.FieldTag Val)
   | -- code cont, arg size, u/b data stacks
     GCaptured !K !Int {-# UNPACK #-} !Seg
   | GForeign !Foreign
@@ -324,6 +326,8 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
+pattern DataR r t m = Closure (GDataR r t m)
+
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
 pattern Foreign x = Closure (GForeign x)
@@ -340,7 +344,7 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, DataG, DataR, Captured, Foreign, UnboxedTypeTag, BlackHole #-}
 
 {-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag #-}
 
@@ -387,6 +391,7 @@ closureTag (Enum _ t) = t
 closureTag (Data1 _ t _) = t
 closureTag (Data2 _ t _ _) = t
 closureTag (DataG _ t _) = t
+closureTag (DataR _ t _) = t
 closureTag c =
   throw $ Panic "closureTag: unexpected closure" (Just $ BoxedVal c)
 {-# INLINE closureTag #-}

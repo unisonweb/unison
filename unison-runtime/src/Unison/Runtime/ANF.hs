@@ -1273,6 +1273,8 @@ data Func v
     FCont v
   | -- data constructor
     FCon !Reference !CTag
+  | -- Record constructor
+    FRec !Reference
   | -- ability request
     FReq !Reference !CTag
   | -- prim op
@@ -2339,6 +2341,7 @@ funcLinks ::
   f (Func v)
 funcLinks f (FComb r) = FComb <$> f False r
 funcLinks f (FCon r t) = flip FCon t <$> f True r
+funcLinks f (FRec r) = FRec <$> f True r
 funcLinks f (FReq r t) = flip FReq t <$> f True r
 funcLinks _ ff = pure ff
 
