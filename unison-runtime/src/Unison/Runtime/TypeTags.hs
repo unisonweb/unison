@@ -3,6 +3,7 @@ module Unison.Runtime.TypeTags
     RTag (..),
     CTag (..),
     PackedTag (..),
+    FieldTag (..),
     packTags,
     unpackTags,
     maskTags,
@@ -177,6 +178,11 @@ newtype CTag = CTag Word16
 newtype PackedTag = PackedTag Word64
   deriving stock (Eq, Ord, Show, Read)
   deriving newtype (EC.EnumKey)
+
+-- | A unique tag used for pulling out record fields.
+-- TODO: replace with Word64s
+newtype FieldTag = FieldTag Text
+  deriving stock (Eq, Ord, Show, Read)
 
 class Tag t where rawTag :: t -> Word64
 
