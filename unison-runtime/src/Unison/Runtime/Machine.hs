@@ -322,6 +322,8 @@ exec _ !denv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, denv, stk, k)
+exec _ !denv !_activeThreads !stk !k _ (RecPack r t args ftags) = do
+  pure (False, denv, stk, k)
 exec _ !denv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
   Tx.putStrLn (Util.Text.toText t)
@@ -745,6 +747,12 @@ buildData !stk !r !t (VArgV i) = do
     l = fsize stk - i
 {-# INLINE buildData #-}
 
+buildRec :: Stack -> Reference -> PackedTag -> Args -> IO Closure
+buildRec stk r t args = do
+  seg <- augSeg I stk nullSeg (Just $ ArgN args)
+  pure $ DataG r t seg
+{-# INLINE buildRec #-}
+
 dumpDataValNoTag ::
   Stack ->
   Val ->
@@ -1108,11 +1116,12 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
+    fieldtm <- error "add fieldNums" <> readTVar (fieldNums cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
         inlinfo =
           ANF.buildInlineMap (fmap replace int) <> builtinInlineInfo
-        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
+        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (fieldNameLookup fieldtm)
         replace =
           ANF.replaceConstructors pseudoConstructors
             . ANF.replaceFunctions functionReplacements

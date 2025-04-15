@@ -1,4 +1,3 @@
-
 module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
@@ -14,12 +13,20 @@ import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF
-  (SuperGroup (..), Cacheability (..), Code (..), CompileExn (..), Value, valueLinks, foldGroupLinks)
+  ( Cacheability (..),
+    Code (..),
+    CompileExn (..),
+    SuperGroup (..),
+    Value,
+    foldGroupLinks,
+    valueLinks,
+  )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeTags (FieldTag)
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty qualified as P
@@ -64,6 +71,12 @@ refLookup s m r
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
+fieldNameLookup :: Map Unison.Prelude.Text Word64 -> Unison.Prelude.Text -> FieldTag
+fieldNameLookup m k
+  | Just w <- M.lookup k m = w
+  | otherwise =
+      error $ "fieldNameLookup: unknown field name: " ++ show k
+
 die :: (HasCallStack) => String -> IO a
 die s = do
   void . throwIO . PE callStack . P.lit . fromString $ s
@@ -92,6 +105,7 @@ data CCache = CCache
     intermed :: TVar (M.Map Reference (SuperGroup Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
+    fieldNums :: TVar (M.Map Unison.Prelude.Text Word64),
     sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
@@ -120,8 +134,10 @@ baseCCache sandboxed = do
     <*> newTVarIO mempty
     <*> newTVarIO builtinTermNumbering
     <*> newTVarIO builtinTypeNumbering
+    <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
   where
+    builtinFieldNumbering = mempty
     cacheableCombs = mempty
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
@@ -143,10 +159,10 @@ baseCCache sandboxed = do
 
 lookupCode :: CCache -> Referent -> IO (Maybe Code)
 lookupCode env (Ref link) =
-  resolveCode link <$>
-    readTVarIO (intermed env) <*>
-    readTVarIO (refTm env) <*>
-    readTVarIO (cacheableCombs env)
+  resolveCode link
+    <$> readTVarIO (intermed env)
+    <*> readTVarIO (refTm env)
+    <*> readTVarIO (cacheableCombs env)
 lookupCode _ _ = die "lookupCode: Expected Ref"
 
 resolveCode ::
@@ -222,17 +238,20 @@ codeValidate ::
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)
   fty <- readTVarIO (freshTy cc)
+  fNums <- readTVarIO (fieldNums cc)
   let f b r
         | b, M.notMember r rty0 = S.singleton r
         | otherwise = mempty
       ntys0 = (foldMap . foldMap) (foldGroupLinks f) tml
       ntys = M.fromList $ zip (S.toList ntys0) [fty ..]
       rty = ntys <> rty0
+      extractFieldNames = error "TODO: extractFieldNames"
+      fNums' = extractFieldNames extractFieldNames <> fNums
   ftm <- readTVarIO (freshTm cc)
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (fieldNameLookup fNums')
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs perr) ->

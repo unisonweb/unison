@@ -55,7 +55,6 @@ import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.Coerce
 import Data.Functor ((<&>))
-import Data.Map (Map)
 import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
@@ -66,6 +65,7 @@ import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
+import Unison.Prelude qualified
 import Unison.Reference (Reference, showShort)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF
@@ -520,7 +520,10 @@ data GInstr comb
     RecPack
       !Reference -- data type reference
       !PackedTag -- tag
-      !(Map FieldTag (GRef comb)) -- fields to pack
+      -- values to pack
+      !Args
+      -- Which fields to pack each arg into
+      ![FieldTag] -- TODO: Array?
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
@@ -622,17 +625,20 @@ data CombIx
 combRef :: CombIx -> Reference
 combRef (CIx r _ _) = r
 
--- dnum maps type references to their number in the runtime
--- cnum maps combinator references to their number
--- anum maps combinator references to their main arity
+--
 data RefNums = RN
-  { dnum :: Reference -> Word64,
+  { -- maps type references to their number in the runtime
+    dnum :: Reference -> Word64,
+    -- cnum maps combinator references to their number
     cnum :: Reference -> Word64,
-    anum :: Reference -> Maybe Int
+    -- anum maps combinator references to their main arity
+    anum :: Reference -> Maybe Int,
+    -- tnum maps field references to their number
+    fnum :: Unison.Prelude.Text -> FieldTag
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing)
+emptyRNs = RN mt mt (const Nothing) mt
   where
     mt _ = internalBug "RefNums: empty"
 
@@ -1137,6 +1143,13 @@ emitFunction rns _grpr _ _ _ (FCon r t) as =
     . Yield
     $ VArg1 0
   where
+    rt = toEnum . fromIntegral $ dnum rns r
+emitFunction rns _grpr _ _ _ (FRec r fieldNames) as =
+  Ins (RecPack r (packTags rt zeroConstructorTag) as (fnum rns <$> fieldNames))
+    . Yield
+    $ VArg1 0
+  where
+    zeroConstructorTag = 0
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities

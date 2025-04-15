@@ -283,6 +283,7 @@ extraMap vtf atf apf = \case
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
   Constructor x -> Constructor x
+  Record x -> Record x
   Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
@@ -1564,6 +1565,7 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
       Pattern.Text loc t -> pure (text loc t)
       Pattern.Char loc c -> pure (char loc c)
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
+      Pattern.Record _loc _r _ps -> error "Pattern.Record: TODO: implement record pattern matching"
       Pattern.As loc p -> do
         avs <- State.get
         case avs of
@@ -1648,6 +1650,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
           True
           (s "handle " <> shows b <> s " in " <> shows body)
       go _ (Constructor (ConstructorReference r n)) = s "Con" <> shows r <> s "#" <> shows n
+      go _ (Record r) = s "Rec" <> shows r
       go _ (Match scrutinee cases) =
         showParen
           True
