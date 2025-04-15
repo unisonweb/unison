@@ -1250,6 +1250,8 @@ declareForeigns = do
   declareForeign Untracked 2 Pattern_captureAs
   declareForeign Untracked 1 Pattern_join
   declareForeign Untracked 2 Pattern_or
+  declareForeign Untracked 1 Pattern_lookahead
+  declareForeign Untracked 1 Pattern_negativeLookahead
   declareForeign Untracked 3 Pattern_replicate
 
   declareForeign Untracked 2 Pattern_run
