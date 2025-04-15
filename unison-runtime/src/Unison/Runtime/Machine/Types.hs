@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-
 module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
@@ -41,6 +40,7 @@ import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
+import Unison.Runtime.TypeTags (FieldTag)
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text as UText
@@ -158,6 +158,14 @@ instance RuntimeProfiler ProfileComm where
 
 #endif
 
+
+fieldNameLookup :: Map Unison.Prelude.Text Word64 -> Unison.Prelude.Text -> FieldTag
+fieldNameLookup m k
+  | Just w <- M.lookup k m = w
+  | otherwise =
+      error $ "fieldNameLookup: unknown field name: " ++ show k
+
+
 -- code caching environment
 data CCache prof = CCache
   { sandboxed :: Bool,
@@ -176,6 +184,7 @@ data CCache prof = CCache
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
+    fieldNums :: TVar (M.Map Unison.Prelude.Text Word64),
     sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
@@ -205,8 +214,10 @@ baseCCache sandboxed = do
     <*> newTVarIO mempty
     <*> newTVarIO builtinTermNumbering
     <*> newTVarIO builtinTypeNumbering
+    <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
   where
+    builtinFieldNumbering = mempty
     cacheableCombs = mempty
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
@@ -314,17 +325,20 @@ codeValidate ::
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)
   fty <- readTVarIO (freshTy cc)
+  fNums <- readTVarIO (fieldNums cc)
   let f b r
         | b, M.notMember r rty0 = S.singleton r
         | otherwise = mempty
       ntys0 = (foldMap . foldMap) (foldGroupLinks f) tml
       ntys = M.fromList $ zip (S.toList ntys0) [fty ..]
       rty = ntys <> rty0
+      extractFieldNames = error "TODO: extractFieldNames"
+      fNums' = extractFieldNames extractFieldNames <> fNums
   ftm <- readTVarIO (freshTm cc)
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (fieldNameLookup fNums')
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs _issues perr) ->

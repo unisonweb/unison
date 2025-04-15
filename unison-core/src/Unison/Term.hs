@@ -70,6 +70,7 @@ data F typeVar typeAnn patternAnn a
   | Blank (B.Blank typeAnn)
   | Ref Reference
   | Constructor ConstructorReference
+  | Record Reference
   | Request ConstructorReference
   | Handle a {- <- the handler -} a {- <- the action to run -}
   | App a {- <- func -} a {- <- arg -}
@@ -284,6 +285,7 @@ extraMap vtf atf apf = \case
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
   Constructor x -> Constructor x
+  Record x -> Record x
   Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
@@ -523,6 +525,9 @@ pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branche
 
 pattern Constructor' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
+
+pattern Record' :: Reference -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern Record' ref <- (ABT.out -> ABT.Tm (Record ref))
 
 pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
@@ -766,6 +771,7 @@ pattern Referent' r <- (unReferent -> Just r)
 unReferent :: Term2 vt at ap v a -> Maybe Referent
 unReferent (Ref' r) = Just $ Referent.Ref r
 unReferent (Constructor' r) = Just $ Referent.Con r CT.Data
+unReferent (Record' r) = Just $ Referent.Ref r
 unReferent (Request' r) = Just $ Referent.Con r CT.Effect
 unReferent _ = Nothing
 
@@ -1532,7 +1538,9 @@ toPattern tm = case tm of
     Pattern.EffectBind loc r <$> traverse toPattern args <*> toPattern k
   Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
   Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
+  Apps' (Record' _r) _args -> error "toPattern: TODO: implement record pattern matching"
   Constructor' r -> pure $ Pattern.Constructor loc r []
+  Record' _ -> error "toPattern: TODO: implement record pattern matching"
   Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
   Int' i -> pure $ Pattern.Int loc i
   Nat' n -> pure $ Pattern.Nat loc n
@@ -1592,6 +1600,7 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
       Pattern.Text loc t -> pure (text loc t)
       Pattern.Char loc c -> pure (char loc c)
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
+      Pattern.Record _loc _r _ps -> error "Pattern.Record: TODO: implement record pattern matching"
       Pattern.As loc p -> do
         avs <- State.get
         case avs of
@@ -1676,6 +1685,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
           True
           (s "handle " <> shows b <> s " in " <> shows body)
       go _ (Constructor (ConstructorReference r n)) = s "Con" <> shows r <> s "#" <> shows n
+      go _ (Record r) = s "Rec" <> shows r
       go _ (Match scrutinee cases) =
         showParen
           True
