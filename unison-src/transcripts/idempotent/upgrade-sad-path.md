@@ -99,7 +99,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin/ (472 terms, 76 types)
+  1. builtin/ (474 terms, 76 types)
   2. new/     (1 term)
 
 proj/main> branches

@@ -54,7 +54,7 @@ scratch/main> ls builtins
   45. Optional            (type)
   46. Optional/           (2 terms)
   47. Pattern             (builtin type)
-  48. Pattern/            (9 terms)
+  48. Pattern/            (11 terms)
   49. Ref                 (builtin type)
   50. Ref/                (2 terms)
   51. Request             (builtin type)
