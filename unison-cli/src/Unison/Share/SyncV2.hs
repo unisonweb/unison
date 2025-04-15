@@ -69,8 +69,10 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Timing qualified as Timing
+import UnliftIO qualified
 import UnliftIO qualified as IO
 import UnliftIO.Async qualified as Async
+import UnliftIO.Concurrent (threadDelay)
 import UnliftIO.STM qualified as STM
 
 type Stream i o = ConduitT i o StreamM ()
@@ -690,26 +692,45 @@ withStreamProgress hasDownload action = do
   savedVar <- IO.newTVarIO (0 :: Int)
   totalVar <- IO.newTVarIO Nothing
   IO.withRunInIO \toIO -> do
-    Console.Regions.displayConsoleRegions do
-      Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
-        Console.Regions.setConsoleRegion region do
-          downloaded <- IO.readTVar downloadedVar
-          doneUnpacking <- IO.readTVar doneUnpackingVar
-          saved <- IO.readTVar savedVar
-          total <- IO.readTVar totalVar
-          pure $
-            Text.unlines
-              [ Monoid.whenM hasDownload $ "\n  Downloaded: " <> tShow @Int downloaded <> maybe "" (\total -> " / " <> tShow @Int total) total <> Monoid.whenM doneUnpacking " 🏁",
-                "    Imported: " <> tShow @Int saved
-              ]
-        toIO $
-          action $
-            ProgressCallbacks
-              { setTotal = \total -> do liftIO $ IO.atomically (IO.writeTVar totalVar (Just total)),
-                downloadCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' downloadedVar (+ i)),
-                doneDownloading = do liftIO $ IO.atomically (IO.writeTVar doneUnpackingVar True),
-                importCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' savedVar (+ i))
-              }
+    withSpinner \spinnerVar -> do
+      Console.Regions.displayConsoleRegions do
+        Console.Regions.withConsoleRegion Console.Regions.Linear \region -> do
+          Console.Regions.setConsoleRegion region do
+            downloaded <- IO.readTVar downloadedVar
+            doneUnpacking <- IO.readTVar doneUnpackingVar
+            saved <- IO.readTVar savedVar
+            total <- IO.readTVar totalVar
+            if (downloaded == 0)
+              then do
+                spinChar <- UnliftIO.readTVar spinnerVar
+                pure $ "\n  Preparing entities " <> spinChar <> " \n\n"
+              else do
+                pure $
+                  Text.unlines
+                    [ Monoid.whenM hasDownload $ "\n  Downloaded: " <> tShow @Int downloaded <> maybe "" (\total -> " / " <> tShow @Int total) total <> Monoid.whenM doneUnpacking " 🏁",
+                      "    Imported: " <> tShow @Int saved
+                    ]
+          toIO $
+            action $
+              ProgressCallbacks
+                { setTotal = \total -> do liftIO $ IO.atomically (IO.writeTVar totalVar (Just total)),
+                  downloadCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' downloadedVar (+ i)),
+                  doneDownloading = do liftIO $ IO.atomically (IO.writeTVar doneUnpackingVar True),
+                  importCounter = \i -> do liftIO $ IO.atomically (IO.modifyTVar' savedVar (+ i))
+                }
+  where
+    withSpinner :: (MonadUnliftIO m) => (UnliftIO.TVar Text -> m a) -> m a
+    withSpinner action = do
+      spinnerVar <- IO.newTVarIO ("⣾" :: Text)
+      UnliftIO.withAsync (go spinnerVar spinnerChars) \_ -> do
+        action spinnerVar
+      where
+        spinnerChars = cycle "⣷⣯⣟⡿⢿⣻⣽⣾" :: String
+        go :: (MonadUnliftIO m) => UnliftIO.TVar Text -> String -> m ()
+        go spinnerVar spinner = do
+          threadDelay 500000
+          UnliftIO.atomically $ UnliftIO.writeTVar spinnerVar (Text.singleton $ head spinner)
+          go spinnerVar (tail spinner)
 
 -- * Conduit helpers
 
