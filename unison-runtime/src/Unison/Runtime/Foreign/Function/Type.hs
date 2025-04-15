@@ -231,6 +231,8 @@ data ForeignFunc
   | Pattern_captureAs
   | Pattern_join
   | Pattern_or
+  | Pattern_lookahead
+  | Pattern_negativeLookahead
   | Pattern_replicate
   | Pattern_run
   | Pattern_isMatch
@@ -497,6 +499,8 @@ foreignFuncBuiltinName = \case
   Pattern_captureAs -> "Pattern.captureAs"
   Pattern_join -> "Pattern.join"
   Pattern_or -> "Pattern.or"
+  Pattern_lookahead -> "Pattern.lookahead"
+  Pattern_negativeLookahead -> "Pattern.negativeLookahead"
   Pattern_replicate -> "Pattern.replicate"
   Pattern_run -> "Pattern.run"
   Pattern_isMatch -> "Pattern.isMatch"

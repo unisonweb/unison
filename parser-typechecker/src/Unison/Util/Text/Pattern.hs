@@ -17,6 +17,8 @@ data Pattern
   | Eof -- succeed if given the empty text, fail otherwise
   | Literal Text -- succeed if input starts with the given text, advance by that text
   | Char CharPattern -- succeed if input starts with a char matching the given pattern, advance by 1 char
+  | Lookahead Pattern -- Positive lookahead
+  | NegativeLookahead Pattern -- Negative lookahead
   deriving (Show, Eq, Ord)
 
 data CharPattern
@@ -106,7 +108,7 @@ capturesToList c = c []
 type Compiled r = (Stack -> Text -> r) -> (Stack -> Text -> r) -> Stack -> Text -> r
 
 compile :: Pattern -> Compiled r
-compile !Eof !err !success = go
+compile Eof !err !success = go
   where
     go acc t
       | Text.size t == 0 = success acc t
@@ -194,6 +196,12 @@ compile (Replicate m n p) !err !success = case p of
     dropper ok acc t
       | (i, rest) <- Text.dropWhileMax ok n t, i >= m = success acc rest
       | otherwise = err acc t
+compile (Lookahead p) !err !success = cp
+  where
+    cp = lookahead "Lookahead" (compile p) err success
+compile (NegativeLookahead p) !err !success = cp
+  where
+    cp = lookahead "NegativeLookahead" (compile p) success err
 
 charInPred, charNotInPred :: [Char] -> Char -> Bool
 charInPred [] = const False
@@ -236,3 +244,17 @@ try msg c err success stk rem =
       Mark _ rem stk -> err stk rem
       _ -> error $ "Pattern compiler error in: " <> msg
 {-# INLINE try #-}
+
+-- runs c and restores state to what it was before,
+-- regardless of whether it succeeds or not
+lookahead :: String -> Compiled r -> Compiled r
+lookahead msg c err success stk rem =
+  c err' success' (Mark id rem stk) rem
+  where
+    success' stk _ = case stk of
+      Mark _ rem stk -> success stk rem
+      _ -> error $ "Pattern compiler error in: " <> msg
+    err' stk _ = case stk of
+      Mark _ rem stk -> err stk rem
+      _ -> error $ "Pattern compiler error in: " <> msg
+{-# INLINE lookahead #-}

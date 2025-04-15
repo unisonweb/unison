@@ -83,7 +83,7 @@ names = Names terms types
 isBuiltinType :: R.Reference -> Bool
 isBuiltinType =
   let refs = Set.fromList (map snd builtinTypes)
-  in (`Set.member` refs)
+   in (`Set.member` refs)
 
 typeLookup :: TL.TypeLookup Symbol Ann
 typeLookup =
@@ -521,6 +521,8 @@ builtinsSrc =
     B "Pattern.captureAs" $ forall1 "a" (\a -> a --> pat a --> pat a),
     B "Pattern.join" $ forall1 "a" (\a -> list (pat a) --> pat a),
     B "Pattern.or" $ forall1 "a" (\a -> pat a --> pat a --> pat a),
+    B "Pattern.lookahead" $ forall1 "a" (\a -> pat a --> pat a),
+    B "Pattern.negativeLookahead" $ forall1 "a" (\a -> pat a --> pat a),
     -- Pattern.run : Pattern a -> a -> Optional ([a], a)
     B "Pattern.run" $ forall1 "a" (\a -> pat a --> a --> optionalt (tuple [list a, a])),
     B "Pattern.isMatch" $ forall1 "a" (\a -> pat a --> a --> boolean),

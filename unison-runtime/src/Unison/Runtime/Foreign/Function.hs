@@ -834,6 +834,10 @@ foreignCallHelper = \case
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   Pattern_or -> mkForeign $
     \(TPat.CP l _, TPat.CP r _) -> evaluate . TPat.cpattern $ TPat.Or l r
+  Pattern_lookahead -> mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Lookahead p
+  Pattern_negativeLookahead -> mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.NegativeLookahead p
   Pattern_replicate -> mkForeign $
     \(m0 :: Word64, n0 :: Word64, TPat.CP p _) ->
       let m = fromIntegral m0; n = fromIntegral n0
