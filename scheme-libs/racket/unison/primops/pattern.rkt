@@ -74,6 +74,8 @@
   builtin-Text.patterns.anyChar:termlink
   builtin-Text.patterns.char
   builtin-Text.patterns.char:termlink
+  builtin-Text.patterns.lookbehind1
+  builtin-Text.patterns.lookbehind1:termlink
   builtin-Text.patterns.charIn
   builtin-Text.patterns.charIn:termlink
   builtin-Text.patterns.charRange
@@ -177,6 +179,8 @@
   any-char)
 
 (define-unison-builtin (builtin-Text.patterns.char cc) cc)
+
+(define-unison-builtin (builtin-Pattern.lookbehind1 cc) (lookbehind1 cc))
 
 (define-unison-builtin (builtin-Text.patterns.charIn cs)
   (chars cs))

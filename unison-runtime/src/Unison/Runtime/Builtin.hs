@@ -1278,6 +1278,8 @@ declareForeigns = do
   declareForeignWrap Untracked direct Char_Class_letter
   declareForeign Untracked 2 Char_Class_is
   declareForeign Untracked 1 Text_patterns_char
+  declareForeign Untracked 1 Text_patterns_lookbehind1
+  declareForeign Untracked 1 Text_patterns_negativeLookbehind1
 
   -- replacements
   declareForeign Untracked 3 Map_insert

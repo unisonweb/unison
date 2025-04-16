@@ -229,7 +229,8 @@ test> Text.tests.literalsEq = checks [":)" == ":)"]
 
 test> Text.tests.patterns =
   use Pattern many or run isMatch capture join replicate
-  use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof
+  use Text.patterns literal digit letter anyChar space punctuation notCharIn charIn charRange notCharRange eof lookbehind1
+  use Char.Class any number not
   l = literal
   checks [
     run digit "1abc" == Some ([], "abc"),
@@ -254,6 +255,7 @@ test> Text.tests.patterns =
     isMatch (join [l "abra", many (l "cadabra")]) "abracadabracadabra" == true,
     run (Pattern.many.corrected (join [negativeLookahead (literal "GO STOP"), literal "GO "])) "GO GO GO GO STOP GO GO" == Some ([], "GO STOP GO GO"),
     run (Pattern.many.corrected (join [literal "GO ", lookahead (literal "GO")])) "GO GO GO GO STOP GO GO" == Some ([], "GO STOP GO GO"),
+    run (Pattern.many.corrected (join [negativeLookbehind number, char any])) "abddc1234" == Some ([], "234"),
   ]
 
 
