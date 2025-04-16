@@ -118,11 +118,11 @@ compile Eof !err !success = go
 compile (Literal txt) !err !success = go
   where
     go acc oc t =
-      let next = Text.take (Text.size txt) t
-       in if next == txt
+      let candidate = Text.take (Text.size txt) t
+       in if candidate == txt
             then
               let t' = Text.drop (Text.size txt) t
-               in case Text.unsnoc next of
+               in case Text.unsnoc candidate of
                     Just (_, c) -> success acc (Just c) t'
                     Nothing -> success acc oc t'
             else
@@ -135,7 +135,7 @@ compile (Char Any) !err !success = go
 compile (CaptureAs t p) !err !success = go
   where
     err' _ _ _ acc0 c0 t0 = err acc0 c0 t0
-    success' _ _ rem acc0 c0 _ = success (pushCapture t acc0) c0 rem
+    success' _ cr rem acc0 _ _ = success (pushCapture t acc0) cr rem
     compiled = compile p err' success'
     go acc c t = compiled acc c t acc c t
 compile (Capture (Many _ (Char Any))) !_ !success = \acc c t ->
@@ -145,7 +145,7 @@ compile (Capture (Many _ (Char Any))) !_ !success = \acc c t ->
 compile (Capture c) !err !success = go
   where
     err' _ _ _ acc0 c0 t0 = err acc0 c0 t0
-    success' _ _ rem acc0 c0 t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) c0 rem
+    success' _ cr rem acc0 _ t0 = success (pushCapture (Text.take (Text.size t0 - Text.size rem) t0) acc0) cr rem
     compiled = compile c err' success'
     go acc c t = compiled acc c t acc c t
 compile (Or p1 p2) err success = cp1
