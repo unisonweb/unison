@@ -44,8 +44,7 @@
           ;; Only valid pattern? in the functions below is p:char
           [char-class-and (-> pattern? pattern? pattern?)]
           [char-class-or (-> pattern? pattern? pattern?)]
-          [char-class-not (-> pattern? pattern?)]
-          [lookbehind1 (-> pattern? pattern?)]))
+          [char-class-not (-> pattern? pattern?)]))
 
 ;; -----------------------------------------------------------------------------
 
@@ -55,9 +54,6 @@
   (pattern pat #f))
 
 (struct p:char
-  (cpat) ; (or/c 'any (-> char? boolean?))
-  #:transparent)
-(struct p:lookbehind1 
   (cpat) ; (or/c 'any (-> char? boolean?))
   #:transparent)
 (struct p:literal (cstr) #:transparent)
@@ -135,9 +131,6 @@
            (p:or (pattern-pat pat) (loop pats))])))]))
 
 (define (lookahead pat) (make-pattern (p:lookahead (pattern-pat pat))))
-
-(define (lookbehind1 cc)
-  (error "pattern lookbehind is not implemented in the native runtime"))
 
 (define (negative-lookahead pat) (make-pattern (p:negative-lookahead (pattern-pat pat))))
 
@@ -227,7 +220,7 @@
           (λ (cstr captures)
             (define-values [cstr* captures*] (pat-m cstr captures))
             (if cstr*
-               (ok cstr captures*)
+               (ok cstr captures)
                (fail))
           )
         ]
