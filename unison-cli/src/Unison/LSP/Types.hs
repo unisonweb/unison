@@ -43,6 +43,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
 import Unison.Syntax.Lexer.Unison qualified as Lexer
 import Unison.Type (Type)
+import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary (FileSummary (..))
 import UnliftIO
@@ -125,7 +126,7 @@ data FileAnalysis = FileAnalysis
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
     -- | The types of local variable bindings keyed by the mention's location.
-    localBindingTypes :: IntervalMap Position (Type Symbol Ann),
+    localBindingTypes :: IntervalMap Position (Context.Type Symbol Ann),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }

@@ -106,7 +106,7 @@ checkFile doc = runMaybeT do
           Result.Result _ (Just parsedFile) -> do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
-            for maybeTypecheckedFile \tf -> do
+            for_ maybeTypecheckedFile \tf -> do
               let parsedVars =
                     UF.terms parsedFile
                       & foldMap (ABT.allVars . snd)
@@ -124,7 +124,7 @@ checkFile doc = runMaybeT do
                   Result.TypeInfo (Context.VarBinding v typ) -> Map.singleton v typ
                   _ -> mempty
                 & pure
-            let localBindings =
+            let localBindings :: (IntervalMap Position (Context.Type Symbol Ann)) =
                   typecheckingNotes
                     & Foldable.toList
                     & reverse -- Type notes that come later in typechecking have more information filled in.
@@ -153,7 +153,21 @@ checkFile doc = runMaybeT do
         (errDiagnostics <> conflictWarningDiagnostics <> unusedBindingDiagnostics)
           & fmap (\d -> (d ^. range, d))
           & toRangeMap
-  let fileAnalysis = FileAnalysis {diagnostics = diagnosticRanges, codeActions = codeActionRanges, fileSummary, typeSignatureHints, ..}
+  let fileAnalysis =
+        FileAnalysis
+          { diagnostics = diagnosticRanges,
+            codeActions = codeActionRanges,
+            fileSummary,
+            typeSignatureHints,
+            fileUri,
+            fileVersion,
+            lexedSource,
+            tokenMap,
+            parsedFile,
+            typecheckedFile,
+            notes,
+            localBindingTypes
+          }
   pure fileAnalysis
 
 -- | Get the location of user defined definitions within the file

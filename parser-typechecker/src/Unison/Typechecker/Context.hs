@@ -364,7 +364,7 @@ data InfoNote v loc
     -- job to use the binding with the smallest containing scope so as to respect variable
     -- shadowing.
     -- This is used in the LSP.
-    VarBinding v (Type.Type v loc)
+    VarBinding v (Type v loc)
   | -- | The usage of a particular variable. We report the variable and its location so we can match a given source location with a specific symbol later in the LSP.
     VarMention v loc
   deriving (Show)
@@ -389,9 +389,11 @@ substituteSolved ::
   [Element v loc] ->
   InfoNote v loc ->
   InfoNote v loc
-substituteSolved ctx (SolvedBlank b v t) =
-  SolvedBlank b v (applyCtx ctx t)
-substituteSolved _ i = i
+substituteSolved ctx  = \case
+  (SolvedBlank b v t) -> SolvedBlank b v (applyCtx ctx t)
+  VarBinding v t -> VarBinding v (applyCtx ctx t)
+  i -> i
+
 
 -- The typechecker generates synthetic type variables as part of type inference.
 -- This function converts these synthetic type variables to regular named type
@@ -534,12 +536,12 @@ markThenRetract hint body =
     for_ ctx \case
       var@(Ann v typ) -> do
         Debug.debugM Debug.Temp "Ann" var
-        noteVarBinding v  (TypeVar.lowerType typ)
+        noteVarBinding v  typ
       v@(Var{}) ->
         Debug.debugM Debug.Temp "Var" v
       (Solved _ v t) -> do
         Debug.debugM Debug.Temp "Solved" v
-        noteVarBinding v (TypeVar.lowerType $ Type.getPolytype t)
+        noteVarBinding v (Type.getPolytype t)
       _ -> pure ()
     pure ((r, ctx), solvedCtx)
 
@@ -1123,7 +1125,7 @@ noteTopLevelType e binding typ = case binding of
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
-noteVarBinding :: (Var v) => v ->  Type.Type v loc ->  M v loc ()
+noteVarBinding :: (Var v) => v ->  Type v loc ->  M v loc ()
 noteVarBinding v t = btw $ VarBinding v t
 
 noteVarMention :: (Var v) => v -> loc -> M v loc ()
