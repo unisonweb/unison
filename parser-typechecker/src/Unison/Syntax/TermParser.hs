@@ -220,7 +220,7 @@ matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c 
 --   (42, x) -> ...
 matchCase :: (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
-  pats <- sepBy1 (label "\",\"" $ reserved ",") parsePattern
+  pats <- sepBy1 (label "\",\"" $ reserved ",") (parsePattern >>= bindConstructorsInPattern)
   let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
       pat = case fst <$> pats of
         [p] -> p
@@ -245,165 +245,8 @@ matchCase = do
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
 
-parsePattern :: (Monad m, Var v) => P v m (Pattern.Pattern Ann, [(Ann, v)])
+parsePattern :: forall m v. (Monad m, Var v) => P v m (Syntax.Pattern.Pattern v)
 parsePattern =
-  parsePattern2 >>= bindConstructorsInPattern
-
-bindConstructorsInPattern :: (Monad m, Var v) => Syntax.Pattern.Pattern v -> P v m (Pattern.Pattern Ann, [(Ann, v)])
-bindConstructorsInPattern =
-  fmap (over _2 (\f -> (map tokenToPair (f [])))) . runWriterT . bindConstructorsInPattern1
-
-bindConstructorsInPattern1 ::
-  forall m v.
-  (Monad m, Var v) =>
-  Syntax.Pattern.Pattern v ->
-  WriterT ([L.Token v] -> [L.Token v]) (P v m) (Pattern.Pattern Ann)
-bindConstructorsInPattern1 = \case
-  Syntax.Pattern.As pos v lpat -> do
-    tell (v :)
-    pat <- bindConstructorsInPattern1 lpat
-    pure (Pattern.As pos pat)
-  Syntax.Pattern.Boolean pos b -> pure (Pattern.Boolean pos b)
-  Syntax.Pattern.Char pos c -> pure (Pattern.Char pos c)
-  Syntax.Pattern.Constructor pos name pats ->
-    Pattern.Constructor pos
-      <$> lift (bindConstructor CT.Data name)
-      <*> traverse bindConstructorsInPattern1 pats
-  Syntax.Pattern.EffectBind pos name pats cont ->
-    Pattern.EffectBind pos
-      <$> lift (bindConstructor CT.Effect name)
-      <*> traverse bindConstructorsInPattern1 pats
-      <*> bindConstructorsInPattern1 cont
-  Syntax.Pattern.EffectPure pos lpat -> Pattern.EffectPure pos <$> bindConstructorsInPattern1 lpat
-  Syntax.Pattern.Float pos n -> pure (Pattern.Float pos n)
-  Syntax.Pattern.Int pos n -> pure (Pattern.Int pos n)
-  Syntax.Pattern.Nat pos n -> pure (Pattern.Nat pos n)
-  Syntax.Pattern.Pair _ lpat1 lpat2 ->
-    ( \pat1 pat2 ->
-        Pattern.Constructor
-          (ann pat1 <> ann pat2)
-          (ConstructorReference DD.pairRef 0)
-          [pat1, pat2]
-    )
-      <$> bindConstructorsInPattern1 lpat1
-      <*> bindConstructorsInPattern1 lpat2
-  Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
-  Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
-    Pattern.SequenceOp pos
-      <$> bindConstructorsInPattern1 lpat1
-      <*> pure case op of
-        Syntax.Pattern.Concat -> Pattern.Concat
-        Syntax.Pattern.Cons -> Pattern.Cons
-        Syntax.Pattern.Snoc -> Pattern.Snoc
-      <*> bindConstructorsInPattern1 lpat2
-  Syntax.Pattern.Text pos t -> pure (Pattern.Text pos t)
-  Syntax.Pattern.Unbound pos -> pure (Pattern.Unbound pos)
-  Syntax.Pattern.Unit pos -> pure (Pattern.Constructor pos (ConstructorReference DD.unitRef 0) [])
-  -- Not awesome: something can be at once a syntactically valid nullary constructor and a syntactically valid
-  -- variable. We currently handle this by simply looking in the namespace to determine whether it's a
-  -- constructor, and if it isn't, we treat it as a variable.
-  Syntax.Pattern.VarOrNullaryConstructor pos name ->
-    lift (maybeBindLocalConstructor CT.Data (L.payload name)) >>= \case
-      Just localCtor -> pure (Pattern.Constructor pos localCtor [])
-      Nothing -> do
-        names <- asks names
-        let failure :: ResolutionError Referent -> P v m a
-            failure err =
-              failCommitted $
-                ResolutionFailures
-                  [ TermResolutionFailure
-                      (HQ.NameOnly (L.payload name))
-                      (ann name)
-                      err
-                  ]
-        case Names.lookupHQPattern Names.IncludeSuffixes (HQ.NameOnly (L.payload name)) CT.Data names of
-          constructors
-            | Set.size constructors == 1 -> pure (Pattern.Constructor pos (Set.findMin constructors) [])
-            | Set.null constructors ->
-                -- Not great thing alert :alarm: :alarm:
-                -- This is a syntactically valid variable, however, if it begins with a capital letter, we choose to
-                -- consider it a constructor-out-of-scope, since that's probably what the user meant.
-                if lastSegmentBeginsWithCapitalLetter
-                  then lift (failure NotFound)
-                  else do
-                    tell ((Name.toVar <$> name) :)
-                    pure (Pattern.Var pos)
-            | otherwise ->
-                lift $
-                  failure
-                    ( Ambiguous
-                        names
-                        (Set.map (\ref -> Referent.Con ref CT.Data) constructors)
-                        Set.empty
-                    )
-    where
-      lastSegmentBeginsWithCapitalLetter :: Bool
-      lastSegmentBeginsWithCapitalLetter =
-        not (Char.isLower (Text.head (NameSegment.toUnescapedText (Name.lastSegment (L.payload name)))))
-  where
-    bindConstructor :: CT.ConstructorType -> L.Token (HQ.HashQualified Name) -> P v m ConstructorReference
-    bindConstructor ct hqName = do
-      -- First, if:
-      --
-      --   * The token isn't hash-qualified (e.g. "Foo.Bar")
-      --   * We're under a namespace directive (e.g. "baz")
-      --   * There's an exact match for a locally-bound constructor (e.g. "baz.Foo.Bar")
-      --
-      -- Then:
-      --
-      --   * Use that constructor reference (duh)
-      --
-      -- Else:
-      --
-      --   * Fall through to the normal logic of looking the constructor name up in all of the names (which includes
-      --     the locally-bound constructors).
-      maybeLocalCtor <-
-        case L.payload hqName of
-          HQ.NameOnly name -> maybeBindLocalConstructor ct name
-          _ -> pure Nothing
-
-      case maybeLocalCtor of
-        Just localCtor -> pure localCtor
-        Nothing -> do
-          names <- asks names
-          case Names.lookupHQPattern Names.IncludeSuffixes (L.payload hqName) ct names of
-            s
-              | Set.size s == 1 -> pure (Set.findMin s)
-              | otherwise ->
-                  failCommitted $
-                    ResolutionFailures
-                      [ TermResolutionFailure
-                          (L.payload hqName)
-                          (ann hqName)
-                          if Set.null s
-                            then NotFound
-                            else
-                              Ambiguous
-                                names
-                                (Set.map (\ref -> Referent.Con ref ct) s)
-                                -- Eh, here we're saying there are no "local" constructors – they're all from "the
-                                -- namespace". That's not necessarily true, but it doesn't (currently) affect the error
-                                -- message any, and we have already parsed and hashed local constructors (so they aren't
-                                -- really different from namespace constructors).
-                                Set.empty
-                      ]
-
-    maybeBindLocalConstructor :: CT.ConstructorType -> Name -> P v m (Maybe ConstructorReference)
-    maybeBindLocalConstructor ct name =
-      asks maybeNamespace >>= \case
-        Nothing -> pure Nothing
-        Just namespace -> do
-          localNames <- asks localNamespacePrefixedTypesAndConstructors
-          pure case Names.lookupHQPattern Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) ct localNames of
-            refs
-              | Set.null refs -> Nothing
-              -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
-              -- with the same name would have been a parse error. So, just take the minimum element from the set,
-              -- which we know is a singleton.
-              | otherwise -> Just (Set.findMin refs)
-
-parsePattern2 :: forall m v. (Monad m, Var v) => P v m (Syntax.Pattern.Pattern v)
-parsePattern2 =
   label "pattern" pRoot
   where
     pRoot :: P v m (Syntax.Pattern.Pattern v)
@@ -492,7 +335,7 @@ parsePattern2 =
 
     pParenOrTuple :: P v m (Syntax.Pattern.Pattern v)
     pParenOrTuple = do
-      snd <$> tupleOrParenthesized parsePattern2 Syntax.Pattern.Unit mkPair
+      snd <$> tupleOrParenthesized parsePattern Syntax.Pattern.Unit mkPair
       where
         mkPair :: Syntax.Pattern.Pattern v -> Syntax.Pattern.Pattern v -> Syntax.Pattern.Pattern v
         mkPair p1 p2 =
@@ -535,12 +378,12 @@ parsePattern2 =
           name <- hqPrefixId
           patterns <- many pLeaf
           _ <- reserved "->"
-          cont <- parsePattern2
+          cont <- parsePattern
           pure (Syntax.Pattern.EffectBind (ann name <> ann cont) name patterns cont)
 
         pEffectPure :: P v m (Syntax.Pattern.Pattern v)
         pEffectPure =
-          parsePattern2 <&> \pat -> Syntax.Pattern.EffectPure (ann pat) pat
+          parsePattern <&> \pat -> Syntax.Pattern.EffectPure (ann pat) pat
 
     -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
     -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
@@ -557,6 +400,159 @@ parsePattern2 =
             Just _ -> do
               p <- pLeaf
               pure (Syntax.Pattern.As (ann tok <> ann p) (Name.toVar name <$ tok) p)
+
+bindConstructorsInPattern :: (Monad m, Var v) => Syntax.Pattern.Pattern v -> P v m (Pattern.Pattern Ann, [(Ann, v)])
+bindConstructorsInPattern =
+  fmap (over _2 (\f -> (map tokenToPair (f [])))) . runWriterT . bindConstructorsInPattern1
+  where
+    bindConstructorsInPattern1 ::
+      forall m v.
+      (Monad m, Var v) =>
+      Syntax.Pattern.Pattern v ->
+      WriterT ([L.Token v] -> [L.Token v]) (P v m) (Pattern.Pattern Ann)
+    bindConstructorsInPattern1 = \case
+      Syntax.Pattern.As pos v lpat -> do
+        tell (v :)
+        pat <- bindConstructorsInPattern1 lpat
+        pure (Pattern.As pos pat)
+      Syntax.Pattern.Boolean pos b -> pure (Pattern.Boolean pos b)
+      Syntax.Pattern.Char pos c -> pure (Pattern.Char pos c)
+      Syntax.Pattern.Constructor pos name pats ->
+        Pattern.Constructor pos
+          <$> lift (bindConstructor CT.Data name)
+          <*> traverse bindConstructorsInPattern1 pats
+      Syntax.Pattern.EffectBind pos name pats cont ->
+        Pattern.EffectBind pos
+          <$> lift (bindConstructor CT.Effect name)
+          <*> traverse bindConstructorsInPattern1 pats
+          <*> bindConstructorsInPattern1 cont
+      Syntax.Pattern.EffectPure pos lpat -> Pattern.EffectPure pos <$> bindConstructorsInPattern1 lpat
+      Syntax.Pattern.Float pos n -> pure (Pattern.Float pos n)
+      Syntax.Pattern.Int pos n -> pure (Pattern.Int pos n)
+      Syntax.Pattern.Nat pos n -> pure (Pattern.Nat pos n)
+      Syntax.Pattern.Pair _ lpat1 lpat2 ->
+        ( \pat1 pat2 ->
+            Pattern.Constructor
+              (ann pat1 <> ann pat2)
+              (ConstructorReference DD.pairRef 0)
+              [pat1, pat2]
+        )
+          <$> bindConstructorsInPattern1 lpat1
+          <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
+      Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
+        Pattern.SequenceOp pos
+          <$> bindConstructorsInPattern1 lpat1
+          <*> pure case op of
+            Syntax.Pattern.Concat -> Pattern.Concat
+            Syntax.Pattern.Cons -> Pattern.Cons
+            Syntax.Pattern.Snoc -> Pattern.Snoc
+          <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.Text pos t -> pure (Pattern.Text pos t)
+      Syntax.Pattern.Unbound pos -> pure (Pattern.Unbound pos)
+      Syntax.Pattern.Unit pos -> pure (Pattern.Constructor pos (ConstructorReference DD.unitRef 0) [])
+      -- Not awesome: something can be at once a syntactically valid nullary constructor and a syntactically valid
+      -- variable. We currently handle this by simply looking in the namespace to determine whether it's a
+      -- constructor, and if it isn't, we treat it as a variable.
+      Syntax.Pattern.VarOrNullaryConstructor pos name ->
+        lift (maybeBindLocalConstructor CT.Data (L.payload name)) >>= \case
+          Just localCtor -> pure (Pattern.Constructor pos localCtor [])
+          Nothing -> do
+            names <- asks names
+            let failure :: ResolutionError Referent -> P v m a
+                failure err =
+                  failCommitted $
+                    ResolutionFailures
+                      [ TermResolutionFailure
+                          (HQ.NameOnly (L.payload name))
+                          (ann name)
+                          err
+                      ]
+            case Names.lookupHQPattern Names.IncludeSuffixes (HQ.NameOnly (L.payload name)) CT.Data names of
+              constructors
+                | Set.size constructors == 1 -> pure (Pattern.Constructor pos (Set.findMin constructors) [])
+                | Set.null constructors ->
+                    -- Not great thing alert :alarm: :alarm:
+                    -- This is a syntactically valid variable, however, if it begins with a capital letter, we choose to
+                    -- consider it a constructor-out-of-scope, since that's probably what the user meant.
+                    if lastSegmentBeginsWithCapitalLetter
+                      then lift (failure NotFound)
+                      else do
+                        tell ((Name.toVar <$> name) :)
+                        pure (Pattern.Var pos)
+                | otherwise ->
+                    lift $
+                      failure
+                        ( Ambiguous
+                            names
+                            (Set.map (\ref -> Referent.Con ref CT.Data) constructors)
+                            Set.empty
+                        )
+        where
+          lastSegmentBeginsWithCapitalLetter :: Bool
+          lastSegmentBeginsWithCapitalLetter =
+            not (Char.isLower (Text.head (NameSegment.toUnescapedText (Name.lastSegment (L.payload name)))))
+      where
+        bindConstructor :: CT.ConstructorType -> L.Token (HQ.HashQualified Name) -> P v m ConstructorReference
+        bindConstructor ct hqName = do
+          -- First, if:
+          --
+          --   * The token isn't hash-qualified (e.g. "Foo.Bar")
+          --   * We're under a namespace directive (e.g. "baz")
+          --   * There's an exact match for a locally-bound constructor (e.g. "baz.Foo.Bar")
+          --
+          -- Then:
+          --
+          --   * Use that constructor reference (duh)
+          --
+          -- Else:
+          --
+          --   * Fall through to the normal logic of looking the constructor name up in all of the names (which includes
+          --     the locally-bound constructors).
+          maybeLocalCtor <-
+            case L.payload hqName of
+              HQ.NameOnly name -> maybeBindLocalConstructor ct name
+              _ -> pure Nothing
+
+          case maybeLocalCtor of
+            Just localCtor -> pure localCtor
+            Nothing -> do
+              names <- asks names
+              case Names.lookupHQPattern Names.IncludeSuffixes (L.payload hqName) ct names of
+                s
+                  | Set.size s == 1 -> pure (Set.findMin s)
+                  | otherwise ->
+                      failCommitted $
+                        ResolutionFailures
+                          [ TermResolutionFailure
+                              (L.payload hqName)
+                              (ann hqName)
+                              if Set.null s
+                                then NotFound
+                                else
+                                  Ambiguous
+                                    names
+                                    (Set.map (\ref -> Referent.Con ref ct) s)
+                                    -- Eh, here we're saying there are no "local" constructors – they're all from "the
+                                    -- namespace". That's not necessarily true, but it doesn't (currently) affect the error
+                                    -- message any, and we have already parsed and hashed local constructors (so they aren't
+                                    -- really different from namespace constructors).
+                                    Set.empty
+                          ]
+
+        maybeBindLocalConstructor :: CT.ConstructorType -> Name -> P v m (Maybe ConstructorReference)
+        maybeBindLocalConstructor ct name =
+          asks maybeNamespace >>= \case
+            Nothing -> pure Nothing
+            Just namespace -> do
+              localNames <- asks localNamespacePrefixedTypesAndConstructors
+              pure case Names.lookupHQPattern Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) ct localNames of
+                refs
+                  | Set.null refs -> Nothing
+                  -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
+                  -- with the same name would have been a parse error. So, just take the minimum element from the set,
+                  -- which we know is a singleton.
+                  | otherwise -> Just (Set.findMin refs)
 
 lam :: (Var v) => TermP v m -> TermP v m
 lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved "->") <*> p
@@ -1365,7 +1361,7 @@ destructuringBind = do
   --   (Some 42)
   --   vs
   --   (Some 42) = List.head elems
-  pat <- P.try (parsePattern2 <* P.lookAhead (openBlockWith "="))
+  pat <- P.try (parsePattern <* P.lookAhead (openBlockWith "="))
   (p, boundVars) <- over (_2 . mapped) snd <$> bindConstructorsInPattern pat
   (_spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
