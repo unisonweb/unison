@@ -513,6 +513,8 @@ builtinsSrc =
     B "Text.patterns.notCharRange" $ char --> char --> pat text,
     B "Text.patterns.charIn" $ list char --> pat text,
     B "Text.patterns.notCharIn" $ list char --> pat text,
+    B "Text.patterns.lookbehind" $ charClass --> pat text,
+    B "Text.patterns.negativeLookbehind" $ charClass --> pat text,
     -- Pattern.many : Pattern a -> Pattern a
     B "Pattern.many" $ forall1 "a" (\a -> pat a --> pat a),
     B "Pattern.many.corrected" $ forall1 "a" (\a -> pat a --> pat a),

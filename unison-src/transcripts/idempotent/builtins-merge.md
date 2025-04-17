@@ -75,7 +75,7 @@ scratch/main> ls builtins
   66. Socket/             (1 term)
   67. Test/               (2 terms, 1 type)
   68. Text                (builtin type)
-  69. Text/               (34 terms)
+  69. Text/               (36 terms)
   70. ThreadId/           (1 term)
   71. Tuple               (type)
   72. Tuple/              (1 term)

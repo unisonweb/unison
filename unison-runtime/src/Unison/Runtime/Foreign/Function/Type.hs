@@ -256,6 +256,8 @@ data ForeignFunc
   | Char_Class_letter
   | Char_Class_is
   | Text_patterns_char
+  | Text_patterns_lookbehind1
+  | Text_patterns_negativeLookbehind1
   | Map_tip
   | Map_bin
   | Map_insert
@@ -524,6 +526,8 @@ foreignFuncBuiltinName = \case
   Char_Class_letter -> "Char.Class.letter"
   Char_Class_is -> "Char.Class.is"
   Text_patterns_char -> "Text.patterns.char"
+  Text_patterns_lookbehind1 -> "Text.patterns.lookbehind"
+  Text_patterns_negativeLookbehind1 -> "Text.patterns.negativeLookbehind"
   Map_tip -> "Map.Tip"
   Map_bin -> "Map.Bin"
   Map_insert -> "Map.insert"
