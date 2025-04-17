@@ -134,11 +134,12 @@ hoverInfo uri pos =
               LSPQ.PatternNode _pat -> empty
       -- let varFromText = VFS.identifierAtPosition uri pos
       localVar <- varFromNode -- <|> varFromText
-      Debug.debugM Debug.Temp "localVar" localVar
       FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
-      Debug.debugM Debug.Temp "pos" pos
       Debug.debugM Debug.Temp "localBindingTypes" localBindingTypes
+      Debug.debugM Debug.Temp "localVar" localVar
+      Debug.debugM Debug.Temp "pos" pos
       (_range, typ) <- hoistMaybe $ IM.lookupMin $ IM.intersecting localBindingTypes (IM.ClosedInterval pos pos)
+
       pped <- lift $ ppedForFile uri
       let varName = case localVar of
             (Symbol.Symbol _ (Var.User name)) -> name

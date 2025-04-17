@@ -105,7 +105,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import qualified Unison.Debug as Debug
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -534,13 +533,13 @@ markThenRetract hint body =
     ctx <- retract
     let solvedCtx = substituteSolved ctx
     for_ ctx \case
-      var@(Ann v typ) -> do
-        Debug.debugM Debug.Temp "Ann" var
+      _var@(Ann v typ) -> do
+        -- Debug.debugM Debug.Temp "Ann" var
         noteVarBinding v  typ
-      v@(Var{}) ->
-        Debug.debugM Debug.Temp "Var" v
+      _v@(Var{}) -> pure ()
+        -- Debug.debugM Debug.Temp "Var" v
       (Solved _ v t) -> do
-        Debug.debugM Debug.Temp "Solved" v
+        -- Debug.debugM Debug.Temp "Solved" v
         noteVarBinding v (Type.getPolytype t)
       _ -> pure ()
     pure ((r, ctx), solvedCtx)
@@ -1242,7 +1241,7 @@ synthesizeWanted tm@(Term.Request' r) =
     =<< getEffectConstructorType r
 synthesizeWanted trm@(Term.Let1Top' top binding e) = do
   case trm of
-    ABT.Term _ loc (ABT.Abs v _) -> noteVarMention v loc
+    -- ABT.Term _ loc (ABT.Abs v _) -> noteVarMention v loc
     _ -> pure ()
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
@@ -1892,8 +1891,8 @@ annotateLetRecBindings isTop letrec =
     annotateLetRecBindings' useUserAnnotations = do
       (bindings, body) <- letrec freshenVar
       let vs = map (snd . fst) bindings
-      for bindings \((loc, v), _trm) -> do
-        noteVarMention v loc
+      -- for bindings \((loc, v), _trm) -> do
+      --   noteVarMention v loc
       ((bindings, bindingTypes), ctx2) <- markThenRetract Var.inferOther $ do
         let f ((_loc, v), binding) = case binding of
               -- If user has provided an annotation, we use that
@@ -2472,7 +2471,7 @@ checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
   pure want
 checkWanted want trm@(Term.Let1Top' top binding m) t = do
   case trm of
-    ABT.Term _ loc (ABT.Abs v _) -> noteVarMention v loc
+    -- ABT.Term _ loc (ABT.Abs v _) -> noteVarMention v loc
     _ -> pure ()
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
