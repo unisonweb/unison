@@ -532,16 +532,6 @@ markThenRetract hint body =
     r <- body
     ctx <- retract
     let solvedCtx = substituteSolved ctx
-    for_ ctx \case
-      _var@(Ann v typ) -> do
-        -- Debug.debugM Debug.Temp "Ann" var
-        noteVarBinding v  typ
-      _v@(Var{}) -> pure ()
-        -- Debug.debugM Debug.Temp "Var" v
-      (Solved _ v t) -> do
-        -- Debug.debugM Debug.Temp "Solved" v
-        noteVarBinding v (Type.getPolytype t)
-      _ -> pure ()
     pure ((r, ctx), solvedCtx)
 
 markThenRetract0 :: (Var v, Ord loc) => v -> M v loc a -> M v loc ()
@@ -819,7 +809,11 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
     crash reason = Left $ IllegalContextExtension c e reason
 
 extend :: (Var v) => Element v loc -> Context v loc -> M v loc (Context v loc)
-extend e c = either compilerCrash pure $ extend' e c
+extend e c = do
+  case e of
+    Ann v t -> noteVarBinding v t
+    _ -> pure ()
+  either compilerCrash pure $ extend' e c
 
 -- | Add the given elements onto the end of the given `Context`.
 -- Fail if the new context is not well-formed.
@@ -1124,7 +1118,7 @@ noteTopLevelType e binding typ = case binding of
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
-noteVarBinding :: (Var v) => v ->  Type v loc ->  M v loc ()
+noteVarBinding :: (Var v) => v -> Type v loc ->  M v loc ()
 noteVarBinding v t = btw $ VarBinding v t
 
 noteVarMention :: (Var v) => v -> loc -> M v loc ()
@@ -1239,10 +1233,7 @@ synthesizeWanted (Term.Constructor' r) =
 synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
-synthesizeWanted trm@(Term.Let1Top' top binding e) = do
-  case trm of
-    -- ABT.Term _ loc (ABT.Abs v _) -> noteVarMention v loc
-    _ -> pure ()
+synthesizeWanted (Term.Let1Top' top binding e) = do
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $
@@ -1891,8 +1882,6 @@ annotateLetRecBindings isTop letrec =
     annotateLetRecBindings' useUserAnnotations = do
       (bindings, body) <- letrec freshenVar
       let vs = map (snd . fst) bindings
-      -- for bindings \((loc, v), _trm) -> do
-      --   noteVarMention v loc
       ((bindings, bindingTypes), ctx2) <- markThenRetract Var.inferOther $ do
         let f ((_loc, v), binding) = case binding of
               -- If user has provided an annotation, we use that
@@ -1932,7 +1921,8 @@ annotateLetRecBindings isTop letrec =
           bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
           annotations = zipWith Ann vs bindingTypesGeneralized
       appendContext annotations
-      pure (body, vs `zip` bindingTypesGeneralized)
+      let vTypes = vs `zip` bindingTypesGeneralized
+      pure (body, vTypes)
 
 ensureGuardedCycle :: (Var v) => [(v, Term v loc)] -> M v loc ()
 ensureGuardedCycle bindings =
@@ -2469,10 +2459,7 @@ checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
-checkWanted want trm@(Term.Let1Top' top binding m) t = do
-  case trm of
-    -- ABT.Term _ loc (ABT.Abs v _) -> noteVarMention v loc
-    _ -> pure ()
+checkWanted want (Term.Let1Top' top binding m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar

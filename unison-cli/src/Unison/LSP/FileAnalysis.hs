@@ -132,6 +132,7 @@ checkFile doc = runMaybeT do
                       Result.TypeInfo (Context.VarMention v loc) -> [(v, loc)]
                       _ -> mempty
             Debug.debugM Debug.Temp "allVarMentions" allVarMentions
+            Debug.debugM Debug.Temp "symbolTypes" symbolTypes
             let localBindings :: (IntervalMap Position (Context.Type Symbol Ann)) =
                   typecheckingNotes
                     & Foldable.toList
