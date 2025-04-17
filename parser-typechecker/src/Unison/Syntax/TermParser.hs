@@ -14,7 +14,7 @@ module Unison.Syntax.TermParser
 where
 
 import Control.Comonad.Trans.Cofree (CofreeF ((:<)))
-import Control.Lens (_2)
+import Control.Lens (mapped, _2)
 import Control.Monad.Reader (asks, local)
 import Control.Monad.Trans.Writer
 import Data.Bitraversable (bitraverse)
@@ -1365,11 +1365,8 @@ destructuringBind = do
   --   (Some 42)
   --   vs
   --   (Some 42) = List.head elems
-  (p, boundVars) <- P.try do
-    (p, boundVars) <- parsePattern
-    let boundVars' = snd <$> boundVars
-    _ <- P.lookAhead (openBlockWith "=")
-    pure (p, boundVars')
+  pat <- P.try (parsePattern2 <* P.lookAhead (openBlockWith "="))
+  (p, boundVars) <- over (_2 . mapped) snd <$> bindConstructorsInPattern pat
   (_spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
