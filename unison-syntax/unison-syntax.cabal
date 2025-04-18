@@ -29,6 +29,7 @@ library
       Unison.Syntax.Parser
       Unison.Syntax.Parser.Doc
       Unison.Syntax.Parser.Doc.Data
+      Unison.Syntax.Pattern
       Unison.Syntax.ReservedWords
       Unison.Syntax.ShortHash
       Unison.Syntax.Var
