@@ -105,6 +105,8 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import qualified Unison.Debug as Debug
+import Debug.RecoverRTTI (anythingToString)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -143,14 +145,15 @@ data Element v loc
   | -- | `v` is solved to some monotype
     Solved (B.Blank loc) v (Monotype v loc)
   | -- | `v` has type `a`, maybe quantified
-    Ann v (Type v loc)
+    -- loc contains the span of the name of the bound 'v'
+    Ann v loc (Type v loc)
   | -- | used for scoping
     Marker v
 
 instance (Ord loc, Var v) => Eq (Element v loc) where
   Var v == Var v2 = v == v2
   Solved _ v t == Solved _ v2 t2 = v == v2 && t == t2
-  Ann v t == Ann v2 t2 = v == v2 && t == t2
+  Ann v _loc t == Ann v2 _loc2 t2 = v == v2 && t == t2
   Marker v == Marker v2 = v == v2
   _ == _ = False
 
@@ -501,7 +504,7 @@ occursAnn :: (Var v) => (Ord loc) => TypeVar v loc -> Context v loc -> Bool
 occursAnn v (Context eis) = any p es
   where
     es = fst <$> eis
-    p (Ann _ ty) = v `Set.member` ABT.freeVars (applyCtx es ty)
+    p (Ann _v _loc ty) = v `Set.member` ABT.freeVars (applyCtx es ty)
     p _ = False
 
 -- | Focuses on the first element in the list that satisfies the predicate.
@@ -693,7 +696,7 @@ replaceContext elem replacement = do
 varOf :: Element v loc -> v
 varOf (Var tv) = TypeVar.underlying tv
 varOf (Solved _ v _) = v
-varOf (Ann v _) = v
+varOf (Ann v _ _) = v
 varOf (Marker v) = v
 
 isReserved :: (Var v) => v -> M v loc Bool
@@ -789,7 +792,7 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
             pure $
               Info (Set.insert v es) (Map.insert v sa ses) us uas (Set.insert v vs)
       -- VarCtx - ensure `v` is fresh, and annotation is well-formed wrt the context
-      Ann v t
+      Ann v _loc t
         | Set.member v vs -> crash $ "variable " <> show v <> " already defined in the context"
         | not (wellformedType c t) -> crash $ "type " <> show t <> " is not well-formed wrt the context"
         | otherwise ->
@@ -811,7 +814,7 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
 extend :: (Var v) => Element v loc -> Context v loc -> M v loc (Context v loc)
 extend e c = do
   case e of
-    Ann v t -> noteVarBinding v t
+    Ann v _loc t -> noteVarBinding v t
     _ -> pure ()
   either compilerCrash pure $ extend' e c
 
@@ -1233,13 +1236,20 @@ synthesizeWanted (Term.Constructor' r) =
 synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
-synthesizeWanted (Term.Let1Top' top binding e) = do
+synthesizeWanted tm@(Term.Let1Top' top binding e) = do
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
-  appendContext [Ann v' tbinding]
+  case tm of
+    outer@(ABT.Tm' (Term.Let _ binding abs@(ABT.Term _ _ (ABT.Abs v' body)))) -> do
+      -- let innerAnn = ABT.annotation inner
+      --     tbinding' = ABT.annotation binding
+      Debug.debugM Debug.Temp "synthesizeWanted (let binding)" (v', ("outer" :: Text, anythingToString $ ABT.annotation outer), ("binding" :: Text, anythingToString $ ABT.annotation binding), ("abs" :: Text, anythingToString $ ABT.annotation abs), ("body" :: Text, anythingToString $ ABT.annotation body))
+    _ -> pure ()
+  appendContext [Ann v' (error "Unset Ann loc: synthesizeWanted") tbinding]
+  -- Debug.debugM Debug.Temp "synthesizeWanted (missing annotation)" (v', anythingToString $ ABT.annotation tm, binding)
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
   when top $ noteTopLevelType  e binding tbinding
@@ -1326,7 +1336,8 @@ synthesizeWanted e
             synthesizeApps e ft v
 
   -- ->I=> (Full Damas Milner rule)
-  | Term.Lam' body <- e = do
+  -- | Term.Lam' body <- e = do
+  | tm@(ABT.Tm' (Term.Lam (ABT.Abs' body))) <- e = do
       -- arya: are there more meaningful locations we could put into and
       -- pull out of the abschain?)
       [arg, i, e, o] <-
@@ -1339,8 +1350,15 @@ synthesizeWanted e
       let it = existential' l B.Blank i
           ot = existential' l B.Blank o
           et = existential' l B.Blank e
+      case tm of
+        ABT.Term _ tmAnn (ABT.Tm (Term.Lam (ABT.Term _ absAnn (ABT.Abs v body)))) -> do
+          Debug.debugM Debug.Temp "Lambda binding anns" (v, anythingToString tmAnn, anythingToString absAnn, anythingToString $ ABT.annotation body)
+        _ -> pure ()
+      let annLoc = error "Unset Ann loc: synthesizeWanted"
       appendContext $
-        [existential i, existential e, existential o, Ann arg it]
+        [existential i, existential e, existential o, Ann arg annLoc it]
+      Debug.debugM Debug.Temp "tm arg loc (missing annotation)" arg
+
       when (Var.typeOf i == Var.Delay) $ do
         -- '(1 + 1) turns into a lambda with an arg variable of type Var.Delay
         -- here's where the typechecker assumes this must be of type 'thunkArgType'
@@ -1666,10 +1684,11 @@ checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("check
 checkPattern scrutineeType p =
   case p of
     Pattern.Unbound _ -> pure []
-    Pattern.Var _loc -> do
+    Pattern.Var loc -> do
       v <- getAdvance p
       v' <- lift $ freshenVar v
-      lift . appendContext $ [Ann v' scrutineeType]
+      lift . appendContext $ [Ann v' loc scrutineeType]
+      Debug.debugM Debug.Temp "Pattern binding anns" (v, anythingToString loc)
       pure [(v, v')]
     -- Ex: [42, y, Foo z]
     Pattern.SequenceLiteral loc ps -> do
@@ -1753,10 +1772,11 @@ checkPattern scrutineeType p =
       st <- lift $ applyM scrutineeType
       lift $ subtype overall st
       pure vs
-    Pattern.As _loc p' -> do
+    Pattern.As loc p' -> do
       v <- getAdvance p
       v' <- lift $ freshenVar v
-      lift . appendContext $ [Ann v' scrutineeType]
+      lift . appendContext $ [Ann v' loc scrutineeType]
+      Debug.debugM Debug.Temp "As Pattern anns" (v, anythingToString loc)
       ((v, v') :) <$> checkPattern scrutineeType p'
     -- ex: { a } -> a
     -- ex: { (x, 42) } -> a
@@ -1882,14 +1902,14 @@ annotateLetRecBindings isTop letrec =
     annotateLetRecBindings' useUserAnnotations = do
       (bindings, body) <- letrec freshenVar
       let vs = map (snd . fst) bindings
-      ((bindings, bindingTypes), ctx2) <- markThenRetract Var.inferOther $ do
-        let f ((_loc, v), binding) = case binding of
+      ((bindings, bindingTypes, vlocs), ctx2) <- markThenRetract Var.inferOther $ do
+        let f ((vloc, v), binding) = case binding of
               -- If user has provided an annotation, we use that
               Term.Ann' e t | useUserAnnotations -> do
                 -- Arrows in `t` with no ability lists get an attached fresh
                 -- existential to allow inference of required abilities
                 t2 <- existentializeArrows =<< applyM t
-                pure (Term.ann (loc binding) e t2, t2)
+                pure (Term.ann (loc binding) e t2, t2, vloc)
               -- If we're not using an annotation, we make one up. There's 2 cases:
 
               lam@(Term.Lam' _) ->
@@ -1897,14 +1917,15 @@ annotateLetRecBindings isTop letrec =
                 -- existential to `a1 ->{e1} a2 ... ->{eK} r`. This gives better
                 -- inference of the lambda's ability variables in conjunction with
                 -- handling of lambdas in `check` judgement.
-                (lam,) <$> existentialFunctionTypeFor lam
+                (lam,,vloc) <$> existentialFunctionTypeFor lam
               e -> do
                 -- Anything else, just make up a fresh existential
                 -- which will be refined during typechecking of the binding
                 vt <- extendExistential v
-                pure $ (e, existential' (loc binding) B.Blank vt)
-        (bindings, bindingTypes) <- unzip <$> traverse f bindings
-        appendContext (zipWith Ann vs bindingTypes)
+                pure $ (e, existential' (loc binding) B.Blank vt, vloc)
+        (bindings, bindingTypes, vlocs) <- unzip3 <$> traverse f bindings
+        appendContext (zipWith3 Ann vs vlocs bindingTypes)
+        Debug.debugM Debug.Temp "annotateLetRecBindings"  (zip vs (anythingToString <$> vlocs))
         -- check each `bi` against its type
         Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
           -- note: elements of a cycle have to be pure, otherwise order of effects
@@ -1913,13 +1934,15 @@ annotateLetRecBindings isTop letrec =
           when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
           checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
-        pure (bindings, bindingTypes)
+        pure (bindings, bindingTypes, vlocs)
       -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
       -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
       let bindingArities = Term.arity <$> bindings
           gen bindingType _arity = generalizeExistentials ctx2 bindingType
           bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
-          annotations = zipWith Ann vs bindingTypesGeneralized
+          annotations = zipWith3 Ann vs vlocs bindingTypesGeneralized
+
+      Debug.debugM Debug.Temp "annotateLetRecBindings2"  (zip vs (anythingToString <$> vlocs))
       appendContext annotations
       let vTypes = vs `zip` bindingTypesGeneralized
       pure (body, vTypes)
@@ -2453,13 +2476,16 @@ checkWanted want m (Type.Forall' body) = do
 -- =>I
 -- Lambdas are pure, so they add nothing to the wanted set
 checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
+  let annLoc = error "checkWanted: missing annotation"
   x <- ABT.freshen body freshenVar
   markThenRetract0 x $ do
-    extendContext (Ann x i)
+    Debug.debugM Debug.Temp "checkWanted (missing annotation)" x
+    extendContext (Ann x annLoc i)
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
 checkWanted want (Term.Let1Top' top binding m) t = do
+  let annLoc = error "checkWanted: missing annotation"
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
@@ -2467,7 +2493,8 @@ checkWanted want (Term.Let1Top' top binding m) t = do
     when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
-    extendContext (Ann v tbinding)
+    Debug.debugM Debug.Temp "checkWanted2 (missing annotation)" v
+    extendContext (Ann v annLoc tbinding)
     checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
 checkWanted want (Term.LetRecNamed' [] m) t =
   checkWanted want m t
@@ -3399,7 +3426,7 @@ instance (Var v) => Show (Element v loc) where
     TypeVar.Universal x -> "@" <> show x
     e -> show e
   show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (Type.getPolytype t)
-  show (Ann v t) =
+  show (Ann v _loc t) =
     Text.unpack (Var.name v)
       ++ " : "
       ++ TP.prettyStr Nothing PPE.empty t
@@ -3412,7 +3439,7 @@ instance (Ord loc, Var v) => Show (Context v loc) where
         TypeVar.Universal x -> "@" <> show x
         e -> show e
       showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
-      showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
+      showElem ctx (Ann v _loc t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
       showElem _ (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance (Monad f) => Monad (MT v loc f) where

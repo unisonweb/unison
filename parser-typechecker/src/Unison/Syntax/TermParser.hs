@@ -1368,7 +1368,7 @@ importp = do
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
 data BlockElement v
-  = Binding ((Ann, v), Term v Ann)
+  = Binding ((Ann {- span for the binding name -}, v), Term v Ann)
   | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
 
@@ -1437,18 +1437,20 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
             where
               step :: BlockElement v -> Term v Ann -> TermP v m
               step elem result = case elem of
-                Binding ((a, v), tm) ->
+                Binding ((a, v), tm) -> do
+                  let fullLetRecSpan = ann a <> ann result
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann a <> ann result)
+                      fullLetRecSpan
                       (a, v, tm)
                       result
-                Action tm ->
+                Action tm -> do
+                  let fullLetRecSpan = (ann tm <> ann result)
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann tm <> ann result)
+                      fullLetRecSpan
                       (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
                       result
                 DestructuringBind (_, f) ->

@@ -1121,7 +1121,7 @@ renderContext env ctx@(C.Context es) =
       e -> Pr.shown e
     showElem ctx (C.Solved _ v (Type.Monotype t)) =
       "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
-    showElem ctx (C.Ann v t) =
+    showElem ctx (C.Ann v _ t) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 

@@ -11,6 +11,7 @@ library:
       other-modules: Paths_unison_parser_typechecker
 
   dependencies:
+    - recover-rtti
     - ListLike
     - aeson
     - async
