@@ -128,7 +128,10 @@ hoverInfo uri pos =
             node <- LSPQ.nodeAtPosition uri pos
             Debug.debugM Debug.Temp "node" node
             case node of
+              -- Var mentions
               LSPQ.TermNode (Term.Var' v) -> pure $ v
+              -- Var bindings
+              LSPQ.TermNode (ABT.Abs'' v _body) -> pure $ v
               LSPQ.TermNode {} -> empty
               LSPQ.TypeNode {} -> empty
               LSPQ.PatternNode _pat -> empty

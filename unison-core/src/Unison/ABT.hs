@@ -230,8 +230,8 @@ pattern Cycle'' t <- Term _ _ (Cycle t)
 pattern Abs'' :: v -> Term f v a -> Term f v a
 pattern Abs'' v body <- Term _ _ (Abs v body)
 
-pattern Abs' :: (Foldable f, Functor f, Var v) => Subst f v a -> Term f v a
-pattern Abs' subst <- (unabs1 -> Just subst)
+pattern Abs' :: (Foldable f, Functor f, Var v) => a -> Subst f v a -> Term f v a
+pattern Abs' absAnn subst <- (unabs1 -> Just (absAnn, subst))
 
 pattern CycleA' :: a -> [(a, v)] -> Term f v a -> Term f v a
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
@@ -469,8 +469,8 @@ data Subst f v a = Subst
     variable :: v
   }
 
-unabs1 :: forall a f v. (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
-unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind bindInheritAnnotation v)
+unabs1 :: forall a f v. (Foldable f, Functor f, Var v) => Term f v a -> Maybe (a, Subst f v a)
+unabs1 (Term _ absAnn (Abs v body)) = Just (absAnn, Subst freshen bind bindInheritAnnotation v)
   where
     freshen :: (v -> t) -> t
     freshen f = f v

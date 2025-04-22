@@ -469,7 +469,7 @@ pattern Abs' ::
   (Foldable f, Functor f, ABT.Var v) =>
   ABT.Subst f v a ->
   ABT.Term f v a
-pattern Abs' subst <- ABT.Abs' subst
+pattern Abs' subst <- ABT.Abs' _absAnn subst
 
 pattern Int' :: Int64 -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Int' n <- (ABT.out -> ABT.Tm (Int n))
@@ -620,9 +620,10 @@ pattern List' xs <- (ABT.out -> ABT.Tm (List xs))
 
 pattern Lam' ::
   (ABT.Var v) =>
+  a ->
   ABT.Subst (F typeVar typeAnn patternAnn) v a ->
   ABT.Term (F typeVar typeAnn patternAnn) v a
-pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
+pattern Lam' absAnn subst <- ABT.Tm' (Lam (ABT.Abs' absAnn subst))
 
 pattern Delay' :: (Var v) => Term2 vt at ap v a -> Term2 vt at ap v a
 pattern Delay' body <- (unDelay -> Just body)
@@ -659,17 +660,19 @@ pattern LamsNamedOrDelay' vs body <- (unLamsUntilDelay' -> Just (vs, body))
 pattern Let1' ::
   (Var v) =>
   Term' vt v a ->
+  a ->
   ABT.Subst (F vt a a) v a ->
   Term' vt v a
-pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
+pattern Let1' b bindNameAnn subst <- (unLet1 -> Just (_, b, bindNameAnn, subst))
 
 pattern Let1Top' ::
   (Var v) =>
   IsTop ->
   Term' vt v a ->
+  a ->
   ABT.Subst (F vt a a) v a ->
   Term' vt v a
-pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
+pattern Let1Top' top b bindNameAnn subst <- (unLet1 -> Just (top, b, bindNameAnn, subst))
 
 pattern Let1Named' ::
   v ->
@@ -1060,8 +1063,8 @@ singleLet isTop spanAnn absAnn (v, body) e = ABT.tm' spanAnn (Let isTop body (AB
 unLet1 ::
   (Var v) =>
   Term' vt v a ->
-  Maybe (IsTop, Term' vt v a, ABT.Subst (F vt a a) v a)
-unLet1 (ABT.Tm' (Let isTop b (ABT.Abs' subst))) = Just (isTop, b, subst)
+  Maybe (IsTop, Term' vt v a, a, ABT.Subst (F vt a a) v a)
+unLet1 (ABT.Tm' (Let isTop b (ABT.Abs' absAnn subst))) = Just (isTop, b, absAnn, subst)
 unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
@@ -1374,7 +1377,7 @@ updateDependencies termUpdates typeUpdates = ABT.rebuildUp go
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: (Var v) => Term0 v -> Term0 v
-betaReduce (App' (Lam' f) arg) = ABT.bind f arg
+betaReduce (App' (Lam' _absAnn f) arg) = ABT.bind f arg
 betaReduce e = e
 
 betaNormalForm :: (Var v) => Term0 v -> Term0 v

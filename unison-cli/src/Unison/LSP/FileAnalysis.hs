@@ -121,15 +121,26 @@ checkFile doc = runMaybeT do
                 & Foldable.toList
                 & reverse -- Type notes that come later in typechecking have more information filled in.
                 & foldMap \case
-                  Result.TypeInfo (Context.VarBinding v typ) -> Map.singleton v typ
+                  Result.TypeInfo (Context.VarBinding v _loc typ) -> Map.singleton v typ
                   _ -> mempty
                 & pure
+
+            let allVarBindings =
+                  typecheckingNotes
+                    & Foldable.toList
+                    & reverse -- Type notes that come later in typechecking have more information filled in.
+                    & foldMap \case
+                      Result.TypeInfo (Context.VarBinding v loc _typ) -> [(v, loc)]
+                      _ -> mempty
+            Debug.debugM Debug.Temp "allVarBindings" allVarBindings
+
             let allVarMentions =
                   typecheckingNotes
                     & Foldable.toList
                     & reverse -- Type notes that come later in typechecking have more information filled in.
                     & foldMap \case
                       Result.TypeInfo (Context.VarMention v loc) -> [(v, loc)]
+                      Result.TypeInfo (Context.VarBinding v loc _) -> [(v, loc)]
                       _ -> mempty
             Debug.debugM Debug.Temp "allVarMentions" allVarMentions
             Debug.debugM Debug.Temp "symbolTypes" symbolTypes

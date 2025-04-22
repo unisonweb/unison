@@ -198,9 +198,12 @@ instance Functor SourceNode where
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
-  | -- Abs nodes annotate the location of the var being bound, not the body of the binding, so we just skip over them.
-    ABT.Abs'' _ body <- term =
-      findSmallestEnclosingNode pos body
+  | ABT.Term _ absAnn (ABT.Abs _ body) <- term =
+      -- Abs nodes annotate the location of the var being bound, not the body of the binding, so we either match on
+      -- the binding, or skip over them to the body.
+      if absAnn `Ann.contains` pos
+        then Just (TermNode term)
+        else findSmallestEnclosingNode pos body
   | annIsFilePosition ann && not (ann `Ann.contains` pos) = Nothing
   | Just r <- cleanImplicitUnit term = findSmallestEnclosingNode pos r
   | otherwise = do

@@ -367,7 +367,7 @@ data InfoNote v loc
     -- job to use the binding with the smallest containing scope so as to respect variable
     -- shadowing.
     -- This is used in the LSP.
-    VarBinding v (Type v loc)
+    VarBinding v loc (Type v loc)
   | -- | The usage of a particular variable. We report the variable and its location so we can match a given source location with a specific symbol later in the LSP.
     VarMention v loc
   deriving (Show)
@@ -394,7 +394,7 @@ substituteSolved ::
   InfoNote v loc
 substituteSolved ctx  = \case
   (SolvedBlank b v t) -> SolvedBlank b v (applyCtx ctx t)
-  VarBinding v t -> VarBinding v (applyCtx ctx t)
+  VarBinding v loc t -> VarBinding v loc (applyCtx ctx t)
   i -> i
 
 
@@ -815,7 +815,7 @@ extend' e c@(Context ctx) = Context . (: ctx) . (e,) <$> i'
 extend :: (Var v) => Element v loc -> Context v loc -> M v loc (Context v loc)
 extend e c = do
   case e of
-    Ann v _loc t -> noteVarBinding v t
+    Ann v loc t -> noteVarBinding v loc t
     _ -> pure ()
   either compilerCrash pure $ extend' e c
 
@@ -1122,8 +1122,8 @@ noteTopLevelType e binding typ = case binding of
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
-noteVarBinding :: (Var v) => v -> Type v loc ->  M v loc ()
-noteVarBinding v t = btw $ VarBinding v t
+noteVarBinding :: (Var v) => v -> loc -> Type v loc ->  M v loc ()
+noteVarBinding v loc t = btw $ VarBinding v loc t
 
 noteVarMention :: (Var v) => v -> loc -> M v loc ()
 noteVarMention v loc = do
@@ -1237,20 +1237,13 @@ synthesizeWanted (Term.Constructor' r) =
 synthesizeWanted tm@(Term.Request' r) =
   fmap (wantRequest tm) . ungeneralize . Type.purifyArrows
     =<< getEffectConstructorType r
-synthesizeWanted tm@(Term.Let1Top' top binding e) = do
+synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
-  case tm of
-    outer@(ABT.Tm' (Term.Let _ rhs abs@(ABT.Term _ _ (ABT.Abs v' body)))) -> do
-      -- let innerAnn = ABT.annotation inner
-      --     tbinding' = ABT.annotation binding
-      Debug.debugM Debug.Temp "synthesizeWanted (let binding)" (v', ("outer" :: Text, anythingToString $ ABT.annotation outer), ("rhs" :: Text, anythingToString $ ABT.annotation rhs), ("abs" :: Text, anythingToString $ ABT.annotation abs), ("body" :: Text, anythingToString $ ABT.annotation body))
-    _ -> pure ()
-  appendContext [Ann v' (error "Unset Ann loc: synthesizeWanted") tbinding]
-  -- Debug.debugM Debug.Temp "synthesizeWanted (missing annotation)" (v', anythingToString $ ABT.annotation tm, binding)
+  appendContext [Ann v' boundVarAnn tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
   when top $ noteTopLevelType  e binding tbinding
@@ -1338,7 +1331,7 @@ synthesizeWanted e
 
   -- ->I=> (Full Damas Milner rule)
   -- | Term.Lam' body <- e = do
-  | tm@(ABT.Tm' (Term.Lam (ABT.Abs' body))) <- e = do
+  | (ABT.Tm' (Term.Lam (ABT.Abs' boundVarAnn body))) <- e = do
       -- arya: are there more meaningful locations we could put into and
       -- pull out of the abschain?)
       [arg, i, e, o] <-
@@ -1351,14 +1344,8 @@ synthesizeWanted e
       let it = existential' l B.Blank i
           ot = existential' l B.Blank o
           et = existential' l B.Blank e
-      case tm of
-        ABT.Term _ tmAnn (ABT.Tm (Term.Lam (ABT.Term _ absAnn (ABT.Abs v body)))) -> do
-          Debug.debugM Debug.Temp "Lambda binding anns" (v, anythingToString tmAnn, anythingToString absAnn, anythingToString $ ABT.annotation body)
-        _ -> pure ()
-      let annLoc = error "Unset Ann loc: synthesizeWanted"
       appendContext $
-        [existential i, existential e, existential o, Ann arg annLoc it]
-      Debug.debugM Debug.Temp "tm arg loc (missing annotation)" arg
+        [existential i, existential e, existential o, Ann arg boundVarAnn it]
 
       when (Var.typeOf i == Var.Delay) $ do
         -- '(1 + 1) turns into a lambda with an arg variable of type Var.Delay
@@ -1689,7 +1676,6 @@ checkPattern scrutineeType p =
       v <- getAdvance p
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' loc scrutineeType]
-      Debug.debugM Debug.Temp "Pattern binding anns" (v, anythingToString loc)
       pure [(v, v')]
     -- Ex: [42, y, Foo z]
     Pattern.SequenceLiteral loc ps -> do
@@ -1777,7 +1763,6 @@ checkPattern scrutineeType p =
       v <- getAdvance p
       v' <- lift $ freshenVar v
       lift . appendContext $ [Ann v' loc scrutineeType]
-      Debug.debugM Debug.Temp "As Pattern anns" (v, anythingToString loc)
       ((v, v') :) <$> checkPattern scrutineeType p'
     -- ex: { a } -> a
     -- ex: { (x, 42) } -> a
@@ -1913,7 +1898,7 @@ annotateLetRecBindings isTop letrec =
                 pure (Term.ann (loc binding) e t2, t2, vloc)
               -- If we're not using an annotation, we make one up. There's 2 cases:
 
-              lam@(Term.Lam' _) ->
+              lam@(Term.Lam' {}) ->
                 -- If `e` is a lambda of arity K, we immediately refine the
                 -- existential to `a1 ->{e1} a2 ... ->{eK} r`. This gives better
                 -- inference of the lambda's ability variables in conjunction with
@@ -2476,21 +2461,15 @@ checkWanted want m (Type.Forall' body) = do
       ABT.bindInheritAnnotation body (universal' () x)
 -- =>I
 -- Lambdas are pure, so they add nothing to the wanted set
-checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
-  let annLoc = error "checkWanted: missing annotation"
+checkWanted want (Term.Lam' boundVarAnn body) (Type.Arrow'' i es o) = do
   x <- ABT.freshen body freshenVar
   markThenRetract0 x $ do
-    Debug.debugM Debug.Temp "checkWanted:lam (missing annotation)" x
-    extendContext (Ann x annLoc i)
+    Debug.debugM Debug.Temp "checkWanted:Lam" (x, anythingToString boundVarAnn)
+    extendContext (Ann x boundVarAnn i)
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
-checkWanted want tm@(Term.Let1Top' top binding m) t = do
-  case tm of
-    outer@(ABT.Tm' (Term.Let _ rhs abs@(ABT.Term _ _ (ABT.Abs v' body)))) -> do
-      Debug.debugM Debug.Temp "checkWanted:Let" (v', ("outer" :: Text, anythingToString $ ABT.annotation outer), ("rhs" :: Text, anythingToString $ ABT.annotation rhs), ("abs" :: Text, anythingToString $ ABT.annotation abs), ("body" :: Text, anythingToString $ ABT.annotation body))
-    _ -> pure ()
-  let annLoc = error "checkWanted: missing annotation"
+checkWanted want (Term.Let1Top' top binding boundVarAnn m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
@@ -2498,7 +2477,7 @@ checkWanted want tm@(Term.Let1Top' top binding m) t = do
     when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
-    extendContext (Ann v annLoc tbinding)
+    extendContext (Ann v boundVarAnn tbinding)
     checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
 checkWanted want (Term.LetRecNamed' [] m) t =
   checkWanted want m t
