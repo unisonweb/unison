@@ -1461,7 +1461,7 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
                     Term.consLetRec
                       isTop
                       fullLetRecSpan
-                      (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
+                      (Ann.External, positionalVar (ann tm) (Var.named "_"), tm)
                       result
                 DestructuringBind (_, f) ->
                   f <$> finish result

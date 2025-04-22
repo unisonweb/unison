@@ -28,7 +28,6 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.Conversions (lspToUPos)
 import Unison.LSP.FileAnalysis (getFileSummary, ppedForFile)
