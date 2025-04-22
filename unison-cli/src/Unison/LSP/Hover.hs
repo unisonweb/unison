@@ -124,6 +124,7 @@ hoverInfo uri pos =
 
     hoverInfoForLocalVar :: MaybeT Lsp Text
     hoverInfoForLocalVar = do
+      Debug.debugM Debug.Temp "pos" pos
       let varFromNode = do
             node <- LSPQ.nodeAtPosition uri pos
             Debug.debugM Debug.Temp "node" node
@@ -140,7 +141,6 @@ hoverInfo uri pos =
       FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
       Debug.debugM Debug.Temp "localBindingTypes" localBindingTypes
       Debug.debugM Debug.Temp "localVar" localVar
-      Debug.debugM Debug.Temp "pos" pos
       (_range, typ) <- hoistMaybe $ IM.lookupMin $ IM.intersecting localBindingTypes (IM.ClosedInterval pos pos)
 
       pped <- lift $ ppedForFile uri

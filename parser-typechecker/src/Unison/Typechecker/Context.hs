@@ -105,8 +105,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import qualified Unison.Debug as Debug
-import Debug.RecoverRTTI (anythingToString)
 import Data.Set.NonEmpty (NESet)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
@@ -1243,7 +1241,6 @@ synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
-  Debug.debugM Debug.Temp "Let1Top" (ABT.variable e, v', anythingToString boundVarAnn, tbinding)
   appendContext [Ann v' boundVarAnn tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
@@ -1345,7 +1342,6 @@ synthesizeWanted e
       let it = existential' l B.Blank i
           ot = existential' l B.Blank o
           et = existential' l B.Blank e
-      Debug.debugM Debug.Temp "synthesizeWanted:Lam" (arg, anythingToString boundVarAnn, i, e, o)
       appendContext $
         [existential i, existential e, existential o, Ann arg boundVarAnn it]
 
@@ -1913,7 +1909,6 @@ annotateLetRecBindings isTop letrec =
                 pure $ (e, existential' (loc binding) B.Blank vt, vloc)
         (bindings, bindingTypes, vlocs) <- unzip3 <$> traverse f bindings
         appendContext (zipWith3 Ann vs vlocs bindingTypes)
-        Debug.debugM Debug.Temp "annotateLetRecBindings"  (zip vs (anythingToString <$> vlocs))
         -- check each `bi` against its type
         Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
           -- note: elements of a cycle have to be pure, otherwise order of effects
@@ -1930,7 +1925,6 @@ annotateLetRecBindings isTop letrec =
           bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
           annotations = zipWith3 Ann vs vlocs bindingTypesGeneralized
 
-      Debug.debugM Debug.Temp "annotateLetRecBindings2"  (zip vs (anythingToString <$> vlocs))
       appendContext annotations
       let vTypes = vs `zip` bindingTypesGeneralized
       pure (body, vTypes)
@@ -2466,7 +2460,6 @@ checkWanted want m (Type.Forall' body) = do
 checkWanted want (Term.Lam' boundVarAnn body) (Type.Arrow'' i es o) = do
   x <- ABT.freshen body freshenVar
   markThenRetract0 x $ do
-    Debug.debugM Debug.Temp "checkWanted:Lam" (x, anythingToString boundVarAnn)
     extendContext (Ann x boundVarAnn i)
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o

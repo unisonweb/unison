@@ -34,7 +34,6 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -111,7 +110,7 @@ rewriteBlock = do
     rewriteTermlike kw mk = do
       kw <- quasikeyword kw
       lhs <- term
-      (_spanAnn, rhs) <- layoutBlock "==>"
+      (_openAnn, _spanAnn, rhs) <- layoutBlock "==>"
       pure (mk (ann kw <> ann rhs) lhs rhs)
     rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
@@ -233,10 +232,10 @@ matchCase = do
             [ Nothing <$ quasikeyword "otherwise",
               Just <$> infixAppOrBooleanOp
             ]
-        (_spanAnn, t) <- layoutBlock "->"
+        (_openAnn, _spanAnn, t) <- layoutBlock "->"
         pure (guard, t)
   let unguardedBlock = label "case match" do
-        (_spanAnn, t) <- layoutBlock "->"
+        (_openAnn, _spanAnn, t) <- layoutBlock "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
   guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
@@ -454,10 +453,12 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
        in Term.lam' (ann (head vs) <> ann b) annotatedArgs b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
-letBlock = label "let" $ (snd <$> layoutBlock "let")
+letBlock = label "let" $ do
+  (_openAnn, _spanAnn, tm) <- layoutBlock "let"
+  pure tm
 handle = label "handle" do
-  (handleSpan, b) <- block "handle"
-  (_withSpan, handler) <- layoutBlock "with"
+  (_handleOpenAnn, handleSpan, b) <- block "handle"
+  (_withOpenAnn, _withSpan, handler) <- layoutBlock "with"
   -- We don't use the annotation span from 'with' here because it will
   -- include a dedent if it's at the end of block.
   -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
@@ -492,9 +493,9 @@ lamCase = do
 
 ifthen = label "if" do
   start <- peekAny
-  (_spanAnn, c) <- block "if"
-  (_spanAnn, t) <- block "then"
-  (_spanAnn, f) <- layoutBlock "else"
+  (_ifOpenAnn, _spanAnn, c) <- block "if"
+  (_thenAnn, _spanAnn, t) <- block "then"
+  (_elseAnn, _spanAnn, f) <- layoutBlock "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
 text :: (Var v) => TermP v m
@@ -628,11 +629,17 @@ doc2Block = do
     docTop d = \case
       Doc.Section title body -> pure $ Term.apps' (f d "Section") [docParagraph d title, Term.list (gann body) body]
       Doc.Eval code ->
-        Term.app (gann d) (f d "Eval") . addDelay . snd
-          <$> subParse (block' False False "syntax.docEval" (pure $ pure ()) $ Ann.External <$ P.eof) code
+        let inner = do
+              (_openAnn, ann, tm) <- (block' False False "syntax.docEval" (pure $ pure ()) $ Ann.External <$ P.eof)
+              pure (ann, tm)
+         in Term.app (gann d) (f d "Eval") . addDelay . snd
+              <$> subParse inner code
       Doc.ExampleBlock code ->
-        Term.apps' (f d "ExampleBlock") . (Term.nat (gann d) 0 :) . pure . addDelay . snd
-          <$> subParse (block' False True "syntax.docExampleBlock" (pure $ pure ()) $ Ann.External <$ P.eof) code
+        let inner = do
+              (_openAnn, ann, tm) <- (block' False True "syntax.docExampleBlock" (pure $ pure ()) $ Ann.External <$ P.eof)
+              pure (ann, tm)
+         in Term.apps' (f d "ExampleBlock") . (Term.nat (gann d) 0 :) . pure . addDelay . snd
+              <$> subParse inner code
       Doc.CodeBlock label body ->
         pure $
           Term.apps'
@@ -1111,9 +1118,8 @@ delayQuote = P.label "quote" do
 
 delayBlock :: (Monad m, Var v) => P v m (Ann {- Ann spanning the whole block -}, Term v Ann)
 delayBlock = P.label "do" do
-  (spanAnn, b) <- layoutBlock "do"
-  let argSpan = (ann b {- would be nice to use the annotation for 'do' here, but it's not terribly important -})
-  pure $ (spanAnn, DD.delayTerm (ann b) argSpan b)
+  (openAnn, spanAnn, b) <- layoutBlock "do"
+  pure $ (spanAnn, DD.delayTerm (ann b) openAnn b)
 
 bang :: (Monad m, Var v) => TermP v m
 bang = P.label "bang" do
@@ -1264,7 +1270,7 @@ destructuringBind = do
     let boundVars' = snd <$> boundVars
     _ <- P.lookAhead (openBlockWith "=")
     pure (p, boundVars')
-  (_spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  (_eqAnn, _spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
@@ -1310,7 +1316,7 @@ binding = label "binding" do
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-      (_bodySpanAnn, body) <- block "="
+      (_eqAnn, _bodySpanAnn, body) <- block "="
       verifyRelativeName' (fmap Name.unsafeParseVar name)
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
@@ -1323,7 +1329,7 @@ binding = label "binding" do
       when (L.payload name /= L.payload nameT) $
         customFailure $
           SignatureNeedsAccompanyingBody nameT
-      (_bodySpanAnn, body) <- block "="
+      (_eqAnn, _bodySpanAnn, body) <- block "="
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
       -- may contain a bunch of white-space and comments following a top-level-definition.
@@ -1339,10 +1345,30 @@ binding = label "binding" do
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
 
-block :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
+block ::
+  forall m v.
+  (Monad m, Var v) =>
+  String ->
+  P
+    v
+    m
+    ( Ann {- annotation of block-open symbol, e.g. 'do', 'let' -},
+      Ann {- annotation for whole block -},
+      Term v Ann
+    )
 block s = block' False False s (openBlockWith s) closeBlock
 
-layoutBlock :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
+layoutBlock ::
+  forall m v.
+  (Monad m, Var v) =>
+  String ->
+  P
+    v
+    m
+    ( Ann {- annotation of block-open symbol, e.g. 'do', 'let' -},
+      Ann {- annotation for whole layout block -},
+      Term v Ann
+    )
 layoutBlock s = block' False False s (openBlockWith s) optionalCloseBlock
 
 -- example: use Foo.bar.Baz + ++ x
@@ -1421,7 +1447,7 @@ block' ::
   String ->
   P v m (L.Token ()) ->
   P v m end ->
-  P v m (Ann {- ann which spans the whole block -}, Term v Ann)
+  P v m (Ann {- span for the opening token, e.g. the "do" or opening bracket -}, Ann {- ann which spans the whole block -}, Term v Ann)
 block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
@@ -1429,7 +1455,7 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   statements <- local (\e -> e {names}) $ sepBy semi statement
   end <- closeBlock
   body <- substImports names imports <$> go open statements
-  pure (ann open <> ann end, body)
+  pure (ann open, ann open <> ann end, body)
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v m (Term v Ann)
@@ -1448,7 +1474,6 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
               step elem result = case elem of
                 Binding ((a, v), tm) -> do
                   let fullLetRecSpan = ann a <> ann result
-                  Debug.debugM Debug.Temp "letrec" (v, a)
                   pure $
                     Term.consLetRec
                       isTop

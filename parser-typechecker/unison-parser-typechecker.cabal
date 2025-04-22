@@ -219,7 +219,6 @@ library
     , network-uri
     , nonempty-containers
     , pretty-simple
-    , recover-rtti
     , regex-tdfa
     , semialign
     , semigroups
