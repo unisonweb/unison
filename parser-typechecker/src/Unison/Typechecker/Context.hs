@@ -1345,6 +1345,7 @@ synthesizeWanted e
       let it = existential' l B.Blank i
           ot = existential' l B.Blank o
           et = existential' l B.Blank e
+      Debug.debugM Debug.Temp "synthesizeWanted:Lam" (arg, anythingToString boundVarAnn, i, e, o)
       appendContext $
         [existential i, existential e, existential o, Ann arg boundVarAnn it]
 

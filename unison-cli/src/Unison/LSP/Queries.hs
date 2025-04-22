@@ -240,8 +240,8 @@ findSmallestEnclosingNode pos term
               Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
               Term.Or l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
               Term.Lam a -> findSmallestEnclosingNode pos a
-              Term.LetRec _isTop xs y -> altSum (findSmallestEnclosingNode pos <$> xs) <|> findSmallestEnclosingNode pos y
-              Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.LetRec _isTop xs y -> findSmallestEnclosingNode pos y <|> altSum (findSmallestEnclosingNode pos <$> xs)
+              Term.Let _isTop a b -> findSmallestEnclosingNode pos b <|> findSmallestEnclosingNode pos a
               Term.Match a cases ->
                 findSmallestEnclosingNode pos a
                   <|> altSum (cases <&> \(MatchCase pat grd body) -> ((PatternNode <$> findSmallestEnclosingPattern pos pat) <|> (grd >>= findSmallestEnclosingNode pos) <|> findSmallestEnclosingNode pos body))
