@@ -50,6 +50,7 @@ library
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
       Unison.Runtime.Interface
+      Unison.Runtime.InternalError
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.Machine.Primops

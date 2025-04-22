@@ -87,7 +87,7 @@ import Unison.LSP.Util.Signal qualified as Signal
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
-import Unison.Runtime.Exception (RuntimeExn (..))
+import Unison.Runtime.Exception (RuntimeExn (PE))
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server

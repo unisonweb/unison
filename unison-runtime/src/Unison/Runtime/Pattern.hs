@@ -36,7 +36,7 @@ import Unison.Pattern
 import Unison.Pattern qualified as P
 import Unison.Prelude hiding (guard)
 import Unison.Reference (Reference, Reference' (Builtin, DerivedId))
-import Unison.Runtime.ANF (internalBug)
+import Unison.Runtime.InternalError (internalBug)
 import Unison.Term hiding (Term, matchPattern)
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Rf
@@ -62,7 +62,7 @@ instance Semigroup PType where
   t@(PData l) <> PData r
     | l == r = t
   PReq l <> PReq r = PReq (l <> r)
-  _ <> _ = internalBug "inconsistent pattern matching types"
+  _ <> _ = internalBug [] "inconsistent pattern matching types"
 
 instance Monoid PType where
   mempty = Unknown
@@ -93,7 +93,7 @@ builtinDataSpec = Map.fromList decls
              | (_, x, y) <- builtinEffectDecls
            ]
 
-findPattern :: Eq v => v -> PatternRow v -> Maybe (Pattern v)
+findPattern :: (Eq v) => v -> PatternRow v -> Maybe (Pattern v)
 findPattern v (PR ms _ _)
   | (_, p : _) <- break ((== v) . loc) ms = Just p
   | otherwise = Nothing
@@ -121,7 +121,7 @@ type Heuristic v = PatternMatrix v -> Maybe v
 choose :: [Heuristic v] -> PatternMatrix v -> v
 choose [] (PM (PR (p : _) _ _ : _)) = loc p
 choose [] _ =
-  internalBug "pattern matching: failed to choose a splitting"
+  internalBug [] "pattern matching: failed to choose a splitting"
 choose (h : hs) m
   | Just i <- h m = i
   | otherwise = choose hs m
@@ -178,7 +178,7 @@ decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference r
     rf0 == rf =
       if length ps == nfields
         then [ps]
-        else internalBug err
+        else internalBug [] err
   where
     err =
       "decomposePattern: wrong number of constructor fields: "
@@ -188,7 +188,7 @@ decomposePattern (Just rf0) t nfields p@(P.EffectBind _ (ConstructorReference rf
     rf0 == rf =
       if length ps + 1 == nfields
         then [ps ++ [pk]]
-        else internalBug err
+        else internalBug [] err
   where
     err =
       "decomposePattern: wrong number of ability fields: "
@@ -200,7 +200,7 @@ decomposePattern _ _ nfields (P.Var _) =
 decomposePattern _ _ nfields (P.Unbound _) =
   [replicate nfields (P.Unbound (typed Pattern))]
 decomposePattern _ _ _ (P.SequenceLiteral _ _) =
-  internalBug "decomposePattern: sequence literal"
+  internalBug [] "decomposePattern: sequence literal"
 decomposePattern _ _ _ _ = []
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
@@ -251,7 +251,7 @@ decideSeqPat = go False
     go b (P.Unbound _ : ps) = go b ps
     go b (P.Var _ : ps) = go b ps
     go _ (p : _) =
-      internalBug $ "Cannot process sequence pattern: " ++ show p
+      internalBug [] $ "Cannot process sequence pattern: " ++ show p
 
 -- Represents the possible correspondences between a sequence pattern
 -- and a sequence matching compilation target. Unlike data matching,
@@ -501,7 +501,7 @@ antiSplitMatrix ::
 antiSplitMatrix v (PM rs) = PM (f =<< rs)
   where
     -- keep rows that do not have a refutable pattern for v
-    f r = [ r | isNothing $ findPattern v r ]
+    f r = [r | isNothing $ findPattern v r]
 
 -- Monad for pattern preparation. It is a state monad carrying a fresh
 -- variable source, the list of variables bound the pattern being
@@ -519,12 +519,7 @@ useVar = state $ \case
   _ -> error "useVar: Expected multiple vars"
 
 renameTo :: (Var v) => v -> v -> PPM v ()
-renameTo to from =
-  modify $ \(avoid, vs, rn) ->
-    ( avoid,
-      vs,
-      insertWith (internalBug "renameTo: duplicate rename") from to rn
-    )
+renameTo to from = modify . fmap $ insertWith (internalBug [3625, 4463] "renameTo: duplicate rename") from to
 
 -- Tries to rewrite sequence patterns into a format that can be
 -- matched most flexibly.
@@ -586,7 +581,7 @@ preparePattern p = prepareAs p =<< freshVar
 
 buildPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()
 buildPattern effect r vs nfields
-  | effect, [] <- vps = internalBug "too few patterns for effect bind"
+  | effect, [] <- vps = internalBug [] "too few patterns for effect bind"
   | effect = P.EffectBind () r (init vps) (last vps)
   | otherwise = P.Constructor () r vps
   where
@@ -636,12 +631,13 @@ compile spec ctx m@(PM (r : rs))
       case lookupData rf spec of
         Right cons ->
           match () (var () v) $
-            (buildCase spec rf False cons ctx
-              <$> splitMatrix v (Just rf) ncons m)
+            ( buildCase spec rf False cons ctx
+                <$> splitMatrix v (Just rf) ncons m
+            )
               ++ buildDefaultCase spec False needDefault ctx dm
           where
             needDefault = length ncons < length cons
-        Left err -> internalBug err
+        Left err -> internalBug [] err
   | PReq rfs <- ty =
       match () (var () v) $
         [ buildCasePure spec ctx tup
@@ -653,7 +649,7 @@ compile spec ctx m@(PM (r : rs))
                  tup <- splitMatrix v (Just rf) (numberCons cons) m
              ]
   | Unknown <- ty =
-      internalBug "unknown pattern compilation type"
+      internalBug [] "unknown pattern compilation type"
   where
     v = choose heuristics m
     ncons = relevantConstructors m v
@@ -663,7 +659,7 @@ compile spec ctx m@(PM (r : rs))
 -- Calculates the data constructors—with their arities—that should be
 -- matched on when splitting a matrix on a given variable. This
 -- includes
-relevantConstructors :: Ord v => PatternMatrix v -> v -> [(Int, Int)]
+relevantConstructors :: (Ord v) => PatternMatrix v -> v -> [(Int, Int)]
 relevantConstructors (PM rows) v = search [] rows
   where
     search acc (row : rows)
@@ -673,7 +669,7 @@ relevantConstructors (PM rows) v = search [] rows
           Just (P.Boolean _ b) ->
             search ((if b then 1 else 0, 0) : acc) rows
           Just p ->
-            internalBug $ "unexpected data pattern: " ++ show p
+            internalBug [] $ "unexpected data pattern: " ++ show p
           -- if the pattern is not found, it must have been irrefutable,
           -- so contributes no relevant constructor.
           _ -> search acc rows
@@ -749,7 +745,7 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b)) =
           (filter refutable [p])
           (renames rn <$> g)
           (renames rn b)
-    _ -> internalBug "mkRow: not all variables used"
+    _ -> internalBug [] "mkRow: not all variables used"
   where
     g = case g0 of
       Just (AbsN' us g)
@@ -757,7 +753,7 @@ mkRow sv (MatchCase (normalizeSeqP -> p0) g0 (AbsN' vs b)) =
         | length us == length vs ->
             Just $ renames (Map.fromList (zip us vs)) g
         | otherwise ->
-            internalBug "mkRow: guard variables do not match body"
+            internalBug [] "mkRow: guard variables do not match body"
       Nothing -> Nothing
 
 initialize ::
@@ -779,7 +775,7 @@ initialize r sc cs = do
         pv = freshenId n $ typed Pattern
 
 grabId :: State Word64 Word64
-grabId = state $ \n -> (n, n+1)
+grabId = state $ \n -> (n, n + 1)
 
 splitPatterns :: (Var v) => DataSpec -> Term v -> Term v
 splitPatterns spec0 tm = evalState (splitPatterns0 spec tm) 0

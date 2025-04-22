@@ -1,4 +1,3 @@
-
 module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
@@ -14,9 +13,15 @@ import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF
-  (SuperGroup (..), Cacheability (..), Code (..), CompileExn (..), Value, valueLinks, foldGroupLinks)
+  ( Cacheability (..),
+    Code (..),
+    SuperGroup (..),
+    Value,
+    foldGroupLinks,
+    valueLinks,
+  )
 import Unison.Runtime.Builtin
-import Unison.Runtime.Exception hiding (die)
+import Unison.Runtime.Exception (CompileExn (CE), RuntimeExn (PE))
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
@@ -143,10 +148,10 @@ baseCCache sandboxed = do
 
 lookupCode :: CCache -> Referent -> IO (Maybe Code)
 lookupCode env (Ref link) =
-  resolveCode link <$>
-    readTVarIO (intermed env) <*>
-    readTVarIO (refTm env) <*>
-    readTVarIO (cacheableCombs env)
+  resolveCode link
+    <$> readTVarIO (intermed env)
+    <*> readTVarIO (refTm env)
+    <*> readTVarIO (cacheableCombs env)
 lookupCode _ _ = die "lookupCode: Expected Ref"
 
 resolveCode ::
@@ -235,7 +240,7 @@ codeValidate cc tml = do
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
-    `catch` \(CE cs perr) ->
-      let msg = UText.pack $ P.toPlainUnbroken perr
+    `catch` \ce@(CE cs _ _) ->
+      let msg = UText.pack $ displayException ce
           extra = UText.pack $ show cs
        in pure . Just $ Failure ioFailureRef msg extra

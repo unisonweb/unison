@@ -105,7 +105,7 @@ import Unison.Runtime.ANF.Serialize as ANF
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
-import Unison.Runtime.Exception
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, dieP, prettyCompileExn)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.MCode
   ( Args (..),
@@ -1185,7 +1185,7 @@ catchInternalErrors ::
   IO (Either Error a)
 catchInternalErrors sub = sub `UnliftIO.catch` hCE `UnliftIO.catch` hRE
   where
-    hCE (CE _ e) = pure $ Left e
+    hCE = pure . Left . prettyCompileExn
     hRE (PE _ e) = pure $ Left e
     hRE (BU _ _ _) = pure $ Left "impossible"
 
@@ -1254,7 +1254,7 @@ tryM =
     . flip UnliftIO.catch hCE
     . fmap (const Nothing)
   where
-    hCE (CE _ e) = pure $ Just e
+    hCE = pure . Just . prettyCompileExn
     hRE (PE _ e) = pure $ Just e
     hRE (BU _ _ _) = pure $ Just "impossible"
 

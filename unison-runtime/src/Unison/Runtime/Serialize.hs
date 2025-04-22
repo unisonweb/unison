@@ -26,7 +26,7 @@ import Unison.Hash qualified as Hash
 import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Array qualified as PA
-import Unison.Runtime.Exception
+import Unison.Runtime.Exception (exn)
 import Unison.Runtime.MCode
   ( Prim1 (..),
     Prim2 (..),

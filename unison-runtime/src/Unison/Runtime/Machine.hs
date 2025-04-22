@@ -66,7 +66,7 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception hiding (die)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE))
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( foreignCall,
@@ -82,7 +82,6 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
@@ -395,7 +394,7 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
               PE _stk msg ->
-                (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
+                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlainUnbroken msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)

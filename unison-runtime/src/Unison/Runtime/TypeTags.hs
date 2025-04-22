@@ -45,29 +45,18 @@ module Unison.Runtime.TypeTags
   )
 where
 
-import Control.Exception (throw)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
-import GHC.Stack (CallStack, callStack)
 import U.Codebase.Reference (Reference)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
+import Unison.Runtime.InternalError (internalBug)
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty qualified as Pretty
 import Prelude hiding (abs, and, or, seq)
 import Prelude qualified
-
--- For internal errors
-data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
-  deriving (Show)
-
-instance Exception CompileExn
-
-internalBug :: (HasCallStack) => String -> a
-internalBug = throw . CE callStack . Pretty.lit . fromString
 
 -- Types representing components that will go into the runtime tag of
 -- a data type value. RTags correspond to references, while CTags
@@ -107,13 +96,13 @@ maskTags (PackedTag w) = (w .&. 0xFFFF)
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
   | n > 0xFFFFFFFFFFFF =
-      internalBug $ s ++ "@RTag: too large: " ++ show n
+      internalBug [] $ s ++ "@RTag: too large: " ++ show n
   | otherwise = x
 
 ensureCTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureCTag s n x
   | n > 0xFFFF =
-      internalBug $ s ++ "@CTag: too large: " ++ show n
+      internalBug [] $ s ++ "@CTag: too large: " ++ show n
   | otherwise = x
 
 instance Enum RTag where
@@ -126,19 +115,19 @@ instance Enum CTag where
 
 instance Num RTag where
   fromInteger i = ensureRTag "fromInteger" i . RTag $ fromInteger i
-  (+) = internalBug "RTag: +"
-  (*) = internalBug "RTag: *"
-  abs = internalBug "RTag: abs"
-  signum = internalBug "RTag: signum"
-  negate = internalBug "RTag: negate"
+  (+) = internalBug [] "RTag: +"
+  (*) = internalBug [] "RTag: *"
+  abs = internalBug [] "RTag: abs"
+  signum = internalBug [] "RTag: signum"
+  negate = internalBug [] "RTag: negate"
 
 instance Num CTag where
   fromInteger i = ensureCTag "fromInteger" i . CTag $ fromInteger i
-  (+) = internalBug "CTag: +"
-  (*) = internalBug "CTag: *"
-  abs = internalBug "CTag: abs"
-  signum = internalBug "CTag: signum"
-  negate = internalBug "CTag: negate"
+  (+) = internalBug [] "CTag: +"
+  (*) = internalBug [] "CTag: *"
+  abs = internalBug [] "CTag: abs"
+  signum = internalBug [] "CTag: signum"
+  negate = internalBug [] "CTag: negate"
 
 floatTag :: PackedTag
 floatTag = mkSimpleTag "floatTag" Ty.floatRef
@@ -170,54 +159,76 @@ failureTag = mkEnumTag "failureTag" Ty.failureRef 0
 noneTag, someTag :: PackedTag
 (noneTag, someTag)
   | [nt, st] <-
-      mkTags "optional tags" Ty.optionalRef
-        [Ty.noneId, Ty.someId] = (nt, st)
-  | otherwise = error "internal error: optional tags"
+      mkTags
+        "optional tags"
+        Ty.optionalRef
+        [Ty.noneId, Ty.someId] =
+      (nt, st)
+  | otherwise = internalBug [] "missing optional tags"
 
 leftTag, rightTag :: PackedTag
 (leftTag, rightTag)
   | [lt, rt] <-
-      mkTags "either tags" Ty.eitherRef
-        [Ty.eitherLeftId, Ty.eitherRightId] = (lt, rt)
-  | otherwise = error "internal error: either tags"
+      mkTags
+        "either tags"
+        Ty.eitherRef
+        [Ty.eitherLeftId, Ty.eitherRightId] =
+      (lt, rt)
+  | otherwise = internalBug [] "missing either tags"
 
 noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag :: PackedTag
 (noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag)
-  | [nt,lt,bt,st] <-
-      mkTags "buffer mode tags" Ty.bufferModeRef
+  | [nt, lt, bt, st] <-
+      mkTags
+        "buffer mode tags"
+        Ty.bufferModeRef
         [ Ty.bufferModeNoBufferingId,
           Ty.bufferModeLineBufferingId,
           Ty.bufferModeBlockBufferingId,
-          Ty.bufferModeSizedBlockBufferingId ] = (nt, lt, bt, st)
-  | otherwise = error "internal error: buffer mode tags"
+          Ty.bufferModeSizedBlockBufferingId
+        ] =
+      (nt, lt, bt, st)
+  | otherwise = internalBug [] "missing buffer mode tags"
 
 readModeTag, writeModeTag, appendModeTag, readWriteModeTag :: PackedTag
 (readModeTag, writeModeTag, appendModeTag, readWriteModeTag)
-  | [rt,wt,at,rwt] <-
-      mkTags "file mode tags" Ty.fileModeRef
+  | [rt, wt, at, rwt] <-
+      mkTags
+        "file mode tags"
+        Ty.fileModeRef
         [ Ty.fileModeReadId,
           Ty.fileModeWriteId,
           Ty.fileModeAppendId,
-          Ty.fileModeReadWriteId ] = (rt, wt, at, rwt)
-  | otherwise = error "internal error: file mode tags"
+          Ty.fileModeReadWriteId
+        ] =
+      (rt, wt, at, rwt)
+  | otherwise = internalBug [] "missing file mode tags"
 
 seekAbsoluteTag, seekRelativeTag, seekEndTag :: PackedTag
 (seekAbsoluteTag, seekRelativeTag, seekEndTag)
   | [at, rt, et] <-
-      mkTags "seek mode tags" Ty.seekModeRef
+      mkTags
+        "seek mode tags"
+        Ty.seekModeRef
         [ Ty.seekModeAbsoluteId,
           Ty.seekModeRelativeId,
-          Ty.seekModeEndId ] = (at, rt, et)
-  | otherwise = error "internal error: seek mode tags"
+          Ty.seekModeEndId
+        ] =
+      (at, rt, et)
+  | otherwise = internalBug [] "missing seek mode tags"
 
 stdInTag, stdOutTag, stdErrTag :: PackedTag
 (stdInTag, stdOutTag, stdErrTag)
   | [it, ot, et] <-
-      mkTags "standard handle tags" Ty.stdHandleRef
+      mkTags
+        "standard handle tags"
+        Ty.stdHandleRef
         [ Ty.stdInId,
           Ty.stdOutId,
-          Ty.stdErrId ] = (it, ot, et)
-  | otherwise = error "internal error: standard handle tags"
+          Ty.stdErrId
+        ] =
+      (it, ot, et)
+  | otherwise = internalBug [] "missing standard handle tags"
 
 exceptionTag :: Word64
 exceptionRaiseTag :: PackedTag
@@ -226,38 +237,48 @@ exceptionRaiseTag :: PackedTag
     et <- toEnum $ fromIntegral n,
     rt <- toEnum $ fromIntegral Ty.exceptionRaiseId =
       (n, packTags et rt)
-  | otherwise = internalBug $ "internal error: Exception tag"
+  | otherwise = internalBug [] "missing Exception tag"
 
 pairTag :: PackedTag
 pairTag
   | Just n <- Map.lookup Ty.pairRef builtinTypeNumbering,
     pt <- toEnum (fromIntegral n) =
       packTags pt 0
-  | otherwise = internalBug "internal error: pairTag"
+  | otherwise = internalBug [] "missing pairTag"
 
 seqViewEmptyTag, seqViewElemTag :: PackedTag
 (seqViewEmptyTag, seqViewElemTag)
   | [emt, elt] <-
-      mkTags "seq view tags" Ty.seqViewRef
+      mkTags
+        "seq view tags"
+        Ty.seqViewRef
         [ Ty.seqViewEmpty,
-          Ty.seqViewElem ] = (emt, elt)
-  | otherwise = error "internal error: seq view tags"
+          Ty.seqViewElem
+        ] =
+      (emt, elt)
+  | otherwise = internalBug [] "missing seq view tags"
 
 mapTipTag, mapBinTag :: PackedTag
 (mapTipTag, mapBinTag)
   | [mtt, mbt] <-
-      mkTags "map tags" Ty.mapRef
+      mkTags
+        "map tags"
+        Ty.mapRef
         [ Ty.mapTip,
           Ty.mapBin
-        ] = (mtt, mbt)
-  | otherwise = error "internal error: map tags"
+        ] =
+      (mtt, mbt)
+  | otherwise = internalBug [] "missing map tags"
 
 setWrapTag :: PackedTag
 setWrapTag
   | [swt] <-
-      mkTags "set tag" Ty.setRef
-        [ Ty.setWrap ] = swt
-  | otherwise = error "internal error: set tag"
+      mkTags
+        "set tag"
+        Ty.setRef
+        [Ty.setWrap] =
+      swt
+  | otherwise = internalBug [] "missing set tag"
 
 -- | A tag we use to represent the 'pure' effect case.
 pureEffectTag :: PackedTag
@@ -272,11 +293,11 @@ mkEnumTag msg r i
   | Just n <- Map.lookup r builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt (toEnum i)
-  | otherwise = internalBug $ "internal error: " <> msg
+  | otherwise = internalBug [] $ "missing enum tag: " <> msg
 
 mkTags :: String -> Reference -> [Word64] -> [PackedTag]
 mkTags msg r cs
   | Just n <- Map.lookup r builtinTypeNumbering,
     tt <- toEnum $ fromIntegral n =
       packTags tt . toEnum . fromIntegral <$> cs
-  | otherwise = error $ "internal error: " ++ msg
+  | otherwise = internalBug [] $ "missing tag: " ++ msg

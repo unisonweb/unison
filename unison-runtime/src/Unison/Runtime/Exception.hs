@@ -1,28 +1,31 @@
 module Unison.Runtime.Exception
-  ( RuntimeExn (..),
+  ( module InternalError,
+    RuntimeExn (BU, PE),
     die,
     dieP,
     exn,
   )
 where
 
-import Control.Exception
-import Data.String (fromString)
-import Data.Text
-import GHC.Stack
+import Control.Exception (throw, throwIO)
+import GHC.Stack (CallStack, callStack)
+import Unison.Prelude
 import Unison.Reference (Reference)
-import Unison.Runtime.Stack
+import Unison.Runtime.InternalError as InternalError
+import Unison.Runtime.Stack (Val)
 import Unison.Util.Pretty as P
 
 data RuntimeExn
-  = PE CallStack (P.Pretty P.ColorText)
-  | BU [(Reference, Int)] Text Val
+  = -- | pretty exception
+    PE CallStack (P.Pretty P.ColorText)
+  | -- | __TODO__: What is `BU`? Boxed/Unboxed?
+    BU [(Reference, Int)] Text Val
   deriving (Show)
 
 instance Exception RuntimeExn
 
 die :: (HasCallStack) => String -> IO a
-die = throwIO . PE callStack . P.lit . fromString
+die = dieP . P.lit . fromString
 {-# INLINE die #-}
 
 dieP :: (HasCallStack) => P.Pretty P.ColorText -> IO a

@@ -151,7 +151,7 @@ import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
-import Unison.Runtime.Exception
+import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function.Type

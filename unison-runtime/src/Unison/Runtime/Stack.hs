@@ -748,12 +748,15 @@ instance Show Stack where
 type UVal = Int
 
 -- | A runtime value, which is either a boxed or unboxed value, but we may not know which.
+--
+--  __TODO__: Can this be represented with `These` instead, distinguishing the case where we don’t know which (`These`)
+--            from the known unboxed (`This`) and known boxed (`That`) cases? Or is it the case that we /do not/ know
+--            which?
 data Val = Val {getUnboxedVal :: !UVal, getBoxedVal :: !BVal}
-  -- The Eq instance for Val is deliberately omitted because you need to take into account the fact that if a Val is boxed, the
-  -- unboxed side is garbage and should not be compared.
-  -- See universalEq.
   deriving (Show)
 
+-- | The `Eq` instance for `Val` can’t be derived because you need to take into account the fact that if a `Val` is
+--   boxed, the unboxed side is garbage and should not be compared.
 instance Eq Val where
   (==) = universalEq (==)
 
