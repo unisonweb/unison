@@ -1427,7 +1427,7 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
     go open =
       let finish :: Term.Term v Ann -> TermP v m
           finish tm = case Components.minimize' tm of
-            Left dups -> customFailure $ DuplicateTermNames (toList dups)
+            Left dups -> customFailure $ DuplicateTermNames (toList (fmap (second toList) dups))
             Right tm -> pure tm
           toTm :: [BlockElement v] -> TermP v m
           toTm [] = customFailure $ EmptyBlock (const s <$> open)

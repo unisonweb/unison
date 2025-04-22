@@ -107,6 +107,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import qualified Unison.Debug as Debug
 import Debug.RecoverRTTI (anythingToString)
+import Data.Set.NonEmpty (NESet)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -452,7 +453,7 @@ data Cause v loc
   -- Type of ctor, number of arguments we got
   | PatternArityMismatch loc (Type v loc) Int
   | -- A variable is defined twice in the same block
-    DuplicateDefinitions (NonEmpty (v, [loc]))
+    DuplicateDefinitions (NonEmpty (v, NESet loc))
   | -- A let rec where things that aren't guarded cyclicly depend on each other
     UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)

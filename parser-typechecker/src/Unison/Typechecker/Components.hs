@@ -1,12 +1,11 @@
 module Unison.Typechecker.Components (minimize, minimize') where
 
-import Control.Arrow ((&&&))
-import Data.Function (on)
-import Data.List (groupBy, sortBy)
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as Nel
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Term (Term')
@@ -35,25 +34,26 @@ ordered = ABT.orderedComponents
 --
 -- Fails on the left if there are duplicate definitions.
 minimize ::
-  (Var v) =>
+  forall vt v a.
+  (Var v, Ord a) =>
   Term' vt v a ->
-  Either (NonEmpty (v, [a])) (Maybe (Term' vt v a))
+  Either (NonEmpty (v, NESet a)) (Maybe (Term' vt v a))
 minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
-  let bindings = first snd <$> bs
-      group =
-        map (fst . head &&& map (ABT.annotation . snd))
-          . groupBy ((==) `on` fst)
-          . sortBy
-            (compare `on` fst)
-      grouped = group bindings
-      dupes = filter ok grouped
+  let bindings :: [(v, Term' vt v a)]
+      bindings = bs <&> \((_a, v), t) -> (v, t)
+      grouped :: Map v (NESet a)
+      grouped =
+        bs
+          & fmap (\((a, v), _t) -> (v, NESet.singleton a)) -- For duplicates, we care about the binding location.
+          & Map.fromListWith (NESet.union)
+      dupes = Map.filterWithKey ok grouped
         where
-          ok (v, as)
+          ok v as
             | Var.name v == "_" = False
             | otherwise = length as > 1
-   in if not $ null dupes
-        then Left $ Nel.fromList dupes
-        else
+   in case NEL.nonEmpty $ Map.toList dupes of
+        Just dupeList -> Left dupeList
+        Nothing -> do
           let cs0 = if isTop then unordered bindings else ordered bindings
               -- within a cycle, we put the lambdas first, so
               -- unguarded definitions can refer to these lambdas, example:
@@ -90,5 +90,5 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop blockAnn bs e) =
 minimize _ = Right Nothing
 
 minimize' ::
-  (Var v) => Term' vt v a -> Either (NonEmpty (v, [a])) (Term' vt v a)
+  (Var v, Ord a) => Term' vt v a -> Either (NonEmpty (v, NESet a)) (Term' vt v a)
 minimize' term = fromMaybe term <$> minimize term
