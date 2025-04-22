@@ -969,7 +969,7 @@ letRec' isTop bindings body =
 --   =>
 --   let rec x = 42; y = "hi" in (x,y)
 consLetRec ::
-  (Ord v, Semigroup a) =>
+  (Ord v) =>
   Bool -> -- isTop parameter
   a -> -- annotation for overall let rec
   (a, v, Term' vt v a) -> -- the binding

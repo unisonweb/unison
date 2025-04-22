@@ -34,6 +34,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -1281,7 +1282,15 @@ destructuringBind = do
 -- binding) and the entire body.
 -- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
 -- including the name as well.
-binding :: forall m v. (Monad m, Var v) => P v m ((Ann, v), Term v Ann)
+binding ::
+  forall m v.
+  (Monad m, Var v) =>
+  P
+    v
+    m
+    ( (Ann {- annotation for the location of 'v' -}, v),
+      Term v Ann
+    )
 binding = label "binding" do
   typ <- optional typedecl
   -- a ++ b = ...
@@ -1306,8 +1315,8 @@ binding = label "binding" do
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
       -- may contain a bunch of white-space and comments following a top-level-definition.
-      let spanAnn = ann lhsLoc <> ann binding
-      pure $ ((spanAnn, (L.payload name)), binding)
+      -- let spanAnn = ann lhsLoc <> ann binding
+      pure $ ((ann name, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
       verifyRelativeName' (fmap Name.unsafeParseVar name)
@@ -1319,7 +1328,7 @@ binding = label "binding" do
       -- We don't actually use the span annotation from the block (yet) because it
       -- may contain a bunch of white-space and comments following a top-level-definition.
       let spanAnn = ann nameT <> ann binding
-      pure $ ((spanAnn, L.payload name), Term.ann (ann nameT <> ann binding) binding typ)
+      pure $ ((ann nameT, L.payload name), Term.ann spanAnn binding typ)
   where
     mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
     mkBinding _lhsLoc [] body = body
@@ -1439,6 +1448,7 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
               step elem result = case elem of
                 Binding ((a, v), tm) -> do
                   let fullLetRecSpan = ann a <> ann result
+                  Debug.debugM Debug.Temp "letrec" (v, a)
                   pure $
                     Term.consLetRec
                       isTop

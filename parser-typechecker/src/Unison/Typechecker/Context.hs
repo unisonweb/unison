@@ -1244,10 +1244,10 @@ synthesizeWanted tm@(Term.Let1Top' top binding e) = do
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
   case tm of
-    outer@(ABT.Tm' (Term.Let _ binding abs@(ABT.Term _ _ (ABT.Abs v' body)))) -> do
+    outer@(ABT.Tm' (Term.Let _ rhs abs@(ABT.Term _ _ (ABT.Abs v' body)))) -> do
       -- let innerAnn = ABT.annotation inner
       --     tbinding' = ABT.annotation binding
-      Debug.debugM Debug.Temp "synthesizeWanted (let binding)" (v', ("outer" :: Text, anythingToString $ ABT.annotation outer), ("binding" :: Text, anythingToString $ ABT.annotation binding), ("abs" :: Text, anythingToString $ ABT.annotation abs), ("body" :: Text, anythingToString $ ABT.annotation body))
+      Debug.debugM Debug.Temp "synthesizeWanted (let binding)" (v', ("outer" :: Text, anythingToString $ ABT.annotation outer), ("rhs" :: Text, anythingToString $ ABT.annotation rhs), ("abs" :: Text, anythingToString $ ABT.annotation abs), ("body" :: Text, anythingToString $ ABT.annotation body))
     _ -> pure ()
   appendContext [Ann v' (error "Unset Ann loc: synthesizeWanted") tbinding]
   -- Debug.debugM Debug.Temp "synthesizeWanted (missing annotation)" (v', anythingToString $ ABT.annotation tm, binding)
@@ -2480,12 +2480,16 @@ checkWanted want (Term.Lam' body) (Type.Arrow'' i es o) = do
   let annLoc = error "checkWanted: missing annotation"
   x <- ABT.freshen body freshenVar
   markThenRetract0 x $ do
-    Debug.debugM Debug.Temp "checkWanted (missing annotation)" x
+    Debug.debugM Debug.Temp "checkWanted:lam (missing annotation)" x
     extendContext (Ann x annLoc i)
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities es body o
   pure want
-checkWanted want (Term.Let1Top' top binding m) t = do
+checkWanted want tm@(Term.Let1Top' top binding m) t = do
+  case tm of
+    outer@(ABT.Tm' (Term.Let _ rhs abs@(ABT.Term _ _ (ABT.Abs v' body)))) -> do
+      Debug.debugM Debug.Temp "checkWanted:Let" (v', ("outer" :: Text, anythingToString $ ABT.annotation outer), ("rhs" :: Text, anythingToString $ ABT.annotation rhs), ("abs" :: Text, anythingToString $ ABT.annotation abs), ("body" :: Text, anythingToString $ ABT.annotation body))
+    _ -> pure ()
   let annLoc = error "checkWanted: missing annotation"
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
@@ -2494,7 +2498,6 @@ checkWanted want (Term.Let1Top' top binding m) t = do
     when (Var.isAction (ABT.variable m)) $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
-    Debug.debugM Debug.Temp "checkWanted2 (missing annotation)" v
     extendContext (Ann v annLoc tbinding)
     checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
 checkWanted want (Term.LetRecNamed' [] m) t =

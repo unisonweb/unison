@@ -198,6 +198,9 @@ instance Functor SourceNode where
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
 findSmallestEnclosingNode pos term
+  | -- Abs nodes annotate the location of the var being bound, not the body of the binding, so we just skip over them.
+    ABT.Abs'' _ body <- term =
+      findSmallestEnclosingNode pos body
   | annIsFilePosition ann && not (ann `Ann.contains` pos) = Nothing
   | Just r <- cleanImplicitUnit term = findSmallestEnclosingNode pos r
   | otherwise = do
@@ -308,6 +311,9 @@ findSmallestEnclosingPattern pos pat
 -- that a position references.
 findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
 findSmallestEnclosingType pos typ
+  | -- Abs nodes annotate the location of the var being bound, not the body of the binding, so we just skip over them.
+    ABT.Abs'' _ body <- typ =
+      findSmallestEnclosingType pos body
   | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
