@@ -1243,6 +1243,7 @@ synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   when (Var.isAction (ABT.variable e)) $
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
+  Debug.debugM Debug.Temp "Let1Top" (ABT.variable e, v', anythingToString boundVarAnn, tbinding)
   appendContext [Ann v' boundVarAnn tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t

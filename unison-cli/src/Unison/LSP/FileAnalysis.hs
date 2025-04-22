@@ -125,15 +125,6 @@ checkFile doc = runMaybeT do
                   _ -> mempty
                 & pure
 
-            let allVarBindings =
-                  typecheckingNotes
-                    & Foldable.toList
-                    & reverse -- Type notes that come later in typechecking have more information filled in.
-                    & foldMap \case
-                      Result.TypeInfo (Context.VarBinding v loc _typ) -> [(v, loc)]
-                      _ -> mempty
-            Debug.debugM Debug.Temp "allVarBindings" allVarBindings
-
             let allVarMentions =
                   typecheckingNotes
                     & Foldable.toList
@@ -144,16 +135,21 @@ checkFile doc = runMaybeT do
                       _ -> mempty
             Debug.debugM Debug.Temp "allVarMentions" allVarMentions
             Debug.debugM Debug.Temp "symbolTypes" symbolTypes
+            Debug.debugM Debug.Temp "typecheckingNotes" typecheckingNotes
             let localBindings :: (IntervalMap Position (Context.Type Symbol Ann)) =
                   typecheckingNotes
                     & Foldable.toList
                     & reverse -- Type notes that come later in typechecking have more information filled in.
                     & foldMap \case
-                      Result.TypeInfo (Context.VarMention v loc) ->
+                      Result.TypeInfo (Context.VarBinding _v loc typ) -> do
+                        ((annToInterval loc) & foldMap \interval -> (IM.singleton interval typ))
+                      Result.TypeInfo (Context.VarMention v loc) -> do
                         case Map.lookup v symbolTypes of
-                          Just typ -> (annToInterval loc) & foldMap \interval -> (IM.singleton interval typ)
+                          Just typ ->
+                            ((annToInterval loc) & foldMap \interval -> (IM.singleton interval typ))
                           _ -> mempty
                       _ -> mempty
+            Debug.debugM Debug.Temp "localBindings" localBindings
             pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
