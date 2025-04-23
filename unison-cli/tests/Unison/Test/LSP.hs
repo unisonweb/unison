@@ -445,7 +445,7 @@ unusedBindingLocations =
     [ ( "Unused binding in let block",
         [here|term =
   usedOne = true
-  «unused = "unused"»
+  «unused» = "unused"
   usedTwo = false
   usedOne && usedTwo
         |]
