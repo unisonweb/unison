@@ -46,7 +46,7 @@ hoverHandler m respond = do
           _range = Nothing -- TODO add range info
         }
 
-hoverInfo :: Uri -> Position -> MaybeT Lsp Text
+hoverInfo :: forall m. (Lspish m, MonadUnliftIO m) => Uri -> Position -> MaybeT m Text
 hoverInfo uri pos =
   (hoverInfoForRef <|> hoverInfoForLiteral <|> hoverInfoForLocalVar)
   where
@@ -54,11 +54,11 @@ hoverInfo uri pos =
     markdownify rendered = Text.unlines ["``` unison", rendered, "```"]
     prettyWidth :: Pretty.Width
     prettyWidth = 40
-    hoverInfoForRef :: MaybeT Lsp Text
+    hoverInfoForRef :: (MonadUnliftIO m) => MaybeT m Text
     hoverInfoForRef = do
       symAtCursor <- VFS.identifierAtPosition uri pos
       ref <- LSPQ.refAtPosition uri pos
-      pped <- lift $ ppedForFile uri
+      pped <- ppedForFile uri
       let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
       let fqn = case ref of
             LD.TypeReference ref -> PPE.typeName unsuffixifiedPPE ref
@@ -109,7 +109,7 @@ hoverInfo uri pos =
       let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
        in markdownify (name <> " : " <> renderedType)
 
-    hoverInfoForLiteral :: MaybeT Lsp Text
+    hoverInfoForLiteral :: MaybeT m Text
     hoverInfoForLiteral =
       markdownify <$> do
         LSPQ.nodeAtPosition uri pos >>= \case
@@ -121,7 +121,7 @@ hoverInfo uri pos =
             typ <- hoistMaybe $ builtinTypeForPatternLiterals pat
             pure (": " <> typ)
 
-    hoverInfoForLocalVar :: MaybeT Lsp Text
+    hoverInfoForLocalVar :: MaybeT m Text
     hoverInfoForLocalVar = do
       localVar <- LSPQ.nodeAtPositionMatching uri pos \case
         LSPQ.TypeNode {} -> empty
@@ -139,7 +139,7 @@ hoverInfo uri pos =
             _ -> tShow localVar
       pure $ renderTypeSigForHover pped varName typ
 
-    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe :: Maybe a -> MaybeT m a
     hoistMaybe = MaybeT . pure
 
 -- | Get the type for term literals.

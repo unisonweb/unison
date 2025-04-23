@@ -64,17 +64,17 @@ import Unison.UnisonFile.Summary (FileSummary (..))
 import Unison.Util.Pretty qualified as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
-refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
+refAtPosition :: forall m. (Lspish m) => Uri -> Position -> MaybeT m LabeledDependency
 refAtPosition uri pos = do
   findInNode <|> findInDecl
   where
-    findInNode :: MaybeT Lsp LabeledDependency
+    findInNode :: MaybeT m LabeledDependency
     findInNode =
       nodeAtPosition uri pos >>= \case
         TermNode term -> hoistMaybe $ refInTerm term
         TypeNode typ -> hoistMaybe $ fmap TypeReference (refInType typ)
         PatternNode pat -> hoistMaybe $ refInPattern pat
-    findInDecl :: MaybeT Lsp LabeledDependency
+    findInDecl :: MaybeT m LabeledDependency
     findInDecl =
       LD.TypeReference <$> do
         let uPos = lspToUPos pos
@@ -82,11 +82,11 @@ refAtPosition uri pos = do
         ( altMap (hoistMaybe . refInDecl uPos . Right . snd) dataDeclsBySymbol
             <|> altMap (hoistMaybe . refInDecl uPos . Left . snd) effectDeclsBySymbol
           )
-    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe :: Maybe a -> MaybeT m a
     hoistMaybe = MaybeT . pure
 
 -- | Gets the type of a reference from either the parsed file or the codebase.
-getTypeOfReferent :: Uri -> Referent -> MaybeT Lsp (Type Symbol Ann)
+getTypeOfReferent :: (Lspish m) => Uri -> Referent -> MaybeT m (Type Symbol Ann)
 getTypeOfReferent fileUri ref = do
   getFromFile <|> getFromCodebase
   where
@@ -107,11 +107,11 @@ getTypeOfReferent fileUri ref = do
       MaybeT . liftIO $ Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
 
 -- | Gets a decl from either the parsed file or the codebase.
-getTypeDeclaration :: Uri -> Reference.Id -> MaybeT Lsp (Decl Symbol Ann)
+getTypeDeclaration :: forall m. (Lspish m) => Uri -> Reference.Id -> MaybeT m (Decl Symbol Ann)
 getTypeDeclaration fileUri refId = do
   getFromFile <|> getFromCodebase
   where
-    getFromFile :: MaybeT Lsp (Decl Symbol Ann)
+    getFromFile :: MaybeT m (Decl Symbol Ann)
     getFromFile = do
       FileSummary {dataDeclsByReference, effectDeclsByReference} <- getFileSummary fileUri
       let datas = dataDeclsByReference ^.. ix refId . folded
@@ -393,7 +393,7 @@ refInDecl p (DD.asDataDecl -> dd) =
 
 -- | Returns the ABT node at the provided position.
 -- Does not return Decl nodes.
-nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
+nodeAtPosition :: (Lspish m) => Uri -> Position -> MaybeT m (SourceNode Ann)
 nodeAtPosition uri pos = nodeAtPositionMatching uri pos pure
 
 -- | Search the ABT for nodes which intersect at a given position, running the
@@ -401,7 +401,7 @@ nodeAtPosition uri pos = nodeAtPositionMatching uri pos pure
 -- The caller may use either 'pure' or 'empty' in the selector to select or ignore a given option.
 --
 -- Does not return Decl nodes.
-nodeAtPositionMatching :: Uri -> Position -> (SourceNode Ann -> MaybeT Lsp a) -> MaybeT Lsp a
+nodeAtPositionMatching :: (Lspish m) => Uri -> Position -> (SourceNode Ann -> MaybeT m a) -> MaybeT m a
 nodeAtPositionMatching uri (lspToUPos -> pos) pred = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
@@ -437,12 +437,12 @@ removeInferredTypeAnnotations =
     t -> t
 
 -- | Renders all docs for a given FQN to markdown.
-markdownDocsForFQN :: Uri -> HQ.HashQualified Name -> Lsp [Text]
+markdownDocsForFQN :: (Lspish m) => Uri -> HQ.HashQualified Name -> m [Text]
 markdownDocsForFQN fileUri fqn =
   fromMaybe [] <$> runMaybeT do
     pped <- lift $ ppedForFile fileUri
     name <- MaybeT . pure $ HQ.toName fqn
-    nameSearch <- lift $ getNameSearch
+    nameSearch <- getNameSearch
     Env {codebase, runtime} <- ask
     liftIO $ do
       docRefs <- Codebase.runTransaction codebase $ Backend.docsForDefinitionName codebase nameSearch ExactName name

@@ -1,6 +1,17 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.LSP.FileAnalysis where
+module Unison.LSP.FileAnalysis
+  ( checkFileByUri,
+    checkFileContents,
+    getFileAnalysis,
+    ppedForFile,
+    getFileSummary,
+    ppedForFileHelper,
+    fileAnalysisWorker,
+    getFileDefLocations,
+    getFileNames,
+  )
+where
 
 import Control.Lens
 import Control.Monad.Reader
@@ -76,14 +87,20 @@ import Unison.Var qualified as Var
 import UnliftIO.STM
 import Witherable
 
--- | Lex, parse, and typecheck a file.
-checkFile :: (HasUri d Uri) => d -> Lsp (Maybe FileAnalysis)
-checkFile doc = runMaybeT do
-  pp <- lift getCurrentProjectPath
+-- | Lex, parse, and typecheck a file using a VFS URI
+checkFileByUri :: (HasUri d Uri, Lspish m) => d -> m (Maybe FileAnalysis)
+checkFileByUri doc = runMaybeT do
   let fileUri = doc ^. uri
   (fileVersion, contents) <- VFS.getFileContents fileUri
+  let sourceName = getUri $ fileUri
+  checkFileContents fileUri sourceName fileVersion contents
+
+-- | Lex, parse, and typecheck a file.
+-- This is split off for easier testing without needing to mock the VFS.
+checkFileContents :: (Lspish m) => Uri -> Text -> FileVersion -> Text -> MaybeT m FileAnalysis
+checkFileContents fileUri sourceName fileVersion contents = do
+  pp <- lift getCurrentProjectPath
   parseNames <- lift getCurrentNames
-  let sourceName = getUri $ doc ^. uri
   let lexedSource@(srcText, tokens) = (contents, L.lexer (Text.unpack sourceName) (Text.unpack contents))
   let ambientAbilities = []
   cb <- asks codebase
@@ -131,8 +148,8 @@ checkFile doc = runMaybeT do
                       _ -> mempty
             pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
-  filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
-  (errDiagnostics, codeActions) <- lift $ analyseFile fileUri srcText filePPED notes
+  filePPED <- ppedForFileHelper parsedFile typecheckedFile
+  (errDiagnostics, codeActions) <- analyseFile fileUri srcText filePPED notes
   let codeActionRanges =
         codeActions
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
@@ -143,7 +160,7 @@ checkFile doc = runMaybeT do
   let tokenMap = getTokenMap tokens
   conflictWarningDiagnostics <-
     fold <$> for fileSummary \fs ->
-      lift $ computeConflictWarningDiagnostics fileUri fs
+      computeConflictWarningDiagnostics fileUri fs
   let diagnosticRanges =
         (errDiagnostics <> conflictWarningDiagnostics <> unusedBindingDiagnostics)
           & fmap (\d -> (d ^. range, d))
@@ -183,7 +200,7 @@ fileAnalysisWorker = forever do
     pure dirty
   freshlyCheckedFiles <-
     Map.fromList <$> forMaybe (toList dirtyFileIDs) \docUri -> runMaybeT do
-      fileInfo <- MaybeT (checkFile $ TextDocumentIdentifier docUri)
+      fileInfo <- MaybeT (checkFileByUri $ TextDocumentIdentifier docUri)
       pure (docUri, fileInfo)
   Debug.debugM Debug.LSP "Freshly Typechecked " (Map.toList freshlyCheckedFiles)
   -- Overwrite any files we successfully checked
@@ -198,7 +215,7 @@ fileAnalysisWorker = forever do
   for freshlyCheckedFiles \(FileAnalysis {fileUri, fileVersion, diagnostics}) -> do
     reportDiagnostics fileUri (Just fileVersion) $ fold diagnostics
 
-analyseFile :: (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseFile :: (Lspish m) => (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> m ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText pped notes = do
   let ppe = PPED.suffixifiedPPE pped
   (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
@@ -206,7 +223,7 @@ analyseFile fileUri srcText pped notes = do
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
 -- codebase.
-computeConflictWarningDiagnostics :: Uri -> FileSummary -> Lsp [Diagnostic]
+computeConflictWarningDiagnostics :: (Lspish m) => Uri -> FileSummary -> m [Diagnostic]
 computeConflictWarningDiagnostics fileUri fileSummary@FileSummary {fileNames} = do
   let defLocations = fileDefLocations fileSummary
   conflictedNames <- Names.conflicts <$> getCurrentNames
@@ -249,11 +266,11 @@ getTokenMap tokens =
       )
     & fold
 
-analyseNotes :: (Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> Lsp ([Diagnostic], [RangedCodeAction])
+analyseNotes :: forall m f. (Lspish m, Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> m ([Diagnostic], [RangedCodeAction])
 analyseNotes fileUri ppe src notes = do
   foldMapM go notes
   where
-    go :: Note Symbol Ann -> Lsp ([Diagnostic], [RangedCodeAction])
+    go :: Note Symbol Ann -> m ([Diagnostic], [RangedCodeAction])
     go note = case note of
       Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
         let typeErr = TypeError.typeErrorFromNote errNote
@@ -421,7 +438,7 @@ toRangeMap :: (Foldable f) => f (Range, a) -> IntervalMap Position [a]
 toRangeMap vs =
   IM.fromListWith (<>) (toList vs <&> \(r, a) -> (rangeToInterval r, [a]))
 
-getFileAnalysis :: Uri -> MaybeT Lsp FileAnalysis
+getFileAnalysis :: (Lspish m) => Uri -> MaybeT m FileAnalysis
 getFileAnalysis uri = do
   checkedFilesV <- asks checkedFilesVar
   -- Try to get the file analysis, if there's a var, then read it, waiting if necessary
@@ -456,20 +473,20 @@ getFileNames fileUri = do
   FileAnalysis {typecheckedFile = tf, parsedFile = pf} <- getFileAnalysis fileUri
   hoistMaybe (fmap UF.typecheckedToNames tf <|> fmap UF.toNames pf)
 
-getFileSummary :: Uri -> MaybeT Lsp FileSummary
+getFileSummary :: (Lspish m) => Uri -> MaybeT m FileSummary
 getFileSummary uri = do
   FileAnalysis {fileSummary} <- getFileAnalysis uri
   MaybeT . pure $ fileSummary
 
 -- TODO memoize per file
-ppedForFile :: Uri -> Lsp PPED.PrettyPrintEnvDecl
+ppedForFile :: (Lspish m) => Uri -> m PPED.PrettyPrintEnvDecl
 ppedForFile fileUri = do
   runMaybeT (getFileAnalysis fileUri) >>= \case
     Just (FileAnalysis {typecheckedFile = tf, parsedFile = uf}) ->
       ppedForFileHelper uf tf
     _ -> ppedForFileHelper Nothing Nothing
 
-ppedForFileHelper :: Maybe (UF.UnisonFile Symbol a) -> Maybe (UF.TypecheckedUnisonFile Symbol a) -> Lsp PPED.PrettyPrintEnvDecl
+ppedForFileHelper :: (Lspish m) => Maybe (UF.UnisonFile Symbol a) -> Maybe (UF.TypecheckedUnisonFile Symbol a) -> m PPED.PrettyPrintEnvDecl
 ppedForFileHelper uf tf = do
   codebasePPED <- currentPPED
   hashLen <- asks codebase >>= \codebase -> liftIO (Codebase.runTransaction codebase Codebase.hashLength)
