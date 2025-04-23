@@ -1127,15 +1127,18 @@ renderContext env ctx@(C.Context es) =
 
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
-  fromString (Color.toPlain $ TermPrinter.pretty' (Just 80) env (TypeVar.lowerTerm e))
+  fromString (Color.toPlain $ TermPrinter.pretty' 80 env (TypeVar.lowerTerm e))
 
 renderPattern :: Env -> Pattern ann -> ColorText
-renderPattern env e = Pr.renderUnbroken . Pr.syntaxToColor . fst $ TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol]) e
+renderPattern env =
+  Pr.render 0
+    . Pr.syntaxToColor
+    . fst
+    . TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol])
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
-renderType' env typ =
-  fromString . Pr.toPlain defaultWidth $ renderType env (const id) typ
+renderType' env = fromString . Pr.toPlain defaultWidth . renderType env (const id)
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
@@ -1278,7 +1281,7 @@ renderNoteAsANSI ::
   String ->
   Note v a ->
   String
-renderNoteAsANSI w e s n = Pr.toANSI w $ printNoteWithSource e s n
+renderNoteAsANSI w e s = Pr.toANSI w . printNoteWithSource e s
 
 renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src

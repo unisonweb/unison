@@ -394,7 +394,7 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
               PE _stk msg ->
-                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlainUnbroken msg, unitValue)
+                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlain 0 msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
@@ -1181,7 +1181,7 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
 -- exceptions for top-level constant dependencies of docs and such, in
 -- case the docs don't actually evaluate them.
 isSandboxingException :: RuntimeExn -> Bool
-isSandboxingException (PE _ (P.toPlainUnbroken -> msg)) =
+isSandboxingException (PE _ (P.toPlain 0 -> msg)) =
   List.isPrefixOf sdbx1 msg || List.isPrefixOf sdbx2 msg
   where
     sdbx1 = "attempted to use sandboxed operation"

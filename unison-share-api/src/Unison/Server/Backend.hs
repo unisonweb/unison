@@ -66,6 +66,7 @@ module Unison.Server.Backend
     -- * Re-exported for Share Server
     termsToSyntax,
     termsToSyntaxOf,
+    typeToSyntax,
     typesToSyntax,
     typesToSyntaxOf,
     definitionResultsDependencies,
@@ -526,10 +527,7 @@ formatTypeName ppe =
   fmap Syntax.convertElement . formatTypeName' ppe
 
 formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> SyntaxText
-formatTypeName' ppe r =
-  Pretty.renderUnbroken
-    . NP.styleHashQualified id
-    $ PPE.typeName ppe r
+formatTypeName' ppe = Pretty.render 0 . NP.styleHashQualified id . PPE.typeName ppe
 
 termEntryToNamedTerm ::
   (Var v) => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
@@ -1131,15 +1129,12 @@ termsToSyntax suff width ppe0 terms =
   terms
     <&> \(r, dispObj) ->
       let n = PPE.termName ppeDecl . Referent.Ref $ r
-       in (r,) case dispObj of
-            DisplayObject.BuiltinObject typ ->
-              DisplayObject.BuiltinObject $
-                formatType' (ppeBody r) width typ
-            DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
-            DisplayObject.UserObject tm ->
-              DisplayObject.UserObject
-                . Pretty.render width
-                $ TermPrinter.prettyBinding (ppeBody r) n tm
+       in ( r,
+            bimap
+              (formatType' (ppeBody r) width)
+              (Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n)
+              dispObj
+          )
   where
     ppeBody r =
       if suffixified suff
@@ -1176,23 +1171,29 @@ typesToSyntaxOf suff width ppe0 trav s =
 
 -- | Converts Type Display Objects into Syntax Text.
 typesToSyntax ::
-  (Var v) =>
-  (Ord a) =>
+  (Var v, Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
   [(TypeReference, (DisplayObject () (DD.Decl v a)))] ->
   [(TypeReference, (DisplayObject SyntaxText SyntaxText))]
-typesToSyntax suff width ppe0 types =
-  types
-    <&> \(r, dispObj) ->
-      let n = PPE.typeName ppeDecl r
-       in (r,) $ case dispObj of
-            BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
-            MissingObject sh -> MissingObject sh
-            UserObject d ->
-              UserObject . Pretty.render width $
-                DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n d
+typesToSyntax suff width ppe0 =
+  fmap \(r, dispObj) -> (r, typeToSyntax suff width ppe0 r dispObj)
+
+-- | Converts a Type Display Object into Syntax Text.
+typeToSyntax ::
+  (Var v, Ord a) =>
+  Suffixify ->
+  Width ->
+  PPED.PrettyPrintEnvDecl ->
+  TypeReference ->
+  DisplayObject () (DD.Decl v a) ->
+  DisplayObject SyntaxText SyntaxText
+typeToSyntax suff width ppe0 r =
+  let n = PPE.typeName ppeDecl r
+   in bimap
+        (\() -> formatTypeName' ppeDecl r)
+        (Pretty.render width . DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n)
   where
     ppeDecl =
       if suffixified suff
@@ -1213,15 +1214,10 @@ typeToSyntaxHeader ::
   HQ.HashQualified Name ->
   DisplayObject () (DD.Decl Symbol Ann) ->
   DisplayObject SyntaxText SyntaxText
-typeToSyntaxHeader width hqName obj =
-  case obj of
-    BuiltinObject _ ->
-      let syntaxName = Pretty.renderUnbroken . NP.styleHashQualified id $ hqName
-       in BuiltinObject syntaxName
-    MissingObject sh -> MissingObject sh
-    UserObject d ->
-      UserObject . Pretty.render width $
-        DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hqName d
+typeToSyntaxHeader width hqName =
+  bimap
+    (\() -> Pretty.render 0 $ NP.styleHashQualified id hqName)
+    (Pretty.render width . DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hqName)
 
 loadSearchResults ::
   Codebase m Symbol Ann ->

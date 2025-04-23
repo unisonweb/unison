@@ -99,7 +99,7 @@ hoverInfo uri pos =
             pure typ
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent uri ref
-            let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+            let renderedType = Text.pack $ TypePrinter.prettyStr prettyWidth (PPED.suffixifiedPPE pped) typ
             pure (symAtCursor <> " : " <> renderedType)
       pure . Text.unlines $ [markdownify typeSig] <> renderedDocs
     hoverInfoForLiteral :: MaybeT Lsp Text

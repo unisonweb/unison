@@ -37,7 +37,7 @@ prettyCompileExn (CE _ issues err) =
 -- | __TODO__: With GHC 9.10, this implementation can be moved to `displayException` on the `Exception` instance, and
 --             this instance can be derived again (see haskell/core-libraries-committee#198).
 instance Show CompileExn where
-  show = Pretty.toPlainUnbroken . prettyCompileExn
+  show = Pretty.toPlain 0 . prettyCompileExn
 
 instance Exception CompileExn
 

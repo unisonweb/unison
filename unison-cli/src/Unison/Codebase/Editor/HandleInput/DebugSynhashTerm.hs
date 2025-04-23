@@ -50,7 +50,7 @@ handleDebugSynhashTerm name = do
             tokens
               & map prettyToken
               & Pretty.lines
-              & Pretty.toAnsiUnbroken
+              & Pretty.toANSI 0
               & Text.pack
       liftIO (Text.writeFile (Text.unpack filename) renderedTokens)
       Cli.respond (Output'DebugSynhashTerm ref (Hashable.accumulate tokens) filename)

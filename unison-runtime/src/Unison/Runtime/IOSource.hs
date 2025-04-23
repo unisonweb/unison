@@ -58,7 +58,7 @@ typecheckingEnv =
 parsedFile :: UF.UnisonFile Symbol Ann
 parsedFile =
   case runIdentity (Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv) of
-    Left err -> error (Pretty.toAnsiUnbroken (PrintError.prettyParseError sourceString err))
+    Left err -> error (Pretty.toANSI 0 (PrintError.prettyParseError sourceString err))
     Right file -> file
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
