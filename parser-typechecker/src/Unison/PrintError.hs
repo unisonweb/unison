@@ -574,6 +574,21 @@ renderTypeError e env src = case e of
         "\n\n",
         debugSummary note
       ]
+  SuspectedQuadraticHandler {..} ->
+    mconcat
+      [ "I found a suspicious handler",
+        "\n\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated failureSite
+          ],
+        "\n\n",
+        "The above call uses the handler recursively at a subset of the abilities it ",
+        "handles. This might mean that some handlers it delegates to are installed ",
+        "repeatedly, causing quadratic behavior.",
+        "\n\n",
+        debugSummary note
+      ]
   UnguardedLetRecCycle vs locs _ ->
     mconcat
       [ "These definitions depend on each other cyclically but aren't guarded ",
@@ -962,6 +977,16 @@ renderTypeError e env src = case e of
             commas (renderType' env) left,
             "} rhs={",
             commas (renderType' env) right,
+            "}\n",
+            renderContext env c
+          ]
+      C.AbilityConcreteSubset want have c ->
+        mconcat
+          [ "AbilityConcreteSubset: ",
+            "want={",
+            commas (renderType' env) want,
+            "} have={",
+            commas (renderType' env) have,
             "}\n",
             renderContext env c
           ]

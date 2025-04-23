@@ -303,6 +303,13 @@ abilityEqFailure =
     C.AbilityEqFailure lhs rhs ctx -> pure (lhs, rhs, ctx)
     _ -> mzero
 
+abilityConcreteSubset ::
+  ErrorExtractor v loc ([C.Type v loc], [C.Type v loc], C.Context v loc)
+abilityConcreteSubset =
+  cause >>= \case
+    C.AbilityConcreteSubset want have ctx -> pure (want, have, ctx)
+    _ -> mzero
+
 effectConstructorWrongArgCount ::
   ErrorExtractor
     v
