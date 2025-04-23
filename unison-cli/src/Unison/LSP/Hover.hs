@@ -8,7 +8,6 @@ import Language.LSP.Protocol.Lens
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Unison.ABT qualified as ABT
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.LSP.FileAnalysis (ppedForFile)
 import Unison.LSP.FileAnalysis qualified as FileAnalysis
@@ -124,21 +123,14 @@ hoverInfo uri pos =
 
     hoverInfoForLocalVar :: MaybeT Lsp Text
     hoverInfoForLocalVar = do
-      Debug.debugM Debug.Temp "pos" pos
-      localVar <- LSPQ.nodeAtPositionMatching uri pos \node -> do
-        Debug.debugM Debug.Temp "node" node
-        case node of
-          LSPQ.TypeNode {} -> empty
-          LSPQ.PatternNode {} -> empty
-          LSPQ.TermNode trm -> case trm of
-            (Term.Var' v) -> pure v
-            (ABT.Abs'' v _body) -> pure v
-            _ -> empty
-      Debug.debugM Debug.Temp "localVar" localVar
-      -- let varFromText = VFS.identifierAtPosition uri pos
+      localVar <- LSPQ.nodeAtPositionMatching uri pos \case
+        LSPQ.TypeNode {} -> empty
+        LSPQ.PatternNode {} -> empty
+        LSPQ.TermNode trm -> case trm of
+          (Term.Var' v) -> pure v
+          (ABT.Abs'' v _body) -> pure v
+          _ -> empty
       FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
-      Debug.debugM Debug.Temp "localBindingTypes" localBindingTypes
-      Debug.debugM Debug.Temp "localVar" localVar
       (_range, typ) <- hoistMaybe $ IM.lookupMin $ IM.intersecting localBindingTypes (IM.ClosedInterval pos pos)
 
       pped <- lift $ ppedForFile uri

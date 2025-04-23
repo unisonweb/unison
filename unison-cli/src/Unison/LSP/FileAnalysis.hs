@@ -106,15 +106,6 @@ checkFile doc = runMaybeT do
           Result.Result _ (Just parsedFile) -> do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
-            -- for_ maybeTypecheckedFile \tf -> do
-            --   let parsedVars =
-            --         UF.terms parsedFile
-            --           & foldMap (ABT.allVars . snd)
-            --   let typeCheckvars =
-            --         UF.hashTermsId tf
-            --           & foldMap (\(_a, _tr, _wk, trm, _typ) -> ABT.allVars trm)
-            --   Debug.debugM Debug.Temp "Parsed Vars" $ parsedVars
-            --   Debug.debugM Debug.Temp "Typecheck Vars" $ typeCheckvars
 
             symbolTypes <-
               typecheckingNotes
@@ -125,17 +116,6 @@ checkFile doc = runMaybeT do
                   _ -> mempty
                 & pure
 
-            let allVarMentions =
-                  typecheckingNotes
-                    & Foldable.toList
-                    & reverse -- Type notes that come later in typechecking have more information filled in.
-                    & foldMap \case
-                      Result.TypeInfo (Context.VarMention v loc) -> [(v, loc)]
-                      Result.TypeInfo (Context.VarBinding v loc _) -> [(v, loc)]
-                      _ -> mempty
-            Debug.debugM Debug.Temp "allVarMentions" allVarMentions
-            Debug.debugM Debug.Temp "symbolTypes" symbolTypes
-            Debug.debugM Debug.Temp "typecheckingNotes" typecheckingNotes
             let localBindings :: (IntervalMap Position (Context.Type Symbol Ann)) =
                   typecheckingNotes
                     & Foldable.toList
@@ -149,7 +129,6 @@ checkFile doc = runMaybeT do
                             ((annToInterval loc) & foldMap \interval -> (IM.singleton interval typ))
                           _ -> mempty
                       _ -> mempty
-            Debug.debugM Debug.Temp "localBindings" localBindings
             pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- lift $ ppedForFileHelper parsedFile typecheckedFile
