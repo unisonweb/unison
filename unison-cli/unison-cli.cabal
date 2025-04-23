@@ -140,6 +140,7 @@ library
       Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
       Unison.LSP.Formatting
+      Unison.LSP.GoToDefinition
       Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
