@@ -256,7 +256,7 @@ index ctx u = go 0 ctx
       | otherwise = go (n + 1) vs
 
 deindex :: (HasCallStack) => [v] -> Word64 -> v
-deindex [] _ = exn "deindex: bad index"
+deindex [] _ = exn [] "deindex: bad index"
 deindex (v : vs) n
   | n == 0 = v
   | otherwise = deindex vs (n - 1)
@@ -273,7 +273,7 @@ getIndex = unVarInt <$> deserialize
 putVar :: (MonadPut m) => (Eq v) => [v] -> v -> m ()
 putVar ctx v
   | Just i <- index ctx v = putIndex i
-  | otherwise = exn "putVar: variable not in context"
+  | otherwise = exn [] "putVar: variable not in context"
 
 getVar :: (MonadGet m) => [v] -> m v
 getVar ctx = deindex ctx <$> getIndex
@@ -297,7 +297,7 @@ getCCs =
     getWord8 <&> \case
       0 -> UN
       1 -> BX
-      _ -> exn "getCCs: bad calling convention"
+      _ -> exn [] "getCCs: bad calling convention"
 
 -- Serializes a `SuperGroup`.
 --
@@ -357,7 +357,7 @@ getCacheability =
   getWord8 >>= \case
     0 -> pure Uncacheable
     1 -> pure Cacheable
-    n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
+    n -> exn [] $ "getBLit: unrecognized cacheability byte: " ++ show n
 
 putComb ::
   (MonadPut m) =>
@@ -430,7 +430,7 @@ putNormal refrep fops ctx tm = case tm of
       *> putCCs ccs
       *> putNormal refrep fops ctx l
       *> putNormal refrep fops (pushCtx us ctx) e
-  _ -> exn "putNormal: malformed term"
+  _ -> exn [] "putNormal: malformed term"
 
 getNormal :: (MonadGet m) => (Var v) => [v] -> Word64 -> m (ANormal v)
 getNormal ctx frsh0 =
@@ -499,7 +499,7 @@ putFunc refrep fops ctx f = case f of
     | Just nm <- Map.lookup f fops ->
         putTag FForeignT *> putText nm
     | otherwise ->
-        exn $ "putFunc: could not serialize foreign operation: " ++ show f
+        exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
 
 getFunc :: (MonadGet m) => (Var v) => [v] -> m (Func v)
 getFunc ctx =
@@ -510,18 +510,18 @@ getFunc ctx =
     FConT -> FCon <$> getReference <*> getCTag
     FReqT -> FReq <$> getReference <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
-    FForeignT -> exn "getFunc: can't deserialize a foreign func"
+    FForeignT -> exn [] "getFunc: can't deserialize a foreign func"
 
 putPOp :: (MonadPut m) => POp -> m ()
 putPOp op
   | Just w <- Map.lookup op pop2word = putWord16be w
-  | otherwise = exn $ "putPOp: unknown POp: " ++ show op
+  | otherwise = exn [] $ "putPOp: unknown POp: " ++ show op
 
 getPOp :: (MonadGet m) => m POp
 getPOp =
   getWord16be >>= \w -> case Map.lookup w word2pop of
     Just op -> pure op
-    Nothing -> exn "getPOp: unknown enum code"
+    Nothing -> exn [] "getPOp: unknown enum code"
 
 pOpCode :: POp -> Word16
 pOpCode op = case op of
@@ -788,7 +788,7 @@ putBranches refrep fops ctx bs = case bs of
     putReference r
     putEnumMap putWord64be (putNormal refrep fops ctx) m
     putMaybe df $ putNormal refrep fops ctx
-  _ -> exn "putBranches: malformed intermediate term"
+  _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
   (MonadGet m) => (Var v) => [v] -> Word64 -> m (Branched (ANormal v))
@@ -933,7 +933,7 @@ getValue v =
   where
     assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
     assertEmptyUnboxed [] = pure ()
-    assertEmptyUnboxed _ = exn "getValue: unboxed values no longer supported"
+    assertEmptyUnboxed _ = exn [] "getValue: unboxed values no longer supported"
 
 putCont :: (MonadPut m) => Version -> Cont -> m ()
 putCont _ KE = putTag KET
@@ -987,7 +987,7 @@ getCont v =
             <*> getCont v
   where
     assert0 _name 0 = pure ()
-    assert0 name n = exn $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
+    assert0 name n = exn [] $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
 
 deserializeCode :: ByteString -> Either String Code
 deserializeCode bs = runGetS (getVersion >>= getCode) bs

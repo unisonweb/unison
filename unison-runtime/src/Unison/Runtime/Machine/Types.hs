@@ -21,13 +21,13 @@ import Unison.Runtime.ANF
     valueLinks,
   )
 import Unison.Runtime.Builtin
-import Unison.Runtime.Exception (CompileExn (CE), RuntimeExn (PE))
+import Unison.Runtime.Exception (CompileExn (CE))
+import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty qualified as P
 import Unison.Util.Text as UText
 
 -- | A ref storing every currently active thread.
@@ -69,9 +69,9 @@ refLookup s m r
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
-die :: (HasCallStack) => String -> IO a
-die s = do
-  void . throwIO . PE callStack . P.lit . fromString $ s
+die :: (HasCallStack) => [Word] -> String -> IO a
+die issues s = do
+  void $ Exception.die issues s
   -- This is unreachable, but we need it to fix some quirks in GHC's
   -- worker/wrapper optimization, specifically, it seems that when throwIO's polymorphic return
   -- value is specialized to a type like 'Stack' which we want GHC to unbox, it will sometimes
@@ -110,7 +110,7 @@ refNumTm :: CCache -> Reference -> IO Word64
 refNumTm cc r =
   refNumsTm cc >>= \case
     (M.lookup r -> Just w) -> pure w
-    _ -> die $ "refNumTm: unknown reference: " ++ show r
+    _ -> die [] $ "refNumTm: unknown reference: " ++ show r
 
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
@@ -152,7 +152,7 @@ lookupCode env (Ref link) =
     <$> readTVarIO (intermed env)
     <*> readTVarIO (refTm env)
     <*> readTVarIO (cacheableCombs env)
-lookupCode _ _ = die "lookupCode: Expected Ref"
+lookupCode _ _ = die [] "lookupCode: Expected Ref"
 
 resolveCode ::
   Reference ->

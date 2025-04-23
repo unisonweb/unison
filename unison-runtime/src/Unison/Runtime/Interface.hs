@@ -29,7 +29,6 @@ module Unison.Runtime.Interface
 where
 
 import Control.Concurrent.STM as STM
-import Control.Exception (throwIO)
 import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
@@ -53,10 +52,9 @@ import Data.Set as Set
     (\\),
   )
 import Data.Set qualified as Set
-import Data.Text as Text (isPrefixOf, pack, unpack)
+import Data.Text as Text (pack, unpack)
 import Data.Void (absurd)
 import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
-import GHC.Stack (callStack)
 import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
 import Network.Socket (PortNumber, socketPort)
 import System.Directory
@@ -105,7 +103,16 @@ import Unison.Runtime.ANF.Serialize as ANF
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
-import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, dieP, prettyCompileExn)
+import Unison.Runtime.Exception
+  ( bugMsg,
+    die,
+    dieP,
+    listErrors,
+    prettyCompileExn,
+    prettyRuntimeExn,
+    prettyRuntimeExnSansCtx,
+    tabulateErrors,
+  )
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.MCode
   ( Args (..),
@@ -147,7 +154,6 @@ import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
-import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
@@ -213,10 +219,10 @@ resolveTermRef ::
   RF.Reference ->
   IO (Term Symbol)
 resolveTermRef _ b@(RF.Builtin _) =
-  die $ "Unknown builtin term reference: " ++ show b
+  die [] $ "Unknown builtin term reference: " ++ show b
 resolveTermRef cl r@(RF.DerivedId i) =
   getTerm cl i >>= \case
-    Nothing -> die $ "Unknown term reference: " ++ show r
+    Nothing -> die [] $ "Unknown term reference: " ++ show r
     Just tm -> pure tm
 
 allocType ::
@@ -225,7 +231,7 @@ allocType ::
   Either [Int] [Int] ->
   IO EvalCtx
 allocType _ b@(RF.Builtin _) _ =
-  die $ "Unknown builtin type reference: " ++ show b
+  die [] $ "Unknown builtin type reference: " ++ show b
 allocType ctx r cons =
   pure $ ctx {dspec = Map.insert r cons $ dspec ctx}
 
@@ -571,7 +577,7 @@ ensureExists :: (HasCallStack) => CreateProcess -> (CmdSpec -> Either (Int, Stri
 ensureExists cmd err =
   ccall >>= \case
     Nothing -> pure ()
-    Just failure -> dieP $ err (cmdspec cmd) failure
+    Just failure -> dieP [] $ err (cmdspec cmd) failure
   where
     call =
       readCreateProcessWithExitCode cmd "" >>= \case
@@ -1011,9 +1017,9 @@ nativeCompileCodes copts executable codes base path = do
         pure ()
       callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
       ucrError (e :: IOException) =
-        throwIO $ PE callStack (runtimeErrMsg (cmdspec p) (Right e))
+        dieP [] . runtimeErrMsg (cmdspec p) $ Right e
       racoError (e :: IOException) =
-        throwIO $ PE callStack (racoErrMsg (makeRacoCmd RawCommand) (Right e))
+        dieP [] . racoErrMsg (makeRacoCmd RawCommand) $ Right e
       dargs = ["-G", srcPath]
       pargs
         | profile copts = "--profile" : dargs
@@ -1039,11 +1045,7 @@ evalInContext ppe ctx activeThreads w = do
       decom = decompileCtx crs ctx
       finish = fmap (first listErrors . decom)
 
-      prettyError (PE _ p) = p
-      prettyError (BU tr0 nm c) =
-        bugMsg ppe tr nm $ decom c
-        where
-          tr = first (backmapRef ctx) <$> tr0
+      prettyError = prettyRuntimeExn ppe (backmapRef ctx) decom
 
       debugText fancy val = case decom val of
         (errs, dv)
@@ -1074,8 +1076,7 @@ executeMainComb init cc = do
     Left err -> Left <$> formatErr err
     Right () -> pure (Right ())
   where
-    formatErr (PE _ msg) = pure msg
-    formatErr (BU tr nm c) = do
+    formatErr re = do
       crs <- readTVarIO (combRefs cc)
       let ctx = cacheContext cc
           decom =
@@ -1087,98 +1088,7 @@ executeMainComb init cc = do
                   (intermedRemap ctx)
                   (decompTm ctx)
               )
-      pure . bugMsg PPE.empty tr nm $ decom c
-
-bugMsg ::
-  PrettyPrintEnv ->
-  [(Reference, Int)] ->
-  Text ->
-  (Set DecompError, Term Symbol) ->
-  Pretty ColorText
-bugMsg ppe tr name (errs, tm)
-  | name == "blank expression" =
-      P.callout icon . P.linesNonEmpty $
-        [ P.wrap
-            ( "I encountered a"
-                <> P.red (P.text name)
-                <> "with the following name/message:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          tabulateErrors errs,
-          stackTrace ppe tr
-        ]
-  | "pattern match failure" `isPrefixOf` name =
-      P.callout icon . P.linesNonEmpty $
-        [ P.wrap
-            ( "I've encountered a"
-                <> P.red (P.text name)
-                <> "while scrutinizing:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          "",
-          "This happens when calling a function that doesn't handle all \
-          \possible inputs",
-          tabulateErrors errs,
-          stackTrace ppe tr
-        ]
-  | name == "builtin.raise" =
-      P.callout icon . P.linesNonEmpty $
-        [ P.wrap ("The program halted with an unhandled exception:"),
-          "",
-          P.indentN 2 $ pretty ppe tm,
-          tabulateErrors errs,
-          stackTrace ppe tr
-        ]
-  | name == "builtin.bug",
-    RF.TupleTerm' [Tm.Text' msg, x] <- tm,
-    "pattern match failure" `isPrefixOf` msg =
-      P.callout icon . P.linesNonEmpty $
-        [ P.wrap
-            ( "I've encountered a"
-                <> P.red (P.text msg)
-                <> "while scrutinizing:"
-            ),
-          "",
-          P.indentN 2 $ pretty ppe x,
-          "",
-          "This happens when calling a function that doesn't handle all \
-          \possible inputs",
-          tabulateErrors errs,
-          stackTrace ppe tr
-        ]
-bugMsg ppe tr name (errs, tm) =
-  P.callout icon . P.linesNonEmpty $
-    [ P.wrap
-        ( "I've encountered a call to"
-            <> P.red (P.text name)
-            <> "with the following value:"
-        ),
-      "",
-      P.indentN 2 $ pretty ppe tm,
-      tabulateErrors errs,
-      stackTrace ppe tr
-    ]
-
-stackTrace :: PrettyPrintEnv -> [(Reference, Int)] -> Pretty ColorText
-stackTrace _ [] = mempty
-stackTrace ppe tr = "\nStack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
-  where
-    f (rf, n) = name <> count
-      where
-        count
-          | n > 1 = " (" <> fromString (show n) <> " copies)"
-          | otherwise = ""
-        name =
-          syntaxToColor
-            . prettyHashQualified
-            . PPE.termName ppe
-            . RF.Ref
-            $ rf
-
-icon :: Pretty ColorText
-icon = "💔💥"
+      pure $ prettyRuntimeExn mempty id decom re
 
 catchInternalErrors ::
   IO (Either Error a) ->
@@ -1186,8 +1096,7 @@ catchInternalErrors ::
 catchInternalErrors sub = sub `UnliftIO.catch` hCE `UnliftIO.catch` hRE
   where
     hCE = pure . Left . prettyCompileExn
-    hRE (PE _ e) = pure $ Left e
-    hRE (BU _ _ _) = pure $ Left "impossible"
+    hRE = pure . Left . prettyRuntimeExnSansCtx
 
 decodeStandalone ::
   BL.ByteString ->
@@ -1255,8 +1164,7 @@ tryM =
     . fmap (const Nothing)
   where
     hCE = pure . Just . prettyCompileExn
-    hRE (PE _ e) = pure $ Just e
-    hRE (BU _ _ _) = pure $ Just "impossible"
+    hRE = pure . Just . prettyRuntimeExnSansCtx
 
 runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either (Pretty ColorText) ())
 runStandalone sandboxed sc init =
@@ -1310,17 +1218,6 @@ debugTextFormat fancy =
   render 50
   where
     render = if fancy then toANSI else toPlain
-
-listErrors :: Set DecompError -> [Error]
-listErrors = fmap (P.indentN 2 . renderDecompError) . toList
-
-tabulateErrors :: Set DecompError -> Error
-tabulateErrors errs | null errs = mempty
-tabulateErrors errs =
-  P.indentN 2 . P.lines $
-    ""
-      : P.wrap "The following errors occured while decompiling:"
-      : (listErrors errs)
 
 restoreCache :: Bool -> StoredCache -> IO CCache
 restoreCache sandboxed (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
@@ -1389,7 +1286,7 @@ traceNeeded init src = go mempty init
       | Just co <- Map.lookup nx src =
           foldlM go (Map.insert nx co acc) (groupTermLinks co)
       | otherwise =
-          die $ "traceNeeded: unknown combinator: " ++ show nx
+          die [] $ "traceNeeded: unknown combinator: " ++ show nx
 
 buildSCache ::
   EnumMap Word64 Reference ->
@@ -1459,4 +1356,4 @@ standalone cc init =
           <*> readTVarIO (refTy cc)
           <*> readTVarIO (sandbox cc)
       Nothing ->
-        die $ "standalone: unknown combinator: " ++ show init
+        die [] $ "standalone: unknown combinator: " ++ show init

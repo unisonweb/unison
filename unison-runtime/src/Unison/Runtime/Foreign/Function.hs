@@ -815,12 +815,12 @@ foreignCallHelper = \case
   Text_patterns_charIn -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.charIn: non-character closure"
+      _ -> die [] "Text.patterns.charIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char $ TPat.CharSet cs
   Text_patterns_notCharIn -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.notCharIn: non-character closure"
+      _ -> die [] "Text.patterns.notCharIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharSet cs
   Pattern_many -> mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many False p
@@ -854,7 +854,7 @@ foreignCallHelper = \case
   Char_Class_anyOf -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.charIn: non-character closure"
+      _ -> die [] "Text.patterns.charIn: non-character closure"
     evaluate $ TPat.CharSet cs
   Char_Class_alphanumeric -> mkForeign $ \() -> pure (TPat.CharClass TPat.AlphaNum)
   Char_Class_upper -> mkForeign $ \() -> pure (TPat.CharClass TPat.Upper)
@@ -911,19 +911,19 @@ foreignCallHelper = \case
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.union l r
       pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
-    _ -> die "Set.union: bad closure"
+    _ -> die [] "Set.union: bad closure"
   Set_intersect -> mkForeign $ \case
     (Data1 _ _ vl, Data1 _ _ vr) -> do
       (l :: Map Val Val) <- decodeVal vl
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.intersection l r
       pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
-    _ -> die "Set.insersect: bad closure"
+    _ -> die [] "Set.insersect: bad closure"
   Set_toList -> mkForeign $ \case
     (Data1 _ _ vs) -> do
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
-    _ -> die "Set.toList: bad closure"
+    _ -> die [] "Set.toList: bad closure"
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
