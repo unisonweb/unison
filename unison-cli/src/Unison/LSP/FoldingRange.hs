@@ -49,15 +49,15 @@ foldingRangesForFile UnisonFileId {dataDeclarationsId, effectDeclarationsId, ter
         terms
           & Map.toList
           <&> \case
-            (sym, (_ann, trm)) -> (Just sym, ABT.annotation trm)
+            (sym, (varAnn, trm)) -> (Just sym, varAnn <> ABT.annotation trm)
       watchFolds =
         watches
           & fold
           & fmap
-            ( \(_sym, ann, _trm) ->
+            ( \(_sym, openAnn, trm) ->
                 -- We don't use the symbol here because watch symbols are often auto-generated
                 -- and ugly.
-                (Nothing, ann)
+                (Nothing, openAnn <> ABT.annotation trm)
             )
       folds =
         dataFolds <> abilityFolds <> termFolds <> watchFolds

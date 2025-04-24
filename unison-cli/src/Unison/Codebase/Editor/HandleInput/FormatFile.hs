@@ -82,8 +82,9 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
-      & Map.filter (\(_bindingAnn, _, trm, _) -> shouldFormatTerm (ABT.annotation trm) trm)
-      & itraverse \sym (_bindingAnn, mayRefId, trm, _typ) -> do
+      & fmap (\(bindingAnn, mayRefId, trm, _typ) -> (bindingAnn <> ABT.annotation trm, mayRefId, trm))
+      & Map.filter (\(tldAnn, _, trm) -> shouldFormatTerm tldAnn trm)
+      & itraverse \sym (tldAnn, mayRefId, trm) -> do
         symName <- hoistMaybe (Name.parseVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments
@@ -102,7 +103,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
         --             Pretty.syntaxToColor $ Pretty.string wk <> "> " <> TermPrinter.prettyBindingWithoutTypeSignature definitionPPE hqName (stripTypeAnnotation trm)
         --           (Just wk, _) -> Pretty.string wk <> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
         --           (Nothing, _) -> "> " <> TermPrinter.prettyBlock False definitionPPE (stripTypeAnnotation trm)
-        pure (ABT.annotation trm, formattedTerm)
+        pure (tldAnn, formattedTerm)
 
   -- Only keep definitions which are _actually_ in the file, skipping generated accessors
   -- and such.
