@@ -17,7 +17,7 @@ import Unison.WatchKind (WatchKind)
 data UnisonFile v a = UnisonFileId
   { dataDeclarationsId :: Map v (TypeReferenceId, DataDeclaration v a),
     effectDeclarationsId :: Map v (TypeReferenceId, EffectDeclaration v a),
-    terms :: Map v (a {- ann for whole binding -}, Term v a),
+    terms :: Map v (a {- ann for name of the binding -}, Term v a),
     watches :: Map WatchKind [(v, a {- ann for whole watch -}, Term v a)]
   }
   deriving stock (Generic, Show)

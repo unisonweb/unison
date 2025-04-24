@@ -12,6 +12,7 @@ import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens hiding (id, to)
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
+import Unison.ABT qualified as ABT
 import Unison.DataDeclaration qualified as DD
 import Unison.LSP.Conversions (annToRange)
 import Unison.LSP.FileAnalysis (getFileAnalysis)
@@ -44,7 +45,11 @@ foldingRangesForFile UnisonFileId {dataDeclarationsId, effectDeclarationsId, ter
         effectDeclarationsId
           & Map.toList
           & map \(sym, (_typ, decl)) -> (Just sym, DD.annotation . DD.toDataDecl $ decl)
-      termFolds = terms & Map.toList & fmap \(sym, (ann, _trm)) -> (Just sym, ann)
+      termFolds =
+        terms
+          & Map.toList
+          <&> \case
+            (sym, (_ann, trm)) -> (Just sym, ABT.annotation trm)
       watchFolds =
         watches
           & fold
