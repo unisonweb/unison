@@ -332,14 +332,6 @@ renderTypeError e env src = case e of
               " expression ",
               "need to have the same type."
             ]
-  NotFunctionApplication {..} ->
-    mconcat
-      [ "This looks like a function call, but with a ",
-        style Type1 (renderType' env ft),
-        " where the function should be.  Are you missing an operator?\n\n",
-        annotatedAsStyle Type1 src f,
-        debugSummary note
-      ]
   ActionRestrictionFailure {..} ->
     mconcat
       [ Pr.lines
@@ -361,6 +353,36 @@ renderTypeError e env src = case e of
           ],
         debugSummary note
       ]
+  NotFunctionApplication {..} ->
+    case Type.arity ft of
+      0 ->
+        mconcat
+          [ "It looks like this expression is being called like a function:\n\n",
+            annotatedAsStyle ErrorSite src f,
+            "\n\nbut the thing being applied has the type:\n\n",
+            style Type2 (renderType' env ft),
+            "\n\nWhich doesn't expect any arguments.",
+            "\n\n",
+            debugSummary note
+          ]
+      arity ->
+        mconcat
+          [ "It looks like this function call\n\n",
+            annotatedAsStyle Type2 src f,
+            "\n\nis being applied to ",
+            Pr.blue $ Pr.shown (length args),
+            " arguments, but it has the type\n\n",
+            style Type2 (renderType' env ft),
+            "\n\nwhich only accepts only ",
+            Pr.blue $ Pr.shown arity,
+            maybePlural " argument" arity <> ".\n\n",
+            "Did you apply the function to too many arguments? \n\n",
+            debugSummary note
+          ]
+    where
+      maybePlural word n
+        | n == 1 = word
+        | otherwise = word <> "s"
   FunctionApplication {..} ->
     let fte = Type.removePureEffects False ft
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte

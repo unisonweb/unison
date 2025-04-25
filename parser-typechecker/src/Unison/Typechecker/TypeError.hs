@@ -63,7 +63,8 @@ data TypeError v loc
   | NotFunctionApplication
       { f :: C.Term v loc,
         ft :: C.Type v loc,
-        note :: C.ErrorNote v loc
+        note :: C.ErrorNote v loc,
+        args :: [C.Term v loc]
       }
   | AbilityCheckFailure
       { ambient :: [C.Type v loc],
@@ -399,15 +400,15 @@ applyingNonFunction :: (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.errorNote
-  (f, ft) <- Ex.unique $ do
+  (f, ft, args) <- Ex.unique $ do
     Ex.pathStart
-    (arity0Type, _arg, _argNum) <- Ex.inSynthesizeApp
+    _synthApp <- Ex.inSynthesizeApp
     (_, f, ft, args) <- Ex.inFunctionCall
     let expectedArgCount = Type.arity ft
         foundArgCount = length args
     -- unexpectedArgLoc = ABT.annotation arg
-    whenM (expectedArgCount < foundArgCount) $ pure (f, arity0Type)
-  pure $ NotFunctionApplication f (Type.cleanup ft) n
+    whenM (expectedArgCount < foundArgCount) $ pure (f, ft, args)
+  pure $ NotFunctionApplication f (Type.cleanup ft) n args
 
 -- | Want to collect this info:
 -- The `n`th argument to `f` is `foundType`, but I was expecting `expectedType`.
