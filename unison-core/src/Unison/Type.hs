@@ -102,6 +102,7 @@ arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
+arity (Effect' _ o) = arity o
 arity _ = 0
 
 -- some smart patterns
@@ -142,7 +143,7 @@ pattern Effects' es <- ABT.Tm' (Effects es)
 pattern Effect1' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Effect1' e t <- ABT.Tm' (Effect e t)
 
-pattern Effect' :: (Ord v) => [Type v a] -> Type v a -> Type v a
+pattern Effect' :: [Type v a] -> Type v a -> Type v a
 pattern Effect' es t <- (unEffects1 -> Just (es, t))
 
 pattern Effect'' :: (Ord v) => [Type v a] -> Type v a -> Type v a
@@ -242,7 +243,7 @@ unEffect0 :: (Ord v) => Type v a -> ([Type v a], Type v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
 unEffect0 t = ([], t)
 
-unEffects1 :: (Ord v) => Type v a -> Maybe ([Type v a], Type v a)
+unEffects1 :: Type v a -> Maybe ([Type v a], Type v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
 unEffects1 _ = Nothing
 
@@ -768,6 +769,7 @@ functionResult = go False
   where
     go inArr (ForallNamed' _ body) = go inArr body
     go _inArr (Arrow' _i o) = go True o
+    go _inArr (Effect1' _e body) = go True body
     go inArr t = if inArr then Just t else Nothing
 
 -- | Bind all free variables (not in `except`) that start with a lowercase
