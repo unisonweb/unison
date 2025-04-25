@@ -11,7 +11,7 @@ module Unison.PrintError
     renderNoteAsANSI,
     renderParseErrorAsANSI,
     renderParseErrors,
-    renderTypeWarning,
+    renderTypeWarnings,
   )
 where
 
@@ -166,29 +166,54 @@ renderTypeInfo i env = case i of
     renderOne (v, typ, _) =
       [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
 
-renderTypeWarning ::
-  forall v loc.
+-- Renders warnings in a more compact way than just giving the same
+-- message for each.
+--
+-- Note: there is only one warning right now. When more are added,
+-- this will need to separate out the warnings first.
+renderTypeWarnings ::
   (Var v, Annotated loc, Ord loc, Show loc) =>
   Env ->
   String ->
-  C.Warn v loc ->
+  [C.Warn v loc] ->
   Pretty ColorText
-renderTypeWarning env src w = case w of
-  C.AbilityConcreteSubset want have tm _ctx ->
-    mconcat
-      [ "\x1f914 I found a suspicious recursive ability handler.\n\n",
-        "The argument to the recursive occurrence here:\n\n",
+renderTypeWarnings env src ws
+  | null ws = ""
+  | otherwise = mconcat $ header ++ (ws >>= occurrence) ++ footer
+  where
+    multi = length ws > 1
+
+    hand = if multi then "handlers" else "handler"
+    article = if multi then "some" else "a"
+
+    header =
+      [ "\x1f914 I found ", article, " suspicious recursive ability ",
+        hand, ".\n\n",
+        "The recursive occurrences of the ",
+        hand,
+        " are called at a subset\n",
+        "of the declared abilities, which might indicate that a separate\n",
+        "handler is installed for each recursive call.",
+        "\n\n"
+      ]
+
+    footer =
+      [ "To avoid this warning, you can give explicit types to the arguments\n",
+        "of the recursive call to the handler."
+      ]
+
+    occurrence (C.AbilityConcreteSubset want have tm _ctx) =
+      [ "The argument:\n\n",
         showSourceMaybes src [(,Type1) <$> rangeForAnnotated tm],
-        "\n",
-        "only needs the abilities:",
-        "\n\n      ",
+        "\nonly needs the abilities:\n\n    ",
         style Type1 $
           mconcat ["{", commas (renderType' env) want, "}"],
         "\n\n",
-        "but handles:",
+        "but the available abilities are:",
         "\n\n      ",
         style Type2 $
-          mconcat ["{", commas (renderType' env) have, "}"]
+          mconcat ["{", commas (renderType' env) have, "}"],
+        "\n\n"
       ]
 
 -- Render a type error

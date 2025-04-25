@@ -116,7 +116,7 @@ loadUnisonFile sourceName text = do
         Cli.runTransaction do
           computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-          tws = [wrn | Result.TypeWarning wrn <- toList notes]
+          tws = reverse [wrn | Result.TypeWarning wrn <- toList notes]
           suffixifiedPPE = PPED.suffixifiedPPE pped
           pped =
             let ns =
