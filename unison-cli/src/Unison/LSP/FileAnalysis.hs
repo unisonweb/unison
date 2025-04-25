@@ -223,8 +223,6 @@ analyseNotes fileUri ppe src notes = do
             TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
             TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
             TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
-            TypeError.SuspectedQuadraticHandler {failureSite} ->
-              singleRange $ ABT.annotation failureSite
             TypeError.AbilityEqFailureFromAp {expectedSite, mismatchSite} -> do
               let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
               (r, rs) <- withNeighbours (locs >>= aToR)
@@ -254,7 +252,6 @@ analyseNotes fileUri ppe src notes = do
               Context.UnknownTerm loc _ _ _ -> singleRange loc
               Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
               Context.AbilityEqFailure {} -> shouldHaveBeenHandled e
-              Context.AbilityConcreteSubset {} -> shouldHaveBeenHandled e
               Context.EffectConstructorWrongArgCount {} -> shouldHaveBeenHandled e
               Context.MalformedEffectBind {} -> shouldHaveBeenHandled e
               Context.DuplicateDefinitions {} -> shouldHaveBeenHandled e

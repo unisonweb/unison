@@ -11,6 +11,7 @@ module Unison.Typechecker.Context
     InfoNote (..),
     Cause (..),
     Context (..),
+    Warn (..),
     ActualArgCount,
     ExpectedArgCount,
     ConstructorId,
@@ -196,6 +197,9 @@ instance MonadFix (Result v loc) where
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
 
+warn' :: Warn v loc -> Result v loc ()
+warn' w = Success (Seq.singleton $ Warning w) ()
+
 typeError :: Cause v loc -> Result v loc a
 typeError cause = TypeError (pure $ ErrorNote cause mempty) mempty
 
@@ -280,6 +284,9 @@ adjustNotes (MT m) = MT $ \ppe pmcSwitch datas effects defs env ->
 btw :: InfoNote v loc -> M v loc ()
 btw = liftResult . btw'
 
+warn :: Warn v loc -> M v loc ()
+warn = liftResult . warn'
+
 modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
@@ -361,6 +368,7 @@ data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
   | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
+  | Warning (Warn v loc)
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -430,6 +438,10 @@ removeSyntheticTypeVars typ =
         pick [] = error "impossible"
         defaultName = "x"
 
+data Warn v loc
+  = AbilityConcreteSubset [Type v loc] [Type v loc] (Term v loc) (Context v loc)
+  deriving (Show)
+
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
@@ -437,7 +449,6 @@ data Cause v loc
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
   | AbilityEqFailure [Type v loc] [Type v loc] (Context v loc)
-  | AbilityConcreteSubset [Type v loc] [Type v loc] (Context v loc)
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount ConstructorReference
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   -- Type of ctor, number of arguments we got
@@ -1260,7 +1271,7 @@ synthesizeWanted (Term.Handle' h body) = do
     -- `Remote` into ambient when checking `body`
     Type.Arrow' (Type.Apps' (Type.Ref' ref) [et, i]) o | ref == Type.effectRef -> do
       let es = Type.flattenEffects et
-      bwant <- withEffects es $ checkWanted False [] body i
+      bwant <- withEffects es $ checkWanted Nothing [] body i
       o <- applyM o
       let (oes, o') = Type.stripEffect o
       want <- coalesceWanted (fmap (Just h,) oes ++ bwant) hwant
@@ -1278,7 +1289,7 @@ synthesizeWanted (Term.Handle' h body) = do
       subtype i e0
       o <- applyM o
       let (oes, o') = Type.stripEffect o
-      want <- checkWanted False (fmap (Just h,) oes) body rt
+      want <- checkWanted Nothing (fmap (Just h,) oes) body rt
       pure (o', want)
     _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
 synthesizeWanted (Term.Ann' e t) = checkScoped e t
@@ -1341,8 +1352,8 @@ synthesizeWanted e
         subtype it (DDB.thunkArgType l)
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var () arg)
       if Term.isLam body'
-        then checkWithAbilities False [] body' ot
-        else checkWithAbilities False [et] body' ot
+        then checkWithAbilities Nothing [] body' ot
+        else checkWithAbilities Nothing [et] body' ot
       ctx <- getContext
       let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
       pure (t, [])
@@ -2429,13 +2440,15 @@ checkWantedScoped ::
   Type v loc ->
   M v loc (Wanted v loc)
 checkWantedScoped exact want m ty =
-  scope (InCheck m ty) $ checkWanted exact want m ty
+  scope (InCheck m ty) $ checkWanted mexact want m ty
+  where
+    mexact | exact = Just m | otherwise = Nothing
 
 -- Checks if the term has the given type. Accumulates a wanted
 -- abilities set, both accepting an incoming set and producing an
 -- updated set.
 --
--- The boolean argument determines whether an exact ability match is
+-- The Maybe argument determines whether an exact ability match is
 -- required for function maches. This is to check for suspicious
 -- ability handler situations like:
 --
@@ -2448,10 +2461,13 @@ checkWantedScoped exact want m ty =
 -- having linear cost in the number of Y effects. The idea is to
 -- detect this case by `k` having a subset of the abilities in the
 -- type of `foo`.
+--
+-- If the Maybe is a Just, the suspicious condition emits a warning,
+-- with the given term as the problem location.
 checkWanted ::
   (Var v) =>
   (Ord loc) =>
-  Bool ->
+  Maybe (Term v loc) ->
   Wanted v loc ->
   Term v loc ->
   Type v loc ->
@@ -2517,7 +2533,7 @@ checkWanted _ want e t = do
 checkWithAbilities ::
   (Var v) =>
   (Ord loc) =>
-  Bool ->
+  Maybe (Term v loc) ->
   [Type v loc] ->
   Term v loc ->
   Type v loc ->
@@ -2525,8 +2541,10 @@ checkWithAbilities ::
 checkWithAbilities exact es m t = do
   want <- check m t
   sub <- subAbilities want es
-  when (exact && sub) $
-    getContext >>= failWith . AbilityConcreteSubset (map snd want) es
+  case exact of
+    Just tm | sub ->
+      getContext >>= warn . AbilityConcreteSubset (map snd want) es tm
+    _ -> pure ()
 
 -- traverse_ defaultAbility es
 
@@ -2548,9 +2566,9 @@ check m0 t0 = scope (InCheck m0 t0) $ do
       | not (wellformedType ctx t0) ->
           failWith $ IllFormedType ctx
       | Type.Var' TypeVar.Existential {} <- t0 ->
-          applyM t0 >>= checkWanted False [] m
+          applyM t0 >>= checkWanted Nothing [] m
       | otherwise ->
-          checkWanted False [] m (Type.stripIntroOuters t0)
+          checkWanted Nothing [] m (Type.stripIntroOuters t0)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.

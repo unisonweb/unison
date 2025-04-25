@@ -11,6 +11,7 @@ module Unison.PrintError
     renderNoteAsANSI,
     renderParseErrorAsANSI,
     renderParseErrors,
+    renderTypeWarning,
   )
 where
 
@@ -164,6 +165,31 @@ renderTypeInfo i env = case i of
     renderOne :: (IsString s) => (v, Type v loc, RedundantTypeAnnotation) -> [s]
     renderOne (v, typ, _) =
       [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
+
+renderTypeWarning ::
+  forall v loc.
+  (Var v, Annotated loc, Ord loc, Show loc) =>
+  Env ->
+  String ->
+  C.Warn v loc ->
+  Pretty ColorText
+renderTypeWarning env src w = case w of
+  C.AbilityConcreteSubset want have tm _ctx ->
+    mconcat
+      [ "\x1f914 I found a suspicious recursive ability handler.\n\n",
+        "The argument to the recursive occurrence here:\n\n",
+        showSourceMaybes src [(,Type1) <$> rangeForAnnotated tm],
+        "\n",
+        "only needs the abilities:",
+        "\n\n      ",
+        style Type1 $
+          mconcat ["{", commas (renderType' env) want, "}"],
+        "\n\n",
+        "but handles:",
+        "\n\n      ",
+        style Type2 $
+          mconcat ["{", commas (renderType' env) have, "}"]
+      ]
 
 -- Render a type error
 renderTypeError ::
@@ -574,21 +600,6 @@ renderTypeError e env src = case e of
         "\n\n",
         debugSummary note
       ]
-  SuspectedQuadraticHandler {..} ->
-    mconcat
-      [ "I found a suspicious handler",
-        "\n\n",
-        showSourceMaybes
-          src
-          [ (,Type1) <$> rangeForAnnotated failureSite
-          ],
-        "\n\n",
-        "The above call uses the handler recursively at a subset of the abilities it ",
-        "handles. This might mean that some handlers it delegates to are installed ",
-        "repeatedly, causing quadratic behavior.",
-        "\n\n",
-        debugSummary note
-      ]
   UnguardedLetRecCycle vs locs _ ->
     mconcat
       [ "These definitions depend on each other cyclically but aren't guarded ",
@@ -977,16 +988,6 @@ renderTypeError e env src = case e of
             commas (renderType' env) left,
             "} rhs={",
             commas (renderType' env) right,
-            "}\n",
-            renderContext env c
-          ]
-      C.AbilityConcreteSubset want have c ->
-        mconcat
-          [ "AbilityConcreteSubset: ",
-            "want={",
-            commas (renderType' env) want,
-            "} have={",
-            commas (renderType' env) have,
             "}\n",
             renderContext env c
           ]

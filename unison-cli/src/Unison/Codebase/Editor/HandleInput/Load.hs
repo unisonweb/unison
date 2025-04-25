@@ -116,37 +116,45 @@ loadUnisonFile sourceName text = do
         Cli.runTransaction do
           computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
       let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+          tws = [wrn | Result.TypeWarning wrn <- toList notes]
+          suffixifiedPPE = PPED.suffixifiedPPE pped
+          pped =
+            let ns =
+                  names
+                    -- Shadow just the type decl and constructor names (because the unison file didn't typecheck so we
+                    -- don't have term `Names`)
+                    & Names.shadowing (UF.toNames unisonFile)
+             in PPED.makePPED
+                  (PPE.hqNamer 10 ns)
+                  ( PPE.suffixifyByHashWithUnhashedTermsInScope
+                      ( Set.union
+                          (Set.map Name.unsafeParseVar (Map.keysSet (UF.terms unisonFile)))
+                          ( foldMap
+                              ( foldMap \case
+                                  (v, _, _) ->
+                                    case Var.typeOf v of
+                                      Var.User _ -> Set.singleton (Name.unsafeParseVar v)
+                                      _ -> Set.empty
+                              )
+                              (UF.watches unisonFile)
+                          )
+                      )
+                      ns
+                  )
+
+      when (not $ null tws) do
+        currentPath <- Cli.getCurrentPath
+        Cli.respond $
+          Output.TypeWarns currentPath text suffixifiedPPE tws
+
       maybeTypecheckedUnisonFile & onNothing do
-        let pped =
-              let ns =
-                    names
-                      -- Shadow just the type decl and constructor names (because the unison file didn't typecheck so we
-                      -- don't have term `Names`)
-                      & Names.shadowing (UF.toNames unisonFile)
-               in PPED.makePPED
-                    (PPE.hqNamer 10 ns)
-                    ( PPE.suffixifyByHashWithUnhashedTermsInScope
-                        ( Set.union
-                            (Set.map Name.unsafeParseVar (Map.keysSet (UF.terms unisonFile)))
-                            ( foldMap
-                                ( foldMap \case
-                                    (v, _, _) ->
-                                      case Var.typeOf v of
-                                        Var.User _ -> Set.singleton (Name.unsafeParseVar v)
-                                        _ -> Set.empty
-                                )
-                                (UF.watches unisonFile)
-                            )
-                        )
-                        ns
-                    )
-        let suffixifiedPPE = PPED.suffixifiedPPE pped
         let tes = [err | Result.TypeError err <- toList notes]
             cbs =
               [ bug
                 | Result.CompilerBug (Result.TypecheckerBug bug) <-
                     toList notes
               ]
+
         when (not (null tes)) do
           currentPath <- Cli.getCurrentPath
           Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)

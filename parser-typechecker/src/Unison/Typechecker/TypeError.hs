@@ -83,12 +83,6 @@ data TypeError v loc
         mismatchSite :: C.Term v loc,
         note :: C.ErrorNote v loc
       }
-  | SuspectedQuadraticHandler
-      { want :: [C.Type v loc],
-        have :: [C.Type v loc],
-        failureSite :: C.Term v loc,
-        note :: C.ErrorNote v loc
-      }
   | UnguardedLetRecCycle
       { cycle :: [v],
         cycleLocs :: [loc],
@@ -152,7 +146,6 @@ allErrors =
       generalMismatch,
       abilityCheckFailure,
       abilityEqFailure,
-      suspectedQuadraticHandler,
       unguardedCycle,
       unknownType,
       unknownTerm,
@@ -205,13 +198,6 @@ abilityEqFailure = do
     p (C.InSubtype t1 t2) = Just (t1, t2)
     p (C.InEquate t1 t2) = Just (t1, t2)
     p _ = Nothing
-
-suspectedQuadraticHandler :: Ex.ErrorExtractor v a (TypeError v a)
-suspectedQuadraticHandler = do
-  (want, have, _ctx) <- Ex.abilityConcreteSubset
-  e <- Ex.innermostTerm
-  n <- Ex.errorNote
-  pure $ SuspectedQuadraticHandler want have e n
 
 duplicateDefinitions :: Ex.ErrorExtractor v a (TypeError v a)
 duplicateDefinitions = do
