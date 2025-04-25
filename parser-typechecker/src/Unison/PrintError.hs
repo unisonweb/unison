@@ -75,6 +75,7 @@ import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.ColorText (Color)
 import Unison.Util.ColorText qualified as Color
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
@@ -353,6 +354,62 @@ renderTypeError e env src = case e of
           ],
         debugSummary note
       ]
+  FunctionUnderApplied {..} ->
+    mconcat
+      [ Pr.lines
+          [ "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
+            "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf),
+            "it looks like it might be a function application that's just missing these arguments:\n\n",
+            Monoid.intercalateMap ", " (style Type1 . renderType' env) needArgs
+          ],
+        "\n\n",
+        showSourceMaybes
+          src
+          [ -- these are overwriting the colored ranges for some reason?
+            --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+            -- , (,Color.ForceShow) <$> rangeForType foundType
+            -- , (,Color.ForceShow) <$> rangeForType expectedType
+            -- ,
+            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+            (,Type2) <$> rangeForAnnotated expectedLeaf
+          ],
+        fromOverHere'
+          src
+          [styleAnnotated Type1 foundLeaf]
+          [styleAnnotated Type2 expectedLeaf],
+        unitHint,
+        intLiteralSyntaxTip mismatchSite expectedType,
+        debugNoteLoc
+          . mconcat
+          $ [ "\nloc debug:",
+              "\n  mismatchSite: ",
+              annotatedToEnglish mismatchSite,
+              "\n     foundType: ",
+              annotatedToEnglish foundType,
+              "\n     foundLeaf: ",
+              annotatedToEnglish foundLeaf,
+              "\n  expectedType: ",
+              annotatedToEnglish expectedType,
+              "\n  expectedLeaf: ",
+              annotatedToEnglish expectedLeaf,
+              "\n"
+            ],
+        debugSummary note
+      ]
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
+          _ -> False
+        _ -> False
   NotFunctionApplication {..} ->
     case Type.arity ft of
       0 ->
