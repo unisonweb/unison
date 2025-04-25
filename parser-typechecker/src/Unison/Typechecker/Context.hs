@@ -2542,8 +2542,11 @@ checkWithAbilities exact es m t = do
   want <- check m t
   sub <- subAbilities want es
   case exact of
-    Just tm | sub ->
-      getContext >>= warn . AbilityConcreteSubset (map snd want) es tm
+    Just tm | sub -> do
+      want <- expandAbilities $ map snd want
+      es <- expandAbilities es
+      cx <- getContext
+      warn $ AbilityConcreteSubset want es tm cx
     _ -> pure ()
 
 -- traverse_ defaultAbility es
@@ -2986,36 +2989,45 @@ matchConcrete common acc (l : ls) rs
 -- in both the wanted and available abilities to become solved.
 --
 -- The result is the wanted abilities that do not occur directly in the
--- available abilities, and an indication of whether any of the
--- available concrete abilities were _not_ needed by the wanted
--- abilities.
+-- available abilities.
 pruneConcrete ::
   (Var v) =>
   (Ord loc) =>
   (Maybe (Term v loc) -> Type v loc -> M v loc ()) ->
   Wanted v loc ->
   [Type v loc] ->
-  M v loc (Bool, Wanted v loc)
-pruneConcrete missing = go [] []
+  M v loc (Wanted v loc)
+pruneConcrete missing = go []
   where
-    abstract (Type.Var' _) = True
-    abstract _ = False
-
-    go wacc _ [] have = pure (any (not . abstract) have, reverse wacc)
-    go wacc hseen ((loc, w) : ws) have
-      | Just v <- find (headMatch w) hseen = do
+    go wacc [] _ = pure (reverse wacc)
+    go wacc ((loc, w) : ws) have
+      | Just v <- find (headMatch w) have = do
           subtype v w `orElse` missing loc w
           ws <- expandWanted ws
           have <- expandAbilities have
-          hseen <- expandAbilities hseen
-          go wacc hseen ws have
-      | (hpre, v:hpost) <- break (headMatch w) have = do
-          subtype v w `orElse` missing loc w
-          ws <- expandWanted ws
-          have <- expandAbilities (hpre ++ hpost)
-          hseen <- expandAbilities (v : hseen)
-          go wacc hseen ws have
-      | otherwise = go ((loc, w) : wacc) hseen ws have
+          go wacc ws have
+      | otherwise = go ((loc, w) : wacc) ws have
+
+-- Checks whether any of the abilities available in `have` are not
+-- necessary for a list of wanted abilities. If so, this may indicate
+-- that a handler will result in quadratic behavior.
+checkConcreteAbilitySubset ::
+  (Var v) =>
+  (Ord loc) =>
+  Wanted v loc ->
+  [Type v loc] ->
+  Bool
+checkConcreteAbilitySubset [] have = any (not . abstract) have
+  where
+    abstract (Type.Var' _) = True
+    abstract _ = False
+checkConcreteAbilitySubset ((_loc, w) : want) have =
+  checkConcreteAbilitySubset want have'
+  where
+    have'
+      | (hpre, _ : hpost) <- break (headMatch w) have = hpre ++ hpost
+      | otherwise = have
+
 
 matchVariables ::
   (Var v) =>
@@ -3057,18 +3069,22 @@ pruneAbilities ::
 pruneAbilities want0 have0
   | debugShow ("pruneAbilities" :: Text, want0, have0) = undefined
 pruneAbilities want0 have0 = do
-  (extra, pwant) <- pruneConcrete missing want0 have0
+  pwant <- fixpoint want0 have0
   want <- expandWanted want0
-  if want /= want0
-    then do
-      have <- expandAbilities have0
-      pruneAbilities want have
-    else -- fixed point
-
-      if dflt
-        then fmap (extra,) . expandWanted =<< pruneVariables [] pwant
-        else pure (extra, pwant)
+  have <- expandAbilities have0
+  pure (checkConcreteAbilitySubset want have, pwant)
   where
+    fixpoint want have = do
+      pwant <- pruneConcrete missing want have
+      if pwant /= want
+        then do
+          want <- expandWanted pwant
+          have <- expandAbilities have
+          fixpoint want have
+        else if dflt
+          then expandWanted =<< pruneVariables [] pwant
+          else pure pwant
+
     missing loc w = maybe id (scope . InSynthesize) loc $ do
       ctx <- getContext
       failWith $
