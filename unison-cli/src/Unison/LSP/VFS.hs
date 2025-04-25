@@ -34,12 +34,12 @@ usingVFS m = do
   vfsVar' <- asks vfsVar
   modifyMVar vfsVar' $ \vfs -> swap <$> runStateT m vfs
 
-getVirtualFile :: Uri -> MaybeT Lsp VirtualFile
+getVirtualFile :: (Lspish m) => Uri -> MaybeT m VirtualFile
 getVirtualFile fileUri = do
   vfs <- asks vfsVar >>= readMVar
   MaybeT . pure $ vfs ^. vfsMap . at (toNormalizedUri $ fileUri)
 
-getFileContents :: Uri -> MaybeT Lsp (FileVersion, Text)
+getFileContents :: (Lspish m) => Uri -> MaybeT m (FileVersion, Text)
 getFileContents fileUri = do
   vf <- getVirtualFile fileUri
   pure (vf ^. lsp_version, Rope.toText $ vf ^. file_text)
@@ -71,12 +71,12 @@ markAllFilesDirty = do
   markFilesDirty $ Map.keys (vfs ^. vfsMap)
 
 -- | Returns the name or symbol which the provided position is contained in.
-identifierAtPosition :: Uri -> Position -> MaybeT Lsp Text
+identifierAtPosition :: (Lspish m) => Uri -> Position -> MaybeT m Text
 identifierAtPosition uri pos = do
   identifierSplitAtPosition uri pos <&> \(before, after) -> (before <> after)
 
 -- | Returns the prefix and suffix of the symbol which the provided position is contained in.
-identifierSplitAtPosition :: Uri -> Position -> MaybeT Lsp (Text, Text)
+identifierSplitAtPosition :: (Lspish m) => Uri -> Position -> MaybeT m (Text, Text)
 identifierSplitAtPosition uri pos = do
   vf <- getVirtualFile uri
   PosPrefixInfo {fullLine, cursorPos} <- MaybeT (VFS.getCompletionPrefix pos vf)

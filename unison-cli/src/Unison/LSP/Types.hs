@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
@@ -43,9 +44,14 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol
 import Unison.Syntax.Lexer.Unison qualified as Lexer
 import Unison.Type (Type)
+import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Summary (FileSummary (..))
 import UnliftIO
+
+-- | Constraints for the lsp monad, but using constraints so we can
+-- swap it out in tests.
+type Lspish m = (MonadReader Env m, MonadIO m)
 
 -- | A custom LSP monad wrapper so we can provide our own environment.
 newtype Lsp a = Lsp {runLspM :: ReaderT Env (LspM Config) a}
@@ -124,24 +130,26 @@ data FileAnalysis = FileAnalysis
     notes :: Seq (Note Symbol Ann),
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
+    -- | The types of local variable bindings keyed by the mention's location.
+    localBindingTypes :: IntervalMap Position (Context.Type Symbol Ann),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }
   deriving stock (Show)
 
-getCurrentProjectPath :: Lsp PP.ProjectPath
+getCurrentProjectPath :: (Lspish m) => m PP.ProjectPath
 getCurrentProjectPath = asks currentProjectPathCache >>= liftIO
 
 getCodebaseCompletions :: Lsp CompletionTree
 getCodebaseCompletions = asks completionsVar >>= atomically . readTMVar
 
-currentPPED :: Lsp PrettyPrintEnvDecl
+currentPPED :: (Lspish m) => m PrettyPrintEnvDecl
 currentPPED = asks ppedCache >>= liftIO
 
-getNameSearch :: Lsp (NameSearch Sqlite.Transaction)
+getNameSearch :: (Lspish m) => m (NameSearch Sqlite.Transaction)
 getNameSearch = asks nameSearchCache >>= liftIO
 
-getCurrentNames :: Lsp Names
+getCurrentNames :: (MonadReader Env m, MonadIO m) => m Names
 getCurrentNames = asks currentNamesCache >>= liftIO
 
 data Config = Config
