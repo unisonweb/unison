@@ -2488,6 +2488,22 @@ checkWanted exact want (Term.Lam' body) (Type.Arrow'' i es o) = do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
     checkWithAbilities exact es body o
   pure want
+checkWanted exact want tm@(Term.Var' _) ty@(Type.Arrow'' i es o) =
+  synthesize tm >>= \case
+    -- special case to detect quadratic abilities
+    (Type.Arrow'' j fs p, wnew) -> do
+      ctx <- getContext
+      subtype (apply ctx i) (apply ctx j)
+      ctx <- getContext
+      sub <- subAbilities ((Nothing,) . apply ctx <$> fs) (apply ctx <$> es)
+      ctx <- getContext
+      subtype (apply ctx p) (apply ctx o)
+      exactAbilitiesWarning fs es exact sub
+      coalesceWanted wnew want
+    (u, wnew) -> do
+      ctx <- getContext
+      subtype (apply ctx u) (apply ctx ty)
+      coalesceWanted wnew want
 checkWanted exact want (Term.Let1Top' top binding m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
@@ -2541,13 +2557,22 @@ checkWithAbilities ::
 checkWithAbilities exact es m t = do
   want <- check m t
   sub <- subAbilities want es
-  case exact of
-    Just tm | sub -> do
-      want <- expandAbilities $ map snd want
-      es <- expandAbilities es
-      cx <- getContext
-      warn $ AbilityConcreteSubset want es tm cx
-    _ -> pure ()
+  exactAbilitiesWarning (map snd want) es exact sub
+
+exactAbilitiesWarning ::
+  (Var v) =>
+  (Ord loc) =>
+  [Type v loc] ->
+  [Type v loc] ->
+  Maybe (Term v loc) ->
+  Bool ->
+  M v loc ()
+exactAbilitiesWarning want es (Just tm) True = do
+  want <- expandAbilities want
+  es <- expandAbilities es
+  cx <- getContext
+  warn $ AbilityConcreteSubset want es tm cx
+exactAbilitiesWarning _ _ _ _ = pure ()
 
 -- traverse_ defaultAbility es
 
