@@ -210,7 +210,7 @@ renderTypeWarnings env src ws
           mconcat ["{", commas (renderType' env) want, "}"],
         "\n\n",
         "but the available abilities are:",
-        "\n\n      ",
+        "\n\n    ",
         style Type2 $
           mconcat ["{", commas (renderType' env) have, "}"],
         "\n\n"
