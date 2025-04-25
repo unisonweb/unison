@@ -703,7 +703,7 @@ withStreamProgress hasDownload action = do
             if (downloaded == 0)
               then do
                 spinChar <- UnliftIO.readTVar spinnerVar
-                pure $ "\n  Preparing entities " <> spinChar <> " \n\n"
+                pure $ "\n  Hang tight while Share prepares your download " <> spinChar <> " \n\n"
               else do
                 pure $
                   Text.unlines
