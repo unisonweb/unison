@@ -2998,7 +2998,10 @@ pruneConcrete ::
   M v loc (Bool, Wanted v loc)
 pruneConcrete missing = go [] []
   where
-    go wacc _ [] have = pure (not $ null have, reverse wacc)
+    abstract (Type.Var' _) = True
+    abstract _ = False
+
+    go wacc _ [] have = pure (any (not . abstract) have, reverse wacc)
     go wacc hseen ((loc, w) : ws) have
       | Just v <- find (headMatch w) hseen = do
           subtype v w `orElse` missing loc w
