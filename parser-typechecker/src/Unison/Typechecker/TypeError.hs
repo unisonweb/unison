@@ -203,7 +203,7 @@ duplicateDefinitions :: Ex.ErrorExtractor v a (TypeError v a)
 duplicateDefinitions = do
   vs <- Ex.duplicateDefinitions
   n <- Ex.errorNote
-  pure $ DuplicateDefinitions vs n
+  pure $ DuplicateDefinitions (vs <&> second toList) n
 
 unknownType :: Ex.ErrorExtractor v loc (TypeError v loc)
 unknownType = do

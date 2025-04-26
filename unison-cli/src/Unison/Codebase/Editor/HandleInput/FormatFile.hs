@@ -82,8 +82,9 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
             & over _2 Pretty.syntaxToColor
   formattedTerms <-
     (FileSummary.termsBySymbol fileSummary)
-      & Map.filter (\(tldAnn, _, trm, _) -> shouldFormatTerm tldAnn trm)
-      & itraverse \sym (tldAnn, mayRefId, trm, _typ) -> do
+      & fmap (\(bindingAnn, mayRefId, trm, _typ) -> (bindingAnn <> ABT.annotation trm, mayRefId, trm))
+      & Map.filter (\(tldAnn, _, trm) -> shouldFormatTerm tldAnn trm)
+      & itraverse \sym (tldAnn, mayRefId, trm) -> do
         symName <- hoistMaybe (Name.parseVar sym)
         let defNameSegments = NEL.appendr (Path.toList (Path.unabsolute currentPath)) (Name.segments symName)
         let defName = Name.fromSegments defNameSegments

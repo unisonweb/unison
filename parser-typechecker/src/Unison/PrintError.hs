@@ -1000,11 +1000,11 @@ renderTypeError e env src = case e of
           ]
       C.KindInferenceFailure _ -> "kind inference failure"
       C.DuplicateDefinitions vs ->
-        let go :: (v, [loc]) -> Pretty (AnnotatedText a)
+        let go :: (v, NESet loc) -> Pretty (AnnotatedText a)
             go (v, locs) =
               "["
                 <> renderVar v
-                <> mconcat (intersperse " : " $ annotatedToEnglish <$> locs)
+                <> mconcat (intersperse " : " $ annotatedToEnglish <$> toList locs)
                 <> "]"
          in "DuplicateDefinitions:" <> mconcat (go <$> Nel.toList vs)
       C.ConcatPatternWithoutConstantLength loc typ ->
@@ -1121,7 +1121,7 @@ renderContext env ctx@(C.Context es) =
       e -> Pr.shown e
     showElem ctx (C.Solved _ v (Type.Monotype t)) =
       "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
-    showElem ctx (C.Ann v t) =
+    showElem ctx (C.Ann v _ t) =
       shortName v <> " : " <> renderType' env (C.apply ctx t)
     showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 

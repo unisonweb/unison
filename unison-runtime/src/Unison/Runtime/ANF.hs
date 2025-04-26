@@ -364,14 +364,14 @@ beta rec (Apps' l@(LamsNamed' vs body) as)
 beta _ _ = Nothing
 
 isStructured :: (Var v) => Term v a -> Bool
-isStructured (Var' _) = False
-isStructured (Lam' _) = False
-isStructured (Nat' _) = False
-isStructured (Int' _) = False
-isStructured (Float' _) = False
-isStructured (Text' _) = False
-isStructured (Char' _) = False
-isStructured (Constructor' _) = False
+isStructured (Var' {}) = False
+isStructured (Lam' {}) = False
+isStructured (Nat' {}) = False
+isStructured (Int' {}) = False
+isStructured (Float' {}) = False
+isStructured (Text' {}) = False
+isStructured (Char' {}) = False
+isStructured (Constructor' {}) = False
 isStructured (Apps' Constructor' {} args) = any isStructured args
 isStructured (If' b t f) =
   isStructured b || isStructured t || isStructured f
@@ -730,7 +730,7 @@ inlineAlias = ABT.visitPure $ \case
   Let1Named' v b@(Var' _) e -> Just . inlineAlias $ ABT.subst v b e
   _ -> Nothing
 
-minimizeCyclesOrCrash :: (Var v) => Term v a -> Term v a
+minimizeCyclesOrCrash :: (Var v, Ord a) => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e ->
