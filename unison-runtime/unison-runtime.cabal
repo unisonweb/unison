@@ -117,6 +117,7 @@ library
     , directory
     , exceptions
     , filepath
+    , github
     , inspection-testing
     , iproute
     , lens

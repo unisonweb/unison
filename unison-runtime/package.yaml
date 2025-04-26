@@ -59,6 +59,7 @@ library:
     - directory
     - exceptions
     - filepath
+    - github
     - iproute
     - lens
     - memory

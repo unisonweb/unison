@@ -227,12 +227,13 @@ main version = do
           BL.readFile file >>= \bs ->
             try (evaluate $ RTI.decodeStandalone bs) >>= \case
               Left re -> do
+                exnMessage <- prettyRuntimeExnSansCtx re
                 exitError . P.lines $
                   [ P.wrap . P.text $
                       "I was unable to parse this file as a compiled\
                       \ program. The parser generated the following error:",
                     "",
-                    P.indentN 2 $ prettyRuntimeExnSansCtx re
+                    P.indentN 2 exnMessage
                   ]
               Right (Left err) ->
                 exitError . P.lines $

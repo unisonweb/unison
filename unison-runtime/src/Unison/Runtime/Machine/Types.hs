@@ -21,13 +21,13 @@ import Unison.Runtime.ANF
     valueLinks,
   )
 import Unison.Runtime.Builtin
-import Unison.Runtime.Exception (CompileExn (CE))
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Text as UText
 
 -- | A ref storing every currently active thread.
@@ -240,7 +240,7 @@ codeValidate cc tml = do
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
-    `catch` \ce@(CE cs _ _) ->
-      let msg = UText.pack $ displayException ce
-          extra = UText.pack $ show cs
-       in pure . Just $ Failure ioFailureRef msg extra
+    `catch` \ce@(Exception.CE cs _ _) -> do
+      msg <- fmap (UText.pack . Pretty.toPlain 0) $ Exception.prettyCompileExn ce
+      let extra = UText.pack $ show cs
+      pure . Just $ Failure ioFailureRef msg extra

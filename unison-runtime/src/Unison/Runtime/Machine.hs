@@ -66,7 +66,7 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception (RuntimeExn (BU, PE), peStr)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), peStr, prettyRuntimeExnSansCtx)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( foreignCall,
@@ -385,16 +385,17 @@ encodeExn stk exc = do
       stk <- bumpn stk 3
       pokeTag stk 0
       bpokeOff stk 1 $ Foreign (Wrap Rf.typeLinkRef link)
-      pokeOffBi stk 2 msg
+      pokeOffBi stk 2 =<< msg
       stk <$ pokeOff stk 3 extra
       where
-        disp e = Util.Text.pack $ show e
+        disp :: (Exception e) => e -> IO Util.Text.Text
+        disp = pure . Util.Text.pack . show
         (link, msg, extra)
           | Just (ioe :: IOException) <- fromException exn =
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn =
               ( Rf.runtimeFailureRef,
-                Util.Text.pack $ displayException re,
+                Util.Text.pack . P.toPlain 0 <$> prettyRuntimeExnSansCtx re,
                 case re of
                   PE _ _ _ -> unitValue
                   BU _ _ val -> val
@@ -498,7 +499,7 @@ fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
 
 unhandledAbilityRequest :: (HasCallStack) => IO a
-unhandledAbilityRequest = error . displayException $ peStr [] "eval: unhandled ability request"
+unhandledAbilityRequest = error . displayException $ peStr [2922, 5400] "eval: unhandled ability request"
 
 forkEval :: CCache -> ActiveThreads -> Val -> IO ThreadId
 forkEval env activeThreads clo =

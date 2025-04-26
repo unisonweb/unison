@@ -32,6 +32,7 @@ import Control.Concurrent.STM as STM
 import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
+import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet, getWord8, runGetS)
@@ -1058,10 +1059,8 @@ evalInContext ppe ctx activeThreads w = do
                 (debugTextFormat fancy $ pretty ppe dv)
 
   result <-
-    traverse (const $ readIORef r)
-      . first prettyError
-      <=< try
-      $ apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
+    bitraverse prettyError (const $ readIORef r) <=< try $
+      apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
   pure $ finish result
 
 executeMainComb ::
@@ -1088,15 +1087,15 @@ executeMainComb init cc = do
                   (intermedRemap ctx)
                   (decompTm ctx)
               )
-      pure $ prettyRuntimeExn mempty id decom re
+      prettyRuntimeExn mempty id decom re
 
 catchInternalErrors ::
   IO (Either Error a) ->
   IO (Either Error a)
 catchInternalErrors sub = sub `UnliftIO.catch` hCE `UnliftIO.catch` hRE
   where
-    hCE = pure . Left . prettyCompileExn
-    hRE = pure . Left . prettyRuntimeExnSansCtx
+    hCE = fmap Left . prettyCompileExn
+    hRE = fmap Left . prettyRuntimeExnSansCtx
 
 decodeStandalone ::
   BL.ByteString ->
@@ -1163,8 +1162,8 @@ tryM =
     . flip UnliftIO.catch hCE
     . fmap (const Nothing)
   where
-    hCE = pure . Just . prettyCompileExn
-    hRE = pure . Just . prettyRuntimeExnSansCtx
+    hCE = fmap Just . prettyCompileExn
+    hRE = fmap Just . prettyRuntimeExnSansCtx
 
 runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either (Pretty ColorText) ())
 runStandalone sandboxed sc init =

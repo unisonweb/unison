@@ -38,27 +38,45 @@ data RuntimeExn
   | -- | __TODO__: What is `BU`? Boxed/Unboxed?
     BU [(Reference, Int)] Text Val
 
-prettyRuntimeExn :: PrettyPrintEnv -> (Reference -> Reference) -> (Val -> DecompResult Symbol) -> RuntimeExn -> Pretty P.ColorText
-prettyRuntimeExn ppe backmap decom = \case
-  PE _ issues err ->
-    P.fatalCallout $
-      P.lines $
-        [ P.wrap "You’ve encountered a Unison runtime error!",
+prettyRuntimeExn' ::
+  (Applicative f) =>
+  (Word -> f (Pretty P.ColorText)) ->
+  PrettyPrintEnv ->
+  (Reference -> Reference) ->
+  (Val -> DecompResult Symbol) ->
+  RuntimeExn ->
+  f (Pretty P.ColorText)
+prettyRuntimeExn' issueFn ppe backmap decom = \case
+  PE _ issues err -> do
+    issueMessages <- traverse issueFn issues
+    pure $
+      P.fatalCallout . P.lines $
+        [ P.wrap "Sorry – I’ve encountered a Unison runtime error.",
           "",
           P.indentN 2 err,
           ""
         ]
           <> if null issues
-            then [P.wrap "Please report it at https://github.com/unisonweb/unison/issues."]
+            then [P.wrap "Please report it at https://github.com/unisonweb/unison/issues/new/choose."]
             else
-              [ P.wrap $
-                  "See if one of these issues at https://github.com/unisonweb/unison/issues reflects what you’re seeing."
-                    <> "If not, please open a new one:",
-                P.bulleted $ P.string . show <$> issues
+              [ P.wrap "Please check if one of these known issues matches your situation:",
+                "",
+                P.bulleted issueMessages,
+                "",
+                P.wrap "If not, please open a new one: https://github.com/unisonweb/unison/issues/new/choose"
               ]
-  BU tr0 nm c -> bugMsg ppe tr nm $ decom c
+  BU tr0 nm c -> pure . bugMsg ppe tr nm $ decom c
     where
       tr = first backmap <$> tr0
+
+prettyRuntimeExn ::
+  PrettyPrintEnv -> (Reference -> Reference) -> (Val -> DecompResult Symbol) -> RuntimeExn -> IO (Pretty P.ColorText)
+prettyRuntimeExn =
+  prettyRuntimeExn'
+    ( \i -> do
+        mtitle <- githubTitleForIssue i
+        pure $ either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) mtitle
+    )
 
 bugMsg ::
   PrettyPrintEnv ->
@@ -144,13 +162,13 @@ tabulateErrors errs =
       : P.wrap "The following errors occured while decompiling:"
       : (listErrors errs)
 
-prettyRuntimeExnSansCtx :: RuntimeExn -> Pretty P.ColorText
+prettyRuntimeExnSansCtx :: RuntimeExn -> IO (Pretty P.ColorText)
 prettyRuntimeExnSansCtx = prettyRuntimeExn mempty id (decompile pure \_ _ -> Nothing)
 
 -- | __TODO__: With GHC 9.10, this implementation can be moved to `displayException` on the `Exception` instance, and
 --             this instance can be derived again (see haskell/core-libraries-committee#198).
 instance Show RuntimeExn where
-  show = P.toPlain 0 . prettyRuntimeExnSansCtx
+  show = P.toPlain 0 . runIdentity . prettyRuntimeExn' (pure . issueUrl) mempty id (decompile pure \_ _ -> Nothing)
 
 instance Exception RuntimeExn
 
