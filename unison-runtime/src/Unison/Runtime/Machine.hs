@@ -66,7 +66,7 @@ import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception (RuntimeExn (BU, PE), peStr, prettyRuntimeExnSansCtx)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, peStr, prettyRuntimeExnSansCtx)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( foreignCall,

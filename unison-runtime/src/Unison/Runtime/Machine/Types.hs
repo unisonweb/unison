@@ -7,7 +7,6 @@ import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Word
-import GHC.Stack
 import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
@@ -69,18 +68,6 @@ refLookup s m r
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
-die :: (HasCallStack) => [Word] -> String -> IO a
-die issues s = do
-  void $ Exception.die issues s
-  -- This is unreachable, but we need it to fix some quirks in GHC's
-  -- worker/wrapper optimization, specifically, it seems that when throwIO's polymorphic return
-  -- value is specialized to a type like 'Stack' which we want GHC to unbox, it will sometimes
-  -- fail to unbox it, possibly because it can't unbox it when it's strictly a type application.
-  -- For whatever reason, this seems to fix it while still allowing us to throw exceptions in IO
-  -- like we prefer.
-  error "unreachable"
-{-# INLINE die #-}
-
 -- code caching environment
 data CCache = CCache
   { sandboxed :: Bool,
@@ -110,7 +97,7 @@ refNumTm :: CCache -> Reference -> IO Word64
 refNumTm cc r =
   refNumsTm cc >>= \case
     (M.lookup r -> Just w) -> pure w
-    _ -> die [] $ "refNumTm: unknown reference: " ++ show r
+    _ -> Exception.die [] $ "refNumTm: unknown reference: " ++ show r
 
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
@@ -152,7 +139,7 @@ lookupCode env (Ref link) =
     <$> readTVarIO (intermed env)
     <*> readTVarIO (refTm env)
     <*> readTVarIO (cacheableCombs env)
-lookupCode _ _ = die [] "lookupCode: Expected Ref"
+lookupCode _ _ = Exception.die [] "lookupCode: Expected Ref"
 
 resolveCode ::
   Reference ->
