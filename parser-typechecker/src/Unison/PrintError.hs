@@ -194,6 +194,9 @@ renderTypeWarnings env src ws
         " are called at a subset\n",
         "of the declared abilities, which might indicate that a separate\n",
         "handler is installed for each recursive call.",
+        "\n\n",
+        "To avoid performance problems, each handler should be installed\n",
+        "only once.",
         "\n\n"
       ]
 

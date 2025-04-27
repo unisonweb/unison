@@ -38,6 +38,9 @@ forget2 k = handle provide 3 k with cases
   of the declared abilities, which might indicate that a separate
   handler is installed for each recursive call.
 
+  To avoid performance problems, each handler should be installed
+  only once.
+
   The argument:
 
      17 |   { tell _ -> k } -> forget1 k
@@ -48,7 +51,7 @@ forget2 k = handle provide 3 k with cases
 
   but the available abilities are:
 
-        {Tell a147, Ask Nat}
+      {Tell a147, Ask Nat}
 
   The argument:
 
@@ -60,7 +63,7 @@ forget2 k = handle provide 3 k with cases
 
   but the available abilities are:
 
-        {Tell a84, Ask Nat}
+      {Tell a84, Ask Nat}
 
   To avoid this warning, you can give explicit types to the arguments
   of the recursive call to the handler.
