@@ -175,7 +175,15 @@ synthesizeAndResolve ppe env = do
         Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
         env
         tm
-  typeDirectedNameResolution ppe notes tp env
+  filterWarnings $ typeDirectedNameResolution ppe notes tp env
+
+filterWarnings :: Monad f => TDNR f v loc a -> TDNR f v loc a
+filterWarnings act = pass $ (,screen) <$> act
+  where
+    p (Context.Warning _) = False
+    p _ = True
+
+    screen n = n { infos = Seq.filter p $ infos n }
 
 compilerBug :: Context.CompilerBug v loc -> Result (Notes v loc) ()
 compilerBug bug = do

@@ -289,6 +289,7 @@ data Output
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err Symbol]
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
+  | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
@@ -582,6 +583,7 @@ isFailure o = case o of
   ListTextFind _ tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
+  TypeWarns {} -> False
   TypeErrors {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
