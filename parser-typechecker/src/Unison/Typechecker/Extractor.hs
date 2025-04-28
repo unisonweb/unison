@@ -4,6 +4,7 @@ import Control.Monad.Reader
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
 import Unison.Blank qualified as B
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.KindInference (KindError)
@@ -69,7 +70,6 @@ _no xa = SubseqExtractor' $ \note ->
   let as = runSubseq xa note
    in if null [a | Pure a <- as]
         then -- results are not full
-
           if null as
             then [Pure ()] -- results are empty, make them full
             -- not full and not empty, find the negation
@@ -238,7 +238,7 @@ inIfBody = asPathExtractor $ \case
 cause :: ErrorExtractor v loc (C.Cause v loc)
 cause = extractor $ pure . C.cause
 
-duplicateDefinitions :: ErrorExtractor v loc (NonEmpty (v, [loc]))
+duplicateDefinitions :: ErrorExtractor v loc (NonEmpty (v, NESet loc))
 duplicateDefinitions =
   cause >>= \case
     C.DuplicateDefinitions vs -> pure vs

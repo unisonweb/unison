@@ -153,10 +153,10 @@ pattern Effect0' :: (Ord v) => [Type v a] -> Type v a -> Type v a
 pattern Effect0' es t <- (unEffect0 -> (es, t))
 
 pattern Forall' :: (ABT.Var v) => ABT.Subst F v a -> ABT.Term F v a
-pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' _ subst))
 
 pattern IntroOuter' :: (ABT.Var v) => ABT.Subst F v a -> ABT.Term F v a
-pattern IntroOuter' subst <- ABT.Tm' (IntroOuter (ABT.Abs' subst))
+pattern IntroOuter' subst <- ABT.Tm' (IntroOuter (ABT.Abs' _ subst))
 
 pattern IntroOuterNamed' :: v -> ABT.Term F v a -> ABT.Term F v a
 pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v body))
@@ -181,7 +181,7 @@ pattern Cycle' :: [v] -> f (ABT.Term f v a) -> ABT.Term f v a
 pattern Cycle' xs t <- ABT.Cycle' xs t
 
 pattern Abs' :: (Foldable f, Functor f, ABT.Var v) => ABT.Subst f v a -> ABT.Term f v a
-pattern Abs' subst <- ABT.Abs' subst
+pattern Abs' subst <- ABT.Abs' _ subst
 
 unPure :: (Ord v) => Type v a -> Maybe (Type v a)
 unPure (Effect'' [] t) = Just t

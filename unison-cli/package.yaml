@@ -10,6 +10,7 @@ dependencies:
   - unison-parser-typechecker
   - unison-prelude
   - megaparsec
+  - unliftio
   - directory
 
 library:
@@ -98,7 +99,6 @@ library:
     - unison-util-base32hex
     - unison-util-recursion
     - unison-util-relation
-    - unliftio
     - uuid
     - vector
     - wai
@@ -119,7 +119,9 @@ tests:
       - extra
       - here
       - lens
+      - lsp
       - lsp-types
+      - mtl
       - temporary
       - these
       - unison-cli

@@ -1250,6 +1250,8 @@ declareForeigns = do
   declareForeign Untracked 2 Pattern_captureAs
   declareForeign Untracked 1 Pattern_join
   declareForeign Untracked 2 Pattern_or
+  declareForeign Untracked 1 Pattern_lookahead
+  declareForeign Untracked 1 Pattern_negativeLookahead
   declareForeign Untracked 3 Pattern_replicate
 
   declareForeign Untracked 2 Pattern_run
@@ -1276,6 +1278,8 @@ declareForeigns = do
   declareForeignWrap Untracked direct Char_Class_letter
   declareForeign Untracked 2 Char_Class_is
   declareForeign Untracked 1 Text_patterns_char
+  declareForeign Untracked 1 Text_patterns_lookbehind1
+  declareForeign Untracked 1 Text_patterns_negativeLookbehind1
 
   -- replacements
   declareForeign Untracked 3 Map_insert
