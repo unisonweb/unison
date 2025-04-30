@@ -32,7 +32,7 @@ import Control.Exception
 import Control.Lens
 import Data.Atomics qualified as Atomic
 import Data.List qualified as List
-import Data.IORef (IORef, readIORef)
+import Data.IORef (IORef, readIORef, newIORef, writeIORef)
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -248,14 +248,19 @@ exec env !henv !_activeThreads !stk !k _ (Name r args) = do
   v <- resolve env henv stk r
   stk <- name stk args v
   pure (False, henv, stk, k)
-exec _ (HEnv aenv denv) !_activeThreads !stk !k _ (SetDyn p i) = do
-  val <- peekOff stk i
-  pure (False, HEnv aenv (EC.mapInsert p val denv), stk, k)
+exec _ henv !_activeThreads !stk !k _ (SetAff p i)
+  | Just (Affine _ r) <- EC.lookup p (aenv henv) = do
+      peekOff stk i >>= writeIORef r
+      pure (False, henv, stk, k)
+  | otherwise =
+      die "attempted to set an affine handler that doesn't exist"
 exec _ (HEnv aenv denv) !_activeThreads !stk !k _ (Capture p) = do
   (cap, denv, stk, k) <- splitCont denv stk k p
   stk <- bump stk
   poke stk cap
   pure (False, HEnv aenv denv, stk, k)
+exec _   !_henv !_activeThreads !_stk !_k _ (Discard _) = do
+  die "exec: unimplemented: Discard"
 exec env !henv !_activeThreads !stk !k _ (Prim1 CACH i)
   | sandboxed env = die "attempted to use sandboxed operation: cache"
   | otherwise = do
@@ -344,11 +349,22 @@ exec _ !henv !_activeThreads !stk !k _ (Lit ml) = do
   stk <- bump stk
   poke stk $ litToVal ml
   pure (False, henv, stk, k)
-exec _ henv@(HEnv _ denv) !_activeThreads !stk !k _ (Reset ps) = do
-  (stk, a) <- saveArgs stk
-  pure (False, henv, stk, Mark a ps clos k)
+exec _ (HEnv aenv0 denv0) !_activeThreads !stk !k _ (Reset ps nhi mah)
+  -- if denv0 is null, and there's an affine handler, use it
+  | null denv0, Just ahi <- mah = do
+      (stk, a) <- saveArgs stk
+      ahv <- peekOff stk ahi
+      r <- newIORef ahv
+      let ah = Affine aenv0 r
+          aenv = EC.unionWith const (mapFromSet ps ah) aenv0
+      pure (False, HEnv aenv denv0, stk, Mark a ps clos k)
+  | otherwise = do
+      (stk, a) <- saveArgs stk
+      nh <- peekOff stk nhi
+      let denv = EC.unionWith const (mapFromSet ps nh) denv0
+      pure (False, HEnv aenv0 denv, stk, Mark a ps clos k)
   where
-    clos = EC.restrictKeys denv ps
+    clos = EC.restrictKeys denv0 ps
 exec _ !henv !_activeThreads !stk !k _ (Seq as) = do
   l <- closureArgs stk as
   stk <- bump stk

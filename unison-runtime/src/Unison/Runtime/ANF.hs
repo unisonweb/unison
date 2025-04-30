@@ -786,7 +786,7 @@ data ANormalF v e
   | ABLit Lit -- direct boxed literal
   | AMatch v (Branched e)
   | AShift Reference e
-  | AHnd [Reference] v e
+  | AHnd [Reference] v (Maybe v) e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
@@ -799,7 +799,7 @@ instance Bifunctor ANormalF where
   bimap _ g (ALet d m bn bo) = ALet d m (g bn) (g bo)
   bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
-  bimap f g (AHnd rs v e) = AHnd rs (f v) $ g e
+  bimap f g (AHnd rs nh ah e) = AHnd rs (f nh) (fmap f ah) $ g e
   bimap _ g (AShift i e) = AShift i $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
@@ -811,7 +811,7 @@ instance Bifoldable ANormalF where
   bifoldMap _ g (ALet _ _ b e) = g b <> g e
   bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
-  bifoldMap f g (AHnd _ h e) = f h <> g e
+  bifoldMap f g (AHnd _ nh ah e) = f nh <> foldMap f ah <> g e
   bifoldMap _ g (AShift _ e) = g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
@@ -837,8 +837,10 @@ instance ABTN.Align ANormalF where
   align f g (AMatch vl bsl) (AMatch vr bsr)
     | Just bss <- alignBranch g bsl bsr =
         Just $ AMatch <$> f vl vr <*> bss
-  align f g (AHnd rl hl bl) (AHnd rr hr br)
-    | rl == rr = Just $ AHnd rl <$> f hl hr <*> g bl br
+  align f g (AHnd rl nhl ahl bl) (AHnd rr nhr ahr br)
+    | rl == rr,
+      Just ah <- alignMaybe f ahl ahr =
+        Just $ AHnd rl <$> f nhl nhr <*> ah <*> g bl br
   align _ g (AShift rl bl) (AShift rr br)
     | rl == rr = Just $ AShift rl <$> g bl br
   align f _ (AFrc u) (AFrc v) = Just $ AFrc <$> f u v
@@ -1086,9 +1088,10 @@ pattern THnd ::
   (ABT.Var v) =>
   [Reference] ->
   v ->
+  Maybe v ->
   ABTN.Term ANormalF v ->
   ABTN.Term ANormalF v
-pattern THnd rs h b = ABTN.TTm (AHnd rs h b)
+pattern THnd rs nh ah b = ABTN.TTm (AHnd rs nh ah b)
 
 pattern TShift ::
   (ABT.Var v) =>
@@ -2018,7 +2021,7 @@ anfBlock (Match' scrut cas) = do
             | otherwise = (Indirect (), TFrc v)
       pure
         ( sctx <> pure [LZ hv (Right r) vs],
-          (d, THnd (Map.keys abr) hv msc)
+          (d, THnd (Map.keys abr) hv Nothing msc)
         )
     AccumText df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchText cs df)
@@ -2405,8 +2408,8 @@ anfFLinks f g (AMatch v bs) =
   AMatch v <$> branchLinks (f True) g bs
 anfFLinks f g (AShift r e) =
   AShift <$> f True r <*> g e
-anfFLinks f g (AHnd rs v e) =
-  flip AHnd v <$> traverse (f True) rs <*> g e
+anfFLinks f g (AHnd rs nh ah e) =
+  (\rs -> AHnd rs nh ah) <$> traverse (f True) rs <*> g e
 anfFLinks f _ (AApp fu vs) = flip AApp vs <$> funcLinks f fu
 anfFLinks f _ (ALit l) = ALit <$> litLinks f l
 anfFLinks _ _ v = pure v
@@ -2587,12 +2590,13 @@ prettyANF m ind tm =
         . prettyVars [v]
         . showString "."
         . prettyANF False (ind + 1) bo
-    THnd rs v bo ->
+    THnd rs nh ah bo ->
       showString "handle"
         . prettyRefs rs
         . prettyANF False (ind + 1) bo
         . showString " with "
-        . pvar v
+        . pvar nh
+        . maybe id (\v -> showString " with affine " . pvar v) ah
     ABTN.TAbs v (ABTN.TAbss vs bo) ->
       prettyVars (v:vs) .
       showString " ->" .
