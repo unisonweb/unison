@@ -91,3 +91,4 @@ The format for this list: name, GitHub handle
 * Ruslan Simchuk (@SimaDovakin)
 * Brandon Barker (@bbarker)
 * Manish Bhasin (@xmbhasin)
+* Erik Schnetter (@eschnett)
