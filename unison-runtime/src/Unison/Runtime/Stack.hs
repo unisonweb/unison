@@ -760,6 +760,11 @@ instance Eq Val where
 instance Ord Val where
   compare = universalCompare compare
 
+instance BuiltinForeign (Map Val Val) where
+  foreignName = Tagged "Map"
+  foreignRef = Tagged Ty.hmapRef
+
+
 instance BuiltinForeign (IORef Val) where
   foreignName = Tagged "IORef"
   foreignRef = Tagged Ty.refRef
