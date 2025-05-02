@@ -357,10 +357,10 @@ renderTypeError e env src = case e of
   FunctionUnderApplied {..} ->
     mconcat
       [ Pr.lines
-          [ "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
+          [ "I found a value  of type:  " <> style ErrorSite (renderType' env foundLeaf),
             "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf),
-            "it looks like it might be a function application that's just missing these arguments:\n\n",
-            Monoid.intercalateMap ", " (style Type1 . renderType' env) needArgs
+            "\n\nIt looks like it may be a function application that's just missing these arguments:\n\n",
+            Monoid.intercalateMap ", " (style Type2 . renderType' env) needArgs
           ],
         "\n\n",
         showSourceMaybes
@@ -375,7 +375,7 @@ renderTypeError e env src = case e of
           ],
         fromOverHere'
           src
-          [styleAnnotated Type1 foundLeaf]
+          [styleAnnotated ErrorSite foundLeaf]
           [styleAnnotated Type2 expectedLeaf],
         unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
