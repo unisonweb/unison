@@ -899,9 +899,6 @@ foreignCallHelper = \case
         mk i = NatVal $ m + fromIntegral i
      in evaluate . forceListSpine $ Sq.fromFunction sz mk
   List_sort -> mkForeign $ \(l :: Seq Val) -> pure $ Sq.unstableSort l
-  Multimap_fromList -> mkForeign $ \(l :: [(Val, Val)]) -> do
-    let listVals = l <&> \(k, v) -> (k, Sq.singleton v)
-    evaluate $ Map.fromListWith (<>) listVals
   Set_fromList -> mkForeign $ \(l :: [Val]) -> do
     m <- evaluate $ Map.fromList $ zip l (repeat unitValue)
     pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
@@ -2130,9 +2127,6 @@ functionReplacementList =
     ),
     ( "03pjq0jijrr7ebf6s3tuqi4d5hi5mrv19nagp7ql2j9ltm55c32ek",
       Map_toList
-    ),
-    ( "03putoun7i5n0lhf8iu990u9p08laklnp668i170dka2itckmadlq",
-      Multimap_fromList
     ),
     ( "03q6giac0qlva6u4mja29tr7mv0jqnsugk8paibatdrns8lhqqb92",
       Set_fromList

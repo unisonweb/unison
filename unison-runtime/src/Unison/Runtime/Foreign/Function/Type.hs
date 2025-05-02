@@ -269,7 +269,6 @@ data ForeignFunc
   | Map_toList
   | List_range
   | List_sort
-  | Multimap_fromList
   | Set_fromList
   | Set_union
   | Set_intersect
@@ -539,7 +538,6 @@ foreignFuncBuiltinName = \case
   Map_toList -> "Map.toList"
   List_range -> "List.range"
   List_sort -> "List.sort"
-  Multimap_fromList -> "Multimap.fromList"
   Set_fromList -> "Set.fromList"
   Set_union -> "Set.union"
   Set_intersect -> "Set.intersect"
