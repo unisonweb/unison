@@ -60,9 +60,12 @@ completionHandler m respond =
   respond . maybe (Right $ InL mempty) (Right . InR . InL) =<< runMaybeT do
     let fileUri = (m ^. params . textDocument . uri)
     (range, prefix) <- VFS.completionPrefix (m ^. params . textDocument . uri) (m ^. params . position)
+    -- dots are separators in names and a name with a trailing '.' doesn't parse and short-circuits completion.
+    -- Since the completion overwrites the explicitly provided range anyways, stripping just works better.
+    let strippedPrefix = Text.dropWhileEnd (== '.') prefix
     ppe <- PPED.suffixifiedPPE <$> lift currentPPED
     codebaseCompletions <- lift getCodebaseCompletions
-    let (isIncomplete, matches) = completionsForQuery codebaseCompletions prefix
+    let (isIncomplete, matches) = completionsForQuery codebaseCompletions strippedPrefix
     let defCompletionItems =
           matches
             & mapMaybe \(path, fqn, dep) ->
