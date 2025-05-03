@@ -875,7 +875,7 @@ foreignCallHelper = \case
     let v = TPat.cpattern (TPat.Lookbehind1 cp) in pure v
   Text_patterns_negativeLookbehind1 -> mkForeign $ \cp ->
     let v = TPat.cpattern (TPat.NegativeLookbehind1 cp) in pure v
-  Map_tip -> mkForeign $ \() -> pure Map.empty
+  Map_tip -> mkForeign $ \() -> pure (Map.empty @Val @Val)
   Map_bin -> mkForeign $ \(sz :: Word64, k :: Val, v :: Val, l, r) ->
     pure (Map.Bin (fromIntegral sz) k v l r)
   Map_insert -> mkForeign $ \(k :: Val, v :: Val, m :: Map Val Val) ->
