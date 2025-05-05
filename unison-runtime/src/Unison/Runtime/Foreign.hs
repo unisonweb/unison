@@ -22,7 +22,6 @@ where
 import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
-import Data.Atomics qualified as Atomic
 import Data.IORef (IORef)
 import Data.Tagged (Tagged (..))
 import Data.X509 qualified as X509
@@ -38,7 +37,6 @@ import Unison.Runtime.ANF (Code, Value)
 import Unison.Runtime.Array
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
-import Unison.Util.RefPromise (Promise)
 import Unison.Util.Text (Text)
 import Unison.Util.Text.Pattern (CPattern, CharPattern)
 import Unsafe.Coerce
@@ -305,30 +303,6 @@ instance BuiltinForeign Value where
 instance BuiltinForeign TimeSpec where
   foreignName = Tagged "TimeSpec"
   foreignRef = Tagged Ty.timeSpecRef
-
-instance BuiltinForeign (Atomic.Ticket a) where
-  foreignName = Tagged "Ticket"
-  foreignRef = Tagged Ty.ticketRef
-
-instance BuiltinForeign (MVar a) where
-  foreignName = Tagged "MVar"
-  foreignRef = Tagged Ty.mvarRef
-
-instance BuiltinForeign (TVar a) where
-  foreignName = Tagged "TVar"
-  foreignRef = Tagged Ty.tvarRef
-
-instance BuiltinForeign (Promise a) where
-  foreignName = Tagged "Promise"
-  foreignRef = Tagged Ty.promiseRef
-
-instance BuiltinForeign (MutableArray s e) where
-  foreignName = Tagged "MutableArray"
-  foreignRef = Tagged Ty.marrayRef
-
-instance BuiltinForeign (Array e) where
-  foreignName = Tagged "Array"
-  foreignRef = Tagged Ty.iarrayRef
 
 instance BuiltinForeign (MutableByteArray s) where
   foreignName = Tagged "MutableByteArray"

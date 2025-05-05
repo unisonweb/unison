@@ -190,6 +190,12 @@ import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
 import Prelude hiding (words)
+import qualified Data.Atomics as Atomic
+
+import Control.Concurrent (MVar)
+import Control.Concurrent.STM (TVar)
+import Unison.Util.RefPromise (Promise)
+
 
 #ifdef STACK_CHECK
 type DebugCallStack = (HasCallStack :: Constraint)
@@ -768,6 +774,30 @@ instance BuiltinForeign (Map Val Val) where
 instance BuiltinForeign (IORef Val) where
   foreignName = Tagged "IORef"
   foreignRef = Tagged Ty.refRef
+
+instance BuiltinForeign (Atomic.Ticket Val) where
+  foreignName = Tagged "Ticket"
+  foreignRef = Tagged Ty.ticketRef
+
+instance BuiltinForeign (MVar Val) where
+  foreignName = Tagged "MVar"
+  foreignRef = Tagged Ty.mvarRef
+
+instance BuiltinForeign (TVar Val) where
+  foreignName = Tagged "TVar"
+  foreignRef = Tagged Ty.tvarRef
+
+instance BuiltinForeign (Promise Val) where
+  foreignName = Tagged "Promise"
+  foreignRef = Tagged Ty.promiseRef
+
+instance BuiltinForeign (MutableArray s Val) where
+  foreignName = Tagged "MutableArray"
+  foreignRef = Tagged Ty.marrayRef
+
+instance BuiltinForeign (Array Val) where
+  foreignName = Tagged "Array"
+  foreignRef = Tagged Ty.iarrayRef
 
 -- | A nulled out value you can use when filling empty arrays, etc.
 emptyVal :: Val
