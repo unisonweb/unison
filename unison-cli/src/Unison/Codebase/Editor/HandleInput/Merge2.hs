@@ -396,7 +396,7 @@ doMerge info = do
             (_temporaryBranchId, temporaryBranchName) <-
               HandleInput.Branch.createBranch
                 info.description
-                ( HandleInput.Branch.CreateFrom'NamespaceWithParent
+                ( HandleInput.Branch.CreateFrom'MergeParents
                     info.alice.projectAndBranch.branch
                     (Branch.mergeNode stageTwoBranch parents.alice parents.bob)
                 )

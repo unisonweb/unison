@@ -134,6 +134,7 @@ module U.Codebase.Sqlite.Queries
     expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
+    insertMergeBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -257,6 +258,7 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchReflogTable,
     addProjectBranchCausalHashIdColumn,
     addProjectBranchLastAccessedColumn,
+    addMergeBranchTables,
 
     -- ** schema version
     currentSchemaVersion,
@@ -421,7 +423,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 18
+currentSchemaVersion = 19
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -490,6 +492,10 @@ addProjectBranchCausalHashIdColumn =
 addProjectBranchLastAccessedColumn :: Transaction ()
 addProjectBranchLastAccessedColumn =
   executeStatements $(embedProjectStringFile "sql/015-add-project-branch-last-accessed.sql")
+
+addMergeBranchTables :: Transaction ()
+addMergeBranchTables =
+  executeStatements $(embedProjectStringFile "sql/016-add-merge-branch-tables.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -4326,6 +4332,37 @@ loadMostRecentBranch projectId =
         most_recent_branch
       WHERE
         project_id = :projectId
+    |]
+
+insertMergeBranch ::
+  ProjectId ->
+  ProjectBranchId ->
+  (ProjectBranchId, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranch projectId mergeBranchId (sourceBranchId, sourceCausalHashId) (targetBranchId, targetCausalHashId) =
+  execute
+    [sql|
+      INSERT INTO merge_branch (
+        project_id,
+        branch_id,
+        source_project_id,
+        source_branch_id,
+        source_causal_hash_id,
+        target_project_id uuid,
+        target_branch_id uuid,
+        target_causal_hash_id
+      )
+      VALUES (
+        :projectId,
+        :mergeBranchId,
+        :projectId,
+        :sourceBranchId,
+        :sourceCausalHashId,
+        :projectId,
+        :targetBranchId,
+        :targetCausalHashId
+      )
     |]
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments

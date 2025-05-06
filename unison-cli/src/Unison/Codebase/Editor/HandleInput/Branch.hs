@@ -34,6 +34,8 @@ data CreateFrom
   | CreateFrom'ParentBranch Sqlite.ProjectBranch
   | CreateFrom'Namespace (Branch IO)
   | CreateFrom'CausalHash CausalHash
+  | -- A merge failed, and we're making a branch for the user to resolve the merge on
+    CreateFrom'MergeParents Sqlite.ProjectBranch (Branch IO)
   | CreateFrom'Nothingness
 
 -- | Create a new project branch from an existing project branch or namespace.
@@ -115,17 +117,22 @@ createBranch description createFrom project getNewBranchName = do
       pure (Nothing, causalHashId)
     CreateFrom'NamespaceWithParent parentBranch namespace -> do
       liftIO $ Codebase.putBranch codebase namespace
-      Cli.runTransaction $ do
+      Cli.runTransaction do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
         let parentBranchId = if parentBranch.projectId == projectId then Just parentBranch.branchId else Nothing
         pure (parentBranchId, newBranchCausalHashId)
+    CreateFrom'MergeParents parentBranch namespace -> do
+      liftIO $ Codebase.putBranch codebase namespace
+      Cli.runTransaction do
+        newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
+        pure (Just parentBranch.branchId, newBranchCausalHashId)
     CreateFrom'CausalHash causalHash -> do
-      Cli.runTransaction $ do
+      Cli.runTransaction do
         causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
         pure (Nothing, causalHashId)
     CreateFrom'Namespace branch -> do
       liftIO $ Codebase.putBranch codebase branch
-      Cli.runTransaction $ do
+      Cli.runTransaction do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash branch)
         pure (Nothing, newBranchCausalHashId)
   (newBranchName, newBranchId) <-
@@ -146,6 +153,20 @@ createBranch description createFrom project getNewBranchName = do
                 name = newBranchName,
                 parentBranchId = mayParentBranchId
               }
+          case createFrom of
+            CreateFrom'MergeParents parentBranch namespace ->
+              Queries.insertMergeBranch
+                parentBranch.projectId
+                newBranchId
+                (wundefined, wundefined)
+                wundefined
+-- insertMergeBranch ::
+--   ProjectId ->
+--   ProjectBranchId ->
+--   (ProjectBranchId, CausalHashId) ->
+--   (ProjectBranchId, CausalHashId) ->
+  -- Transaction ()
+            _ -> pure ()
           pure (newBranchName, newBranchId)
 
   Cli.switchProject (ProjectAndBranch projectId newBranchId)
