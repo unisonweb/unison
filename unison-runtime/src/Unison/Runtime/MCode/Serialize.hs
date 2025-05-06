@@ -216,9 +216,9 @@ putInstr = \case
   (Prim2 up i j) -> putTag Prim2T *> putTag up *> pInt i *> pInt j
   (RefCAS i j k) -> putTag RefCAST *> pInt i *> pInt j *> pInt k
   (ForeignCall b ff a) -> putTag ForeignCallT *> serialize b *> putMForeignFunc ff *> putArgs a
-  (SetAff w i) -> putTag SetAffT *> pWord w *> pInt i
+  (SetAff i j) -> putTag SetAffT *> pInt i *> pInt j
   (Capture w) -> putTag CaptureT *> pWord w
-  (Discard w) -> putTag DiscardT *> pWord w
+  (Discard i) -> putTag DiscardT *> pInt i
   (Name r a) -> putTag NameT *> putRef r *> putArgs a
   (Info s) -> putTag InfoT *> serialize s
   (Pack r w a) -> putTag PackT *> putReference r *> putPackedTag w *> putArgs a
@@ -244,9 +244,9 @@ getInstr =
     Prim2T -> Prim2 <$> getTag <*> gInt <*> gInt
     RefCAST -> RefCAS <$> gInt <*> gInt <*> gInt
     ForeignCallT -> ForeignCall <$> deserialize <*> getMForeignFunc <*> getArgs
-    SetAffT -> SetAff <$> gWord <*> gInt
+    SetAffT -> SetAff <$> gInt <*> gInt
     CaptureT -> Capture <$> gWord
-    DiscardT -> Discard <$> gWord
+    DiscardT -> Discard <$> gInt
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> deserialize
     PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs

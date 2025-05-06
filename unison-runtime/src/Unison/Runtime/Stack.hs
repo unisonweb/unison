@@ -19,10 +19,11 @@ module Unison.Runtime.Stack
         DataG,
         Captured,
         Foreign,
+        Affine,
         BlackHole,
         UnboxedTypeTag
       ),
-    AffineHandler (..),
+    AffineRef (..),
     AEnv,
     DEnv,
     HEnv (..),
@@ -133,7 +134,8 @@ module Unison.Runtime.Stack
     unsafePokeIasN,
     bump,
     bumpn,
-    grab,
+    grabSeg,
+    truncateSeg,
     ensure,
     duplicate,
     discardFrame,
@@ -246,6 +248,12 @@ data K
   = KE
   | -- callback hook
     CB Callback
+  | -- mark continuation with affine prompt
+    AMark
+      !Int
+      !AEnv
+      !AffineRef
+      !K
   | -- mark continuation with a prompt
     Mark
       !Int -- pending args
@@ -259,6 +267,11 @@ data K
       !CombIx -- resumption section reference
       !Int -- stack guard
       !(RSection Val) -- resumption section
+      !K
+  | -- saved context during affine handler
+    Local
+      !HEnv -- stored environment
+      !Int -- pending args
       !K
 
 newtype Closure = Closure {unClosure :: (GClosure (RComb Val))}
@@ -294,10 +307,10 @@ newtype Closure = Closure {unClosure :: (GClosure (RComb Val))}
 -- handlers ever being captured in a continuation. This lets us avoid
 -- issues with equality of mutable references for efficient affine
 -- implementation.
-data AffineHandler = Affine AEnv (IORef Val)
-
--- affine environment
-type AEnv = EnumMap Word64 AffineHandler
+--
+-- The calling convention for affine handlers takes an extra argument
+-- which enables using associated operations.
+type AEnv = EnumMap Word64 AffineRef
 
 -- dynamic environment
 type DEnv = EnumMap Word64 Val
@@ -356,12 +369,19 @@ data GClosure comb
     -- We should consider adding separate constructors for common builtin type tags.
     --  GHC will optimize nullary constructors into singletons.
     GUnboxedTypeTag !UnboxedTypeTag
+  | GAffine !AEnv !AffineRef
   | GBlackHole
 #ifdef STACK_CHECK
   | GUnboxedSentinel
 #endif
   deriving stock (Show, Functor, Foldable, Traversable)
 {- ORMOLU_ENABLE -}
+
+-- Wrap IORef to get a trivial `Show` instance
+newtype AffineRef = ARef (IORef Closure) deriving (Eq)
+
+instance Show AffineRef where
+  show _ = "<AffineRef>"
 
 -- Singleton black hole value to avoid allocation.
 blackHole :: Closure
@@ -383,6 +403,8 @@ pattern DataG r t seg = Closure (GDataG r t seg)
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
 pattern Foreign x = Closure (GForeign x)
+
+pattern Affine aenv r = Closure (GAffine aenv r)
 
 pattern BlackHole <- Closure GBlackHole
   where
@@ -495,6 +517,10 @@ frameDataSize = go 0
     go sz (Mark a _ _ k) = go (sz + a) k
     go sz (Push f a _ _ _ k) =
       go (sz + f + a) k
+    go _ (Local {}) =
+      error "frameDataSize: captured Local frame"
+    go _ (AMark {}) =
+      error "frameDataSize: captured AMark frame"
 
 pattern DataC :: Reference -> PackedTag -> SegList -> Closure
 pattern DataC rf ct segs <-
@@ -992,8 +1018,8 @@ bpokeOff _stk@(Stack _ _ sp _ bstk) i b = do
 {-# INLINE bpokeOff #-}
 
 -- | Eats up arguments
-grab :: Stack -> SZ -> IO (Seg, Stack)
-grab (Stack _ fp sp ustk bstk) sze = do
+grabSeg :: Stack -> SZ -> IO (Seg, Stack)
+grabSeg (Stack _ fp sp ustk bstk) sze = do
   uSeg <- ugrab
   bSeg <- bgrab
   pure $ ((uSeg, bSeg), Stack (fp - sze) (fp - sze) (sp - sze) ustk bstk)
@@ -1014,7 +1040,23 @@ grab (Stack _ fp sp ustk bstk) sze = do
       pure seg
       where
         fsz = sp - fp
-{-# INLINE grab #-}
+{-# INLINE grabSeg #-}
+
+-- Truncates a portion of a stack, yielding the new stack without the
+-- discarded portion. This is analogous to the stack yielded by
+-- `grab`, but without doing the work of capturing the discarded
+-- portion.
+truncateSeg :: Stack -> SZ -> IO Stack
+truncateSeg (Stack _ fp sp ustk bstk) sze = do
+  moveByteArray ustk (bfp - bsz) ustk bfp fsz
+  copyMutableArray bstk (fp + 1 - sze) bstk (fp + 1) fsz
+  -- TODO: overwrite stale stack values?
+  pure $ Stack (fp - sze) (fp - sze) (sp - sze) ustk bstk
+  where
+    bfp = bytes $ fp + 1
+    bsz = bytes sze
+    fsz = bytes $ sp - fp
+{-# INLINE truncateSeg #-}
 
 ensure :: Stack -> SZ -> IO Stack
 ensure stk@(Stack ap fp sp ustk bstk) sze
@@ -1347,6 +1389,10 @@ instance Show K where
         com ++ show (f, a, ci) ++ go "," k
       go com (Mark a ps _ k) =
         com ++ "M " ++ show a ++ " " ++ show ps ++ go "," k
+      go com (Local _ a k) =
+        com ++ "L " ++ show a ++ go "," k
+      go com (AMark a _ _ k) =
+        com ++ "A " ++ show a ++ go "," k
 
 frameView :: Stack -> IO ()
 frameView stk = putStr "|" >> gof False 0
@@ -1586,6 +1632,10 @@ universalCompare frn = cmpVal False
       _ (CB {}) -> GT
       (Mark {}) _ -> LT
       _ (Mark {}) -> GT
+      (Local {}) _ -> error "compare K: captured Local frame"
+      _ (Local {}) -> error "compare K: captured Local frame"
+      (AMark {}) _ -> error "compare K: captured AMark frame"
+      _ (AMark {}) -> error "compare K: captured AMark frame"
 
 arrayCmp ::
   (a -> a -> Ordering) ->

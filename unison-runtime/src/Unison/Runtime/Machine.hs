@@ -183,7 +183,7 @@ apply1 ::
   IO ()
 apply1 callback env threadTracker clo = do
   stk <- alloc
-  apply env mempty threadTracker stk k0 True ZArgs $ clo
+  apply env mempty threadTracker stk k0 True ZArgs clo
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
 {-# inline apply1 #-}
@@ -248,19 +248,23 @@ exec env !henv !_activeThreads !stk !k _ (Name r args) = do
   v <- resolve env henv stk r
   stk <- name stk args v
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (SetAff p i)
-  | Just (Affine _ r) <- EC.lookup p (aenv henv) = do
-      peekOff stk i >>= writeIORef r
+exec _ henv !_activeThreads !stk !k _ (SetAff i j) =
+  bpeekOff stk i >>= \case
+    Affine _ (ARef r) -> do
+      bpeekOff stk j >>= writeIORef r
       pure (False, henv, stk, k)
-  | otherwise =
-      die "attempted to set an affine handler that doesn't exist"
+    _ -> die "SetAff called with bad handler reference"
 exec _ (HEnv aenv denv) !_activeThreads !stk !k _ (Capture p) = do
   (cap, denv, stk, k) <- splitCont denv stk k p
   stk <- bump stk
   poke stk cap
   pure (False, HEnv aenv denv, stk, k)
-exec _   !_henv !_activeThreads !_stk !_k _ (Discard _) = do
-  die "exec: unimplemented: Discard"
+exec _   !_henv !_activeThreads !stk !k _ (Discard i) = do
+  bpeekOff stk i >>= \case
+    Affine _ r -> do
+      (aenv, stk, k) <- abortCont stk k r
+      pure (False, HEnv aenv mempty, stk, k)
+    _ -> die "Discard called with bad handler reference"
 exec env !henv !_activeThreads !stk !k _ (Prim1 CACH i)
   | sandboxed env = die "attempted to use sandboxed operation: cache"
   | otherwise = do
@@ -353,11 +357,13 @@ exec _ (HEnv aenv0 denv0) !_activeThreads !stk !k _ (Reset ps nhi mah)
   -- if denv0 is null, and there's an affine handler, use it
   | null denv0, Just ahi <- mah = do
       (stk, a) <- saveArgs stk
-      ahv <- peekOff stk ahi
-      r <- newIORef ahv
-      let ah = Affine aenv0 r
-          aenv = EC.unionWith const (mapFromSet ps ah) aenv0
-      pure (False, HEnv aenv denv0, stk, Mark a ps clos k)
+      ahv0 <- peekOff stk ahi
+      r <- newIORef BlackHole
+      let ar = ARef r
+      ahv <- extendPAp ahv0 . BoxedVal $ Affine aenv0 ar
+      writeIORef r ahv
+      let aenv = EC.unionWith const (mapFromSet ps ar) aenv0
+      pure (False, HEnv aenv denv0, stk, AMark a aenv0 ar k)
   | otherwise = do
       (stk, a) <- saveArgs stk
       nh <- peekOff stk nhi
@@ -485,8 +491,8 @@ eval env !henv !activeThreads !stk !k _ (Yield args)
       stk <- frameArgs stk
       yield env henv activeThreads stk k
 eval env !henv !activeThreads !stk !k _ (App ck r args) =
-  resolve env henv stk r
-    >>= apply env henv activeThreads stk k ck args
+  resolve env henv stk r >>=
+    apply env henv activeThreads stk k ck args
 eval env !henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
   enter env henv activeThreads stk k (combRef combIx) ck args rcomb
 eval env !henv !activeThreads !stk !k _ (Jump i args) =
@@ -603,6 +609,27 @@ name !stk !args = \case
   v -> die $ "naming non-function: " ++ show v
 {-# INLINE name #-}
 
+extendPAp :: Val -> Val -> IO Closure
+extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
+  ucop <- newByteArray $ ussz + 8
+  copyByteArray ucop 0 useg0 0 ussz
+  writeByteArray ucop (ussz `div` 8) $ getUnboxedVal new
+  useg <- unsafeFreezeByteArray ucop
+
+  bcop <- newArray (bssz + 1) BlackHole
+  copyArray bcop 0 bseg0 0 bssz
+  writeArray bcop bssz $ getBoxedVal new
+  bseg <- unsafeFreezeArray bcop
+
+  pure $ PAp cix comb (useg, bseg)
+
+  where
+    ussz = sizeofByteArray useg0
+    bssz = sizeofArray bseg0
+extendPAp v _ =
+  die $ "extendPAp: non partial application" ++ show v
+{-# INLINE extendPAp #-}
+
 -- slow path application
 apply ::
   CCache ->
@@ -702,6 +729,8 @@ repush env !activeThreads !stk (HEnv aenv denv0) = go denv0
         cs' = EC.restrictKeys denv ps
     go !denv (Push n a cix f rsect sk) !k =
       go denv sk $ Push n a cix f rsect k
+    go !_ (Local {}) !_ = die "repush: captured Local frame"
+    go !_ (AMark {}) !_ = die "repush: captured AMark frame"
     go !_ (CB _) !_ = die "repush: impossible"
 {-# INLINE repush #-}
 
@@ -847,22 +876,34 @@ yield ::
   Stack ->
   K ->
   IO ()
-yield env (HEnv aenv denv0) !activeThreads !stk !k = leap denv0 k
+yield env (HEnv aenv0 denv0) !activeThreads !stk = leap
   where
-    leap !denv0 (Mark a ps cs k) = do
+    leap (Mark a ps cs k) = do
       let denv = cs <> EC.withoutKeys denv0 ps
-          val = denv0 EC.! EC.findMin ps
+          h = denv0 EC.! EC.findMin ps
       v <- peek stk
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
-      apply env (HEnv aenv denv) activeThreads stk k False (VArg1 0) val
-    leap !denv (Push fsz asz (CIx ref _ _) f nx k) = do
+      let henv = HEnv aenv0 denv
+      apply env henv activeThreads stk k False (VArg1 0) h
+    leap (AMark a aenv (ARef r) k) = do
+      v <- peek stk
+      h <- BoxedVal <$> readIORef r
+      stk <- bump stk
+      bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
+      stk <- adjustArgs stk a
+      let henv = HEnv aenv mempty
+      apply env henv activeThreads stk k False (VArg1 0) h
+    leap (Push fsz asz (CIx ref _ _) f nx k) = do
       stk <- restoreFrame stk fsz asz
       stk <- ensure stk f
-      eval env (HEnv aenv denv) activeThreads stk k ref nx
-    leap _ (CB (Hook f)) = f (unpackXStack stk)
-    leap _ KE = pure ()
+      eval env (HEnv aenv0 denv0) activeThreads stk k ref nx
+    leap (Local henv asz k) = do
+      stk <- restoreFrame stk 0 asz
+      yield env henv activeThreads stk k
+    leap (CB (Hook f)) = f (unpackXStack stk)
+    leap KE = pure ()
 {-# INLINE yield #-}
 
 selectTextBranch ::
@@ -1033,6 +1074,10 @@ splitCont !denv !stk !k !p =
       die "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (CB _) =
       die "fell off stack" >> finish denv sz 0 ck KE
+    walk !denv !sz !ck (Local {}) =
+      die "splitCont: Local frame" >> finish denv sz 0 ck KE
+    walk !denv !sz !ck (AMark {}) =
+      die "splitCont: AMark frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Mark a ps cs k)
       | EC.member p ps = finish denv' sz a ck k
       | otherwise = walk denv' (sz + a) (Mark a ps cs' ck) k
@@ -1048,17 +1093,43 @@ splitCont !denv !stk !k !p =
 
     finish :: DEnv -> SZ -> SZ -> K -> K -> IO (Val, DEnv, Stack, K)
     finish !denv !sz !a !ck !k = do
-      (seg, stk) <- grab stk sz
+      (seg, stk) <- grabSeg stk sz
       stk <- adjustArgs stk a
       return (BoxedVal $ Captured ck asz seg, denv, stk, k)
 {-# INLINE splitCont #-}
 
+
+abortCont ::
+  Stack ->
+  K ->
+  AffineRef ->
+  IO (AEnv, Stack, K)
+abortCont stk k r = walk (asize stk) k
+  where
+    walk :: SZ -> K -> IO (AEnv, Stack, K)
+    walk !sz = \case
+      KE -> die "abortCont: fell off stack"
+      (CB _) -> die "abortCont: fell off stack"
+      (Local _ a k) -> walk (sz + a) k
+      (Push n a _ _ _ k) -> walk (sz + n + a) k
+      -- dynamic mark cannot match
+      (Mark a _ _ k) -> walk (sz + a) k
+      (AMark a aenv s k)
+        | r == s -> finish aenv sz a k
+        | otherwise -> walk (sz + a) k
+
+    finish :: AEnv -> SZ -> SZ -> K -> IO (AEnv, Stack, K)
+    finish !aenv !sz !a !k = do
+      stk <- truncateSeg stk sz
+      stk <- adjustArgs stk a
+      pure (aenv, stk, k)
+
 resolve :: CCache -> HEnv -> Stack -> MRef -> IO Val
-resolve _ _ _ (Env cix mcomb) = pure $ mCombVal cix mcomb
+resolve _ _ _ (Env cix mcomb) = pure (mCombVal cix mcomb)
 resolve _ _ stk (Stk i) = peekOff stk i
 resolve env (HEnv aenv denv) _ (Dyn i)
   | Just v <- EC.lookup i denv = pure v
-  | Just (Affine _ r) <- EC.lookup i aenv = readIORef r
+  | Just (ARef r) <- EC.lookup i aenv = BoxedVal <$> readIORef r
   | otherwise = unhandledErr "resolve" env i
 
 unhandledErr :: String -> CCache -> Word64 -> IO a
@@ -1302,6 +1373,8 @@ reflectValue rty = goV
           UnboxedTypeTag {} -> die $ err $ "unknown unboxed value" <> show val
 
     goK (CB _) = die $ err "callback continuation"
+    goK (Local {}) = die $ err "reflectValue: captured Local frame"
+    goK (AMark {}) = die $ err "reflectValue: captured AMark frame"
     goK KE = pure ANF.KE
     goK (Mark a ps de k) = do
       ps <- traverse refTy (EC.setToList ps)

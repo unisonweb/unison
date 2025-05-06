@@ -498,12 +498,12 @@ data GInstr comb
     -- shared for the prompts of simultaneously installed affine
     -- handlers, so setting one sets all.
     SetAff
-      !Word64 -- the prompt tag of the reference
+      !Int -- stack index of the affine handler information
       !Int -- the stack index of the closure to store
   | -- Capture the continuation up to a given marker.
     Capture !Word64 -- the prompt tag
   | -- Discard the continuation up to a given marker.
-    Discard !Word64 -- the prompt tag
+    Discard !Int -- the index of the affine handler info
   | -- This is essentially the opposite of `Call`. Pack a given
     -- statically known function into a closure with arguments.
     -- No stack is necessary, because no nested evaluation happens,
@@ -1647,7 +1647,6 @@ instrTypes :: GInstr comb -> [Word64]
 instrTypes (Pack _ (PackedTag w) _) = [w `shiftR` 16]
 instrTypes (Reset ws _ _) = setToList ws
 instrTypes (Capture w) = [w]
-instrTypes (SetAff w _) = [w]
 instrTypes _ = []
 
 branchDeps :: GBranch comb -> [Word64]
