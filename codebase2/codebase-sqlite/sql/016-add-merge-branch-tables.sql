@@ -6,10 +6,10 @@ create table merge_branch (
   remote_source_project_id uuid,
   remote_source_branch_id uuid,
   remote_source_host text,
-  source_causal_hash_id integer references hash (id) on delete set null,
+  source_causal_hash_id integer not null references hash (id) on delete cascade,
   target_project_id uuid,
   target_branch_id uuid,
-  target_causal_hash_id integer references hash (id) on delete set null,
+  target_causal_hash_id integer not null references hash (id) on delete cascade,
   primary key (project_id, branch_id),
   foreign key (project_id, branch_id)
     references project_branch (project_id, branch_id)

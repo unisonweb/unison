@@ -134,9 +134,12 @@ module U.Codebase.Sqlite.Queries
     expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
+    loadProjectBranchParent,
+    loadMergeBranchParents,
     insertMergeBranchLocal,
     insertMergeBranchRemote,
     insertMergeBranchLooseCode,
+    loadNamespaceUniqueTypeGuids,
     existsAnyNamespaceUniqueTypeGuidForNamespace,
     insertNamespaceUniqueTypeGuid,
 
@@ -4342,6 +4345,36 @@ loadMostRecentBranch projectId =
         project_id = :projectId
     |]
 
+loadProjectBranchParent :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranchId)
+loadProjectBranchParent projectId projectBranchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_branch_id
+      FROM project_branch_parent
+      WHERE project_id = :projectId
+        AND branch_id = :projectBranchId
+    |]
+
+loadMergeBranchParents ::
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction
+    ( Maybe
+        ( Maybe ProjectBranchId,
+          CausalHashId,
+          Maybe ProjectBranchId,
+          CausalHashId
+        )
+    )
+loadMergeBranchParents projectId branchId =
+  queryMaybeRow
+    [sql|
+      SELECT local_source_branch_id, source_causal_hash_id, target_branch_id, target_causal_hash_id
+      FROM merge_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
 insertMergeBranchLocal ::
   ProjectId ->
   ProjectBranchId ->
@@ -4444,6 +4477,32 @@ insertMergeBranchLooseCode
           :targetCausalHashId
         )
       |]
+
+loadNamespaceUniqueTypeGuids :: BranchHashId -> Transaction (Map Name Text)
+loadNamespaceUniqueTypeGuids namespaceHashId = do
+  rows <-
+    queryListRow
+      [sql|
+        SELECT type_name, type_guid
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      |]
+
+  let f :: ByteString -> Name
+      f bytes =
+        case Aeson.decodeStrict @[Text] bytes of
+          Just (segment : segments) ->
+            Name.fromSegments (NameSegment segment NonEmpty.:| map NameSegment segments)
+          _ ->
+            error $
+              reportBug
+                "E955495"
+                ( "busted name in namespace_unique_type_guid (namespace hash id = "
+                    ++ show namespaceHashId
+                    ++ ")"
+                )
+
+  pure (Map.fromList (over (Lens.mapped . Lens._1) f rows))
 
 existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
 existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
