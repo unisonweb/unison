@@ -1881,8 +1881,7 @@ foo = "alice and bobs foo"
   do an `add` or `update`, here's how your codebase would
   change:
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ These new definitions are ok to `add`:
     
       foo : Text
 ```
@@ -3415,8 +3414,14 @@ type Bar = MkBar Foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
+  I found and typechecked these definitions in scratch.u. If you
+  do an `add` or `update`, here's how your codebase would
+  change:
+
+    ⍟ These new definitions are ok to `add`:
+    
+      type Bar
+      type Foo
 ```
 
 ``` ucm
