@@ -400,19 +400,30 @@ doMerge info = do
             (_temporaryBranchId, temporaryBranchName) <-
               HandleInput.Branch.createBranch
                 info.description
-                ( let targetStuff = (info.alice.projectAndBranch.branch, info.alice.causalHash)
+                ( let makeUniqueTypeGuids :: Map Name (TypeReferenceId, Decl Symbol Ann) -> Map Name Text
+                      makeUniqueTypeGuids =
+                        Map.mapMaybe \case
+                          (_, decl) ->
+                            case (DataDeclaration.asDataDecl decl).modifier of
+                              DataDeclaration.Unique guid -> Just guid
+                              DataDeclaration.Structural -> Nothing
+                      sourceStuff =
+                        ( case info.bob.source of
+                            MergeSource'LocalProjectBranch bobBranch ->
+                              HandleInput.Branch.CreateFromMergeSource'Local bobBranch.branch
+                            MergeSource'RemoteProjectBranch bobBranch ->
+                              HandleInput.Branch.CreateFromMergeSource'Remote bobBranch Share.hardCodedUri
+                            MergeSource'RemoteLooseCode _ -> HandleInput.Branch.CreateFromMergeSource'LooseCode,
+                          info.bob.causalHash,
+                          makeUniqueTypeGuids hydratedDefns.bob.types
+                        )
+                      targetStuff =
+                        ( info.alice.projectAndBranch.branch,
+                          info.alice.causalHash,
+                          makeUniqueTypeGuids hydratedDefns.alice.types
+                        )
                       mergeStuff = Branch.mergeNode stageTwoBranch parents.alice parents.bob
-                   in case info.bob.source of
-                        MergeSource'LocalProjectBranch bobBranch ->
-                          let sourceStuff = (bobBranch.branch, info.bob.causalHash)
-                           in HandleInput.Branch.CreateFrom'MergeParentsLocal sourceStuff targetStuff mergeStuff
-                        MergeSource'RemoteProjectBranch bobBranch ->
-                          let sourceStuff = (bobBranch, Share.hardCodedUri, info.bob.causalHash)
-                           in HandleInput.Branch.CreateFrom'MergeParentsRemote sourceStuff targetStuff mergeStuff
-                        -- Ugh, we don't care about loose code. Just pretend we are creating a branch from a namespace.
-                        -- Unlikely to affect anyone as we are deleting loose code support entirely soon.
-                        MergeSource'RemoteLooseCode _ ->
-                          HandleInput.Branch.CreateFrom'NamespaceWithParent info.alice.projectAndBranch.branch mergeStuff
+                   in HandleInput.Branch.CreateFrom'MergeParents sourceStuff targetStuff mergeStuff
                 )
                 info.alice.projectAndBranch.project
                 (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)

@@ -136,6 +136,8 @@ module U.Codebase.Sqlite.Queries
     loadMostRecentBranch,
     insertMergeBranchLocal,
     insertMergeBranchRemote,
+    insertMergeBranchLooseCode,
+    existsAnyNamespaceUniqueTypeGuidForNamespace,
     insertNamespaceUniqueTypeGuid,
 
     -- ** remote projects
@@ -4411,6 +4413,48 @@ insertMergeBranchRemote
           :targetCausalHashId
         )
       |]
+
+insertMergeBranchLooseCode ::
+  ProjectId ->
+  ProjectBranchId ->
+  CausalHashId ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLooseCode
+  projectId
+  mergeBranchId
+  sourceCausalHashId
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
+existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      )
+    |]
 
 insertNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Text -> Transaction ()
 insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
