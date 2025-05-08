@@ -2009,8 +2009,7 @@ anfBlock (Match' scrut cas) = do
       (r, vs) <- do
         r <- fresh
         v <- fresh
-        (hfvs, hcomb) <-
-          makeAffineHandler v abr df
+        (hfvs, hcomb) <- makeHandler v abr df
         record (r, hcomb)
         pure (r, hfvs)
       hv <- fresh

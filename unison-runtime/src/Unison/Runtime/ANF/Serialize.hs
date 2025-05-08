@@ -402,11 +402,10 @@ putNormal refrep fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
   TFrc v -> putTag ForceT *> putVar ctx v
   TApp f as -> putTag AppT *> putFunc refrep fops ctx f *> putArgs ctx as
-  THnd rs nh ah e ->
+  THnd rs nh _ah e ->
     putTag HandleT
       *> putRefs rs
       *> putVar ctx nh
-      *> putMaybe ah (putVar ctx)
       *> putNormal refrep fops ctx e
   TShift r v e ->
     putTag ShiftT *> putReference r *> putNormal refrep fops (v : ctx) e
@@ -455,15 +454,12 @@ getNormal ctx frsh0 =
     VarT -> TVar <$> getVar ctx
     ForceT -> TFrc <$> getVar ctx
     AppT -> TApp <$> getFunc ctx <*> getArgs ctx
-    HandleT -> askVersion >>= \v ->
+    HandleT ->
       THnd
         <$> getRefs
         <*> getVar ctx
-        <*> getAffine v
+        <*> pure Nothing
         <*> getNormal ctx frsh0
-      where
-        getAffine (Transfer 4) = getMaybe (getVar ctx)
-        getAffine _ = pure Nothing
 
     ShiftT ->
       flip TShift v <$> getReference <*> getNormal (v : ctx) (frsh0 + 1)
@@ -1136,7 +1132,7 @@ withCodeVersion :: Versioned m => m r -> m r
 withCodeVersion = local valueToCode
 
 valueVersion :: Word32
-valueVersion = 5
+valueVersion = 4
 
 codeVersion :: Word32
-codeVersion = 4
+codeVersion = 3
