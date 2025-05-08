@@ -205,8 +205,10 @@ prettyHash32 = prettyBase32Hex# . Hash32.toBase32Hex
 
 prettyMergeSource :: MergeSource -> Pretty
 prettyMergeSource = \case
-  MergeSource'LocalProjectBranch branch -> prettyProjectAndBranchName branch
-  MergeSource'RemoteProjectBranch branch -> "remote " <> prettyProjectAndBranchName branch
+  MergeSource'LocalProjectBranch branch ->
+    prettyProjectAndBranchName (ProjectAndBranch branch.project.name branch.branch.name)
+  MergeSource'RemoteProjectBranch branch ->
+    "remote " <> prettyProjectAndBranchName (ProjectAndBranch branch.projectName branch.branchName)
   MergeSource'RemoteLooseCode info -> prettyReadRemoteNamespace (ReadShare'LooseCode info)
 
 prettyMergeSourceOrTarget :: MergeSourceOrTarget -> Pretty

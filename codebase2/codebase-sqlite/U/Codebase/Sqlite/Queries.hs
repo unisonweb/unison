@@ -134,6 +134,14 @@ module U.Codebase.Sqlite.Queries
     expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
+    loadProjectBranchParent,
+    loadMergeBranchParents,
+    insertMergeBranchLocal,
+    insertMergeBranchRemote,
+    insertMergeBranchLooseCode,
+    loadNamespaceUniqueTypeGuids,
+    existsAnyNamespaceUniqueTypeGuidForNamespace,
+    insertNamespaceUniqueTypeGuid,
 
     -- ** remote projects
     loadRemoteProject,
@@ -257,6 +265,7 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchReflogTable,
     addProjectBranchCausalHashIdColumn,
     addProjectBranchLastAccessedColumn,
+    addMergeBranchTables,
 
     -- ** schema version
     currentSchemaVersion,
@@ -303,11 +312,13 @@ import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
 import Data.Bitraversable (bitraverse)
+import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as Nel
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -401,6 +412,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
+import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
@@ -421,7 +434,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 18
+currentSchemaVersion = 19
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -490,6 +503,10 @@ addProjectBranchCausalHashIdColumn =
 addProjectBranchLastAccessedColumn :: Transaction ()
 addProjectBranchLastAccessedColumn =
   executeStatements $(embedProjectStringFile "sql/015-add-project-branch-last-accessed.sql")
+
+addMergeBranchTables :: Transaction ()
+addMergeBranchTables =
+  executeStatements $(embedProjectStringFile "sql/016-add-merge-branch-tables.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -4327,6 +4344,192 @@ loadMostRecentBranch projectId =
       WHERE
         project_id = :projectId
     |]
+
+loadProjectBranchParent :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranchId)
+loadProjectBranchParent projectId projectBranchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_branch_id
+      FROM project_branch_parent
+      WHERE project_id = :projectId
+        AND branch_id = :projectBranchId
+    |]
+
+loadMergeBranchParents ::
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction
+    ( Maybe
+        ( Maybe ProjectBranchId,
+          CausalHashId,
+          Maybe ProjectBranchId,
+          CausalHashId
+        )
+    )
+loadMergeBranchParents projectId branchId =
+  queryMaybeRow
+    [sql|
+      SELECT local_source_branch_id, source_causal_hash_id, target_branch_id, target_causal_hash_id
+      FROM merge_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+insertMergeBranchLocal ::
+  ProjectId ->
+  ProjectBranchId ->
+  (ProjectBranchId, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLocal
+  projectId
+  mergeBranchId
+  (sourceBranchId, sourceCausalHashId)
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          local_source_project_id,
+          local_source_branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :projectId,
+          :sourceBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+insertMergeBranchRemote ::
+  ProjectId ->
+  ProjectBranchId ->
+  (RemoteProjectId, RemoteProjectBranchId, URI, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchRemote
+  projectId
+  mergeBranchId
+  (sourceProjectId, sourceBranchId, sourceHost, sourceCausalHashId)
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          remote_source_project_id,
+          remote_source_branch_id,
+          remote_source_host,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceProjectId,
+          :sourceBranchId,
+          :sourceHost,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+insertMergeBranchLooseCode ::
+  ProjectId ->
+  ProjectBranchId ->
+  CausalHashId ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLooseCode
+  projectId
+  mergeBranchId
+  sourceCausalHashId
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+loadNamespaceUniqueTypeGuids :: BranchHashId -> Transaction (Map Name Text)
+loadNamespaceUniqueTypeGuids namespaceHashId = do
+  rows <-
+    queryListRow
+      [sql|
+        SELECT type_name, type_guid
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      |]
+
+  let f :: ByteString -> Name
+      f bytes =
+        case Aeson.decodeStrict @[Text] bytes of
+          Just (segment : segments) ->
+            Name.fromSegments (NameSegment segment NonEmpty.:| map NameSegment segments)
+          _ ->
+            error $
+              reportBug
+                "E955495"
+                ( "busted name in namespace_unique_type_guid (namespace hash id = "
+                    ++ show namespaceHashId
+                    ++ ")"
+                )
+
+  pure (Map.fromList (over (Lens.mapped . Lens._1) f rows))
+
+existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
+existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      )
+    |]
+
+insertNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Text -> Transaction ()
+insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
+  execute
+    [sql|
+      INSERT INTO namespace_unique_type_guid (namespace_hash_id, type_name, type_guid)
+      VALUES (:namespaceHashId, :typeNameJson, :typeGuid)
+    |]
+  where
+    typeNameJson :: LazyByteString
+    typeNameJson =
+      typeName
+        & Name.segments
+        & List.NonEmpty.toList
+        & map NameSegment.toUnescapedText
+        & Aeson.encode
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.

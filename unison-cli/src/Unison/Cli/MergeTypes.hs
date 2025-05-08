@@ -7,13 +7,16 @@ module Unison.Cli.MergeTypes
   )
 where
 
+import U.Codebase.Sqlite.Project (Project)
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
+import Unison.Cli.Share.Projects.Types (RemoteProjectBranch)
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode)
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName)
 
 -- | What are we merging in?
 data MergeSource
-  = MergeSource'LocalProjectBranch !(ProjectAndBranch ProjectName ProjectBranchName)
-  | MergeSource'RemoteProjectBranch !(ProjectAndBranch ProjectName ProjectBranchName)
+  = MergeSource'LocalProjectBranch !(ProjectAndBranch Project ProjectBranch)
+  | MergeSource'RemoteProjectBranch !RemoteProjectBranch
   | MergeSource'RemoteLooseCode !ReadShareLooseCode
 
 type MergeTarget =

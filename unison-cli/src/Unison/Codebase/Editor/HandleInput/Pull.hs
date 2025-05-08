@@ -115,8 +115,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
                     { causalHash = remoteCausalHash,
                       source =
                         case source of
-                          ReadShare'ProjectBranch remoteBranch ->
-                            MergeSource'RemoteProjectBranch (ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
+                          ReadShare'ProjectBranch remoteBranch -> MergeSource'RemoteProjectBranch remoteBranch
                           ReadShare'LooseCode info -> MergeSource'RemoteLooseCode info
                     },
                 lca =

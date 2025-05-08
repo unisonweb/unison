@@ -49,6 +49,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UpdateUtils
   ( getNamespaceDependentsOf3,
     hydrateDefns,
@@ -359,10 +360,13 @@ doMerge info = do
                   { alice = into @Text aliceBranchNames,
                     bob =
                       case info.bob.source of
-                        MergeSource'LocalProjectBranch bobBranchNames -> into @Text bobBranchNames
-                        MergeSource'RemoteProjectBranch bobBranchNames
+                        MergeSource'LocalProjectBranch bobBranch -> into @Text (ProjectUtils.justTheNames bobBranch)
+                        MergeSource'RemoteProjectBranch bobBranch
                           | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
                           | otherwise -> into @Text bobBranchNames
+                          where
+                            bobBranchNames =
+                              ProjectAndBranch bobBranch.projectName bobBranch.branchName
                         MergeSource'RemoteLooseCode info ->
                           case Path.toName info.path of
                             Nothing -> "<root>"
@@ -384,9 +388,6 @@ doMerge info = do
         let stageOneBranch =
               defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
 
-        let stageTwoBranch =
-              defnsAndLibdepsToBranch0 env.codebase blob3.stageTwo mergedLibdeps
-
         let parents =
               causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
 
@@ -396,9 +397,30 @@ doMerge info = do
             (_temporaryBranchId, temporaryBranchName) <-
               HandleInput.Branch.createBranch
                 info.description
-                ( HandleInput.Branch.CreateFrom'NamespaceWithParent
-                    info.alice.projectAndBranch.branch
-                    (Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+                ( let makeUniqueTypeGuids :: Map Name (TypeReferenceId, Decl Symbol Ann) -> Map Name Text
+                      makeUniqueTypeGuids =
+                        Map.mapMaybe \case
+                          (_, decl) ->
+                            case (DataDeclaration.asDataDecl decl).modifier of
+                              DataDeclaration.Unique guid -> Just guid
+                              DataDeclaration.Structural -> Nothing
+                      sourceStuff =
+                        ( case info.bob.source of
+                            MergeSource'LocalProjectBranch bobBranch ->
+                              HandleInput.Branch.CreateFromMergeSource'Local bobBranch.branch
+                            MergeSource'RemoteProjectBranch bobBranch ->
+                              HandleInput.Branch.CreateFromMergeSource'Remote bobBranch Share.hardCodedUri
+                            MergeSource'RemoteLooseCode _ -> HandleInput.Branch.CreateFromMergeSource'LooseCode,
+                          info.bob.causalHash,
+                          makeUniqueTypeGuids hydratedDefns.bob.types
+                        )
+                      targetStuff =
+                        ( info.alice.projectAndBranch.branch,
+                          info.alice.causalHash,
+                          makeUniqueTypeGuids hydratedDefns.alice.types
+                        )
+                      mergeStuff = Branch.mergeNode stageOneBranch parents.alice parents.bob
+                   in HandleInput.Branch.CreateFrom'MergeParents sourceStuff targetStuff mergeStuff
                 )
                 info.alice.projectAndBranch.project
                 (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
@@ -498,7 +520,7 @@ doMergeLocalBranch branches = do
         bob =
           BobMergeInfo
             { causalHash = bobCausalHash,
-              source = MergeSource'LocalProjectBranch (ProjectUtils.justTheNames branches.bob)
+              source = MergeSource'LocalProjectBranch branches.bob
             },
         lca =
           LcaMergeInfo
@@ -604,8 +626,8 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
 
 mangleMergeSource :: MergeSource -> Text.Builder
 mangleMergeSource = \case
-  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
-  MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
+  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch.name
+  MergeSource'RemoteProjectBranch remoteBranch -> "remote-" <> mangleBranchName remoteBranch.branchName
   MergeSource'RemoteLooseCode info -> manglePath info.path
   where
     manglePath :: Path -> Text.Builder
@@ -703,9 +725,9 @@ makeMergedFileContents sourceAndTarget aliceContents bobContents =
       ">>>>>>> "
         <> ( case sourceAndTarget.bob of
                MergeSource'LocalProjectBranch bobProjectAndBranch ->
-                 Text.Builder.text (into @Text bobProjectAndBranch.branch)
-               MergeSource'RemoteProjectBranch bobProjectAndBranch ->
-                 "remote " <> Text.Builder.text (into @Text bobProjectAndBranch.branch)
+                 Text.Builder.text (into @Text bobProjectAndBranch.branch.name)
+               MergeSource'RemoteProjectBranch bobRemoteBranch ->
+                 "remote " <> Text.Builder.text (into @Text bobRemoteBranch.branchName)
                MergeSource'RemoteLooseCode info ->
                  case Path.toName info.path of
                    Nothing -> "<root>"
