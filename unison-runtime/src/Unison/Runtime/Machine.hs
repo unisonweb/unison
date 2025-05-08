@@ -265,6 +265,12 @@ exec _   !_henv !_activeThreads !stk !k _ (Discard i) = do
       (aenv, stk, k) <- abortCont stk k r
       pure (False, HEnv aenv mempty, stk, k)
     _ -> die "Discard called with bad handler reference"
+exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
+  bpeekOff stk i >>= \case
+    Affine aenv _ -> do
+      (stk, a) <- saveArgs stk
+      pure (False, HEnv aenv mempty, stk, Local henv0 a k)
+    v -> die $ "InLocal called with bad handler reference\n" ++ show v
 exec env !henv !_activeThreads !stk !k _ (Prim1 CACH i)
   | sandboxed env = die "attempted to use sandboxed operation: cache"
   | otherwise = do

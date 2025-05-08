@@ -530,6 +530,9 @@ data GInstr comb
       !(EnumSet Word64) -- prompt ids
       !Int              -- stack index of associated non-affine closure
       !(Maybe Int)      -- stack index of affine closure
+  | -- Push the local context of an affine handler into the continuation
+    InLocal
+      !Int -- stack index of the affine handler information
   | -- Fork thread evaluating delayed computation on boxed stack
     Fork !Int
   | -- Atomic transaction evaluating delayed computation on boxed stack
