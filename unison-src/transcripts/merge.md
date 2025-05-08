@@ -1786,6 +1786,8 @@ scratch/topic2> add
 scratch/main> switch /main
 ```
 
+Case 1: Merging child `/topic` into parent `/main` uses parent `/main`'s GUID
+
 ``` ucm :error
 scratch/main> merge /topic
 ```
@@ -1805,6 +1807,8 @@ scratch/topic> names Foo
 scratch/merge-topic-into-main> names Foo
 ```
 
+Case 2: Merging parent `/main` into child `/topic` also uses parent `/main`'s GUID
+
 ``` ucm :error
 scratch/topic> merge /main
 ```
@@ -1823,6 +1827,8 @@ scratch/main> names Foo
 scratch/topic> names Foo
 scratch/merge-main-into-topic> names Foo
 ```
+
+Case 3: Merging `/topic` into `/topic2` (neither of which is a parent of the other) uses a new third GUID
 
 ``` ucm :error
 scratch/topic> merge /topic2
