@@ -2,6 +2,7 @@ module Unison.Runtime.Debug
   ( traceComb,
     traceCombs,
     tracePretty,
+    tracePrettyDefs,
     tracePrettyCodes,
     tracePrettyGroup,
     tracePrettyNormal,
@@ -20,7 +21,7 @@ import Unison.Syntax.NamePrinter (prettyShortHash)
 import Unison.Syntax.TermPrinter (pretty)
 import Unison.Term qualified as Tm
 import Unison.Util.EnumContainers
-import Unison.Util.Pretty (toANSI, toAnsiUnbroken)
+import Unison.Util.Pretty (toANSI, toAnsiUnbroken, ColorText, Pretty)
 import Unison.Var (Var)
 
 type Term v = Tm.Term v ()
@@ -46,6 +47,18 @@ tracePretty ::
 tracePretty _ False tm = tm
 tracePretty ppe True tm = trace (toANSI 50 $ pretty ppe tm) tm
 
+tracePrettyDefs ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  Bool ->
+  [(Reference, Term v)] ->
+  [(Reference, Term v)]
+tracePrettyDefs _ False tms = tms
+tracePrettyDefs ppe True tms = map f tms
+  where
+    f p@(r, tm) =
+      trace (toANSI 50 $ prettyRef r <> " := " <> pretty ppe tm) p
+
 tracePrettyNormal ::
   (Var v) =>
   Bool ->
@@ -63,12 +76,15 @@ tracePrettyGroup ::
 tracePrettyGroup _ False g = g
 tracePrettyGroup w True g = trace (prettyGroup w g "") g
 
-prettyRef :: Reference -> String
-prettyRef = toAnsiUnbroken . prettyShortHash . shortenTo 10 . toShortHash
+prettyRef :: Reference -> Pretty ColorText
+prettyRef = prettyShortHash . shortenTo 10 . toShortHash
+
+prettyRefStr :: Reference -> String
+prettyRefStr = toAnsiUnbroken . prettyRef
 
 tracePrettyCodes :: Bool -> [(Reference, Code)] -> [(Reference, Code)]
 tracePrettyCodes False = id
 tracePrettyCodes True = map f
   where
-    f p@(r, c) = trace (prettyGroup (prettyRef r) (codeGroup c) "") p
+    f p@(r, c) = trace (prettyGroup (prettyRefStr r) (codeGroup c) "") p
 
