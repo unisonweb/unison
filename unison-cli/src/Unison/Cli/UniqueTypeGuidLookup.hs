@@ -51,15 +51,15 @@ loadUniqueTypeGuid pp name0 = do
             -- a new GUID because it's not clear whether alice's or bob's should be preferred.
             (Just aliceGuid, Just bobGuid) -> do
               case (aliceMaybeBranchId, bobMaybeBranchId) of
-                (Just aliceBranchId, Just bobBranchId) ->
-                  Queries.loadProjectBranchParent pp.project.projectId aliceBranchId >>= \case
-                    Just aliceParentBranchId ->
-                      if aliceParentBranchId == bobBranchId
-                        then pure (Just bobGuid)
-                        else
-                          Queries.loadProjectBranchParent pp.project.projectId bobBranchId <&> \case
-                            Just bobParentBranchId | bobParentBranchId == aliceBranchId -> Just aliceGuid
-                            _ -> Nothing
-                    Nothing -> pure Nothing
+                (Just aliceBranchId, Just bobBranchId) -> do
+                  aliceParentBranchId <- Queries.loadProjectBranchParent pp.project.projectId aliceBranchId
+                  if aliceParentBranchId == Just bobBranchId
+                    then pure (Just bobGuid)
+                    else do
+                      bobParentBranchId <- Queries.loadProjectBranchParent pp.project.projectId bobBranchId
+                      pure
+                        if bobParentBranchId == Just aliceBranchId
+                          then Just aliceGuid
+                          else Nothing
                 _ -> pure Nothing
     Just guid -> pure (Just guid)
