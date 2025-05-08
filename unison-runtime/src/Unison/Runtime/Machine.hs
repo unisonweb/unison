@@ -618,13 +618,14 @@ name !stk !args = \case
 extendPAp :: Val -> Val -> IO Closure
 extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
   ucop <- newByteArray $ ussz + 8
-  copyByteArray ucop 0 useg0 0 ussz
-  writeByteArray ucop (ussz `div` 8) $ getUnboxedVal new
+  print (useg0, bseg0)
+  copyByteArray ucop 8 useg0 0 ussz
+  writeByteArray ucop 0 $ getUnboxedVal new
   useg <- unsafeFreezeByteArray ucop
 
   bcop <- newArray (bssz + 1) BlackHole
-  copyArray bcop 0 bseg0 0 bssz
-  writeArray bcop bssz $ getBoxedVal new
+  copyArray bcop 1 bseg0 0 bssz
+  writeArray bcop 0 $ getBoxedVal new
   bseg <- unsafeFreezeArray bcop
 
   pure $ PAp cix comb (useg, bseg)
