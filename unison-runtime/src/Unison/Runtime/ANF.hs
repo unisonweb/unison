@@ -31,6 +31,9 @@ module Unison.Runtime.ANF
     pattern TBinds,
     pattern TShift,
     pattern TMatch,
+    pattern TDiscard,
+    pattern TLocal,
+    pattern TUpdate,
     CompileExn (..),
     internalBug,
     Mem (..),
@@ -790,6 +793,10 @@ data ANormalF v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
+  -- Affine handler support
+  | ADiscard v
+  | ALocal v e
+  | AUpdate v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance Bifunctor ANormalF where
@@ -803,6 +810,9 @@ instance Bifunctor ANormalF where
   bimap _ g (AShift i e) = AShift i $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
+  bimap f _ (ADiscard v) = ADiscard (f v)
+  bimap f g (ALocal v bo) = ALocal (f v) (g bo)
+  bimap f _ (AUpdate r v) = AUpdate (f r) (f v)
 
 instance Bifoldable ANormalF where
   bifoldMap f _ (AVar v) = f v
@@ -815,6 +825,9 @@ instance Bifoldable ANormalF where
   bifoldMap _ g (AShift _ e) = g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
+  bifoldMap f _ (ADiscard v) = f v
+  bifoldMap f g (ALocal v bo) = f v <> g bo
+  bifoldMap f _ (AUpdate r v) = f r <> f v
 
 instance ABTN.Align ANormalF where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
@@ -848,6 +861,11 @@ instance ABTN.Align ANormalF where
     | Just hs <- alignFunc f hl hr,
       length asl == length asr =
         Just $ AApp <$> hs <*> traverse (uncurry f) (zip asl asr)
+  align f _ (ADiscard u) (ADiscard v) = Just $ ADiscard <$> f u v
+  align f g (ALocal u bl) (ALocal v br) =
+    Just $ ALocal <$> f u v <*> g bl br
+  align f _ (AUpdate r u) (AUpdate s v) =
+    Just $ AUpdate <$> f r s <*> f u v
   align _ _ _ _ = Nothing
 
 alignEither ::
@@ -1114,7 +1132,30 @@ pattern TFrc v = ABTN.TTm (AFrc v)
 pattern TVar :: (ABT.Var v) => v -> ABTN.Term ANormalF v
 pattern TVar v = ABTN.TTm (AVar v)
 
-{-# COMPLETE TLet, TName, TVar, TApp, TFrc, TLit, THnd, TShift, TMatch #-}
+pattern TDiscard :: (ABT.Var v) => v -> ABTN.Term ANormalF v
+pattern TDiscard v = ABTN.TTm (ADiscard v)
+
+pattern TLocal ::
+  (ABT.Var v) => v -> ABTN.Term ANormalF v -> ABTN.Term ANormalF v
+pattern TLocal v e = ABTN.TTm (ALocal v e)
+
+pattern TUpdate :: (ABT.Var v) => v -> v -> ABTN.Term ANormalF v
+pattern TUpdate u v = ABTN.TTm (AUpdate u v)
+
+{-# COMPLETE
+  TLet,
+  TName,
+  TVar,
+  TApp,
+  TFrc,
+  TLit,
+  THnd,
+  TShift,
+  TMatch,
+  TDiscard,
+  TLocal,
+  TUpdate
+  #-}
 
 {-# COMPLETE
   TLet,
@@ -1131,7 +1172,10 @@ pattern TVar v = ABTN.TTm (AVar v)
   TLit,
   THnd,
   TShift,
-  TMatch
+  TMatch,
+  TDiscard,
+  TLocal,
+  TUpdate
   #-}
 
 bind :: (Var v) => Cte v -> ANormal v -> ANormal v
@@ -2557,6 +2601,7 @@ prettySuperNormal ind (Lambda ccs (ABTN.TAbss vs tm)) =
 reqSpace :: (Var v) => Bool -> ANormal v -> Bool
 reqSpace _ TLets {} = True
 reqSpace _ TName {} = True
+reqSpace _ TLocal {} = True
 reqSpace b _ = b
 
 prettyANF :: (Var v) => Bool -> Int -> ANormal v -> ShowS
@@ -2596,6 +2641,18 @@ prettyANF m ind tm =
         . showString " with "
         . pvar nh
         . maybe id (\v -> showString " with affine " . pvar v) ah
+    TLocal hr bo ->
+      showString "in-local "
+        . pvar hr
+        . prettyANF True (ind + 1) bo
+    TDiscard hr ->
+      showString "discard[" . pvar hr . showString "]"
+    TUpdate hr v ->
+      showString "update["
+        . pvar hr
+        . showString ", "
+        . pvar v
+        . showString "]"
     ABTN.TAbs v (ABTN.TAbss vs bo) ->
       prettyVars (v:vs) .
       showString " ->" .

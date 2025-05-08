@@ -91,6 +91,9 @@ import Unison.Runtime.ANF
     pattern TPrm,
     pattern TShift,
     pattern TVar,
+    pattern TDiscard,
+    pattern TLocal,
+    pattern TUpdate,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
@@ -1019,6 +1022,11 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
+emitSection rns grpr grpn rec ctx (TLocal v bo)
+  | Just (i, BX) <- ctxResolve ctx v =
+      Ins (InLocal i)
+        <$> emitSection rns grpr grpn rec ctx bo
+  | otherwise = emitSectionVErr v
 emitSection _ _ _ _ ctx (TLit l) =
   c . countCtx ctx . Ins (emitLit l) . Yield $ VArg1 0
   where
@@ -1227,6 +1235,11 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
     rt = toEnum . fromIntegral $ dnum rns r
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
+emitLet _ _ _ _ _ _ ctx (TDiscard v)
+  | Just (i, _) <- ctxResolve ctx v = fmap (Ins $ Discard i)
+emitLet _ _ _ _ _ _ ctx (TUpdate r v)
+  | Just (i, _) <- ctxResolve ctx r,
+    Just (j, _) <- ctxResolve ctx v = fmap (Ins $ SetAff i j)
 emitLet rns grpr grpn rec d vcs ctx bnd
   | Direct <- d =
       internalBug $ "unsupported compound direct let: " ++ show bnd

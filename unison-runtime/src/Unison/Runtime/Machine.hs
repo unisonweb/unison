@@ -110,8 +110,10 @@ eval0 :: CCache -> ActiveThreads -> MSection -> IO ()
 eval0 env !activeThreads !co = do
   stk <- alloc
   cmbs <- readTVarIO $ combs env
-  (henv, k) <-
-    topHEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+  (henv, k) <- do
+    rfTy <- readTVarIO (refTy env)
+    rfTm <- readTVarIO (refTm env)
+    topHEnv cmbs rfTy rfTm
   eval env henv activeThreads stk (k KE) dummyRef co
 
 mCombVal :: CombIx -> MComb -> Val
@@ -119,29 +121,31 @@ mCombVal cix (RComb (Comb comb)) =
   BoxedVal (PAp cix comb nullSeg)
 mCombVal _ (RComb (CachedVal _ clo)) = clo
 
-topDEnv ::
+topAEnv ::
   EnumMap Word64 MCombs ->
   M.Map Reference Word64 ->
   M.Map Reference Word64 ->
-  (DEnv, K -> K)
-topDEnv combs rfTy rfTm
+  IO (AEnv, K -> K)
+topAEnv combs rfTy rfTm
   | Just n <- M.lookup exceptionRef rfTy,
     rcrf <- Builtin (DTx.pack "raise"),
     Just j <- M.lookup rcrf rfTm,
     cix <- CIx rcrf j 0,
-    clo <- mCombVal cix $ rCombSection combs cix =
-      ( EC.mapSingleton n clo,
-        Mark 0 (EC.setSingleton n) mempty
-      )
-topDEnv _ _ _ = (mempty, id)
+    clo <- mCombVal cix $ rCombSection combs cix = do
+      r <- newIORef BlackHole
+      let ar = ARef r
+      ahv <- extendPAp clo . BoxedVal $ Affine mempty ar
+      writeIORef r ahv
+      pure (EC.mapSingleton n ar, AMark 0 mempty ar)
+topAEnv _ _ _ = pure (mempty, id)
 
 topHEnv ::
   EnumMap Word64 MCombs ->
   M.Map Reference Word64 ->
   M.Map Reference Word64 ->
-  (HEnv, K -> K)
+  IO (HEnv, K -> K)
 topHEnv combs rfTy rfTm =
-  first (HEnv mempty) $ topDEnv combs rfTy rfTm
+  first (flip HEnv mempty) <$> topAEnv combs rfTy rfTm
 
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
@@ -158,8 +162,10 @@ apply0 !callback env !threadTracker !i = do
   stk <- alloc
   cmbrs <- readTVarIO $ combRefs env
   cmbs <- readTVarIO $ combs env
-  (henv, kf) <-
-    topHEnv cmbs <$> readTVarIO (refTy env) <*> readTVarIO (refTm env)
+  (henv, kf) <- do
+    rfTy <- readTVarIO (refTy env)
+    rfTm <- readTVarIO (refTm env)
+    topHEnv cmbs rfTy rfTm
   r <- case EC.lookup i cmbrs of
     Just r -> pure r
     Nothing -> die "apply0: missing reference to entry point"

@@ -484,7 +484,7 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 3 $ \[r, f, n, k] ->
+  binop0 2 $ \[ah, r, f, n] ->
     TMatch r
       . flip MatchRequest (TAbs f $ TVar f)
       . Map.singleton Ty.exceptionRef
@@ -492,7 +492,7 @@ raise =
         0
         ( [BX],
           TAbs f
-            . TShift Ty.exceptionRef k
+            . TLets Direct [] [] (TDiscard ah)
             . TLetD n BX (TLit $ T "builtin.raise")
             $ TPrm EROR [n, f]
         )
