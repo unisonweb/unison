@@ -1751,6 +1751,13 @@ translateLinear self vs rec ar kf = go Set.empty
       all (kf /=) us =
         TName v f us <$> go (Set.insert v bound) body
 
+    | TMatch v bs <- body =
+        TMatch v <$>
+          for bs \case
+            ABTN.TAbss us bd ->
+              ABTN.TAbss us <$>
+                go (Set.fromList us `Set.union` bound) bd
+
     | otherwise = Nothing
 
 -- Recognizes the tail of a linear handler case, where the
