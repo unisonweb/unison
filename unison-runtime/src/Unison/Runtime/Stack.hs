@@ -318,7 +318,16 @@ type AEnv = EnumMap Word64 AffineRef
 -- dynamic environment
 type DEnv = EnumMap Word64 Val
 
-data HEnv = HEnv { aenv :: !AEnv, denv :: !DEnv }
+-- Handler environment.
+--
+-- Note: the fields are intentionally not strict. This seems to yield
+-- better performance. At a guess, strict fields and being strict in
+-- the HEnv requires GHC to emit forcing instructions that cause
+-- overhead.
+--
+-- Instead, components are passed `evaluate` locally when built, or
+-- similar.
+data HEnv = HEnv { aenv :: AEnv, denv :: DEnv }
 
 instance Semigroup HEnv where
   HEnv la ld <> HEnv ra rd = HEnv (la <> ra) (ld <> rd)

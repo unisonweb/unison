@@ -368,12 +368,12 @@ exec _ (HEnv aenv0 denv0) !_activeThreads !stk !k _ (Reset ps nhi mah)
       let ar = ARef r
       ahv <- extendPAp ahv0 . BoxedVal $ Affine aenv0 ar
       writeIORef r ahv
-      let aenv = EC.unionWith const (mapFromSet ps ar) aenv0
+      aenv <- evaluate $ EC.unionWith const (mapFromSet ps ar) aenv0
       pure (False, HEnv aenv denv0, stk, AMark a aenv0 ar k)
   | otherwise = do
       (stk, a) <- saveArgs stk
       nh <- peekOff stk nhi
-      let denv = EC.unionWith const (mapFromSet ps nh) denv0
+      denv <- evaluate $ EC.unionWith const (mapFromSet ps nh) denv0
       pure (False, HEnv aenv0 denv, stk, Mark a ps clos k)
   where
     clos = EC.restrictKeys denv0 ps
@@ -879,11 +879,11 @@ yield ::
   Stack ->
   K ->
   IO ()
-yield env (HEnv aenv0 denv0) !activeThreads !stk = leap
+yield env henv0@(HEnv aenv0 denv0) !activeThreads !stk = leap
   where
     leap (Mark a ps cs k) = do
-      let denv = cs <> EC.withoutKeys denv0 ps
-          h = denv0 EC.! EC.findMin ps
+      denv <- evaluate $ cs <> EC.withoutKeys denv0 ps
+      let h = denv0 EC.! EC.findMin ps
       v <- peek stk
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
@@ -901,7 +901,7 @@ yield env (HEnv aenv0 denv0) !activeThreads !stk = leap
     leap (Push fsz asz (CIx ref _ _) f nx k) = do
       stk <- restoreFrame stk fsz asz
       stk <- ensure stk f
-      eval env (HEnv aenv0 denv0) activeThreads stk k ref nx
+      eval env henv0 activeThreads stk k ref nx
     leap (Local henv asz k) = do
       stk <- restoreFrame stk 0 asz
       yield env henv activeThreads stk k
