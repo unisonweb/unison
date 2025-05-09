@@ -685,6 +685,14 @@ inline inls (Rec bs entry) = Rec (fmap go0 <$> bs) (go0 entry)
       TApp (FComb r) args
         | Just (arity, expr) <- Map.lookup r inls ->
             go (n - 1) <$> tweak expr args arity
+      TName nv (Left r) args body
+        | Just (arity, expr) <- Map.lookup r inls ->
+            tweak expr args arity >>= \case
+              TCom r args ->
+                Just . go (n-1) $ TName nv (Left r) args body
+              TApv v args ->
+                Just . go (n-1) $ TName nv (Right v) args body
+              _ -> Nothing
       _ -> Nothing
 
     tweak (ABTN.TAbss vs body) args arity
