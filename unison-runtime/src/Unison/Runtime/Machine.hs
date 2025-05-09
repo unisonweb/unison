@@ -518,21 +518,26 @@ eval env !henv !activeThreads !stk !k r (Ins i nx) = do
       -- be handled by the current {Exception} handler. The stack
       -- currently points to an appropriate `Failure` value, and
       -- we must handle the rest.
-      | exception -> case EC.lookup TT.exceptionTag (denv henv) of
-          Just eh -> do
-            -- wrap the failure in an exception raise box
-            fv <- peek stk
-            bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
-            (stk, fsz, asz) <- saveFrame stk
-            let kk = Push fsz asz fakeCix 10 nx k
-            apply env henv activeThreads stk kk False (VArg1 0) eh
-          Nothing ->
-            -- should be impossible
-            unhandledAbilityRequest
+      | exception -> do
+          eh <- resolveExceptionHandler henv
+          fv <- peek stk
+          bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
+          (stk, fsz, asz) <- saveFrame stk
+          let kk = Push fsz asz fakeCix 10 nx k
+          apply env henv activeThreads stk kk False (VArg1 0) eh
       | otherwise -> eval env henv activeThreads stk k r nx
 eval _ !_ !_ !_activeThreads !_ _ Exit = pure ()
 eval _ !_ !_ !_activeThreads !_ _ (Die s) = die s
 {-# NOINLINE eval #-}
+
+-- Note: denv shadows aenv always
+resolveExceptionHandler :: HEnv -> IO Val
+resolveExceptionHandler (HEnv aenv denv)
+  | Just eh <- EC.lookup TT.exceptionTag denv = pure eh
+  | Just (ARef r) <- EC.lookup TT.exceptionTag aenv =
+      BoxedVal <$> readIORef r
+  -- should be impossible
+  | otherwise = unhandledAbilityRequest
 
 fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
