@@ -1748,6 +1748,111 @@ scratch/alice> names Bar
 scratch/main> project.delete scratch
 ```
 
+### Unique type GUID reuse – parent branch
+
+When on a merge branch, if the parser has to pick between two different GUIDs, and the two merge parents themselves have
+a branch parent-child relationship, it will prefer the parent's GUID. If they don't the parser will make a new GUID.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+scratch/main> branch topic
+scratch/main> branch topic2
+scratch/main> add
+scratch/main> switch /topic
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+scratch/topic> add
+scratch/topic> switch /topic2
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+scratch/topic2> add
+scratch/main> switch /main
+```
+
+Case 1: Merging child `/topic` into parent `/main` uses parent `/main`'s GUID
+
+``` ucm :error
+scratch/main> merge /topic
+```
+
+``` ucm
+scratch/main> switch /merge-topic-into-main
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+scratch/merge-topic-into-main> update
+scratch/main> names Foo
+scratch/topic> names Foo
+scratch/merge-topic-into-main> names Foo
+```
+
+Case 2: Merging parent `/main` into child `/topic` also uses parent `/main`'s GUID
+
+``` ucm :error
+scratch/topic> merge /main
+```
+
+``` ucm
+scratch/merge-main-into-topic>
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+scratch/merge-main-into-topic> update
+scratch/main> names Foo
+scratch/topic> names Foo
+scratch/merge-main-into-topic> names Foo
+```
+
+Case 3: Merging `/topic` into `/topic2` (neither of which is a parent of the other) uses a new third GUID
+
+``` ucm :error
+scratch/topic> merge /topic2
+```
+
+``` ucm
+scratch/merge-topic2-into-topic>
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm
+scratch/merge-topic2-into-topic> update
+scratch/topic> names Foo
+scratch/topic2> names Foo
+scratch/merge-topic2-into-topic> names Foo
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
 ### Using Alice's names for Bob's things
 
 Previously, we'd render Alice's stuff with her names and Bob's stuff with his. But because Alice is doing the merge,

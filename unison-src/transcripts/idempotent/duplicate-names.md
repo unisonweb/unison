@@ -23,7 +23,6 @@ Stream.send _ = ()
       2 |   send : a -> ()
       3 | 
       4 | Stream.send : a -> ()
-      5 | Stream.send _ = ()
 ```
 
 Term and type constructor collisions should cause a parse error.
@@ -44,7 +43,6 @@ X.x _ = ()
       1 | structural type X = x
       2 | 
       3 | X.x : a -> ()
-      4 | X.x _ = ()
 ```
 
 Ability and type constructor collisions should cause a parse error.

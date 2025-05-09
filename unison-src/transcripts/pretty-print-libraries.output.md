@@ -4864,16 +4864,15 @@ abilities.Random.weighted.fromStream weights =
     (prevTotal, m), (weight, gen) ->
       total = prevTotal + weight
       (total, NatMap.insert total gen m)
-  let
-    (total, m) = Stream.fold go (0, NatMap.empty) weights
-    endExclusive = Nat.increment total
-    do
-      n = Random.natIn 1 endExclusive
-      NatMap.getAtLeast n m
-        |> getOrBug
-             "a weighted random sampling requires at least one non-zero weight"
-        |> at2
-        |> force
+  (total, m) = Stream.fold go (0, NatMap.empty) weights
+  endExclusive = Nat.increment total
+  do
+    n = Random.natIn 1 endExclusive
+    NatMap.getAtLeast n m
+      |> getOrBug
+           "a weighted random sampling requires at least one non-zero weight"
+      |> at2
+      |> force
 
 abilities.Random.weighted.fromStream.doc : Doc
 abilities.Random.weighted.fromStream.doc =
@@ -5157,10 +5156,9 @@ abilities.Store.local! getter setter thunk =
   use Store get
   op : '{g, Store b} (v, b)
   op _ = (thunk(), get)
-  let
-    (v, b) = withInitialValue (getter get) op
-    Store.modify (a -> setter a b)
-    v
+  (v, b) = withInitialValue (getter get) op
+  Store.modify (a -> setter a b)
+  v
 
 abilities.Store.local!.doc : Doc
 abilities.Store.local!.doc =
@@ -15284,9 +15282,8 @@ data.Graph.sccs graph =
     (_, stack) = sccs.crawls graph (NatSet.empty, []) (List.range 0 n)
     rgraph = Graph.reverse graph
     f st no = uncurry (classify rgraph no) st no
-    let
-      (_, sccm) = List.foldLeft f (NatSet.empty, NatMap.empty) stack
-      NatMap.values sccm
+    (_, sccm) = List.foldLeft f (NatSet.empty, NatMap.empty) stack
+    NatMap.values sccm
 
 data.Graph.sccs.classifies :
   Graph v
@@ -15521,10 +15518,9 @@ data.Graph.topSort.crawl graph loop0 state n =
     if contains n loop0 then abort
     else
       loop = insert n loop0
-      let
-        (seen, sort) =
-          data.Graph.topSort.crawls graph loop state (Graph.edges graph n)
-        (insert n seen, vertex graph n +: sort)
+      (seen, sort) =
+        data.Graph.topSort.crawls graph loop state (Graph.edges graph n)
+      (insert n seen, vertex graph n +: sort)
 
 data.Graph.topSort.crawl.doc : Doc
 data.Graph.topSort.crawl.doc =
@@ -18296,9 +18292,8 @@ data.List.groupSublistsBy p' = cases
       x +: xs ->
         (ys, zs) = go p x xs
         if p z x then (x +: ys, zs) else ([], x +| ys +: zs)
-    let
-      (ys', zs') = go p' x' xs'
-      x' +| ys' +: zs'
+    (ys', zs') = go p' x' xs'
+    x' +| ys' +: zs'
 
 data.List.groupSublistsBy.doc : Doc
 data.List.groupSublistsBy.doc =
@@ -23016,10 +23011,9 @@ test> data.Map.alignWithKey.tests.effects = test.verify do
   go k v =
     emit (k, v)
     v
-  let
-    (seen, result) = toListWithResult do Map.alignWithKey go m m
-    labeled "result" do ensuring do result == singleton "foo" (Both () ())
-    labeled "seen" do ensuring do seen === [("foo", Both () ())]
+  (seen, result) = toListWithResult do Map.alignWithKey go m m
+  labeled "result" do ensuring do result == singleton "foo" (Both () ())
+  labeled "seen" do ensuring do seen === [("foo", Both () ())]
 
 data.Map.alter : (Optional v ->{e} Optional v) -> k -> Map k v ->{e} Map k v
 data.Map.alter f k = cases
@@ -23529,10 +23523,9 @@ test> data.Map.filterAlignWithKey.tests.effects = test.verify do
   go k v =
     emit (k, v)
     Some v
-  let
-    (seen, result) = toListWithResult do Map.filterAlignWithKey go m m
-    labeled "result" do ensuring do result == singleton "foo" (Both () ())
-    labeled "seen" do ensuring do seen === [("foo", Both () ())]
+  (seen, result) = toListWithResult do Map.filterAlignWithKey go m m
+  labeled "result" do ensuring do result == singleton "foo" (Both () ())
+  labeled "seen" do ensuring do seen === [("foo", Both () ())]
 
 test> data.Map.filterAlignWithKey.tests.empty = test.verify do
   use List zip
@@ -27287,12 +27280,11 @@ test> data.Map.split.tests.splits = runs 100 do
   use Map keys
   m = tests.mapOf natInOrder natInOrder ()
   k = natInOrder()
-  let
-    (m1, m2) = Map.split k m
-    smaller = all (x -> Universal.lt x k) (keys m1)
-    larger = all (x -> Universal.gt x k) (keys m2)
-    equal = List.none (x -> x === k) (keys m1 ++ keys m2)
-    expect (smaller && larger && equal)
+  (m1, m2) = Map.split k m
+  smaller = all (x -> Universal.lt x k) (keys m1)
+  larger = all (x -> Universal.gt x k) (keys m2)
+  equal = List.none (x -> x === k) (keys m1 ++ keys m2)
+  expect (smaller && larger && equal)
 
 data.Map.takeLargest : Nat -> Map k v -> Map k v
 data.Map.takeLargest n m =
@@ -33473,9 +33465,8 @@ data.NatMap.Nonempty.breakOffMax = cases
         (result, r') = up r
         (result, bin p m (toNatMap l) r')
       NatMap.Nonempty.Tip k v        -> ((k, v), NatMap.empty)
-    let
-      (result, r') = up r
-      (result, bin p m (toNatMap l) r')
+    (result, r') = up r
+    (result, bin p m (toNatMap l) r')
   NatMap.Nonempty.Tip k v            -> ((k, v), NatMap.empty)
 
 data.NatMap.Nonempty.breakOffMax.doc : Doc
@@ -33511,9 +33502,8 @@ data.NatMap.Nonempty.breakOffMin = cases
         (result, l') = up l
         (result, bin p m l' (toNatMap r))
       NatMap.Nonempty.Tip k v        -> ((k, v), NatMap.empty)
-    let
-      (result, l') = up l
-      (result, bin p m l' (toNatMap r))
+    (result, l') = up l
+    (result, bin p m l' (toNatMap r))
   NatMap.Nonempty.Tip k v            -> ((k, v), NatMap.empty)
 
 data.NatMap.Nonempty.breakOffMin.doc : Doc
@@ -39344,11 +39334,10 @@ data.NatSet.Nonempty.alter :
   (Boolean ->{g} Boolean) -> Nat -> NatSet.Nonempty ->{g} NatSet
 data.NatSet.Nonempty.alter f k s =
   present = NatSet.Nonempty.contains k s
-  let
-    (inserted, deleted) =
-      if present then (NatSet (Some s), NatSet.Nonempty.delete k s)
-      else (NatSet (Some (NatSet.Nonempty.insert k s)), NatSet (Some s))
-    if f present then inserted else deleted
+  (inserted, deleted) =
+    if present then (NatSet (Some s), NatSet.Nonempty.delete k s)
+    else (NatSet (Some (NatSet.Nonempty.insert k s)), NatSet (Some s))
+  if f present then inserted else deleted
 
 data.NatSet.Nonempty.alter.doc : Doc
 data.NatSet.Nonempty.alter.doc =
@@ -48007,9 +47996,8 @@ test> data.Tuple.tests.ex2 =
       pythagoras : (Nat, Nat, Nat)
       pythagoras = (3, 4, 5)
       square n = n * n
-      let
-        (a, b, c) = pythagoras
-        square a + square b === square c
+      (a, b, c) = pythagoras
+      square a + square b === square c
 
 Debug.tap : Text -> a -> a
 Debug.tap = Function.tap << Debug.trace
@@ -50779,21 +50767,19 @@ Float.fromHalfPrecision half =
   s = and 1 (shiftRight half 15)
   e = shiftRight half 10 |> and 31
   m = and half 1023
-  let
-    (e', m') =
-      if e == 0 then
-        if m == 0 then (0, 0)
-        else
-          lz = Nat.leadingZeros m - 54
-          newM = and 1023 (shiftLeft m (lz + 1))
-          (1008 - lz, shiftLeft newM 42)
+  (e', m') =
+    if e == 0 then
+      if m == 0 then (0, 0)
       else
-        if e == 31 then (2047, shiftLeft m 42) else (1008 + e, shiftLeft m 42)
-    signBit = shiftLeft s 63
-    exponentBits = shiftLeft e' 52
-    significandBits = m'
-    double = or signBit (or exponentBits significandBits)
-    Float.fromRepresentation double
+        lz = Nat.leadingZeros m - 54
+        newM = and 1023 (shiftLeft m (lz + 1))
+        (1008 - lz, shiftLeft newM 42)
+    else if e == 31 then (2047, shiftLeft m 42) else (1008 + e, shiftLeft m 42)
+  signBit = shiftLeft s 63
+  exponentBits = shiftLeft e' 52
+  significandBits = m'
+  double = or signBit (or exponentBits significandBits)
+  Float.fromRepresentation double
 
 Float.fromHalfPrecision.doc : Doc
 Float.fromHalfPrecision.doc =
@@ -50921,21 +50907,19 @@ Float.fromSinglePrecision n =
   s = and 1 (shiftRight n 31)
   e = shiftRight n 23 |> and 255
   m = and n 8388607
-  let
-    (e', m') =
-      if e == 0 then
-        if m == 0 then (0, 0)
-        else
-          lz = Nat.leadingZeros m - 41
-          newM = and 8388607 (shiftLeft m (lz + 1))
-          (896 - lz, shiftLeft newM 29)
+  (e', m') =
+    if e == 0 then
+      if m == 0 then (0, 0)
       else
-        if e == 255 then (2047, shiftLeft m 29) else (896 + e, shiftLeft m 29)
-    signBit = shiftLeft s 63
-    exponentBits = shiftLeft e' 52
-    significandBits = m'
-    double = or signBit (or exponentBits significandBits)
-    Float.fromRepresentation double
+        lz = Nat.leadingZeros m - 41
+        newM = and 8388607 (shiftLeft m (lz + 1))
+        (896 - lz, shiftLeft newM 29)
+    else if e == 255 then (2047, shiftLeft m 29) else (896 + e, shiftLeft m 29)
+  signBit = shiftLeft s 63
+  exponentBits = shiftLeft e' 52
+  significandBits = m'
+  double = or signBit (or exponentBits significandBits)
+  Float.fromRepresentation double
 
 Float.fromSinglePrecision.doc : Doc
 Float.fromSinglePrecision.doc =
@@ -52083,35 +52067,32 @@ Float.toHalfPrecision n =
   sign = shiftRight double 63
   exp = and (shiftRight double 52) 2047
   fraction = and double 4503599627370495
-  let
-    (halfExp, halfFraction) =
-      if exp == 0
-        && fraction == 0 then (0, 0)
+  (halfExp, halfFraction) =
+    if exp == 0
+      && fraction == 0 then (0, 0)
+    else
+      if exp == 2047 then (shiftLeft 31 10, and (shiftRight fraction 42) 1023)
       else
-        if exp == 2047 then
-          (shiftLeft 31 10, and (shiftRight fraction 42) 1023)
+        normExp = Nat.toInt exp - +1008
+        if normExp > +30 then (shiftLeft 31 10, 0)
         else
-          normExp = Nat.toInt exp - +1008
-          if normExp > +30 then (shiftLeft 31 10, 0)
+          if normExp < -10 then (0, 0)
           else
-            if normExp < -10 then (0, 0)
+            if normExp < +1 then
+              shift = abs (+1 - normExp)
+              ( 0
+              , shiftRight (or 1024 (and (shiftRight fraction 42) 1023)) shift
+              )
             else
-              if normExp < +1 then
-                shift = abs (+1 - normExp)
-                ( 0
-                , shiftRight
-                    (or 1024 (and (shiftRight fraction 42) 1023)) shift
-                )
-              else
-                (shiftLeft (abs normExp) 10, and (shiftRight fraction 42) 1023)
-    roundingBit = isSetBit 41 fraction
-    lastMantissa = isSetBit 42 fraction
-    restOfMantissa = dropBits 23 fraction != 0
-    mantissa =
-      if (restOfMantissa || lastMantissa) && roundingBit then halfFraction + 1
-      else halfFraction
-    halfSign = shiftLeft sign 15
-    or halfSign (or halfExp mantissa)
+              (shiftLeft (abs normExp) 10, and (shiftRight fraction 42) 1023)
+  roundingBit = isSetBit 41 fraction
+  lastMantissa = isSetBit 42 fraction
+  restOfMantissa = dropBits 23 fraction != 0
+  mantissa =
+    if (restOfMantissa || lastMantissa) && roundingBit then halfFraction + 1
+    else halfFraction
+  halfSign = shiftLeft sign 15
+  or halfSign (or halfExp mantissa)
 
 Float.toHalfPrecision.doc : Doc
 Float.toHalfPrecision.doc =
@@ -52334,41 +52315,39 @@ Float.toSinglePrecision n =
   sign = shiftRight double 63
   exp = and (shiftRight double 52) 2047
   fraction = and double 4503599627370495
-  let
-    (singleExp, singleFraction) =
-      if exp == 0
-        && fraction == 0 then (0, 0)
+  (singleExp, singleFraction) =
+    if exp == 0
+      && fraction == 0 then (0, 0)
+    else
+      if exp == 2047 then
+        (shiftLeft 255 23, and (shiftRight fraction 29) 8388607)
       else
-        if exp == 2047 then
-          (shiftLeft 255 23, and (shiftRight fraction 29) 8388607)
+        use Int +
+        unbiasedExp = Nat.toInt exp - +1023
+        normExp = unbiasedExp + +127
+        if unbiasedExp > +127 then (shiftLeft 255 23, 0)
         else
-          use Int +
-          unbiasedExp = Nat.toInt exp - +1023
-          normExp = unbiasedExp + +127
-          if unbiasedExp > +127 then (shiftLeft 255 23, 0)
+          if unbiasedExp < -149 then (0, 0)
           else
-            if unbiasedExp < -149 then (0, 0)
+            if unbiasedExp < -126 then
+              shift = abs (+1 - normExp)
+              ( 0
+              , shiftRight
+                  (or 8388608 (and (shiftRight fraction 29) 8388607)) shift
+              )
             else
-              if unbiasedExp < -126 then
-                shift = abs (+1 - normExp)
-                ( 0
-                , shiftRight
-                    (or 8388608 (and (shiftRight fraction 29) 8388607)) shift
-                )
-              else
-                ( shiftLeft (abs normExp) 23
-                , and (shiftRight fraction 29) 8388607
-                )
-    use Nat +
-    roundingBit = isSetBit 28 fraction
-    lastMantissa = isSetBit 29 fraction
-    restOfMantissa = dropBits 38 fraction != 0
-    mantissa =
-      if (restOfMantissa || lastMantissa) && roundingBit then
-        singleFraction + 1
-      else singleFraction
-    singleSign = shiftLeft sign 31
-    or singleSign (or singleExp mantissa)
+              ( shiftLeft (abs normExp) 23
+              , and (shiftRight fraction 29) 8388607
+              )
+  use Nat +
+  roundingBit = isSetBit 28 fraction
+  lastMantissa = isSetBit 29 fraction
+  restOfMantissa = dropBits 38 fraction != 0
+  mantissa =
+    if (restOfMantissa || lastMantissa) && roundingBit then singleFraction + 1
+    else singleFraction
+  singleSign = shiftLeft sign 31
+  or singleSign (or singleExp mantissa)
 
 Float.toSinglePrecision.doc : Doc
 Float.toSinglePrecision.doc =
@@ -55689,15 +55668,14 @@ IO.concurrent.MVar.tryModify :
 IO.concurrent.MVar.tryModify mvar f =
   use MVar tryPut
   a = MVar.take mvar
-  let
-    (a', b) =
-      match catchAll do f a with
-        Left e  ->
-          _ = tryPut mvar a
-          Exception.raise e
-        Right x -> x
-    success = tryPut mvar a'
-    if success then Some b else None
+  (a', b) =
+    match catchAll do f a with
+      Left e  ->
+        _ = tryPut mvar a
+        Exception.raise e
+      Right x -> x
+  success = tryPut mvar a'
+  if success then Some b else None
 
 IO.concurrent.MVar.tryModify.doc : Doc
 IO.concurrent.MVar.tryModify.doc =
@@ -62492,33 +62470,29 @@ math.Natural.internal.divImpl u v =
               rh' = rh + vmsd
               if rh' < radix then estimate qh' rh' else (qh', rh')
             else (qh, rh)
-          let
-            (qhat, rhat) = estimate (x / vmsd) (mod x vmsd)
-            multiply k i uns =
-              if i < n then
-                p = qhat * atOr0 i vns
-                t = atOr0 (i + j) uns - k - Nat.and p bitMask
-                uns' = replace (i + j) t uns
-                multiply
-                  (shiftRight p bitWidth - shiftRight t bitWidth) (i + 1) uns'
-              else (k, uns)
-            let
-              (k, unstmp) = multiply 0 0 uns
-              uns' = updateAt (x -> x - k) (j + n) unstmp
-              let
-                (qd, uns'') =
-                  if k > atOr0 (j + n) uns then
-                    addBack i k uns' =
-                      if i < n then
-                        t = atOr0 (i + j) uns + atOr0 i vns + k
-                        uns'' = replace (i + j) t uns'
-                        addBack (i + 1) (shiftRight t bitWidth) uns''
-                      else (k, uns')
-                    let
-                      (k, uns'') = addBack 0 0 uns'
-                      (qhat - 1, updateAt (x -> x + k) (j + n) uns'')
-                  else (qhat, uns')
-                loop (j' - 1) (qd +: qds) uns''
+          (qhat, rhat) = estimate (x / vmsd) (mod x vmsd)
+          multiply k i uns =
+            if i < n then
+              p = qhat * atOr0 i vns
+              t = atOr0 (i + j) uns - k - Nat.and p bitMask
+              uns' = replace (i + j) t uns
+              multiply
+                (shiftRight p bitWidth - shiftRight t bitWidth) (i + 1) uns'
+            else (k, uns)
+          (k, unstmp) = multiply 0 0 uns
+          uns' = updateAt (x -> x - k) (j + n) unstmp
+          (qd, uns'') =
+            if k > atOr0 (j + n) uns then
+              addBack i k uns' =
+                if i < n then
+                  t = atOr0 (i + j) uns + atOr0 i vns + k
+                  uns'' = replace (i + j) t uns'
+                  addBack (i + 1) (shiftRight t bitWidth) uns''
+                else (k, uns')
+              (k, uns'') = addBack 0 0 uns'
+              (qhat - 1, updateAt (x -> x + k) (j + n) uns'')
+            else (qhat, uns')
+          loop (j' - 1) (qd +: qds) uns''
         else qds
       qds = loop (m Nat.- n + 1) [] uns
       q = fromNats qds
@@ -62917,12 +62891,10 @@ math.Natural.shiftLeft x y =
         use Nat -
         nout = Nat.and bitMask (Nat.shiftLeft n bits)
         carry = Nat.shiftRight n (32 - bits)
-        let
-          (carried, outs) = s
-          (carry, outs :+ Nat.or nout carried)
-      let
-        (c, r) = List.foldLeft f (0, out) in
-        fromNats (if c > 0 then r :+ c else r)
+        (carried, outs) = s
+        (carry, outs :+ Nat.or nout carried)
+      (c, r) = List.foldLeft f (0, out) in
+      fromNats (if c > 0 then r :+ c else r)
   d = y / 32
   m = Nat.mod y 32
   go d m (List.Nonempty.toList (digits x)) []
@@ -65140,9 +65112,8 @@ mutable.ByteArray.write8.doc =
 mutable.Ref.atomically : Ref {IO} a -> (a -> (a, b)) ->{IO} b
 mutable.Ref.atomically ref f =
   ticket = readForCas ref
-  let
-    (newState, output) = f (Ticket.read ticket)
-    if cas ref ticket newState then output else mutable.Ref.atomically ref f
+  (newState, output) = f (Ticket.read ticket)
+  if cas ref ticket newState then output else mutable.Ref.atomically ref f
 
 mutable.Ref.atomically.doc : Doc
 mutable.Ref.atomically.doc =
@@ -72711,9 +72682,8 @@ test.deprecated.internals.v1.Test.Report.toCLIResult r =
     match Trie.head t with
       Some status -> convert scope status +: rest
       None        -> rest
-  let
-    (Report t) = r
-    go "" t
+  (Report t) = r
+  go "" t
 
 test.deprecated.laws.absorption :
   '{Gen} a -> (a ->{e} a ->{e} a) -> (a ->{e} a ->{e} a) ->{e, Gen} Test
@@ -75399,13 +75369,12 @@ Text.fromUtf8.partial bytes =
         charLength = leadingOnes (Nat.shiftLeft b 56)
         availableChars = totalSize - i
         if availableChars >= charLength then i + charLength else i
-  let
-    (txtBytes, remainder) =
-      handle Bytes.splitAt (charsToInclude (decrement totalSize)) bytes
-      with cases
-        { r }          -> r
-        { abort -> _ } -> (bytes, Bytes.empty)
-    (fromUtf8 txtBytes, remainder)
+  (txtBytes, remainder) =
+    handle Bytes.splitAt (charsToInclude (decrement totalSize)) bytes
+    with cases
+      { r }          -> r
+      { abort -> _ } -> (bytes, Bytes.empty)
+  (fromUtf8 txtBytes, remainder)
 
 Text.fromUtf8.partial.doc : Doc
 Text.fromUtf8.partial.doc =
@@ -75447,11 +75416,10 @@ test> Text.fromUtf8.partial.tests =
     use Text toUtf8
     txt = each ["hello", "😎", "😎😎", "hello 😎", "以呂波耳本部止"]
     utf8Bytes = toUtf8 txt
-    let
-      (utf8Bytes1, utf8Bytes2) =
-        Bytes.splitAt (Random.natIn 0 (Bytes.size utf8Bytes)) utf8Bytes
-      (txt1, remainder) = partial utf8Bytes1
-      ensuring do (toUtf8 txt1 ++ remainder ++ utf8Bytes2) === utf8Bytes
+    (utf8Bytes1, utf8Bytes2) =
+      Bytes.splitAt (Random.natIn 0 (Bytes.size utf8Bytes)) utf8Bytes
+    (txt1, remainder) = partial utf8Bytes1
+    ensuring do (toUtf8 txt1 ++ remainder ++ utf8Bytes2) === utf8Bytes
 
 Text.fromUtf8.stream : '{g, Stream Bytes} r -> '{g, Exception, Stream Text} r
 Text.fromUtf8.stream = delay stream!
@@ -78945,15 +78913,14 @@ time.Instant.atOffset = cases
     isLeap =
       mod year' +4 Int.== +0
         && (mod year' +100 != +0 || mod year' +400 Int.== +0)
-    let
-      (month', day') = dayOfYearToMonthAndDay isLeap (Int.abs yd)
-      (year, month, day) =
-        if month' Nat.== 13 then (year' + +1, 1, 1) else (year', month', day')
-      OffsetDateTime
-        (UTCOffset offset)
-        (LocalDateTime
-          (LocalDate year month day)
-          (LocalTime hours minutes seconds secondNanos))
+    (month', day') = dayOfYearToMonthAndDay isLeap (Int.abs yd)
+    (year, month, day) =
+      if month' Nat.== 13 then (year' + +1, 1, 1) else (year', month', day')
+    OffsetDateTime
+      (UTCOffset offset)
+      (LocalDateTime
+        (LocalDate year month day)
+        (LocalTime hours minutes seconds secondNanos))
 
 time.Instant.atOffset.doc : Doc
 time.Instant.atOffset.doc =
@@ -83327,14 +83294,13 @@ Body.decodeBody req getHeaders attach =
   use Text ++
   headers = getHeaders req
   expectTrailers = Headers.contains "Trailer" headers
-  let
-    (maybeCompressed, trailers) =
-      if isChunked headers then decodeChunkedBody expectTrailers
-      else (decodeNonChunkedBody headers, Headers.empty)
-    body = match decompressBody headers maybeCompressed with
-      Right b -> b
-      Left e  -> Decode.failWith ("Error decoding HTTP body: " ++ e)
-    (attach body req, trailers)
+  (maybeCompressed, trailers) =
+    if isChunked headers then decodeChunkedBody expectTrailers
+    else (decodeNonChunkedBody headers, Headers.empty)
+  body = match decompressBody headers maybeCompressed with
+    Right b -> b
+    Left e  -> Decode.failWith ("Error decoding HTTP body: " ++ e)
+  (attach body req, trailers)
 
 Body.decodeChunkedBody : Boolean ->{Decode} (Body, Headers)
 Body.decodeChunkedBody expectTrailers =
@@ -83593,26 +83559,23 @@ client.Http.configuredHandler.webSocket cfg conn req =
           |> setHeader "Upgrade" ["websocket"]
           |> setHeader "Sec-WebSocket-Version" ["13"]
           |> setHeader "Sec-WebSocket-Key" [keyStr]
-      let
-        (resp, leftoverBytes) =
-          withConnection conn do
-            decodePartial do configuredHandler.http cfg req'
-        match HttpResponse.headers resp |> getValues "Sec-WebSocket-Accept" with
-          [x] ->
-            if validate x then
-              threadSafeWebSocket conn Client 4096 leftoverBytes
-            else
-              raise
-                (Failure
-                  (typeLink WebSocketHandsakeFailure)
-                  "Failed websocket handshake"
-                  (Any ()))
-          _ ->
+      (resp, leftoverBytes) =
+        withConnection conn do decodePartial do configuredHandler.http cfg req'
+      match HttpResponse.headers resp |> getValues "Sec-WebSocket-Accept" with
+        [x] ->
+          if validate x then threadSafeWebSocket conn Client 4096 leftoverBytes
+          else
             raise
               (Failure
                 (typeLink WebSocketHandsakeFailure)
                 "Failed websocket handshake"
                 (Any ()))
+        _ ->
+          raise
+            (Failure
+              (typeLink WebSocketHandsakeFailure)
+              "Failed websocket handshake"
+              (Any ()))
   catch go
 
 client.Http.delete : URI ->{Exception, Http} HttpResponse
@@ -84771,9 +84734,8 @@ HttpRequest.encode : proxy.ProxyPresence -> HttpRequest -> Bytes
 HttpRequest.encode proxyPresence req =
   use Bytes ++
   headers = HttpRequest.encodeNoBody proxyPresence req
-  let
-    (Body body) = HttpRequest.body req
-    headers ++ body
+  (Body body) = HttpRequest.body req
+  headers ++ body
 
 HttpRequest.encode.nonProxyRequestLine : HttpRequest -> Bytes
 HttpRequest.encode.nonProxyRequestLine = cases
@@ -85414,9 +85376,8 @@ HttpResponse.encode : HttpResponse -> Bytes
 HttpResponse.encode response =
   use Bytes ++
   headers = HttpResponse.encodeNoBody response
-  let
-    (Body body) = HttpResponse.body response
-    headers ++ body
+  (Body body) = HttpResponse.body response
+  headers ++ body
 
 HttpResponse.encodeChunked :
   HttpResponse -> '{Stream Bytes} Headers ->{Exception, Stream Bytes} ()
@@ -86244,32 +86205,31 @@ test> server.State.handlerReq.internal.webSocketKey.tests =
   test.verify do
     use Headers fromList
     testKey = each ["dGhlIHNhbXBsZSBub25jZQ==", "aGhlIHNhbXBsZSBub25jZQ=="]
-    let
-      (expectedKey, headers) =
-        each
-          [ (None, Headers.empty)
-          , ( None
-            , fromList [("Upgrade", "websocket"), ("Connection", "Upgrade")]
-            )
-          , ( Some testKey
-            , fromList
-                [ ("Sec-WebSocket-Key", testKey)
-                , ("Upgrade", "websocket")
-                , ("Connection", "Upgrade")
-                ]
-            )
-          , ( Some testKey
-            , fromList
-                [ ("Sec-WebSocket-Key", testKey)
-                , ("Upgrade", "websocket, turbo")
-                , ("Connection", "keep-alive, Upgrade")
-                ]
-            )
-          ]
-      uri = URI.parse "https://www.unison-lang.org/"
-      method = each [GET, POST]
-      req = HttpRequest method Version.http11 uri headers Body.empty
-      test.ensureEqual expectedKey (webSocketKey req)
+    (expectedKey, headers) =
+      each
+        [ (None, Headers.empty)
+        , ( None
+          , fromList [("Upgrade", "websocket"), ("Connection", "Upgrade")]
+          )
+        , ( Some testKey
+          , fromList
+              [ ("Sec-WebSocket-Key", testKey)
+              , ("Upgrade", "websocket")
+              , ("Connection", "Upgrade")
+              ]
+          )
+        , ( Some testKey
+          , fromList
+              [ ("Sec-WebSocket-Key", testKey)
+              , ("Upgrade", "websocket, turbo")
+              , ("Connection", "keep-alive, Upgrade")
+              ]
+          )
+        ]
+    uri = URI.parse "https://www.unison-lang.org/"
+    method = each [GET, POST]
+    req = HttpRequest method Version.http11 uri headers Body.empty
+    test.ensureEqual expectedKey (webSocketKey req)
 
 server.State.handlers : State g -> [Handler g]
 server.State.handlers = cases State (Routes handlers _ _) _ -> handlers
@@ -86309,19 +86269,18 @@ server.test.integration.client.get =
         use Bytes toHex
         use Text ++
         uri = path.set (Path ["get"]) baseUri
-        let
-          (HttpResponse status _ _ body) = Http.get uri
-          statusResults "get" status
-          if body === expectedGetResponse then emit (Ok "get response matches")
-          else
-            exp = expectedGetResponse |> toBytes |> toHex
-            got = body |> toBytes |> toHex
-            emit
-              (Result.Fail
-                ("get response does not match: expected: "
-                  ++ exp
-                  ++ " got: "
-                  ++ got))
+        (HttpResponse status _ _ body) = Http.get uri
+        statusResults "get" status
+        if body === expectedGetResponse then emit (Ok "get response matches")
+        else
+          exp = expectedGetResponse |> toBytes |> toHex
+          got = body |> toBytes |> toHex
+          emit
+            (Result.Fail
+              ("get response does not match: expected: "
+                ++ exp
+                ++ " got: "
+                ++ got))
     handleClientException go
 
 server.test.integration.client.handleClientException :
@@ -86353,14 +86312,13 @@ server.test.integration.client.manyRequests =
     go n =
       use Text ++
       uri = path.set (Path ["get"]) baseUri
-      let
-        (HttpResponse status _ _ body) = Http.get uri
-        statusResults "get" status
-        if body === expectedGetResponse then emit (Ok "get response matches")
-        else
-          emit
-            (Result.Fail
-              ("get response does not match for request " ++ Nat.toText n))
+      (HttpResponse status _ _ body) = Http.get uri
+      statusResults "get" status
+      if body === expectedGetResponse then emit (Ok "get response matches")
+      else
+        emit
+          (Result.Fail
+            ("get response does not match for request " ++ Nat.toText n))
     Stream.range 1 21 |> Stream.flatMap go |> handleClientException
 
 server.test.integration.client.post :
@@ -86370,13 +86328,11 @@ server.test.integration.client.post =
     go =
       do
         uri = path.set (Path ["post"]) baseUri
-        let
-          (HttpResponse status _ _ body) =
-            Http.post uri (Body (Text.toUtf8 "post body"))
-          statusResults "post" status
-          if body === expectedPostResponse then
-            emit (Ok "post response matches")
-          else emit (Result.Fail "post response does not match")
+        (HttpResponse status _ _ body) =
+          Http.post uri (Body (Text.toUtf8 "post body"))
+        statusResults "post" status
+        if body === expectedPostResponse then emit (Ok "post response matches")
+        else emit (Result.Fail "post response does not match")
     handleClientException go
 
 server.test.integration.client.statusResults :

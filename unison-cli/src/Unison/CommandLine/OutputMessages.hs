@@ -108,6 +108,7 @@ import Unison.PrintError
     prettyVar,
     printNoteWithSource,
     renderCompilerBug,
+    renderTypeWarnings,
   )
 import Unison.Project (ProjectAndBranch (..))
 import Unison.Reference (Reference)
@@ -960,6 +961,8 @@ notifyUser dir = \case
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
     pure $ showNote notes
+  TypeWarns _curPath src ppenv warns ->
+    pure $ renderTypeWarnings ppenv (Text.unpack src) warns
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)

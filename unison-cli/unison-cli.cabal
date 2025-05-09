@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -140,6 +140,7 @@ library
       Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
       Unison.LSP.Formatting
+      Unison.LSP.GoToDefinition
       Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
@@ -147,6 +148,7 @@ library
       Unison.LSP.Queries
       Unison.LSP.Types
       Unison.LSP.UCMWorker
+      Unison.LSP.Util.IntersectionMap
       Unison.LSP.Util.Signal
       Unison.LSP.VFS
       Unison.Main
@@ -204,7 +206,6 @@ library
     , aeson >=2.0.0.0
     , aeson-pretty
     , ansi-terminal
-    , async
     , attoparsec
     , base
     , bytestring
@@ -409,8 +410,10 @@ test-suite cli-tests
     , extra
     , here
     , lens
+    , lsp
     , lsp-types
     , megaparsec
+    , mtl
     , temporary
     , text
     , these
@@ -422,4 +425,5 @@ test-suite cli-tests
     , unison-pretty-printer
     , unison-syntax
     , unison-util-recursion
+    , unliftio
   default-language: Haskell2010

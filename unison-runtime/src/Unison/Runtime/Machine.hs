@@ -31,8 +31,8 @@ import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
 import Data.Atomics qualified as Atomic
-import Data.List qualified as List
 import Data.IORef (IORef, readIORef, newIORef, writeIORef)
+import Data.List qualified as List
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -74,9 +74,9 @@ import Unison.Runtime.Foreign.Function
     functionUnreplacements,
     pseudoConstructors,
   )
-import Unison.Runtime.Machine.Types
-import Unison.Runtime.Machine.Primops
 import Unison.Runtime.MCode
+import Unison.Runtime.Machine.Primops
+import Unison.Runtime.Machine.Types
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
@@ -88,7 +88,6 @@ import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
 import UnliftIO.Concurrent qualified as UnliftIO
 
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 import Unison.Debug qualified as Debug
 import System.IO.Unsafe (unsafePerformIO)
@@ -97,7 +96,6 @@ import System.IO.Unsafe (unsafePerformIO)
 #ifdef OPT_CHECK
 import Test.Inspection qualified as TI
 #endif
-{- ORMOLU_ENABLE -}
 
 info :: (Show a) => String -> a -> IO ()
 info ctx x = infos ctx (show x)
@@ -192,7 +190,7 @@ apply1 callback env threadTracker clo = do
   apply env mempty threadTracker stk k0 True ZArgs clo
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
-{-# inline apply1 #-}
+{-# INLINE apply1 #-}
 
 unitValue :: Val
 unitValue = BoxedVal $ unitClosure
@@ -209,7 +207,6 @@ litToVal = \case
   MD d -> DoubleVal d
 {-# INLINE litToVal #-}
 
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 debugger :: (Show a) => Stack -> String -> a -> Bool
 debugger stk msg a = unsafePerformIO $ do
@@ -228,7 +225,6 @@ dumpStack stk@(Stack ap fp sp _ustk _bstk)
         peekOff stk (i + (sp - fp))
       Debug.debugM Debug.Interpreter "Stack args 👇:" stkArgs
 #endif
-{- ORMOLU_ENABLE -}
 
 -- | Execute an instruction
 exec ::
@@ -240,12 +236,10 @@ exec ::
   Reference ->
   MInstr ->
   IO (Bool, HEnv, Stack, K)
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 exec _ !_ !_ !stk !_ !_ instr
   | debugger stk "exec" instr = undefined
 #endif
-{- ORMOLU_ENABLE -}
 exec _ !henv !_activeThreads !stk !k _ (Info tx) = do
   info tx stk
   info tx k
@@ -467,12 +461,10 @@ eval ::
   Reference ->
   MSection ->
   IO ()
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 eval _ !_ !_ !stk !_ !_ section
   | debugger stk "eval" section = undefined
 #endif
-{- ORMOLU_ENABLE -}
 eval env !henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
   eval env henv activeThreads stk k r $ selectTextBranch t df cs
@@ -527,15 +519,16 @@ eval env !henv !activeThreads !stk !k r (Ins i nx) = do
       -- currently points to an appropriate `Failure` value, and
       -- we must handle the rest.
       | exception -> case EC.lookup TT.exceptionTag (denv henv) of
-        Just eh -> do
-          -- wrap the failure in an exception raise box
-          fv <- peek stk
-          bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
-          (stk, fsz, asz) <- saveFrame stk
-          let kk = Push fsz asz fakeCix 10 nx k
-          apply env henv activeThreads stk kk False (VArg1 0) eh
-        Nothing -> -- should be impossible
-          unhandledAbilityRequest
+          Just eh -> do
+            -- wrap the failure in an exception raise box
+            fv <- peek stk
+            bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
+            (stk, fsz, asz) <- saveFrame stk
+            let kk = Push fsz asz fakeCix 10 nx k
+            apply env henv activeThreads stk kk False (VArg1 0) eh
+          Nothing ->
+            -- should be impossible
+            unhandledAbilityRequest
       | otherwise -> eval env henv activeThreads stk k r nx
 eval _ !_ !_ !_activeThreads !_ _ Exit = pure ()
 eval _ !_ !_ !_activeThreads !_ _ (Die s) = die s
@@ -653,12 +646,10 @@ apply ::
   Args ->
   Val ->
   IO ()
-{- ORMOLU_DISABLE -}
 #ifdef STACK_CHECK
 apply _env !_henv !_activeThreads !stk !_k !_ck !args !val
   | debugger stk "apply" (args, val) = undefined
 #endif
-{- ORMOLU_ENABLE -}
 apply env !henv !activeThreads !stk !k !ck !args !val =
   case val of
     BoxedVal (PAp cix@(CIx combRef _ _) comb seg) ->
@@ -827,7 +818,7 @@ dumpDataValNoTag stk (BoxedVal c) =
   (closureTag c,) <$> dumpDataNoTag Nothing stk c
 dumpDataValNoTag _ v =
   die $ "dumpDataValNoTag: unboxed val: " ++ show v
-{-# inline dumpDataValNoTag #-}
+{-# INLINE dumpDataValNoTag #-}
 
 -- Dumps a data type closure to the stack without writing its tag.
 -- Instead, the tag is returned for direct case analysis.
@@ -940,22 +931,22 @@ selectBranch _ (TestT {}) = error "impossible"
 -- default cases potentially cover many constructors which could result
 -- in a variable number of values being put on the stack. Default cases
 -- uniformly expect _no_ values to be added to the stack.
-dataBranch
-  :: Maybe Reference -> Stack -> MBranch -> Closure -> IO (MSection, Stack)
+dataBranch ::
+  Maybe Reference -> Stack -> MBranch -> Closure -> IO (MSection, Stack)
 dataBranch mrf stk (Test1 u cu df) = \case
   Enum _ t
     | maskTags t == u -> pure (cu, stk)
     | otherwise -> pure (df, stk)
   Data1 _ t x
     | maskTags t == u -> do
-      stk <- bump stk
-      (cu, stk) <$ poke stk x
+        stk <- bump stk
+        (cu, stk) <$ poke stk x
     | otherwise -> pure (df, stk)
   Data2 _ t x y
     | maskTags t == u -> do
-      stk <- bumpn stk 2
-      pokeOff stk 1 y
-      (cu, stk) <$ poke stk x
+        stk <- bumpn stk 2
+        pokeOff stk 1 y
+        (cu, stk) <$ poke stk x
     | otherwise -> pure (df, stk)
   DataG _ t seg
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
@@ -975,21 +966,21 @@ dataBranch mrf stk (Test2 u cu v cv df) = \case
     | otherwise -> pure (df, stk)
   Data1 _ t x
     | maskTags t == u -> do
-      stk <- bump stk
-      (cu, stk) <$ poke stk x
+        stk <- bump stk
+        (cu, stk) <$ poke stk x
     | maskTags t == v -> do
-      stk <- bump stk
-      (cv, stk) <$ poke stk x
+        stk <- bump stk
+        (cv, stk) <$ poke stk x
     | otherwise -> pure (df, stk)
   Data2 _ t x y
     | maskTags t == u -> do
-      stk <- bumpn stk 2
-      pokeOff stk 1 y
-      (cu, stk) <$ poke stk x
+        stk <- bumpn stk 2
+        pokeOff stk 1 y
+        (cu, stk) <$ poke stk x
     | maskTags t == v -> do
-      stk <- bumpn stk 2
-      pokeOff stk 1 y
-      (cv, stk) <$ poke stk x
+        stk <- bumpn stk 2
+        pokeOff stk 1 y
+        (cv, stk) <$ poke stk x
     | otherwise -> pure (df, stk)
   DataG _ t seg
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
@@ -1011,18 +1002,18 @@ dataBranch mrf stk (TestW df bs) = \case
     | otherwise -> pure (df, stk)
   Data1 _ t x
     | Just ca <- EC.lookup (maskTags t) bs -> do
-      stk <- bump stk
-      (ca, stk) <$ poke stk x
+        stk <- bump stk
+        (ca, stk) <$ poke stk x
     | otherwise -> pure (df, stk)
   Data2 _ t x y
     | Just ca <- EC.lookup (maskTags t) bs -> do
-      stk <- bumpn stk 2
-      pokeOff stk 1 y
-      (ca, stk) <$ poke stk x
+        stk <- bumpn stk 2
+        pokeOff stk 1 y
+        (ca, stk) <$ poke stk x
     | otherwise -> pure (df, stk)
   DataG _ t seg
     | Just ca <- EC.lookup (maskTags t) bs ->
-      (ca,) <$> dumpSeg stk seg S
+        (ca,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
   Foreign f
     | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
@@ -1036,7 +1027,7 @@ dataBranch mrf stk (TestW df bs) = \case
   clo -> dataBranchClosureError mrf clo
 dataBranch _ _ br = \_ ->
   dataBranchBranchError br
-{-# inline dataBranch #-}
+{-# INLINE dataBranch #-}
 
 dumpBin :: Int -> Val -> Val -> Map Val Val -> Map Val Val -> Stack -> IO Stack
 dumpBin sz k e l r stk = do
@@ -1047,13 +1038,14 @@ dumpBin sz k e l r stk = do
   pokeOffBi stk 3 l
   pokeOffBi stk 4 r
   pure stk
-{-# inline dumpBin #-}
+{-# INLINE dumpBin #-}
 
 dataBranchClosureError :: Maybe Reference -> Closure -> IO a
 dataBranchClosureError mrf clo =
-  die $ "dataBranch: bad closure: "
-    ++ show clo
-    ++ maybe "" (\ r -> "\nexpected type: " ++ show r) mrf
+  die $
+    "dataBranch: bad closure: "
+      ++ show clo
+      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mrf
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
@@ -1229,8 +1221,9 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
         inlinfo =
           ANF.buildInlineMap (fmap replace int) <> builtinInlineInfo
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
-        replace = ANF.replaceConstructors pseudoConstructors
-                . ANF.replaceFunctions functionReplacements
+        replace =
+          ANF.replaceConstructors pseudoConstructors
+            . ANF.replaceFunctions functionReplacements
         optimize r =
           ANF.optimizeHandler r . ANF.inline inlinfo . replace
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
@@ -1522,7 +1515,6 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-{- ORMOLU_DISABLE -}
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always
 -- trigger the worker/wrapper optimization and unbox it fully, and if it fails to do so, we want to
@@ -1550,4 +1542,3 @@ reifyValue0 (combs, rty, rtm) = goV
 -- Best of luck!
 TI.inspect $ 'eval0 `TI.hasNoType` ''Stack
 #endif
-{- ORMOLU_ENABLE -}

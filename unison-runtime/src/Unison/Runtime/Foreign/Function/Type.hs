@@ -231,6 +231,8 @@ data ForeignFunc
   | Pattern_captureAs
   | Pattern_join
   | Pattern_or
+  | Pattern_lookahead
+  | Pattern_negativeLookahead
   | Pattern_replicate
   | Pattern_run
   | Pattern_isMatch
@@ -254,14 +256,24 @@ data ForeignFunc
   | Char_Class_letter
   | Char_Class_is
   | Text_patterns_char
+  | Text_patterns_lookbehind1
+  | Text_patterns_negativeLookbehind1
   | Map_tip
   | Map_bin
   | Map_insert
   | Map_lookup
   | Map_fromList
   | Map_eq
+  | Map_union
+  | Map_intersect
+  | Map_toList
   | List_range
   | List_sort
+  | Multimap_fromList
+  | Set_fromList
+  | Set_union
+  | Set_intersect
+  | Set_toList
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -489,6 +501,8 @@ foreignFuncBuiltinName = \case
   Pattern_captureAs -> "Pattern.captureAs"
   Pattern_join -> "Pattern.join"
   Pattern_or -> "Pattern.or"
+  Pattern_lookahead -> "Pattern.lookahead"
+  Pattern_negativeLookahead -> "Pattern.negativeLookahead"
   Pattern_replicate -> "Pattern.replicate"
   Pattern_run -> "Pattern.run"
   Pattern_isMatch -> "Pattern.isMatch"
@@ -512,11 +526,21 @@ foreignFuncBuiltinName = \case
   Char_Class_letter -> "Char.Class.letter"
   Char_Class_is -> "Char.Class.is"
   Text_patterns_char -> "Text.patterns.char"
+  Text_patterns_lookbehind1 -> "Text.patterns.lookbehind"
+  Text_patterns_negativeLookbehind1 -> "Text.patterns.negativeLookbehind"
   Map_tip -> "Map.Tip"
   Map_bin -> "Map.Bin"
   Map_insert -> "Map.insert"
   Map_lookup -> "Map.lookup"
   Map_fromList -> "Map.fromList"
   Map_eq -> "Map.=="
+  Map_union -> "Map.union"
+  Map_intersect -> "Map.intersect"
+  Map_toList -> "Map.toList"
   List_range -> "List.range"
   List_sort -> "List.sort"
+  Multimap_fromList -> "Multimap.fromList"
+  Set_fromList -> "Set.fromList"
+  Set_union -> "Set.union"
+  Set_intersect -> "Set.intersect"
+  Set_toList -> "Set.toList"

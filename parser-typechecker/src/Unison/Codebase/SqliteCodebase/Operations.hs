@@ -98,6 +98,7 @@ createSchema = do
   Q.addProjectBranchReflogTable
   Q.addProjectBranchCausalHashIdColumn
   Q.addProjectBranchLastAccessedColumn
+  Q.addMergeBranchTables
   (_, emptyCausalHashId) <- emptyCausalHash
   (_, ProjectBranch {projectId, branchId}) <- insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
   Q.setCurrentProjectPath projectId branchId []

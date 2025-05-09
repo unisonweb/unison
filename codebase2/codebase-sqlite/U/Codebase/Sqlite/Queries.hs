@@ -134,6 +134,14 @@ module U.Codebase.Sqlite.Queries
     expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
+    loadProjectBranchParent,
+    loadMergeBranchParents,
+    insertMergeBranchLocal,
+    insertMergeBranchRemote,
+    insertMergeBranchLooseCode,
+    loadNamespaceUniqueTypeGuids,
+    existsAnyNamespaceUniqueTypeGuidForNamespace,
+    insertNamespaceUniqueTypeGuid,
 
     -- ** remote projects
     loadRemoteProject,
@@ -257,6 +265,7 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchReflogTable,
     addProjectBranchCausalHashIdColumn,
     addProjectBranchLastAccessedColumn,
+    addMergeBranchTables,
 
     -- ** schema version
     currentSchemaVersion,
@@ -303,11 +312,13 @@ import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
 import Data.Bitraversable (bitraverse)
+import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as Nel
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -401,6 +412,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
+import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
@@ -421,7 +434,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 18
+currentSchemaVersion = 19
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -491,6 +504,10 @@ addProjectBranchLastAccessedColumn :: Transaction ()
 addProjectBranchLastAccessedColumn =
   executeStatements $(embedProjectStringFile "sql/015-add-project-branch-last-accessed.sql")
 
+addMergeBranchTables :: Transaction ()
+addMergeBranchTables =
+  executeStatements $(embedProjectStringFile "sql/016-add-merge-branch-tables.sql")
+
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
   queryOneCol
@@ -524,8 +541,6 @@ setSchemaVersion schemaVersion =
       SET version = :schemaVersion
     |]
 
-{- ORMOLU_DISABLE -}
-{- Please don't try to format the SQL blocks —AI -}
 countObjects :: Transaction Int
 countObjects = queryOneCol [sql| SELECT COUNT(*) FROM object |]
 
@@ -544,7 +559,7 @@ saveHash hash = do
     |]
   expectHashId hash
 
-saveHashes :: Traversable f => f Hash32 -> Transaction (f HashId)
+saveHashes :: (Traversable f) => f Hash32 -> Transaction (f HashId)
 saveHashes hashes = do
   for_ hashes \hash ->
     execute
@@ -623,7 +638,7 @@ expectBranchHash = coerce expectHash
 
 expectBranchHashForCausalHash :: CausalHash -> Transaction BranchHash
 expectBranchHashForCausalHash ch = do
-  (_, bhId)<- expectCausalByCausalHash ch
+  (_, bhId) <- expectCausalByCausalHash ch
   expectBranchHash bhId
 
 saveText :: Text -> Transaction TextId
@@ -636,7 +651,7 @@ saveText t = do
     |]
   expectTextId t
 
-saveTexts :: Traversable f => f Text -> Transaction (f TextId)
+saveTexts :: (Traversable f) => f Text -> Transaction (f TextId)
 saveTexts =
   traverse saveText
 
@@ -657,7 +672,7 @@ loadTextIdSql t =
 expectText :: TextId -> Transaction Text
 expectText h = queryOneCol (loadTextSql h)
 
-expectTextCheck :: SqliteExceptionReason e => TextId -> (Text -> Either e a) -> Transaction a
+expectTextCheck :: (SqliteExceptionReason e) => TextId -> (Text -> Either e a) -> Transaction a
 expectTextCheck h = queryOneColCheck (loadTextSql h)
 
 loadTextSql :: TextId -> Sql
@@ -670,7 +685,7 @@ loadTextSql h =
 
 saveNameSegment :: NameSegment -> Transaction TextId
 saveNameSegment =
- saveText . NameSegment.toUnescapedText
+  saveText . NameSegment.toUnescapedText
 
 expectNameSegment :: TextId -> Transaction NameSegment
 expectNameSegment =
@@ -707,7 +722,7 @@ saveObject hh h t blob = do
       tryMoveTempEntityDependents hh hash
   pure oId
 
-expectObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectObject oId check =
   queryOneColCheck
     [sql|
@@ -718,7 +733,7 @@ expectObject oId check =
     check
 
 loadObjectOfType ::
-  SqliteExceptionReason e =>
+  (SqliteExceptionReason e) =>
   ObjectId ->
   ObjectType ->
   (ByteString -> Either e a) ->
@@ -726,7 +741,7 @@ loadObjectOfType ::
 loadObjectOfType oid ty =
   queryMaybeColCheck (loadObjectOfTypeSql oid ty) -- (oid, ty)
 
-expectObjectOfType :: SqliteExceptionReason e => ObjectId -> ObjectType -> (ByteString -> Either e a) -> Transaction a
+expectObjectOfType :: (SqliteExceptionReason e) => ObjectId -> ObjectType -> (ByteString -> Either e a) -> Transaction a
 expectObjectOfType oid ty =
   queryOneColCheck (loadObjectOfTypeSql oid ty)
 
@@ -740,42 +755,42 @@ loadObjectOfTypeSql oid ty =
   |]
 
 -- | Load a decl component object.
-loadDeclObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
+loadDeclObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
 loadDeclObject oid =
   loadObjectOfType oid DeclComponent
 
 -- | Expect a decl component object.
-expectDeclObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectDeclObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectDeclObject oid =
   expectObjectOfType oid DeclComponent
 
 -- | Load a namespace object.
-loadNamespaceObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
+loadNamespaceObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
 loadNamespaceObject oid =
   loadObjectOfType oid Namespace
 
 -- | Expect a namespace object.
-expectNamespaceObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectNamespaceObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectNamespaceObject oid =
   expectObjectOfType oid Namespace
 
 -- | Load a patch object.
-loadPatchObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
+loadPatchObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
 loadPatchObject oid =
   loadObjectOfType oid Patch
 
 -- | Expect a patch object.
-expectPatchObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectPatchObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectPatchObject oid =
   expectObjectOfType oid Patch
 
 -- | Load a term component object.
-loadTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
+loadTermObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
 loadTermObject oid =
   loadObjectOfType oid TermComponent
 
 -- | Expect a term component object.
-expectTermObject :: SqliteExceptionReason e => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectTermObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectTermObject oid =
   expectObjectOfType oid TermComponent
 
@@ -788,7 +803,7 @@ expectPrimaryHashIdForObject oId = do
       WHERE id = :oId
     |]
 
-expectObjectWithType :: SqliteExceptionReason e => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
+expectObjectWithType :: (SqliteExceptionReason e) => ObjectId -> (ObjectType -> ByteString -> Either e a) -> Transaction a
 expectObjectWithType oId check =
   queryOneRowCheck
     [sql|
@@ -905,13 +920,14 @@ loadObjectIdForAnyHashIdSql h =
 isObjectHash :: HashId -> Transaction Bool
 isObjectHash h =
   queryOneCol
+    -- sql (Only h)
     [sql|
       SELECT EXISTS (
         SELECT 1
         FROM object
         WHERE primary_hash_id = :h
       )
-    |] -- sql (Only h)
+    |]
 
 -- | All objects have corresponding hashes.
 expectPrimaryHashByObjectId :: ObjectId -> Transaction Hash
@@ -929,7 +945,8 @@ expectPrimaryHash32ByObjectId oId =
 
 expectHashIdsForObject :: ObjectId -> Transaction (NonEmpty HashId)
 expectHashIdsForObject oId = do
-  primaryHashId <- queryOneCol [sql| SELECT primary_hash_id FROM object WHERE id = :oId |] -- sql1 (Only oId)
+  -- sql1 (Only oId)
+  primaryHashId <- queryOneCol [sql| SELECT primary_hash_id FROM object WHERE id = :oId |]
   hashIds <- queryListCol [sql| SELECT hash_id FROM hash_object WHERE object_id = :oId |]
   pure $ primaryHashId Nel.:| filter (/= primaryHashId) hashIds
 
@@ -954,7 +971,7 @@ recordObjectRehash old new =
       WHERE object_id = :old
     |]
 
--- |Maybe we would generalize this to something other than NamespaceHash if we
+-- | Maybe we would generalize this to something other than NamespaceHash if we
 -- end up wanting to store other kinds of Causals here too.
 saveCausal ::
   HashHandle ->
@@ -1081,8 +1098,6 @@ expectTempEntity hash = do
         TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
         TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
 
-{- ORMOLU_ENABLE -}
-
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
 tempToSyncEntity = \case
@@ -1163,8 +1178,6 @@ tempToSyncEntity = \case
                   <*> traverse expectObjectIdForHash32 defnLookup
             )
             terms
-
-{- ORMOLU_DISABLE -}
 
 -- | looking up all of the text and hashes is the first step of converting a SyncEntity to a Share.Entity
 syncToTempEntity :: SyncEntity -> Transaction TempEntity
@@ -1362,7 +1375,7 @@ saveWatch k r blob = do
     |]
 
 loadWatch ::
-  SqliteExceptionReason e =>
+  (SqliteExceptionReason e) =>
   WatchKind ->
   S.Reference.IdH ->
   (ByteString -> Either e a) ->
@@ -1408,6 +1421,7 @@ clearWatches = do
   execute [sql| DELETE FROM watch |]
 
 -- * Index-building
+
 addToTypeIndex :: S.ReferenceH -> S.Referent.Id -> Transaction ()
 addToTypeIndex tp tm =
   execute
@@ -1471,72 +1485,81 @@ getTypeReferencesForComponent oId =
 filterTermsByReferentHavingType :: S.ReferenceH -> [S.Referent.Id] -> Transaction [S.Referent.Id]
 filterTermsByReferentHavingType typ terms = create *> for_ terms insert *> select <* drop
   where
-    select = queryListRow [sql|
-      SELECT
-        q.term_referent_object_id,
-        q.term_referent_component_index,
-        q.term_referent_constructor_index
-      FROM filter_query q, find_type_index t
-      WHERE t.type_reference_builtin IS :typeBuiltin
-        AND t.type_reference_hash_id IS :typeHashId
-        AND t.type_reference_component_index IS :typeComponentIndex
-        AND t.term_referent_object_id = q.term_referent_object_id
-        AND t.term_referent_component_index = q.term_referent_component_index
-        AND t.term_referent_constructor_index IS q.term_referent_constructor_index
-    |]
-    insert r = execute [sql|
-      INSERT INTO filter_query (
-        term_referent_object_id,
-        term_referent_component_index,
-        term_referent_constructor_index
-      ) VALUES (@r, @, @)
-    |]
+    select =
+      queryListRow
+        [sql|
+          SELECT
+            q.term_referent_object_id,
+            q.term_referent_component_index,
+            q.term_referent_constructor_index
+          FROM filter_query q, find_type_index t
+          WHERE t.type_reference_builtin IS :typeBuiltin
+            AND t.type_reference_hash_id IS :typeHashId
+            AND t.type_reference_component_index IS :typeComponentIndex
+            AND t.term_referent_object_id = q.term_referent_object_id
+            AND t.term_referent_component_index = q.term_referent_component_index
+            AND t.term_referent_constructor_index IS q.term_referent_constructor_index
+        |]
+    insert r =
+      execute
+        [sql|
+          INSERT INTO filter_query (
+            term_referent_object_id,
+            term_referent_component_index,
+            term_referent_constructor_index
+          ) VALUES (@r, @, @)
+        |]
     typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
     typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
     typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
-    create =  execute
-      [sql|
-        CREATE TEMPORARY TABLE filter_query (
-          term_referent_object_id INTEGER NOT NULL,
-          term_referent_component_index INTEGER NOT NULL,
-          term_referent_constructor_index INTEGER NULL
-        )
-      |]
-    drop =  execute [sql|DROP TABLE filter_query|]
+    create =
+      execute
+        [sql|
+          CREATE TEMPORARY TABLE filter_query (
+            term_referent_object_id INTEGER NOT NULL,
+            term_referent_component_index INTEGER NOT NULL,
+            term_referent_constructor_index INTEGER NULL
+          )
+        |]
+    drop = execute [sql|DROP TABLE filter_query|]
 
 filterTermsByReferenceHavingType :: S.ReferenceH -> [S.Reference.Id] -> Transaction [S.Reference.Id]
 filterTermsByReferenceHavingType typ terms = create *> for_ terms insert *> select <* drop
   where
-    select = queryListRow [sql|
-      SELECT
-        q.term_reference_object_id,
-        q.term_reference_component_index
-      FROM filter_query q, find_type_index t
-      WHERE t.type_reference_builtin IS :typeBuiltin
-        AND t.type_reference_hash_id IS :typeHashId
-        AND t.type_reference_component_index IS :typeComponentIndex
-        AND t.term_referent_object_id = q.term_reference_object_id
-        AND t.term_referent_component_index = q.term_reference_component_index
-        AND t.term_referent_constructor_index IS NULL
-    |]
-    insert r = execute [sql|
-      INSERT INTO filter_query (
-        term_reference_object_id,
-        term_reference_component_index
-      ) VALUES (@r, @)
-    |]
+    select =
+      queryListRow
+        [sql|
+          SELECT
+            q.term_reference_object_id,
+            q.term_reference_component_index
+          FROM filter_query q, find_type_index t
+          WHERE t.type_reference_builtin IS :typeBuiltin
+            AND t.type_reference_hash_id IS :typeHashId
+            AND t.type_reference_component_index IS :typeComponentIndex
+            AND t.term_referent_object_id = q.term_reference_object_id
+            AND t.term_referent_component_index = q.term_reference_component_index
+            AND t.term_referent_constructor_index IS NULL
+        |]
+    insert r =
+      execute
+        [sql|
+          INSERT INTO filter_query (
+            term_reference_object_id,
+            term_reference_component_index
+          ) VALUES (@r, @)
+        |]
     typeBuiltin :: Maybe TextId = Lens.preview C.Reference.t_ typ
     typeHashId :: Maybe HashId = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idH) typ
     typeComponentIndex :: Maybe C.Reference.Pos = Lens.preview (C.Reference._ReferenceDerived . C.Reference.idPos) typ
-    create =  execute
-      [sql|
-        CREATE TEMPORARY TABLE filter_query (
-          term_reference_object_id INTEGER NOT NULL,
-          term_reference_component_index INTEGER NOT NULL
-        )
-      |]
-    drop =  execute [sql|DROP TABLE filter_query|]
-
+    create =
+      execute
+        [sql|
+          CREATE TEMPORARY TABLE filter_query (
+            term_reference_object_id INTEGER NOT NULL,
+            term_reference_component_index INTEGER NOT NULL
+          )
+        |]
+    drop = execute [sql|DROP TABLE filter_query|]
 
 addToTypeMentionsIndex :: S.ReferenceH -> S.Referent.Id -> Transaction ()
 addToTypeMentionsIndex tp tm =
@@ -1698,8 +1721,8 @@ getDependentsForDependency selector dependency = do
 
 getDependentsForDependencyComponent :: ObjectId -> Transaction [S.Reference.Id]
 getDependentsForDependencyComponent dependency =
-  filter isNotSelfReference <$>
-    queryListRow
+  filter isNotSelfReference
+    <$> queryListRow
       [sql|
         SELECT dependent_object_id, dependent_component_index
         FROM dependents_index
@@ -1756,38 +1779,38 @@ getDependenciesBetweenTerms oid1 oid2 =
     --   init  ^^^^^^^^^^^^^
     --   last                 ^^^
     --
-    -- +-paths-------------------------+
-    -- +-level-+-path_last-+-path_init-+
-    -- |     0 |         X |        '' | -- path: [X]
-    -- |     0 |         Y |        '' | -- path: [Y]
-    -- |     1 |         B |      'X,' | -- path: [X,B]   -- ends in B, yay!
-    -- |     1 |         Q |      'X,' | -- path: [X,Q]
-    -- |     1 |         Z |      'Y,' | -- path: [Y,Z]
-    -- |     2 |         B |    'Z,Y,' | -- path: [Y,Z,B] -- ends in B, yay!
-    -- +-------+-----------+-----------+
+    --  +-paths-------------------------+
+    --  +-level-+-path_last-+-path_init-+
+    --  |     0 |         X |        '' | -- path: [X]
+    --  |     0 |         Y |        '' | -- path: [Y]
+    --  |     1 |         B |      'X,' | -- path: [X,B]   -- ends in B, yay!
+    --  |     1 |         Q |      'X,' | -- path: [X,Q]
+    --  |     1 |         Z |      'Y,' | -- path: [Y,Z]
+    --  |     2 |         B |    'Z,Y,' | -- path: [Y,Z,B] -- ends in B, yay!
+    --  +-------+-----------+-----------+
     --
     -- Next, we seed another recursive CTE with those paths that end in the sink `B`. This is just the (very verbose)
     -- way to unnest an array in SQLite. All we're doing is turning the set of strings {'X,' 'Z,Y,'}, each of which
     -- represents the inner nodes of a full path between `A` and `B`, into the set {X Z Y}, which is just the full set
     -- of such inner nodes, along any path.
     --
-    -- +-elems-----------------+
-    -- +-path_elem-+-path_init-+
-    -- |           |      'X,' |
-    -- |           |    'Z,Y,' |
-    -- |       'X' |        '' |
-    -- |       'Z' |      'Y,' |
-    -- |       'Y' |        '' |
-    -- +-----------+-----------+
+    --  +-elems-----------------+
+    --  +-path_elem-+-path_init-+
+    --  |           |      'X,' |
+    --  |           |    'Z,Y,' |
+    --  |       'X' |        '' |
+    --  |       'Z' |      'Y,' |
+    --  |       'Y' |        '' |
+    --  +-----------+-----------+
     --
     -- And finally, we just select out the non-null `path_elem` rows from here, casting the strings back to integers for
     -- clarity (this isn't very matter - SQLite would cast on-the-fly).
     --
-    -- +-path_elem-+
-    -- |         X |
-    -- |         Z |
-    -- |         Y |
-    -- +-----------+
+    --  +-path_elem-+
+    --  |         X |
+    --  |         Z |
+    --  |         Y |
+    --  +-----------+
     --
     -- Notes
     --
@@ -1796,51 +1819,47 @@ getDependenciesBetweenTerms oid1 oid2 =
     -- (2) No need to search beyond the sink itself, since component dependencies form a DAG.
     -- (3) An explicit cast from e.g. string '1' to int 1 isn't strictly necessary.
     theSql :: Sql
-    theSql = [sql|
-      WITH RECURSIVE paths(level, path_last, path_init) AS (
-        SELECT
-          0,
-          dependents_index.dependency_object_id,
-          ''
-        FROM dependents_index
-          JOIN object ON dependents_index.dependency_object_id = object.id
-        WHERE dependents_index.dependent_object_id = :oid1
-          AND object.type_id = 0 -- Note (1)
-          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-        UNION ALL
-        SELECT
-          paths.level + 1 AS level,
-          dependents_index.dependency_object_id,
-          dependents_index.dependent_object_id || ',' || paths.path_init
-        FROM paths
-          JOIN dependents_index
-            ON paths.path_last = dependents_index.dependent_object_id
-          JOIN object ON dependents_index.dependency_object_id = object.id
-        WHERE object.type_id = 0 -- Note (1)
-          AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
-          AND paths.path_last != :oid2 -- Note (2)
-        ORDER BY level DESC
-      ),
-      elems(path_elem, path_init) AS (
-        SELECT null, path_init
-        FROM paths
-        WHERE paths.path_last = :oid2
-        UNION ALL
-        SELECT
-          substr(path_init, 0, instr(path_init, ',')),
-          substr(path_init, instr(path_init, ',') + 1)
+    theSql =
+      [sql|
+        WITH RECURSIVE paths(level, path_last, path_init) AS (
+          SELECT
+            0,
+            dependents_index.dependency_object_id,
+            ''
+          FROM dependents_index
+            JOIN object ON dependents_index.dependency_object_id = object.id
+          WHERE dependents_index.dependent_object_id = :oid1
+            AND object.type_id = 0 -- Note (1)
+            AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+          UNION ALL
+          SELECT
+            paths.level + 1 AS level,
+            dependents_index.dependency_object_id,
+            dependents_index.dependent_object_id || ',' || paths.path_init
+          FROM paths
+            JOIN dependents_index
+              ON paths.path_last = dependents_index.dependent_object_id
+            JOIN object ON dependents_index.dependency_object_id = object.id
+          WHERE object.type_id = 0 -- Note (1)
+            AND dependents_index.dependent_object_id != dependents_index.dependency_object_id
+            AND paths.path_last != :oid2 -- Note (2)
+          ORDER BY level DESC
+        ),
+        elems(path_elem, path_init) AS (
+          SELECT null, path_init
+          FROM paths
+          WHERE paths.path_last = :oid2
+          UNION ALL
+          SELECT
+            substr(path_init, 0, instr(path_init, ',')),
+            substr(path_init, instr(path_init, ',') + 1)
+          FROM elems
+          WHERE path_init != ''
+        )
+        SELECT DISTINCT CAST(path_elem AS integer) AS path_elem -- Note (3)
         FROM elems
-        WHERE path_init != ''
-      )
-      SELECT DISTINCT CAST(path_elem AS integer) AS path_elem -- Note (3)
-      FROM elems
-      WHERE path_elem IS NOT null
-    |]
-
--- Mitchell says: why are we enabling and disabling ormolu all over this file? Let's just enable. But right now I'm only
--- adding this one query and don't want a big diff in my PR.
-
-{- ORMOLU_ENABLE -}
+        WHERE path_elem IS NOT null
+      |]
 
 getDirectDependenciesOfScope ::
   (S.Reference -> Transaction Bool) ->
@@ -2042,8 +2061,6 @@ createTemporaryTableOfReferenceIds tableName refs = do
   for_ refs \ref ->
     execute [sql| INSERT INTO $tableName VALUES (@ref, @) |]
 
-{- ORMOLU_DISABLE -}
-
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =
   queryListCol
@@ -2092,8 +2109,6 @@ getCausalsWithoutBranchObjects =
         FROM hash_object
       )
     |]
-
-{- ORMOLU_ENABLE -}
 
 -- | Delete all hash objects of a given hash version.
 -- Leaves the corresponding `hash`es in the hash table alone.
@@ -4329,6 +4344,192 @@ loadMostRecentBranch projectId =
       WHERE
         project_id = :projectId
     |]
+
+loadProjectBranchParent :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranchId)
+loadProjectBranchParent projectId projectBranchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_branch_id
+      FROM project_branch_parent
+      WHERE project_id = :projectId
+        AND branch_id = :projectBranchId
+    |]
+
+loadMergeBranchParents ::
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction
+    ( Maybe
+        ( Maybe ProjectBranchId,
+          CausalHashId,
+          Maybe ProjectBranchId,
+          CausalHashId
+        )
+    )
+loadMergeBranchParents projectId branchId =
+  queryMaybeRow
+    [sql|
+      SELECT local_source_branch_id, source_causal_hash_id, target_branch_id, target_causal_hash_id
+      FROM merge_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+insertMergeBranchLocal ::
+  ProjectId ->
+  ProjectBranchId ->
+  (ProjectBranchId, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLocal
+  projectId
+  mergeBranchId
+  (sourceBranchId, sourceCausalHashId)
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          local_source_project_id,
+          local_source_branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :projectId,
+          :sourceBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+insertMergeBranchRemote ::
+  ProjectId ->
+  ProjectBranchId ->
+  (RemoteProjectId, RemoteProjectBranchId, URI, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchRemote
+  projectId
+  mergeBranchId
+  (sourceProjectId, sourceBranchId, sourceHost, sourceCausalHashId)
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          remote_source_project_id,
+          remote_source_branch_id,
+          remote_source_host,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceProjectId,
+          :sourceBranchId,
+          :sourceHost,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+insertMergeBranchLooseCode ::
+  ProjectId ->
+  ProjectBranchId ->
+  CausalHashId ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLooseCode
+  projectId
+  mergeBranchId
+  sourceCausalHashId
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+loadNamespaceUniqueTypeGuids :: BranchHashId -> Transaction (Map Name Text)
+loadNamespaceUniqueTypeGuids namespaceHashId = do
+  rows <-
+    queryListRow
+      [sql|
+        SELECT type_name, type_guid
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      |]
+
+  let f :: ByteString -> Name
+      f bytes =
+        case Aeson.decodeStrict @[Text] bytes of
+          Just (segment : segments) ->
+            Name.fromSegments (NameSegment segment NonEmpty.:| map NameSegment segments)
+          _ ->
+            error $
+              reportBug
+                "E955495"
+                ( "busted name in namespace_unique_type_guid (namespace hash id = "
+                    ++ show namespaceHashId
+                    ++ ")"
+                )
+
+  pure (Map.fromList (over (Lens.mapped . Lens._1) f rows))
+
+existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
+existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      )
+    |]
+
+insertNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Text -> Transaction ()
+insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
+  execute
+    [sql|
+      INSERT INTO namespace_unique_type_guid (namespace_hash_id, type_name, type_guid)
+      VALUES (:namespaceHashId, :typeNameJson, :typeGuid)
+    |]
+  where
+    typeNameJson :: LazyByteString
+    typeNameJson =
+      typeName
+        & Name.segments
+        & List.NonEmpty.toList
+        & map NameSegment.toUnescapedText
+        & Aeson.encode
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.

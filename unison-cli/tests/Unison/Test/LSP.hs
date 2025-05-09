@@ -3,6 +3,7 @@
 
 module Unison.Test.LSP (test) where
 
+import Control.Monad.Reader
 import Crypto.Random qualified as Random
 import Data.List.Extra (firstJust)
 import Data.Map.Strict qualified as Map
@@ -12,6 +13,7 @@ import Data.Text qualified as Text
 import EasyTest
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
+import Language.LSP.VFS qualified as VFS
 import System.IO.Temp qualified as Temp
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (unitRef)
@@ -22,15 +24,20 @@ import Unison.Codebase.Init qualified as Codebase.Init
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.LSP.Conversions
 import Unison.LSP.Conversions qualified as Cv
+import Unison.LSP.FileAnalysis qualified as FileAnalysis
 import Unison.LSP.FileAnalysis.UnusedBindings qualified as UnusedBindings
+import Unison.LSP.Hover qualified as Hover
 import Unison.LSP.Queries qualified as LSPQ
+import Unison.LSP.Types qualified as ULSP
 import Unison.Lexer.Pos qualified as Lexer
 import Unison.Parser.Ann (Ann (..))
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
@@ -40,6 +47,7 @@ import Unison.Type qualified as Type
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Recursion
+import UnliftIO qualified
 
 test :: Test ()
 test = do
@@ -52,6 +60,39 @@ test = do
     tests
       [ unusedBindingLocations
       ]
+  scope "hover" $
+    tests
+      [ localBindingHoverTest
+      ]
+
+newtype TestLsp a = TestLsp {unTestLsp :: ReaderT ULSP.Env IO a}
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadUnliftIO, MonadReader ULSP.Env)
+
+runTestLsp :: TestLsp a -> Test a
+runTestLsp action = do
+  withTestCodebase \codebase -> do
+    projPath <- Codebase.runTransaction codebase $ do
+      Codebase.expectCurrentProjectPath
+    checkedFilesVar <- UnliftIO.newTVarIO mempty
+
+    vfsVar <- UnliftIO.newMVar VFS.emptyVFS
+    let env =
+          ULSP.Env
+            { lspContext = error "test runner is missing lspContext",
+              codebase,
+              currentNamesCache = pure mempty,
+              ppedCache = pure PPED.empty,
+              nameSearchCache = error "test runner is missing nameSearchCache",
+              currentProjectPathCache = pure projPath,
+              vfsVar,
+              runtime = error "test runner is missing runtime",
+              checkedFilesVar,
+              dirtyFilesVar = error "test runner is missing dirtyFilesVar",
+              cancellationMapVar = error "test runner is missing cancellationMapVar",
+              completionsVar = error "test runner is missing completionsVar",
+              scope = error "test runner is missing scope"
+            }
+    runReaderT (unTestLsp action) env
 
 trm :: Term.F Symbol () () (ABT.Term (Term.F Symbol () ()) Symbol ()) -> LSPQ.SourceNode ()
 trm = LSPQ.TermNode . ABT.tm
@@ -445,7 +486,7 @@ unusedBindingLocations =
     [ ( "Unused binding in let block",
         [here|term =
   usedOne = true
-  «unused = "unused"»
+  «unused» = "unused"
   usedTwo = false
   usedOne && usedTwo
         |]
@@ -467,3 +508,88 @@ unusedBindingLocations =
     |]
       )
     ]
+
+makeHoverInfoTest :: (String, Text, Text) -> Test ()
+makeHoverInfoTest (name, expected, testSrc) = scope name $ do
+  (pos, src) <- extractCursor testSrc
+  mayHoverInfo <- runTestLsp . runMaybeT $ do
+    let srcName = "test-file"
+    let uri = (LSP.Uri srcName)
+    fileAnalysis <- (FileAnalysis.checkFileContents uri srcName (0 :: ULSP.FileVersion) src)
+    filesVar <- asks ULSP.checkedFilesVar
+    liftIO $ UnliftIO.atomically $ do
+      files <- UnliftIO.readTVar filesVar
+      case Map.lookup uri files of
+        Nothing -> do
+          mvar <- UnliftIO.newTMVar fileAnalysis
+          UnliftIO.modifyTVar' filesVar (Map.insert uri mvar)
+        Just mvar -> void $ UnliftIO.putTMVar mvar fileAnalysis
+    Hover.hoverInfo uri (uToLspPos pos)
+  case mayHoverInfo of
+    Nothing -> crash "Expected hover info, got nothing"
+    Just actual -> do
+      -- We wrap all responses in markdown code blocks
+      -- so the client syntax highlights them
+      let wrappedExpected = "``` unison\n" <> expected <> "\n```\n"
+      expectEqual wrappedExpected actual
+
+localBindingHoverTest :: Test ()
+localBindingHoverTest =
+  scope "local binding hover types" . tests . fmap makeHoverInfoTest $
+    [ ( "Simple local binding",
+        "two : ##Nat",
+        [here|term =
+                one = 1
+                two = 2
+                one + tw^o
+        |]
+      ),
+      ( "Simple local bindings within a do block",
+        "two : ##Nat",
+        [here|term = do
+                one = 1
+                two = 2
+                one + tw^o
+        |]
+      ),
+      ( "Self recursive function",
+        "recurse : a -> a",
+        [here|
+term =
+  recurse a = if true then a else recu^rse a
+  recurse 5
+        |]
+      ),
+      ( "Hover at binding site",
+        "recurse : a -> a",
+        [here|
+term =
+  recu^rse a = if true then a else recurse a
+  recurse 5
+        |]
+      ),
+      ( "Correctly handles type parameters at binding site",
+        "myid : a -> a",
+        [here|
+term =
+  my^id a = a
+  myid 1
+        |]
+      ),
+      ( "Correctly handles type parameters at usage site",
+        "myid : a -> a",
+        [here|
+term =
+  myid a = a
+  my^id 1
+        |]
+      )
+    ]
+
+-- Don't yet support top-level bindings
+-- ( "Hover at top-level binding site",
+--   "recurse : a -> a",
+--   [here|
+-- recu^rse a = if true then a else recurse a
+--   |]
+-- )

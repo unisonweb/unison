@@ -902,9 +902,10 @@ declareForeign ::
   FDecl Symbol ()
 declareForeign sand arity func = declareForeignWrap sand wrap func
   where
-  -- Special case: turn 0-arg foreigns into unit-accepting functions
-  wrap | 0 == arity = unitDirect
-       | otherwise = argNDirect arity
+    -- Special case: turn 0-arg foreigns into unit-accepting functions
+    wrap
+      | 0 == arity = unitDirect
+      | otherwise = argNDirect arity
 
 unitValue :: Val
 unitValue = BoxedVal $ Closure.Enum Ty.unitRef TT.unitTag
@@ -1249,6 +1250,8 @@ declareForeigns = do
   declareForeign Untracked 2 Pattern_captureAs
   declareForeign Untracked 1 Pattern_join
   declareForeign Untracked 2 Pattern_or
+  declareForeign Untracked 1 Pattern_lookahead
+  declareForeign Untracked 1 Pattern_negativeLookahead
   declareForeign Untracked 3 Pattern_replicate
 
   declareForeign Untracked 2 Pattern_run
@@ -1275,15 +1278,24 @@ declareForeigns = do
   declareForeignWrap Untracked direct Char_Class_letter
   declareForeign Untracked 2 Char_Class_is
   declareForeign Untracked 1 Text_patterns_char
+  declareForeign Untracked 1 Text_patterns_lookbehind1
+  declareForeign Untracked 1 Text_patterns_negativeLookbehind1
 
   -- replacements
   declareForeign Untracked 3 Map_insert
   declareForeign Untracked 2 Map_lookup
   declareForeign Untracked 1 Map_fromList
   declareForeign Untracked 2 Map_eq
+  declareForeign Untracked 2 Map_union
+  declareForeign Untracked 2 Map_intersect
+  declareForeign Untracked 1 Map_toList
   declareForeign Untracked 2 List_range
   declareForeign Untracked 1 List_sort
-
+  declareForeign Untracked 1 Multimap_fromList
+  declareForeign Untracked 1 Set_fromList
+  declareForeign Untracked 2 Set_union
+  declareForeign Untracked 2 Set_intersect
+  declareForeign Untracked 1 Set_toList
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =

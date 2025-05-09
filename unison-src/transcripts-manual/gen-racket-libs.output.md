@@ -5,35 +5,32 @@ Next, we'll download the jit project and generate a few Racket files from it.
 ``` ucm
 jit-setup/main> lib.install @unison/internal/releases/0.0.25
 
-  Downloaded 14942 entities.
-
   I installed @unison/internal/releases/0.0.25 as
   unison_internal_0_0_25.
-
 ```
+
 ``` unison
 go = generateSchemeBoot "scheme-libs/racket"
 ```
 
-``` ucm
-
+``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
   do an `add` or `update`, here's how your codebase would
   change:
-  
+
     ⍟ These new definitions are ok to `add`:
     
       go : '{IO, Exception} ()
-
 ```
+
 ``` ucm
 jit-setup/main> run go
 
   ()
-
 ```
+
 After executing this, `scheme-libs/racket` will contain the full
 complement of unison libraries for a given combination of ucm version
 and @unison/internal version.
@@ -59,4 +56,3 @@ raco distribute <output-dir> scheme-libs/racket/unison-runtime
 
 At that point, <output-dir> should contain the executable and all
 dependencies necessary to run it.
-
