@@ -72,7 +72,7 @@ denormalize :: (Var v) => ANormal v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
 denormalize (TLit l) = denormalizeLit l
 denormalize (TBLit l) = denormalizeLit l
-denormalize (THnd _ _ _) =
+denormalize (THnd _ _ _ _) =
   error "denormalize handler"
 -- = Term.match () (denormalize b) $ denormalizeHandler h
 denormalize (TShift _ _ _) =
@@ -104,6 +104,9 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       FPrim _ -> error "FPrim"
       FCont _ -> error "denormalize FCont"
 denormalize (TFrc _) = error "denormalize TFrc"
+denormalize (TDiscard _) = error "denormalize TDiscard"
+denormalize (TLocal _ _) = error "denormalize TLocal"
+denormalize (TUpdate _ _) = error "denormalize TUpdate"
 
 denormalizeRef :: RTag -> Reference
 denormalizeRef r
