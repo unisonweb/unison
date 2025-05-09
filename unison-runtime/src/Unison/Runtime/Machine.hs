@@ -624,7 +624,6 @@ name !stk !args = \case
 extendPAp :: Val -> Val -> IO Closure
 extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
   ucop <- newByteArray $ ussz + 8
-  print (useg0, bseg0)
   copyByteArray ucop 8 useg0 0 ussz
   writeByteArray ucop 0 $ getUnboxedVal new
   useg <- unsafeFreezeByteArray ucop
@@ -1232,10 +1231,11 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
         replace = ANF.replaceConstructors pseudoConstructors
                 . ANF.replaceFunctions functionReplacements
-        optimize = ANF.inline inlinfo . replace
+        optimize r =
+          ANF.optimizeHandler r . ANF.inline inlinfo . replace
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) =
-          (n, emitCombs rns r n $ optimize g)
+          (n, emitCombs rns r n $ optimize r g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
     let newCacheableCombs =

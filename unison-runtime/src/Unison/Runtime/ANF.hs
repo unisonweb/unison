@@ -82,6 +82,7 @@ module Unison.Runtime.ANF
     groupTermLinks,
     buildInlineMap,
     inline,
+    optimizeHandler,
     replaceConstructors,
     replaceFunctions,
     foldGroup,
@@ -99,7 +100,7 @@ where
 
 import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
-import Control.Monad.Reader (ReaderT (..), asks, local)
+import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
@@ -136,14 +137,7 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-
-tracePrettyNormal ::
-  (Var v) =>
-  Bool ->
-  ANormal v ->
-  ANormal v
-tracePrettyNormal False tm = tm
-tracePrettyNormal True tm = trace (prettyANF False 0 tm "") tm
+import Prelude qualified
 
 -- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -1656,6 +1650,147 @@ buildInlineMap =
   runIdentity
     . Map.traverseMaybeWithKey (\r g -> Identity $ inlineInfo r g)
 
+-- If the provided SuperGroup is recognized as a handler, applies
+-- optimizations to improve it, like adding better code for affine
+-- handlers.
+optimizeHandler :: Var v => Reference -> SuperGroup v -> SuperGroup v
+optimizeHandler self group =
+  fromMaybe group $ augmentHandler self group
+
+-- moves the last value of a list to the start, for easier matching
+shiftArgs :: [v] -> [v]
+shiftArgs vs = case reverse vs of
+  v : vs -> v : reverse vs
+  [] -> []
+
+-- Checks if the group represents a handler, and if so, tries to add
+-- optimized affine code.
+augmentHandler ::
+  (Var v) => Reference -> SuperGroup v -> Maybe (SuperGroup v)
+augmentHandler self group
+  | Rec [(mv0, matcher)] entry <- group,
+    Lambda ccs (ABTN.TAbss args body) <- entry,
+    thunk : vs <- shiftArgs args,
+    Just body <- augmentHandlerEntry vs thunk mv0 ah body,
+    Just amatcher <- translateHandlerMatch self ah matcher =
+      Just .
+        Rec [(mv0, matcher), (ah, amatcher)] .
+        Lambda ccs $
+          ABTN.TAbss args body
+
+  | otherwise = Nothing
+  where
+    ah = freshAff 0
+
+-- Recognizes the matching portion of a handler, and produces an
+-- optimized affine version if possible.
+translateHandlerMatch
+  :: Var v => Reference -> v -> SuperNormal v -> Maybe (SuperNormal v)
+translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
+  | v : vs <- shiftArgs args,
+    TMatch u branches <- body, u == v,
+    MatchRequest cs df <- branches,
+    args <- vs ++ [ar, v],
+    ccs <- ccs ++ [BX] =
+      Lambda ccs . ABTN.TAbss args . TMatch u . flip MatchRequest df <$>
+        traverse3 (linearHandlerCase self vs ah) cs
+
+  | otherwise = Nothing
+
+  where
+    ar = freshAff 2
+    traverse3 = traverse . traverse . traverse
+
+-- Recognizes the entry combinator of a compiled handler. If it is
+-- one, then the result is a modified version with an affine handler
+-- filled in.
+augmentHandlerEntry ::
+  Var v => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+augmentHandlerEntry vs thunk0 mv0 ah body
+  | TName hv (Right mv1) us body <- body,
+    THnd rs nh Nothing (TFrc thunk1) <- body,
+    mv0 == mv1, nh == hv, thunk0 == thunk1,
+    Prelude.and (zipWith (==) us vs) =
+      Just .
+        TName hv (Right mv1) us .
+        TName ahp (Right ah) us $
+          THnd rs nh (Just ahp) (TFrc thunk1)
+
+  | otherwise = Nothing
+  where
+    ahp = freshAff 1
+
+-- Recognizes a linear handler case, yielding a translated efficient
+-- version if it is one.
+linearHandlerCase ::
+  Var v => Reference -> [v] -> v -> ANormal v -> Maybe (ANormal v)
+linearHandlerCase self vs rec br
+  | ABTN.TAbss us body <- br,
+    TShift _ kf0 body <- body,
+    TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
+    kf0 == kf1 =
+      ABTN.TAbss us .
+        TLocal ar <$> translateLinear self vs rec ar kf body
+
+  | otherwise = Nothing
+  where
+    ar = freshAff 2
+
+translateLinear ::
+  Var v => Reference -> [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+translateLinear self vs rec ar kf = go Set.empty
+  where
+  go bound body
+    | Just lt <- linearTail self vs bound rec ar kf body = Just lt
+
+    | TLet d v cc e body <- body,
+      kf `Set.notMember` ABTN.freeVars e =
+        TLet d v cc e <$> go (Set.insert v bound) body
+
+    | TName v f us body <- body,
+      all (kf /=) us =
+        TName v f us <$> go (Set.insert v bound) body
+
+    | otherwise = Nothing
+
+-- Recognizes the tail of a linear handler case, where the
+-- continuation is called once in tail position. Returns a transformed
+-- version if a match is found.
+--
+-- Arguments:
+--   self: Reference to handler combinator
+--   bound: arguments bound since header
+--   vs: arguments to handler combinator
+--   rec: local variable for affine handler
+--   ar: argument variable for affine handler info
+--   kf0: continuation variable
+--   tm: term to transform
+--
+-- Note: this relies on inlining into the thunked continuation call to
+-- avoid see exactly what the `k result` call is, rather than it
+-- having multiple forms depending on the variable order.
+linearTail ::
+  Var v => Reference -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+linearTail self vs bound rec ar kf0 tm
+  | TLet _ hr0 _ (TCom r us) tm <- tm, -- recursive handler call
+    TName thunk0 (Right kf1) [result] tm <- tm, -- lazy cont resume
+    TApv hr1 [thunk1] <- tm, -- apply handler to thunk
+    r == self, kf0 == kf1, thunk0 == thunk1, hr0 == hr1 =
+      Just . update hr0 us $ TVar result
+
+  | otherwise = Nothing
+
+  where
+    update huv us
+      -- recursive call with identical, non-shadowed variables;
+      -- no need to update
+      | Prelude.and (zipWith (==) us vs),
+        all (`Set.notMember` bound) us = id
+      -- repurpose hr0 variable for update call
+      | otherwise =
+          TName huv (Right rec) (us ++ [ar]) .
+          TLets Direct [] [] (TUpdate ar huv)
+
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not
 -- equivalent, an example of conflicting structure is returned.
@@ -1682,7 +1817,7 @@ equivocate g0@(Rec bs0 e0) g1@(Rec bs1 e1)
 
 type ANFM v =
   ReaderT
-    (Reference, Set v, [v])
+    (Set v)
     (State (Word64, Word16, [(v, SuperNormal v)]))
 
 type ANFD v = Compose (ANFM v) (Directed ())
@@ -1758,24 +1893,17 @@ data BLit
   | Float Double
   deriving (Show, Eq)
 
-selfRef :: ANFM v Reference
-selfRef = asks \(r, _, _) -> r
-
 groupVars :: ANFM v (Set v)
-groupVars = asks \(_, vs, _) -> vs
-
-combVars :: ANFM v [v]
-combVars = asks \(_, _, us) -> us
+groupVars = ask
 
 bindLocal :: (Ord v) => [v] -> ANFM v r -> ANFM v r
-bindLocal vs =
-  local \(r, vs0, us) -> (r, vs0 Set.\\ Set.fromList vs, us)
-
-withCombVars :: [v] -> ANFM v r -> ANFM v r
-withCombVars us = local \(r, vs, _) -> (r, vs, us)
+bindLocal vs = local (Set.\\ Set.fromList vs)
 
 freshANF :: (Var v) => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
+
+freshAff :: (Var v) => Word64 -> v
+freshAff fr = Var.freshenId fr $ typed Var.AffBlank
 
 fresh :: (Var v) => ANFM v v
 fresh = state $ \(fr, bnd, cs) -> (freshANF fr, (fr + 1, bnd, cs))
@@ -1803,15 +1931,15 @@ bindDirection = traverse (const binder)
 record :: (Var v) => (v, SuperNormal v) -> ANFM v ()
 record p = modify $ \(fr, bnd, to) -> (fr, bnd, p : to)
 
-superNormalize :: (Var v) => Reference -> Term v a -> SuperGroup v
-superNormalize self tm = Rec l c
+superNormalize :: (Var v) => Term v a -> SuperGroup v
+superNormalize tm = Rec l c
   where
     (bs, e)
       | LetRecNamed' bs e <- tm = (bs, e)
       | otherwise = ([], tm)
     grp = Set.fromList $ fst <$> bs
     comp = traverse_ superBinding bs *> toSuperNormal e
-    subc = runReaderT comp (self, grp, [])
+    subc = runReaderT comp grp
     (c, (_, _, l)) = runState subc (0, 1, [])
 
 superBinding :: (Var v) => (v, Term v a) -> ANFM v ()
@@ -1820,7 +1948,7 @@ superBinding (v, tm) = do
   modify $ \(cvs, bnd, ctx) -> (cvs, bnd, (v, nf) : ctx)
 
 toSuperNormal :: (Var v) => Term v a -> ANFM v (SuperNormal v)
-toSuperNormal tm = withCombVars vs do
+toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
     then internalBug $ "free variables in supercombinator: " ++ show tm
@@ -2207,86 +2335,6 @@ makeHandler v abr df = do
   pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
   where
     hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
-
--- Checks for the final part of a term in an affine handler branch.
--- These should look like:
---
---    h = recursiveCall <vs>
---    lazy e = x |> k
---    h e
---
--- where `k` is the continuation. The `e` expression might be more
--- complicated, actually. Handling that is TBD.
-affineTail :: Var v => Reference -> v -> ANormal v -> Maybe ([v], v)
-affineTail self kf tm
-  | TLet _ hr _ (TCom r us) tm <- tm,
-    TName e (Left _) [x, k] tm <- tm,
-    TApv f [y] <- tm,
-    e == y && f == hr && r == self && k == kf =
-      trace "affineTail ok" $ Just (us, x)
-  | otherwise = Nothing
-
--- Splits a term into an initial segment of bindings and a result
--- value computed from valid tail terms. A predicate also determines
--- if bindings in the initial segment would cause problems, yielding a
--- null result.
-peel ::
-  (Var v) =>
-  (v -> Bool) ->
-  (ANormal v -> Maybe r) ->
-  ANormal v -> Maybe (ANormal v -> ANormal v, Set v, r)
-peel abort finish = go Set.empty id . tracePrettyNormal True
-  where
-    go bound mid (finish -> Just result) = Just (mid, bound, result)
-    go bound mid (TLet d v cc e rest)
-      | abort v = Nothing
-      | otherwise = go (Set.insert v bound) (mid . TLet d v cc e) rest
-    go bound mid (TName v f us rest)
-      | abort v = Nothing
-      | otherwise = go (Set.insert v bound) (mid . TName v f us) rest
-    -- TODO: consider some other cases. Matching seems fine, but needs
-    -- a different strategy.
-    go _ _ _ = Nothing
-
-splitTerm ::
-  (Var v) =>
-  Reference ->
-  v ->
-  ANormal v ->
-  Maybe (ANormal v -> ANormal v, Set v, ([v], v))
-splitTerm self kf = peel (== kf) (affineTail self kf)
-
-tweakBranch :: (Var v) => Reference -> [v] -> ANormal v -> Maybe (ANormal v)
-tweakBranch self cvs br
-  | ABTN.TAbss us br <- br,
-    TShift _ kf0 br <- br,
-    TName kf (Left (Builtin "jumpCont")) [kf1] br <- br,
-    kf0 == kf1 = do
-      (exps, bound0, (hArgs, kArg)) <- splitTerm self kf br
-      let bound = bound0 `Set.union` Set.fromList us
-      guard $ all (`Set.notMember` bound) cvs
-      guard $ all (uncurry (==)) (zip cvs hArgs)
-      pure $ exps (TVar kArg)
-  | otherwise = Nothing
-
-makeAffineHandler ::
-  (Var v) =>
-  v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
-makeAffineHandler v abr df = do
-  self <- selfRef
-  cvs <- combVars
-  case (traverse . traverse . traverse) (tweakBranch self cvs) abr of
-    Just tbrs -> groupVars <&> \gvs ->
-      let hfb = ABTN.TAbs v . TMatch v $ MatchRequest tbrs df
-          hfvs = Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
-      in (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
-    Nothing -> makeHandler v abr df
-
-  -- hfvs <- groupVars <&> \gvs ->
-  --   Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
-  -- pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
-  -- where
-  --   hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,

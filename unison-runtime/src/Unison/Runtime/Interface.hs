@@ -27,7 +27,6 @@ module Unison.Runtime.Interface
     putStoredCache,
   )
 where
-import Unison.Runtime.Debug
 
 import Control.Concurrent.STM as STM
 import Control.Exception (throwIO)
@@ -756,7 +755,7 @@ intermediateTerms ppe ctx rtms =
       (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
       where
         f ref =
-          superNormalize ref
+          superNormalize
             . splitPatterns (dspec ctx)
             . addDefaultCases tmName
           where
@@ -826,11 +825,11 @@ intermediateTerm ::
   )
 intermediateTerm ppe ctx tm =
   case normalizeTerm ctx tm of
-    (ref, frem, cmbs, dcmp) -> (ref, frem, Map.mapWithKey f cmbs, dcmp)
+    (ref, frem, cmbs, dcmp) -> (ref, frem, fmap f cmbs, dcmp)
       where
         tmName = HQ.toText . termName ppe $ RF.Ref ref
-        f ref = tracePrettyGroup (show ref) False .
-          superNormalize ref
+        f =
+          superNormalize
             . splitPatterns (dspec ctx)
             . addDefaultCases tmName
 
