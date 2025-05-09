@@ -248,7 +248,7 @@ exec env !henv !_activeThreads !stk !k _ (Name r args) = do
   v <- resolve env henv stk r
   stk <- name stk args v
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (SetAff i j) =
+exec _ !henv !_activeThreads !stk !k _ (SetAff i j) =
   bpeekOff stk i >>= \case
     Affine _ (ARef r) -> do
       bpeekOff stk j >>= writeIORef r
@@ -265,7 +265,7 @@ exec _   !_henv !_activeThreads !stk !k _ (Discard i) = do
       (aenv, stk, k) <- abortCont stk k r
       pure (False, HEnv aenv mempty, stk, k)
     _ -> die "Discard called with bad handler reference"
-exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
+exec _env !henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
     Affine aenv _ -> do
       (stk, a) <- saveArgs stk
@@ -1108,7 +1108,7 @@ abortCont ::
   K ->
   AffineRef ->
   IO (AEnv, Stack, K)
-abortCont stk k r = walk (asize stk) k
+abortCont !stk !k !r = walk (asize stk) k
   where
     walk :: SZ -> K -> IO (AEnv, Stack, K)
     walk !sz = \case
@@ -1127,6 +1127,7 @@ abortCont stk k r = walk (asize stk) k
       stk <- truncateSeg stk sz
       stk <- adjustArgs stk a
       pure (aenv, stk, k)
+{-# INLINE abortCont #-}
 
 resolve :: CCache -> HEnv -> Stack -> MRef -> IO Val
 resolve _ _ _ (Env cix mcomb) = pure (mCombVal cix mcomb)
@@ -1135,6 +1136,7 @@ resolve env (HEnv aenv denv) _ (Dyn i)
   | Just v <- EC.lookup i denv = pure v
   | Just (ARef r) <- EC.lookup i aenv = BoxedVal <$> readIORef r
   | otherwise = unhandledErr "resolve" env i
+{-# INLINE resolve #-}
 
 unhandledErr :: String -> CCache -> Word64 -> IO a
 unhandledErr fname env i =
