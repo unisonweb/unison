@@ -102,11 +102,13 @@ import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
+import Control.Monad.Writer (WriterT (..), tell)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
+import Data.Monoid (Any (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import GHC.Stack (CallStack, callStack)
@@ -1693,7 +1695,7 @@ translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
     args <- vs ++ [ar, v],
     ccs <- ccs ++ [BX] =
       Lambda ccs . ABTN.TAbss args . TMatch u . flip MatchRequest df <$>
-        traverse3 (linearHandlerCase self vs ah) cs
+        traverse3 (affineHandlerCase self vs ah) cs
 
   | otherwise = Nothing
 
@@ -1720,28 +1722,78 @@ augmentHandlerEntry vs thunk0 mv0 ah body
   where
     ahp = freshAff 1
 
--- Recognizes a linear handler case, yielding a translated efficient
+-- Recognizes an affine handler case, yielding a translated efficient
 -- version if it is one.
-linearHandlerCase ::
+affineHandlerCase ::
   Var v => Reference -> [v] -> v -> ANormal v -> Maybe (ANormal v)
-linearHandlerCase self vs rec br
+affineHandlerCase self vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
     kf0 == kf1 =
-      ABTN.TAbss us .
-        TLocal ar <$> translateLinear self vs rec ar kf body
+      ABTN.TAbss us <$>
+        affinePreBranch self Set.empty vs rec ar kf body
 
   | otherwise = Nothing
   where
     ar = freshAff 2
 
+-- Allows for having multiple branches that differ in the exact type
+-- of affine handler recognized.
+--
+-- If the entire term doesn't use the continuation, then an irrelevant
+-- handler is generated.
+--
+-- If the immediate term is a match, then we delay the choice of which
+-- type of handler to generate into each branch.
+--
+-- If neither of the above cases hold, then we look for a linear case.
+affinePreBranch ::
+  Var v =>
+  Reference ->
+  Set v ->
+  [v] ->
+  v ->
+  v ->
+  v ->
+  ANormal v ->
+  Maybe (ANormal v)
+affinePreBranch self bound vs rec ar kf bd
+  | Just it <- irrelevantTail ar kf bd = Just it
+
+  | TMatch v bs <- bd =
+      TMatch v <$>
+        for bs \case
+          ABTN.TAbss us bd ->
+            ABTN.TAbss us <$>
+              affinePreBranch self bound' vs rec ar kf bd
+            where
+              bound' = Set.union (Set.fromList us) bound
+
+  | otherwise =
+      localize <$>
+        runWriterT (translateLinear self bound vs rec ar kf bd)
+  where
+    localize (tm, Any True) = TLocal ar tm
+    localize (tm, Any False) = tm
+
 translateLinear ::
-  Var v => Reference -> [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
-translateLinear self vs rec ar kf = go Set.empty
+  Var v =>
+  Reference ->
+  Set v ->
+  [v] ->
+  v ->
+  v ->
+  v ->
+  ANormal v ->
+  WriterT Any Maybe (ANormal v)
+translateLinear self bound0 vs rec ar kf = go bound0
   where
   go bound body
-    | Just lt <- linearTail self vs bound rec ar kf body = Just lt
+    | Just lt <- linearTail self vs bound rec ar kf body =
+        lt <$ tell (Any True)
+
+    | Just it <- irrelevantTail ar kf body = pure it
 
     | TLet d v cc e body <- body,
       kf `Set.notMember` ABTN.freeVars e =
@@ -1758,7 +1810,7 @@ translateLinear self vs rec ar kf = go Set.empty
               ABTN.TAbss us <$>
                 go (Set.fromList us `Set.union` bound) bd
 
-    | otherwise = Nothing
+    | otherwise = mzero
 
 -- Recognizes the tail of a linear handler case, where the
 -- continuation is called once in tail position. Returns a transformed
@@ -1797,6 +1849,12 @@ linearTail self vs bound rec ar kf0 tm
       | otherwise =
           TName huv (Right rec) (us ++ [ar]) .
           TLets Direct [] [] (TUpdate ar huv)
+
+irrelevantTail :: Var v => v -> v -> ANormal v -> Maybe (ANormal v)
+irrelevantTail ar kf tm
+  | kf `Set.notMember` ABTN.freeVars tm =
+      Just $ TLets Direct [] [] (TDiscard ar) tm
+  | otherwise = Nothing
 
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not
