@@ -34,7 +34,6 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
-import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
@@ -120,9 +119,6 @@ data Input
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
-  | -- merge first causal into destination
-    MergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath) Branch.MergeMode
-  | PreviewMergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath)
   | DiffNamespaceI BranchId2 BranchId2 -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput

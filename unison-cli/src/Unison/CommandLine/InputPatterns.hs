@@ -77,9 +77,6 @@ module Unison.CommandLine.InputPatterns
     mergeCommitInputPattern,
     mergeIOBuiltins,
     mergeInputPattern,
-    mergeOldInputPattern,
-    mergeOldPreviewInputPattern,
-    mergeOldSquashInputPattern,
     moveAll,
     names,
     namespaceDependencies,
@@ -178,7 +175,6 @@ import Unison.Cli.Pretty
   )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
@@ -2133,91 +2129,6 @@ syncFromCodebase =
           branchInclusion = AllBranches
         }
 
-mergeOldSquashInputPattern :: InputPattern
-mergeOldSquashInputPattern =
-  InputPattern
-    { patternName = "merge.old.squash",
-      aliases = ["squash.old"],
-      visibility = I.Hidden,
-      params =
-        Parameters
-          [ ("namespace or branch to be squashed", namespaceOrProjectBranchArg suggestionsConfig),
-            ("merge destination", namespaceOrProjectBranchArg suggestionsConfig)
-          ]
-          $ Optional [] Nothing,
-      help =
-        P.wrap $
-          makeExample mergeOldSquashInputPattern ["src", "dest"]
-            <> "merges `src` namespace or branch into the `dest` namespace or branch,"
-            <> "discarding the history of `src` in the process."
-            <> "The resulting `dest` will have (at most) 1"
-            <> "additional history entry.",
-      parse = \case
-        [src] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> pure Nothing
-            <*> pure Branch.SquashMerge
-        [src, dest] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> (Just <$> handleBranchRelativePathArg dest)
-            <*> pure Branch.SquashMerge
-        args -> wrongArgsLength "exactly two arguments" args
-    }
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldInputPattern :: InputPattern
-mergeOldInputPattern =
-  InputPattern
-    "merge.old"
-    []
-    I.Hidden
-    ( Parameters [("branch or namespace to merge", namespaceOrProjectBranchArg config)] $
-        Optional [("merge destination", namespaceOrProjectBranchArg config)] Nothing
-    )
-    ( P.column2
-        [ ( makeExample mergeOldInputPattern ["foo/bar", "baz/qux"],
-            "merges the `foo/bar` branch into the `baz/qux` branch"
-          ),
-          ( makeExample mergeOldInputPattern ["/topic", "/main"],
-            "merges the branch `topic` of the current project into the `main` branch of the current project"
-          ),
-          ( makeExample mergeOldInputPattern ["foo/topic", "/main"],
-            "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
-          ),
-          ( makeExample mergeOldInputPattern ["/topic", "foo/main"],
-            "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
-          )
-        ]
-    )
-    ( \case
-        [src] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> pure Nothing
-            <*> pure Branch.RegularMerge
-        [src, dest] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> (Just <$> handleBranchRelativePathArg dest)
-            <*> pure Branch.RegularMerge
-        args -> wrongArgsLength "one or two arguments" args
-    )
-  where
-    config =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
 mergeInputPattern :: InputPattern
 mergeInputPattern =
   InputPattern
@@ -2304,37 +2215,6 @@ diffNamespace =
     \case
       [before, after] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> handleBranchId2Arg after
       [before] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> pure (Right . UnqualifiedPath $ Path.Current')
-      args -> wrongArgsLength "one or two arguments" args
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldPreviewInputPattern :: InputPattern
-mergeOldPreviewInputPattern =
-  InputPattern
-    "merge.old.preview"
-    []
-    I.Hidden
-    ( Parameters [("branch or namespace to merge", namespaceOrProjectBranchArg suggestionsConfig)] $
-        Optional [("merge destination", namespaceOrProjectBranchArg suggestionsConfig)] Nothing
-    )
-    ( P.column2
-        [ ( makeExample mergeOldPreviewInputPattern ["src"],
-            "shows how the current namespace will change after a " <> makeExample mergeOldInputPattern ["src"]
-          ),
-          ( makeExample mergeOldPreviewInputPattern ["src", "dest"],
-            "shows how `dest` namespace will change after a " <> makeExample mergeOldInputPattern ["src", "dest"]
-          )
-        ]
-    )
-    \case
-      [src] -> Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> pure Nothing
-      [src, dest] ->
-        Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> (Just <$> handleBranchRelativePathArg dest)
       args -> wrongArgsLength "one or two arguments" args
   where
     suggestionsConfig =
@@ -3686,9 +3566,6 @@ validInputs =
       makeStandalone,
       mergeBuiltins,
       mergeIOBuiltins,
-      mergeOldInputPattern,
-      mergeOldPreviewInputPattern,
-      mergeOldSquashInputPattern,
       mergeInputPattern,
       mergeCommitInputPattern,
       names False, -- names

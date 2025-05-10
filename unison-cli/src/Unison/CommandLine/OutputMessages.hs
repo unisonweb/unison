@@ -211,16 +211,6 @@ notifyNumbered = \case
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
-  ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
-    first
-      ( \p ->
-          P.lines
-            [ P.wrap $ "Here's what would change in " <> prettyNamespaceKey dest' <> "after the merge:",
-              "",
-              p
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
@@ -1299,12 +1289,6 @@ notifyUser dir = \case
         "",
         P.wrap "Please move or remove it and then try merging again."
       ]
-  PreviewMergeAlreadyUpToDate src dest ->
-    pure . P.callout "😶" $
-      P.wrap $
-        prettyProjectPath dest
-          <> "is already up-to-date with"
-          <> P.group (prettyProjectPath src)
   DumpNumberedArgs schLength args ->
     pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   HelpMessage pat -> pure $ IP.showPatternHelp pat

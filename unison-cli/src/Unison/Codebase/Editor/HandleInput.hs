@@ -280,21 +280,6 @@ loop e = do
                   else BranchEmpty branchEmpty
             MergeI branch -> handleMerge branch
             MergeCommitI -> handleCommitMerge
-            PreviewMergeLocalBranchI unresolvedSrc mayUnresolvedDest -> do
-              Cli.Env {codebase} <- ask
-              srcPP <- ProjectUtils.resolveBranchRelativePath unresolvedSrc
-              destPP <- case mayUnresolvedDest of
-                Nothing -> Cli.getCurrentProjectPath
-                Just unresolvedDest -> do
-                  ProjectUtils.resolveBranchRelativePath unresolvedDest
-              srcBranch <- Cli.getProjectBranchRoot srcPP.branch
-              destBranch <- Cli.getProjectBranchRoot destPP.branch
-              merged <- liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcBranch destBranch)
-              if merged == destBranch
-                then Cli.respond (PreviewMergeAlreadyUpToDate srcPP destPP)
-                else do
-                  (ppe, diff) <- diffHelper (Branch.head destBranch) (Branch.head merged)
-                  Cli.respondNumbered (ShowDiffAfterMergePreview (Left destPP) destPP ppe diff)
             DiffNamespaceI before after -> do
               beforeLoc <- traverse ProjectUtils.resolveBranchRelativePath before
               beforeBranch0 <- Branch.head <$> resolveBranchId2 before
@@ -821,14 +806,6 @@ inputDescription input =
       src <- either (pure . Text.pack . show) brp src0
       dest <- brp dest0
       pure ("fork " <> src <> " " <> dest)
-    MergeLocalBranchI src0 dest0 mode -> do
-      let src = into @Text src0
-      let dest = maybe "" (into @Text) dest0
-      let command =
-            case mode of
-              Branch.RegularMerge -> "merge"
-              Branch.SquashMerge -> "merge.squash"
-      pure (command <> " " <> src <> " " <> dest)
     ResetI newRoot tgt -> do
       hashTxt <- bid2 newRoot
       tgt <- case tgt of
@@ -961,7 +938,6 @@ inputDescription input =
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
     PreviewAddI {} -> wat
-    PreviewMergeLocalBranchI {} -> wat
     ProjectCreateI {} -> wat
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat

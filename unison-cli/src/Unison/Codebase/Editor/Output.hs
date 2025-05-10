@@ -113,11 +113,6 @@ data NumberedOutput
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePreview
-      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      ProjectPath
-      PPE.PrettyPrintEnv
-      (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -316,9 +311,7 @@ data Output
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-  | -- This will replace the above once `merge.old` is deleted
-    MergeAlreadyUpToDate2 !MergeSourceAndTarget
-  | PreviewMergeAlreadyUpToDate ProjectPath ProjectPath
+  | MergeAlreadyUpToDate2 !MergeSourceAndTarget
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
   | -- | List direct dependencies of a type or term.
@@ -594,7 +587,6 @@ isFailure o = case o of
   AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate2 {} -> False
-  PreviewMergeAlreadyUpToDate {} -> False
   ListShallow _ es -> null es
   HashAmbiguous {} -> True
   ShowReflog {} -> False
@@ -705,7 +697,6 @@ isNumberedFailure = \case
   ShowDiffAfterCreateAuthor {} -> False
   ShowDiffAfterDeleteBranch {} -> False
   ShowDiffAfterDeleteDefinitions {} -> False
-  ShowDiffAfterMergePreview {} -> False
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
