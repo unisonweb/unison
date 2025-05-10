@@ -55,11 +55,6 @@ module Unison.Codebase.Branch
     annihilateTypeName,
     deleteTypeName,
     setChildBranch,
-    replacePatch,
-    deletePatch,
-    getMaybePatch,
-    getPatch,
-    modifyPatches,
 
     -- ** Children queries
     getAt,
@@ -381,33 +376,6 @@ getChildBranch seg b = fromMaybe empty $ Map.lookup seg (b ^. children)
 
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
-
-getPatch :: (Applicative m) => NameSegment -> Branch0 m -> m Patch
-getPatch seg b = case Map.lookup seg (b ^. edits) of
-  Nothing -> pure Patch.empty
-  Just (_, p) -> p
-
-getMaybePatch :: (Applicative m) => NameSegment -> Branch0 m -> m (Maybe Patch)
-getMaybePatch seg b = case Map.lookup seg (b ^. edits) of
-  Nothing -> pure Nothing
-  Just (_, p) -> Just <$> p
-
-modifyPatches ::
-  (Monad m) => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
-modifyPatches seg f = mapMOf edits update
-  where
-    update m = do
-      p' <- case Map.lookup seg m of
-        Nothing -> pure $ f Patch.empty
-        Just (_, p) -> f <$> p
-      let h = H.hashPatch p'
-      pure $ Map.insert seg (PatchHash h, pure p') m
-
-replacePatch :: (Applicative m) => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (PatchHash (H.hashPatch p), pure p))
-
-deletePatch :: NameSegment -> Branch0 m -> Branch0 m
-deletePatch n = over edits (Map.delete n)
 
 updateChildren ::
   NameSegment ->

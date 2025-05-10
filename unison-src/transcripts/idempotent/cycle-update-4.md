@@ -60,16 +60,16 @@ clang _ = !pong + 3
 ```
 
 ``` ucm
-scratch/main> update.old ping
+scratch/main> update
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    clang : 'Nat
+  That's done. Now I'm making sure everything typechecks...
 
-  ⍟ I've updated these names to your new definition:
+  Everything typechecks, so I'm saving the results...
 
-    ping : 'Nat
-    pong : 'Nat
+  Done.
 
 scratch/main> view ping pong clang
 

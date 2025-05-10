@@ -36,7 +36,6 @@ import Unison.WatchKind (watchKindShouldBeStoredInDatabase)
 -- | The operation which is being performed or checked.
 data SlurpOp
   = AddOp
-  | UpdateOp
   | -- Run when the user saves the scratch file.
     CheckOp
   deriving (Eq, Show)
@@ -146,7 +145,6 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
   -- If we're 'adding', there won't be any deprecations to worry about.
   AddOp -> unalteredCodebaseNames
   CheckOp -> codebaseNames
-  UpdateOp -> codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
@@ -390,7 +388,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
             case op of
               AddOp -> mempty {blocked = sc}
               CheckOp -> mempty {adds = sc}
-              UpdateOp -> mempty {adds = sc}
           DepCollision -> mempty {blocked = sc}
       Updated ->
         case depStatus of

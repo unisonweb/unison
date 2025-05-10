@@ -59,14 +59,6 @@ module Unison.Cli.MonadUtils
     -- * Types
     getTypesAt,
 
-    -- * Patches
-
-    -- ** Default patch
-    defaultPatchPath,
-
-    -- ** Getting patches
-    getPatchAt,
-
     -- * Latest touched Unison file
     getLatestFile,
     getLatestParsedFile,
@@ -104,8 +96,6 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Patch (Patch (..))
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath)
@@ -115,7 +105,6 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name qualified as Name
-import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
@@ -473,25 +462,6 @@ getTypesAt :: HQ'.HashQualified (Path.Split ProjectPath) -> Cli (Set TypeReferen
 getTypesAt hq =
   let (pp, seg) = HQ'.toName hq
    in BranchUtil.getType ((mempty, seg) <$ hq) <$> getBranch0FromProjectPath pp
-
-------------------------------------------------------------------------------------------------------------------------
--- Getting patches
-
--- | The default patch path.
-defaultPatchPath :: Path.Split Path'
-defaultPatchPath = (Path.Current', NameSegment.defaultPatchSegment)
-
--- | Get the patch at a path, or the empty patch if there's no such patch.
-getPatchAt :: Path.Split Path' -> Cli Patch
-getPatchAt path =
-  getMaybePatchAt path <&> fromMaybe Patch.empty
-
--- | Get the patch at a path.
-getMaybePatchAt :: Path.Split Path' -> Cli (Maybe Patch)
-getMaybePatchAt path0 = do
-  (pp, name) <- resolveSplit' path0
-  branch <- getBranch0FromProjectPath pp
-  liftIO (Branch.getMaybePatch name branch)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Latest (typechecked) unison file utils

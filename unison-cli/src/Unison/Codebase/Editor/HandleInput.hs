@@ -81,7 +81,7 @@ import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
 import Unison.Codebase.Editor.HandleInput.ProjectRename (handleProjectRename)
 import Unison.Codebase.Editor.HandleInput.ProjectSwitch (projectSwitch)
 import Unison.Codebase.Editor.HandleInput.Projects (handleProjects)
-import Unison.Codebase.Editor.HandleInput.Pull (handlePull, mergeBranchAndPropagateDefaultPatch)
+import Unison.Codebase.Editor.HandleInput.Pull (handlePull)
 import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
@@ -93,7 +93,7 @@ import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
-import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds, handleUpdate)
+import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
 import Unison.Codebase.Editor.HandleInput.Upgrade (handleUpgrade)
 import Unison.Codebase.Editor.Input
@@ -280,16 +280,6 @@ loop e = do
                   else BranchEmpty branchEmpty
             MergeI branch -> handleMerge branch
             MergeCommitI -> handleCommitMerge
-            MergeLocalBranchI unresolvedSrc mayUnresolvedDest mergeMode -> do
-              description <- inputDescription input
-              srcPP <- ProjectUtils.resolveBranchRelativePath unresolvedSrc
-              (destPP, destBRP) <- case mayUnresolvedDest of
-                Nothing -> Cli.getCurrentProjectPath <&> \pp -> (pp, QualifiedBranchPath (pp ^. #project . #name) (pp ^. #branch . #name) (pp ^. PP.absPath_))
-                Just unresolvedDest -> do
-                  ProjectUtils.resolveBranchRelativePath unresolvedDest <&> \pp -> (pp, unresolvedDest)
-              srcBranch <- Cli.getProjectBranchRoot srcPP.branch
-              let err = Just $ MergeAlreadyUpToDate unresolvedSrc destBRP
-              mergeBranchAndPropagateDefaultPatch mergeMode description err srcBranch (Just $ Left destPP) destPP
             PreviewMergeLocalBranchI unresolvedSrc mayUnresolvedDest -> do
               Cli.Env {codebase} <- ask
               srcPP <- ProjectUtils.resolveBranchRelativePath unresolvedSrc
@@ -581,15 +571,7 @@ loop e = do
               currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
               let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
               previewResponse sourceName sr uf
-            UpdateI optionalPatch requestedNames -> handleUpdate input optionalPatch requestedNames
             Update2I -> handleUpdate2
-            PreviewUpdateI requestedNames -> do
-              (sourceName, _) <- Cli.expectLatestFile
-              uf <- Cli.expectLatestTypecheckedFile
-              let vars = Set.map Name.toVar requestedNames
-              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-              let sr = Slurp.slurpFile uf vars Slurp.UpdateOp currentNames
-              previewResponse sourceName sr uf
             TodoI -> handleTodo
             TestI native testInput -> Tests.handleTest native testInput
             ExecuteI main args -> handleRun False main args
@@ -912,13 +894,6 @@ inputDescription input =
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
     AddI _selection -> pure "add"
-    UpdateI p0 _selection -> do
-      p <-
-        case p0 of
-          NoPatch -> pure ".nopatch"
-          DefaultPatch -> (" " <>) <$> ps' Cli.defaultPatchPath
-          UsePatch p0 -> (" " <>) <$> ps' p0
-      pure ("update.old" <> p)
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
@@ -987,7 +962,6 @@ inputDescription input =
     PopBranchI {} -> wat
     PreviewAddI {} -> wat
     PreviewMergeLocalBranchI {} -> wat
-    PreviewUpdateI {} -> wat
     ProjectCreateI {} -> wat
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat

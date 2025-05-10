@@ -19,7 +19,6 @@ module Unison.Codebase.Editor.Input
     parseShortCausalHash,
     Insistence (..),
     PullMode (..),
-    OptionalPatch (..),
     FindScope (..),
     ShowDefinitionScope (..),
     IsGlobal,
@@ -61,16 +60,11 @@ type Source = Text -- "id x = x\nconst a b = a"
 
 type SourceName = Text -- "foo.u" or "buffer 7"
 
-type PatchPath = Path.Split Path'
-
 type ErrorMessageOrValue a = Either (P.Pretty P.ColorText) a
 
 type ErrorMessageOrName = ErrorMessageOrValue (HQ.HashQualified Name)
 
 type RawQuery = String
-
-data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
-  deriving (Eq, Ord, Show)
 
 data BranchIdG p
   = BranchAtSCH ShortCausalHash
@@ -167,9 +161,7 @@ data Input
   | ClearI
   | AddI (Set Name)
   | PreviewAddI (Set Name)
-  | UpdateI OptionalPatch (Set Name)
   | Update2I
-  | PreviewUpdateI (Set Name)
   | TodoI
   | UndoI
   | -- First `Maybe Int` is cap on number of results, if any
