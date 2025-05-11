@@ -69,7 +69,6 @@ import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Init.OpenCodebaseError qualified as CodebaseInit
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
@@ -3010,41 +3009,33 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               else pure mempty,
             if (not . null) updatedTypes
               || (not . null) updatedTerms
-              || (not . null) updatedPatches
               then do
                 prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
                 prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
-                prettyUpdatedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) updatedPatches
                 pure $
                   P.sepNonEmpty
                     "\n\n"
                     [ P.bold "Updates:",
-                      P.indentNonEmptyN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms,
-                      P.indentNonEmptyN 2 . P.linesNonEmpty $ prettyUpdatedPatches
+                      P.indentNonEmptyN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
                     ]
               else pure mempty,
             if (not . null) addedTypes
               || (not . null) addedTerms
-              || (not . null) addedPatches
               then do
                 prettyAddedTypes :: Pretty <- prettyAddTypes addedTypes
                 prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
-                prettyAddedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) addedPatches
                 pure $
                   P.sepNonEmpty
                     "\n\n"
                     [ P.bold "Added definitions:",
-                      P.indentNonEmptyN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms],
-                      P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
+                      P.indentNonEmptyN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
                     ]
               else pure mempty,
             if (not . null) removedTypes
               || (not . null) removedTerms
-              || (not . null) removedPatches
               then do
                 prettyRemovedTypes :: Pretty <- prettyRemoveTypes removedTypes
                 prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
-                prettyRemovedPatches :: [Pretty] <- traverse (prettyNamePatch oldPath) removedPatches
                 pure $
                   P.sepNonEmpty
                     "\n\n"
@@ -3052,8 +3043,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
                       P.indentN 2 $
                         P.linesNonEmpty
                           [ prettyRemovedTypes,
-                            prettyRemovedTerms,
-                            P.linesNonEmpty prettyRemovedPatches
+                            prettyRemovedTerms
                           ]
                     ]
               else pure mempty,
@@ -3216,28 +3206,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           n <- numHQ' newPath hq r
           pure . (n,phq' hq,) $ ": " <> prettyType otype
 
-    prettySummarizePatch, prettyNamePatch :: Input.AbsBranchId -> OBD.PatchDisplay -> Numbered Pretty
-    --  12. patch p (added 3 updates, deleted 1)
-    prettySummarizePatch prefix (name, patchDiff) = do
-      n <- numPatch prefix name
-      let addCount =
-            (R.size . view Patch.addedTermEdits) patchDiff
-              + (R.size . view Patch.addedTypeEdits) patchDiff
-          delCount =
-            (R.size . view Patch.removedTermEdits) patchDiff
-              + (R.size . view Patch.removedTypeEdits) patchDiff
-          messages =
-            (if addCount > 0 then ["added " <> P.shown addCount] else [])
-              ++ (if delCount > 0 then ["deleted " <> P.shown addCount] else [])
-          message = case messages of
-            [] -> mempty
-            x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
-      pure $ n <> P.bold " patch " <> prettyName name <> message
-    --          18. patch q
-    prettyNamePatch prefix (name, _patchDiff) = do
-      n <- numPatch prefix name
-      pure $ n <> P.bold " patch " <> prettyName name
-
     {-
      Removes:
 
@@ -3334,11 +3302,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         (P.red "type not found")
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ'.toHQ hq))
     phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
-
-    -- DeclPrinter.prettyDeclHeader : HQ -> Either
-    numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
-    numPatch prefix name =
-      addNumberedArg' $ SA.NameWithBranchPrefix prefix name
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =

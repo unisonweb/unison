@@ -21,7 +21,6 @@ module Unison.Codebase.Branch.Type
     deepTypes,
     deepDefns,
     deepPaths,
-    deepEdits,
     Star,
     UnwrappedBranch,
   )
@@ -102,8 +101,7 @@ data Branch0 m = Branch0
     -- names for this branch and its children
     _deepTerms :: Relation Referent Name,
     _deepTypes :: Relation Reference Name,
-    _deepPaths :: Set Path,
-    _deepEdits :: Map Name PatchHash
+    _deepPaths :: Set Path
   }
 
 instance Eq (Branch0 m) where
@@ -162,9 +160,6 @@ deepDefns branch =
 deepPaths :: Branch0 m -> Set Path
 deepPaths = _deepPaths
 
-deepEdits :: Branch0 m -> Map Name PatchHash
-deepEdits = _deepEdits
-
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)
 
@@ -192,13 +187,11 @@ branch0 terms types children edits =
       -- These are all overwritten immediately
       _deepTerms = R.empty,
       _deepTypes = R.empty,
-      _deepPaths = Set.empty,
-      _deepEdits = Map.empty
+      _deepPaths = Set.empty
     }
     & deriveDeepTerms
     & deriveDeepTypes
     & deriveDeepPaths
-    & deriveDeepEdits
     & deriveIsEmpty
 
 deriveIsEmpty :: Branch0 m -> Branch0 m
@@ -273,25 +266,6 @@ deriveDeepPaths branch =
                   else (Set.singleton . Path.fromList . reverse) reversePrefix
           children <- deepChildrenHelper e
           go (work <> children) (paths <> acc)
-
--- | Derive the 'deepEdits' field of a branch.
-deriveDeepEdits :: forall m. Branch0 m -> Branch0 m
-deriveDeepEdits branch =
-  branch {_deepEdits = makeDeepEdits branch}
-  where
-    makeDeepEdits :: Branch0 m -> Map Name PatchHash
-    makeDeepEdits branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
-      where
-        go :: (Seq (DeepChildAcc m)) -> Map Name PatchHash -> DeepState m (Map Name PatchHash)
-        go Seq.Empty acc = pure acc
-        go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
-          let edits :: Map Name PatchHash
-              edits =
-                Map.mapKeysMonotonic
-                  (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))
-                  (fst <$> _edits b0)
-          children <- deepChildrenHelper e
-          go (work <> children) (edits <> acc)
 
 -- | State used by deepChildrenHelper to determine whether to descend into a child branch.
 -- Contains the set of visited namespace hashes.

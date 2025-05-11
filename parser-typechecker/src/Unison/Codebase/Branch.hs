@@ -37,7 +37,6 @@ module Unison.Codebase.Branch
     headHash,
     children,
     nonEmptyChildren,
-    deepEdits',
     namespaceStats,
 
     -- * step
@@ -81,7 +80,6 @@ module Unison.Codebase.Branch
     deepTerms,
     deepTypes,
     deepDefns,
-    deepEdits,
     deepPaths,
     deepReferents,
     deepTermReferences,
@@ -97,7 +95,7 @@ import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import U.Codebase.HashTags (CausalHash, PatchHash (..))
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -108,7 +106,6 @@ import Unison.Codebase.Branch.Type
     branch0,
     children,
     deepDefns,
-    deepEdits,
     deepPaths,
     deepTerms,
     deepTypes,
@@ -123,13 +120,9 @@ import Unison.Codebase.Branch.Type
   )
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal
-import Unison.Codebase.Patch (Patch)
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path)
 import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
 import Unison.Hashing.V2.Convert qualified as H
-import Unison.Name (Name)
-import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
@@ -216,26 +209,13 @@ namespaceStats b =
   NamespaceStats
     { numContainedTerms = Relation.size $ deepTerms b,
       numContainedTypes = Relation.size $ deepTypes b,
-      numContainedPatches = Map.size $ deepEdits b
+      numContainedPatches = 0
     }
 
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
 head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history . Causal.head_
-
--- | a version of `deepEdits` that returns the `m Patch` as well.
-deepEdits' :: Branch0 m -> Map Name (PatchHash, m Patch)
-deepEdits' = go id
-  where
-    -- can change this to an actual prefix once Name is a [NameSegment]
-    go :: (Name -> Name) -> Branch0 m -> Map Name (PatchHash, m Patch)
-    go addPrefix b0 =
-      Map.mapKeys (addPrefix . Name.fromSegment) (b0 ^. edits)
-        <> foldMap f (Map.toList (b0 ^. children))
-      where
-        f :: (NameSegment, Branch m) -> Map Name (PatchHash, m Patch)
-        f (c, b) = go (addPrefix . Name.cons c) (head b)
 
 -- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: (Applicative m) => Branch0 m -> Branch0 m
