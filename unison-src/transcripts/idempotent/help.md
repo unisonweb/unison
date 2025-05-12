@@ -517,8 +517,8 @@ scratch/main> help
                                               `@unison/base`
 
   list (or ls, dir)
-  `list`       lists definitions and namespaces at the current
-               level of the current namespace.
+  `list`       Lists definitions and namespaces within the
+               selected namespace.
   `list foo`   lists the 'foo' namespace.
   `list .foo`  lists the '.foo' namespace.
 

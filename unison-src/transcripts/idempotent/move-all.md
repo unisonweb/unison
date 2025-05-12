@@ -23,7 +23,7 @@ unique type Foo.T = T
   change:
 
     ⍟ These new definitions are ok to `add`:
-
+    
       type Foo
       type Foo.T
       Foo         : Nat
@@ -55,7 +55,7 @@ unique type Foo.T = T1 | T2
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
-
+    
       type Foo.T
       Foo.termInA : Nat
         (also named Foo)
@@ -99,11 +99,11 @@ scratch/main> history Bar
   ⊙ 1. #hk3a3lsc2e
 
     + Adds / updates:
-
+    
       T T.T1 T.T2 termInA
-
+    
     - Deletes:
-
+    
       T.T
 
   □ 2. #vqc50q3b3v (start of history)
@@ -123,7 +123,7 @@ bonk = 5
   change:
 
     ⍟ These new definitions are ok to `add`:
-
+    
       bonk : Nat
 ```
 
@@ -162,7 +162,7 @@ bonk.zonk = 5
   change:
 
     ⍟ These new definitions are ok to `add`:
-
+    
       bonk.zonk : Nat
         (also named zonk)
 ```

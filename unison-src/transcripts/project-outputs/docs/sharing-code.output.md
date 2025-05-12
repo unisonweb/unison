@@ -46,29 +46,29 @@ A couple of important points:
 Questions:
 
   - Do we want to distinguish between `/` paths and `.` separators in names?
-
+    
       - Should a type `A` be at the same level as
-
+    
       - On one hand, you probably don't need to separate a type `A` from its constructor `A.A`.  You wouldn't be able to export the constructor without the type which resides a level up in the namespace.
-
+    
       - Maybe the type `A` should organically be organized as `A/A`, and its constructor also as `A/A`.  This is reminiscent of having a separate module per type in Haskell, except that a reorganization could be done more easily:
-
-        ```
+        
+        ``` 
         /mycode> mv ClassA* ClassA/
         /mycode> mv ClassB* ClassB/
         /mycode> cd ClassA
         /mycode/ClassA> ls .
         ```
-
-      - ```
-
+    
+      - ``` 
+        
         ```
 
 ## NameTree representation
 
 examples:
 
-```
+``` 
 <empty>
 
 /A   (type)
@@ -100,7 +100,7 @@ Branches: https://api.github.com/repos/unisonweb/unison/branches
 
 A directory:
 
-```
+``` 
 url:
 https://api.github.com/repos/unisonweb/unison/contents/unison-src/demo?ref=master
 
@@ -113,7 +113,7 @@ https://api.github.com/repos/unisonweb/unison/git/trees/f8d91c6cc2ee1bc8f2bfc759
 
 A file:
 
-```
+``` 
 url:
 https://api.github.com/repos/unisonweb/unison/contents/unison-src/Base.u?ref=master
 

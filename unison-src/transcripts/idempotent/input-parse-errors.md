@@ -27,7 +27,7 @@ scratch/main> add .
       |  ^
     unexpected end of input
     expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
-
+    
 
   You can run `help add` for more information on using `add`.
 
@@ -46,7 +46,6 @@ scratch/main> ls .
 
 scratch/main> add 2
 
-  ⊡ Ignored previously added definitions: x
 ```
 
 todo:
@@ -83,7 +82,7 @@ scratch/main> update arg
 
 aliasTerm
 
-```
+``` 
 scratch/main> alias.term ##Nat.+ Nat.+
 ```
 
@@ -92,7 +91,7 @@ aliasType,
 
 todo:
 
-```
+``` 
 
 aliasMany,
 api,

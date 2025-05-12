@@ -40,18 +40,18 @@ scratch/main> history
   ⊙ 1. #a43uem9vjp
 
     + Adds / updates:
-
+    
       y
-
+    
     = Copies:
-
+    
       Original name New name(s)
       x             y
 
   ⊙ 2. #5gbhpddvrn
 
     + Adds / updates:
-
+    
       x
 
   □ 3. #q0sddm3uvt (start of history)
@@ -78,7 +78,7 @@ scratch/main> history
   ⊙ 1. #5gbhpddvrn
 
     + Adds / updates:
-
+    
       x
 
   □ 2. #q0sddm3uvt (start of history)
@@ -126,18 +126,18 @@ scratch/branch1> history
   ⊙ 1. #a43uem9vjp
 
     + Adds / updates:
-
+    
       y
-
+    
     = Copies:
-
+    
       Original name New name(s)
       x             y
 
   ⊙ 2. #5gbhpddvrn
 
     + Adds / updates:
-
+    
       x
 
   □ 3. #q0sddm3uvt (start of history)
@@ -174,7 +174,7 @@ scratch/branch1> history
   ⊙ 1. #5gbhpddvrn
 
     + Adds / updates:
-
+    
       x
 
   □ 2. #q0sddm3uvt (start of history)
