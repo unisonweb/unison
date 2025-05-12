@@ -161,8 +161,11 @@ module Unison.Runtime.Stack
   )
 where
 
+import Control.Concurrent (MVar)
+import Control.Concurrent.STM (TVar)
 import Control.Exception (throw, throwIO)
 import Control.Monad.Primitive
+import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
 import Data.Functor.Classes (Eq1 (..), Ord1 (..))
@@ -189,13 +192,8 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
-import Prelude hiding (words)
-import qualified Data.Atomics as Atomic
-
-import Control.Concurrent (MVar)
-import Control.Concurrent.STM (TVar)
 import Unison.Util.RefPromise (Promise)
-
+import Prelude hiding (words)
 
 #ifdef STACK_CHECK
 type DebugCallStack = (HasCallStack :: Constraint)
@@ -772,7 +770,6 @@ instance Ord Val where
 instance BuiltinForeign (Map Val Val) where
   foreignName = Tagged "Map"
   foreignRef = Tagged Ty.hmapRef
-
 
 instance BuiltinForeign (IORef Val) where
   foreignName = Tagged "IORef"
