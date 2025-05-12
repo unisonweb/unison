@@ -237,41 +237,44 @@ exec ::
   MInstr ->
   IO (Bool, HEnv, Stack, K)
 #ifdef STACK_CHECK
-exec _ !_ !_ !stk !_ !_ instr
+exec _ _ !_ !stk !_ !_ instr
   | debugger stk "exec" instr = undefined
 #endif
-exec _ !henv !_activeThreads !stk !k _ (Info tx) = do
+exec _ henv !_activeThreads !stk !k _ (Info tx) = do
   info tx stk
   info tx k
   pure (False, henv, stk, k)
-exec env !henv !_activeThreads !stk !k _ (Name r args) = do
+exec env henv !_activeThreads !stk !k _ (Name r args) = do
   v <- resolve env henv stk r
   stk <- name stk args v
   pure (False, henv, stk, k)
-exec _ !henv !_activeThreads !stk !k _ (SetAff i j) =
+exec _ henv !_activeThreads !stk !k _ (SetAff i j) =
   bpeekOff stk i >>= \case
     Affine _ (ARef r) -> do
       bpeekOff stk j >>= writeIORef r
       pure (False, henv, stk, k)
     _ -> die "SetAff called with bad handler reference"
-exec _ (HEnv aenv denv) !_activeThreads !stk !k _ (Capture p) = do
-  (cap, denv, stk, k) <- splitCont denv stk k p
+exec _ henv !_activeThreads !stk !k _ (Capture p) = do
+  (cap, denv, stk, k) <- splitCont (denv henv) stk k p
   stk <- bump stk
   poke stk cap
-  pure (False, HEnv aenv denv, stk, k)
-exec _   !_henv !_activeThreads !stk !k _ (Discard i) = do
+  henv <- evaluate $ henv { denv = denv }
+  pure (False, henv, stk, k)
+exec _   _henv !_activeThreads !stk !k _ (Discard i) = do
   bpeekOff stk i >>= \case
     Affine _ r -> do
       (aenv, stk, k) <- abortCont stk k r
-      pure (False, HEnv aenv mempty, stk, k)
+      henv <- evaluate $ HEnv aenv mempty
+      pure (False, henv, stk, k)
     _ -> die "Discard called with bad handler reference"
-exec _env !henv0 !_activeThreads !stk !k _ (InLocal i) = do
+exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
     Affine aenv _ -> do
       (stk, a) <- saveArgs stk
-      pure (False, HEnv aenv mempty, stk, Local henv0 a k)
+      henv <- evaluate $ HEnv aenv mempty
+      pure (False, henv, stk, Local henv0 a k)
     v -> die $ "InLocal called with bad handler reference\n" ++ show v
-exec env !henv !_activeThreads !stk !k _ (Prim1 CACH i)
+exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
   | sandboxed env = die "attempted to use sandboxed operation: cache"
   | otherwise = do
       arg <- peekOffS stk i
@@ -282,7 +285,7 @@ exec env !henv !_activeThreads !stk !k _ (Prim1 CACH i)
         stk
         (Sq.fromList $ boxedVal . Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
       pure (False, henv, stk, k)
-exec env !henv !_activeThreads !stk !k _ (Prim1 LOAD i)
+exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
   | sandboxed env = die "attempted to use sandboxed operation: load"
   | otherwise = do
       v <- peekOffBi stk i
@@ -297,21 +300,21 @@ exec env !henv !_activeThreads !stk !k _ (Prim1 LOAD i)
           pokeOff stk 1 x
           pokeTag stk 1
       pure (False, henv, stk, k)
-exec env !henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
+exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   m <- readTVarIO (tagRefs env)
   c <- peekOff stk i
   stk <- bump stk
   pokeBi stk =<< reflectValue m c
   pure (False, henv, stk, k)
-exec env !henv !_activeThreads !stk !k _ (Prim1 op i) = do
+exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
   pure (False, henv, stk, k)
-exec _ !_ !_activeThreads !stk !k r (Prim2 THRO i j) = do
+exec _ _ !_activeThreads !stk !k r (Prim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- peekOff stk j
   () <- throwIO (BU (traceK r k) (Util.Text.toText name) x)
   error "throwIO should never return"
-exec env !henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
+exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
   | sandboxed env = die "attempted to use sandboxed operation: trace"
   | otherwise = do
       tx <- peekOffBi stk i
@@ -330,10 +333,10 @@ exec env !henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
           putStrLn "partial decompilation:\n"
           putStrLn pre
       pure (False, henv, stk, k)
-exec env !henv !_trackThreads !stk !k _ (Prim2 op i j) = do
+exec env henv !_trackThreads !stk !k _ (Prim2 op i j) = do
   stk <- primxx env stk op i j
   pure (False, henv, stk, k)
-exec env !henv !_activeThreads !stk !k _ (RefCAS refI ticketI valI)
+exec env henv !_activeThreads !stk !k _ (RefCAS refI ticketI valI)
   | sandboxed env = die "attempted to use sandboxed operation: Ref.cas"
   | otherwise = do
       (ref :: IORef Val) <- peekOffBi stk refI
@@ -346,22 +349,22 @@ exec env !henv !_activeThreads !stk !k _ (RefCAS refI ticketI valI)
       stk <- bump stk
       pokeBool stk r
       pure (False, henv, stk, k)
-exec _ !henv !_activeThreads !stk !k _ (Pack r t args) = do
+exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   clo <- buildData stk r t args
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ !henv !_activeThreads !stk !k _ (Print i) = do
+exec _ henv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
   Tx.putStrLn (Util.Text.toText t)
   pure (False, henv, stk, k)
-exec _ !henv !_activeThreads !stk !k _ (Lit ml) = do
+exec _ henv !_activeThreads !stk !k _ (Lit ml) = do
   stk <- bump stk
   poke stk $ litToVal ml
   pure (False, henv, stk, k)
-exec _ (HEnv aenv0 denv0) !_activeThreads !stk !k _ (Reset ps nhi mah)
-  -- if denv0 is null, and there's an affine handler, use it
-  | null denv0, Just ahi <- mah = do
+exec _ henv !_activeThreads !stk !k _ (Reset ps nhi mah)
+  -- if denv is null, and there's an affine handler, use it
+  | HEnv aenv0 denv0 <- henv, null denv0, Just ahi <- mah = do
       (stk, a) <- saveArgs stk
       ahv0 <- peekOff stk ahi
       r <- newIORef BlackHole
@@ -369,37 +372,38 @@ exec _ (HEnv aenv0 denv0) !_activeThreads !stk !k _ (Reset ps nhi mah)
       ahv <- extendPAp ahv0 . BoxedVal $ Affine aenv0 ar
       writeIORef r ahv
       aenv <- evaluate $ EC.unionWith const (mapFromSet ps ar) aenv0
-      pure (False, HEnv aenv denv0, stk, AMark a aenv0 ar k)
-  | otherwise = do
+      henv <- evaluate $ henv { aenv = aenv }
+      pure (False, henv, stk, AMark a aenv0 ar k)
+  | HEnv aenv0 denv0 <- henv = do
       (stk, a) <- saveArgs stk
       nh <- peekOff stk nhi
       denv <- evaluate $ EC.unionWith const (mapFromSet ps nh) denv0
-      pure (False, HEnv aenv0 denv, stk, Mark a ps clos k)
-  where
-    clos = EC.restrictKeys denv0 ps
-exec _ !henv !_activeThreads !stk !k _ (Seq as) = do
+      henv <- evaluate $ HEnv aenv0 denv
+      clos <- evaluate $ EC.restrictKeys denv0 ps
+      pure (False, henv, stk, Mark a ps clos k)
+exec _ henv !_activeThreads !stk !k _ (Seq as) = do
   l <- closureArgs stk as
   stk <- bump stk
   pokeS stk $ Sq.fromList l
   pure (False, henv, stk, k)
-exec _env !henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
+exec _env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
   (b, stk) <- exStackIOToIO $ foreignCall func args (unpackXStack stk)
   pure (b, henv, stk, k)
-exec env !henv !activeThreads !stk !k _ (Fork i)
+exec env henv !activeThreads !stk !k _ (Fork i)
   | sandboxed env = die "attempted to use sandboxed operation: fork"
   | otherwise = do
       tid <- forkEval env activeThreads =<< peekOff stk i
       stk <- bump stk
       bpoke stk . Foreign . Wrap Rf.threadIdRef $ tid
       pure (False, henv, stk, k)
-exec env !henv !activeThreads !stk !k _ (Atomically i)
+exec env henv !activeThreads !stk !k _ (Atomically i)
   | sandboxed env = die $ "attempted to use sandboxed operation: atomically"
   | otherwise = do
       v <- peekOff stk i
       stk <- bump stk
       atomicEval env activeThreads (poke stk) v
       pure (False, henv, stk, k)
-exec env !henv !activeThreads !stk !k _ (TryForce i)
+exec env henv !activeThreads !stk !k _ (TryForce i)
   | sandboxed env = die $ "attempted to use sandboxed operation: tryForce"
   | otherwise = do
       v <- peekOff stk i
@@ -407,7 +411,7 @@ exec env !henv !activeThreads !stk !k _ (TryForce i)
       ev <- Control.Exception.try $ nestEval env activeThreads (poke stk) v
       stk <- encodeExn stk ev
       pure (False, henv, stk, k)
-exec !_ !_ !_ !_ !_ _ (SandboxingFailure t) = do
+exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
 
@@ -462,22 +466,22 @@ eval ::
   MSection ->
   IO ()
 #ifdef STACK_CHECK
-eval _ !_ !_ !stk !_ !_ section
+eval _ _ !_ !stk !_ !_ section
   | debugger stk "eval" section = undefined
 #endif
-eval env !henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
+eval env henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
   eval env henv activeThreads stk k r $ selectTextBranch t df cs
-eval env !henv !activeThreads !stk !k r (Match i br) = do
+eval env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
   eval env henv activeThreads stk k r $ selectBranch n br
-eval env !henv !activeThreads !stk !k r (DMatch mr i br) = do
+eval env henv !activeThreads !stk !k r (DMatch mr i br) = do
   (nx, stk) <- dataBranch mr stk br =<< bpeekOff stk i
   eval env henv activeThreads stk k r nx
-eval env !henv !activeThreads !stk !k r (NMatch _mr i br) = do
+eval env henv !activeThreads !stk !k r (NMatch _mr i br) = do
   n <- peekOffN stk i
   eval env henv activeThreads stk k r $ selectBranch n br
-eval env !henv !activeThreads !stk !k r (RMatch i pu br) = do
+eval env henv !activeThreads !stk !k r (RMatch i pu br) = do
   (t, stk) <- dumpDataValNoTag stk =<< peekOff stk i
   if t == TT.pureEffectTag
     then eval env henv activeThreads stk k r pu
@@ -486,7 +490,7 @@ eval env !henv !activeThreads !stk !k r (RMatch i pu br) = do
         | Just ebs <- EC.lookup e br ->
             eval env henv activeThreads stk k r $ selectBranch t ebs
         | otherwise -> unhandledAbilityRequest
-eval env !henv !activeThreads !stk !k _ (Yield args)
+eval env henv !activeThreads !stk !k _ (Yield args)
   | asize stk > 0,
     VArg1 i <- args =
       peekOff stk i >>= apply env henv activeThreads stk k False ZArgs
@@ -494,14 +498,14 @@ eval env !henv !activeThreads !stk !k _ (Yield args)
       stk <- moveArgs stk args
       stk <- frameArgs stk
       yield env henv activeThreads stk k
-eval env !henv !activeThreads !stk !k _ (App ck r args) =
+eval env henv !activeThreads !stk !k _ (App ck r args) =
   resolve env henv stk r >>=
     apply env henv activeThreads stk k ck args
-eval env !henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
+eval env henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
   enter env henv activeThreads stk k (combRef combIx) ck args rcomb
-eval env !henv !activeThreads !stk !k _ (Jump i args) =
+eval env henv !activeThreads !stk !k _ (Jump i args) =
   bpeekOff stk i >>= jump env henv activeThreads stk k args
-eval env !henv !activeThreads !stk !k r (Let nw cix f sect) = do
+eval env henv !activeThreads !stk !k r (Let nw cix f sect) = do
   (stk, fsz, asz) <- saveFrame stk
   eval
     env
@@ -511,9 +515,9 @@ eval env !henv !activeThreads !stk !k r (Let nw cix f sect) = do
     (Push fsz asz cix f sect k)
     r
     nw
-eval env !henv !activeThreads !stk !k r (Ins i nx) = do
+eval env henv !activeThreads !stk !k r (Ins i nx) = do
   exec env henv activeThreads stk k r i >>= \case
-    (exception, henv, stk, k)
+    (exception, henv, !stk, !k)
       -- In this case, the instruction indicated an exception to
       -- be handled by the current {Exception} handler. The stack
       -- currently points to an appropriate `Failure` value, and
@@ -526,8 +530,8 @@ eval env !henv !activeThreads !stk !k r (Ins i nx) = do
           let kk = Push fsz asz fakeCix 10 nx k
           apply env henv activeThreads stk kk False (VArg1 0) eh
       | otherwise -> eval env henv activeThreads stk k r nx
-eval _ !_ !_ !_activeThreads !_ _ Exit = pure ()
-eval _ !_ !_ !_activeThreads !_ _ (Die s) = die s
+eval _ _ !_ !_activeThreads !_ _ Exit = pure ()
+eval _ _ !_ !_activeThreads !_ _ (Die s) = die s
 {-# NOINLINE eval #-}
 
 -- Note: denv shadows aenv always
@@ -538,6 +542,7 @@ resolveExceptionHandler (HEnv aenv denv)
       BoxedVal <$> readIORef r
   -- should be impossible
   | otherwise = unhandledAbilityRequest
+{-# inline resolveExceptionHandler #-}
 
 fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
@@ -594,7 +599,7 @@ enter ::
   Args ->
   MComb ->
   IO ()
-enter env !henv !activeThreads !stk !k !cref !sck !args = \case
+enter env henv !activeThreads !stk !k !cref !sck !args = \case
   (RComb (Lam a f entry)) -> do
     -- check for stack check _skip_
     stk <- if sck then pure stk else ensure stk f
@@ -652,10 +657,10 @@ apply ::
   Val ->
   IO ()
 #ifdef STACK_CHECK
-apply _env !_henv !_activeThreads !stk !_k !_ck !args !val
+apply _env _henv !_activeThreads !stk !_k !_ck !args !val
   | debugger stk "apply" (args, val) = undefined
 #endif
-apply env !henv !activeThreads !stk !k !ck !args !val =
+apply env henv !activeThreads !stk !k !ck !args !val =
   case val of
     BoxedVal (PAp cix@(CIx combRef _ _) comb seg) ->
       case comb of
@@ -696,7 +701,7 @@ jump ::
   Args ->
   Closure ->
   IO ()
-jump env !henv !activeThreads !stk !k !args clo = case clo of
+jump env henv !activeThreads !stk !k !args clo = case clo of
   Captured sk0 a seg -> do
     let (p, sk) = adjust sk0
     seg <- closeArgs K stk seg args
@@ -713,8 +718,8 @@ jump env !henv !activeThreads !stk !k !args clo = case clo of
     -- If the repushed continuation has no frames, then the arguments are still
     -- pending, and the result stacks need to be adjusted.
     adjust :: K -> (SZ, K)
-    adjust (Mark a rs henv k) =
-      (0, Mark (a + asize stk) rs henv k)
+    adjust (Mark a rs denv k) =
+      (0, Mark (a + asize stk) rs denv k)
     adjust (Push n a cix f rsect k) =
       (0, Push n (a + asize stk) cix f rsect k)
     adjust k = (asize stk, k)
@@ -877,6 +882,7 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
             | otherwise = Nothing
           l = fsize stk - i
 
+
 yield ::
   CCache ->
   HEnv ->
@@ -884,16 +890,16 @@ yield ::
   Stack ->
   K ->
   IO ()
-yield env henv0@(HEnv aenv0 denv0) !activeThreads !stk = leap
+yield env henv0 !activeThreads !stk = leap
   where
-    leap (Mark a ps cs k) = do
+    leap (Mark a ps cs k) | HEnv aenv0 denv0 <- henv0 = do
       denv <- evaluate $ cs <> EC.withoutKeys denv0 ps
       let h = denv0 EC.! EC.findMin ps
       v <- peek stk
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
-      let henv = HEnv aenv0 denv
+      henv <- evaluate $ HEnv aenv0 denv
       apply env henv activeThreads stk k False (VArg1 0) h
     leap (AMark a aenv (ARef r) k) = do
       v <- peek stk
@@ -901,7 +907,7 @@ yield env henv0@(HEnv aenv0 denv0) !activeThreads !stk = leap
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
-      let henv = HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv mempty
       apply env henv activeThreads stk k False (VArg1 0) h
     leap (Push fsz asz (CIx ref _ _) f nx k) = do
       stk <- restoreFrame stk fsz asz

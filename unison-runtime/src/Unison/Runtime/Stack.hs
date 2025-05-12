@@ -254,14 +254,14 @@ data K
   | -- mark continuation with affine prompt
     AMark
       !Int
-      !AEnv
+      AEnv
       !AffineRef
       !K
   | -- mark continuation with a prompt
     Mark
       !Int -- pending args
       !(EnumSet Word64)
-      !DEnv
+      DEnv
       !K
   | -- save information about a frame for later resumption
     Push
@@ -273,7 +273,7 @@ data K
       !K
   | -- saved context during affine handler
     Local
-      !HEnv -- stored environment
+      HEnv -- stored environment
       !Int -- pending args
       !K
 
