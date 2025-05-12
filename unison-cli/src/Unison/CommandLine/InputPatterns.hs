@@ -1220,7 +1220,7 @@ findShallow =
     I.Visible
     (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
     ( P.wrapColumn2
-        [ ("`list`", "Lists definitions and namespaces within the selected namespace."),
+        [ ("`list`", "lists definitions and namespaces within the selected namespace."),
           ("`list foo`", "lists the 'foo' namespace."),
           ("`list .foo`", "lists the '.foo' namespace.")
         ]
