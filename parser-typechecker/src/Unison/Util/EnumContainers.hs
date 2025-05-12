@@ -8,6 +8,7 @@ module Unison.Util.EnumContainers
     mapSingleton,
     setSingleton,
     mapInsert,
+    mapFromSet,
     unionWith,
     intersectionWith,
     hasKey,
@@ -104,6 +105,10 @@ setSingleton e = ES . IS.singleton $ keyToInt e
 {-# INLINE mapInsert #-}
 mapInsert :: (EnumKey k) => k -> a -> EnumMap k a -> EnumMap k a
 mapInsert e x (EM m) = EM $ IM.insert (keyToInt e) x m
+
+{-# inline mapFromSet #-}
+mapFromSet :: (EnumKey k) => EnumSet k -> a -> EnumMap k a
+mapFromSet (ES s) a = EM $ IM.fromSet (const a) s
 
 {-# INLINE unionWith #-}
 unionWith ::

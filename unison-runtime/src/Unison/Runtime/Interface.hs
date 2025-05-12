@@ -98,7 +98,7 @@ import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
-  ( getGroup,
+  ( getGroupCurrent,
     getVersionedValue,
     putGroup,
     serializeValue,
@@ -1300,7 +1300,7 @@ getStoredCache =
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
-    <*> getMap getReference getGroup
+    <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
     <*> getMap getReference (fromList <$> getList getReference)

@@ -91,6 +91,9 @@ import Unison.Runtime.ANF
     pattern TPrm,
     pattern TShift,
     pattern TVar,
+    pattern TDiscard,
+    pattern TLocal,
+    pattern TUpdate,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
@@ -494,12 +497,16 @@ data GInstr comb
       !Bool -- catch exceptions
       !ForeignFunc -- FFI call
       !Args -- arguments
-  | -- Set the value of a dynamic reference
-    SetDyn
-      !Word64 -- the prompt tag of the reference
+  | -- Set the value of an affine reference. Note that references are
+    -- shared for the prompts of simultaneously installed affine
+    -- handlers, so setting one sets all.
+    SetAff
+      !Int -- stack index of the affine handler information
       !Int -- the stack index of the closure to store
   | -- Capture the continuation up to a given marker.
     Capture !Word64 -- the prompt tag
+  | -- Discard the continuation up to a given marker.
+    Discard !Int -- the index of the affine handler info
   | -- This is essentially the opposite of `Call`. Pack a given
     -- statically known function into a closure with arguments.
     -- No stack is necessary, because no nested evaluation happens,
@@ -518,8 +525,17 @@ data GInstr comb
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
-  | -- Put a delimiter on the continuation
-    Reset !(EnumSet Word64) -- prompt ids
+  | -- Put a delimiter and initial handler on the continuation.
+    -- If the context is affine, and there is an affine handler
+    -- available, it will be used. Otherwise the non-affine handler
+    -- will be used.
+    Reset
+      !(EnumSet Word64) -- prompt ids
+      !Int              -- stack index of associated non-affine closure
+      !(Maybe Int)      -- stack index of affine closure
+  | -- Push the local context of an affine handler into the continuation
+    InLocal
+      !Int -- stack index of the affine handler information
   | -- Fork thread evaluating delayed computation on boxed stack
     Fork !Int
   | -- Atomic transaction evaluating delayed computation on boxed stack
@@ -1006,6 +1022,11 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     countCtx ctx $ emitFunction rns grpr grpn rec ctx f as
+emitSection rns grpr grpn rec ctx (TLocal v bo)
+  | Just (i, BX) <- ctxResolve ctx v =
+      Ins (InLocal i)
+        <$> emitSection rns grpr grpn rec ctx bo
+  | otherwise = emitSectionVErr v
 emitSection _ _ _ _ ctx (TLit l) =
   c . countCtx ctx . Ins (emitLit l) . Yield $ VArg1 0
   where
@@ -1075,12 +1096,17 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | otherwise =
       internalBug $
         "emitSection: could not resolve match variable: " ++ show (ctx, v)
-emitSection rns grpr grpn rec ctx (THnd rs h b)
-  | Just (i, BX) <- ctxResolve ctx h =
-      Ins (Reset (EC.setFromList ws))
-        . flip (foldr (\r -> Ins (SetDyn r i))) ws
-        <$> emitSection rns grpr grpn rec ctx b
-  | otherwise = emitSectionVErr h
+emitSection rns grpr grpn rec ctx (THnd rs nh ah b) =
+  case ctxResolve ctx nh of
+    Just (i, BX) -> case traverse (ctxResolve ctx) ah of
+      Nothing -> case ah of
+        Just v -> emitSectionVErr v
+        Nothing ->
+          internalBug "emitSection: ctxResolve failed without variable"
+      Just mj ->
+        Ins (Reset (EC.setFromList ws) i (fst <$> mj))
+          <$> emitSection rns grpr grpn rec ctx b
+    _ -> emitSectionVErr nh
   where
     ws = dnum rns <$> rs
 emitSection rns grpr grpn rec ctx (TShift r v e) =
@@ -1209,6 +1235,11 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
     rt = toEnum . fromIntegral $ dnum rns r
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
+emitLet _ _ _ _ _ _ ctx (TDiscard v)
+  | Just (i, _) <- ctxResolve ctx v = fmap (Ins $ Discard i)
+emitLet _ _ _ _ _ _ ctx (TUpdate r v)
+  | Just (i, _) <- ctxResolve ctx r,
+    Just (j, _) <- ctxResolve ctx v = fmap (Ins $ SetAff i j)
 emitLet rns grpr grpn rec d vcs ctx bnd
   | Direct <- d =
       internalBug $ "unsupported compound direct let: " ++ show bnd
@@ -1630,9 +1661,8 @@ sectionTypes _ = []
 
 instrTypes :: GInstr comb -> [Word64]
 instrTypes (Pack _ (PackedTag w) _) = [w `shiftR` 16]
-instrTypes (Reset ws) = setToList ws
+instrTypes (Reset ws _ _) = setToList ws
 instrTypes (Capture w) = [w]
-instrTypes (SetDyn w _) = [w]
 instrTypes _ = []
 
 branchDeps :: GBranch comb -> [Word64]

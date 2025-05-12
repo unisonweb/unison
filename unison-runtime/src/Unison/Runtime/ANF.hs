@@ -31,6 +31,9 @@ module Unison.Runtime.ANF
     pattern TBinds,
     pattern TShift,
     pattern TMatch,
+    pattern TDiscard,
+    pattern TLocal,
+    pattern TUpdate,
     CompileExn (..),
     internalBug,
     Mem (..),
@@ -79,6 +82,7 @@ module Unison.Runtime.ANF
     groupTermLinks,
     buildInlineMap,
     inline,
+    optimizeHandler,
     replaceConstructors,
     replaceFunctions,
     foldGroup,
@@ -98,11 +102,13 @@ import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
+import Control.Monad.Writer (WriterT (..), tell)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
+import Data.Monoid (Any (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import GHC.Stack (CallStack, callStack)
@@ -115,12 +121,14 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude
-import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId))
+import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
+import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
+import Unison.Syntax.NamePrinter (prettyShortHash)
 import Unison.Term hiding (List, Ref, Text, arity, float, fresh, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
@@ -131,6 +139,7 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
+import Prelude qualified
 
 -- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -672,6 +681,14 @@ inline inls (Rec bs entry) = Rec (fmap go0 <$> bs) (go0 entry)
       TApp (FComb r) args
         | Just (arity, expr) <- Map.lookup r inls ->
             go (n - 1) <$> tweak expr args arity
+      TName nv (Left r) args body
+        | Just (arity, expr) <- Map.lookup r inls ->
+            tweak expr args arity >>= \case
+              TCom r args ->
+                Just . go (n-1) $ TName nv (Left r) args body
+              TApv v args ->
+                Just . go (n-1) $ TName nv (Right v) args body
+              _ -> Nothing
       _ -> Nothing
 
     tweak (ABTN.TAbss vs body) args arity
@@ -776,10 +793,14 @@ data ANormalF v e
   | ABLit Lit -- direct boxed literal
   | AMatch v (Branched e)
   | AShift Reference e
-  | AHnd [Reference] v e
+  | AHnd [Reference] v (Maybe v) e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
+  -- Affine handler support
+  | ADiscard v
+  | ALocal v e
+  | AUpdate v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance Bifunctor ANormalF where
@@ -789,10 +810,13 @@ instance Bifunctor ANormalF where
   bimap _ g (ALet d m bn bo) = ALet d m (g bn) (g bo)
   bimap f g (AName n as bo) = AName (f <$> n) (f <$> as) $ g bo
   bimap f g (AMatch v br) = AMatch (f v) $ fmap g br
-  bimap f g (AHnd rs v e) = AHnd rs (f v) $ g e
+  bimap f g (AHnd rs nh ah e) = AHnd rs (f nh) (fmap f ah) $ g e
   bimap _ g (AShift i e) = AShift i $ g e
   bimap f _ (AFrc v) = AFrc (f v)
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
+  bimap f _ (ADiscard v) = ADiscard (f v)
+  bimap f g (ALocal v bo) = ALocal (f v) (g bo)
+  bimap f _ (AUpdate r v) = AUpdate (f r) (f v)
 
 instance Bifoldable ANormalF where
   bifoldMap f _ (AVar v) = f v
@@ -801,10 +825,13 @@ instance Bifoldable ANormalF where
   bifoldMap _ g (ALet _ _ b e) = g b <> g e
   bifoldMap f g (AName n as e) = foldMap f n <> foldMap f as <> g e
   bifoldMap f g (AMatch v br) = f v <> foldMap g br
-  bifoldMap f g (AHnd _ h e) = f h <> g e
+  bifoldMap f g (AHnd _ nh ah e) = f nh <> foldMap f ah <> g e
   bifoldMap _ g (AShift _ e) = g e
   bifoldMap f _ (AFrc v) = f v
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
+  bifoldMap f _ (ADiscard v) = f v
+  bifoldMap f g (ALocal v bo) = f v <> g bo
+  bifoldMap f _ (AUpdate r v) = f r <> f v
 
 instance ABTN.Align ANormalF where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
@@ -827,8 +854,10 @@ instance ABTN.Align ANormalF where
   align f g (AMatch vl bsl) (AMatch vr bsr)
     | Just bss <- alignBranch g bsl bsr =
         Just $ AMatch <$> f vl vr <*> bss
-  align f g (AHnd rl hl bl) (AHnd rr hr br)
-    | rl == rr = Just $ AHnd rl <$> f hl hr <*> g bl br
+  align f g (AHnd rl nhl ahl bl) (AHnd rr nhr ahr br)
+    | rl == rr,
+      Just ah <- alignMaybe f ahl ahr =
+        Just $ AHnd rl <$> f nhl nhr <*> ah <*> g bl br
   align _ g (AShift rl bl) (AShift rr br)
     | rl == rr = Just $ AShift rl <$> g bl br
   align f _ (AFrc u) (AFrc v) = Just $ AFrc <$> f u v
@@ -836,6 +865,11 @@ instance ABTN.Align ANormalF where
     | Just hs <- alignFunc f hl hr,
       length asl == length asr =
         Just $ AApp <$> hs <*> traverse (uncurry f) (zip asl asr)
+  align f _ (ADiscard u) (ADiscard v) = Just $ ADiscard <$> f u v
+  align f g (ALocal u bl) (ALocal v br) =
+    Just $ ALocal <$> f u v <*> g bl br
+  align f _ (AUpdate r u) (AUpdate s v) =
+    Just $ AUpdate <$> f r s <*> f u v
   align _ _ _ _ = Nothing
 
 alignEither ::
@@ -1076,9 +1110,10 @@ pattern THnd ::
   (ABT.Var v) =>
   [Reference] ->
   v ->
+  Maybe v ->
   ABTN.Term ANormalF v ->
   ABTN.Term ANormalF v
-pattern THnd rs h b = ABTN.TTm (AHnd rs h b)
+pattern THnd rs nh ah b = ABTN.TTm (AHnd rs nh ah b)
 
 pattern TShift ::
   (ABT.Var v) =>
@@ -1101,7 +1136,30 @@ pattern TFrc v = ABTN.TTm (AFrc v)
 pattern TVar :: (ABT.Var v) => v -> ABTN.Term ANormalF v
 pattern TVar v = ABTN.TTm (AVar v)
 
-{-# COMPLETE TLet, TName, TVar, TApp, TFrc, TLit, THnd, TShift, TMatch #-}
+pattern TDiscard :: (ABT.Var v) => v -> ABTN.Term ANormalF v
+pattern TDiscard v = ABTN.TTm (ADiscard v)
+
+pattern TLocal ::
+  (ABT.Var v) => v -> ABTN.Term ANormalF v -> ABTN.Term ANormalF v
+pattern TLocal v e = ABTN.TTm (ALocal v e)
+
+pattern TUpdate :: (ABT.Var v) => v -> v -> ABTN.Term ANormalF v
+pattern TUpdate u v = ABTN.TTm (AUpdate u v)
+
+{-# COMPLETE
+  TLet,
+  TName,
+  TVar,
+  TApp,
+  TFrc,
+  TLit,
+  THnd,
+  TShift,
+  TMatch,
+  TDiscard,
+  TLocal,
+  TUpdate
+  #-}
 
 {-# COMPLETE
   TLet,
@@ -1118,7 +1176,10 @@ pattern TVar v = ABTN.TTm (AVar v)
   TLit,
   THnd,
   TShift,
-  TMatch
+  TMatch,
+  TDiscard,
+  TLocal,
+  TUpdate
   #-}
 
 bind :: (Var v) => Cte v -> ANormal v -> ANormal v
@@ -1591,6 +1652,210 @@ buildInlineMap =
   runIdentity
     . Map.traverseMaybeWithKey (\r g -> Identity $ inlineInfo r g)
 
+-- If the provided SuperGroup is recognized as a handler, applies
+-- optimizations to improve it, like adding better code for affine
+-- handlers.
+optimizeHandler :: Var v => Reference -> SuperGroup v -> SuperGroup v
+optimizeHandler self group =
+  fromMaybe group $ augmentHandler self group
+
+-- moves the last value of a list to the start, for easier matching
+shiftArgs :: [v] -> [v]
+shiftArgs vs = case reverse vs of
+  v : vs -> v : reverse vs
+  [] -> []
+
+-- Checks if the group represents a handler, and if so, tries to add
+-- optimized affine code.
+augmentHandler ::
+  (Var v) => Reference -> SuperGroup v -> Maybe (SuperGroup v)
+augmentHandler self group
+  | Rec [(mv0, matcher)] entry <- group,
+    Lambda ccs (ABTN.TAbss args body) <- entry,
+    thunk : vs <- shiftArgs args,
+    Just body <- augmentHandlerEntry vs thunk mv0 ah body,
+    Just amatcher <- translateHandlerMatch self ah matcher =
+      Just .
+        Rec [(mv0, matcher), (ah, amatcher)] .
+        Lambda ccs $
+          ABTN.TAbss args body
+
+  | otherwise = Nothing
+  where
+    ah = freshAff 0
+
+-- Recognizes the matching portion of a handler, and produces an
+-- optimized affine version if possible.
+translateHandlerMatch
+  :: Var v => Reference -> v -> SuperNormal v -> Maybe (SuperNormal v)
+translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
+  | v : vs <- shiftArgs args,
+    TMatch u branches <- body, u == v,
+    MatchRequest cs df <- branches,
+    args <- vs ++ [ar, v],
+    ccs <- ccs ++ [BX] =
+      Lambda ccs . ABTN.TAbss args . TMatch u . flip MatchRequest df <$>
+        traverse3 (affineHandlerCase self vs ah) cs
+
+  | otherwise = Nothing
+
+  where
+    ar = freshAff 2
+    traverse3 = traverse . traverse . traverse
+
+-- Recognizes the entry combinator of a compiled handler. If it is
+-- one, then the result is a modified version with an affine handler
+-- filled in.
+augmentHandlerEntry ::
+  Var v => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+augmentHandlerEntry vs thunk0 mv0 ah body
+  | TName hv (Right mv1) us body <- body,
+    THnd rs nh Nothing (TFrc thunk1) <- body,
+    mv0 == mv1, nh == hv, thunk0 == thunk1,
+    Prelude.and (zipWith (==) us vs) =
+      Just .
+        TName hv (Right mv1) us .
+        TName ahp (Right ah) us $
+          THnd rs nh (Just ahp) (TFrc thunk1)
+
+  | otherwise = Nothing
+  where
+    ahp = freshAff 1
+
+-- Recognizes an affine handler case, yielding a translated efficient
+-- version if it is one.
+affineHandlerCase ::
+  Var v => Reference -> [v] -> v -> ANormal v -> Maybe (ANormal v)
+affineHandlerCase self vs rec br
+  | ABTN.TAbss us body <- br,
+    TShift _ kf0 body <- body,
+    TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
+    kf0 == kf1 =
+      ABTN.TAbss us <$>
+        affinePreBranch self Set.empty vs rec ar kf body
+
+  | otherwise = Nothing
+  where
+    ar = freshAff 2
+
+-- Allows for having multiple branches that differ in the exact type
+-- of affine handler recognized.
+--
+-- If the entire term doesn't use the continuation, then an irrelevant
+-- handler is generated.
+--
+-- If the immediate term is a match, then we delay the choice of which
+-- type of handler to generate into each branch.
+--
+-- If neither of the above cases hold, then we look for a linear case.
+affinePreBranch ::
+  Var v =>
+  Reference ->
+  Set v ->
+  [v] ->
+  v ->
+  v ->
+  v ->
+  ANormal v ->
+  Maybe (ANormal v)
+affinePreBranch self bound vs rec ar kf bd
+  | Just it <- irrelevantTail ar kf bd = Just it
+
+  | TMatch v bs <- bd =
+      TMatch v <$>
+        for bs \case
+          ABTN.TAbss us bd ->
+            ABTN.TAbss us <$>
+              affinePreBranch self bound' vs rec ar kf bd
+            where
+              bound' = Set.union (Set.fromList us) bound
+
+  | otherwise =
+      localize <$>
+        runWriterT (translateLinear self bound vs rec ar kf bd)
+  where
+    localize (tm, Any True) = TLocal ar tm
+    localize (tm, Any False) = tm
+
+translateLinear ::
+  Var v =>
+  Reference ->
+  Set v ->
+  [v] ->
+  v ->
+  v ->
+  v ->
+  ANormal v ->
+  WriterT Any Maybe (ANormal v)
+translateLinear self bound0 vs rec ar kf = go bound0
+  where
+  go bound body
+    | Just lt <- linearTail self vs bound rec ar kf body =
+        lt <$ tell (Any True)
+
+    | Just it <- irrelevantTail ar kf body = pure it
+
+    | TLet d v cc e body <- body,
+      kf `Set.notMember` ABTN.freeVars e =
+        TLet d v cc e <$> go (Set.insert v bound) body
+
+    | TName v f us body <- body,
+      all (kf /=) us =
+        TName v f us <$> go (Set.insert v bound) body
+
+    | TMatch v bs <- body =
+        TMatch v <$>
+          for bs \case
+            ABTN.TAbss us bd ->
+              ABTN.TAbss us <$>
+                go (Set.fromList us `Set.union` bound) bd
+
+    | otherwise = mzero
+
+-- Recognizes the tail of a linear handler case, where the
+-- continuation is called once in tail position. Returns a transformed
+-- version if a match is found.
+--
+-- Arguments:
+--   self: Reference to handler combinator
+--   bound: arguments bound since header
+--   vs: arguments to handler combinator
+--   rec: local variable for affine handler
+--   ar: argument variable for affine handler info
+--   kf0: continuation variable
+--   tm: term to transform
+--
+-- Note: this relies on inlining into the thunked continuation call to
+-- avoid see exactly what the `k result` call is, rather than it
+-- having multiple forms depending on the variable order.
+linearTail ::
+  Var v => Reference -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+linearTail self vs bound rec ar kf0 tm
+  | TLet _ hr0 _ (TCom r us) tm <- tm, -- recursive handler call
+    TName thunk0 (Right kf1) [result] tm <- tm, -- lazy cont resume
+    TApv hr1 [thunk1] <- tm, -- apply handler to thunk
+    r == self, kf0 == kf1, thunk0 == thunk1, hr0 == hr1 =
+      Just . update hr0 us $ TVar result
+
+  | otherwise = Nothing
+
+  where
+    update huv us
+      -- recursive call with identical, non-shadowed variables;
+      -- no need to update
+      | Prelude.and (zipWith (==) us vs),
+        all (`Set.notMember` bound) us = id
+      -- repurpose hr0 variable for update call
+      | otherwise =
+          TName huv (Right rec) (us ++ [ar]) .
+          TLets Direct [] [] (TUpdate ar huv)
+
+irrelevantTail :: Var v => v -> v -> ANormal v -> Maybe (ANormal v)
+irrelevantTail ar kf tm
+  | kf `Set.notMember` ABTN.freeVars tm =
+      Just $ TLets Direct [] [] (TDiscard ar) tm
+  | otherwise = Nothing
+
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not
 -- equivalent, an example of conflicting structure is returned.
@@ -1701,6 +1966,9 @@ bindLocal vs = local (Set.\\ Set.fromList vs)
 
 freshANF :: (Var v) => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
+
+freshAff :: (Var v) => Word64 -> v
+freshAff fr = Var.freshenId fr $ typed Var.AffBlank
 
 fresh :: (Var v) => ANFM v v
 fresh = state $ \(fr, bnd, cs) -> (freshANF fr, (fr + 1, bnd, cs))
@@ -1986,10 +2254,8 @@ anfBlock (Match' scrut cas) = do
       (r, vs) <- do
         r <- fresh
         v <- fresh
-        gvs <- groupVars
-        let hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
-            hfvs = Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
-        record (r, Lambda (BX <$ hfvs ++ [v]) . ABTN.TAbss hfvs $ hfb)
+        (hfvs, hcomb) <- makeHandler v abr df
+        record (r, hcomb)
         pure (r, hfvs)
       hv <- fresh
       let (d, msc)
@@ -1999,7 +2265,7 @@ anfBlock (Match' scrut cas) = do
             | otherwise = (Indirect (), TFrc v)
       pure
         ( sctx <> pure [LZ hv (Right r) vs],
-          (d, THnd (Map.keys abr) hv msc)
+          (d, THnd (Map.keys abr) hv Nothing msc)
         )
     AccumText df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchText cs df)
@@ -2121,6 +2387,19 @@ anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
 anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
+
+
+type ReqBranches v = Map Reference (EnumMap CTag ([Mem], ANormal v))
+
+makeHandler ::
+  (Var v) =>
+  v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
+makeHandler v abr df = do
+  hfvs <- groupVars <&> \gvs ->
+    Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
+  pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
+  where
+    hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
@@ -2293,8 +2572,8 @@ anfFLinks f g (AMatch v bs) =
   AMatch v <$> branchLinks (f True) g bs
 anfFLinks f g (AShift r e) =
   AShift <$> f True r <*> g e
-anfFLinks f g (AHnd rs v e) =
-  flip AHnd v <$> traverse (f True) rs <*> g e
+anfFLinks f g (AHnd rs nh ah e) =
+  (\rs -> AHnd rs nh ah) <$> traverse (f True) rs <*> g e
 anfFLinks f _ (AApp fu vs) = flip AApp vs <$> funcLinks f fu
 anfFLinks f _ (ALit l) = ALit <$> litLinks f l
 anfFLinks _ _ v = pure v
@@ -2443,6 +2722,7 @@ prettySuperNormal ind (Lambda ccs (ABTN.TAbss vs tm)) =
 reqSpace :: (Var v) => Bool -> ANormal v -> Bool
 reqSpace _ TLets {} = True
 reqSpace _ TName {} = True
+reqSpace _ TLocal {} = True
 reqSpace b _ = b
 
 prettyANF :: (Var v) => Bool -> Int -> ANormal v -> ShowS
@@ -2470,17 +2750,34 @@ prettyANF m ind tm =
         . prettyBranches (ind + 1) bs
     TShift r v bo ->
       showString "shift["
-        . shows r
+        . showsShort r
         . showString "]"
         . prettyVars [v]
         . showString "."
         . prettyANF False (ind + 1) bo
-    THnd rs v bo ->
+    THnd rs nh ah bo ->
       showString "handle"
         . prettyRefs rs
         . prettyANF False (ind + 1) bo
         . showString " with "
+        . pvar nh
+        . maybe id (\v -> showString " with affine " . pvar v) ah
+    TLocal hr bo ->
+      showString "in-local "
+        . pvar hr
+        . prettyANF True (ind + 1) bo
+    TDiscard hr ->
+      showString "discard[" . pvar hr . showString "]"
+    TUpdate hr v ->
+      showString "update["
+        . pvar hr
+        . showString ", "
         . pvar v
+        . showString "]"
+    ABTN.TAbs v (ABTN.TAbss vs bo) ->
+      prettyVars (v:vs) .
+      showString " ->" .
+      prettyANF True (ind + 1) bo
     _ -> shows tm
 
 prettySpace :: Bool -> Int -> ShowS
@@ -2488,34 +2785,38 @@ prettySpace False _ = showString " "
 prettySpace True ind = showString "\n" . indent ind
 
 prettyLZF :: (Var v) => Either Reference v -> ShowS
-prettyLZF (Left w) = showString "ENV(" . shows w . showString ") "
+prettyLZF (Left w) = showString "ENV(" . showsShort w . showString ") "
 prettyLZF (Right v) = pvar v . showString " "
 
 prettyRefs :: [Reference] -> ShowS
 prettyRefs [] = showString "{}"
 prettyRefs (r : rs) =
   showString "{"
-    . shows r
+    . showsShort r
     . foldr (\t r -> shows t . showString "," . r) id rs
     . showString "}"
 
 prettyFunc :: (Var v) => Func v -> ShowS
 prettyFunc (FVar v) = pvar v . showString " "
 prettyFunc (FCont v) = pvar v . showString " "
-prettyFunc (FComb w) = showString "ENV(" . shows w . showString ")"
+prettyFunc (FComb w) = showString "ENV(" . showsShort w . showString ")"
 prettyFunc (FCon r t) =
   showString "CON("
-    . shows r
+    . showsShort r
     . showString ","
     . shows t
     . showString ")"
 prettyFunc (FReq r t) =
   showString "REQ("
-    . shows r
+    . showsShort r
     . showString ","
     . shows t
     . showString ")"
 prettyFunc (FPrim op) = either shows shows op . showString " "
+
+showsShort :: Reference -> ShowS
+showsShort =
+  showString . Pretty.toPlainUnbroken . prettyShortHash . shortenTo 10 . toShortHash
 
 prettyBranches :: (Var v) => Int -> Branched (ANormal v) -> ShowS
 prettyBranches ind bs = case bs of
@@ -2540,7 +2841,7 @@ prettyBranches ind bs = case bs of
             s
             (mapToList $ snd <$> m)
       )
-      (prettyCase ind (prettyReq (0 :: Int) (0 :: Int)) df id)
+      (prettyCase ind (showString "REQ(0,0)") df id)
       (Map.toList bs)
   MatchSum bs ->
     foldr
@@ -2555,7 +2856,7 @@ prettyBranches ind bs = case bs of
     -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("
-        . shows r
+        . showsShort r
         . showString ","
         . shows c
         . showString ")"
@@ -2567,5 +2868,5 @@ prettyCase ind sc (ABTN.TAbss vs e) r =
     . sc
     . prettyVars vs
     . showString " ->"
-    . prettyANF False (ind + 1) e
+    . prettyANF True (ind + 1) e
     . r
