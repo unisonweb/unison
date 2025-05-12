@@ -1218,9 +1218,9 @@ findShallow =
     "list"
     ["ls", "dir"]
     I.Visible
-    (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
+    (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
+        [ ("`list`", "Lists definitions and namespaces within the selected namespace."),
           ("`list foo`", "lists the 'foo' namespace."),
           ("`list .foo`", "lists the '.foo' namespace.")
         ]
