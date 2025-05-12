@@ -227,6 +227,12 @@ dumpStack stk@(Stack ap fp sp _ustk _bstk)
 #endif
 
 -- | Execute an instruction
+--
+-- Note: both `env` and `henv` are intentionally not strict arguments.
+-- It seems to be slower to unpack them into many arguments. `env` is
+-- never modified, so this is no worry. `henv` is modified, but it is
+-- immediately evaluated when created to avoid thunks building up, so
+-- that it doesn't need to be a strict argument.
 exec ::
   CCache ->
   HEnv ->
@@ -456,6 +462,12 @@ encodeExn stk exc = do
           | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 -- | Evaluate a section
+--
+-- Note: both `env` and `henv` are intentionally not strict arguments.
+-- It seems to be slower to unpack them into many arguments. `env` is
+-- never modified, so this is no worry. `henv` is modified, but it is
+-- immediately evaluated when created to avoid thunks building up, so
+-- that it doesn't need to be a strict argument.
 eval ::
   CCache ->
   HEnv ->

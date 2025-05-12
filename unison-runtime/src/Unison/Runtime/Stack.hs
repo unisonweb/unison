@@ -253,15 +253,15 @@ data K
     CB Callback
   | -- mark continuation with affine prompt
     AMark
-      !Int
-      AEnv
-      !AffineRef
+      !Int -- pending args
+      AEnv -- saved handler environment; intentionally lazy
+      !AffineRef -- updateable reference for handler
       !K
   | -- mark continuation with a prompt
     Mark
       !Int -- pending args
       !(EnumSet Word64)
-      DEnv
+      DEnv -- saved shadowed handlers; intentionally lazy
       !K
   | -- save information about a frame for later resumption
     Push
@@ -273,7 +273,7 @@ data K
       !K
   | -- saved context during affine handler
     Local
-      HEnv -- stored environment
+      HEnv -- stored environment; intentionally lazy
       !Int -- pending args
       !K
 
