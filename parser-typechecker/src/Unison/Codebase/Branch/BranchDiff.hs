@@ -1,13 +1,13 @@
-module Unison.Codebase.Branch.BranchDiff where
+module Unison.Codebase.Branch.BranchDiff
+  ( BranchDiff (..),
+    diff0,
+  )
+where
 
 import Control.Lens
-import Data.Map (Map)
-import Data.Map qualified as Map
-import Data.Map.Merge.Lazy qualified as MapMerge
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Metadata qualified as Metadata
-import Unison.Codebase.Patch qualified as Patch
 import Unison.NameSegment (NameSegment)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -22,30 +22,18 @@ data BranchDiff = BranchDiff
   { addedTerms :: Star Referent NameSegment,
     removedTerms :: Star Referent NameSegment,
     addedTypes :: Star Reference NameSegment,
-    removedTypes :: Star Reference NameSegment,
-    changedPatches :: Map NameSegment Patch.PatchDiff
+    removedTypes :: Star Reference NameSegment
   }
   deriving (Eq, Ord, Show)
 
-diff0 :: (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
+diff0 :: Branch0 m -> Branch0 m -> BranchDiff
 diff0 old new = do
-  newEdits <- sequenceA $ snd <$> new ^. Branch.edits
-  oldEdits <- sequenceA $ snd <$> old ^. Branch.edits
-  let diffEdits =
-        MapMerge.merge
-          (MapMerge.mapMissing $ \_ p -> Patch.diff p mempty)
-          (MapMerge.mapMissing $ \_ p -> Patch.diff mempty p)
-          (MapMerge.zipWithMatched (const Patch.diff))
-          newEdits
-          oldEdits
-  pure $
-    BranchDiff
-      { addedTerms = Star2.difference (new ^. Branch.terms) (old ^. Branch.terms),
-        removedTerms = Star2.difference (old ^. Branch.terms) (new ^. Branch.terms),
-        addedTypes = Star2.difference (new ^. Branch.types) (old ^. Branch.types),
-        removedTypes = Star2.difference (old ^. Branch.types) (new ^. Branch.types),
-        changedPatches = diffEdits
-      }
+  BranchDiff
+    { addedTerms = Star2.difference (new ^. Branch.terms) (old ^. Branch.terms),
+      removedTerms = Star2.difference (old ^. Branch.terms) (new ^. Branch.terms),
+      addedTypes = Star2.difference (new ^. Branch.types) (old ^. Branch.types),
+      removedTypes = Star2.difference (old ^. Branch.types) (new ^. Branch.types)
+    }
 
 instance Semigroup BranchDiff where
   left <> right =
@@ -53,10 +41,8 @@ instance Semigroup BranchDiff where
       { addedTerms = addedTerms left <> addedTerms right,
         removedTerms = removedTerms left <> removedTerms right,
         addedTypes = addedTypes left <> addedTypes right,
-        removedTypes = removedTypes left <> removedTypes right,
-        changedPatches =
-          Map.unionWith (<>) (changedPatches left) (changedPatches right)
+        removedTypes = removedTypes left <> removedTypes right
       }
 
 instance Monoid BranchDiff where
-  mempty = BranchDiff mempty mempty mempty mempty mempty
+  mempty = BranchDiff mempty mempty mempty mempty

@@ -51,6 +51,11 @@
   builtin-Pattern.many:termlink
   builtin-Pattern.or
   builtin-Pattern.or:termlink
+  builtin-Pattern.lookahead
+  builtin-Pattern.lookahead:termlink
+  builtin-Pattern.negativeLookahead
+  builtin-Pattern.negativeLookahead:termlink
+  builtin-Pattern.lookahead:termlink
   builtin-Pattern.replicate
   builtin-Pattern.replicate:termlink
   builtin-Pattern.run
@@ -153,6 +158,10 @@
 (define-unison-builtin (builtin-Pattern.many p) (many p))
 
 (define-unison-builtin (builtin-Pattern.or l r) (choice l r))
+
+(define-unison-builtin (builtin-Pattern.lookahead p) (lookahead p))
+
+(define-unison-builtin (builtin-Pattern.negativeLookahead p) (negative-lookahead p))
 
 (define-unison-builtin (builtin-Pattern.replicate m n p)
   (replicate p m n))

@@ -3,7 +3,6 @@ module Unison.NameSegment
     toUnescapedText,
 
     -- * Sentinel name segments
-    defaultPatchSegment,
     docSegment,
     libSegment,
     pattern LibSegment,
@@ -28,9 +27,6 @@ import Unison.NameSegment.Internal (NameSegment (NameSegment, toUnescapedText))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- special segment names
-
-defaultPatchSegment :: NameSegment
-defaultPatchSegment = NameSegment "patch"
 
 docSegment :: NameSegment
 docSegment = NameSegment "doc"

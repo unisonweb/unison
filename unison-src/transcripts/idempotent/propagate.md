@@ -76,11 +76,16 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ``` ucm
-scratch/main> update.old
+scratch/main> update
 
-  ⍟ I've updated these names to your new definition:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 ```
 
 ... it should automatically propagate the type to `fooToInt`.
@@ -152,11 +157,16 @@ preserve.someTerm _ = None
 Update...
 
 ``` ucm
-scratch/main> update.old
+scratch/main> update
 
-  ⍟ I've updated these names to your new definition:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    preserve.someTerm : Optional x -> Optional x
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 ```
 
 Now the type of `someTerm` should be `Optional x -> Optional x` and the

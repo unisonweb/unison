@@ -8,7 +8,6 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.BranchDiff (BranchDiff (BranchDiff))
 import Unison.Codebase.BranchDiff qualified as BranchDiff
-import Unison.Codebase.Patch qualified as P
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.HashQualifiedPrime (HashQualified)
 import Unison.Name (Name)
@@ -29,13 +28,10 @@ data BranchDiffOutput v a = BranchDiffOutput
     newTermConflicts :: [UpdateTermDisplay v a],
     resolvedTypeConflicts :: [UpdateTypeDisplay v a],
     resolvedTermConflicts :: [UpdateTermDisplay v a],
-    updatedPatches :: [PatchDisplay],
     addedTypes :: [AddedTypeDisplay v a],
     addedTerms :: [AddedTermDisplay v a],
-    addedPatches :: [PatchDisplay],
     removedTypes :: [RemovedTypeDisplay v a],
     removedTerms :: [RemovedTermDisplay v a],
-    removedPatches :: [PatchDisplay],
     renamedTypes :: [RenameTypeDisplay v a],
     renamedTerms :: [RenameTermDisplay v a]
   }
@@ -51,13 +47,10 @@ isEmpty BranchDiffOutput {..} =
     && null resolvedTermConflicts
     && null addedTypes
     && null addedTerms
-    && null addedPatches
     && null removedTypes
     && null removedTerms
-    && null removedPatches
     && null renamedTypes
     && null renamedTerms
-    && null updatedPatches
 
 -- Need to be able to turn a (Name,Reference) into a HashQualified relative to... what.
 -- the new namespace?
@@ -140,8 +133,6 @@ type RenameTermDisplay v a = (Referent, Maybe (Type v a), Set (HashQualified Nam
 
 type RenameTypeDisplay v a = (Reference, Maybe (DeclOrBuiltin v a), Set (HashQualified Name), Set (HashQualified Name))
 
-type PatchDisplay = (Name, P.PatchDiff)
-
 toOutput ::
   forall m v a.
   (Monad m) =>
@@ -158,7 +149,7 @@ toOutput
   hqLen
   names1
   names2
-  (BranchDiff termsDiff typesDiff patchesDiff) = do
+  (BranchDiff termsDiff typesDiff) = do
     let isSimpleUpdate, isNewConflict, isResolvedConflict :: (Eq r) => (Set r, Set r) -> Bool
         isSimpleUpdate (old, new) = Set.size old == 1 && Set.size new == 1
         isNewConflict (_old, new) = Set.size new > 1 -- should already be the case that old /= new
@@ -264,9 +255,6 @@ toOutput
             (List.sort <$> for (Map.toList $ Map.filter isNewConflict nsUpdates) loadEntry)
             (List.sort <$> for (Map.toList $ Map.filter isResolvedConflict nsUpdates) loadEntry)
 
-    let updatedPatches :: [PatchDisplay] =
-          [(name, diff) | (name, BranchDiff.Modify diff) <- Map.toList patchesDiff]
-
     addedTypes :: [AddedTypeDisplay v a] <- do
       let typeAdds :: [(Reference, Set Name)] =
             sortOn
@@ -284,11 +272,6 @@ toOutput
       for termAdds \(r, ns) -> do
         let hqs = map (\n -> Names.hqTermName hqLen names2 n r) (Set.toList ns)
         (hqs,r,) <$> typeOf r
-
-    let addedPatches :: [PatchDisplay] =
-          [ (name, diff)
-            | (name, BranchDiff.Create diff) <- Map.toList patchesDiff
-          ]
 
     removedTypes :: [RemovedTypeDisplay v a] <-
       let typeRemoves :: [(Reference, [Name])] =
@@ -311,11 +294,6 @@ toOutput
               <$> pure ((\n -> Names.hqTermName hqLen names1 n r) <$> ns)
               <*> pure r
               <*> typeOf r
-
-    let removedPatches :: [PatchDisplay] =
-          [ (name, diff)
-            | (name, BranchDiff.Delete diff) <- Map.toList patchesDiff
-          ]
 
     let renamedTerm :: Map Referent (Set Name, Set Name) -> m [RenameTermDisplay v a]
         renamedTerm renames =
@@ -346,13 +324,10 @@ toOutput
           newTermConflicts,
           resolvedTypeConflicts,
           resolvedTermConflicts,
-          updatedPatches,
           addedTypes,
           addedTerms,
-          addedPatches,
           removedTypes,
           removedTerms,
-          removedPatches,
           renamedTypes,
           renamedTerms
         }

@@ -868,37 +868,6 @@ scratch/main> help
   the dependents will be added back to the scratch file for your
   review.
 
-  update.old
-  `update.old` works like `add`, except that if a definition in
-  the file has the same name as an existing definition, the name
-  gets updated to point to the new definition. If the old
-  definition has any dependents, `update` will add those
-  dependents to a refactoring session, specified by an optional
-  patch.`update.old`                  adds all definitions in
-                                the .u file, noting replacements
-                                in the default patch for the
-                                current namespace.
-  `update.old <patch>`          adds all definitions in the .u
-                                file, noting replacements in the
-                                specified patch.
-  `update.old <patch> foo bar`  adds `foo`, `bar`, and their
-                                dependents from the .u file,
-                                noting any replacements into the
-                                specified patch.
-
-  update.old.nopatch
-  `update.old.nopatch` works like `update.old`, except it
-  doesn't add a patch entry for any updates. Use this when you
-  want to make changes to definitions without pushing those
-  changes to dependents beyond your codebase. An example is when
-  updating docs, or when updating a term you just added.`update.old.nopatch`          updates
-                                all definitions in the .u file.
-  `update.old.nopatch foo bar`  updates `foo`, `bar`, and their
-                                dependents from the .u file.
-
-  update.old.preview
-  `update.old.preview` previews updates to the codebase from the most recently typechecked file. This command only displays cached typechecking results. Use `load` to reparse & typecheck the file if the context has changed.
-
   upgrade
   `upgrade old new` upgrades library dependency `lib.old` to
   `lib.new`, and, if successful, deletes `lib.old`.

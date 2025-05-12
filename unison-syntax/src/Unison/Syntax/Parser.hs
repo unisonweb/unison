@@ -57,6 +57,7 @@ module Unison.Syntax.Parser
     tupleOrParenthesized,
     uniqueBase32Namegen,
     uniqueName,
+    varOrNullaryConstructor,
     wordyDefinitionName,
     wordyPatternName,
   )
@@ -242,8 +243,6 @@ instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
 label :: (Ord v, Show a) => String -> P v m a -> P v m a
 label = P.label
 
--- label = P.dbg
-
 traceRemainingTokens :: (Ord v) => String -> P v m ()
 traceRemainingTokens label = do
   remainingTokens <- lookAhead $ many anyToken
@@ -416,6 +415,25 @@ hqSymbolyId_ :: (Ord v) => P v m (L.Token (HQ.HashQualified Name))
 hqSymbolyId_ = queryToken \case
   L.SymbolyId n -> Just (HQ'.toHQ n)
   _ -> Nothing
+
+-- Syntax  | Returns | Meaning
+-- ------- +---------+----------------------------------------
+-- Foo     | Right   | Could be a var or a nullary constructor
+-- Foo#Bar | Left    | Definitely a nullary constructor
+-- #Bar    | Left    | Definitely a nullary constructor
+-- (+)     | Left    | Definitely a nullary constructor (wait really? why?)
+varOrNullaryConstructor :: (Ord v) => P v m (L.Token (Either (HQ.HashQualified Name) Name))
+varOrNullaryConstructor =
+  wordy <|> symboly
+  where
+    wordy =
+      queryToken \case
+        L.WordyId (HQ'.NameOnly n) -> if isBlank n then Nothing else Just (Right n)
+        L.WordyId n -> Just (Left (HQ'.toHQ n))
+        L.Hash h -> Just (Left (HQ.HashOnly h))
+        _ -> Nothing
+    symboly =
+      (fmap . fmap) Left (parenthesize hqSymbolyId_)
 
 -- | Parse a reserved word
 reserved :: (Ord v) => String -> P v m (L.Token String)

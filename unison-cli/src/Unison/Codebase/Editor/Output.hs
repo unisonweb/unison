@@ -52,7 +52,6 @@ import Unison.Codebase.ProjectPath (Project, ProjectBranch, ProjectPath)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.CommandLine.BranchRelativePath (BranchRelativePath)
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -114,22 +113,6 @@ data NumberedOutput
   | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMerge
-      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      ProjectPath
-      PPE.PrettyPrintEnv
-      (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePropagate
-      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      ProjectPath
-      Path.Path'
-      PPE.PrettyPrintEnv
-      (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterMergePreview
-      (Either ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch))
-      ProjectPath
-      PPE.PrettyPrintEnv
-      (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | -- <authorIdentifier> <authorPath> <relativeBase>
     ShowDiffAfterCreateAuthor NameSegment Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -215,7 +198,6 @@ data Output
       -- | acceptable type(s) of function
       [Type Symbol Ann]
   | BranchEmpty WhichBranchEmpty
-  | LoadPullRequest (ReadRemoteNamespace Void) (ReadRemoteNamespace Void) Path' Path' Path' Path'
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | FindNoLocalMatches
@@ -289,6 +271,7 @@ data Output
   | -- Original source, followed by the errors:
     ParseErrors Text [Parser.Err Symbol]
   | TypeErrors Path.Absolute Text PPE.PrettyPrintEnv [Context.ErrorNote Symbol Ann]
+  | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | EvaluationFailure Runtime.Error
@@ -316,8 +299,6 @@ data Output
   | NoConfiguredRemoteMapping PushPull Path.Absolute
   | ConfiguredRemoteMappingParseError PushPull Path.Absolute Text String
   | TermMissingType Reference
-  | AboutToPropagatePatch
-  | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | StartOfCurrentPathHistory
   | ShowReflog [(Maybe UTCTime, SCH.ShortCausalHash, Text)]
@@ -330,10 +311,7 @@ data Output
   | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-  | MergeAlreadyUpToDate BranchRelativePath BranchRelativePath
-  | -- This will replace the above once `merge.old` is deleted
-    MergeAlreadyUpToDate2 !MergeSourceAndTarget
-  | PreviewMergeAlreadyUpToDate ProjectPath ProjectPath
+  | MergeAlreadyUpToDate2 !MergeSourceAndTarget
   | NotImplemented
   | NoBranchWithHash ShortCausalHash
   | -- | List direct dependencies of a type or term.
@@ -420,7 +398,6 @@ data Output
     NotImplementedYet Text
   | DraftingRelease ProjectBranchName Semver
   | CannotCreateReleaseBranchWithBranchCommand ProjectBranchName Semver
-  | CalculatingDiff
   | -- | The `local` in a `clone remote local` is ambiguous
     AmbiguousCloneLocal
       -- | Treating `local` as a project. We may know the branch name, if it was provided in `remote`.
@@ -582,6 +559,7 @@ isFailure o = case o of
   ListTextFind _ tms -> null tms
   SlurpOutput _ _ sr -> not $ SR.isOk sr
   ParseErrors {} -> True
+  TypeWarns {} -> False
   TypeErrors {} -> True
   CompilerBugs {} -> True
   DisplayConflicts {} -> False
@@ -598,9 +576,7 @@ isFailure o = case o of
   BustedBuiltins {} -> True
   NoConfiguredRemoteMapping {} -> True
   ConfiguredRemoteMappingParseError {} -> True
-  PatchNeedsToBeConflictFree {} -> True
   PatchInvolvesExternalDependents {} -> True
-  AboutToPropagatePatch {} -> False
   StartOfCurrentPathHistory -> True
   NotImplemented -> True
   DumpNumberedArgs {} -> False
@@ -610,13 +586,10 @@ isFailure o = case o of
   PullSuccessful {} -> False
   AboutToMerge {} -> False
   MergeOverEmpty {} -> False
-  MergeAlreadyUpToDate {} -> False
   MergeAlreadyUpToDate2 {} -> False
-  PreviewMergeAlreadyUpToDate {} -> False
   ListShallow _ es -> null es
   HashAmbiguous {} -> True
   ShowReflog {} -> False
-  LoadPullRequest {} -> False
   HelpMessage {} -> True
   NoOp -> False
   ListDependencies {} -> False
@@ -679,7 +652,6 @@ isFailure o = case o of
   UploadedEntities {} -> False
   DraftingRelease {} -> False
   CannotCreateReleaseBranchWithBranchCommand {} -> True
-  CalculatingDiff {} -> False
   RenamedProject {} -> False
   OutputRewrittenFile {} -> False
   RenamedProjectBranch {} -> False
@@ -725,9 +697,6 @@ isNumberedFailure = \case
   ShowDiffAfterCreateAuthor {} -> False
   ShowDiffAfterDeleteBranch {} -> False
   ShowDiffAfterDeleteDefinitions {} -> False
-  ShowDiffAfterMerge {} -> False
-  ShowDiffAfterMergePreview {} -> False
-  ShowDiffAfterMergePropagate {} -> False
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False

@@ -12,6 +12,7 @@ module Unison.Runtime.Decompile
   )
 where
 
+import Data.Map qualified as Map
 import Data.Set (singleton)
 import Unison.ABT (substs)
 import Unison.Codebase.Runtime (Error)
@@ -19,6 +20,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
+import Unison.Referent qualified as Referent
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Array
   ( Array,
@@ -38,7 +40,6 @@ import Unison.Runtime.Stack
     USeq,
     UnboxedTypeTag (..),
     Val (..),
-    inflateMap,
     pattern DataC,
     pattern PApV,
   )
@@ -77,6 +78,7 @@ import Unison.Util.Bytes qualified as By
 import Unison.Util.Pretty (indentN, lines, lit, shown, syntaxToColor, wrap)
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
+import Unison.Builtin.Decls qualified as DD
 import Prelude hiding (lines)
 
 con :: (Var v) => Reference -> Word64 -> Term v ()
@@ -230,14 +232,28 @@ decompileForeign backref topTerms f
           (decompileBytes . By.fromWord8s $ byteArrayToList a)
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
-  | Just m <- maybeUnwrapForeign hmapRef f =
-      decompile backref topTerms . BoxedVal $ inflateMap m
+  | Just m <- maybeUnwrapForeign hmapRef f = do
+      let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
+      kvs <- traverse (uncurry decompileEntry) (Map.toList m)
+      pure $ app () map_fromList (list () kvs)
 decompileForeign _ _ (Wrap r _) =
   err (BadForeign r) $ bug text
   where
     text
       | Builtin name <- r = "<" <> name <> ">"
       | otherwise = "<Foreign>"
+
+map_fromList :: (Var v) => Term v ()
+map_fromList = 
+   case Referent.fromText "#apmvhl40hl48q1s7383g5ev3sh7td8qo374t87bchpnu24sccmnvm13e2a1q0f2p1prm2uk9prfpg598dc9jo23iagact6gmi18vta8" of
+     Just r -> Term.fromReferent () r
+     Nothing -> error "Map_fromList"
+
+pair :: (Var v) => Term v () -> Term v () -> Term v ()
+pair a b =
+  Term.apps' (Term.fromReferent () DD.pairCtorRef) [
+    a, Term.apps' (Term.fromReferent () DD.pairCtorRef) [b, Term.fromReferent () DD.unitCtorRef]
+  ]
 
 decompileBytes :: (Var v) => By.Bytes -> Term v ()
 decompileBytes =

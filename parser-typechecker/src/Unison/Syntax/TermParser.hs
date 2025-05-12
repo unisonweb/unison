@@ -14,7 +14,9 @@ module Unison.Syntax.TermParser
 where
 
 import Control.Comonad.Trans.Cofree (CofreeF ((:<)))
+import Control.Lens (mapped, _2)
 import Control.Monad.Reader (asks, local)
+import Control.Monad.Trans.Writer
 import Data.Bitraversable (bitraverse)
 import Data.Char qualified as Char
 import Data.Foldable (foldrM)
@@ -45,7 +47,6 @@ import Unison.Names.ResolutionResult (ResolutionError (..), ResolutionFailure (.
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (Ann))
 import Unison.Parser.Ann qualified as Ann
-import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -57,6 +58,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
 import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
+import Unison.Syntax.Pattern qualified as Syntax.Pattern
 import Unison.Syntax.Precedence (operatorPrecedence)
 import Unison.Syntax.TypeParser qualified as TypeParser
 import Unison.Term (IsTop, Term)
@@ -110,7 +112,7 @@ rewriteBlock = do
     rewriteTermlike kw mk = do
       kw <- quasikeyword kw
       lhs <- term
-      (_spanAnn, rhs) <- layoutBlock "==>"
+      (_openAnn, _spanAnn, rhs) <- layoutBlock "==>"
       pure (mk (ann kw <> ann rhs) lhs rhs)
     rewriteTerm = rewriteTermlike "term" DD.rewriteTerm
     rewriteCase = rewriteTermlike "case" DD.rewriteCase
@@ -218,7 +220,7 @@ matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c 
 --   (42, x) -> ...
 matchCase :: (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
-  pats <- sepBy1 (label "\",\"" $ reserved ",") parsePattern
+  pats <- sepBy1 (label "\",\"" $ reserved ",") (parsePattern >>= bindConstructorsInPattern)
   let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
       pat = case fst <$> pats of
         [p] -> p
@@ -232,10 +234,10 @@ matchCase = do
             [ Nothing <$ quasikeyword "otherwise",
               Just <$> infixAppOrBooleanOp
             ]
-        (_spanAnn, t) <- layoutBlock "->"
+        (_openAnn, _spanAnn, t) <- layoutBlock "->"
         pure (guard, t)
   let unguardedBlock = label "case match" do
-        (_spanAnn, t) <- layoutBlock "->"
+        (_openAnn, _spanAnn, t) <- layoutBlock "->"
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
   guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
@@ -243,162 +245,104 @@ matchCase = do
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
 
-parsePattern :: forall m v. (Monad m, Var v) => P v m (Pattern Ann, [(Ann, v)])
-parsePattern = label "pattern" root
+parsePattern :: forall m v. (Monad m, Var v) => P v m (Syntax.Pattern.Pattern v)
+parsePattern =
+  label "pattern" pRoot
   where
-    root = chainl1 patternCandidates patternInfixApp
-    patternCandidates = constructor <|> leaf
-    patternInfixApp ::
-      P
-        v
-        m
-        ( (Pattern Ann, [(Ann, v)]) ->
-          (Pattern Ann, [(Ann, v)]) ->
-          (Pattern Ann, [(Ann, v)])
-        )
-    patternInfixApp = f <$> seqOp
+    pRoot :: P v m (Syntax.Pattern.Pattern v)
+    pRoot =
+      chainl1 (pHqNamey1 <|> pLeaf1) pInfix
       where
-        f op (l, lvs) (r, rvs) =
-          (Pattern.SequenceOp (ann l <> ann r) l op r, lvs ++ rvs)
+        pHqNamey1 :: P v m (Syntax.Pattern.Pattern v)
+        pHqNamey1 = do
+          pat <- pHqNamey
+          let datacon name patterns =
+                (Syntax.Pattern.Constructor ((ann pat <> maybe mempty ann (lastMay patterns))) name patterns)
+          case pat of
+            Syntax.Pattern.Constructor _ name _ {- this is [] -} -> do
+              patterns <- many pLeaf
+              pure (datacon name patterns)
+            Syntax.Pattern.VarOrNullaryConstructor _ name ->
+              many pLeaf <&> \case
+                [] -> pat
+                patterns -> datacon (HQ.NameOnly <$> name) patterns
+            -- This is Syntax.Pattern.As
+            _ -> pure pat
 
-    -- note: nullaryCtor comes before var patterns, since (for better or worse)
-    -- they can overlap (a variable could be called 'Foo' in the current grammar).
-    -- This order treats ambiguous patterns as nullary constructors if there's
-    -- a constructor with a matching name.
-    leaf =
-      literal
-        <|> nullaryCtor
-        <|> varOrAs
-        <|> unbound
-        <|> seqLiteral
-        <|> parenthesizedOrTuplePattern
-        <|> effect
-    literal = (,[]) <$> asum [true, false, number, text, char]
-    true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
-    false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
-    number =
-      join $
-        number'
-          (pure . tok Pattern.Int)
-          (pure . tok Pattern.Nat)
-          (tok (const . failCommitted . FloatPattern))
-    text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
-    char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
-    parenthesizedOrTuplePattern :: P v m (Pattern Ann, [(Ann, v)])
-    parenthesizedOrTuplePattern = do
-      (_spanAnn, (pat, pats)) <- tupleOrParenthesized parsePattern unit pair
-      pure (pat, pats)
-    unit ann = (Pattern.Constructor ann (ConstructorReference DD.unitRef 0) [], [])
-    pair (p1, v1) (p2, v2) =
-      ( Pattern.Constructor (ann p1 <> ann p2) (ConstructorReference DD.pairRef 0) [p1, p2],
-        v1 ++ v2
-      )
-    -- Foo x@(Blah 10)
-    varOrAs :: P v m (Pattern Ann, [(Ann, v)])
-    varOrAs = do
-      v <- wordyPatternName
-      o <- optional (reserved "@")
-      if isJust o
-        then (\(p, vs) -> (Pattern.As (ann v) p, tokenToPair v : vs)) <$> leaf
-        else pure (Pattern.Var (ann v), [tokenToPair v])
-    unbound :: P v m (Pattern Ann, [(Ann, v)])
-    unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-    ctor :: CT.ConstructorType -> P v m (L.Token ConstructorReference)
-    ctor ct = do
-      -- this might be a var, so we avoid consuming it at first
-      tok <- P.lookAhead hqPrefixId
+        pInfix :: P v m (Syntax.Pattern.Pattern v -> Syntax.Pattern.Pattern v -> Syntax.Pattern.Pattern v)
+        pInfix =
+          pSeqOp <&> \op l r ->
+            Syntax.Pattern.SequenceOp (ann l <> ann r) l op r
+          where
+            pSeqOp :: (Ord v) => P v m Syntax.Pattern.SeqOp
+            pSeqOp =
+              Syntax.Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.snocSegment)))
+                <|> Syntax.Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
+                <|> Syntax.Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
 
-      -- First, if:
-      --
-      --   * The token isn't hash-qualified (e.g. "Foo.Bar")
-      --   * We're under a namespace directive (e.g. "baz")
-      --   * There's an exact match for a locally-bound constructor (e.g. "baz.Foo.Bar")
-      --
-      -- Then:
-      --
-      --   * Use that constructor reference (duh)
-      --
-      -- Else:
-      --
-      --   * Fall through to the normal logic of looking the constructor name up in all of the names (which includes
-      --     the locally-bound constructors).
+    pLeaf :: P v m (Syntax.Pattern.Pattern v)
+    pLeaf =
+      pHqNamey <|> pLeaf1
 
-      maybeLocalCtor <-
-        case L.payload tok of
-          HQ.NameOnly name ->
-            asks maybeNamespace >>= \case
-              Nothing -> pure Nothing
-              Just namespace -> do
-                localNames <- asks localNamespacePrefixedTypesAndConstructors
-                case Names.lookupHQPattern Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) ct localNames of
-                  refs
-                    | Set.null refs -> pure Nothing
-                    -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
-                    -- with the same name would have been a parse error. So, just take the minimum element from the set,
-                    -- which we know is a singleton.
-                    | otherwise -> do
-                        -- matched ctor name, consume the token
-                        _ <- anyToken
-                        pure (Just (Set.findMin refs))
-          _ -> pure Nothing
+    pLeaf1 :: P v m (Syntax.Pattern.Pattern v)
+    pLeaf1 =
+      asum
+        [ -- true or false or 5 or "text" or ?c
+          pLiteral,
+          -- _
+          do
+            tok <- blank
+            pure (Syntax.Pattern.Unbound (ann tok)),
+          -- [pat, pat, pat]
+          Parser.seq Syntax.Pattern.SequenceLiteral pRoot,
+          -- () or (pat, pat) or (pat, pat, pat) [which is actually parsed as (pat, (pat, pat)]
+          pParenOrTuple,
+          -- { pat -> pat } or { pat }
+          pEffect
+        ]
 
-      case maybeLocalCtor of
-        Just localCtor -> pure (localCtor <$ tok)
-        Nothing -> do
-          names <- asks names
-          case Names.lookupHQPattern Names.IncludeSuffixes (L.payload tok) ct names of
-            s
-              | Set.size s == 1 -> do
-                  -- matched ctor name, consume the token
-                  _ <- anyToken
-                  pure (Set.findMin s <$ tok)
-              | otherwise -> die names tok s
+    pLiteral :: P v m (Syntax.Pattern.Pattern v)
+    pLiteral =
+      asum [pTrue, pFalse, pNumber, pText, pChar]
       where
-        isLower = Text.all Char.isLower . Text.take 1 . NameSegment.toUnescapedText . Name.lastSegment
-        isIgnored n = Text.take 1 (Name.toText n) == "_"
-        die :: Names -> L.Token (HQ.HashQualified Name) -> Set ConstructorReference -> P v m a
-        die names hq s = case L.payload hq of
-          -- if token not hash qualified and not uppercase,
-          -- fail w/out consuming it to allow backtracking
-          HQ.NameOnly n
-            | Set.null s
-                && (isLower n || isIgnored n) ->
-                fail $ "not a constructor name: " <> show n
-          -- it was hash qualified and/or uppercase, and was either not found or ambiguous, that's a failure!
-          _ ->
-            failCommitted $
-              ResolutionFailures
-                [ TermResolutionFailure
-                    (L.payload hq)
-                    (ann hq)
-                    if Set.null s
-                      then NotFound
-                      else
-                        Ambiguous
-                          names
-                          (Set.map (\ref -> Referent.Con ref ct) s)
-                          -- Eh, here we're saying there are no "local" constructors – they're all from "the namespace".
-                          -- That's not necessarily true, but it doesn't (currently) affect the error message any, and
-                          -- we have already parsed and hashed local constructors (so they aren't really different from
-                          -- namespace constructors).
-                          Set.empty
-                ]
-    unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
+        pTrue :: P v m (Syntax.Pattern.Pattern v)
+        pTrue = do
+          tok <- reserved "true"
+          pure (Syntax.Pattern.Boolean (ann tok) True)
 
-    effectBind = do
-      tok <- ctor CT.Effect
-      leaves <- many leaf
-      _ <- reserved "->"
-      (cont, vsp) <- parsePattern
-      pure $
-        let f patterns vs = (Pattern.EffectBind (ann tok <> ann cont) (L.payload tok) patterns cont, vs ++ vsp)
-         in unzipPatterns f leaves
+        pFalse :: P v m (Syntax.Pattern.Pattern v)
+        pFalse = do
+          tok <- reserved "false"
+          pure (Syntax.Pattern.Boolean (ann tok) False)
 
-    effectPure = go <$> parsePattern
+        pNumber :: P v m (Syntax.Pattern.Pattern v)
+        pNumber =
+          join $
+            number'
+              (pure . tok Syntax.Pattern.Int)
+              (pure . tok Syntax.Pattern.Nat)
+              (tok (const . failCommitted . FloatPattern))
+
+        pText :: P v m (Syntax.Pattern.Pattern v)
+        pText = do
+          tok <- string
+          pure (Syntax.Pattern.Text (ann tok) (L.payload tok))
+
+        pChar :: P v m (Syntax.Pattern.Pattern v)
+        pChar = do
+          tok <- character
+          pure (Syntax.Pattern.Char (ann tok) (L.payload tok))
+
+    pParenOrTuple :: P v m (Syntax.Pattern.Pattern v)
+    pParenOrTuple = do
+      snd <$> tupleOrParenthesized parsePattern Syntax.Pattern.Unit mkPair
       where
-        go (p, vs) = (Pattern.EffectPure (ann p) p, vs)
+        mkPair :: Syntax.Pattern.Pattern v -> Syntax.Pattern.Pattern v -> Syntax.Pattern.Pattern v
+        mkPair p1 p2 =
+          Syntax.Pattern.Pair (ann p1 <> ann p2) p1 p2
 
-    effect = do
+    pEffect :: P v m (Syntax.Pattern.Pattern v)
+    pEffect = do
       start <- openBlockWith "{"
 
       -- After the opening curly brace, we are expecting either an EffectBind or an EffectPure:
@@ -415,35 +359,200 @@ parsePattern = label "pattern" root
       --
       -- This won't always result in the best possible error messages, but it's not exactly trivial to do better,
       -- requiring more sophisticated look-ahead logic. So, this is how it works for now.
-      (inner, vs, end) <-
+      (inner, end) <-
         asum
           [ P.try do
-              (inner, vs) <- effectPure
+              inner <- pEffectPure
               end <- closeBlock
-              pure (inner, vs, end),
+              pure (inner, end),
             do
-              (inner, vs) <- effectBind
+              inner <- pEffectBind
               end <- closeBlock
-              pure (inner, vs, end)
+              pure (inner, end)
           ]
 
-      pure (Pattern.setLoc inner (ann start <> ann end), vs)
-
-    -- ex: unique type Day = Mon | Tue | ...
-    nullaryCtor = do
-      tok <- ctor CT.Data
-      pure (Pattern.Constructor (ann tok) (L.payload tok) [], [])
-
-    constructor = do
-      tok <- ctor CT.Data
-      let f patterns vs =
-            let loc = foldl (<>) (ann tok) $ map ann patterns
-             in (Pattern.Constructor loc (L.payload tok) patterns, vs)
-      unzipPatterns f <$> many leaf
-
-    seqLiteral = Parser.seq f root
+      pure (Syntax.Pattern.setPos (ann start <> ann end) inner)
       where
-        f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
+        pEffectBind :: P v m (Syntax.Pattern.Pattern v)
+        pEffectBind = do
+          name <- hqPrefixId
+          patterns <- many pLeaf
+          _ <- reserved "->"
+          cont <- parsePattern
+          pure (Syntax.Pattern.EffectBind (ann name <> ann cont) name patterns cont)
+
+        pEffectPure :: P v m (Syntax.Pattern.Pattern v)
+        pEffectPure =
+          parsePattern <&> \pat -> Syntax.Pattern.EffectPure (ann pat) pat
+
+    -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
+    -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
+    -- it's the latter, we might see that it's actually not a nullary constructor but actually a variable in an
+    -- as-pattern, e.g. `Foo@Bar`.
+    pHqNamey :: P v m (Syntax.Pattern.Pattern v)
+    pHqNamey = do
+      tok <- varOrNullaryConstructor
+      case L.payload tok of
+        Left name -> pure (Syntax.Pattern.Constructor (ann tok) (name <$ tok) [])
+        Right name -> do
+          optional (reserved "@") >>= \case
+            Nothing -> pure (Syntax.Pattern.VarOrNullaryConstructor (ann tok) (name <$ tok))
+            Just _ -> do
+              p <- pLeaf
+              pure (Syntax.Pattern.As (ann tok <> ann p) (Name.toVar name <$ tok) p)
+
+bindConstructorsInPattern :: (Monad m, Var v) => Syntax.Pattern.Pattern v -> P v m (Pattern.Pattern Ann, [(Ann, v)])
+bindConstructorsInPattern =
+  fmap (over _2 (\f -> (map tokenToPair (f [])))) . runWriterT . bindConstructorsInPattern1
+  where
+    bindConstructorsInPattern1 ::
+      forall m v.
+      (Monad m, Var v) =>
+      Syntax.Pattern.Pattern v ->
+      WriterT ([L.Token v] -> [L.Token v]) (P v m) (Pattern.Pattern Ann)
+    bindConstructorsInPattern1 = \case
+      Syntax.Pattern.As pos v lpat -> do
+        tell (v :)
+        pat <- bindConstructorsInPattern1 lpat
+        pure (Pattern.As pos pat)
+      Syntax.Pattern.Boolean pos b -> pure (Pattern.Boolean pos b)
+      Syntax.Pattern.Char pos c -> pure (Pattern.Char pos c)
+      Syntax.Pattern.Constructor pos name pats ->
+        Pattern.Constructor pos
+          <$> lift (bindConstructor CT.Data name)
+          <*> traverse bindConstructorsInPattern1 pats
+      Syntax.Pattern.EffectBind pos name pats cont ->
+        Pattern.EffectBind pos
+          <$> lift (bindConstructor CT.Effect name)
+          <*> traverse bindConstructorsInPattern1 pats
+          <*> bindConstructorsInPattern1 cont
+      Syntax.Pattern.EffectPure pos lpat -> Pattern.EffectPure pos <$> bindConstructorsInPattern1 lpat
+      Syntax.Pattern.Float pos n -> pure (Pattern.Float pos n)
+      Syntax.Pattern.Int pos n -> pure (Pattern.Int pos n)
+      Syntax.Pattern.Nat pos n -> pure (Pattern.Nat pos n)
+      Syntax.Pattern.Pair _ lpat1 lpat2 ->
+        ( \pat1 pat2 ->
+            Pattern.Constructor
+              (ann pat1 <> ann pat2)
+              (ConstructorReference DD.pairRef 0)
+              [pat1, pat2]
+        )
+          <$> bindConstructorsInPattern1 lpat1
+          <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
+      Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
+        Pattern.SequenceOp pos
+          <$> bindConstructorsInPattern1 lpat1
+          <*> pure case op of
+            Syntax.Pattern.Concat -> Pattern.Concat
+            Syntax.Pattern.Cons -> Pattern.Cons
+            Syntax.Pattern.Snoc -> Pattern.Snoc
+          <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.Text pos t -> pure (Pattern.Text pos t)
+      Syntax.Pattern.Unbound pos -> pure (Pattern.Unbound pos)
+      Syntax.Pattern.Unit pos -> pure (Pattern.Constructor pos (ConstructorReference DD.unitRef 0) [])
+      -- Not awesome: something can be at once a syntactically valid nullary constructor and a syntactically valid
+      -- variable. We currently handle this by simply looking in the namespace to determine whether it's a
+      -- constructor, and if it isn't, we treat it as a variable.
+      Syntax.Pattern.VarOrNullaryConstructor pos name ->
+        lift (maybeBindLocalConstructor CT.Data (L.payload name)) >>= \case
+          Just localCtor -> pure (Pattern.Constructor pos localCtor [])
+          Nothing -> do
+            names <- asks names
+            let failure :: ResolutionError Referent -> P v m a
+                failure err =
+                  failCommitted $
+                    ResolutionFailures
+                      [ TermResolutionFailure
+                          (HQ.NameOnly (L.payload name))
+                          (ann name)
+                          err
+                      ]
+            case Names.lookupHQPattern Names.IncludeSuffixes (HQ.NameOnly (L.payload name)) CT.Data names of
+              constructors
+                | Set.size constructors == 1 -> pure (Pattern.Constructor pos (Set.findMin constructors) [])
+                | Set.null constructors ->
+                    -- Not great thing alert :alarm: :alarm:
+                    -- This is a syntactically valid variable, however, if it begins with a capital letter, we choose to
+                    -- consider it a constructor-out-of-scope, since that's probably what the user meant.
+                    if lastSegmentBeginsWithCapitalLetter
+                      then lift (failure NotFound)
+                      else do
+                        tell ((Name.toVar <$> name) :)
+                        pure (Pattern.Var pos)
+                | otherwise ->
+                    lift $
+                      failure
+                        ( Ambiguous
+                            names
+                            (Set.map (\ref -> Referent.Con ref CT.Data) constructors)
+                            Set.empty
+                        )
+        where
+          lastSegmentBeginsWithCapitalLetter :: Bool
+          lastSegmentBeginsWithCapitalLetter =
+            not (Char.isLower (Text.head (NameSegment.toUnescapedText (Name.lastSegment (L.payload name)))))
+      where
+        bindConstructor :: CT.ConstructorType -> L.Token (HQ.HashQualified Name) -> P v m ConstructorReference
+        bindConstructor ct hqName = do
+          -- First, if:
+          --
+          --   * The token isn't hash-qualified (e.g. "Foo.Bar")
+          --   * We're under a namespace directive (e.g. "baz")
+          --   * There's an exact match for a locally-bound constructor (e.g. "baz.Foo.Bar")
+          --
+          -- Then:
+          --
+          --   * Use that constructor reference (duh)
+          --
+          -- Else:
+          --
+          --   * Fall through to the normal logic of looking the constructor name up in all of the names (which includes
+          --     the locally-bound constructors).
+          maybeLocalCtor <-
+            case L.payload hqName of
+              HQ.NameOnly name -> maybeBindLocalConstructor ct name
+              _ -> pure Nothing
+
+          case maybeLocalCtor of
+            Just localCtor -> pure localCtor
+            Nothing -> do
+              names <- asks names
+              case Names.lookupHQPattern Names.IncludeSuffixes (L.payload hqName) ct names of
+                s
+                  | Set.size s == 1 -> pure (Set.findMin s)
+                  | otherwise ->
+                      failCommitted $
+                        ResolutionFailures
+                          [ TermResolutionFailure
+                              (L.payload hqName)
+                              (ann hqName)
+                              if Set.null s
+                                then NotFound
+                                else
+                                  Ambiguous
+                                    names
+                                    (Set.map (\ref -> Referent.Con ref ct) s)
+                                    -- Eh, here we're saying there are no "local" constructors – they're all from "the
+                                    -- namespace". That's not necessarily true, but it doesn't (currently) affect the error
+                                    -- message any, and we have already parsed and hashed local constructors (so they aren't
+                                    -- really different from namespace constructors).
+                                    Set.empty
+                          ]
+
+        maybeBindLocalConstructor :: CT.ConstructorType -> Name -> P v m (Maybe ConstructorReference)
+        maybeBindLocalConstructor ct name =
+          asks maybeNamespace >>= \case
+            Nothing -> pure Nothing
+            Just namespace -> do
+              localNames <- asks localNamespacePrefixedTypesAndConstructors
+              pure case Names.lookupHQPattern Names.ExactName (HQ.NameOnly (Name.joinDot namespace name)) ct localNames of
+                refs
+                  | Set.null refs -> Nothing
+                  -- 2+ name case is impossible: we looked up exact names in the locally-bound names. Two bindings
+                  -- with the same name would have been a parse error. So, just take the minimum element from the set,
+                  -- which we know is a singleton.
+                  | otherwise -> Just (Set.findMin refs)
 
 lam :: (Var v) => TermP v m -> TermP v m
 lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved "->") <*> p
@@ -453,10 +562,12 @@ lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved 
        in Term.lam' (ann (head vs) <> ann b) annotatedArgs b
 
 letBlock, handle, ifthen :: (Monad m, Var v) => TermP v m
-letBlock = label "let" $ (snd <$> layoutBlock "let")
+letBlock = label "let" $ do
+  (_openAnn, _spanAnn, tm) <- layoutBlock "let"
+  pure tm
 handle = label "handle" do
-  (handleSpan, b) <- block "handle"
-  (_withSpan, handler) <- layoutBlock "with"
+  (_handleOpenAnn, handleSpan, b) <- block "handle"
+  (_withOpenAnn, _withSpan, handler) <- layoutBlock "with"
   -- We don't use the annotation span from 'with' here because it will
   -- include a dedent if it's at the end of block.
   -- Meaning the newline gets overwritten when pretty-printing and it messes things up.
@@ -491,9 +602,9 @@ lamCase = do
 
 ifthen = label "if" do
   start <- peekAny
-  (_spanAnn, c) <- block "if"
-  (_spanAnn, t) <- block "then"
-  (_spanAnn, f) <- layoutBlock "else"
+  (_ifOpenAnn, _spanAnn, c) <- block "if"
+  (_thenAnn, _spanAnn, t) <- block "then"
+  (_elseAnn, _spanAnn, f) <- layoutBlock "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
 text :: (Var v) => TermP v m
@@ -627,11 +738,17 @@ doc2Block = do
     docTop d = \case
       Doc.Section title body -> pure $ Term.apps' (f d "Section") [docParagraph d title, Term.list (gann body) body]
       Doc.Eval code ->
-        Term.app (gann d) (f d "Eval") . addDelay . snd
-          <$> subParse (block' False False "syntax.docEval" (pure $ pure ()) $ Ann.External <$ P.eof) code
+        let inner = do
+              (_openAnn, ann, tm) <- (block' False False "syntax.docEval" (pure $ pure ()) $ Ann.External <$ P.eof)
+              pure (ann, tm)
+         in Term.app (gann d) (f d "Eval") . addDelay . snd
+              <$> subParse inner code
       Doc.ExampleBlock code ->
-        Term.apps' (f d "ExampleBlock") . (Term.nat (gann d) 0 :) . pure . addDelay . snd
-          <$> subParse (block' False True "syntax.docExampleBlock" (pure $ pure ()) $ Ann.External <$ P.eof) code
+        let inner = do
+              (_openAnn, ann, tm) <- (block' False True "syntax.docExampleBlock" (pure $ pure ()) $ Ann.External <$ P.eof)
+              pure (ann, tm)
+         in Term.apps' (f d "ExampleBlock") . (Term.nat (gann d) 0 :) . pure . addDelay . snd
+              <$> subParse inner code
       Doc.CodeBlock label body ->
         pure $
           Term.apps'
@@ -1110,9 +1227,8 @@ delayQuote = P.label "quote" do
 
 delayBlock :: (Monad m, Var v) => P v m (Ann {- Ann spanning the whole block -}, Term v Ann)
 delayBlock = P.label "do" do
-  (spanAnn, b) <- layoutBlock "do"
-  let argSpan = (ann b {- would be nice to use the annotation for 'do' here, but it's not terribly important -})
-  pure $ (spanAnn, DD.delayTerm (ann b) argSpan b)
+  (openAnn, spanAnn, b) <- layoutBlock "do"
+  pure $ (spanAnn, DD.delayTerm (ann b) openAnn b)
 
 bang :: (Monad m, Var v) => TermP v m
 bang = P.label "bang" do
@@ -1130,12 +1246,6 @@ force = P.label "force" $ P.try do
   guard (L.column (Ann.start tok) == L.column (Ann.end (ann fn)))
   close <- closeBlock
   pure $ DD.forceTerm (ann fn <> ann close) (tok <> ann close) fn
-
-seqOp :: (Ord v) => P v m Pattern.SeqOp
-seqOp =
-  Pattern.Snoc <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.snocSegment)))
-    <|> Pattern.Cons <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.consSegment)))
-    <|> Pattern.Concat <$ matchToken (L.SymbolyId (HQ'.fromName (Name.fromSegment NameSegment.concatSegment)))
 
 term4 :: (Monad m, Var v) => TermP v m
 term4 = f <$> some termLeaf
@@ -1258,12 +1368,9 @@ destructuringBind = do
   --   (Some 42)
   --   vs
   --   (Some 42) = List.head elems
-  (p, boundVars) <- P.try do
-    (p, boundVars) <- parsePattern
-    let boundVars' = snd <$> boundVars
-    _ <- P.lookAhead (openBlockWith "=")
-    pure (p, boundVars')
-  (_spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  pat <- P.try (parsePattern <* P.lookAhead (openBlockWith "="))
+  (p, boundVars) <- over (_2 . mapped) snd <$> bindConstructorsInPattern pat
+  (_eqAnn, _spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
@@ -1281,7 +1388,15 @@ destructuringBind = do
 -- binding) and the entire body.
 -- * If the binding is a lambda, the  lambda node includes the entire LHS of the binding,
 -- including the name as well.
-binding :: forall m v. (Monad m, Var v) => P v m ((Ann, v), Term v Ann)
+binding ::
+  forall m v.
+  (Monad m, Var v) =>
+  P
+    v
+    m
+    ( (Ann {- annotation for the location of 'v' -}, v),
+      Term v Ann
+    )
 binding = label "binding" do
   typ <- optional typedecl
   -- a ++ b = ...
@@ -1301,25 +1416,25 @@ binding = label "binding" do
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (lhsLoc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
-      (_bodySpanAnn, body) <- block "="
+      (_eqAnn, _bodySpanAnn, body) <- block "="
       verifyRelativeName' (fmap Name.unsafeParseVar name)
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
       -- may contain a bunch of white-space and comments following a top-level-definition.
-      let spanAnn = ann lhsLoc <> ann binding
-      pure $ ((spanAnn, (L.payload name)), binding)
+      -- let spanAnn = ann lhsLoc <> ann binding
+      pure $ ((ann name, (L.payload name)), binding)
     Just (nameT, typ) -> do
       (lhsLoc, name, args) <- lhs
       verifyRelativeName' (fmap Name.unsafeParseVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $
           SignatureNeedsAccompanyingBody nameT
-      (_bodySpanAnn, body) <- block "="
+      (_eqAnn, _bodySpanAnn, body) <- block "="
       let binding = mkBinding lhsLoc args body
       -- We don't actually use the span annotation from the block (yet) because it
       -- may contain a bunch of white-space and comments following a top-level-definition.
       let spanAnn = ann nameT <> ann binding
-      pure $ ((spanAnn, L.payload name), Term.ann (ann nameT <> ann binding) binding typ)
+      pure $ ((ann nameT, L.payload name), Term.ann spanAnn binding typ)
   where
     mkBinding :: Ann -> [L.Token v] -> Term.Term v Ann -> Term.Term v Ann
     mkBinding _lhsLoc [] body = body
@@ -1330,10 +1445,30 @@ binding = label "binding" do
 customFailure :: (P.MonadParsec e s m) => e -> m a
 customFailure = P.customFailure
 
-block :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
+block ::
+  forall m v.
+  (Monad m, Var v) =>
+  String ->
+  P
+    v
+    m
+    ( Ann {- annotation of block-open symbol, e.g. 'do', 'let' -},
+      Ann {- annotation for whole block -},
+      Term v Ann
+    )
 block s = block' False False s (openBlockWith s) closeBlock
 
-layoutBlock :: forall m v. (Monad m, Var v) => String -> P v m (Ann, Term v Ann)
+layoutBlock ::
+  forall m v.
+  (Monad m, Var v) =>
+  String ->
+  P
+    v
+    m
+    ( Ann {- annotation of block-open symbol, e.g. 'do', 'let' -},
+      Ann {- annotation for whole layout block -},
+      Term v Ann
+    )
 layoutBlock s = block' False False s (openBlockWith s) optionalCloseBlock
 
 -- example: use Foo.bar.Baz + ++ x
@@ -1368,7 +1503,7 @@ importp = do
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
 data BlockElement v
-  = Binding ((Ann, v), Term v Ann)
+  = Binding ((Ann {- span for the binding name -}, v), Term v Ann)
   | DestructuringBind (Ann, Term v Ann -> Term v Ann)
   | Action (Term v Ann)
 
@@ -1412,7 +1547,7 @@ block' ::
   String ->
   P v m (L.Token ()) ->
   P v m end ->
-  P v m (Ann {- ann which spans the whole block -}, Term v Ann)
+  P v m (Ann {- span for the opening token, e.g. the "do" or opening bracket -}, Ann {- ann which spans the whole block -}, Term v Ann)
 block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   open <- openBlock
   (names, imports) <- imports
@@ -1420,14 +1555,14 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
   statements <- local (\e -> e {names}) $ sepBy semi statement
   end <- closeBlock
   body <- substImports names imports <$> go open statements
-  pure (ann open <> ann end, body)
+  pure (ann open, ann open <> ann end, body)
   where
     statement = asum [Binding <$> binding, DestructuringBind <$> destructuringBind, Action <$> blockTerm]
     go :: L.Token () -> [BlockElement v] -> P v m (Term v Ann)
     go open =
       let finish :: Term.Term v Ann -> TermP v m
           finish tm = case Components.minimize' tm of
-            Left dups -> customFailure $ DuplicateTermNames (toList dups)
+            Left dups -> customFailure $ DuplicateTermNames (toList (fmap (second toList) dups))
             Right tm -> pure tm
           toTm :: [BlockElement v] -> TermP v m
           toTm [] = customFailure $ EmptyBlock (const s <$> open)
@@ -1437,19 +1572,21 @@ block' isTop implicitUnitAtEnd s openBlock closeBlock = do
             where
               step :: BlockElement v -> Term v Ann -> TermP v m
               step elem result = case elem of
-                Binding ((a, v), tm) ->
+                Binding ((a, v), tm) -> do
+                  let fullLetRecSpan = ann a <> ann result
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann a <> ann result)
+                      fullLetRecSpan
                       (a, v, tm)
                       result
-                Action tm ->
+                Action tm -> do
+                  let fullLetRecSpan = (ann tm <> ann result)
                   pure $
                     Term.consLetRec
                       isTop
-                      (ann tm <> ann result)
-                      (ann tm, positionalVar (ann tm) (Var.named "_"), tm)
+                      fullLetRecSpan
+                      (Ann.External, positionalVar (ann tm) (Var.named "_"), tm)
                       result
                 DestructuringBind (_, f) ->
                   f <$> finish result

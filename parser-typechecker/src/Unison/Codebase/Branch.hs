@@ -37,7 +37,6 @@ module Unison.Codebase.Branch
     headHash,
     children,
     nonEmptyChildren,
-    deepEdits',
     namespaceStats,
 
     -- * step
@@ -55,11 +54,6 @@ module Unison.Codebase.Branch
     annihilateTypeName,
     deleteTypeName,
     setChildBranch,
-    replacePatch,
-    deletePatch,
-    getMaybePatch,
-    getPatch,
-    modifyPatches,
 
     -- ** Children queries
     getAt,
@@ -86,7 +80,6 @@ module Unison.Codebase.Branch
     deepTerms,
     deepTypes,
     deepDefns,
-    deepEdits,
     deepPaths,
     deepReferents,
     deepTermReferences,
@@ -102,7 +95,7 @@ import Data.Map qualified as Map
 import Data.Semialign qualified as Align
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
-import U.Codebase.HashTags (CausalHash, PatchHash (..))
+import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
@@ -113,7 +106,6 @@ import Unison.Codebase.Branch.Type
     branch0,
     children,
     deepDefns,
-    deepEdits,
     deepPaths,
     deepTerms,
     deepTypes,
@@ -128,13 +120,9 @@ import Unison.Codebase.Branch.Type
   )
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal
-import Unison.Codebase.Patch (Patch)
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path (Path)
 import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
 import Unison.Hashing.V2.Convert qualified as H
-import Unison.Name (Name)
-import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
@@ -221,26 +209,13 @@ namespaceStats b =
   NamespaceStats
     { numContainedTerms = Relation.size $ deepTerms b,
       numContainedTypes = Relation.size $ deepTypes b,
-      numContainedPatches = Map.size $ deepEdits b
+      numContainedPatches = 0
     }
 
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
 head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history . Causal.head_
-
--- | a version of `deepEdits` that returns the `m Patch` as well.
-deepEdits' :: Branch0 m -> Map Name (PatchHash, m Patch)
-deepEdits' = go id
-  where
-    -- can change this to an actual prefix once Name is a [NameSegment]
-    go :: (Name -> Name) -> Branch0 m -> Map Name (PatchHash, m Patch)
-    go addPrefix b0 =
-      Map.mapKeys (addPrefix . Name.fromSegment) (b0 ^. edits)
-        <> foldMap f (Map.toList (b0 ^. children))
-      where
-        f :: (NameSegment, Branch m) -> Map Name (PatchHash, m Patch)
-        f (c, b) = go (addPrefix . Name.cons c) (head b)
 
 -- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: (Applicative m) => Branch0 m -> Branch0 m
@@ -381,33 +356,6 @@ getChildBranch seg b = fromMaybe empty $ Map.lookup seg (b ^. children)
 
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
-
-getPatch :: (Applicative m) => NameSegment -> Branch0 m -> m Patch
-getPatch seg b = case Map.lookup seg (b ^. edits) of
-  Nothing -> pure Patch.empty
-  Just (_, p) -> p
-
-getMaybePatch :: (Applicative m) => NameSegment -> Branch0 m -> m (Maybe Patch)
-getMaybePatch seg b = case Map.lookup seg (b ^. edits) of
-  Nothing -> pure Nothing
-  Just (_, p) -> Just <$> p
-
-modifyPatches ::
-  (Monad m) => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
-modifyPatches seg f = mapMOf edits update
-  where
-    update m = do
-      p' <- case Map.lookup seg m of
-        Nothing -> pure $ f Patch.empty
-        Just (_, p) -> f <$> p
-      let h = H.hashPatch p'
-      pure $ Map.insert seg (PatchHash h, pure p') m
-
-replacePatch :: (Applicative m) => NameSegment -> Patch -> Branch0 m -> Branch0 m
-replacePatch n p = over edits (Map.insert n (PatchHash (H.hashPatch p), pure p))
-
-deletePatch :: NameSegment -> Branch0 m -> Branch0 m
-deletePatch n = over edits (Map.delete n)
 
 updateChildren ::
   NameSegment ->

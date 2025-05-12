@@ -35,6 +35,8 @@
           [join (-> pattern? ... pattern?)]
           [join* (-> chunked-list? pattern?)]
           [choice (-> pattern? pattern? ... pattern?)]
+          [lookahead (-> pattern? pattern?)]
+          [negative-lookahead (-> pattern? pattern?)]
           [capture (-> pattern? pattern?)]
           [capture-as (-> any/c pattern? pattern?)]
           [many (-> pattern? pattern?)]
@@ -57,6 +59,8 @@
 (struct p:literal (cstr) #:transparent)
 (struct p:join (pats) #:transparent)
 (struct p:or (left right) #:transparent)
+(struct p:lookahead (pat) #:transparent)
+(struct p:negative-lookahead (pat) #:transparent)
 (struct p:capture (pat) #:transparent)
 (struct p:capture-as (cap pat) #:transparent)
 (struct p:many (pat) #:transparent)
@@ -125,6 +129,10 @@
            (pattern-pat pat)]
           [(cons pat pats)
            (p:or (pattern-pat pat) (loop pats))])))]))
+
+(define (lookahead pat) (make-pattern (p:lookahead (pattern-pat pat))))
+
+(define (negative-lookahead pat) (make-pattern (p:negative-lookahead (pattern-pat pat))))
 
 (define (capture pat) (make-pattern (p:capture (pattern-pat pat))))
 (define (capture-as cap pat)
@@ -206,6 +214,26 @@
            (if cstr*
                (ok cstr* captures*)
                (right-m cstr captures)))]
+
+        [(p:lookahead pat)
+          (define pat-m (recur pat in-capture? done))
+          (λ (cstr captures)
+            (define-values [cstr* captures*] (pat-m cstr captures))
+            (if cstr*
+               (ok cstr captures)
+               (fail))
+          )
+        ]
+
+        [(p:negative-lookahead pat)
+          (define pat-m (recur pat in-capture? done))
+          (λ (cstr captures)
+            (define-values [cstr* captures*] (pat-m cstr captures))
+            (if cstr*
+               (fail)
+               (ok cstr captures))
+          )
+        ]
 
         [(p:capture pat)
          (cond

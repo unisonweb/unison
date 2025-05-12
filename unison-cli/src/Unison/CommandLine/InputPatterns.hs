@@ -77,14 +77,10 @@ module Unison.CommandLine.InputPatterns
     mergeCommitInputPattern,
     mergeIOBuiltins,
     mergeInputPattern,
-    mergeOldInputPattern,
-    mergeOldPreviewInputPattern,
-    mergeOldSquashInputPattern,
     moveAll,
     names,
     namespaceDependencies,
     previewAdd,
-    previewUpdate,
     printVersion,
     projectCreate,
     projectCreateEmptyInputPattern,
@@ -121,8 +117,6 @@ module Unison.CommandLine.InputPatterns
     up,
     update,
     updateBuiltins,
-    updateOld,
-    updateOldNoPatch,
     upgrade,
     upgradeCommitInputPattern,
     view,
@@ -181,7 +175,6 @@ import Unison.Cli.Pretty
   )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
@@ -904,85 +897,6 @@ update =
             <> "for your review.",
       parse = const $ pure Input.Update2I
     }
-
-updateOldNoPatch :: InputPattern
-updateOldNoPatch =
-  InputPattern
-    "update.old.nopatch"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( P.wrap
-        ( makeExample' updateOldNoPatch
-            <> "works like"
-            <> P.group (makeExample' updateOld <> ",")
-            <> "except it doesn't add a patch entry for any updates. "
-            <> "Use this when you want to make changes to definitions without "
-            <> "pushing those changes to dependents beyond your codebase. "
-            <> "An example is when updating docs, or when updating a term you "
-            <> "just added."
-        )
-        <> P.wrapColumn2
-          [ ( makeExample' updateOldNoPatch,
-              "updates all definitions in the .u file."
-            ),
-            ( makeExample updateOldNoPatch ["foo", "bar"],
-              "updates `foo`, `bar`, and their dependents from the .u file."
-            )
-          ]
-    )
-    $ fmap (Input.UpdateI Input.NoPatch . Set.fromList) . traverse handleNameArg
-
-updateOld :: InputPattern
-updateOld =
-  InputPattern
-    "update.old"
-    []
-    I.Visible
-    (Parameters [] . Optional [("patch", patchArg)] $ Just ("definition", exactDefinitionArg))
-    ( P.wrap
-        ( makeExample' updateOld
-            <> "works like"
-            <> P.group (makeExample' add <> ",")
-            <> "except that if a definition in the file has the same name as an"
-            <> "existing definition, the name gets updated to point to the new"
-            <> "definition. If the old definition has any dependents, `update` will"
-            <> "add those dependents to a refactoring session, specified by an"
-            <> "optional patch."
-        )
-        <> P.wrapColumn2
-          [ ( makeExample' updateOld,
-              "adds all definitions in the .u file, noting replacements in the"
-                <> "default patch for the current namespace."
-            ),
-            ( makeExample updateOld ["<patch>"],
-              "adds all definitions in the .u file, noting replacements in the"
-                <> "specified patch."
-            ),
-            ( makeExample updateOld ["<patch>", "foo", "bar"],
-              "adds `foo`, `bar`, and their dependents from the .u file, noting"
-                <> "any replacements into the specified patch."
-            )
-          ]
-    )
-    \case
-      patchStr : ws ->
-        Input.UpdateI . Input.UsePatch <$> handleSplit'Arg patchStr <*> fmap Set.fromList (traverse handleNameArg ws)
-      [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
-
-previewUpdate :: InputPattern
-previewUpdate =
-  InputPattern
-    "update.old.preview"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`update.old.preview` previews updates to the codebase from the most "
-        <> "recently typechecked file. This command only displays cached "
-        <> "typechecking results. Use `load` to reparse & typecheck the file if "
-        <> "the context has changed."
-    )
-    $ fmap (Input.PreviewUpdateI . Set.fromList) . traverse handleNameArg
 
 view :: InputPattern
 view =
@@ -2215,91 +2129,6 @@ syncFromCodebase =
           branchInclusion = AllBranches
         }
 
-mergeOldSquashInputPattern :: InputPattern
-mergeOldSquashInputPattern =
-  InputPattern
-    { patternName = "merge.old.squash",
-      aliases = ["squash.old"],
-      visibility = I.Hidden,
-      params =
-        Parameters
-          [ ("namespace or branch to be squashed", namespaceOrProjectBranchArg suggestionsConfig),
-            ("merge destination", namespaceOrProjectBranchArg suggestionsConfig)
-          ]
-          $ Optional [] Nothing,
-      help =
-        P.wrap $
-          makeExample mergeOldSquashInputPattern ["src", "dest"]
-            <> "merges `src` namespace or branch into the `dest` namespace or branch,"
-            <> "discarding the history of `src` in the process."
-            <> "The resulting `dest` will have (at most) 1"
-            <> "additional history entry.",
-      parse = \case
-        [src] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> pure Nothing
-            <*> pure Branch.SquashMerge
-        [src, dest] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> (Just <$> handleBranchRelativePathArg dest)
-            <*> pure Branch.SquashMerge
-        args -> wrongArgsLength "exactly two arguments" args
-    }
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldInputPattern :: InputPattern
-mergeOldInputPattern =
-  InputPattern
-    "merge.old"
-    []
-    I.Hidden
-    ( Parameters [("branch or namespace to merge", namespaceOrProjectBranchArg config)] $
-        Optional [("merge destination", namespaceOrProjectBranchArg config)] Nothing
-    )
-    ( P.column2
-        [ ( makeExample mergeOldInputPattern ["foo/bar", "baz/qux"],
-            "merges the `foo/bar` branch into the `baz/qux` branch"
-          ),
-          ( makeExample mergeOldInputPattern ["/topic", "/main"],
-            "merges the branch `topic` of the current project into the `main` branch of the current project"
-          ),
-          ( makeExample mergeOldInputPattern ["foo/topic", "/main"],
-            "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
-          ),
-          ( makeExample mergeOldInputPattern ["/topic", "foo/main"],
-            "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
-          )
-        ]
-    )
-    ( \case
-        [src] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> pure Nothing
-            <*> pure Branch.RegularMerge
-        [src, dest] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> (Just <$> handleBranchRelativePathArg dest)
-            <*> pure Branch.RegularMerge
-        args -> wrongArgsLength "one or two arguments" args
-    )
-  where
-    config =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
 mergeInputPattern :: InputPattern
 mergeInputPattern =
   InputPattern
@@ -2386,37 +2215,6 @@ diffNamespace =
     \case
       [before, after] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> handleBranchId2Arg after
       [before] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> pure (Right . UnqualifiedPath $ Path.Current')
-      args -> wrongArgsLength "one or two arguments" args
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldPreviewInputPattern :: InputPattern
-mergeOldPreviewInputPattern =
-  InputPattern
-    "merge.old.preview"
-    []
-    I.Hidden
-    ( Parameters [("branch or namespace to merge", namespaceOrProjectBranchArg suggestionsConfig)] $
-        Optional [("merge destination", namespaceOrProjectBranchArg suggestionsConfig)] Nothing
-    )
-    ( P.column2
-        [ ( makeExample mergeOldPreviewInputPattern ["src"],
-            "shows how the current namespace will change after a " <> makeExample mergeOldInputPattern ["src"]
-          ),
-          ( makeExample mergeOldPreviewInputPattern ["src", "dest"],
-            "shows how `dest` namespace will change after a " <> makeExample mergeOldInputPattern ["src", "dest"]
-          )
-        ]
-    )
-    \case
-      [src] -> Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> pure Nothing
-      [src, dest] ->
-        Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> (Just <$> handleBranchRelativePathArg dest)
       args -> wrongArgsLength "one or two arguments" args
   where
     suggestionsConfig =
@@ -3768,16 +3566,12 @@ validInputs =
       makeStandalone,
       mergeBuiltins,
       mergeIOBuiltins,
-      mergeOldInputPattern,
-      mergeOldPreviewInputPattern,
-      mergeOldSquashInputPattern,
       mergeInputPattern,
       mergeCommitInputPattern,
       names False, -- names
       names True, -- debug.names.global
       namespaceDependencies,
       previewAdd,
-      previewUpdate,
       printVersion,
       projectCreate,
       projectCreateEmptyInputPattern,
@@ -3812,8 +3606,6 @@ validInputs =
       up,
       update,
       updateBuiltins,
-      updateOld,
-      updateOldNoPatch,
       upgrade,
       upgradeCommitInputPattern,
       view,
@@ -3883,15 +3675,6 @@ exactDefinitionTermQueryArg =
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
       fzfResolver = Just Resolvers.termDefinitionResolver,
-      isStructured = True
-    }
-
-patchArg :: ParameterType
-patchArg =
-  ParameterType
-    { typeName = "patch",
-      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
-      fzfResolver = Nothing,
       isStructured = True
     }
 

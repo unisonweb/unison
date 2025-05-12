@@ -7,10 +7,15 @@ module Unison.LSP.Queries
     getTypeDeclaration,
     refAtPosition,
     nodeAtPosition,
+    nodeAtPositionMatching,
     refInTerm,
     refInType,
     findSmallestEnclosingNode,
     findSmallestEnclosingType,
+    findSmallestEnclosingTypeMatching,
+    findSmallestEnclosingNodeMatching,
+    findSmallestEnclosingPattern,
+    findSmallestEnclosingPatternMatching,
     refInDecl,
     SourceNode (..),
   )
@@ -59,17 +64,17 @@ import Unison.UnisonFile.Summary (FileSummary (..))
 import Unison.Util.Pretty qualified as Pretty
 
 -- | Returns a reference to whatever the symbol at the given position refers to.
-refAtPosition :: Uri -> Position -> MaybeT Lsp LabeledDependency
+refAtPosition :: forall m. (Lspish m) => Uri -> Position -> MaybeT m LabeledDependency
 refAtPosition uri pos = do
   findInNode <|> findInDecl
   where
-    findInNode :: MaybeT Lsp LabeledDependency
+    findInNode :: MaybeT m LabeledDependency
     findInNode =
       nodeAtPosition uri pos >>= \case
         TermNode term -> hoistMaybe $ refInTerm term
         TypeNode typ -> hoistMaybe $ fmap TypeReference (refInType typ)
         PatternNode pat -> hoistMaybe $ refInPattern pat
-    findInDecl :: MaybeT Lsp LabeledDependency
+    findInDecl :: MaybeT m LabeledDependency
     findInDecl =
       LD.TypeReference <$> do
         let uPos = lspToUPos pos
@@ -77,11 +82,11 @@ refAtPosition uri pos = do
         ( altMap (hoistMaybe . refInDecl uPos . Right . snd) dataDeclsBySymbol
             <|> altMap (hoistMaybe . refInDecl uPos . Left . snd) effectDeclsBySymbol
           )
-    hoistMaybe :: Maybe a -> MaybeT Lsp a
+    hoistMaybe :: Maybe a -> MaybeT m a
     hoistMaybe = MaybeT . pure
 
 -- | Gets the type of a reference from either the parsed file or the codebase.
-getTypeOfReferent :: Uri -> Referent -> MaybeT Lsp (Type Symbol Ann)
+getTypeOfReferent :: (Lspish m) => Uri -> Referent -> MaybeT m (Type Symbol Ann)
 getTypeOfReferent fileUri ref = do
   getFromFile <|> getFromCodebase
   where
@@ -102,11 +107,11 @@ getTypeOfReferent fileUri ref = do
       MaybeT . liftIO $ Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
 
 -- | Gets a decl from either the parsed file or the codebase.
-getTypeDeclaration :: Uri -> Reference.Id -> MaybeT Lsp (Decl Symbol Ann)
+getTypeDeclaration :: forall m. (Lspish m) => Uri -> Reference.Id -> MaybeT m (Decl Symbol Ann)
 getTypeDeclaration fileUri refId = do
   getFromFile <|> getFromCodebase
   where
-    getFromFile :: MaybeT Lsp (Decl Symbol Ann)
+    getFromFile :: MaybeT m (Decl Symbol Ann)
     getFromFile = do
       FileSummary {dataDeclsByReference, effectDeclsByReference} <- getFileSummary fileUri
       let datas = dataDeclsByReference ^.. ix refId . folded
@@ -197,9 +202,20 @@ instance Functor SourceNode where
 -- | Find the node in a term which contains the specified position, but none of its
 -- children contain that position.
 findSmallestEnclosingNode :: Pos -> Term Symbol Ann -> Maybe (SourceNode Ann)
-findSmallestEnclosingNode pos term
-  | annIsFilePosition ann && not (ann `Ann.contains` pos) = Nothing
-  | Just r <- cleanImplicitUnit term = findSmallestEnclosingNode pos r
+findSmallestEnclosingNode pos term = findSmallestEnclosingNodeMatching pos pure term
+
+-- | Find the node in a term which contains the specified position, but none of its
+-- children contain that position
+findSmallestEnclosingNodeMatching :: forall m a. (MonadPlus m) => Pos -> (SourceNode Ann -> m a) -> Term Symbol Ann -> m a
+findSmallestEnclosingNodeMatching pos pred term
+  | ABT.Term _ absAnn (ABT.Abs _ body) <- term =
+      -- Abs nodes annotate the location of the var being bound, not the body of the binding, so we either match on
+      -- the binding, or skip over them to the body.
+      if absAnn `Ann.contains` pos
+        then termPred term <|> findSmallestEnclosingNodeMatching pos pred body
+        else findSmallestEnclosingNodeMatching pos pred body
+  | annIsFilePosition ann && not (ann `Ann.contains` pos) = empty
+  | Just r <- cleanImplicitUnit term = findSmallestEnclosingNodeMatching pos pred r
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
       -- external.
@@ -208,17 +224,17 @@ findSmallestEnclosingNode pos term
       let guardInFile = guard (annIsFilePosition ann)
       let bestChild = case ABT.out term of
             ABT.Tm f -> case f of
-              Term.Int {} -> guardInFile *> Just (TermNode term)
-              Term.Nat {} -> guardInFile *> Just (TermNode term)
-              Term.Float {} -> guardInFile *> Just (TermNode term)
-              Term.Boolean {} -> guardInFile *> Just (TermNode term)
-              Term.Text {} -> guardInFile *> Just (TermNode term)
-              Term.Char {} -> guardInFile *> Just (TermNode term)
-              Term.Blank {} -> guardInFile *> Just (TermNode term)
-              Term.Ref {} -> guardInFile *> Just (TermNode term)
-              Term.Constructor {} -> guardInFile *> Just (TermNode term)
-              Term.Request {} -> guardInFile *> Just (TermNode term)
-              Term.Handle a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+              Term.Int {} -> guardInFile *> termPred term
+              Term.Nat {} -> guardInFile *> termPred term
+              Term.Float {} -> guardInFile *> termPred term
+              Term.Boolean {} -> guardInFile *> termPred term
+              Term.Text {} -> guardInFile *> termPred term
+              Term.Char {} -> guardInFile *> termPred term
+              Term.Blank {} -> guardInFile *> termPred term
+              Term.Ref {} -> guardInFile *> termPred term
+              Term.Constructor {} -> guardInFile *> termPred term
+              Term.Request {} -> guardInFile *> termPred term
+              Term.Handle a b -> findSmallestEnclosingNodeMatching pos pred a <|> findSmallestEnclosingNodeMatching pos pred b
               Term.App a b ->
                 -- We crawl the body of the App first because the annotations for certain
                 -- lambda syntaxes get a bit squirrelly.
@@ -227,26 +243,32 @@ findSmallestEnclosingNode pos term
                 -- cover ALL of `(1, 2)`, so we check the body of the tuple app first to see
                 -- if the cursor is on 1 or 2 before falling back on the annotation of the
                 -- 'function' of the app.
-                findSmallestEnclosingNode pos b <|> findSmallestEnclosingNode pos a
-              Term.Ann a typ -> findSmallestEnclosingNode pos a <|> (TypeNode <$> findSmallestEnclosingType pos typ)
-              Term.List xs -> altSum (findSmallestEnclosingNode pos <$> xs)
-              Term.If cond a b -> findSmallestEnclosingNode pos cond <|> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
-              Term.And l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
-              Term.Or l r -> findSmallestEnclosingNode pos l <|> findSmallestEnclosingNode pos r
-              Term.Lam a -> findSmallestEnclosingNode pos a
-              Term.LetRec _isTop xs y -> altSum (findSmallestEnclosingNode pos <$> xs) <|> findSmallestEnclosingNode pos y
-              Term.Let _isTop a b -> findSmallestEnclosingNode pos a <|> findSmallestEnclosingNode pos b
+                findSmallestEnclosingNodeMatching pos pred b <|> findSmallestEnclosingNodeMatching pos pred a
+              Term.Ann a typ -> findSmallestEnclosingNodeMatching pos pred a <|> (findSmallestEnclosingTypeMatching pos typePred typ)
+              Term.List xs -> altSum (findSmallestEnclosingNodeMatching pos pred <$> xs)
+              Term.If cond a b -> findSmallestEnclosingNodeMatching pos pred cond <|> findSmallestEnclosingNodeMatching pos pred a <|> findSmallestEnclosingNodeMatching pos pred b
+              Term.And l r -> findSmallestEnclosingNodeMatching pos pred l <|> findSmallestEnclosingNodeMatching pos pred r
+              Term.Or l r -> findSmallestEnclosingNodeMatching pos pred l <|> findSmallestEnclosingNodeMatching pos pred r
+              Term.Lam a -> findSmallestEnclosingNodeMatching pos pred a
+              Term.LetRec _isTop xs y ->
+                altSum (findSmallestEnclosingNodeMatching pos pred <$> xs)
+                  <|> findSmallestEnclosingNodeMatching pos pred y
+              Term.Let _isTop a b ->
+                findSmallestEnclosingNodeMatching pos pred a
+                  <|> findSmallestEnclosingNodeMatching pos pred b
               Term.Match a cases ->
-                findSmallestEnclosingNode pos a
-                  <|> altSum (cases <&> \(MatchCase pat grd body) -> ((PatternNode <$> findSmallestEnclosingPattern pos pat) <|> (grd >>= findSmallestEnclosingNode pos) <|> findSmallestEnclosingNode pos body))
-              Term.TermLink {} -> guardInFile *> Just (TermNode term)
-              Term.TypeLink {} -> guardInFile *> Just (TermNode term)
-            ABT.Var _v -> guardInFile *> Just (TermNode term)
-            ABT.Cycle r -> findSmallestEnclosingNode pos r
-            ABT.Abs _v r -> findSmallestEnclosingNode pos r
-      let fallback = if annIsFilePosition ann then Just (TermNode term) else Nothing
+                findSmallestEnclosingNodeMatching pos pred a
+                  <|> altSum (cases <&> \(MatchCase pat grd body) -> ((findSmallestEnclosingPatternMatching pos patPred pat) <|> (altMaybe grd >>= findSmallestEnclosingNodeMatching pos pred) <|> findSmallestEnclosingNodeMatching pos pred body))
+              Term.TermLink {} -> guardInFile *> termPred term
+              Term.TypeLink {} -> guardInFile *> termPred term
+            ABT.Var _v -> guardInFile *> termPred term
+            ABT.Cycle r -> findSmallestEnclosingNodeMatching pos pred r
+            ABT.Abs _v r -> findSmallestEnclosingNodeMatching pos pred r
+      let fallback = if annIsFilePosition ann then termPred term else empty
       bestChild <|> fallback
   where
+    altMaybe :: Maybe x -> m x
+    altMaybe = maybe empty pure
     -- tuples always end in an implicit unit, but it's annotated with the span of the whole
     -- tuple, which is problematic, so we need to detect and remove implicit tuples.
     -- We can detect them because we know that the last element of a tuple is always its
@@ -257,6 +279,9 @@ findSmallestEnclosingNode pos term
         | ref == Builtins.pairRef && Term.amap (const ()) trm == Builtins.unitTerm () -> Just x
       _ -> Nothing
     ann = getTermSpanAnn term
+    termPred = pred . TermNode
+    typePred = pred . TypeNode
+    patPred = pred . PatternNode
 
 -- | Most nodes have the property that their annotation spans all their children, but there are some exceptions.
 getTermSpanAnn :: Term Symbol Ann -> Ann
@@ -265,9 +290,18 @@ getTermSpanAnn tm = case ABT.out tm of
   _ -> ABT.annotation tm
 
 findSmallestEnclosingPattern :: Pos -> Pattern.Pattern Ann -> Maybe (Pattern.Pattern Ann)
-findSmallestEnclosingPattern pos pat
-  | Just validTargets <- cleanImplicitUnit pat = findSmallestEnclosingPattern pos validTargets
-  | annIsFilePosition (ann pat) && not (ann pat `Ann.contains` pos) = Nothing
+findSmallestEnclosingPattern pos pat = findSmallestEnclosingPatternMatching pos pure pat
+
+findSmallestEnclosingPatternMatching ::
+  forall m a.
+  (Alternative m) =>
+  Pos ->
+  (Pattern.Pattern Ann -> m a) ->
+  Pattern.Pattern Ann ->
+  m a
+findSmallestEnclosingPatternMatching pos pred pat
+  | Just validTargets <- cleanImplicitUnit pat = findSmallestEnclosingPatternMatching pos pred validTargets
+  | annIsFilePosition (ann pat) && not (ann pat `Ann.contains` pos) = empty
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
       -- external.
@@ -275,21 +309,21 @@ findSmallestEnclosingPattern pos pat
       -- ARE in the file, so we need to make sure we still crawl their children.
       let guardInFile = guard (annIsFilePosition (ann pat))
       let bestChild = case pat of
-            Pattern.Unbound {} -> guardInFile *> Just pat
-            Pattern.Var {} -> guardInFile *> Just pat
-            Pattern.Boolean {} -> guardInFile *> Just pat
-            Pattern.Int {} -> guardInFile *> Just pat
-            Pattern.Nat {} -> guardInFile *> Just pat
-            Pattern.Float {} -> guardInFile *> Just pat
-            Pattern.Text {} -> guardInFile *> Just pat
-            Pattern.Char {} -> guardInFile *> Just pat
-            Pattern.Constructor _loc _conRef pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
-            Pattern.As _loc p -> findSmallestEnclosingPattern pos p
-            Pattern.EffectPure _loc p -> findSmallestEnclosingPattern pos p
-            Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPattern pos <$> pats) <|> findSmallestEnclosingPattern pos p
-            Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPattern pos <$> pats)
-            Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPattern pos p1 <|> findSmallestEnclosingPattern pos p2
-      let fallback = if annIsFilePosition (ann pat) then Just pat else Nothing
+            Pattern.Unbound {} -> guardInFile *> pred pat
+            Pattern.Var {} -> guardInFile *> pred pat
+            Pattern.Boolean {} -> guardInFile *> pred pat
+            Pattern.Int {} -> guardInFile *> pred pat
+            Pattern.Nat {} -> guardInFile *> pred pat
+            Pattern.Float {} -> guardInFile *> pred pat
+            Pattern.Text {} -> guardInFile *> pred pat
+            Pattern.Char {} -> guardInFile *> pred pat
+            Pattern.Constructor _loc _conRef pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
+            Pattern.As _loc p -> findSmallestEnclosingPatternMatching pos pred p
+            Pattern.EffectPure _loc p -> findSmallestEnclosingPatternMatching pos pred p
+            Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats) <|> findSmallestEnclosingPatternMatching pos pred p
+            Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
+            Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPatternMatching pos pred p1 <|> findSmallestEnclosingPatternMatching pos pred p2
+      let fallback = if annIsFilePosition (ann pat) then pred pat else empty
       bestChild <|> fallback
   where
     -- tuple patterns always end in an implicit unit, but it's annotated with the span of the whole
@@ -307,8 +341,18 @@ findSmallestEnclosingPattern pos pat
 -- This is helpful for finding the specific type reference of a given argument within a type arrow
 -- that a position references.
 findSmallestEnclosingType :: Pos -> Type Symbol Ann -> Maybe (Type Symbol Ann)
-findSmallestEnclosingType pos typ
-  | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = Nothing
+findSmallestEnclosingType pos typ = findSmallestEnclosingTypeMatching pos pure typ
+
+-- | Find the node in a type which contains the specified position, but none of its
+-- children contain that position.
+-- This is helpful for finding the specific type reference of a given argument within a type arrow
+-- that a position references.
+findSmallestEnclosingTypeMatching :: (Alternative m) => Pos -> (Type Symbol Ann -> m a) -> Type Symbol Ann -> m a
+findSmallestEnclosingTypeMatching pos pred typ
+  | -- Abs nodes annotate the location of the var being bound, not the body of the binding, so we just skip over them.
+    ABT.Abs'' _ body <- typ =
+      findSmallestEnclosingTypeMatching pos pred body
+  | annIsFilePosition (ABT.annotation typ) && not (ABT.annotation typ `Ann.contains` pos) = empty
   | otherwise = do
       -- For leaf nodes we require that they be an in-file position, not Intrinsic or
       -- external.
@@ -317,22 +361,22 @@ findSmallestEnclosingType pos typ
       let guardInFile = guard (annIsFilePosition (ABT.annotation typ))
       let bestChild = case ABT.out typ of
             ABT.Tm f -> case f of
-              Type.Ref {} -> guardInFile *> Just typ
-              Type.Arrow a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
+              Type.Ref {} -> guardInFile *> pred typ
+              Type.Arrow a b -> findSmallestEnclosingTypeMatching pos pred a <|> findSmallestEnclosingTypeMatching pos pred b
               Type.Effect effs rhs ->
                 -- There's currently a bug in the annotations for effects which cause them to
                 -- span larger than they should. As  a workaround for now we just make sure to
                 -- search the RHS before the effects.
-                findSmallestEnclosingType pos rhs <|> findSmallestEnclosingType pos effs
-              Type.App a b -> findSmallestEnclosingType pos a <|> findSmallestEnclosingType pos b
-              Type.Forall r -> findSmallestEnclosingType pos r
-              Type.Ann a _kind -> findSmallestEnclosingType pos a
-              Type.Effects es -> altSum (findSmallestEnclosingType pos <$> es)
-              Type.IntroOuter a -> findSmallestEnclosingType pos a
-            ABT.Var _v -> guardInFile *> Just typ
-            ABT.Cycle r -> findSmallestEnclosingType pos r
-            ABT.Abs _v r -> findSmallestEnclosingType pos r
-      let fallback = if annIsFilePosition (ABT.annotation typ) then Just typ else Nothing
+                findSmallestEnclosingTypeMatching pos pred rhs <|> findSmallestEnclosingTypeMatching pos pred effs
+              Type.App a b -> findSmallestEnclosingTypeMatching pos pred a <|> findSmallestEnclosingTypeMatching pos pred b
+              Type.Forall r -> findSmallestEnclosingTypeMatching pos pred r
+              Type.Ann a _kind -> findSmallestEnclosingTypeMatching pos pred a
+              Type.Effects es -> altSum (findSmallestEnclosingTypeMatching pos pred <$> es)
+              Type.IntroOuter a -> findSmallestEnclosingTypeMatching pos pred a
+            ABT.Var _v -> guardInFile *> pred typ
+            ABT.Cycle r -> findSmallestEnclosingTypeMatching pos pred r
+            ABT.Abs _v r -> findSmallestEnclosingTypeMatching pos pred r
+      let fallback = if annIsFilePosition (ABT.annotation typ) then pred typ else empty
       bestChild <|> fallback
 
 -- | Returns the type reference the given position applies to within a Decl, if any.
@@ -349,19 +393,24 @@ refInDecl p (DD.asDataDecl -> dd) =
 
 -- | Returns the ABT node at the provided position.
 -- Does not return Decl nodes.
-nodeAtPosition :: Uri -> Position -> MaybeT Lsp (SourceNode Ann)
-nodeAtPosition uri (lspToUPos -> pos) = do
+nodeAtPosition :: (Lspish m) => Uri -> Position -> MaybeT m (SourceNode Ann)
+nodeAtPosition uri pos = nodeAtPositionMatching uri pos pure
+
+-- | Search the ABT for nodes which intersect at a given position, running the
+-- provided selector on them and aligning results to prefer smaller containing nodes first.
+-- The caller may use either 'pure' or 'empty' in the selector to select or ignore a given option.
+--
+-- Does not return Decl nodes.
+nodeAtPositionMatching :: (Lspish m) => Uri -> Position -> (SourceNode Ann -> MaybeT m a) -> MaybeT m a
+nodeAtPositionMatching uri (lspToUPos -> pos) pred = do
   (FileSummary {termsBySymbol, testWatchSummary, exprWatchSummary}) <- getFileSummary uri
 
   let (trms, typs) = termsBySymbol & foldMap \(_ann, _ref, trm, mayTyp) -> ([trm], toList mayTyp)
-  ( altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) trms
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _4)
-      <|> altMap (hoistMaybe . findSmallestEnclosingNode pos . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _4)
-      <|> altMap (fmap TypeNode . hoistMaybe . findSmallestEnclosingType pos) typs
+  ( altMap (findSmallestEnclosingNodeMatching pos pred . removeInferredTypeAnnotations) trms
+      <|> altMap (findSmallestEnclosingNodeMatching pos pred . removeInferredTypeAnnotations) (testWatchSummary ^.. folded . _4)
+      <|> altMap (findSmallestEnclosingNodeMatching pos pred . removeInferredTypeAnnotations) (exprWatchSummary ^.. folded . _4)
+      <|> altMap (findSmallestEnclosingTypeMatching pos (pred . TypeNode)) typs
     )
-  where
-    hoistMaybe :: Maybe a -> MaybeT Lsp a
-    hoistMaybe = MaybeT . pure
 
 annIsFilePosition :: Ann -> Bool
 annIsFilePosition = \case
@@ -388,12 +437,12 @@ removeInferredTypeAnnotations =
     t -> t
 
 -- | Renders all docs for a given FQN to markdown.
-markdownDocsForFQN :: Uri -> HQ.HashQualified Name -> Lsp [Text]
+markdownDocsForFQN :: (Lspish m) => Uri -> HQ.HashQualified Name -> m [Text]
 markdownDocsForFQN fileUri fqn =
   fromMaybe [] <$> runMaybeT do
     pped <- lift $ ppedForFile fileUri
     name <- MaybeT . pure $ HQ.toName fqn
-    nameSearch <- lift $ getNameSearch
+    nameSearch <- getNameSearch
     Env {codebase, runtime} <- ask
     liftIO $ do
       docRefs <- Codebase.runTransaction codebase $ Backend.docsForDefinitionName codebase nameSearch ExactName name

@@ -40,6 +40,7 @@ import Unison.LSP.Configuration qualified as Config
 import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import Unison.LSP.Formatting (formatDocRequest, formatRangeRequest)
+import Unison.LSP.GoToDefinition (goToDeclarationHandler, goToDefinitionHandler, goToImplementationHandler)
 import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
@@ -181,6 +182,9 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
+    & SMM.insert Msg.SMethod_TextDocumentDeclaration (mkHandler goToDeclarationHandler)
+    & SMM.insert Msg.SMethod_TextDocumentDefinition (mkHandler goToDefinitionHandler)
+    & SMM.insert Msg.SMethod_TextDocumentImplementation (mkHandler goToImplementationHandler)
     & addFormattingHandlers
   where
     addFormattingHandlers handlers =

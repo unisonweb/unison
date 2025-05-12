@@ -834,6 +834,10 @@ foreignCallHelper = \case
     evaluate . TPat.cpattern . TPat.Join $ map (\(TPat.CP p _) -> p) ps
   Pattern_or -> mkForeign $
     \(TPat.CP l _, TPat.CP r _) -> evaluate . TPat.cpattern $ TPat.Or l r
+  Pattern_lookahead -> mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Lookahead p
+  Pattern_negativeLookahead -> mkForeign $
+    \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.NegativeLookahead p
   Pattern_replicate -> mkForeign $
     \(m0 :: Word64, n0 :: Word64, TPat.CP p _) ->
       let m = fromIntegral m0; n = fromIntegral n0
@@ -867,7 +871,11 @@ foreignCallHelper = \case
   Char_Class_is -> mkForeign $ \(cl, c) -> evaluate $ TPat.charPatternPred cl c
   Text_patterns_char -> mkForeign $ \c ->
     let v = TPat.cpattern (TPat.Char c) in pure v
-  Map_tip -> mkForeign $ \() -> pure Map.empty
+  Text_patterns_lookbehind1 -> mkForeign $ \cp ->
+    let v = TPat.cpattern (TPat.Lookbehind1 cp) in pure v
+  Text_patterns_negativeLookbehind1 -> mkForeign $ \cp ->
+    let v = TPat.cpattern (TPat.NegativeLookbehind1 cp) in pure v
+  Map_tip -> mkForeign $ \() -> pure (Map.empty @Val @Val)
   Map_bin -> mkForeign $ \(sz :: Word64, k :: Val, v :: Val, l, r) ->
     pure (Map.Bin (fromIntegral sz) k v l r)
   Map_insert -> mkForeign $ \(k :: Val, v :: Val, m :: Map Val Val) ->
@@ -878,15 +886,48 @@ foreignCallHelper = \case
     evaluate $ Map.fromList l
   Map_eq -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
     pure $ l == r
+  Map_union -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
+    evaluate $ Map.union l r
+  Map_intersect -> mkForeign $ \(l :: Map Val Val, r :: Map Val Val) ->
+    evaluate $ Map.intersection l r
+  Map_toList -> mkForeign $ \(m :: Map Val Val) ->
+    evaluate . forceListSpine $ Map.toList m
   List_range -> mkForeign $ \(m :: Word64, n :: Word64) ->
     let sz
           | m < n = fromIntegral $ n - m
           | otherwise = 0
         mk i = NatVal $ m + fromIntegral i
-        force s = foldl (\u x -> x `seq` u) s s
-     in evaluate . force $ Sq.fromFunction sz mk
+     in evaluate . forceListSpine $ Sq.fromFunction sz mk
   List_sort -> mkForeign $ \(l :: Seq Val) -> pure $ Sq.unstableSort l
+  Multimap_fromList -> mkForeign $ \(l :: [(Val, Val)]) -> do
+    let listVals = l <&> \(k, v) -> (k, Sq.singleton v)
+    -- Haskell Map.fromList calls the semigroup in reverse order, so we correct for it by flipping.
+    let result :: Map Val Val = fmap encodeVal $ Map.fromListWith (flip (<>)) listVals
+    evaluate result
+  Set_fromList -> mkForeign $ \(l :: [Val]) -> do
+    m <- evaluate $ Map.fromList $ zip l (repeat unitValue)
+    pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+  Set_union -> mkForeign $ \case
+    (Data1 _ _ vl, Data1 _ _ vr) -> do
+      (l :: Map Val Val) <- decodeVal vl
+      (r :: Map Val Val) <- decodeVal vr
+      m <- evaluate $ Map.union l r
+      pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+    _ -> die "Set.union: bad closure"
+  Set_intersect -> mkForeign $ \case
+    (Data1 _ _ vl, Data1 _ _ vr) -> do
+      (l :: Map Val Val) <- decodeVal vl
+      (r :: Map Val Val) <- decodeVal vr
+      m <- evaluate $ Map.intersection l r
+      pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
+    _ -> die "Set.insersect: bad closure"
+  Set_toList -> mkForeign $ \case
+    (Data1 _ _ vs) -> do
+      (s :: Map Val Val) <- decodeVal vs
+      evaluate . forceListSpine $ Map.keys s
+    _ -> die "Set.toList: bad closure"
   where
+    forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
 
     hostPreference :: Maybe Util.Text.Text -> SYS.HostPreference
@@ -2082,6 +2123,30 @@ functionReplacementList =
     ),
     ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du",
       Map_fromList
+    ),
+    ( "01qqpul0ttlgjhr5i2gtmdr2uarns2hbtnjpipmk1575ipkrlug42",
+      Map_union
+    ),
+    ( "00c363e340il8q0fai6peiv3586o931nojj98qfek09hg1tjkm9ma",
+      Map_intersect
+    ),
+    ( "03pjq0jijrr7ebf6s3tuqi4d5hi5mrv19nagp7ql2j9ltm55c32ek",
+      Map_toList
+    ),
+    ( "03putoun7i5n0lhf8iu990u9p08laklnp668i170dka2itckmadlq",
+      Multimap_fromList
+    ),
+    ( "03q6giac0qlva6u4mja29tr7mv0jqnsugk8paibatdrns8lhqqb92",
+      Set_fromList
+    ),
+    ( "03362vaalqq28lcrmmsjhha637is312j01jme3juj980ugd93up28",
+      Set_union
+    ),
+    ( "01lm6ejo31na1ti6u85bv0klliefll7q0c0da2qnefvcrq1l8rlqe",
+      Set_intersect
+    ),
+    ( "01p7ot36tg62na408mnk1psve6rc7fog30gv6n7thkrv6t3na2gdm",
+      Set_toList
     ),
     ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk",
       Map_eq
