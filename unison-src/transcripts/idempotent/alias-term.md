@@ -9,7 +9,7 @@ project/main> alias.term lib.builtins.bug foo
 
   Done.
 
-project/main> ls
+project/main> ls .
 
   1. foo  (a -> b)
   2. lib/ (650 terms, 94 types)
@@ -26,7 +26,7 @@ project/main> alias.term lib.builtins.todo foo
 ```
 
 ``` ucm
-project/main> ls
+project/main> ls .
 
   1. foo  (a -> b)
   2. lib/ (650 terms, 94 types)
@@ -39,7 +39,7 @@ project/main> debug.alias.term.force lib.builtins.todo foo
 
   Done.
 
-project/main> ls
+project/main> ls .
 
   1. foo  (a -> b)
   2. foo  (a -> b)

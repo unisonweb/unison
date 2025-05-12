@@ -27,11 +27,11 @@ scratch/main> add .
       |  ^
     unexpected end of input
     expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
-    
+
 
   You can run `help add` for more information on using `add`.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -39,7 +39,7 @@ scratch/main> ls
 scratch/main> add 1
 
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -83,7 +83,7 @@ scratch/main> update arg
 
 aliasTerm
 
-``` 
+```
 scratch/main> alias.term ##Nat.+ Nat.+
 ```
 
@@ -92,7 +92,7 @@ aliasType,
 
 todo:
 
-``` 
+```
 
 aliasMany,
 api,

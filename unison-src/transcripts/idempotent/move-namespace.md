@@ -28,7 +28,7 @@ scratch/main> move.namespace . .root.at.path
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. root/ (1 term)
 
@@ -73,7 +73,7 @@ scratch/main> move.namespace .root.at.path .
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. foo (##Nat)
 
@@ -125,7 +125,7 @@ unique type a.T = T
   change:
 
     ⍟ These new definitions are ok to `add`:
-    
+
       type a.T
       a.termInA : Nat
 ```
@@ -153,7 +153,7 @@ unique type a.T = T1 | T2
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
-    
+
       type a.T
       a.termInA : Nat
 ```
@@ -188,11 +188,11 @@ scratch/happy> history b
   ⊙ 1. #ugqniosnp0
 
     + Adds / updates:
-    
+
       T T.T1 T.T2 termInA
-    
+
     - Deletes:
-    
+
       T.T
 
   □ 2. #a7r726o5ut (start of history)
@@ -219,7 +219,7 @@ b.termInB = 10
   change:
 
     ⍟ These new definitions are ok to `add`:
-    
+
       a.termInA : Nat
       b.termInB : Nat
 ```
@@ -247,7 +247,7 @@ b.termInB = 11
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
-    
+
       a.termInA : Nat
       b.termInB : Nat
 ```
@@ -284,7 +284,7 @@ scratch/history> history b
   ⊙ 1. #j0cjjqepb3
 
     + Adds / updates:
-    
+
       termInA
 
   □ 2. #m8smmmgjso (start of history)
@@ -322,7 +322,7 @@ b.termInB = 10
   change:
 
     ⍟ These new definitions are ok to `add`:
-    
+
       a.termInA : Nat
       b.termInB : Nat
 ```
@@ -350,7 +350,7 @@ b.termInB = 11
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
-    
+
       a.termInA : Nat
       b.termInB : Nat
 ```
