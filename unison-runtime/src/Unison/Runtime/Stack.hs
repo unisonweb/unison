@@ -325,7 +325,7 @@ type DEnv = EnumMap Word64 Val
 --
 -- Instead, components are passed `evaluate` locally when built, or
 -- similar.
-data HEnv = HEnv { aenv :: AEnv, denv :: DEnv }
+data HEnv = HEnv {aenv :: AEnv, denv :: DEnv}
 
 instance Semigroup HEnv where
   HEnv la ld <> HEnv ra rd = HEnv (la <> ra) (ld <> rd)

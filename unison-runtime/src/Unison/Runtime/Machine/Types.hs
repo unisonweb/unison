@@ -1,4 +1,3 @@
-
 module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
@@ -14,7 +13,14 @@ import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF
-  (SuperGroup (..), Cacheability (..), Code (..), CompileExn (..), Value, valueLinks, foldGroupLinks)
+  ( Cacheability (..),
+    Code (..),
+    CompileExn (..),
+    SuperGroup (..),
+    Value,
+    foldGroupLinks,
+    valueLinks,
+  )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign (Failure (..))
@@ -140,10 +146,10 @@ baseCCache sandboxed = do
 
 lookupCode :: CCache -> Referent -> IO (Maybe Code)
 lookupCode env (Ref link) =
-  resolveCode link <$>
-    readTVarIO (intermed env) <*>
-    readTVarIO (refTm env) <*>
-    readTVarIO (cacheableCombs env)
+  resolveCode link
+    <$> readTVarIO (intermed env)
+    <*> readTVarIO (refTm env)
+    <*> readTVarIO (cacheableCombs env)
 lookupCode _ _ = die "lookupCode: Expected Ref"
 
 resolveCode ::

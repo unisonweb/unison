@@ -15,7 +15,7 @@ import Hedgehog.Range qualified as Range
 import Unison.Prelude
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
-import Unison.Runtime.MCode (Args (..), Prim1, Prim2, Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Ref, Section)
+import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, Ref, Section)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
@@ -120,10 +120,10 @@ genInstr =
       Pack <$> genReference <*> genPackedTag <*> genArgs,
       Lit <$> genMLit,
       Print <$> genSmallInt,
-      Reset <$>
-        genEnumSet genSmallWord64 <*>
-        genSmallInt <*>
-        Gen.maybe genSmallInt,
+      Reset
+        <$> genEnumSet genSmallWord64
+        <*> genSmallInt
+        <*> Gen.maybe genSmallInt,
       Fork <$> genSmallInt,
       Atomically <$> genSmallInt,
       Seq <$> genArgs,

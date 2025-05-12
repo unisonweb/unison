@@ -106,7 +106,7 @@ setSingleton e = ES . IS.singleton $ keyToInt e
 mapInsert :: (EnumKey k) => k -> a -> EnumMap k a -> EnumMap k a
 mapInsert e x (EM m) = EM $ IM.insert (keyToInt e) x m
 
-{-# inline mapFromSet #-}
+{-# INLINE mapFromSet #-}
 mapFromSet :: (EnumKey k) => EnumSet k -> a -> EnumMap k a
 mapFromSet (ES s) a = EM $ IM.fromSet (const a) s
 
