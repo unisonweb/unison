@@ -173,12 +173,12 @@ add b = b
 ```
 
 ``` ucm
-scratch/main> update.old
+scratch/main> update
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    add : a -> a
+  Done.
 
 scratch/main> debug.tab-complete delete.type Foo
 

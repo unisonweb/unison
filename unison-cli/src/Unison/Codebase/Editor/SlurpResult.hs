@@ -8,7 +8,6 @@ module Unison.Codebase.Editor.SlurpResult
     -- ** Predicates
     isOk,
     isAllDuplicates,
-    hasAddsOrUpdates,
 
     -- ** Filtering a Unison file
     filterUnisonFile,
@@ -81,14 +80,6 @@ data SlurpResult = SlurpResult
     defsWithBlockedDependencies :: SlurpComponent
   }
   deriving (Show)
-
-hasAddsOrUpdates :: SlurpResult -> Bool
-hasAddsOrUpdates s =
-  -- We intentionally ignore constructors here since they are added as part of adding their
-  -- types.
-  let SC.SlurpComponent {terms = termAdds, types = typeAdds} = adds s
-      SC.SlurpComponent {terms = termUpdates, types = typeUpdates} = updates s
-   in not . null $ termAdds <> typeAdds <> termUpdates <> typeUpdates
 
 data Status
   = Add

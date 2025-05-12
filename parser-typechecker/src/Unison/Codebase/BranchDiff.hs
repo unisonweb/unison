@@ -1,12 +1,15 @@
-module Unison.Codebase.BranchDiff where
+module Unison.Codebase.BranchDiff
+  ( BranchDiff (..),
+    DiffSlice (..),
+    diff0,
+    namespaceUpdates,
+  )
+where
 
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.HashTags (PatchHash)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Patch (Patch, PatchDiff)
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (Reference)
@@ -27,13 +30,12 @@ data DiffSlice r = DiffSlice
 
 data BranchDiff = BranchDiff
   { termsDiff :: DiffSlice Referent,
-    typesDiff :: DiffSlice Reference,
-    patchesDiff :: Map Name (DiffType PatchDiff)
+    typesDiff :: DiffSlice Reference
   }
   deriving stock (Generic, Show)
 
-diff0 :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m BranchDiff
-diff0 old new = BranchDiff terms types <$> patchDiff old new
+diff0 :: Branch0 m -> Branch0 m -> BranchDiff
+diff0 old new = BranchDiff terms types
   where
     (terms, types) =
       computeSlices
@@ -41,29 +43,6 @@ diff0 old new = BranchDiff terms types <$> patchDiff old new
         (Branch.deepTerms new)
         (Branch.deepTypes old)
         (Branch.deepTypes new)
-
-patchDiff :: forall m. (Monad m) => Branch0 m -> Branch0 m -> m (Map Name (DiffType PatchDiff))
-patchDiff old new = do
-  let oldDeepEdits, newDeepEdits :: Map Name (PatchHash, m Patch)
-      oldDeepEdits = Branch.deepEdits' old
-      newDeepEdits = Branch.deepEdits' new
-  added <- do
-    addedPatches :: Map Name Patch <-
-      traverse snd $ Map.difference newDeepEdits oldDeepEdits
-    pure $ fmap (\p -> Create (Patch.diff p mempty)) addedPatches
-  removed <- do
-    removedPatches :: Map Name Patch <-
-      traverse snd $ Map.difference oldDeepEdits newDeepEdits
-    pure $ fmap (\p -> Delete (Patch.diff mempty p)) removedPatches
-
-  let f acc k = case (Map.lookup k oldDeepEdits, Map.lookup k newDeepEdits) of
-        (Just (h1, p1), Just (h2, p2)) ->
-          if h1 == h2
-            then pure acc
-            else Map.singleton k . Modify <$> (Patch.diff <$> p2 <*> p1)
-        _ -> error "we've done something very wrong"
-  modified <- foldM f mempty (Set.intersection (Map.keysSet oldDeepEdits) (Map.keysSet newDeepEdits))
-  pure $ added <> removed <> modified
 
 computeSlices ::
   Relation Referent Name ->

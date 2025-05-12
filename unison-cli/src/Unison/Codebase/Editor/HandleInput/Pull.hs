@@ -1,9 +1,6 @@
 -- | @pull@ input handler
 module Unison.Codebase.Editor.HandleInput.Pull
   ( handlePull,
-    loadPropagateDiffDefaultPatch,
-    mergeBranchAndPropagateDefaultPatch,
-    propagatePatch,
   )
 where
 
@@ -21,27 +18,19 @@ import Unison.Cli.MergeTypes (MergeSource (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Merge2 (AliceMergeInfo (..), BobMergeInfo (..), LcaMergeInfo (..), MergeInfo (..), doMerge)
-import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.Propagate qualified as Propagate
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace (..), printReadRemoteNamespace)
-import Unison.Codebase.Patch (Patch (..))
-import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
-import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName)
 import Witch (unsafeFrom)
@@ -235,63 +224,3 @@ resolveExplicitSource includeSquashed = \case
 resolveImplicitTarget :: Cli (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
 resolveImplicitTarget = do
   PP.toProjectAndBranch <$> Cli.getCurrentProjectPath
-
--- | supply `dest0` if you want to print diff messages
---   supply unchangedMessage if you want to display it if merge had no effect
-mergeBranchAndPropagateDefaultPatch ::
-  Branch.MergeMode ->
-  Text ->
-  Maybe Output ->
-  Branch IO ->
-  Maybe (Either PP.ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
-  PP.ProjectPath ->
-  Cli ()
-mergeBranchAndPropagateDefaultPatch mode inputDescription unchangedMessage srcb maybeDest0 dest =
-  ifM
-    mergeBranch
-    (loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest)
-    (for_ unchangedMessage Cli.respond)
-  where
-    mergeBranch :: Cli Bool
-    mergeBranch =
-      Cli.time "mergeBranch" do
-        Cli.Env {codebase} <- ask
-        destb <- Cli.getBranchFromProjectPath dest
-        merged <- liftIO (Branch.merge'' (Codebase.lca codebase) mode srcb destb)
-        b <- Cli.updateAtM inputDescription dest (const $ pure merged)
-        for_ maybeDest0 \dest0 -> do
-          (ppe, diff) <- diffHelper (Branch.head destb) (Branch.head merged)
-          Cli.respondNumbered (ShowDiffAfterMerge dest0 dest ppe diff)
-        pure b
-
-loadPropagateDiffDefaultPatch ::
-  Text ->
-  Maybe (Either PP.ProjectPath (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)) ->
-  PP.ProjectPath ->
-  Cli ()
-loadPropagateDiffDefaultPatch inputDescription maybeDest0 dest = do
-  Cli.respond Output.AboutToPropagatePatch
-  Cli.time "loadPropagateDiffDefaultPatch" do
-    original <- Cli.getBranch0FromProjectPath dest
-    patch <- liftIO $ Branch.getPatch NameSegment.defaultPatchSegment original
-    patchDidChange <- propagatePatch inputDescription patch dest
-    when patchDidChange do
-      whenJust maybeDest0 \dest0 -> do
-        Cli.respond Output.CalculatingDiff
-        patched <- Cli.getBranchFromProjectPath dest
-        let patchPath = Path.descend Path.Current' NameSegment.defaultPatchSegment
-        (ppe, diff) <- diffHelper original (Branch.head patched)
-        Cli.respondNumbered (ShowDiffAfterMergePropagate dest0 dest patchPath ppe diff)
-
--- Returns True if the operation changed the namespace, False otherwise.
-propagatePatch ::
-  Text ->
-  Patch ->
-  PP.ProjectPath ->
-  Cli Bool
-propagatePatch inputDescription patch scopePath = do
-  Cli.time "propagatePatch" do
-    rootNames <- Cli.projectBranchNames scopePath.branch
-    Cli.stepAt'
-      (inputDescription <> " (applying patch)")
-      (scopePath, Propagate.propagateAndApply rootNames patch)

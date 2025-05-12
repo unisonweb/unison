@@ -69,15 +69,10 @@ This update should succeed since the conflicted constructor
 is removed in the same update that the new term is being added.
 
 ``` ucm
-scratch/main> update.old
+scratch/main> update
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    X.x        : Text
-    dependsOnX : Nat
-
-  ⍟ I've updated these names to your new definition:
-
-    structural type X
-      (The old definition was also named lib.builtins.Unit.)
+  Done.
 ```
