@@ -78,6 +78,7 @@ rawName typ = case typ of
   Blank -> "_"
   Eta -> "_eta"
   ANFBlank -> "_anf"
+  AffBlank -> "_aff"
   Float -> "_float"
   Pattern -> "_pattern"
   Irrelevant -> "_irrelevant"
@@ -173,6 +174,8 @@ data Type
     Irrelevant
   | -- A variable used to represent the ignored argument to a thunk, as in '(1 + 1)
     Delay
+  | -- A variable used to introduce affine handlers into a definition
+    AffBlank
   deriving (Eq, Ord, Show)
 
 data InferenceType

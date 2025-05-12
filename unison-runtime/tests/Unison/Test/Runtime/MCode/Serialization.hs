@@ -113,14 +113,17 @@ genInstr =
     [ Prim1 <$> genPrim1 <*> genSmallInt,
       Prim2 <$> genPrim2 <*> genSmallInt <*> genSmallInt,
       ForeignCall <$> Gen.bool <*> genForeignCall <*> genArgs,
-      SetDyn <$> genSmallWord64 <*> genSmallInt,
+      SetAff <$> genSmallInt <*> genSmallInt,
       Capture <$> genSmallWord64,
       Name <$> genGRef <*> genArgs,
       Info <$> Gen.string (Range.linear 0 10) Gen.alphaNum,
       Pack <$> genReference <*> genPackedTag <*> genArgs,
       Lit <$> genMLit,
       Print <$> genSmallInt,
-      Reset <$> genEnumSet genSmallWord64,
+      Reset <$>
+        genEnumSet genSmallWord64 <*>
+        genSmallInt <*>
+        Gen.maybe genSmallInt,
       Fork <$> genSmallInt,
       Atomically <$> genSmallInt,
       Seq <$> genArgs,
