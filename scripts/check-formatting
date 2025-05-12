@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-check}
+
+## This would ideally be read from ./nix/versions.nix, but we can’t assume the user has Nix, so we hardcode this, then
+## at the end of the script, if the user _does_ have Nix, we check if this hardcoded version is the one we want.
+ormolu_version="0.7.2.0"
+
+if command -v ormolu >/dev/null; then
+    if ormolu --version | grep -q "${ormolu_version}"; then
+        find . -name '*.hs' -not -path "*/.stack-work/*" -print0 \
+            | xargs -0 ormolu --check-idempotence --mode "${mode}"
+    else
+        >&2 echo "Found Ormolu, but the version isn’t ${ormolu_version}:"
+        >&2 ormolu --version
+        >&2 echo "skipping format check"
+    fi
+else
+    >&2 echo "Ormolu not found on PATH, skipping format check"
+fi
+
+## When the user has Nix, ensure that `ormolu_version` matches what we require for Nix.
+if command -v nix >/dev/null; then
+    expected_version="$(nix eval --file ./nix/versions.nix ormolu --raw)"
+    if [[ "$expected_version" != "$ormolu_version" ]]; then
+        >&2 echo "⚠️ Please update ‘ormolu_version’ in $0 to ${expected_version} and open a PR."
+    fi
+fi
