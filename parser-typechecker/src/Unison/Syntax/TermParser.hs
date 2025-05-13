@@ -221,7 +221,7 @@ matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c 
 matchCase :: (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
   pats <- sepBy1 (label "\",\"" $ reserved ",") (parsePattern >>= bindConstructorsInPattern)
-  let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
+  let boundVars' = [(ann, v) | (_, vs) <- pats, (ann, v) <- vs]
       pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
@@ -241,7 +241,7 @@ matchCase = do
         pure (Nothing, t)
   -- a pattern's RHS is either one or more guards, or a single unguarded block.
   guardsAndBlocks <- guardedBlocks <|> (pure @[] <$> unguardedBlock)
-  let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
+  let absChain vs t = foldr (\(vAnn, v) t -> ABT.abs' vAnn v t) t vs
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
 
