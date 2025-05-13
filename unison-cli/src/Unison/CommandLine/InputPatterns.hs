@@ -3345,6 +3345,36 @@ branchRenameInputPattern =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+squashProjectBranch :: InputPattern
+squashProjectBranch =
+  InputPattern
+    { patternName = "branch.squash",
+      aliases = ["squash.branch"],
+      visibility = I.Visible,
+      params = Parameters [] $ Optional [("branch-to-squash", projectBranchNameArg suggestionsConfig), ("destination-branch", newBranchNameArg)] Nothing,
+      help =
+        P.wrapColumn2
+          [ ("`branch.squash`", "replaces the current branch with a snapshot of the current code, forgetting all history."),
+            ("`branch.squash foo`", "replaces the branch `foo` with a snapshot of the current code, forgetting all history."),
+            ("`branch.squash foo bar`", "creates the branch `bar` with a snapshot of the code at `foo` without any of its history.")
+          ],
+      parse = \case
+        [] -> pure $ Input.BranchSquashI Nothing Nothing
+        [branchToSquash] -> Input.BranchSquashI . pure <$> handleBranchId2Arg branchToSquash <*> pure Nothing
+        [branchToSquash, newNameString] ->
+          Input.BranchSquashI
+            <$> fmap pure (handleBranchId2Arg branchToSquash)
+            <*> fmap pure (handleProjectBranchNameArg newNameString)
+        args -> wrongArgsLength "zero, one, or two arguments" args
+    }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = OnlyWithinCurrentProject,
+          branchInclusion = AllBranches
+        }
+
 clone :: InputPattern
 clone =
   InputPattern
@@ -3584,6 +3614,7 @@ validInputs =
       pushCreate,
       pushExhaustive,
       pushForce,
+      squashProjectBranch,
       syncToFile,
       syncFromFile,
       syncFromCodebase,
