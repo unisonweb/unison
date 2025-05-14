@@ -234,7 +234,7 @@ data Input
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
   | UpgradeI !NameSegment !NameSegment
-  | EditNamespaceI [Path.Path]
+  | EditNamespaceI [Path.Path']
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | LibInstallI

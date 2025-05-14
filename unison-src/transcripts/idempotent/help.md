@@ -285,7 +285,7 @@ scratch/main> help
   Like `edit`, but also includes all transitive dependents in the current project.
 
   edit.namespace
-  `edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
+  `edit.namespace .` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
   `edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces.
 
   edit.new

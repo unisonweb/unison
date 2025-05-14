@@ -72,7 +72,7 @@ project/main> add
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
 ``` ucm
-project/main> edit.namespace
+project/main> edit.namespace .
 
   ☝️
 
