@@ -2342,13 +2342,13 @@ editNamespace =
     { patternName = "edit.namespace",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [] . Optional [] $ Just ("namespace to load definitions from", namespaceArg),
+      params = Parameters [] $ OnePlus ("namespace to load definitions from", namespaceArg),
       help =
         P.lines
-          [ "`edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+          [ "`edit.namespace .` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
-      parse = fmap Input.EditNamespaceI . traverse handlePathArg
+      parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
     }
 
 newBranchNameArg :: ParameterType

@@ -1467,4 +1467,3 @@ resolveBranchId2 = \case
     pp <- ProjectUtils.resolveBranchRelativePath brp
     Cli.Env {codebase} <- ask
     fromMaybe Branch.empty <$> liftIO (Codebase.getBranchAtProjectPath codebase pp)
-
