@@ -77,7 +77,7 @@ scratch/main> move Foo Bar
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. Bar      (Nat)
   2. Bar      (type)
@@ -142,7 +142,7 @@ z/main> move bonk zonk
 
   Done.
 
-z/main> ls
+z/main> ls .
 
   1. builtin/ (476 terms, 76 types)
   2. zonk     (Nat)
@@ -182,7 +182,7 @@ a/main> move bonk zonk
 
   Done.
 
-a/main> ls
+a/main> ls .
 
   1. builtin/ (476 terms, 76 types)
   2. zonk/    (1 term)

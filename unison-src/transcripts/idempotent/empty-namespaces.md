@@ -13,7 +13,7 @@ scratch/main> delete.namespace mynamespace
 The deleted namespace shouldn't appear in `ls` output.
 
 ``` ucm :error
-scratch/main> ls
+scratch/main> ls .
 
   nothing to show
 ```

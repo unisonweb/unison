@@ -31,7 +31,7 @@ scratch/main> add .
 
   You can run `help add` for more information on using `add`.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -39,14 +39,13 @@ scratch/main> ls
 scratch/main> add 1
 
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
 
 scratch/main> add 2
 
-  ⊡ Ignored previously added definitions: x
 ```
 
 todo:

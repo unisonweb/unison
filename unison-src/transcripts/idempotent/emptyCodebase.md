@@ -7,7 +7,7 @@ Not even `Nat` or `+`\!
 BEHOLD\!\!\!
 
 ``` ucm :error
-scratch/main> ls
+scratch/main> ls .
 
   nothing to show
 ```

@@ -17,7 +17,7 @@ scratch/main> add
 
     x : Nat
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -26,7 +26,7 @@ scratch/main> alias.term x y
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -65,7 +65,7 @@ scratch/main> undo
     Original  Changes
     1. x      2. y (added)
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -103,7 +103,7 @@ scratch/branch1> add
 
     x : Nat
 
-scratch/branch1> ls
+scratch/branch1> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -112,7 +112,7 @@ scratch/branch1> alias.term x y
 
   Done.
 
-scratch/branch1> ls
+scratch/branch1> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -161,7 +161,7 @@ scratch/branch1> undo
     Original  Changes
     1. x      2. y (added)
 
-scratch/branch1> ls
+scratch/branch1> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)

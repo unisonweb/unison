@@ -9,7 +9,7 @@ project/main> alias.type lib.builtins.Nat Foo
 
   Done.
 
-project/main> ls
+project/main> ls .
 
   1. Foo  (builtin type)
   2. lib/ (650 terms, 94 types)
@@ -26,7 +26,7 @@ project/main> alias.type lib.builtins.Int Foo
 ```
 
 ``` ucm
-project/main> ls
+project/main> ls .
 
   1. Foo  (builtin type)
   2. lib/ (650 terms, 94 types)
@@ -39,7 +39,7 @@ project/main> debug.alias.type.force lib.builtins.Int Foo
 
   Done.
 
-project/main> ls
+project/main> ls .
 
   1. Foo  (builtin type)
   2. Foo  (builtin type)
