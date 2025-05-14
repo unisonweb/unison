@@ -105,7 +105,7 @@ handleUpgrade oldName newName = do
   let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
   let oldLocalTerms = Branch.deepTerms oldLocalNamespace
   let oldLocalTypes = Branch.deepTypes oldLocalNamespace
-  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup NameSegment.libSegment (oldNamespace ^. Branch.children))
+  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup NameSegment.libSegment (oldNamespace ^. Branch.children_))
   let oldDeepMinusLocalTerms = Branch.deepTerms oldNamespaceMinusLocal
   let oldDeepMinusLocalTypes = Branch.deepTypes oldNamespaceMinusLocal
 

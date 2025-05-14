@@ -10,12 +10,12 @@ module Unison.Codebase.Branch.Type
     Branch (..),
     Branch0,
     branch0,
-    Unison.Codebase.Branch.Type.terms,
-    Unison.Codebase.Branch.Type.types,
-    children,
+    terms_,
+    types_,
+    children_,
     nonEmptyChildren,
-    history,
-    edits,
+    history_,
+    edits_,
     isEmpty0,
     deepTerms,
     deepTypes,
@@ -111,11 +111,11 @@ instance Eq (Branch0 m) where
       && _children a == _children b
       && (fmap fst . _edits) a == (fmap fst . _edits) b
 
-history :: Iso' (Branch m) (UnwrappedBranch m)
-history = iso _history Branch
+history_ :: Iso' (Branch m) (UnwrappedBranch m)
+history_ = iso _history Branch
 
-edits :: Lens' (Branch0 m) (Map NameSegment (PatchHash, m Patch))
-edits =
+edits_ :: Lens' (Branch0 m) (Map NameSegment (PatchHash, m Patch))
+edits_ =
   lens
     _edits
     ( \b0 e ->
@@ -123,8 +123,8 @@ edits =
           & deriveIsEmpty
     )
 
-terms :: Lens' (Branch0 m) (Star Referent NameSegment)
-terms =
+terms_ :: Lens' (Branch0 m) (Star Referent NameSegment)
+terms_ =
   lens
     _terms
     \branch terms ->
@@ -132,8 +132,8 @@ terms =
         & deriveDeepTerms
         & deriveIsEmpty
 
-types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
-types =
+types_ :: Lens' (Branch0 m) (Star TypeReference NameSegment)
+types_ =
   lens
     _types
     \branch types ->
@@ -160,8 +160,8 @@ deepDefns branch =
 deepPaths :: Branch0 m -> Set Path
 deepPaths = _deepPaths
 
-children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
-children = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)
+children_ :: Lens' (Branch0 m) (Map NameSegment (Branch m))
+children_ = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)
 
 nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
 nonEmptyChildren b =

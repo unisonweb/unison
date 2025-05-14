@@ -427,10 +427,10 @@ causalbranch1to2 (V1.Branch.Branch c) =
     branch1to2 b =
       pure $
         V2.Branch.Branch
-          (doTerms (b ^. Branch.terms))
-          (doTypes (b ^. Branch.types))
-          (doPatches (b ^. Branch.edits))
-          (doChildren (b ^. Branch.children))
+          (doTerms (b ^. Branch.terms_))
+          (doTypes (b ^. Branch.types_))
+          (doPatches (b ^. Branch.edits_))
+          (doChildren (b ^. Branch.children_))
       where
         -- is there a more readable way to structure these that's also linear?
         doTerms :: V1.Branch.Star V1.Referent.Referent NameSegment -> Map NameSegment (Map V2.Referent.Referent (m V2.Branch.MdValues))
