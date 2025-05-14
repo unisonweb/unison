@@ -45,6 +45,8 @@ data CreateFrom
       (CreateFromMergeSource, CausalHash, Map Name Text {- unique type name to guid -}) -- source
       (Sqlite.ProjectBranch, CausalHash, Map Name Text {- unique type name to guid -}) -- target
       (Branch IO) -- merge branch
+  | -- An update failed, and we're making a branch for the user to complete the update on
+    CreateFrom'Update Sqlite.ProjectBranch (Branch IO)
   | CreateFrom'Nothingness
 
 data CreateFromMergeSource
@@ -140,6 +142,11 @@ createBranch description createFrom project getNewBranchName = do
       Cli.runTransaction do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
         pure (Just targetBranch.branchId, newBranchCausalHashId)
+    CreateFrom'Update parentBranch namespace -> do
+      liftIO $ Codebase.putBranch codebase namespace
+      Cli.runTransaction do
+        newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
+        pure (Just parentBranch.branchId, newBranchCausalHashId)
     CreateFrom'CausalHash causalHash -> do
       Cli.runTransaction do
         causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
@@ -204,6 +211,8 @@ createBranch description createFrom project getNewBranchName = do
                               Queries.insertNamespaceUniqueTypeGuid namespaceHashId name guid
                 ensureUniqueTypeToGuidMapping sourceUniqueTypeGuids sourceCausalHashId
                 ensureUniqueTypeToGuidMapping targetUniqueTypeGuids targetCausalHashId
+            CreateFrom'Update _parentBranch _namespace -> do
+              pure ()
             _ -> pure ()
           pure (newBranchName, newBranchId)
 

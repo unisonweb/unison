@@ -25,7 +25,6 @@ import Data.Semialign (zipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import Data.These (These (..))
 import System.Directory (canonicalizePath, getTemporaryDirectory, removeFile)
 import System.Environment (lookupEnv)
 import System.FilePath ((</>))
@@ -55,7 +54,6 @@ import Unison.Cli.UpdateUtils
     hydrateDefns,
     loadNamespaceDefinitions,
   )
-import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -89,10 +87,8 @@ import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
-    ProjectBranchNameKind (..),
     ProjectName,
-    Semver (..),
-    classifyProjectBranchName,
+    projectBranchNameToValidProjectBranchNameText,
   )
 import Unison.Reference (TermReference)
 import Unison.Reference qualified as Reference
@@ -112,14 +108,10 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree (..), unflattenNametree)
+import Unison.Util.Nametree (Nametree (..))
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star2 (Star2)
-import Unison.Util.Star2 qualified as Star2
 import Unison.WatchKind qualified as WatchKind
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
@@ -386,7 +378,10 @@ doMerge info = do
                   Right blob5 -> Just blob5
 
         let stageOneBranch =
-              defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
+              Branch.fromUnconflictedDefns blob3.stageOne
+                & Branch.setLibdeps mergedLibdeps
+                -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
+                & Branch.transform0 (Codebase.runTransaction env.codebase)
 
         let parents =
               causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
@@ -446,7 +441,7 @@ doMerge info = do
                 liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile) True
                 done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
               Just mergetool0 -> do
-                let aliceFilenameSlug = mangleBranchName mergeSourceAndTarget.alice.branch
+                let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
                 makeTempFilename <-
                   liftIO do
@@ -566,51 +561,6 @@ hasDefnsInLib branch = do
 ------------------------------------------------------------------------------------------------------------------------
 --
 
-defnsAndLibdepsToBranch0 ::
-  Codebase IO v a ->
-  DefnsF (Map Name) Referent TypeReference ->
-  Branch0 Transaction ->
-  Branch0 IO
-defnsAndLibdepsToBranch0 codebase defns libdeps =
-  let -- Unflatten the collection of terms into tree, ditto for types
-      nametrees :: DefnsF2 Nametree (Map NameSegment) Referent TypeReference
-      nametrees =
-        bimap unflattenNametree unflattenNametree defns
-
-      -- Align the tree of terms and tree of types into one tree
-      nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
-      nametree =
-        nametrees & alignDefnsWith \case
-          This terms -> Defns {terms, types = Map.empty}
-          That types -> Defns {terms = Map.empty, types}
-          These terms types -> Defns terms types
-
-      -- Convert the tree to a branch0
-      branch0 = nametreeToBranch0 nametree
-
-      -- Add back the libdeps branch at path "lib"
-      branch1 = Branch.setChildBranch NameSegment.libSegment (Branch.one libdeps) branch0
-
-      -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
-      branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
-   in branch2
-
-nametreeToBranch0 :: Nametree (DefnsF (Map NameSegment) Referent TypeReference) -> Branch0 m
-nametreeToBranch0 nametree =
-  Branch.branch0
-    (rel2star defns.terms)
-    (rel2star defns.types)
-    (Branch.one . nametreeToBranch0 <$> nametree.children)
-    Map.empty
-  where
-    defns :: Defns (Relation Referent NameSegment) (Relation TypeReference NameSegment)
-    defns =
-      bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
-
-    rel2star :: Relation ref name -> Star2 ref name metadata
-    rel2star rel =
-      Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
-
 findTemporaryBranchName :: ProjectId -> MergeSourceAndTarget -> Transaction ProjectBranchName
 findTemporaryBranchName projectId mergeSourceAndTarget = do
   ProjectUtils.findTemporaryBranchName projectId preferred
@@ -622,36 +572,17 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
           "merge-"
             <> mangleMergeSource mergeSourceAndTarget.bob
             <> "-into-"
-            <> mangleBranchName mergeSourceAndTarget.alice.branch
+            <> projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
 
 mangleMergeSource :: MergeSource -> Text.Builder
 mangleMergeSource = \case
-  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch.name
-  MergeSource'RemoteProjectBranch remoteBranch -> "remote-" <> mangleBranchName remoteBranch.branchName
+  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> projectBranchNameToValidProjectBranchNameText branch.name
+  MergeSource'RemoteProjectBranch remoteBranch -> "remote-" <> projectBranchNameToValidProjectBranchNameText remoteBranch.branchName
   MergeSource'RemoteLooseCode info -> manglePath info.path
   where
     manglePath :: Path -> Text.Builder
     manglePath =
       Monoid.intercalateMap "-" (Text.Builder.text . NameSegment.toUnescapedText) . Path.toList
-
-mangleBranchName :: ProjectBranchName -> Text.Builder
-mangleBranchName name =
-  case classifyProjectBranchName name of
-    ProjectBranchNameKind'Contributor user name1 ->
-      Text.Builder.text user
-        <> Text.Builder.char '-'
-        <> mangleBranchName name1
-    ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
-    ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
-    ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
-  where
-    mangleSemver :: Semver -> Text.Builder
-    mangleSemver (Semver x y z) =
-      Text.Builder.decimal x
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal y
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal z
 
 typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchAdds tuf = do

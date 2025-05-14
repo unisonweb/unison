@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Codebase.Branch
@@ -11,6 +10,8 @@ module Unison.Codebase.Branch
     NamespaceHash,
 
     -- * Branch construction
+    fromUnconflictedDefns,
+    fromNametree,
     branch0,
     one,
     cons,
@@ -68,6 +69,7 @@ module Unison.Codebase.Branch
     withoutTransitiveLibs,
     deleteLibdep,
     deleteLibdeps,
+    setLibdeps,
 
     -- * Branch terms/types/edits
 
@@ -123,6 +125,7 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Path (Path)
 import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
 import Unison.Hashing.V2.Convert qualified as H
+import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
@@ -130,11 +133,15 @@ import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeRefe
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, alignDefnsWith)
 import Unison.Util.List qualified as List
+import Unison.Util.Nametree (Nametree (..), unflattenNametree)
 import Unison.Util.Recursion (XNor (Both, Neither), cata, project)
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witherable (FilterableWithIndex (imapMaybe))
 import Prelude hiding (head, read, subtract)
@@ -148,6 +155,36 @@ instance AsEmpty (Branch m) where
 
 instance Hashing.ContentAddressable (Branch0 m) where
   contentHash = H.hashBranch0
+
+fromUnconflictedDefns :: DefnsF (Map Name) Referent TypeReference -> Branch0 m
+fromUnconflictedDefns =
+  -- Unflatten the collection of terms into tree, ditto for types
+  bimap unflattenNametree unflattenNametree
+    -- Align the tree of terms and tree of types into one tree
+    >>> alignDefnsWith f
+    >>> fromNametree
+  where
+    f :: These (Map NameSegment tm) (Map NameSegment ty) -> DefnsF (Map NameSegment) tm ty
+    f = \case
+      This terms -> Defns {terms, types = Map.empty}
+      That types -> Defns {terms = Map.empty, types}
+      These terms types -> Defns terms types
+
+fromNametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference) -> Branch0 m
+fromNametree nametree =
+  branch0
+    (rel2star defns.terms)
+    (rel2star defns.types)
+    (one . fromNametree <$> nametree.children)
+    Map.empty
+  where
+    defns :: Defns (Relation Referent NameSegment) (Relation TypeReference NameSegment)
+    defns =
+      bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
+
+    rel2star :: Relation ref name -> Star2 ref name metadata
+    rel2star rel =
+      Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
 
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
@@ -185,6 +222,11 @@ deleteLibdep dep =
 deleteLibdeps :: Branch0 m -> Branch0 m
 deleteLibdeps =
   over children_ (Map.delete NameSegment.libSegment)
+
+-- | @setLibdeps libdeps branch@ sets @branch@'s libdeps to @libdeps@.
+setLibdeps :: Branch0 m -> Branch0 m -> Branch0 m
+setLibdeps libdeps =
+  setChildBranch NameSegment.libSegment (one libdeps)
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms

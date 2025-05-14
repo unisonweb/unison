@@ -15,28 +15,36 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Text.Builder qualified
 import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf2, hydrateDefns, narrowDefns, parseAndTypecheck)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
+import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
+import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -45,6 +53,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
@@ -66,6 +75,7 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
+import Witch (unsafeFrom)
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
@@ -73,7 +83,8 @@ handleUpdate2 = do
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   pp <- Cli.getCurrentProjectPath
-  currentBranch0 <- Cli.getCurrentBranch0
+  currentBranch <- Cli.getCurrentBranch
+  let currentBranch0 = Branch.head currentBranch
   let currentBranch0ExcludingLibdeps = Branch.deleteLibdeps currentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
 
@@ -117,7 +128,7 @@ handleUpdate2 = do
             -- Get all dependents of things being updated
             dependents0 <-
               getNamespaceDependentsOf2
-                (flattenNametrees nametree)
+                defns
                 (getExistingReferencesNamed termAndDeclNames (Branch.toNames currentBranch0ExcludingLibdeps))
 
             -- Throw away the dependents that are shadowed by the file itself
@@ -159,9 +170,58 @@ handleUpdate2 = do
 
               secondTuf <-
                 parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
-                  scratchFilePath <- fst <$> Cli.expectLatestFile
-                  liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
-                  done Output.UpdateTypecheckingFailure
+                  let new = True
+                  if new
+                    then do
+                      let dependentRefs :: DefnsF Set TermReferenceId TypeReferenceId
+                          dependentRefs =
+                            bimap (Map.elems >>> Set.fromList) (Map.elems >>> Set.fromList) dependents
+
+                      let namespaceWithoutDependents :: Branch0 IO
+                          namespaceWithoutDependents =
+                            let keepType :: TypeReference -> Bool
+                                keepType = \case
+                                  ReferenceBuiltin _ -> True
+                                  ReferenceDerived refId -> not (Set.member refId dependentRefs.types)
+                                keepTerm :: Referent -> Bool
+                                keepTerm = \case
+                                  Referent.Con (ConstructorReference ref _) _ -> keepType ref
+                                  Referent.Ref ref ->
+                                    case ref of
+                                      ReferenceBuiltin _ -> True
+                                      ReferenceDerived refId -> not (Set.member refId dependentRefs.terms)
+                             in defns
+                                  & bimap
+                                    (BiMultimap.range >>> Map.filter keepTerm)
+                                    (BiMultimap.range >>> Map.filter keepType)
+                                  & Branch.fromUnconflictedDefns
+                                  & Branch.setLibdeps
+                                    ( currentBranch0
+                                        & Branch.getAt0 (Path.singleton NameSegment.libSegment)
+                                    )
+
+                      (_temporaryBranchId, _temporaryBranchName) <-
+                        HandleInput.Branch.createBranch
+                          ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
+                          ( HandleInput.Branch.CreateFrom'Update
+                              pp.branch
+                              (Branch.cons namespaceWithoutDependents currentBranch)
+                          )
+                          pp.project
+                          ( let preferred :: ProjectBranchName
+                                preferred =
+                                  ("update-" <> projectBranchNameToValidProjectBranchNameText pp.branch.name)
+                                    & Text.Builder.run
+                                    & unsafeFrom @Text
+                             in ProjectUtils.findTemporaryBranchName pp.project.projectId preferred
+                          )
+                      scratchFilePath <- fst <$> Cli.expectLatestFile
+                      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                      done Output.UpdateTypecheckingFailure
+                    else do
+                      scratchFilePath <- fst <$> Cli.expectLatestFile
+                      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                      done Output.UpdateTypecheckingFailure
 
               respondRegion (Output.Literal (Pretty.wrap "Everything typechecks, so I'm saving the results..."))
 
