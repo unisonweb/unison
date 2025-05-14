@@ -6,6 +6,8 @@ import Data.These (These (..))
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal (Causal (..))
 import U.Codebase.Causal.Squash qualified as UCausal
+import U.Codebase.Sqlite.Project (Project)
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch)
 import U.Codebase.Sqlite.V2.HashHandle qualified as HH
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
@@ -17,45 +19,75 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (BranchId2)
 import Unison.Codebase.Editor.Output qualified as Output
+import Unison.Codebase.ProjectPath qualified as ProjPath
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName)
 import Unison.Sqlite qualified as Sqlite
 
+data SquashDestination
+  = -- Update an existing branch with the squash result
+    ExistingBranch (ProjectAndBranch Project ProjectBranch)
+  | -- Create a new branch from the squashed branch
+    NewBranch ProjectUtils.Project ProjectBranchName
+  | -- Squash and save, then just print the causal hash.
+    Floating
+
 handleBranchSquash :: Maybe BranchId2 -> Maybe ProjectBranchName -> Cli ()
 handleBranchSquash mayBranchToSquash mayDestBranch = label \done -> do
-  causalBranchToSquash <-
-    case mayBranchToSquash of
-      Nothing -> do
-        -- If no branch is specified, we assume the current branch
+  (source, causalBranchToSquash, squashDest) <-
+    case (mayBranchToSquash, mayDestBranch) of
+      (Nothing, mayDestBranch) -> do
+        -- If no src or dest is specified, we assume the current branch for both
         causalHash <- Branch.headHash <$> Cli.getCurrentBranch
-        Cli.runTransaction $ Codebase.expectCausalBranchByCausalHash causalHash
-      Just (Left shortHash) -> Cli.runTransactionWithRollback \rollback -> do
-        causalHash <- Cli.resolveShortCausalHashToCausalHash rollback shortHash
-        Codebase.expectCausalBranchByCausalHash causalHash
-      Just (Right path') -> do
+        causalToSquash <- Cli.runTransaction $ Codebase.expectCausalBranchByCausalHash causalHash
+        dest <- resolveMayDestBranch mayDestBranch
+        currentPAB <- Cli.getCurrentProjectAndBranch
+        pure $ (Right $ ProjPath.projectBranchRoot currentPAB, causalToSquash, dest)
+      (Just (Left shortHash), mayDestBranch) -> do
+        dest <- case mayDestBranch of
+          Nothing -> do
+            -- Since we're squashing a bare hash, we assume 'floating'
+            pure Floating
+          Just destBranchName -> resolveMayDestBranch (Just destBranchName)
+        -- If we're squashing a bare hash with no destination, assume 'floating'
+        Cli.runTransactionWithRollback \rollback -> do
+          causalHash <- Cli.resolveShortCausalHashToCausalHash rollback shortHash
+          causalToSquash <- Codebase.expectCausalBranchByCausalHash causalHash
+          pure (Left shortHash, causalToSquash, dest)
+      (Just (Right path'), mayDest) -> do
+        dest <- resolveMayDestBranch mayDest
         srcPP <- ProjectUtils.resolveBranchRelativePath path'
         Cli.runTransaction (Codebase.getMaybeShallowCausalAtProjectPath srcPP) >>= \case
           Nothing -> do
             Cli.respond $ Output.NamespaceEmpty (NonEmpty.singleton $ Right srcPP)
             done ()
-          Just causal -> pure $ causal
-  squashedCausal <- Cli.runTransaction $ squashCausal causalBranchToSquash
-  -- Check if dest branch already exists
-  mayExistingDest <- runMaybeT do
-    destBranchName <- hoistMaybe mayDestBranch
-    existingProjectBranch <- MaybeT $ Project.getProjectAndBranchByTheseNames (That destBranchName)
-    existingCausalHash <- lift $ Cli.runTransaction (Project.getProjectBranchCausalHash existingProjectBranch.branch)
-    pure (existingProjectBranch, existingCausalHash)
-  let description = undefined
-  let project = undefined
-  let getBranchName = undefined
-  case mayExistingDest of
-    Nothing -> do
-      _ <- Branch.createBranch description (Branch.CreateFrom'CausalHash squashedCausal.causalHash) project getBranchName
+          Just causal -> pure (Right srcPP, causal, dest)
+
+  squashResult <- Cli.runTransaction $ squashCausal causalBranchToSquash
+  let description = "Squashed from " <> tShow causalBranchToSquash.causalHash
+  case squashDest of
+    NewBranch project newBranchName -> do
+      _ <- Branch.createBranch description (Branch.CreateFrom'CausalHash squashResult.causalHash) project (pure newBranchName)
+      Cli.respond $ Output.BranchSquashSuccess source Nothing squashResult.causalHash
       pure ()
-    Just (existingDestProjectBranch, existingDestBranchCausalHash) -> do
-      Cli.setProjectBranchRootToCausalHash existingDestProjectBranch.branch description existingDestBranchCausalHash
+    ExistingBranch destBranch -> do
+      Cli.setProjectBranchRootToCausalHash destBranch.branch description squashResult.causalHash
+      Cli.respond $ Output.BranchSquashSuccess source (Just destBranch) squashResult.causalHash
+    Floating -> do
+      Cli.respond $ Output.BranchSquashSuccess source Nothing squashResult.causalHash
   pure ()
+  where
+    resolveMayDestBranch :: Maybe ProjectBranchName -> Cli SquashDestination
+    resolveMayDestBranch = \case
+      Just destBranchName -> do
+        Project.getProjectAndBranchByTheseNames (That destBranchName) >>= \case
+          Nothing -> do
+            pab <- Cli.getCurrentProjectAndBranch
+            pure $ NewBranch pab.project destBranchName
+          Just destPAB -> pure $ ExistingBranch destPAB
+      Nothing -> do
+        currentPAB <- Cli.getCurrentProjectAndBranch
+        pure $ ExistingBranch currentPAB
 
 squashCausal :: V2Branch.CausalBranch Sqlite.Transaction -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
 squashCausal causalBranch = do

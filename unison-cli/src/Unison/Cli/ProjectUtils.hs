@@ -38,6 +38,10 @@ module Unison.Cli.ProjectUtils
     -- * Merge/upgrade branch utils
     getMergeBranchParent,
     getUpgradeBranchParent,
+
+    -- * Export fields so we can use dot-notation
+    ProjectBranch (..),
+    Project (..),
   )
 where
 

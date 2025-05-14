@@ -871,7 +871,6 @@ notifyUser dir = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -2186,6 +2185,19 @@ notifyUser dir = \case
           "Please open the other codebase with UCM directly to upgrade it to the latest version, then try again."
         ]
   UCMServerNotRunning -> pure (P.wrap "The UCM server is not running.")
+  BranchSquashSuccess src dest causalHash -> do
+    let sourceName = case src of
+          Left shortHash -> prettySCH shortHash
+          Right pp -> prettyProjectPath pp
+    let destName = case dest of
+          Nothing -> "the hash" <> prettyCausalHash causalHash <> ", but didn't point any branches to it."
+          Just pab -> prettyProjectAndBranchName (ProjectAndBranch pab.project.name pab.branch.name)
+
+    pure $
+      P.lines
+        [ "I squashed " <> sourceName,
+          " into " <> destName
+        ]
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
