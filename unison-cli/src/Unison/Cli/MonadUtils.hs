@@ -22,6 +22,7 @@ module Unison.Cli.MonadUtils
     resolveBranchId,
     resolveBranchIdToAbsBranchId,
     resolveShortCausalHash,
+    resolveShortCausalHashToCausalHash,
 
     -- ** Getting/setting branches
     getCurrentProjectRoot,

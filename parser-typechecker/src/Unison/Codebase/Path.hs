@@ -47,6 +47,7 @@ module Unison.Codebase.Path
 where
 
 import Control.Lens
+import Control.Lens qualified as Lens
 import Data.Foldable qualified as Foldable
 import Data.List.Extra (dropPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -72,6 +73,13 @@ import Unison.Util.Recursion (Recursive, XNor, cata, embed)
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord, Show)
   deriving newtype (Semigroup, Monoid)
+
+instance Lens.Cons Path Path NameSegment NameSegment where
+  _Cons = Lens.prism' cons uncons
+    where
+      cons (x, xs) = Path (x :< toSeq xs)
+      uncons (Path (x :< xs)) = Just (x, Path xs)
+      uncons (Path _) = Nothing
 
 instance Recursive Path (XNor NameSegment) where
   cata φ = cata φ . toSeq

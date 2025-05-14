@@ -48,6 +48,7 @@ import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
+import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.CommitMerge (handleCommitMerge)
 import Unison.Codebase.Editor.HandleInput.CommitUpgrade (handleCommitUpgrade)
@@ -137,6 +138,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Project (ProjectBranchName)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -791,6 +793,7 @@ loop e = do
             BranchRenameI name -> handleBranchRename name
             BranchesI name -> handleBranches name
             CloneI remoteNames localNames -> handleClone remoteNames localNames
+            BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
             ReleaseDraftI semver -> handleReleaseDraft semver
             UpgradeI old new -> handleUpgrade old new
             UpgradeCommitI -> handleCommitUpgrade
@@ -908,6 +911,17 @@ inputDescription input =
     BranchI {} -> wat
     BranchRenameI {} -> wat
     BranchesI {} -> wat
+    BranchSquashI branchToSquash destBranch ->
+      case (branchToSquash, destBranch) of
+        (Nothing, Nothing) -> pure "branch.squash"
+        (Just branchToSquash, Nothing) -> do
+          branchToSquash' <- bid2 branchToSquash
+          pure $ "branch.squash " <> branchToSquash'
+        (Nothing, Just _destBranch) -> error "Impossible args for branch.squash"
+        (Just branchToSquash, Just destBranch) -> do
+          branchToSquash' <- bid2 branchToSquash
+          destBranch' <- pbname destBranch
+          pure $ "branch.squash " <> branchToSquash' <> " " <> destBranch'
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
@@ -995,6 +1009,8 @@ inputDescription input =
     bid2 = \case
       Left sch -> pure $ into @Text sch
       Right p -> brp p
+    pbname :: ProjectBranchName -> Cli Text
+    pbname = pure . into @Text
 
 handleFindI ::
   Bool ->
@@ -1467,4 +1483,3 @@ resolveBranchId2 = \case
     pp <- ProjectUtils.resolveBranchRelativePath brp
     Cli.Env {codebase} <- ask
     fromMaybe Branch.empty <$> liftIO (Codebase.getBranchAtProjectPath codebase pp)
-
