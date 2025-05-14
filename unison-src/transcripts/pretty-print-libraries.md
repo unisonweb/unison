@@ -4,10 +4,10 @@ We clone releases and not dev branches to avoid external changes, and also to re
 
 ```ucm
 scratch/main> clone @unison/base/releases/3.19.0
-@unison/base/releases/3.19.0> edit.namespace
+@unison/base/releases/3.19.0> edit.namespace .
 ```
 
 ```ucm
 scratch/main> clone @unison/http/releases/3.3.2
-@unison/http/releases/3.3.2> edit.namespace
+@unison/http/releases/3.3.2> edit.namespace .
 ```
