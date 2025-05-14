@@ -87,8 +87,6 @@ handlePull unresolvedSourceAndTarget pullMode = do
           void $ Cli.updateAtM description targetProjectPath (const $ pure remoteBranchObject)
           Cli.respond $ MergeOverEmpty target
         else do
-          Cli.respond AboutToMerge
-
           let aliceCausalHash = Branch.headHash targetBranch
           lcaCausalHash <- Cli.runTransaction (Operations.lca aliceCausalHash remoteCausalHash)
 

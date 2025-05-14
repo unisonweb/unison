@@ -204,6 +204,8 @@ doMerge info = do
         _ <- Cli.updateAt info.description (PP.projectBranchRoot info.alice.projectAndBranch) (\_aliceBranch -> bobBranch)
         done (Output.MergeSuccessFastForward mergeSourceAndTarget)
 
+      Cli.respond Output.AboutToMerge
+
       withRespondRegion \respondRegion -> do
         respondRegion (Output.Literal "Loading branches...")
 
