@@ -2190,13 +2190,12 @@ notifyUser dir = \case
           Left shortHash -> prettySCH shortHash
           Right pp -> prettyProjectPath pp
     let destName = case dest of
-          Nothing -> "the hash" <> prettyCausalHash causalHash <> ", but didn't point any branches to it."
+          Nothing -> "the hash " <> prettyCausalHash causalHash <> " but didn't point any branches to it."
           Just pab -> prettyProjectAndBranchName (ProjectAndBranch pab.project.name pab.branch.name)
 
     pure $
       P.lines
-        [ "I squashed " <> sourceName,
-          " into " <> destName
+        [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName
         ]
 
 prettyShareError :: ShareError -> Pretty

@@ -43,8 +43,7 @@ scratch/main> update
 ``` ucm
 scratch/empty> branch.squash scratch/main: squashed
 
-  I squashed scratch/main
-   into the hash#59schd8j6uujm52cd163id531p73pabv6jidld02qj9uo36ptlesmoitm5dndj7v7raaavqa70ppa3hifqot4ts3vbnn0cr595rgnf0, but didn't point any branches to it.
+  I squashed scratch/main into scratch/squashed
 
 scratch/squashed> history
 
@@ -59,17 +58,34 @@ scratch/squashed> history
 ``` ucm
 scratch/empty> branch.squash scratch/main: squashed
 
-  I squashed scratch/main
-   into scratch/squashed
+  I squashed scratch/main into scratch/squashed
 ```
 
 ``` ucm
+scratch/empty> branch.squash #espq7p1b0h
+
+  I squashed #espq7p1b0h into the hash
+  #59schd8j6uujm52cd163id531p73pabv6jidld02qj9uo36ptlesmoitm5dndj7v7raaavqa70ppa3hifqot4ts3vbnn0cr595rgnf0
+  , but didn't point any branches to it.
+
 scratch/empty> branch.squash #espq7p1b0h /squashed2
 
-  I squashed #espq7p1b0h
-   into the hash#59schd8j6uujm52cd163id531p73pabv6jidld02qj9uo36ptlesmoitm5dndj7v7raaavqa70ppa3hifqot4ts3vbnn0cr595rgnf0, but didn't point any branches to it.
+  I squashed #espq7p1b0h into scratch/squashed2
 
 scratch/squashed2> history
+
+  Note: The most recent namespace hash is immediately below this
+        message.
+
+
+
+  □ 1. #59schd8j6u (start of history)
+
+scratch/main> branch.squash
+
+  I squashed scratch/main into scratch/main
+
+scratch/main> history
 
   Note: The most recent namespace hash is immediately below this
         message.
