@@ -67,8 +67,9 @@ handleBranchSquash mayBranchToSquash mayDestBranch = label \done -> do
   let description = "Squashed from " <> tShow causalBranchToSquash.causalHash
   case squashDest of
     NewBranch project newBranchName -> do
-      _ <- Branch.createBranch description (Branch.CreateFrom'CausalHash squashResult.causalHash) project (pure newBranchName)
-      Cli.respond $ Output.BranchSquashSuccess source Nothing squashResult.causalHash
+      (newPAB, _) <- Branch.createBranch description (Branch.CreateFrom'CausalHash squashResult.causalHash) project (pure newBranchName)
+      dest <- Cli.runTransaction $ ProjectUtils.expectProjectAndBranchByIds newPAB
+      Cli.respond $ Output.BranchSquashSuccess source (Just dest) squashResult.causalHash
       pure ()
     ExistingBranch destBranch -> do
       Cli.setProjectBranchRootToCausalHash destBranch.branch description squashResult.causalHash
