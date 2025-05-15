@@ -2185,14 +2185,9 @@ notifyUser dir = \case
           "Please open the other codebase with UCM directly to upgrade it to the latest version, then try again."
         ]
   UCMServerNotRunning -> pure (P.wrap "The UCM server is not running.")
-  BranchSquashSuccess src dest causalHash -> do
-    let sourceName = case src of
-          Left shortHash -> prettySCH shortHash
-          Right pp -> prettyProjectPath pp
-    let destName = case dest of
-          Nothing -> "the hash " <> prettyCausalHash causalHash <> " but didn't point any branches to it."
-          Just pab -> prettyProjectAndBranchName (ProjectAndBranch pab.project.name pab.branch.name)
-
+  BranchSquashSuccess srcPAB destPAB -> do
+    let sourceName = prettyProjectAndBranchName (ProjectAndBranch srcPAB.project.name srcPAB.branch.name)
+    let destName = prettyProjectAndBranchName (ProjectAndBranch destPAB.project.name destPAB.branch.name)
     pure $
       P.lines
         [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName

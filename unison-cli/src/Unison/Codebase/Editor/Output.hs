@@ -49,7 +49,6 @@ import Unison.Codebase.IntegrityCheck (IntegrityResult (..))
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (Project, ProjectBranch, ProjectPath)
-import Unison.Codebase.ProjectPath qualified as ProjPath
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
@@ -444,7 +443,7 @@ data Output
   | SyncFromCodebaseMissingProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | OpenCodebaseError CodebasePath OpenCodebaseError
   | UCMServerNotRunning
-  | BranchSquashSuccess ({- source -} Either ShortCausalHash ProjPath.ProjectPath) ({- dest branch -} Maybe (ProjectAndBranch Project ProjectBranch)) CausalHash
+  | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)

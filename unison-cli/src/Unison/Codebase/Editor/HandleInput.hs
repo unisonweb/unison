@@ -138,7 +138,6 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectBranchName)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -912,16 +911,7 @@ inputDescription input =
     BranchRenameI {} -> wat
     BranchesI {} -> wat
     BranchSquashI branchToSquash destBranch ->
-      case (branchToSquash, destBranch) of
-        (Nothing, Nothing) -> pure "branch.squash"
-        (Just branchToSquash, Nothing) -> do
-          branchToSquash' <- bid2 branchToSquash
-          pure $ "branch.squash " <> branchToSquash'
-        (Nothing, Just _destBranch) -> error "Impossible args for branch.squash"
-        (Just branchToSquash, Just destBranch) -> do
-          branchToSquash' <- bid2 branchToSquash
-          destBranch' <- pbname destBranch
-          pure $ "branch.squash " <> branchToSquash' <> " " <> destBranch'
+      pure $ "branch.squash " <> into @Text branchToSquash <> " " <> into @Text destBranch
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
@@ -1009,8 +999,6 @@ inputDescription input =
     bid2 = \case
       Left sch -> pure $ into @Text sch
       Right p -> brp p
-    pbname :: ProjectBranchName -> Cli Text
-    pbname = pure . into @Text
 
 handleFindI ::
   Bool ->
