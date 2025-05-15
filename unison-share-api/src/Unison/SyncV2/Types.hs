@@ -363,8 +363,7 @@ instance FromJSON DependencyType where
     _ -> fail "invalid DependencyType"
 
 -- | A chunk of the download entities response stream.
-data CausalDependenciesChunk
-  = CausalHashDepC {causalHash :: Hash32, dependencyType :: DependencyType}
+data CausalDependenciesChunk = CausalHashDepC {causalHash :: Hash32, dependencyType :: DependencyType}
   deriving (Show, Eq, Ord)
 
 data CausalDependenciesChunkTag = CausalHashDepChunkTag

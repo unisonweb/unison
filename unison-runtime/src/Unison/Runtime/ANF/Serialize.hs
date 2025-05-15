@@ -355,13 +355,15 @@ putCacheability Uncacheable = putWord8 0
 putCacheability Cacheable = putWord8 1
 
 getCacheability :: (MonadGet m, Versioned m) => m Cacheability
-getCacheability = askVersion >>= \case
-  Transfer v
-    | v >= 3 -> getWord8 >>= \case
-        0 -> pure Uncacheable
-        1 -> pure Cacheable
-        n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
-  _ -> pure Uncacheable
+getCacheability =
+  askVersion >>= \case
+    Transfer v
+      | v >= 3 ->
+          getWord8 >>= \case
+            0 -> pure Uncacheable
+            1 -> pure Cacheable
+            n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
+    _ -> pure Uncacheable
 
 putComb ::
   (MonadPut m) =>
@@ -460,7 +462,6 @@ getNormal ctx frsh0 =
         <*> getVar ctx
         <*> pure Nothing
         <*> getNormal ctx frsh0
-
     ShiftT ->
       flip TShift v <$> getReference <*> getNormal (v : ctx) (frsh0 + 1)
       where
@@ -927,43 +928,44 @@ putValue v (BLit l) =
 
 getValue :: (MonadGet m, Versioned m) => m Value
 getValue =
-  askVersion >>= \v -> getTag >>= \case
-    PartialT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          gr <- getGroupRef
-          getList getWord64be >>= assertEmptyUnboxed
-          bs <- getList getValue
-          pure $ Partial gr bs
-      | otherwise -> do
-          gr <- getGroupRef
-          vs <- getList getValue
-          pure $ Partial gr vs
-    DataT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          r <- getReference
-          w <- getWord64be
-          getList getWord64be >>= assertEmptyUnboxed
-          vs <- getList getValue
-          pure $ Data r w vs
-      | otherwise -> do
-          r <- getReference
-          w <- getWord64be
-          vs <- getList getValue
-          pure $ Data r w vs
-    ContT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          getList getWord64be >>= assertEmptyUnboxed
-          bs <- getList getValue
-          k <- getCont
-          pure $ Cont bs k
-      | otherwise -> do
-          bs <- getList getValue
-          k <- getCont
-          pure $ Cont bs k
-    BLitT -> BLit <$> getBLit
+  askVersion >>= \v ->
+    getTag >>= \case
+      PartialT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            gr <- getGroupRef
+            getList getWord64be >>= assertEmptyUnboxed
+            bs <- getList getValue
+            pure $ Partial gr bs
+        | otherwise -> do
+            gr <- getGroupRef
+            vs <- getList getValue
+            pure $ Partial gr vs
+      DataT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            r <- getReference
+            w <- getWord64be
+            getList getWord64be >>= assertEmptyUnboxed
+            vs <- getList getValue
+            pure $ Data r w vs
+        | otherwise -> do
+            r <- getReference
+            w <- getWord64be
+            vs <- getList getValue
+            pure $ Data r w vs
+      ContT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            getList getWord64be >>= assertEmptyUnboxed
+            bs <- getList getValue
+            k <- getCont
+            pure $ Cont bs k
+        | otherwise -> do
+            bs <- getList getValue
+            k <- getCont
+            pure $ Cont bs k
+      BLitT -> BLit <$> getBLit
   where
     assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
     assertEmptyUnboxed [] = pure ()
@@ -986,39 +988,40 @@ putCont v (Push f n gr k) =
 
 getCont :: (MonadGet m, Versioned m) => m Cont
 getCont =
-  askVersion >>= \v -> getTag >>= \case
-    KET -> pure KE
-    MarkT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          getWord64be >>= assert0 "unboxed arg size"
-          ba <- getWord64be
-          refs <- getList getReference
-          vals <- getMap getReference getValue
-          cont <- getCont
-          pure $ Mark ba refs vals cont
-      | otherwise ->
-          Mark
-            <$> getWord64be
-            <*> getList getReference
-            <*> getMap getReference getValue
-            <*> getCont
-    PushT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          getWord64be >>= assert0 "unboxed frame size"
-          bf <- getWord64be
-          getWord64be >>= assert0 "unboxed arg size"
-          ba <- getWord64be
-          gr <- getGroupRef
-          cont <- getCont
-          pure $ Push bf ba gr cont
-      | otherwise ->
-          Push
-            <$> getWord64be
-            <*> getWord64be
-            <*> getGroupRef
-            <*> getCont
+  askVersion >>= \v ->
+    getTag >>= \case
+      KET -> pure KE
+      MarkT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            getWord64be >>= assert0 "unboxed arg size"
+            ba <- getWord64be
+            refs <- getList getReference
+            vals <- getMap getReference getValue
+            cont <- getCont
+            pure $ Mark ba refs vals cont
+        | otherwise ->
+            Mark
+              <$> getWord64be
+              <*> getList getReference
+              <*> getMap getReference getValue
+              <*> getCont
+      PushT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            getWord64be >>= assert0 "unboxed frame size"
+            bf <- getWord64be
+            getWord64be >>= assert0 "unboxed arg size"
+            ba <- getWord64be
+            gr <- getGroupRef
+            cont <- getCont
+            pure $ Push bf ba gr cont
+        | otherwise ->
+            Push
+              <$> getWord64be
+              <*> getWord64be
+              <*> getGroupRef
+              <*> getCont
   where
     assert0 _name 0 = pure ()
     assert0 name n = exn $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
@@ -1113,7 +1116,7 @@ serializeValueForHash v = runPutLazy (putPrefix *> putValue (Hash 4) v)
 getGroupCurrent :: (MonadGet m, Var v) => m (SuperGroup v)
 getGroupCurrent = runReaderT getGroup (Transfer codeVersion)
 
-askVersion :: Versioned m => m Version
+askVersion :: (Versioned m) => m Version
 askVersion = ask
 
 type Versioned m = MonadReader Version m
@@ -1124,11 +1127,11 @@ valueToCode v
   | Hash n <- v = Hash $ tweak n
   | Transfer n <- v = Transfer $ tweak n
   where
-  tweak n
-    | n > 2 = n - 1
-    | otherwise = n
+    tweak n
+      | n > 2 = n - 1
+      | otherwise = n
 
-withCodeVersion :: Versioned m => m r -> m r
+withCodeVersion :: (Versioned m) => m r -> m r
 withCodeVersion = local valueToCode
 
 valueVersion :: Word32

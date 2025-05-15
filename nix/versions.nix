@@ -1,4 +1,4 @@
-{lib}: let
+{lib ? (import <nixpkgs> {}).lib}: let
   ## It’s much easier to read from a JSON file than to have JSON import from some other file, so we extract some
   ## configuration from the VS Code settings to avoid duplication.
   vscodeSettings = lib.importJSON ../.vscode/settings.json;

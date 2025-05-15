@@ -187,8 +187,11 @@ renderTypeWarnings env src ws
     article = if multi then "some" else "a"
 
     header =
-      [ "\x1f914 I found ", article, " suspicious recursive ability ",
-        hand, ".\n\n",
+      [ "\x1f914 I found ",
+        article,
+        " suspicious recursive ability ",
+        hand,
+        ".\n\n",
         "The recursive occurrences of the ",
         hand,
         " are called at a subset\n",

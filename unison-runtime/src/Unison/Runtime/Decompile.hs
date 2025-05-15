@@ -15,6 +15,7 @@ where
 import Data.Map qualified as Map
 import Data.Set (singleton)
 import Unison.ABT (substs)
+import Unison.Builtin.Decls qualified as DD
 import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
@@ -78,7 +79,6 @@ import Unison.Util.Bytes qualified as By
 import Unison.Util.Pretty (indentN, lines, lit, shown, syntaxToColor, wrap)
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
-import Unison.Builtin.Decls qualified as DD
 import Prelude hiding (lines)
 
 con :: (Var v) => Reference -> Word64 -> Term v ()
@@ -244,16 +244,18 @@ decompileForeign _ _ (Wrap r _) =
       | otherwise = "<Foreign>"
 
 map_fromList :: (Var v) => Term v ()
-map_fromList = 
-   case Referent.fromText "#apmvhl40hl48q1s7383g5ev3sh7td8qo374t87bchpnu24sccmnvm13e2a1q0f2p1prm2uk9prfpg598dc9jo23iagact6gmi18vta8" of
-     Just r -> Term.fromReferent () r
-     Nothing -> error "Map_fromList"
+map_fromList =
+  case Referent.fromText "#apmvhl40hl48q1s7383g5ev3sh7td8qo374t87bchpnu24sccmnvm13e2a1q0f2p1prm2uk9prfpg598dc9jo23iagact6gmi18vta8" of
+    Just r -> Term.fromReferent () r
+    Nothing -> error "Map_fromList"
 
 pair :: (Var v) => Term v () -> Term v () -> Term v ()
 pair a b =
-  Term.apps' (Term.fromReferent () DD.pairCtorRef) [
-    a, Term.apps' (Term.fromReferent () DD.pairCtorRef) [b, Term.fromReferent () DD.unitCtorRef]
-  ]
+  Term.apps'
+    (Term.fromReferent () DD.pairCtorRef)
+    [ a,
+      Term.apps' (Term.fromReferent () DD.pairCtorRef) [b, Term.fromReferent () DD.unitCtorRef]
+    ]
 
 decompileBytes :: (Var v) => By.Bytes -> Term v ()
 decompileBytes =

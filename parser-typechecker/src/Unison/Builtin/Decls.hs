@@ -628,13 +628,13 @@ builtinDataDecls = rs1 ++ rs
         let forke = Type.foralls () [v "k", v "v"]
             k = var "k"
             e = var "v"
-            mapke = Type.apps' (var "Map") [k, e] in
-        [ ( (),
-            v "Map.Bin",
-            forke $ Type.nat () `arr` k `arr` e `arr` mapke `arr` mapke `arr` mapke
-          ),
-          ((), v "Map.Tip", forke mapke)
-        ]
+            mapke = Type.apps' (var "Map") [k, e]
+         in [ ( (),
+                v "Map.Bin",
+                forke $ Type.nat () `arr` k `arr` e `arr` mapke `arr` mapke `arr` mapke
+              ),
+              ((), v "Map.Tip", forke mapke)
+            ]
     set =
       DataDeclaration
         Structural
@@ -642,11 +642,12 @@ builtinDataDecls = rs1 ++ rs
         [v "a"]
         let va = var "a"
             mapau = Type.apps' (var "Map") [va, var "Unit"]
-            seta = Type.apps' (var "Set") [va] in
-        [ ( (),
-            v "Set.Set",
-            Type.foralls () [v "a"] $ mapau `arr` seta)
-        ]
+            seta = Type.apps' (var "Set") [va]
+         in [ ( (),
+                v "Set.Set",
+                Type.foralls () [v "a"] $ mapau `arr` seta
+              )
+            ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =

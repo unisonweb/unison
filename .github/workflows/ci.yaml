@@ -13,7 +13,6 @@ on:
 
 env:
   ## Some version numbers that are used during CI
-  ormolu_version: 0.7.2.0
   jit_version: "@unison/internal/releases/0.0.25"
   runtime_tests_version: "@unison/runtime-tests/releases/0.0.3"
 
@@ -36,34 +35,6 @@ env:
   ACTIONS_CACHE_SERVICE_V2: true
 
 jobs:
-  ormolu:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - name: Get changed files
-        uses: tj-actions/changed-files@2d756ea4c53f7f6b397767d8723b3a10a9f35bf2 # v44
-        with:
-          # globs copied from default settings for run-ormolu
-          files: |
-            **/*.hs
-            **/*.hs-boot
-          separator: "\n"
-      - uses: haskell-actions/run-ormolu@15b0083a0ef416915994fb511652b187f6026a40 # v15
-        with:
-          version: ${{ env.ormolu_version }}
-          mode: inplace
-          pattern: ${{ steps.changed-files.outputs.all_changed_files }}
-      - name: apply formatting changes
-        uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79
-        # v5
-        # and not on a protected branch.
-        # The job doesn't have permission to push back to contributor forks on contributor PRs.
-        if: |
-          always()
-            && !github.ref_protected
-            && github.event.pull_request.base.repo.full_name == github.event.pull_request.head.repo.full_name
-        with:
-          commit_message: automatically run ormolu
   build-ucm:
     name: build ucm
     runs-on: ${{ matrix.os }}

@@ -81,19 +81,19 @@ import Unison.Runtime.ANF
     packTags,
     pattern TApp,
     pattern TBLit,
+    pattern TDiscard,
     pattern TFOp,
     pattern TFrc,
     pattern THnd,
     pattern TLets,
     pattern TLit,
+    pattern TLocal,
     pattern TMatch,
     pattern TName,
     pattern TPrm,
     pattern TShift,
-    pattern TVar,
-    pattern TDiscard,
-    pattern TLocal,
     pattern TUpdate,
+    pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
@@ -298,8 +298,8 @@ countArgs (VArgV {}) = internalBug "countArgs: DArgV"
 {-# INLINEABLE countArgs #-}
 
 data Prim1
-  -- integral
-  = DECI -- decrement
+  = -- integral
+    DECI -- decrement
   | DECN
   | INCI -- increment
   | INCN
@@ -375,8 +375,8 @@ data Prim1
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
-  -- integral
-  = ADDI -- +
+  = -- integral
+    ADDI -- +
   | ADDN
   | SUBI -- -
   | SUBN
@@ -531,8 +531,8 @@ data GInstr comb
     -- will be used.
     Reset
       !(EnumSet Word64) -- prompt ids
-      !Int              -- stack index of associated non-affine closure
-      !(Maybe Int)      -- stack index of affine closure
+      !Int -- stack index of associated non-affine closure
+      !(Maybe Int) -- stack index of affine closure
   | -- Push the local context of an affine handler into the continuation
     InLocal
       !Int -- stack index of the affine handler information
@@ -1239,7 +1239,8 @@ emitLet _ _ _ _ _ _ ctx (TDiscard v)
   | Just (i, _) <- ctxResolve ctx v = fmap (Ins $ Discard i)
 emitLet _ _ _ _ _ _ ctx (TUpdate r v)
   | Just (i, _) <- ctxResolve ctx r,
-    Just (j, _) <- ctxResolve ctx v = fmap (Ins $ SetAff i j)
+    Just (j, _) <- ctxResolve ctx v =
+      fmap (Ins $ SetAff i j)
 emitLet rns grpr grpn rec d vcs ctx bnd
   | Direct <- d =
       internalBug $ "unsupported compound direct let: " ++ show bnd
