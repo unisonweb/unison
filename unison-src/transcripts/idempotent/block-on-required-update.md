@@ -14,8 +14,7 @@ x = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -25,9 +24,10 @@ x = 1
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : Nat
+  Done.
 ```
 
 Update `x`, and add a new `y` which depends on the update
@@ -41,8 +41,7 @@ y = x + 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -59,11 +58,11 @@ Try to add only the new `y`. This should fail because it requires an update to `
 ``` ucm :error
 scratch/main> add y
 
-  x These definitions failed:
+  ⚠️
 
-    Reason
-    needs update   x   : Nat
-    blocked        y   : Nat
+  Sorry, I wasn’t sure how to process your request:
 
-    Tip: Use `help filestatus` to learn more.
+    I expected no arguments, but received one.
+
+  You can run `help add` for more information on using `update`.
 ```

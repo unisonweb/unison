@@ -34,8 +34,7 @@ Can link to definitions like @List.drop or @List
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -65,8 +64,7 @@ List.take.ex2 = take 2 [1,2,3,4,5]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -77,10 +75,10 @@ List.take.ex2 = take 2 [1,2,3,4,5]
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    List.take.ex1 : [Nat]
-    List.take.ex2 : [Nat]
+  Done.
 ```
 
 And now let's write our docs and reference these examples:
@@ -106,8 +104,7 @@ List.take.doc = [:
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -119,9 +116,10 @@ Let's add it to the codebase.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    List.take.doc : Doc
+  Done.
 ```
 
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.

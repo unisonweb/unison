@@ -30,8 +30,7 @@ casTest = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -41,9 +40,10 @@ casTest = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    casTest : '{IO} [Result]
+  Done.
 
 scratch/main> io.test casTest
 
@@ -93,8 +93,7 @@ promiseConcurrentTest = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -105,10 +104,10 @@ promiseConcurrentTest = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    promiseConcurrentTest : '{IO} [Result]
-    promiseSequentialTest : '{IO} [Result]
+  Done.
 
 scratch/main> io.test promiseSequentialTest
 
@@ -146,8 +145,7 @@ atomicUpdate ref f =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -157,9 +155,10 @@ atomicUpdate ref f =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
+  Done.
 ```
 
 Promise can be used to write an operation that spawns N concurrent
@@ -184,8 +183,7 @@ spawnN n fa =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -195,9 +193,10 @@ spawnN n fa =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    spawnN : Nat -> '{IO} a ->{IO} [a]
+  Done.
 ```
 
 We can use these primitives to write a more interesting example, where
@@ -232,8 +231,7 @@ fullTest = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -243,9 +241,10 @@ fullTest = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    fullTest : '{IO} [Result]
+  Done.
 
 scratch/main> io.test fullTest
 

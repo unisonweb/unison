@@ -673,10 +673,8 @@ notifyUser dir = \case
           "I'm currently watching for definitions in .u files under the"
             <> dir
             <> "directory. Make sure you've updated something there before using the"
-            <> makeExample' IP.add
-            <> "or"
             <> makeExample' IP.update
-            <> "commands, or use"
+            <> "command, or use"
             <> makeExample' IP.load
             <> "to load a file explicitly."
   InvalidSourceName name ->
@@ -827,7 +825,6 @@ notifyUser dir = \case
         Reference.DerivedId {} -> P.lit "(type)"
   SlurpOutput input ppe s ->
     let isPast = case input of
-          Input.AddI {} -> True
           Input.Update2I {} -> True
           Input.SaveExecuteResultI {} -> True
           _ -> False
@@ -944,8 +941,6 @@ notifyUser dir = \case
                                 <> "these definitions in "
                                 <> P.group (fileName <> ".")
                                 <> "If you do an "
-                                <> IP.makeExample' IP.add
-                                <> " or "
                                 <> P.group (IP.makeExample' IP.update <> ",")
                                 <> "here's how your codebase would change:",
                             P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
@@ -1827,7 +1822,7 @@ notifyUser dir = \case
               <> P.newline
               <> P.wrap "2. Write some Unison code and save the file."
               <> P.newline
-              <> P.wrap "3. In UCM, type `add` to save it to your new project."
+              <> P.wrap "3. In UCM, type `update` to save it to your new project."
           )
         <> P.newline
         <> P.newline

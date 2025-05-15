@@ -32,8 +32,7 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -79,8 +78,7 @@ scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 
   I found and typechecked these definitions in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If
-  you do an `add` or `update`, here's how your codebase would
-  change:
+  you do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     

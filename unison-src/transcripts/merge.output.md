@@ -250,7 +250,7 @@ scratch/alice> view foo bar
 
 scratch/alice> display bar
 
-  "old foo - old foo"
+  "new foo - new foo"
 ```
 
 ``` ucm :hide
@@ -719,9 +719,10 @@ foo = "foo"
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo : Text
+  Done.
 
 scratch/alice> merge /bob
 
@@ -768,9 +769,10 @@ foo = "foo"
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo : Text
+  Done.
 
 scratch/alice> merge /bob
 
@@ -849,9 +851,10 @@ bar = foo ++ " - " ++ foo
 ``` ucm :error
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Text
+  Done.
 
 scratch/alice> merge /bob
 
@@ -1878,8 +1881,7 @@ foo = "alice and bobs foo"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2306,9 +2308,10 @@ scratch/main> branch alice
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 
@@ -2324,9 +2327,10 @@ scratch/main> branch bob
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bob : Nat
+  Done.
 ```
 
 ``` ucm :error
@@ -2427,8 +2431,7 @@ structural type Foo = Bar Nat | Baz Nat Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2438,9 +2441,10 @@ structural type Foo = Bar Nat | Baz Nat Nat
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
+  Done.
 
 scratch/main> delete.term Foo.Baz
 
@@ -2475,8 +2479,7 @@ alice = 100
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2486,9 +2489,10 @@ alice = 100
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    alice : Nat
+  Done.
 ```
 
 Bob's branch:
@@ -2519,8 +2523,7 @@ bob = 101
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2530,9 +2533,10 @@ bob = 101
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bob : Nat
+  Done.
 ```
 
 Now we merge:
@@ -2578,8 +2582,7 @@ bar = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2590,10 +2593,10 @@ bar = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    foo : Nat
+  Done.
 
 scratch/main> branch alice
 
@@ -2615,8 +2618,7 @@ foo = 18
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2648,8 +2650,7 @@ bob = 101
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2659,9 +2660,10 @@ bob = 101
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bob : Nat
+  Done.
 ```
 
 ``` ucm
@@ -2702,8 +2704,7 @@ type Foo = Bar | Baz
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2713,9 +2714,10 @@ type Foo = Bar | Baz
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> branch topic
 
@@ -2733,8 +2735,7 @@ boop = "boop"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2744,9 +2745,10 @@ boop = "boop"
 ``` ucm
 scratch/topic> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    boop : Text
+  Done.
 ```
 
 ``` unison
@@ -2757,8 +2759,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2828,8 +2829,7 @@ baz = "lca"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -2841,11 +2841,10 @@ baz = "lca"
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    baz : Text
-    foo : Nat
+  Done.
 
 scratch/alice> branch bob
 
@@ -2866,8 +2865,7 @@ baz = "bob"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2898,8 +2896,7 @@ baz = "alice"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2996,8 +2993,7 @@ a = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3007,9 +3003,10 @@ a = 1
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3020,8 +3017,7 @@ b = 2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3031,9 +3027,10 @@ b = 2
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    b : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3050,9 +3047,10 @@ b = 2
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    b : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3063,8 +3061,7 @@ a = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3074,9 +3071,10 @@ a = 1
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3094,10 +3092,10 @@ b = 2
 ``` ucm
 scratch/carol> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : ##Nat
-    b : ##Nat
+  Done.
 
 scratch/bob> merge /alice
 
@@ -3182,8 +3180,7 @@ bar =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3195,11 +3192,10 @@ bar =
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar    : Nat
-    foo    : Nat
-    ignore : a -> ()
+  Done.
 
 scratch/alice> branch bob
 
@@ -3220,8 +3216,7 @@ bar =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -3250,8 +3245,7 @@ foo = 19
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -3314,8 +3308,7 @@ type Bar = MkBar Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3326,10 +3319,10 @@ type Bar = MkBar Foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Bar
-    type Foo
+  Done.
 
 scratch/main> branch alice
 
@@ -3415,8 +3408,7 @@ type Bar = MkBar Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3466,8 +3458,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3491,9 +3482,10 @@ scratch/main> branch topic2
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> switch /topic
 ```
@@ -3506,8 +3498,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3517,9 +3508,10 @@ type Foo = Bar
 ``` ucm
 scratch/topic> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/topic> switch /topic2
 ```
@@ -3532,8 +3524,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3543,9 +3534,10 @@ type Foo = Bar
 ``` ucm
 scratch/topic2> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> switch /main
 ```
@@ -3605,8 +3597,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3694,8 +3685,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3783,8 +3773,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3840,8 +3829,7 @@ hello = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3851,9 +3839,10 @@ hello = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    hello : Nat
+  Done.
 
 scratch/main> branch alice
 
@@ -3872,8 +3861,7 @@ foo = 100
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -3910,8 +3898,7 @@ bar = 100
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     

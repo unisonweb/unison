@@ -107,8 +107,7 @@ X = ()
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -120,11 +119,10 @@ X = ()
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type X
-      (also named builtin.Unit)
-    X : ()
+  Done.
 
 scratch/main> view X
 

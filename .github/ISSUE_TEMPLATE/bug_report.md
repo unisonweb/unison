@@ -14,10 +14,10 @@ This should be written as a [ucm transcript](https://www.unison-lang.org/docs/to
 a = 1
 ```
 
-Here I typo the next command and `ucm` silently does nothing, I would have expected an error message:
+Here I try to pass an argument to `update`, which fails:
 
-``` ucm
-scratch/main> add b
+``` ucm :error
+scratch/main> update a
 
 ```
 

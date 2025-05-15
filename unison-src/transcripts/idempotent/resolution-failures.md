@@ -24,8 +24,7 @@ two.ambiguousTerm = "term two"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -38,12 +37,10 @@ two.ambiguousTerm = "term two"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type one.AmbiguousType
-    type two.AmbiguousType
-    one.ambiguousTerm : Text
-    two.ambiguousTerm : Text
+  Done.
 ```
 
 ## Tests

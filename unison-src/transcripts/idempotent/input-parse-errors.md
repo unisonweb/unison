@@ -21,15 +21,9 @@ scratch/main> add .
 
   Sorry, I wasn’t sure how to process your request:
 
-    1:2:
-      |
-    1 | .
-      |  ^
-    unexpected end of input
-    expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
-    
+    I expected no arguments, but received one.
 
-  You can run `help add` for more information on using `add`.
+  You can run `help add` for more information on using `update`.
 
 scratch/main> ls .
 
@@ -38,6 +32,13 @@ scratch/main> ls .
 
 scratch/main> add 1
 
+  ⚠️
+
+  Sorry, I wasn’t sure how to process your request:
+
+    I expected no arguments, but received one.
+
+  You can run `help add` for more information on using `update`.
 
 scratch/main> ls .
 
@@ -46,6 +47,13 @@ scratch/main> ls .
 
 scratch/main> add 2
 
+  ⚠️
+
+  Sorry, I wasn’t sure how to process your request:
+
+    I expected no arguments, but received one.
+
+  You can run `help add` for more information on using `update`.
 ```
 
 todo:

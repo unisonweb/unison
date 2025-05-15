@@ -18,10 +18,10 @@ fslkdjflskdjflksjdf = 663
 ``` ucm
 scratch/b1> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    fslkdjflskdjflksjdf : Nat
-    x                   : Nat
+  Done.
 ```
 
 ``` unison :hide
@@ -33,11 +33,10 @@ abc = 23
 ``` ucm
 scratch/b2> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    abc                 : Nat
-    fslkdjflskdjflksjdf : Nat
-    x                   : Nat
+  Done.
 
 scratch/b1> debug.alias.term.force .x .fslkdjflskdjflksjdf
 
@@ -87,15 +86,10 @@ structural ability X a1 a2 where x : ()
 ``` ucm
 scratch/ns1> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type A a
-    structural ability X a1 a2
-    b          : Nat
-    bdependent : Nat
-    c          : Nat
-    fromJust   : Nat
-    helloWorld : Text
+  Done.
 
 scratch/ns1> alias.term fromJust fromJust'
 
@@ -136,9 +130,10 @@ junk = "asldkfjasldkfj"
 ``` ucm
 scratch/ns1> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    junk : Text
+  Done.
 
 scratch/ns1> debug.alias.term.force junk fromJust
 
@@ -354,11 +349,10 @@ forconflicts = 777
 ``` ucm
 scratch/nsx> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a            : Nat
-    b            : Nat
-    forconflicts : Nat
+  Done.
 
 scratch/nsx> branch /nsy
 
@@ -474,8 +468,7 @@ x = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -485,9 +478,10 @@ x = 1
 ``` ucm
 scratch/hashdiff> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -498,8 +492,7 @@ y = 2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -509,9 +502,10 @@ y = 2
 ``` ucm
 scratch/hashdiff> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    y : ##Nat
+  Done.
 
 scratch/hashdiff> history
 

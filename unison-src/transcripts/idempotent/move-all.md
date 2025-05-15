@@ -19,8 +19,7 @@ unique type Foo.T = T
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -33,12 +32,10 @@ unique type Foo.T = T
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    type Foo.T
-    Foo         : Nat
-    Foo.termInA : Nat
+  Done.
 ```
 
 ``` unison
@@ -50,8 +47,7 @@ unique type Foo.T = T1 | T2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -119,8 +115,7 @@ bonk = 5
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -134,9 +129,10 @@ z/main> builtins.merge
 
 z/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bonk : Nat
+  Done.
 
 z/main> move bonk zonk
 
@@ -158,8 +154,7 @@ bonk.zonk = 5
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -174,9 +169,10 @@ a/main> builtins.merge
 
 a/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bonk.zonk : Nat
+  Done.
 
 a/main> move bonk zonk
 

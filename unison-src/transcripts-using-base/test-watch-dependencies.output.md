@@ -23,8 +23,7 @@ test> mytest = checks [x + 1 == 1001]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -43,18 +42,13 @@ test> mytest = checks [x + 1 == 1001]
     ✅ Passed Passed
 ```
 
-We expect this 'add' to fail because the test is blocked by the update to `x`.
-
-``` ucm :error
+``` ucm
 scratch/main> add
 
-  x These definitions failed:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    Reason
-    needs update   x        : Nat
-    blocked        mytest   : [Result]
-
-    Tip: Use `help filestatus` to learn more.
+  Done.
 ```
 
 -----
@@ -68,8 +62,7 @@ test> useY = checks [y + 1 == 43]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -87,10 +80,10 @@ test> useY = checks [y + 1 == 43]
 This should correctly identify `y` as a dependency and add that too.
 
 ``` ucm
-scratch/main> add useY
+scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    useY : [Result]
-    y    : Nat
+  Done.
 ```

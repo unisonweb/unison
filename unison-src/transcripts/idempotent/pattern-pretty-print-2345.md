@@ -67,8 +67,7 @@ doc = cases
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -92,23 +91,10 @@ doc = cases
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural ability Ab
-    agitated  : Nat -> ()
-    angry     : [t] -> ()
-    bashful   : Optional a -> ()
-    demure    : [Nat] -> ()
-    doc       : Nat -> ()
-    dopey     : Char -> ()
-    grumpy    : ff284oqf651 -> ()
-    happy     : Boolean -> ()
-    mouthy    : [t] -> ()
-    pokey     : [t] -> ()
-    sleepy    : [t] -> ()
-    sneezy    : Int -> ()
-    throaty   : Request {g, Ab} x -> ()
-    tremulous : (Nat, Nat) -> ()
+  Done.
 
 scratch/main> view dopey
 

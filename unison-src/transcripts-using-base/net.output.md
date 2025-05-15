@@ -100,8 +100,7 @@ testDefaultPort _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -113,11 +112,10 @@ testDefaultPort _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testDefaultHost  : '{IO} [Result]
-    testDefaultPort  : '{IO} [Result]
-    testExplicitHost : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testDefaultPort
 
@@ -187,8 +185,7 @@ testTcpConnect = 'let
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -200,11 +197,10 @@ testTcpConnect = 'let
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    clientThread   : MVar Nat -> MVar Text -> '{IO} ()
-    serverThread   : MVar Nat -> Text -> '{IO} ()
-    testTcpConnect : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testTcpConnect
 
