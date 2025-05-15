@@ -34,7 +34,7 @@ body k out v =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
       count : Nat -> ()
@@ -92,7 +92,7 @@ tests = '(map spawn nats)
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       display : Nat -> Nat -> Nat -> Text
       nats    : [Nat]

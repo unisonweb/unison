@@ -918,21 +918,16 @@ scratch/main> help-topic filestatus
   Here's a list of possible status messages you might see for
   definitions in a .u file.
 
-  needs update         A definition with the same name as an
-                       existing definition. Doing `update`
-                       instead of `add` will turn this failure
-                       into a successful update.
-                       
   term/ctor collision  A definition with the same name as an
                        existing constructor for some data type.
                        Rename your definition or the data type
-                       before trying again to `add` or `update`.
+                       before trying again to `update`.
                        
   ctor/term collision  A type defined in the file has a
                        constructor that's named the same as an
                        existing term. Rename that term or your
-                       constructor before trying again to `add`
-                       or `update`.
+                       constructor before trying again to
+                       `update`.
                        
   blocked              This definition was blocked because it
                        dependended on a definition with a failed

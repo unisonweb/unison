@@ -19,7 +19,7 @@ type Namespace.Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Namespace.Foo
 ```
@@ -66,7 +66,7 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type File.Foo
       type UsesFoo
@@ -97,7 +97,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```
@@ -122,7 +122,7 @@ type UsesFoo = UsesFoo Foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type File.Foo
       type UsesFoo
@@ -166,7 +166,7 @@ type Namespace.Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Namespace.Foo
 ```
@@ -191,7 +191,7 @@ type UsesFoo = UsesFoo Foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
       type UsesFoo
@@ -236,7 +236,7 @@ ns.foo = 42
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ns.foo : Nat
 ```
@@ -264,7 +264,7 @@ bar = foo ++ "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar      : Text
       file.foo : Text
@@ -296,7 +296,7 @@ ns.foo = 42
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ns.foo : Nat
 ```
@@ -324,7 +324,7 @@ bar = foo + 42
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar      : Nat
       file.foo : Text
@@ -356,7 +356,7 @@ ns.foo = 42
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ns.foo : Nat
 ```
@@ -408,7 +408,7 @@ bar = file.foo + ns.foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar      : Nat
       file.foo : Nat

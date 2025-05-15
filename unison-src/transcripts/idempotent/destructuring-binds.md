@@ -24,7 +24,7 @@ ex1 tup =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex0 : Nat -> Nat
       ex1 : (a, b, (Nat, Nat)) -> Nat
@@ -66,7 +66,7 @@ ex2 tup = match tup with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex2 : (a, b, (Nat, Nat)) -> Nat
         (also named ex1)
@@ -121,7 +121,7 @@ ex5a _ = match (99 + 1, "hi") with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex5  : 'Text
       ex5a : 'Text

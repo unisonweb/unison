@@ -66,15 +66,13 @@ data DefnStatus
 -- all of its transitive dependencies.
 --
 -- For example, if any transitive dependency of a defnition requires an `update`, then so does the definition itself,
--- even if it's new (and thus ok to `add`).
+-- even if it's new.
 --
 -- Note: these must be defined in descending severity order, per @mostSevereDepStatus@!
 data DepStatus
-  = -- | Part of a term/ctor or ctor/term collision: neither `add` nor `update` ok
+  = -- | Part of a term/ctor or ctor/term collision: `update` not ok
     DepCollision
-  | -- | Requires an update: `add` not ok, `update` ok
-    DepNeedsUpdate
-  | -- | `add` or `update` both ok
+  | -- | `update` ok
     DepOk
   deriving stock (Eq, Ord, Show)
 
@@ -85,7 +83,7 @@ defnStatusToDepStatus = \case
   Duplicated -> DepOk
   New -> DepOk
   TermCtorCollision -> DepCollision
-  Updated -> DepNeedsUpdate
+  Updated -> DepOk
 
 -- | DepCollision more severe than DepNeedsUpdate more severe than DepOk
 mostSevereDepStatus :: DepStatus -> DepStatus -> DepStatus
@@ -358,7 +356,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
              in partitionVars $ Set.difference involvedVars desired,
       SR.adds = adds,
       SR.duplicates = duplicates,
-      SR.collisions = if op == AddOp then updates else mempty,
       SR.updates = if op /= AddOp then updates else mempty,
       SR.termExistingConstructorCollisions =
         let SlurpComponent {types, terms, ctors} = termCtorColl
@@ -384,15 +381,10 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
       New ->
         case depStatus of
           DepOk -> mempty {adds = sc}
-          DepNeedsUpdate ->
-            case op of
-              AddOp -> mempty {blocked = sc}
-              CheckOp -> mempty {adds = sc}
           DepCollision -> mempty {blocked = sc}
       Updated ->
         case depStatus of
           DepOk -> mempty {updates = sc}
-          DepNeedsUpdate -> mempty {updates = sc}
           DepCollision -> mempty {blocked = sc}
       where
         sc :: SlurpComponent

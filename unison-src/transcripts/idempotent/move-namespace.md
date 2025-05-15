@@ -124,7 +124,7 @@ unique type a.T = T
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type a.T
       a.termInA : Nat
@@ -216,7 +216,7 @@ b.termInB = 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       a.termInA : Nat
       b.termInB : Nat
@@ -317,7 +317,7 @@ b.termInB = 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       a.termInA : Nat
       b.termInB : Nat
