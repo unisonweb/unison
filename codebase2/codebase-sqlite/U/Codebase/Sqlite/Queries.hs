@@ -266,6 +266,7 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchCausalHashIdColumn,
     addProjectBranchLastAccessedColumn,
     addMergeBranchTables,
+    addUpdateBranchTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -434,7 +435,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 19
+currentSchemaVersion = 20
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -507,6 +508,10 @@ addProjectBranchLastAccessedColumn =
 addMergeBranchTables :: Transaction ()
 addMergeBranchTables =
   executeStatements $(embedProjectStringFile "sql/016-add-merge-branch-tables.sql")
+
+addUpdateBranchTable :: Transaction ()
+addUpdateBranchTable =
+  executeStatements $(embedProjectStringFile "sql/017-add-update-branch-table.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
