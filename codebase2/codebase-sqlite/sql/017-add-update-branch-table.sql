@@ -6,5 +6,5 @@ CREATE TABLE update_branch (
   PRIMARY KEY (project_id, branch_id),
   FOREIGN KEY (project_id, branch_id)
     REFERENCES project_branch (project_id, branch_id)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 ) WITHOUT ROWID;

@@ -211,8 +211,8 @@ createBranch description createFrom project getNewBranchName = do
                               Queries.insertNamespaceUniqueTypeGuid namespaceHashId name guid
                 ensureUniqueTypeToGuidMapping sourceUniqueTypeGuids sourceCausalHashId
                 ensureUniqueTypeToGuidMapping targetUniqueTypeGuids targetCausalHashId
-            CreateFrom'Update _parentBranch _namespace -> do
-              pure ()
+            CreateFrom'Update parentBranch _namespace ->
+              Queries.setProjectBranchIsUpdateBranch parentBranch.projectId newBranchId
             _ -> pure ()
           pure (newBranchName, newBranchId)
 

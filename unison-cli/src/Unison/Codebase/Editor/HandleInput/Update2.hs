@@ -15,11 +15,14 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import System.Environment (lookupEnv)
+import System.IO.Unsafe (unsafePerformIO)
 import Text.Builder qualified
 import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -76,6 +79,11 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+
+useUpdateV2 :: Bool
+useUpdateV2 =
+  isJust (unsafePerformIO (lookupEnv "UNISON_USE_UPDATE_V2"))
+{-# NOINLINE useUpdateV2 #-}
 
 handleUpdate2 :: Cli ()
 handleUpdate2 = do
@@ -178,8 +186,7 @@ handleUpdate2 = do
 
               secondTuf <-
                 parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
-                  let new = True
-                  if new
+                  if useUpdateV2
                     then do
                       let dependentRefs :: DefnsF Set TermReferenceId TypeReferenceId
                           dependentRefs =
@@ -214,21 +221,29 @@ handleUpdate2 = do
                                         & Branch.getAt0 (Path.singleton NameSegment.libSegment)
                                     )
 
-                      (_temporaryBranchId, _temporaryBranchName) <-
-                        HandleInput.Branch.createBranch
-                          ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
-                          ( HandleInput.Branch.CreateFrom'Update
-                              pp.branch
-                              (Branch.cons namespaceWithoutDependents currentBranch)
-                          )
-                          pp.project
-                          ( let preferred :: ProjectBranchName
-                                preferred =
-                                  ("update-" <> projectBranchNameToValidProjectBranchNameText pp.branch.name)
-                                    & Text.Builder.run
-                                    & unsafeFrom @Text
-                             in ProjectUtils.findTemporaryBranchName pp.project.projectId preferred
-                          )
+                      let nextNamespace =
+                            Branch.cons namespaceWithoutDependents currentBranch
+
+                      Cli.runTransaction (Queries.projectBranchIsUpdateBranch pp.project.projectId pp.branch.branchId) >>= \case
+                        False -> do
+                          (_temporaryBranchId, _temporaryBranchName) <-
+                            HandleInput.Branch.createBranch
+                              ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
+                              ( HandleInput.Branch.CreateFrom'Update
+                                  pp.branch
+                                  nextNamespace
+                              )
+                              pp.project
+                              ( let preferred :: ProjectBranchName
+                                    preferred =
+                                      ("update-" <> projectBranchNameToValidProjectBranchNameText pp.branch.name)
+                                        & Text.Builder.run
+                                        & unsafeFrom @Text
+                                 in ProjectUtils.findTemporaryBranchName pp.project.projectId preferred
+                              )
+                          pure ()
+                        True -> do
+                          Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
                       done Output.UpdateTypecheckingFailure
