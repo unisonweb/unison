@@ -117,6 +117,14 @@ handleUpdate2 = do
     Merge.checkDeclCoherency nametree numConstructors
       & onLeft (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
+  let fileTermNamespaceBindings :: Set Name
+      fileTermNamespaceBindings =
+        Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)
+
+  let fileTypeNamespaceBindings :: Set Name
+      fileTypeNamespaceBindings =
+        Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)
+
   finalOutput <-
     Cli.label \done ->
       Cli.withRespondRegion \respondRegion -> do
@@ -135,8 +143,8 @@ handleUpdate2 = do
             let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
                 dependents1 =
                   bimap
-                    (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)))
-                    (`Map.withoutKeys` (Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)))
+                    (`Map.withoutKeys` fileTermNamespaceBindings)
+                    (`Map.withoutKeys` fileTypeNamespaceBindings)
                     dependents0
 
             -- Hydrate the dependents for rendering
@@ -192,8 +200,14 @@ handleUpdate2 = do
                                       ReferenceDerived refId -> not (Set.member refId dependentRefs.terms)
                              in defns
                                   & bimap
-                                    (BiMultimap.range >>> Map.filter keepTerm)
-                                    (BiMultimap.range >>> Map.filter keepType)
+                                    ( BiMultimap.range
+                                        >>> (`Map.withoutKeys` fileTermNamespaceBindings)
+                                        >>> Map.filter keepTerm
+                                    )
+                                    ( BiMultimap.range
+                                        >>> (`Map.withoutKeys` fileTypeNamespaceBindings)
+                                        >>> Map.filter keepType
+                                    )
                                   & Branch.fromUnconflictedDefns
                                   & Branch.setLibdeps
                                     ( currentBranch0
