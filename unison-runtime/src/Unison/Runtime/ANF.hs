@@ -685,9 +685,9 @@ inline inls (Rec bs entry) = Rec (fmap go0 <$> bs) (go0 entry)
         | Just (arity, expr) <- Map.lookup r inls ->
             tweak expr args arity >>= \case
               TCom r args ->
-                Just . go (n-1) $ TName nv (Left r) args body
+                Just . go (n - 1) $ TName nv (Left r) args body
               TApv v args ->
-                Just . go (n-1) $ TName nv (Right v) args body
+                Just . go (n - 1) $ TName nv (Right v) args body
               _ -> Nothing
       _ -> Nothing
 
@@ -797,8 +797,8 @@ data ANormalF v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
-  -- Affine handler support
-  | ADiscard v
+  | -- Affine handler support
+    ADiscard v
   | ALocal v e
   | AUpdate v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -1655,7 +1655,7 @@ buildInlineMap =
 -- If the provided SuperGroup is recognized as a handler, applies
 -- optimizations to improve it, like adding better code for affine
 -- handlers.
-optimizeHandler :: Var v => Reference -> SuperGroup v -> SuperGroup v
+optimizeHandler :: (Var v) => Reference -> SuperGroup v -> SuperGroup v
 optimizeHandler self group =
   fromMaybe group $ augmentHandler self group
 
@@ -1675,30 +1675,28 @@ augmentHandler self group
     thunk : vs <- shiftArgs args,
     Just body <- augmentHandlerEntry vs thunk mv0 ah body,
     Just amatcher <- translateHandlerMatch self ah matcher =
-      Just .
-        Rec [(mv0, matcher), (ah, amatcher)] .
-        Lambda ccs $
-          ABTN.TAbss args body
-
+      Just
+        . Rec [(mv0, matcher), (ah, amatcher)]
+        . Lambda ccs
+        $ ABTN.TAbss args body
   | otherwise = Nothing
   where
     ah = freshAff 0
 
 -- Recognizes the matching portion of a handler, and produces an
 -- optimized affine version if possible.
-translateHandlerMatch
-  :: Var v => Reference -> v -> SuperNormal v -> Maybe (SuperNormal v)
+translateHandlerMatch ::
+  (Var v) => Reference -> v -> SuperNormal v -> Maybe (SuperNormal v)
 translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
   | v : vs <- shiftArgs args,
-    TMatch u branches <- body, u == v,
+    TMatch u branches <- body,
+    u == v,
     MatchRequest cs df <- branches,
     args <- vs ++ [ar, v],
     ccs <- ccs ++ [BX] =
-      Lambda ccs . ABTN.TAbss args . TMatch u . flip MatchRequest df <$>
-        traverse3 (affineHandlerCase self vs ah) cs
-
+      Lambda ccs . ABTN.TAbss args . TMatch u . flip MatchRequest df
+        <$> traverse3 (affineHandlerCase self vs ah) cs
   | otherwise = Nothing
-
   where
     ar = freshAff 2
     traverse3 = traverse . traverse . traverse
@@ -1707,17 +1705,18 @@ translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
 -- one, then the result is a modified version with an affine handler
 -- filled in.
 augmentHandlerEntry ::
-  Var v => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+  (Var v) => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
 augmentHandlerEntry vs thunk0 mv0 ah body
   | TName hv (Right mv1) us body <- body,
     THnd rs nh Nothing (TFrc thunk1) <- body,
-    mv0 == mv1, nh == hv, thunk0 == thunk1,
+    mv0 == mv1,
+    nh == hv,
+    thunk0 == thunk1,
     Prelude.and (zipWith (==) us vs) =
-      Just .
-        TName hv (Right mv1) us .
-        TName ahp (Right ah) us $
-          THnd rs nh (Just ahp) (TFrc thunk1)
-
+      Just
+        . TName hv (Right mv1) us
+        . TName ahp (Right ah) us
+        $ THnd rs nh (Just ahp) (TFrc thunk1)
   | otherwise = Nothing
   where
     ahp = freshAff 1
@@ -1725,15 +1724,14 @@ augmentHandlerEntry vs thunk0 mv0 ah body
 -- Recognizes an affine handler case, yielding a translated efficient
 -- version if it is one.
 affineHandlerCase ::
-  Var v => Reference -> [v] -> v -> ANormal v -> Maybe (ANormal v)
+  (Var v) => Reference -> [v] -> v -> ANormal v -> Maybe (ANormal v)
 affineHandlerCase self vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
     kf0 == kf1 =
-      ABTN.TAbss us <$>
-        affinePreBranch self Set.empty vs rec ar kf body
-
+      ABTN.TAbss us
+        <$> affinePreBranch self Set.empty vs rec ar kf body
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -1749,7 +1747,7 @@ affineHandlerCase self vs rec br
 --
 -- If neither of the above cases hold, then we look for a linear case.
 affinePreBranch ::
-  Var v =>
+  (Var v) =>
   Reference ->
   Set v ->
   [v] ->
@@ -1760,25 +1758,23 @@ affinePreBranch ::
   Maybe (ANormal v)
 affinePreBranch self bound vs rec ar kf bd
   | Just it <- irrelevantTail ar kf bd = Just it
-
   | TMatch v bs <- bd =
-      TMatch v <$>
-        for bs \case
+      TMatch v
+        <$> for bs \case
           ABTN.TAbss us bd ->
-            ABTN.TAbss us <$>
-              affinePreBranch self bound' vs rec ar kf bd
+            ABTN.TAbss us
+              <$> affinePreBranch self bound' vs rec ar kf bd
             where
               bound' = Set.union (Set.fromList us) bound
-
   | otherwise =
-      localize <$>
-        runWriterT (translateLinear self bound vs rec ar kf bd)
+      localize
+        <$> runWriterT (translateLinear self bound vs rec ar kf bd)
   where
     localize (tm, Any True) = TLocal ar tm
     localize (tm, Any False) = tm
 
 translateLinear ::
-  Var v =>
+  (Var v) =>
   Reference ->
   Set v ->
   [v] ->
@@ -1789,28 +1785,23 @@ translateLinear ::
   WriterT Any Maybe (ANormal v)
 translateLinear self bound0 vs rec ar kf = go bound0
   where
-  go bound body
-    | Just lt <- linearTail self vs bound rec ar kf body =
-        lt <$ tell (Any True)
-
-    | Just it <- irrelevantTail ar kf body = pure it
-
-    | TLet d v cc e body <- body,
-      kf `Set.notMember` ABTN.freeVars e =
-        TLet d v cc e <$> go (Set.insert v bound) body
-
-    | TName v f us body <- body,
-      all (kf /=) us =
-        TName v f us <$> go (Set.insert v bound) body
-
-    | TMatch v bs <- body =
-        TMatch v <$>
-          for bs \case
-            ABTN.TAbss us bd ->
-              ABTN.TAbss us <$>
-                go (Set.fromList us `Set.union` bound) bd
-
-    | otherwise = mzero
+    go bound body
+      | Just lt <- linearTail self vs bound rec ar kf body =
+          lt <$ tell (Any True)
+      | Just it <- irrelevantTail ar kf body = pure it
+      | TLet d v cc e body <- body,
+        kf `Set.notMember` ABTN.freeVars e =
+          TLet d v cc e <$> go (Set.insert v bound) body
+      | TName v f us body <- body,
+        all (kf /=) us =
+          TName v f us <$> go (Set.insert v bound) body
+      | TMatch v bs <- body =
+          TMatch v
+            <$> for bs \case
+              ABTN.TAbss us bd ->
+                ABTN.TAbss us
+                  <$> go (Set.fromList us `Set.union` bound) bd
+      | otherwise = mzero
 
 -- Recognizes the tail of a linear handler case, where the
 -- continuation is called once in tail position. Returns a transformed
@@ -1829,28 +1820,30 @@ translateLinear self bound0 vs rec ar kf = go bound0
 -- avoid see exactly what the `k result` call is, rather than it
 -- having multiple forms depending on the variable order.
 linearTail ::
-  Var v => Reference -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+  (Var v) => Reference -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
 linearTail self vs bound rec ar kf0 tm
   | TLet _ hr0 _ (TCom r us) tm <- tm, -- recursive handler call
     TName thunk0 (Right kf1) [result] tm <- tm, -- lazy cont resume
     TApv hr1 [thunk1] <- tm, -- apply handler to thunk
-    r == self, kf0 == kf1, thunk0 == thunk1, hr0 == hr1 =
+    r == self,
+    kf0 == kf1,
+    thunk0 == thunk1,
+    hr0 == hr1 =
       Just . update hr0 us $ TVar result
-
   | otherwise = Nothing
-
   where
     update huv us
       -- recursive call with identical, non-shadowed variables;
       -- no need to update
       | Prelude.and (zipWith (==) us vs),
-        all (`Set.notMember` bound) us = id
+        all (`Set.notMember` bound) us =
+          id
       -- repurpose hr0 variable for update call
       | otherwise =
-          TName huv (Right rec) (us ++ [ar]) .
-          TLets Direct [] [] (TUpdate ar huv)
+          TName huv (Right rec) (us ++ [ar])
+            . TLets Direct [] [] (TUpdate ar huv)
 
-irrelevantTail :: Var v => v -> v -> ANormal v -> Maybe (ANormal v)
+irrelevantTail :: (Var v) => v -> v -> ANormal v -> Maybe (ANormal v)
 irrelevantTail ar kf tm
   | kf `Set.notMember` ABTN.freeVars tm =
       Just $ TLets Direct [] [] (TDiscard ar) tm
@@ -2388,15 +2381,14 @@ anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
     tms = toList as
 anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
 
-
 type ReqBranches v = Map Reference (EnumMap CTag ([Mem], ANormal v))
 
 makeHandler ::
-  (Var v) =>
-  v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
+  (Var v) => v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
 makeHandler v abr df = do
-  hfvs <- groupVars <&> \gvs ->
-    Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
+  hfvs <-
+    groupVars <&> \gvs ->
+      Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
   pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
   where
     hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
@@ -2775,9 +2767,9 @@ prettyANF m ind tm =
         . pvar v
         . showString "]"
     ABTN.TAbs v (ABTN.TAbss vs bo) ->
-      prettyVars (v:vs) .
-      showString " ->" .
-      prettyANF True (ind + 1) bo
+      prettyVars (v : vs)
+        . showString " ->"
+        . prettyANF True (ind + 1) bo
     _ -> shows tm
 
 prettySpace :: Bool -> Int -> ShowS

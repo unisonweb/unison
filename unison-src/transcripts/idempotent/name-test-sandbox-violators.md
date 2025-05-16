@@ -15,8 +15,7 @@ test> foo.test =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -33,9 +32,10 @@ test> foo.test =
 ``` ucm
 fresh/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo.test : [Result]
+  Done.
 ```
 
 The `test` command succeeds, because the result of `foo.test` is already cached, which skips the IO sandbox.
@@ -66,8 +66,7 @@ bar.test =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -77,9 +76,10 @@ bar.test =
 ``` ucm
 fresh/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar.test : [Result]
+  Done.
 ```
 
 ``` ucm :error

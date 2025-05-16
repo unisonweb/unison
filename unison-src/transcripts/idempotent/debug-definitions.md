@@ -19,13 +19,10 @@ ability Ask a where
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ability Ask a
-    structural type Optional a
-      (also named builtin.Optional)
-    x : Nat
-    y : Nat
+  Done.
 
 scratch/main> debug.term.abt Nat.+
 

@@ -328,7 +328,7 @@ instance Tag Prim1 where
   tag2word RNDF = 32
   tag2word TRNC = 33
   tag2word NOTB = 34
-
+  --
   tag2word SIZT = 35
   tag2word USNC = 36
   tag2word UCNS = 37
@@ -396,7 +396,7 @@ instance Tag Prim1 where
   word2tag 32 = pure RNDF
   word2tag 33 = pure TRNC
   word2tag 34 = pure NOTB
-
+  --
   word2tag 35 = pure SIZT
   word2tag 36 = pure USNC
   word2tag 37 = pure UCNS
@@ -555,7 +555,7 @@ instance Tag Prim2 where
   word2tag 44 = pure DRPN
   word2tag 45 = pure ANDB
   word2tag 46 = pure IORB
-
+  --
   word2tag 47 = pure EQLU
   word2tag 48 = pure LEQU
   word2tag 49 = pure LESU
@@ -586,4 +586,3 @@ instance Tag Prim2 where
   word2tag 74 = pure SDBV
   word2tag 75 = pure REFW
   word2tag n = unknownTag "Prim2" n
-

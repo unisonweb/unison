@@ -31,7 +31,7 @@ import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
 import Data.Atomics qualified as Atomic
-import Data.IORef (IORef, readIORef, newIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List qualified as List
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
@@ -264,9 +264,9 @@ exec _ henv !_activeThreads !stk !k _ (Capture p) = do
   (cap, denv, stk, k) <- splitCont (denv henv) stk k p
   stk <- bump stk
   poke stk cap
-  henv <- evaluate $ henv { denv = denv }
+  henv <- evaluate $ henv {denv = denv}
   pure (False, henv, stk, k)
-exec _   _henv !_activeThreads !stk !k _ (Discard i) = do
+exec _ _henv !_activeThreads !stk !k _ (Discard i) = do
   bpeekOff stk i >>= \case
     Affine _ r -> do
       (aenv, stk, k) <- abortCont stk k r
@@ -370,7 +370,9 @@ exec _ henv !_activeThreads !stk !k _ (Lit ml) = do
   pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (Reset ps nhi mah)
   -- if denv is null, and there's an affine handler, use it
-  | HEnv aenv0 denv0 <- henv, null denv0, Just ahi <- mah = do
+  | HEnv aenv0 denv0 <- henv,
+    null denv0,
+    Just ahi <- mah = do
       (stk, a) <- saveArgs stk
       ahv0 <- peekOff stk ahi
       r <- newIORef BlackHole
@@ -378,7 +380,7 @@ exec _ henv !_activeThreads !stk !k _ (Reset ps nhi mah)
       ahv <- extendPAp ahv0 . BoxedVal $ Affine aenv0 ar
       writeIORef r ahv
       aenv <- evaluate $ EC.unionWith const (mapFromSet ps ar) aenv0
-      henv <- evaluate $ henv { aenv = aenv }
+      henv <- evaluate $ henv {aenv = aenv}
       pure (False, henv, stk, AMark a aenv0 ar k)
   | HEnv aenv0 denv0 <- henv = do
       (stk, a) <- saveArgs stk
@@ -511,8 +513,8 @@ eval env henv !activeThreads !stk !k _ (Yield args)
       stk <- frameArgs stk
       yield env henv activeThreads stk k
 eval env henv !activeThreads !stk !k _ (App ck r args) =
-  resolve env henv stk r >>=
-    apply env henv activeThreads stk k ck args
+  resolve env henv stk r
+    >>= apply env henv activeThreads stk k ck args
 eval env henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
   enter env henv activeThreads stk k (combRef combIx) ck args rcomb
 eval env henv !activeThreads !stk !k _ (Jump i args) =
@@ -554,7 +556,7 @@ resolveExceptionHandler (HEnv aenv denv)
       BoxedVal <$> readIORef r
   -- should be impossible
   | otherwise = unhandledAbilityRequest
-{-# inline resolveExceptionHandler #-}
+{-# INLINE resolveExceptionHandler #-}
 
 fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
@@ -649,7 +651,6 @@ extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
   bseg <- unsafeFreezeArray bcop
 
   pure $ PAp cix comb (useg, bseg)
-
   where
     ussz = sizeofByteArray useg0
     bssz = sizeofArray bseg0
@@ -894,7 +895,6 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
             | otherwise = Nothing
           l = fsize stk - i
 
-
 yield ::
   CCache ->
   HEnv ->
@@ -1124,7 +1124,6 @@ splitCont !denv !stk !k !p =
       stk <- adjustArgs stk a
       return (BoxedVal $ Captured ck asz seg, denv, stk, k)
 {-# INLINE splitCont #-}
-
 
 abortCont ::
   Stack ->

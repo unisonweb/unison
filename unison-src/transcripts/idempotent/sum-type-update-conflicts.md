@@ -16,8 +16,7 @@ structural type X = x
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -28,10 +27,10 @@ structural type X = x
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type X
-      (also named lib.builtins.Unit)
+  Done.
 ```
 
 Now we update the type, changing the name of the constructors, *but*, we simultaneously
@@ -50,8 +49,7 @@ dependsOnX = Text.size X.x
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     

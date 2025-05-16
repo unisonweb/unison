@@ -17,8 +17,7 @@ type Namespace.Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -28,9 +27,10 @@ type Namespace.Foo = Bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Namespace.Foo
+  Done.
 ```
 
 ``` unison :error
@@ -64,8 +64,7 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -96,8 +95,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -107,9 +105,10 @@ type Foo = Bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 ```
 
 ``` unison
@@ -121,8 +120,7 @@ type UsesFoo = UsesFoo Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -133,10 +131,10 @@ type UsesFoo = UsesFoo Foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type File.Foo
-    type UsesFoo
+  Done.
 
 scratch/main> view UsesFoo
 
@@ -166,8 +164,7 @@ type Namespace.Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -177,9 +174,10 @@ type Namespace.Foo = Bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Namespace.Foo
+  Done.
 ```
 
 ``` unison
@@ -191,8 +189,7 @@ type UsesFoo = UsesFoo Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -203,10 +200,10 @@ type UsesFoo = UsesFoo Foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    type UsesFoo
+  Done.
 
 scratch/main> view UsesFoo
 
@@ -237,8 +234,7 @@ ns.foo = 42
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -248,9 +244,10 @@ ns.foo = 42
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ns.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -265,8 +262,7 @@ bar = foo ++ "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -298,8 +294,7 @@ ns.foo = 42
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -309,9 +304,10 @@ ns.foo = 42
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ns.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -326,8 +322,7 @@ bar = foo + 42
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -359,8 +354,7 @@ ns.foo = 42
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -370,9 +364,10 @@ ns.foo = 42
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ns.foo : Nat
+  Done.
 ```
 
 ``` unison :error
@@ -411,8 +406,7 @@ bar = file.foo + ns.foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -423,10 +417,10 @@ bar = file.foo + ns.foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar      : Nat
-    file.foo : Nat
+  Done.
 
 scratch/main> view bar
 

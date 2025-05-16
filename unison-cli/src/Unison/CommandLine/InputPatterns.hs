@@ -1,7 +1,6 @@
 -- | This module defines 'InputPattern' values for every supported input command.
 module Unison.CommandLine.InputPatterns
   ( -- * Input commands
-    add,
     aliasMany,
     aliasTerm,
     aliasType,
@@ -80,7 +79,6 @@ module Unison.CommandLine.InputPatterns
     moveAll,
     names,
     namespaceDependencies,
-    previewAdd,
     printVersion,
     projectCreate,
     projectCreateEmptyInputPattern,
@@ -149,7 +147,6 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Network.URI qualified as URI
@@ -856,37 +853,11 @@ clear =
     . const
     $ pure Input.ClearI
 
-add :: InputPattern
-add =
-  InputPattern
-    "add"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`add` adds to the codebase all the definitions from the most recently "
-        <> "typechecked file."
-    )
-    $ fmap (Input.AddI . Set.fromList) . traverse handleNameArg
-
-previewAdd :: InputPattern
-previewAdd =
-  InputPattern
-    "add.preview"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`add.preview` previews additions to the codebase from the most recently "
-        <> "typechecked file. This command only displays cached typechecking "
-        <> "results. Use `load` to reparse & typecheck the file if the context "
-        <> "has changed."
-    )
-    $ fmap (Input.PreviewAddI . Set.fromList) . traverse handleNameArg
-
 update :: InputPattern
 update =
   InputPattern
     { patternName = "update",
-      aliases = [],
+      aliases = ["add"],
       visibility = I.Visible,
       params = noParams,
       help =
@@ -1218,9 +1189,9 @@ findShallow =
     "list"
     ["ls", "dir"]
     I.Visible
-    (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
+    (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
+        [ ("`list`", "lists definitions and namespaces within the selected namespace."),
           ("`list foo`", "lists the 'foo' namespace."),
           ("`list .foo`", "lists the '.foo' namespace.")
         ]
@@ -2342,13 +2313,13 @@ editNamespace =
     { patternName = "edit.namespace",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [] . Optional [] $ Just ("namespace to load definitions from", namespaceArg),
+      params = Parameters [] $ OnePlus ("namespace to load definitions from", namespaceArg),
       help =
         P.lines
-          [ "`edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+          [ "`edit.namespace .` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
-      parse = fmap Input.EditNamespaceI . traverse handlePathArg
+      parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
     }
 
 newBranchNameArg :: ParameterType
@@ -3484,8 +3455,7 @@ validInputs :: [InputPattern]
 validInputs =
   sortOn
     I.patternName
-    [ add,
-      aliasMany,
+    [ aliasMany,
       aliasTerm,
       aliasType,
       api,
@@ -3571,7 +3541,6 @@ validInputs =
       names False, -- names
       names True, -- debug.names.global
       namespaceDependencies,
-      previewAdd,
       printVersion,
       projectCreate,
       projectCreateEmptyInputPattern,

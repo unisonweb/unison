@@ -13,7 +13,7 @@ scratch/main> project.create-empty foo
 
     1. Open scratch.u.
     2. Write some Unison code and save the file.
-    3. In UCM, type `add` to save it to your new project.
+    3. In UCM, type `update` to save it to your new project.
 
   🎉 🥳 Happy coding!
 
@@ -29,7 +29,7 @@ scratch/main> project.create-empty bar
 
     1. Open scratch.u.
     2. Write some Unison code and save the file.
-    3. In UCM, type `add` to save it to your new project.
+    3. In UCM, type `update` to save it to your new project.
 
   🎉 🥳 Happy coding!
 

@@ -21,32 +21,39 @@ scratch/main> add .
 
   Sorry, I wasn’t sure how to process your request:
 
-    1:2:
-      |
-    1 | .
-      |  ^
-    unexpected end of input
-    expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
-    
+    I expected no arguments, but received one.
 
-  You can run `help add` for more information on using `add`.
+  You can run `help add` for more information on using `update`.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
 
 scratch/main> add 1
 
+  ⚠️
 
-scratch/main> ls
+  Sorry, I wasn’t sure how to process your request:
+
+    I expected no arguments, but received one.
+
+  You can run `help add` for more information on using `update`.
+
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
 
 scratch/main> add 2
 
-  ⊡ Ignored previously added definitions: x
+  ⚠️
+
+  Sorry, I wasn’t sure how to process your request:
+
+    I expected no arguments, but received one.
+
+  You can run `help add` for more information on using `update`.
 ```
 
 todo:

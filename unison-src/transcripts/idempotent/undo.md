@@ -13,11 +13,12 @@ scratch/main> builtins.merge lib.builtins
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : Nat
+  Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -26,7 +27,7 @@ scratch/main> alias.term x y
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -65,7 +66,7 @@ scratch/main> undo
     Original  Changes
     1. x      2. y (added)
 
-scratch/main> ls
+scratch/main> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -99,11 +100,12 @@ scratch/branch1> builtins.merge lib.builtins
 
 scratch/branch1> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : Nat
+  Done.
 
-scratch/branch1> ls
+scratch/branch1> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -112,7 +114,7 @@ scratch/branch1> alias.term x y
 
   Done.
 
-scratch/branch1> ls
+scratch/branch1> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)
@@ -161,7 +163,7 @@ scratch/branch1> undo
     Original  Changes
     1. x      2. y (added)
 
-scratch/branch1> ls
+scratch/branch1> ls .
 
   1. lib/ (476 terms, 76 types)
   2. x    (Nat)

@@ -17,12 +17,10 @@ term2 _ = ()
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ability Bar
-    ability Foo
-    term1 : '{Bar, Foo} ()
-    term2 : '{Bar, Foo} ()
+  Done.
 
 scratch/main> names term1
 

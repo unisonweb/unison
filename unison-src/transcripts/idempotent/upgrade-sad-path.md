@@ -12,8 +12,7 @@ thingy = lib.old.foo + 10
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -25,11 +24,10 @@ thingy = lib.old.foo + 10
 ``` ucm
 proj/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.new.foo : Int
-    lib.old.foo : Nat
-    thingy      : Nat
+  Done.
 ```
 
 ``` ucm :error
@@ -69,8 +67,7 @@ thingy = foo + +10
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

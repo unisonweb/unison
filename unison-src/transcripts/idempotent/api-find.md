@@ -11,8 +11,7 @@ joey.yaml.zz = 45
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -25,12 +24,10 @@ joey.yaml.zz = 45
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    joey.httpServer.z   : ##Nat
-    joey.yaml.zz        : ##Nat
-    rachel.filesystem.x : ##Nat
-    ross.httpClient.y   : ##Nat
+  Done.
 ```
 
 ``` api

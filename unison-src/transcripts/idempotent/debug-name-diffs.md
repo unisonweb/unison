@@ -13,8 +13,7 @@ structural type a.b.Baz = Boo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -29,14 +28,10 @@ structural type a.b.Baz = Boo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type a.b.Baz
-    structural type a.x.Foo
-    a.b.one   : ##Nat
-    a.two     : ##Nat
-    a.x.four  : ##Nat
-    a.x.three : ##Nat
+  Done.
 
 scratch/main> delete.term.verbose a.b.one
 

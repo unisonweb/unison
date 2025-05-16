@@ -15,8 +15,7 @@ bar = a.x.x.x.x + c.y.y.y.y
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -31,14 +30,10 @@ bar = a.x.x.x.x + c.y.y.y.y
 ``` ucm
 myproject/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a.x.x.x.x : Nat
-    b.x.x.x.x : Nat
-    bar       : Nat
-    c.y.y.y.y : Nat
-    d.y.y.y.y : Nat
-    foo       : Nat
+  Done.
 ```
 
 ``` unison
@@ -49,8 +44,7 @@ foo = +30
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

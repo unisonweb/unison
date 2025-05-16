@@ -3,12 +3,6 @@
 ``` ucm
 scratch/main> help
 
-  add
-  `add` adds to the codebase all the definitions from the most recently typechecked file.
-
-  add.preview
-  `add.preview` previews additions to the codebase from the most recently typechecked file. This command only displays cached typechecking results. Use `load` to reparse & typecheck the file if the context has changed.
-
   add.run
   `add.run name` adds to the codebase the result of the most recent `run` command as `name`.
 
@@ -285,7 +279,7 @@ scratch/main> help
   Like `edit`, but also includes all transitive dependents in the current project.
 
   edit.namespace
-  `edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
+  `edit.namespace .` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
   `edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces.
 
   edit.new
@@ -517,8 +511,8 @@ scratch/main> help
                                               `@unison/base`
 
   list (or ls, dir)
-  `list`       lists definitions and namespaces at the current
-               level of the current namespace.
+  `list`       lists definitions and namespaces within the
+               selected namespace.
   `list foo`   lists the 'foo' namespace.
   `list .foo`  lists the '.foo' namespace.
 
@@ -860,7 +854,7 @@ scratch/main> help
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.
 
-  update
+  update (or add)
   Adds everything in the most recently typechecked file to the
   namespace, replacing existing definitions having the same
   name, and attempts to update all the existing dependents

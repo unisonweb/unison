@@ -19,8 +19,7 @@ corge = "corge"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These new definitions are ok to `add`:
     
@@ -35,14 +34,10 @@ corge = "corge"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar   : Text
-    baz   : Text
-    corge : Text
-    foo   : Text
-    quux  : Text
-    qux   : Text
+  Done.
 ```
 
 We can get the list of things in the namespace, and UCM will give us a numbered

@@ -7,7 +7,7 @@ scratch/main> clone @unison/base/releases/3.19.0
 
   Cloned @unison/base/releases/3.19.0.
 
-@unison/base/releases/3.19.0> edit.namespace
+@unison/base/releases/3.19.0> edit.namespace .
 
   ☝️
 
@@ -83169,7 +83169,7 @@ scratch/main> clone @unison/http/releases/3.3.2
 
   Cloned @unison/http/releases/3.3.2.
 
-@unison/http/releases/3.3.2> edit.namespace
+@unison/http/releases/3.3.2> edit.namespace .
 
   ☝️
 

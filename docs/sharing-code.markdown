@@ -8,13 +8,13 @@ data Causal m e
   | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal e)) }
 
 -- just one level of name, like Foo or Bar, but not Foo.Bar
-newtype NameSegment = NameSegment { toText :: Text } 
+newtype NameSegment = NameSegment { toText :: Text }
 newtype Path = Path { toList :: [NameSegment] }
 
 data Namespace m = Namespace
 	{ terms :: Relation NameSegment Referent
   , types :: Relation NameSegment Reference
-  , children :: Relation NameSegment (Codetree m) 
+  , children :: Relation NameSegment (Codetree m)
   }
 
 data Codetree m = Codetree (Causal m Namespace)
@@ -28,10 +28,10 @@ data RemoteRef = GithubRef { username :: Text, repo :: Text, treeish :: Text }
 
 newtype EditMap = EditMap { toMap :: Map GUID (Causal Edits) }
 data Edits = Edits
-	{ terms :: Relation Reference TermEdit 
+	{ terms :: Relation Reference TermEdit
 	, types :: Relation Reference TypeEdit
 	}
-	
+
 -- maps local paths to remote paths
 data RemoteStatus = Map Path RemoteSpec
 ```
@@ -53,9 +53,9 @@ Questions:
 
 * Do we want to distinguish between `/` paths and `.` separators in names?
 
-  * Should a type `A` be at the same level as 
+  * Should a type `A` be at the same level as
 
-  * On one hand, you probably don't need to separate a type `A` from its constructor `A.A`.  You wouldn't be able to export the constructor without the type which resides a level up in the namespace.  
+  * On one hand, you probably don't need to separate a type `A` from its constructor `A.A`.  You wouldn't be able to export the constructor without the type which resides a level up in the namespace.
 
   * Maybe the type `A` should organically be organized as `A/A`, and its constructor also as `A/A`.  This is reminiscent of having a separate module per type in Haskell, except that a reorganization could be done more easily:
 
@@ -63,13 +63,13 @@ Questions:
     /mycode> mv ClassA* ClassA/
     /mycode> mv ClassB* ClassB/
     /mycode> cd ClassA
-    /mycode/ClassA> ls
+    /mycode/ClassA> ls .
     ```
 
-    
+
 
   * ```
-    
+
     ```
 
 ## NameTree representation
@@ -94,9 +94,9 @@ data NameTree a = Causal (Relation Name (NameTree a))
 ```
 or
 ```haskell
-data NameTree a 
-	= Leaf a 
-	| Branch (Relation Name (NameTree a)) 
+data NameTree a
+	= Leaf a
+	| Branch (Relation Name (NameTree a))
 	| SharePoint (Causal (NameTree a))
 ```
 
@@ -113,10 +113,10 @@ Branches: https://api.github.com/repos/unisonweb/unison/branches
 A directory:
 
 ```
-url: 
+url:
 https://api.github.com/repos/unisonweb/unison/contents/unison-src/demo?ref=master
 
-html_url: 
+html_url:
 https://github.com/unisonweb/unison/tree/master/unison-src/demo
 
 git_url

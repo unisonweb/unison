@@ -183,7 +183,7 @@ jobs:
             ~/Library/Racket/${{env.racket_version}}
           # This isn't right because unison.zip is going to include different dates each time.
           # Maybe we can unpack it and hash the contents.
-          key: ${{ runner.os }}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
+          key: ${{matrix.os}}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
       - name: set up environment
         run: |
           case "$RUNNER_ARCH" in

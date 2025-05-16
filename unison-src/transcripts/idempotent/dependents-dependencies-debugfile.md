@@ -42,16 +42,10 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type inside.M
-    structural type outside.A
-    structural type outside.B
-    inside.p  : Nat
-    inside.q  : Nat -> Nat
-    inside.r  : Boolean
-    outside.c : Nat
-    outside.d : Boolean
+  Done.
 
 scratch/main> dependents q
 
