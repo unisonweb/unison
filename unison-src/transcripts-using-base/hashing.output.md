@@ -80,7 +80,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       ex1      : Text
       ex2      : Text
@@ -384,7 +384,7 @@ test> hmac_sha2_512.tests.ex2 =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       ex'                     : HashAlgorithm
                                 -> Text
@@ -447,7 +447,7 @@ test> md5.tests.ex3 =
 
     ⊡ Previously added definitions will be ignored: ex
     
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       md5.tests.ex1 : [Result]
       md5.tests.ex2 : [Result]

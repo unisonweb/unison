@@ -34,7 +34,7 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type time.DayOfWeek
       ImportantConstant     : Nat
@@ -80,7 +80,7 @@ scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If
   you do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       basicFormatting     : Doc2
       doc.guide           : Doc2

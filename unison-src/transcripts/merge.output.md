@@ -1883,7 +1883,7 @@ foo = "alice and bobs foo"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       foo : Text
 ```
@@ -2433,7 +2433,7 @@ structural type Foo = Bar Nat | Baz Nat Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       structural type Foo
 ```
@@ -2481,7 +2481,7 @@ alice = 100
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       alice : Nat
 ```
@@ -2525,7 +2525,7 @@ bob = 101
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       bob : Nat
 ```
@@ -2584,7 +2584,7 @@ bar = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       bar : Nat
       foo : Nat
@@ -2652,7 +2652,7 @@ bob = 101
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       bob : Nat
 ```
@@ -2706,7 +2706,7 @@ type Foo = Bar | Baz
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -2737,7 +2737,7 @@ boop = "boop"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       boop : Text
 ```
@@ -2831,7 +2831,7 @@ baz = "lca"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       bar : Nat
       baz : Text
@@ -2995,7 +2995,7 @@ a = 1
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       a : ##Nat
 ```
@@ -3019,7 +3019,7 @@ b = 2
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       b : ##Nat
 ```
@@ -3063,7 +3063,7 @@ a = 1
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       a : ##Nat
 ```
@@ -3182,7 +3182,7 @@ bar =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       bar    : Nat
       foo    : Nat
@@ -3310,7 +3310,7 @@ type Bar = MkBar Foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Bar
       type Foo
@@ -3410,7 +3410,7 @@ type Bar = MkBar Foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Bar
       type Foo
@@ -3460,7 +3460,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -3500,7 +3500,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -3526,7 +3526,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -3599,7 +3599,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -3687,7 +3687,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -3775,7 +3775,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Foo
 ```
@@ -3831,7 +3831,7 @@ hello = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       hello : Nat
 ```
@@ -3863,7 +3863,7 @@ foo = 100
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       foo : Nat
     
@@ -3900,7 +3900,7 @@ bar = 100
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       bar : Nat
     

@@ -102,7 +102,7 @@ testDefaultPort _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       testDefaultHost  : '{IO} [Result]
       testDefaultPort  : '{IO} [Result]
@@ -187,7 +187,7 @@ testTcpConnect = 'let
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       clientThread   : MVar Nat -> MVar Text -> '{IO} ()
       serverThread   : MVar Nat -> Text -> '{IO} ()

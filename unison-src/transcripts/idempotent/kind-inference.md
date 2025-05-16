@@ -53,7 +53,7 @@ unique type Pong = Pong (Ping Optional)
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Ping a
       type Pong
@@ -91,7 +91,7 @@ unique ability Pong a where
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type Ping a
       ability Pong a
@@ -129,7 +129,7 @@ unique type S = S (T Nat)
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type S
       type T a
@@ -151,7 +151,7 @@ unique type S = S (T Optional)
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type S
       type T a

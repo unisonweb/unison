@@ -24,7 +24,7 @@ baz = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       foo.baz : Nat
 ```
@@ -50,7 +50,7 @@ longer.evil.factorial n = n
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       foo.factorial             : Int -> Int
       foo.longer.evil.factorial : Int -> Int
@@ -94,7 +94,7 @@ type longer.foo.Baz = { qux : Nat }
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type longer.foo.Baz
       type longer.foo.Foo
@@ -138,7 +138,7 @@ hasTypeLink =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       type foo.Baz
       type foo.Foo

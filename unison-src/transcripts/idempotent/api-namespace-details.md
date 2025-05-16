@@ -19,7 +19,7 @@ Here's a *README*!
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       nested.names.readme : Doc2
       nested.names.x      : Nat

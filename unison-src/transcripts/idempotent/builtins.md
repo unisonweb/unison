@@ -404,7 +404,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       Any.test1 : [Result]
       Any.test2 : [Result]
@@ -458,7 +458,7 @@ openFile]
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       Sandbox.test1          : [Result]
       Sandbox.test2          : [Result]
@@ -513,7 +513,7 @@ openFilesIO = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       openFilesIO : '{IO} [Result]
 ```
@@ -552,7 +552,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       Universal.murmurHash.tests : [Result]
 

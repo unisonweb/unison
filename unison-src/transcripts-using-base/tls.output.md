@@ -37,7 +37,7 @@ what_should_work _ = this_should_work ++ this_should_not_work
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       this_should_not_work : [Result]
       this_should_work     : [Result]
@@ -224,7 +224,7 @@ testCNReject _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       serverThread          : MVar Nat -> Text -> '{IO} ()
       testCAReject          : '{IO} [Result]

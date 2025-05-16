@@ -2386,16 +2386,22 @@ helpTopicsMap =
               <> "for definitions in a .u file.",
           "",
           P.wrapColumn2
-            [ ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
+            [ ( P.bold $ SR.prettyStatus SR.Collision,
+                "A definition with the same name as an existing definition. Doing"
+                  <> "`update` instead of `add` will turn this failure into a successful"
+                  <> "update."
+              ),
+              blankline,
+              ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
                 "A definition with the same name as an existing constructor for "
                   <> "some data type. Rename your definition or the data type before"
-                  <> "trying again to `update`."
+                  <> "trying again to `add` or `update`."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.ConstructorExistingTermCollision,
                 "A type defined in the file has a constructor that's named the"
                   <> "same as an existing term. Rename that term or your constructor"
-                  <> "before trying again to `update`."
+                  <> "before trying again to `add` or `update`."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.BlockedDependency,

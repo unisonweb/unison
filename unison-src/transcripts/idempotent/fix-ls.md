@@ -16,7 +16,7 @@ foo.bar.subtract x y = x Int.- y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       foo.bar.add      : Int -> Int -> Int
       foo.bar.subtract : Int -> Int -> Int

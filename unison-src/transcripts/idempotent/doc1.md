@@ -36,7 +36,7 @@ Can link to definitions like @List.drop or @List
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       doc1 : Doc
 ```
@@ -66,7 +66,7 @@ List.take.ex2 = take 2 [1,2,3,4,5]
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       List.take.ex1 : [Nat]
       List.take.ex2 : [Nat]
@@ -106,7 +106,7 @@ List.take.doc = [:
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       List.take.doc : Doc
 ```

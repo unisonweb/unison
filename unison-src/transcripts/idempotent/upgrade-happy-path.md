@@ -14,7 +14,7 @@ thingy = lib.old.foo + 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ These new definitions are ok to `add`:
     
       lib.new.foo : Nat
       lib.old.foo : Nat
