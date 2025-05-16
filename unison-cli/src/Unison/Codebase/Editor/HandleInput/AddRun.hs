@@ -41,10 +41,10 @@ handleAddRun input resultName = do
     Cli.returnEarly (SaveTermNameConflict resultName)
   let uf =
         UF.typecheckedUnisonFile
-          (UF.dataDeclarationsId' uf)
-          (UF.effectDeclarationsId' uf)
-          ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
-          (UF.watchComponents uf)
+          (UF.dataDeclarationsId' uf0)
+          (UF.effectDeclarationsId' uf0)
+          ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf0)
+          (UF.watchComponents uf0)
   Cli.Env {codebase} <- ask
   currentNames <- Cli.currentNames
   let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
