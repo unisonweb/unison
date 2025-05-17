@@ -32,26 +32,21 @@ import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Decoding qualified as Aeson
-import Data.Aeson.Decoding.Text qualified as Aeson
-import Data.Aeson.Key qualified as AesonK
-import Data.Aeson.KeyMap qualified as Aeson
-import Data.Aeson.Text qualified as Aeson
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
+import Data.Char (ord, chr, digitToInt, isDigit)
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IP (IP)
 import Data.Map.Strict qualified as Map
 import Data.Map.Strict.Internal qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
-import Data.Scientific (toBoundedInteger)
 import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified
+import Data.Text.Lazy qualified as TL
 import Data.Text.IO qualified as Text.IO
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
@@ -60,7 +55,6 @@ import Data.Time.Clock.POSIX as SYS
     utcTimeToPOSIXSeconds,
   )
 import Data.Time.LocalTime (TimeZone (..), getTimeZone)
-import Data.Vector qualified as V
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
@@ -97,6 +91,7 @@ import Network.UDP as UDP
     serverSocket,
     stop,
   )
+import Numeric (showHex)
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
   ( createDirectoryIfMissing,
@@ -185,7 +180,7 @@ import Unison.Util.RefPromise
     tryReadPromise,
     writePromise,
   )
-import Unison.Util.Text (Text, pack, unpack)
+import Unison.Util.Text (Text, pack, unpack, toLazyText, fromLazyText)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
@@ -935,18 +930,15 @@ foreignCallHelper = \case
       evaluate . forceListSpine $ Map.keys s
     _ -> die "Set.toList: bad closure"
   Json_toText -> mkForeign $ \(clo :: Closure) -> do
-    js <- jsonEncodeClosure clo
-    evaluate . Util.Text.fromLazyText . Aeson.encodeToLazyText $ js
+    evaluate =<< emitJson clo
   Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
-    pure
-      . bimap mkErr mkResult
-      . Aeson.toEitherValue
-      . Aeson.textToTokens
-      $ Util.Text.toText txt
+    pure . bimap mkErr mkResult $ parseJson txt
     where
-      mkErr msg = F.Failure Ty.parseErrorRef (pack msg) ()
-      mkResult (v, rest) =
-        (jsonDecodeVal v, Util.Text.fromText rest)
+      mkErr err = F.Failure Ty.parseErrorRef msg errv
+        where
+          msg = renderJsonParseError err
+          errv = encodeJsonParseError err
+      mkResult (v, after) = (v, encodeVal after)
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1403,68 +1395,248 @@ checkedIndex64 name (arr, i) =
           (PA.indexByteArray arr (j + 6))
           (PA.indexByteArray arr (j + 7))
 
-jsonEncodeClosure :: Closure -> IO Aeson.Value
-jsonEncodeClosure = \case
+-- JSON replacement implementations
+jsonNull, jsonTrue, jsonFalse :: Val
+jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
+jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True
+jsonFalse = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal False
+
+jsonArr, jsonObj :: Seq Val -> Val
+jsonArr sq = BoxedVal . Data1 Ty.jsonRef TT.jsonArrTag $ encodeVal sq
+jsonObj sq = BoxedVal . Data1 Ty.jsonRef TT.jsonObjTag $ encodeVal sq
+
+jsonNum :: TL.Text -> Val
+jsonNum n = BoxedVal . Data1 Ty.jsonRef TT.jsonNumTag $ encodeVal n
+
+jsonText :: Val -> Val
+jsonText v = BoxedVal $ Data1 Ty.jsonRef TT.jsonTextTag v
+
+data JsonParseError = JPErr Text Int TL.Text
+
+renderJsonParseError :: JsonParseError -> Text
+renderJsonParseError (JPErr msg pos rem) =
+  "JSON parsing error at position "
+    <> pack (show pos)
+    <> ": "
+    <> msg
+    <> "\n  Remainder of line: "
+    <> fromLazyText line
+  where
+    line = TL.takeWhile (not . (== '\n')) rem
+
+encodeJsonParseError :: JsonParseError -> Val
+encodeJsonParseError (JPErr msg pos rem) =
+  BoxedVal $
+    DataC Ty.parseErrorRef TT.jsonParseErrorTag
+      [encodeVal msg, NatVal n, encodeVal rem]
+  where
+    n | pos < 0 = 0
+      | otherwise = fromIntegral pos
+
+parseJson :: Text -> Either JsonParseError (Val, Text)
+parseJson initial =
+  fmap fromLazyText <$> root (toLazyText initial)
+  where
+  err :: Text -> TL.Text -> Either JsonParseError a
+  err msg rest = Left $ JPErr msg pos rest
+    where
+      pos = Util.Text.size initial - fromIntegral (TL.length rest)
+
+  root = main . TL.stripStart
+
+  numberStart '-' = True
+  numberStart c = isDigit c
+
+  number txt = case sign txt of
+    0 -> Nothing
+    n -> Just (TL.splitAt n txt)
+
+  sign txt = case TL.uncons txt of
+    Just ('-', txt) -> firstDigit 1 txt
+    _ -> firstDigit 0 txt
+
+  firstDigit !n txt = case TL.uncons txt of
+    Just ('0', txt) -> decimal (n+1) txt
+    Just (c, txt)
+      | '1' <= c, c <= '9' -> whole (n+1) txt
+    _ -> 0
+
+  whole !n (TL.span isDigit -> (pre, txt)) =
+    decimal (n + TL.length pre) txt
+
+  decimal !n txt = case TL.uncons txt of
+    Just ('.', txt)
+      | (pre, txt) <- TL.span isDigit txt, not (TL.null pre) ->
+          exponent (n + 1 + TL.length pre) txt
+    _ -> exponent n txt
+
+  exponent !n txt = case TL.uncons txt of
+    Just (c, txt) | c == 'e' || c == 'E' -> case TL.uncons txt of
+      Just (c, txt) | c == '-' || c == '+' -> digits (n+2) txt
+      _ -> digits (n+1) txt
+    _ -> n
+
+  digits !n (TL.takeWhile isDigit -> pre) = n + TL.length pre
+
+  main txt0 = case TL.uncons txt0 of
+    Nothing -> err "unexpected end of file" txt0
+    Just ('{', txt) -> obj Sq.empty txt
+    Just ('[', txt) -> array Sq.empty txt
+    Just ('"', _) -> first jsonText <$> textLit txt0
+    Just ('n', txt)
+      | (pre, post) <- TL.splitAt 3 txt ->
+          if pre == "ull"
+          then pure (jsonNull, post)
+          else err "expected null" txt0
+    Just ('t', txt)
+      | (pre, post) <- TL.splitAt 3 txt ->
+          if pre == "rue"
+          then pure (jsonTrue, post)
+          else err "expected true" txt0
+    Just ('f', txt)
+      | (pre, post) <- TL.splitAt 4 txt ->
+          if pre == "alse"
+          then pure (jsonFalse, post)
+          else err "expected false" txt0
+    Just (c, _)
+      | numberStart c, Just (n, rest) <- number txt0 ->
+          pure (jsonNum n, rest)
+    _ -> err ("unknown token: " <> tok) txt0
+      where
+        tok = fromLazyText (TL.take 10 txt0)
+
+  array :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
+  array acc (TL.stripStart -> txt) = case TL.uncons txt of
+    Nothing ->
+      err "unexpected end of file while parsing an array" txt
+    Just (']', rest) ->
+      pure (jsonArr acc, rest)
+    _ -> main txt >>= \case
+      (el, TL.stripStart -> rest) -> case TL.uncons rest of
+        Just (',', rest) -> array (acc Sq.|> el) rest
+        Just (']', rest) -> pure (jsonArr $ acc Sq.|> el, rest)
+        _ ->
+          err "expected ',' or ']'" rest
+
+  obj :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
+  obj acc (TL.stripStart -> txt) = case TL.uncons txt of
+    Nothing ->
+      err "unexpected end of file while parsing an object" txt
+    Just ('}', rest) ->
+      pure (jsonObj acc, rest)
+    _ -> entry txt >>= \case
+      (el, TL.stripStart -> rest) -> case TL.uncons rest of
+        Just (',', rest) -> obj (acc Sq.|> el) rest
+        Just ('}', rest) -> pure (jsonObj $ acc Sq.|> el, rest)
+        _ -> err "expected ',' or '}'" rest
+
+  entry txt = textLit txt >>= \case
+    (key, TL.stripStart -> txt) -> case TL.uncons txt of
+      Just (':', txt) ->
+        first (Tup2V key) <$> root txt
+      _ -> err "expected ':'" txt
+
+  textLit :: TL.Text -> Either JsonParseError (Val, TL.Text)
+  textLit txt = case TL.uncons txt of
+    Just ('"', rest) -> textBody txt [] rest
+    _ -> err "expected text literal" txt
+
+  hexDig txt = TL.uncons txt >>= \case
+    (c, rest)
+      | '0' <= c, c <= '9' -> Just (digitToInt c, rest)
+      | 'a' <= c, c <= 'f' -> Just (10 + (ord c - ord 'a'), rest)
+      | 'A' <= c, c <= 'F' -> Just (10 + (ord c - ord 'A'), rest)
+      | otherwise -> Nothing
+
+  uescape txt = do
+    (a, txt) <- hexDig txt
+    (b, txt) <- hexDig txt
+    (c, txt) <- hexDig txt
+    (d, txt) <- hexDig txt
+    pure (((((a * 16) + b) * 16) + c) * 16 + d, txt)
+
+  special c = c == '"' || c == '\\'
+
+  textBody :: TL.Text -> [TL.Text] -> TL.Text -> Either JsonParseError (Val, TL.Text)
+  textBody txt0 acc txt
+    | (pre, txt) <- TL.break special txt,
+      acc <- pre:acc =
+        case TL.uncons txt of
+          Just ('"', txt) ->
+            pure (encodeVal @TL.Text . TL.concat $ reverse acc, txt)
+          Just ('\\', txt) -> case TL.uncons txt of
+            Just ('f', txt) -> textBody txt0 ("\f":acc) txt
+            Just ('n', txt) -> textBody txt0 ("\n":acc) txt
+            Just ('r', txt) -> textBody txt0 ("\r":acc) txt
+            Just ('t', txt) -> textBody txt0 ("\t":acc) txt
+            Just ('b', txt) -> textBody txt0 ("\b":acc) txt
+            Just ('/', txt) -> textBody txt0 ("/":acc) txt
+            Just ('\\', txt) -> textBody txt0 ("\\":acc) txt
+            Just ('"', txt) -> textBody txt0 ("\"":acc) txt
+            Just ('u', txt) | Just (n, txt) <- uescape txt ->
+              textBody txt0 (TL.singleton (chr n) : acc) txt
+            _ -> err "expected text literal" txt0
+          _ -> err "expected text literal" txt0
+
+emitJson :: Closure -> IO Text
+emitJson = \case
   Enum _ t
-    | TT.jsonNullTag == t -> pure Aeson.Null
+    | TT.jsonNullTag == t -> pure "null"
   Data1 _ t v
-    | TT.jsonBoolTag == t, BoolVal b <- v -> pure $ Aeson.Bool b
-    | TT.jsonObjTag == t ->
-        fmap Aeson.Object . seqToJsonObject =<< decodeVal @(Seq Val) v
+    | TT.jsonBoolTag == t, BoolVal b <- v ->
+      pure $ if b then "true" else "false"
     | TT.jsonNumTag == t ->
-        fmap Aeson.Number . readIO . Util.Text.unpack
-          =<< decodeVal v
+        decodeVal @Text v
+    | TT.jsonObjTag == t ->
+        fmap renderObject . traverse emitPair =<< decodeVal @(Seq Val) v
     | TT.jsonTextTag == t ->
-        Aeson.String . Util.Text.toText <$> decodeVal v
+        literalForm <$> decodeVal @Text v
     | TT.jsonArrTag == t ->
-        fmap (Aeson.Array . V.fromList)
-          . traverse jsonEncodeVal
-          . toList @Seq @Val
-          =<< decodeVal @(Seq Val) v
+      fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
   c -> die $ "Json.toText: unrecognized Json value: " ++ show c
-
-jsonEncodeVal :: Val -> IO Aeson.Value
-jsonEncodeVal (BoxedVal c) = jsonEncodeClosure c
-jsonEncodeVal v =
-  die $ "Json.toText: unrecognized Json value: " ++ show v
-
-seqToJsonObject :: Seq Val -> IO Aeson.Object
-seqToJsonObject = fmap Aeson.fromList . traverse decodePair . toList
   where
-    decodePair v = do
-      (t, v) <- decodeVal v
-      (AesonK.fromText $ Util.Text.toText t,) <$> jsonEncodeVal v
+    emitJsonVal (BoxedVal c) = emitJson c
+    emitJsonVal v =
+      die $ "Json.toText: unrecognized Json value: " ++ show v
 
-jsonDecodeVal :: Aeson.Value -> Val
-jsonDecodeVal =
-  BoxedVal . \case
-    Aeson.Null -> Enum Ty.jsonRef TT.jsonNullTag
-    Aeson.Bool b
-      | b -> Data1 Ty.jsonRef TT.jsonBoolTag trueVal
-      | otherwise -> Data1 Ty.jsonRef TT.jsonBoolTag falseVal
-    Aeson.Object kvs ->
-      Data1 Ty.jsonRef TT.jsonObjTag . encodeVal @(Seq Val) . Sq.fromList . force $
-        buildPair <$> Aeson.toList kvs
-    Aeson.Number n ->
-      Data1 Ty.jsonRef TT.jsonNumTag . encodeVal $ displayNum n
-    Aeson.String tx ->
-      Data1 Ty.jsonRef TT.jsonTextTag . encodeVal $ Util.Text.fromText tx
-    Aeson.Array arr ->
-      Data1 Ty.jsonRef TT.jsonArrTag . encodeVal . Sq.fromList . force $
-        jsonDecodeVal <$> toList arr
-  where
-    buildPair (k, v) =
-      encodeVal
-        (Util.Text.fromText $ AesonK.toText k, jsonDecodeVal v)
+    commaSep = fold . Sq.intersperse ","
+    renderArray s = "[" <> commaSep s <> "]"
+    renderObject s = "{" <> commaSep s <> "}"
 
-    force r = force0 r r
+    emitPair (Tup2V x y) =
+      mapping <$> decodeVal @Text x <*> emitJsonVal y
+    emitPair v =
+      die $ "Json.toText: unrecognized Json object pair: " ++ show v
 
-    force0 r [] = r
-    force0 r (v : kvs) = v `seq` force0 r kvs
+    mapping key val = literalForm key <> ":" <> val
 
-    displayNum n = Util.Text.pack case toBoundedInteger n of
-      Just (n :: Int) -> show n
-      Nothing -> show n
+    special c = TL.any (== c) "\"\\/\b\f\n\r\t" || ord c <= 31
+
+    literalForm tx =
+      "\"" <> fromLazyText (escape [] (toLazyText tx)) <> "\""
+
+    escape acc tx
+      | TL.null tx = TL.concat (reverse acc)
+      | (pre, rest) <- TL.break special tx =
+        escape1 (pre:acc) rest
+
+    hexCode c = TL.pack $ replicate (2 - length s) '0' ++ s
+      where
+        s = showHex (ord c) ""
+
+    escape1 acc tx = case TL.uncons tx of
+      Nothing -> TL.concat (reverse acc)
+      Just (c, rest) -> escape (chs:acc) rest
+        where
+          chs | '"'  <- c = "\\\""
+              | '\\' <- c = "\\\\"
+              | '\b' <- c = "\\b"
+              | '\f' <- c = "\\f"
+              | '\n' <- c = "\\n"
+              | '\r' <- c = "\\r"
+              | '\t' <- c = "\\t"
+              | ord c <= 31 = "\\u00" <> hexCode c
+              | otherwise = TL.singleton c
 
 -- A ForeignConvention explains how to encode foreign values as
 -- unison types. Depending on the situation, this can take three
@@ -2033,6 +2205,13 @@ instance ForeignConvention Bool where
 
   readAtIndex = peekOffBool
   writeBack = pokeBool
+
+instance ForeignConvention TL.Text where
+  decodeVal = decodeAsBuiltin toLazyText
+  encodeVal = encodeAsBuiltin fromLazyText
+
+  readAtIndex = readAsBuiltin toLazyText
+  writeBack = writeAsBuiltin fromLazyText
 
 instance ForeignConvention Double where
   decodeVal (DoubleVal d) = pure d
