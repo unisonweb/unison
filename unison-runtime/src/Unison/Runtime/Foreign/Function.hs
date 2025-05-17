@@ -932,13 +932,14 @@ foreignCallHelper = \case
   Json_toText -> mkForeign $ \(clo :: Closure) -> do
     evaluate =<< emitJson clo
   Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
-    pure . bimap mkErr mkResult $ parseJson txt
+    pure . bimap mkErr (second encodeVal) $ parseJson txt
     where
       mkErr err = F.Failure Ty.parseErrorRef msg errv
         where
           msg = renderJsonParseError err
           errv = encodeJsonParseError err
-      mkResult (v, after) = (v, encodeVal after)
+  Json_tryUnconsText -> mkForeign $ \(txt :: Text) ->
+    pure . bimap encodeJsonParseError (second encodeVal) $ parseJson txt
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -2454,6 +2455,10 @@ functionReplacementList =
     ( "02j160dg33jvtsvce4p31rn7oq2ag2m31ogd5ci0jmvjmr4ga5aa8",
       0,
       Json_unconsText
+    ),
+    ( "01f3dvq6u7ne5tn53tpa98j4t3qnpcj1mhfofmrref4ei15gr0082",
+      0,
+      Json_tryUnconsText
     )
   ]
 

@@ -1298,6 +1298,7 @@ declareForeigns = do
   declareForeign Untracked 1 Set_toList
   declareForeign Untracked 1 Json_toText
   declareForeign Untracked 1 Json_unconsText
+  declareForeign Untracked 1 Json_tryUnconsText
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =

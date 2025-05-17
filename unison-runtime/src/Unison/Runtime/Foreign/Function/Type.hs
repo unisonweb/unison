@@ -276,6 +276,7 @@ data ForeignFunc
   | Set_toList
   | Json_toText
   | Json_unconsText
+  | Json_tryUnconsText
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -548,3 +549,4 @@ foreignFuncBuiltinName = \case
   Set_toList -> "Set.toList"
   Json_toText -> "Json.toText"
   Json_unconsText -> "Json.unconsText"
+  Json_tryUnconsText -> "Json.tryUnconsText"
