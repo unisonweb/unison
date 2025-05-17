@@ -96,8 +96,7 @@ library
       ViewPatterns
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2
   build-depends:
-      aeson >= 2.2.1.0
-    , asn1-encoding
+      asn1-encoding
     , asn1-types
     , atomic-primops
     , base
@@ -132,7 +131,6 @@ library
     , process
     , raw-strings-qq
     , safe-exceptions
-    , scientific
     , stm
     , tagged
     , template-haskell
