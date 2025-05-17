@@ -125,6 +125,19 @@ mapBin = Maybe.fromJust $ constructorId mapRef "Map.Bin"
 setWrap :: ConstructorId
 setWrap = Maybe.fromJust $ constructorId setRef "Set.Set"
 
+jsonNull, jsonBool, jsonObj, jsonNum, jsonText, jsonArr :: ConstructorId
+jsonNull = Maybe.fromJust $ constructorId jsonRef "Json.Null"
+jsonBool = Maybe.fromJust $ constructorId jsonRef "Json.Boolean"
+jsonObj = Maybe.fromJust $ constructorId jsonRef "Json.Object"
+jsonNum = Maybe.fromJust $ constructorId jsonRef "Json.Number.Unparsed"
+jsonText = Maybe.fromJust $ constructorId jsonRef "Json.Text"
+jsonArr = Maybe.fromJust $ constructorId jsonRef "Json.Array"
+
+jsonParseError :: ConstructorId
+jsonParseError =
+  Maybe.fromJust $
+    constructorId parseErrorRef "Json.ParseError.ParseError"
+
 isPropagatedConstructorId = Maybe.fromJust $ constructorId isPropagatedRef "IsPropagated.IsPropagated"
 
 isTestConstructorId = Maybe.fromJust $ constructorId isTestRef "IsTest.IsTest"
@@ -260,6 +273,12 @@ mapRef = lookupDeclRef "Map"
 setRef :: Reference
 setRef = lookupDeclRef "Set"
 
+jsonRef :: Reference
+jsonRef = lookupDeclRef "Json"
+
+parseErrorRef :: Reference
+parseErrorRef = lookupDeclRef "Json.ParseError"
+
 pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Rewrites' ts <- (unRewrites -> Just ts)
 
@@ -316,7 +335,9 @@ builtinDataDecls = rs1 ++ rs
           (v "RewriteCase", rewriteCase),
           (v "Rewrites", rewrites),
           (v "Map", map),
-          (v "Set", set)
+          (v "Set", set),
+          (v "Json", json),
+          (v "Json.ParseError", jsonParseError)
         ] of
       Right a -> a
       Left e -> error $ "builtinDataDecls: " <> show e
@@ -648,6 +669,38 @@ builtinDataDecls = rs1 ++ rs
                 Type.foralls () [v "a"] $ mapau `arr` seta
               )
             ]
+
+    json =
+      DataDeclaration
+        (Unique "oml0j9g6bb2tij2s75k4v7n1nftj199i")
+        ()
+        []
+        let json = var "Json"
+            tup x y = Type.apps' (var "Tuple") [x, y]
+            pair x y = tup x (tup y (var "Unit"))
+        in [ ((), v "Json.Null", var "Json"),
+             ((), v "Json.Boolean", Type.boolean () `arr` json),
+             ( (),
+               v "Json.Object",
+               Type.app () (Type.list ()) (pair (Type.text ()) json)
+                 `arr` json),
+             ((), v "Json.Number.Unparsed", Type.text () `arr` json),
+             ((), v "Json.Text", Type.text () `arr` json),
+             ( (),
+               v "Json.Array",
+               Type.app () (Type.list ()) json `arr` json)
+           ]
+    jsonParseError =
+      DataDeclaration
+        (Unique "u3j6g9j6daejijc5e0rcujjj3sd6j3gq")
+        ()
+        []
+        let jpe = var "Json.ParseError" in
+        [ ( (),
+            v "Json.ParseError.ParseError",
+            Type.text () `arr` Type.nat () `arr` Type.text () `arr` jpe
+          )
+        ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =

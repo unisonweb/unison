@@ -42,6 +42,13 @@ module Unison.Runtime.TypeTags
     mapTipTag,
     mapBinTag,
     setWrapTag,
+    jsonNullTag,
+    jsonBoolTag,
+    jsonObjTag,
+    jsonNumTag,
+    jsonTextTag,
+    jsonArrTag,
+    jsonParseErrorTag,
   )
 where
 
@@ -290,6 +297,31 @@ setWrapTag
         [Ty.setWrap] =
       swt
   | otherwise = error "internal error: set tag"
+
+jsonNullTag, jsonBoolTag, jsonObjTag, jsonNumTag :: PackedTag
+jsonTextTag, jsonArrTag :: PackedTag
+(jsonNullTag, jsonBoolTag, jsonObjTag, jsonNumTag, jsonTextTag, jsonArrTag)
+  | [nlt, bot, obt, nut, txt, art] <-
+      mkTags
+        "json tags"
+        Ty.jsonRef
+        [ Ty.jsonNull,
+          Ty.jsonBool,
+          Ty.jsonObj,
+          Ty.jsonNum,
+          Ty.jsonText,
+          Ty.jsonArr
+        ] = (nlt, bot, obt, nut, txt, art)
+  | otherwise = error "internal error: json tags"
+
+jsonParseErrorTag :: PackedTag
+jsonParseErrorTag
+  | [pet] <-
+      mkTags
+        "json parse error tag"
+        Ty.parseErrorRef
+        [ Ty.jsonParseError ] = pet
+  | otherwise = error "internal error: json parse error tag"
 
 -- | A tag we use to represent the 'pure' effect case.
 pureEffectTag :: PackedTag

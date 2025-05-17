@@ -32,6 +32,12 @@ import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Decoding qualified as Aeson
+import Data.Aeson.Decoding.Text qualified as Aeson
+import Data.Aeson.Key qualified as AesonK
+import Data.Aeson.KeyMap qualified as Aeson
+import Data.Aeson.Text qualified as Aeson
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -42,6 +48,7 @@ import Data.IP (IP)
 import Data.Map.Strict qualified as Map
 import Data.Map.Strict.Internal qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
+import Data.Scientific (toBoundedInteger)
 import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified
@@ -53,6 +60,7 @@ import Data.Time.Clock.POSIX as SYS
     utcTimeToPOSIXSeconds,
   )
 import Data.Time.LocalTime (TimeZone (..), getTimeZone)
+import Data.Vector qualified as V
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
@@ -926,6 +934,19 @@ foreignCallHelper = \case
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
     _ -> die "Set.toList: bad closure"
+  Json_toText -> mkForeign $ \(clo :: Closure) -> do
+    js <- jsonEncodeClosure clo
+    evaluate . Util.Text.fromLazyText . Aeson.encodeToLazyText $ js
+  Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
+    pure .
+      bimap mkErr mkResult .
+      Aeson.toEitherValue .
+      Aeson.textToTokens $
+      Util.Text.toText txt
+    where
+      mkErr msg = F.Failure Ty.parseErrorRef (pack msg) ()
+      mkResult (v, rest) =
+        (jsonDecodeVal v, Util.Text.fromText rest)
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1381,6 +1402,67 @@ checkedIndex64 name (arr, i) =
           (PA.indexByteArray arr (j + 5))
           (PA.indexByteArray arr (j + 6))
           (PA.indexByteArray arr (j + 7))
+
+jsonEncodeClosure :: Closure -> IO Aeson.Value
+jsonEncodeClosure = \case
+  Enum _ t
+    | TT.jsonNullTag == t -> pure Aeson.Null
+  Data1 _ t v
+    | TT.jsonBoolTag == t, BoolVal b <- v -> pure $ Aeson.Bool b
+    | TT.jsonObjTag == t ->
+        fmap Aeson.Object . seqToJsonObject =<< decodeVal @(Seq Val) v
+    | TT.jsonNumTag == t ->
+        fmap Aeson.Number . readIO . Util.Text.unpack =<<
+          decodeVal v
+    | TT.jsonTextTag == t ->
+        Aeson.String . Util.Text.toText <$> decodeVal v
+    | TT.jsonArrTag == t ->
+        fmap (Aeson.Array . V.fromList) .
+          traverse jsonEncodeVal . toList @Seq @Val =<<
+            decodeVal @(Seq Val) v
+  c -> die $ "Json.toText: unrecognized Json value: " ++ show c
+
+jsonEncodeVal :: Val -> IO Aeson.Value
+jsonEncodeVal (BoxedVal c) = jsonEncodeClosure c
+jsonEncodeVal v =
+  die $ "Json.toText: unrecognized Json value: " ++ show v
+
+seqToJsonObject :: Seq Val -> IO Aeson.Object
+seqToJsonObject = fmap Aeson.fromList . traverse decodePair . toList
+  where
+    decodePair v = do
+      (t, v) <- decodeVal v
+      (AesonK.fromText $ Util.Text.toText t,) <$> jsonEncodeVal v
+
+jsonDecodeVal :: Aeson.Value -> Val
+jsonDecodeVal = BoxedVal . \case
+  Aeson.Null -> Enum Ty.jsonRef TT.jsonNullTag
+  Aeson.Bool b
+    | b -> Data1 Ty.jsonRef TT.jsonBoolTag trueVal
+    | otherwise -> Data1 Ty.jsonRef TT.jsonBoolTag falseVal
+  Aeson.Object kvs ->
+    Data1 Ty.jsonRef TT.jsonObjTag . encodeVal @(Seq Val) . Sq.fromList . force $
+      buildPair <$> Aeson.toList kvs
+  Aeson.Number n ->
+    Data1 Ty.jsonRef TT.jsonNumTag . encodeVal $ displayNum n
+  Aeson.String tx ->
+    Data1 Ty.jsonRef TT.jsonTextTag . encodeVal $ Util.Text.fromText tx
+  Aeson.Array arr ->
+    Data1 Ty.jsonRef TT.jsonArrTag . encodeVal . Sq.fromList . force $
+      jsonDecodeVal <$> toList arr
+  where
+    buildPair (k, v) =
+      encodeVal
+        (Util.Text.fromText $ AesonK.toText k, jsonDecodeVal v)
+
+    force r = force0 r r
+
+    force0 r [] = r
+    force0 r (v : kvs) = v `seq` force0 r kvs
+
+    displayNum n = Util.Text.pack case toBoundedInteger n of
+      Just (n :: Int) -> show n
+      Nothing -> show n
 
 -- A ForeignConvention explains how to encode foreign values as
 -- unison types. Depending on the situation, this can take three
@@ -1987,7 +2069,8 @@ instance ForeignConvention Foreign where
   writeBack stk f = bpoke stk (Foreign f)
 
 instance ForeignConvention (Seq Val) where
-  decodeVal (BoxedVal (Foreign f)) = unwrapForeign f
+  decodeVal (BoxedVal (Foreign f)) =
+    pure $ unwrapForeign @(Seq Val) f
   decodeVal v = foreignConventionError "Seq" v
 
   encodeVal = BoxedVal . Foreign . Wrap listRef
@@ -2113,49 +2196,71 @@ pseudoConstructors =
         (fromIntegral Ty.mapBin, Map_bin)
       ]
 
-functionReplacementList :: [(Data.Text.Text, ForeignFunc)]
+functionReplacementList :: [(Data.Text.Text, Pos, ForeignFunc)]
 functionReplacementList =
   [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e",
+      0,
       Map_insert
     ),
     ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s",
+      0,
       Map_lookup
     ),
     ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du",
+      0,
       Map_fromList
     ),
     ( "01qqpul0ttlgjhr5i2gtmdr2uarns2hbtnjpipmk1575ipkrlug42",
+      0,
       Map_union
     ),
     ( "00c363e340il8q0fai6peiv3586o931nojj98qfek09hg1tjkm9ma",
+      0,
       Map_intersect
     ),
     ( "03pjq0jijrr7ebf6s3tuqi4d5hi5mrv19nagp7ql2j9ltm55c32ek",
+      0,
       Map_toList
     ),
     ( "03putoun7i5n0lhf8iu990u9p08laklnp668i170dka2itckmadlq",
+      0,
       Multimap_fromList
     ),
     ( "03q6giac0qlva6u4mja29tr7mv0jqnsugk8paibatdrns8lhqqb92",
+      0,
       Set_fromList
     ),
     ( "03362vaalqq28lcrmmsjhha637is312j01jme3juj980ugd93up28",
+      0,
       Set_union
     ),
     ( "01lm6ejo31na1ti6u85bv0klliefll7q0c0da2qnefvcrq1l8rlqe",
+      0,
       Set_intersect
     ),
     ( "01p7ot36tg62na408mnk1psve6rc7fog30gv6n7thkrv6t3na2gdm",
+      0,
       Set_toList
     ),
     ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk",
+      0,
       Map_eq
     ),
     ( "01f446li3b0j5gcnj7fa99jfqir43shs0jqu779oo0npb7v8d3v22",
+      0,
       List_range
     ),
     ( "00jh7o3l67okqqalho1sqgl4ei9n2sdhrpqobgkf7j390v4e938km",
+      0,
       List_sort
+    ),
+    ( "02n2eflppo81c4ako71f2ji347ljf1qoiij08q8tbid1p4k3n62k0",
+      1,
+      Json_toText
+    ),
+    ( "02j160dg33jvtsvce4p31rn7oq2ag2m31ogd5ci0jmvjmr4ga5aa8",
+      0,
+      Json_unconsText
     )
   ]
 
@@ -2171,8 +2276,8 @@ functionUnreplacements =
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.
-process :: (Data.Text.Text, ForeignFunc) -> (Reference, Reference)
-process (str, ff) = case derivedBase32Hex str 0 of
+process :: (Data.Text.Text, Pos, ForeignFunc) -> (Reference, Reference)
+process (str, pos, ff) = case derivedBase32Hex str pos of
   Nothing -> error $ "Could not create reference for " ++ sname
   Just r -> (r, Builtin name)
   where

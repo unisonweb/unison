@@ -42,6 +42,7 @@ library:
       other-modules: Paths_unison_runtime
 
   dependencies:
+    - aeson >= 2.2.1.0
     - asn1-encoding
     - asn1-types
     - atomic-primops
@@ -73,6 +74,7 @@ library:
     - process
     - raw-strings-qq
     - safe-exceptions
+    - scientific
     - stm
     - tagged
     - temporary

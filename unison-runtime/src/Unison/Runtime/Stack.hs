@@ -581,7 +581,7 @@ pattern IntVal i <- (matchIntVal -> Just i)
 
 matchBoolVal :: Val -> Maybe Bool
 matchBoolVal = \case
-  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.falseTag)
+  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.trueTag)
   _ -> Nothing
 
 pattern BoolVal :: Bool -> Val
