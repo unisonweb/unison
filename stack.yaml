@@ -67,10 +67,12 @@ extra-deps:
   - recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
   - numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
   - network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
+  - aeson-2.2.1.0
 
 allow-newer: true
 allow-newer-deps:
   - numerals
+  - aeson
 
 ghc-options:
   # All packages
