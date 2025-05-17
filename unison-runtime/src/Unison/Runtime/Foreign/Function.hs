@@ -36,7 +36,7 @@ import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
-import Data.Char (ord, chr, digitToInt, isDigit)
+import Data.Char (chr, digitToInt, isDigit, ord)
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IP (IP)
@@ -46,8 +46,8 @@ import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified
-import Data.Text.Lazy qualified as TL
 import Data.Text.IO qualified as Text.IO
+import Data.Text.Lazy qualified as TL
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
@@ -180,7 +180,7 @@ import Unison.Util.RefPromise
     tryReadPromise,
     writePromise,
   )
-import Unison.Util.Text (Text, pack, unpack, toLazyText, fromLazyText)
+import Unison.Util.Text (Text, fromLazyText, pack, toLazyText, unpack)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
@@ -1427,164 +1427,175 @@ renderJsonParseError (JPErr msg pos rem) =
 encodeJsonParseError :: JsonParseError -> Val
 encodeJsonParseError (JPErr msg pos rem) =
   BoxedVal $
-    DataC Ty.parseErrorRef TT.jsonParseErrorTag
+    DataC
+      Ty.parseErrorRef
+      TT.jsonParseErrorTag
       [encodeVal msg, NatVal n, encodeVal rem]
   where
-    n | pos < 0 = 0
+    n
+      | pos < 0 = 0
       | otherwise = fromIntegral pos
 
 parseJson :: Text -> Either JsonParseError (Val, Text)
 parseJson initial =
   fmap fromLazyText <$> root (toLazyText initial)
   where
-  err :: Text -> TL.Text -> Either JsonParseError a
-  err msg rest = Left $ JPErr msg pos rest
-    where
-      pos = Util.Text.size initial - fromIntegral (TL.length rest)
-
-  root = main . TL.stripStart
-
-  numberStart '-' = True
-  numberStart c = isDigit c
-
-  number txt = case sign txt of
-    0 -> Nothing
-    n -> Just (TL.splitAt n txt)
-
-  sign txt = case TL.uncons txt of
-    Just ('-', txt) -> firstDigit 1 txt
-    _ -> firstDigit 0 txt
-
-  firstDigit !n txt = case TL.uncons txt of
-    Just ('0', txt) -> decimal (n+1) txt
-    Just (c, txt)
-      | '1' <= c, c <= '9' -> whole (n+1) txt
-    _ -> 0
-
-  whole !n (TL.span isDigit -> (pre, txt)) =
-    decimal (n + TL.length pre) txt
-
-  decimal !n txt = case TL.uncons txt of
-    Just ('.', txt)
-      | (pre, txt) <- TL.span isDigit txt, not (TL.null pre) ->
-          exponent (n + 1 + TL.length pre) txt
-    _ -> exponent n txt
-
-  exponent !n txt = case TL.uncons txt of
-    Just (c, txt) | c == 'e' || c == 'E' -> case TL.uncons txt of
-      Just (c, txt) | c == '-' || c == '+' -> digits (n+2) txt
-      _ -> digits (n+1) txt
-    _ -> n
-
-  digits !n (TL.takeWhile isDigit -> pre) = n + TL.length pre
-
-  main txt0 = case TL.uncons txt0 of
-    Nothing -> err "unexpected end of file" txt0
-    Just ('{', txt) -> obj Sq.empty txt
-    Just ('[', txt) -> array Sq.empty txt
-    Just ('"', _) -> first jsonText <$> textLit txt0
-    Just ('n', txt)
-      | (pre, post) <- TL.splitAt 3 txt ->
-          if pre == "ull"
-          then pure (jsonNull, post)
-          else err "expected null" txt0
-    Just ('t', txt)
-      | (pre, post) <- TL.splitAt 3 txt ->
-          if pre == "rue"
-          then pure (jsonTrue, post)
-          else err "expected true" txt0
-    Just ('f', txt)
-      | (pre, post) <- TL.splitAt 4 txt ->
-          if pre == "alse"
-          then pure (jsonFalse, post)
-          else err "expected false" txt0
-    Just (c, _)
-      | numberStart c, Just (n, rest) <- number txt0 ->
-          pure (jsonNum n, rest)
-    _ -> err ("unknown token: " <> tok) txt0
+    err :: Text -> TL.Text -> Either JsonParseError a
+    err msg rest = Left $ JPErr msg pos rest
       where
-        tok = fromLazyText (TL.take 10 txt0)
+        pos = Util.Text.size initial - fromIntegral (TL.length rest)
 
-  array :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
-  array acc (TL.stripStart -> txt) = case TL.uncons txt of
-    Nothing ->
-      err "unexpected end of file while parsing an array" txt
-    Just (']', rest) ->
-      pure (jsonArr acc, rest)
-    _ -> main txt >>= \case
-      (el, TL.stripStart -> rest) -> case TL.uncons rest of
-        Just (',', rest) -> array (acc Sq.|> el) rest
-        Just (']', rest) -> pure (jsonArr $ acc Sq.|> el, rest)
-        _ ->
-          err "expected ',' or ']'" rest
+    root = main . TL.stripStart
 
-  obj :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
-  obj acc (TL.stripStart -> txt) = case TL.uncons txt of
-    Nothing ->
-      err "unexpected end of file while parsing an object" txt
-    Just ('}', rest) ->
-      pure (jsonObj acc, rest)
-    _ -> entry txt >>= \case
-      (el, TL.stripStart -> rest) -> case TL.uncons rest of
-        Just (',', rest) -> obj (acc Sq.|> el) rest
-        Just ('}', rest) -> pure (jsonObj $ acc Sq.|> el, rest)
-        _ -> err "expected ',' or '}'" rest
+    numberStart '-' = True
+    numberStart c = isDigit c
 
-  entry txt = textLit txt >>= \case
-    (key, TL.stripStart -> txt) -> case TL.uncons txt of
-      Just (':', txt) ->
-        first (Tup2V key) <$> root txt
-      _ -> err "expected ':'" txt
+    number txt = case sign txt of
+      0 -> Nothing
+      n -> Just (TL.splitAt n txt)
 
-  textLit :: TL.Text -> Either JsonParseError (Val, TL.Text)
-  textLit txt = case TL.uncons txt of
-    Just ('"', rest) -> textBody txt [] rest
-    _ -> err "expected text literal" txt
+    sign txt = case TL.uncons txt of
+      Just ('-', txt) -> firstDigit 1 txt
+      _ -> firstDigit 0 txt
 
-  hexDig txt = TL.uncons txt >>= \case
-    (c, rest)
-      | '0' <= c, c <= '9' -> Just (digitToInt c, rest)
-      | 'a' <= c, c <= 'f' -> Just (10 + (ord c - ord 'a'), rest)
-      | 'A' <= c, c <= 'F' -> Just (10 + (ord c - ord 'A'), rest)
-      | otherwise -> Nothing
+    firstDigit !n txt = case TL.uncons txt of
+      Just ('0', txt) -> decimal (n + 1) txt
+      Just (c, txt)
+        | '1' <= c, c <= '9' -> whole (n + 1) txt
+      _ -> 0
 
-  uescape txt = do
-    (a, txt) <- hexDig txt
-    (b, txt) <- hexDig txt
-    (c, txt) <- hexDig txt
-    (d, txt) <- hexDig txt
-    pure (((((a * 16) + b) * 16) + c) * 16 + d, txt)
+    whole !n (TL.span isDigit -> (pre, txt)) =
+      decimal (n + TL.length pre) txt
 
-  special c = c == '"' || c == '\\'
+    decimal !n txt = case TL.uncons txt of
+      Just ('.', txt)
+        | (pre, txt) <- TL.span isDigit txt,
+          not (TL.null pre) ->
+            exponent (n + 1 + TL.length pre) txt
+      _ -> exponent n txt
 
-  textBody :: TL.Text -> [TL.Text] -> TL.Text -> Either JsonParseError (Val, TL.Text)
-  textBody txt0 acc txt
-    | (pre, txt) <- TL.break special txt,
-      acc <- pre:acc =
-        case TL.uncons txt of
-          Just ('"', txt) ->
-            pure (encodeVal @TL.Text . TL.concat $ reverse acc, txt)
-          Just ('\\', txt) -> case TL.uncons txt of
-            Just ('f', txt) -> textBody txt0 ("\f":acc) txt
-            Just ('n', txt) -> textBody txt0 ("\n":acc) txt
-            Just ('r', txt) -> textBody txt0 ("\r":acc) txt
-            Just ('t', txt) -> textBody txt0 ("\t":acc) txt
-            Just ('b', txt) -> textBody txt0 ("\b":acc) txt
-            Just ('/', txt) -> textBody txt0 ("/":acc) txt
-            Just ('\\', txt) -> textBody txt0 ("\\":acc) txt
-            Just ('"', txt) -> textBody txt0 ("\"":acc) txt
-            Just ('u', txt) | Just (n, txt) <- uescape txt ->
-              textBody txt0 (TL.singleton (chr n) : acc) txt
+    exponent !n txt = case TL.uncons txt of
+      Just (c, txt) | c == 'e' || c == 'E' -> case TL.uncons txt of
+        Just (c, txt) | c == '-' || c == '+' -> digits (n + 2) txt
+        _ -> digits (n + 1) txt
+      _ -> n
+
+    digits !n (TL.takeWhile isDigit -> pre) = n + TL.length pre
+
+    main txt0 = case TL.uncons txt0 of
+      Nothing -> err "unexpected end of file" txt0
+      Just ('{', txt) -> obj Sq.empty txt
+      Just ('[', txt) -> array Sq.empty txt
+      Just ('"', _) -> first jsonText <$> textLit txt0
+      Just ('n', txt)
+        | (pre, post) <- TL.splitAt 3 txt ->
+            if pre == "ull"
+              then pure (jsonNull, post)
+              else err "expected null" txt0
+      Just ('t', txt)
+        | (pre, post) <- TL.splitAt 3 txt ->
+            if pre == "rue"
+              then pure (jsonTrue, post)
+              else err "expected true" txt0
+      Just ('f', txt)
+        | (pre, post) <- TL.splitAt 4 txt ->
+            if pre == "alse"
+              then pure (jsonFalse, post)
+              else err "expected false" txt0
+      Just (c, _)
+        | numberStart c,
+          Just (n, rest) <- number txt0 ->
+            pure (jsonNum n, rest)
+      _ -> err ("unknown token: " <> tok) txt0
+        where
+          tok = fromLazyText (TL.take 10 txt0)
+
+    array :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
+    array acc (TL.stripStart -> txt) = case TL.uncons txt of
+      Nothing ->
+        err "unexpected end of file while parsing an array" txt
+      Just (']', rest) ->
+        pure (jsonArr acc, rest)
+      _ ->
+        main txt >>= \case
+          (el, TL.stripStart -> rest) -> case TL.uncons rest of
+            Just (',', rest) -> array (acc Sq.|> el) rest
+            Just (']', rest) -> pure (jsonArr $ acc Sq.|> el, rest)
+            _ ->
+              err "expected ',' or ']'" rest
+
+    obj :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
+    obj acc (TL.stripStart -> txt) = case TL.uncons txt of
+      Nothing ->
+        err "unexpected end of file while parsing an object" txt
+      Just ('}', rest) ->
+        pure (jsonObj acc, rest)
+      _ ->
+        entry txt >>= \case
+          (el, TL.stripStart -> rest) -> case TL.uncons rest of
+            Just (',', rest) -> obj (acc Sq.|> el) rest
+            Just ('}', rest) -> pure (jsonObj $ acc Sq.|> el, rest)
+            _ -> err "expected ',' or '}'" rest
+
+    entry txt =
+      textLit txt >>= \case
+        (key, TL.stripStart -> txt) -> case TL.uncons txt of
+          Just (':', txt) ->
+            first (Tup2V key) <$> root txt
+          _ -> err "expected ':'" txt
+
+    textLit :: TL.Text -> Either JsonParseError (Val, TL.Text)
+    textLit txt = case TL.uncons txt of
+      Just ('"', rest) -> textBody txt [] rest
+      _ -> err "expected text literal" txt
+
+    hexDig txt =
+      TL.uncons txt >>= \case
+        (c, rest)
+          | '0' <= c, c <= '9' -> Just (digitToInt c, rest)
+          | 'a' <= c, c <= 'f' -> Just (10 + (ord c - ord 'a'), rest)
+          | 'A' <= c, c <= 'F' -> Just (10 + (ord c - ord 'A'), rest)
+          | otherwise -> Nothing
+
+    uescape txt = do
+      (a, txt) <- hexDig txt
+      (b, txt) <- hexDig txt
+      (c, txt) <- hexDig txt
+      (d, txt) <- hexDig txt
+      pure (((((a * 16) + b) * 16) + c) * 16 + d, txt)
+
+    special c = c == '"' || c == '\\'
+
+    textBody :: TL.Text -> [TL.Text] -> TL.Text -> Either JsonParseError (Val, TL.Text)
+    textBody txt0 acc txt
+      | (pre, txt) <- TL.break special txt,
+        acc <- pre : acc =
+          case TL.uncons txt of
+            Just ('"', txt) ->
+              pure (encodeVal @TL.Text . TL.concat $ reverse acc, txt)
+            Just ('\\', txt) -> case TL.uncons txt of
+              Just ('f', txt) -> textBody txt0 ("\f" : acc) txt
+              Just ('n', txt) -> textBody txt0 ("\n" : acc) txt
+              Just ('r', txt) -> textBody txt0 ("\r" : acc) txt
+              Just ('t', txt) -> textBody txt0 ("\t" : acc) txt
+              Just ('b', txt) -> textBody txt0 ("\b" : acc) txt
+              Just ('/', txt) -> textBody txt0 ("/" : acc) txt
+              Just ('\\', txt) -> textBody txt0 ("\\" : acc) txt
+              Just ('"', txt) -> textBody txt0 ("\"" : acc) txt
+              Just ('u', txt)
+                | Just (n, txt) <- uescape txt ->
+                    textBody txt0 (TL.singleton (chr n) : acc) txt
+              _ -> err "expected text literal" txt0
             _ -> err "expected text literal" txt0
-          _ -> err "expected text literal" txt0
 
 emitJson :: Closure -> IO Text
 emitJson = \case
   Enum _ t
     | TT.jsonNullTag == t -> pure "null"
   Data1 _ t v
-    | TT.jsonBoolTag == t, BoolVal b <- v ->
-      pure $ if b then "true" else "false"
+    | TT.jsonBoolTag == t,
+      BoolVal b <- v ->
+        pure $ if b then "true" else "false"
     | TT.jsonNumTag == t ->
         decodeVal @Text v
     | TT.jsonObjTag == t ->
@@ -1592,7 +1603,7 @@ emitJson = \case
     | TT.jsonTextTag == t ->
         literalForm <$> decodeVal @Text v
     | TT.jsonArrTag == t ->
-      fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
+        fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
   c -> die $ "Json.toText: unrecognized Json value: " ++ show c
   where
     emitJsonVal (BoxedVal c) = emitJson c
@@ -1618,7 +1629,7 @@ emitJson = \case
     escape acc tx
       | TL.null tx = TL.concat (reverse acc)
       | (pre, rest) <- TL.break special tx =
-        escape1 (pre:acc) rest
+          escape1 (pre : acc) rest
 
     hexCode c = TL.pack $ replicate (2 - length s) '0' ++ s
       where
@@ -1626,17 +1637,18 @@ emitJson = \case
 
     escape1 acc tx = case TL.uncons tx of
       Nothing -> TL.concat (reverse acc)
-      Just (c, rest) -> escape (chs:acc) rest
+      Just (c, rest) -> escape (chs : acc) rest
         where
-          chs | '"'  <- c = "\\\""
-              | '\\' <- c = "\\\\"
-              | '\b' <- c = "\\b"
-              | '\f' <- c = "\\f"
-              | '\n' <- c = "\\n"
-              | '\r' <- c = "\\r"
-              | '\t' <- c = "\\t"
-              | ord c <= 31 = "\\u00" <> hexCode c
-              | otherwise = TL.singleton c
+          chs
+            | '"' <- c = "\\\""
+            | '\\' <- c = "\\\\"
+            | '\b' <- c = "\\b"
+            | '\f' <- c = "\\f"
+            | '\n' <- c = "\\n"
+            | '\r' <- c = "\\r"
+            | '\t' <- c = "\\t"
+            | ord c <= 31 = "\\u00" <> hexCode c
+            | otherwise = TL.singleton c
 
 -- A ForeignConvention explains how to encode foreign values as
 -- unison types. Depending on the situation, this can take three
