@@ -678,29 +678,31 @@ builtinDataDecls = rs1 ++ rs
         let json = var "Json"
             tup x y = Type.apps' (var "Tuple") [x, y]
             pair x y = tup x (tup y (var "Unit"))
-        in [ ((), v "Json.Null", var "Json"),
-             ((), v "Json.Boolean", Type.boolean () `arr` json),
-             ( (),
-               v "Json.Object",
-               Type.app () (Type.list ()) (pair (Type.text ()) json)
-                 `arr` json),
-             ((), v "Json.Number.Unparsed", Type.text () `arr` json),
-             ((), v "Json.Text", Type.text () `arr` json),
-             ( (),
-               v "Json.Array",
-               Type.app () (Type.list ()) json `arr` json)
-           ]
+         in [ ((), v "Json.Null", var "Json"),
+              ((), v "Json.Boolean", Type.boolean () `arr` json),
+              ( (),
+                v "Json.Object",
+                Type.app () (Type.list ()) (pair (Type.text ()) json)
+                  `arr` json
+              ),
+              ((), v "Json.Number.Unparsed", Type.text () `arr` json),
+              ((), v "Json.Text", Type.text () `arr` json),
+              ( (),
+                v "Json.Array",
+                Type.app () (Type.list ()) json `arr` json
+              )
+            ]
     jsonParseError =
       DataDeclaration
         (Unique "u3j6g9j6daejijc5e0rcujjj3sd6j3gq")
         ()
         []
-        let jpe = var "Json.ParseError" in
-        [ ( (),
-            v "Json.ParseError.ParseError",
-            Type.text () `arr` Type.nat () `arr` Type.text () `arr` jpe
-          )
-        ]
+        let jpe = var "Json.ParseError"
+         in [ ( (),
+                v "Json.ParseError.ParseError",
+                Type.text () `arr` Type.nat () `arr` Type.text () `arr` jpe
+              )
+            ]
 
 builtinEffectDecls :: [(Symbol, Reference.Id, DD.EffectDeclaration Symbol ())]
 builtinEffectDecls =

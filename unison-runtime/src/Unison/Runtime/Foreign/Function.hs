@@ -938,11 +938,11 @@ foreignCallHelper = \case
     js <- jsonEncodeClosure clo
     evaluate . Util.Text.fromLazyText . Aeson.encodeToLazyText $ js
   Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
-    pure .
-      bimap mkErr mkResult .
-      Aeson.toEitherValue .
-      Aeson.textToTokens $
-      Util.Text.toText txt
+    pure
+      . bimap mkErr mkResult
+      . Aeson.toEitherValue
+      . Aeson.textToTokens
+      $ Util.Text.toText txt
     where
       mkErr msg = F.Failure Ty.parseErrorRef (pack msg) ()
       mkResult (v, rest) =
@@ -1412,14 +1412,15 @@ jsonEncodeClosure = \case
     | TT.jsonObjTag == t ->
         fmap Aeson.Object . seqToJsonObject =<< decodeVal @(Seq Val) v
     | TT.jsonNumTag == t ->
-        fmap Aeson.Number . readIO . Util.Text.unpack =<<
-          decodeVal v
+        fmap Aeson.Number . readIO . Util.Text.unpack
+          =<< decodeVal v
     | TT.jsonTextTag == t ->
         Aeson.String . Util.Text.toText <$> decodeVal v
     | TT.jsonArrTag == t ->
-        fmap (Aeson.Array . V.fromList) .
-          traverse jsonEncodeVal . toList @Seq @Val =<<
-            decodeVal @(Seq Val) v
+        fmap (Aeson.Array . V.fromList)
+          . traverse jsonEncodeVal
+          . toList @Seq @Val
+          =<< decodeVal @(Seq Val) v
   c -> die $ "Json.toText: unrecognized Json value: " ++ show c
 
 jsonEncodeVal :: Val -> IO Aeson.Value
@@ -1435,21 +1436,22 @@ seqToJsonObject = fmap Aeson.fromList . traverse decodePair . toList
       (AesonK.fromText $ Util.Text.toText t,) <$> jsonEncodeVal v
 
 jsonDecodeVal :: Aeson.Value -> Val
-jsonDecodeVal = BoxedVal . \case
-  Aeson.Null -> Enum Ty.jsonRef TT.jsonNullTag
-  Aeson.Bool b
-    | b -> Data1 Ty.jsonRef TT.jsonBoolTag trueVal
-    | otherwise -> Data1 Ty.jsonRef TT.jsonBoolTag falseVal
-  Aeson.Object kvs ->
-    Data1 Ty.jsonRef TT.jsonObjTag . encodeVal @(Seq Val) . Sq.fromList . force $
-      buildPair <$> Aeson.toList kvs
-  Aeson.Number n ->
-    Data1 Ty.jsonRef TT.jsonNumTag . encodeVal $ displayNum n
-  Aeson.String tx ->
-    Data1 Ty.jsonRef TT.jsonTextTag . encodeVal $ Util.Text.fromText tx
-  Aeson.Array arr ->
-    Data1 Ty.jsonRef TT.jsonArrTag . encodeVal . Sq.fromList . force $
-      jsonDecodeVal <$> toList arr
+jsonDecodeVal =
+  BoxedVal . \case
+    Aeson.Null -> Enum Ty.jsonRef TT.jsonNullTag
+    Aeson.Bool b
+      | b -> Data1 Ty.jsonRef TT.jsonBoolTag trueVal
+      | otherwise -> Data1 Ty.jsonRef TT.jsonBoolTag falseVal
+    Aeson.Object kvs ->
+      Data1 Ty.jsonRef TT.jsonObjTag . encodeVal @(Seq Val) . Sq.fromList . force $
+        buildPair <$> Aeson.toList kvs
+    Aeson.Number n ->
+      Data1 Ty.jsonRef TT.jsonNumTag . encodeVal $ displayNum n
+    Aeson.String tx ->
+      Data1 Ty.jsonRef TT.jsonTextTag . encodeVal $ Util.Text.fromText tx
+    Aeson.Array arr ->
+      Data1 Ty.jsonRef TT.jsonArrTag . encodeVal . Sq.fromList . force $
+        jsonDecodeVal <$> toList arr
   where
     buildPair (k, v) =
       encodeVal

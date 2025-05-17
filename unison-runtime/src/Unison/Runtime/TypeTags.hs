@@ -311,7 +311,8 @@ jsonTextTag, jsonArrTag :: PackedTag
           Ty.jsonNum,
           Ty.jsonText,
           Ty.jsonArr
-        ] = (nlt, bot, obt, nut, txt, art)
+        ] =
+      (nlt, bot, obt, nut, txt, art)
   | otherwise = error "internal error: json tags"
 
 jsonParseErrorTag :: PackedTag
@@ -320,7 +321,8 @@ jsonParseErrorTag
       mkTags
         "json parse error tag"
         Ty.parseErrorRef
-        [ Ty.jsonParseError ] = pet
+        [Ty.jsonParseError] =
+      pet
   | otherwise = error "internal error: json parse error tag"
 
 -- | A tag we use to represent the 'pure' effect case.
