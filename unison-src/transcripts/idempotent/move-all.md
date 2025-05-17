@@ -82,7 +82,7 @@ scratch/main> ls .
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar/     (4 terms, 1 type)
-  4. builtin/ (476 terms, 76 types)
+  4. builtin/ (483 terms, 78 types)
 
 scratch/main> ls Bar
 
@@ -144,7 +144,7 @@ z/main> move bonk zonk
 
 z/main> ls .
 
-  1. builtin/ (476 terms, 76 types)
+  1. builtin/ (483 terms, 78 types)
   2. zonk     (Nat)
 ```
 
@@ -184,7 +184,7 @@ a/main> move bonk zonk
 
 a/main> ls .
 
-  1. builtin/ (476 terms, 76 types)
+  1. builtin/ (483 terms, 78 types)
   2. zonk/    (1 term)
 
 a/main> view zonk.zonk

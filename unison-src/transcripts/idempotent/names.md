@@ -233,6 +233,7 @@ scratch/main> names max /invalid1 /invalid2 + Boolean foo baz
                          cc.baz,
                          dd.baz
   ##Boolean       Type   lib.builtins.Boolean
+  #j0uel16uhe#1   Term   lib.builtins.Json.Boolean
   #cmihlkoddu#0   Term   z.baz.Boolean
 
   'foo':
