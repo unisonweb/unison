@@ -36,6 +36,7 @@ import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
+import Data.Char (chr, digitToInt, isDigit, ord)
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IP (IP)
@@ -46,6 +47,7 @@ import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified
 import Data.Text.IO qualified as Text.IO
+import Data.Text.Lazy qualified as TL
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
@@ -89,6 +91,7 @@ import Network.UDP as UDP
     serverSocket,
     stop,
   )
+import Numeric (showHex)
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
   ( createDirectoryIfMissing,
@@ -177,7 +180,7 @@ import Unison.Util.RefPromise
     tryReadPromise,
     writePromise,
   )
-import Unison.Util.Text (Text, pack, unpack)
+import Unison.Util.Text (Text, fromLazyText, pack, toLazyText, unpack)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
@@ -926,6 +929,17 @@ foreignCallHelper = \case
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
     _ -> die "Set.toList: bad closure"
+  Json_toText -> mkForeign $ \(clo :: Closure) -> do
+    evaluate =<< emitJson clo
+  Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
+    pure . bimap mkErr (second encodeVal) $ parseJson txt
+    where
+      mkErr err = F.Failure Ty.parseErrorRef msg errv
+        where
+          msg = renderJsonParseError err
+          errv = encodeJsonParseError err
+  Json_tryUnconsText -> mkForeign $ \(txt :: Text) ->
+    pure . bimap encodeJsonParseError (second encodeVal) $ parseJson txt
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1381,6 +1395,261 @@ checkedIndex64 name (arr, i) =
           (PA.indexByteArray arr (j + 5))
           (PA.indexByteArray arr (j + 6))
           (PA.indexByteArray arr (j + 7))
+
+-- JSON replacement implementations
+jsonNull, jsonTrue, jsonFalse :: Val
+jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
+jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True
+jsonFalse = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal False
+
+jsonArr, jsonObj :: Seq Val -> Val
+jsonArr sq = BoxedVal . Data1 Ty.jsonRef TT.jsonArrTag $ encodeVal sq
+jsonObj sq = BoxedVal . Data1 Ty.jsonRef TT.jsonObjTag $ encodeVal sq
+
+jsonNum :: TL.Text -> Val
+jsonNum n = BoxedVal . Data1 Ty.jsonRef TT.jsonNumTag $ encodeVal n
+
+jsonText :: Val -> Val
+jsonText v = BoxedVal $ Data1 Ty.jsonRef TT.jsonTextTag v
+
+data JsonParseError = JPErr Text Int TL.Text
+
+renderJsonParseError :: JsonParseError -> Text
+renderJsonParseError (JPErr msg pos rem) =
+  "JSON parsing error at position "
+    <> pack (show pos)
+    <> ": "
+    <> msg
+    <> "\n  Remainder of line: "
+    <> fromLazyText line
+  where
+    line = TL.takeWhile (not . (== '\n')) rem
+
+encodeJsonParseError :: JsonParseError -> Val
+encodeJsonParseError (JPErr msg pos rem) =
+  BoxedVal $
+    DataC
+      Ty.parseErrorRef
+      TT.jsonParseErrorTag
+      [encodeVal msg, NatVal n, encodeVal rem]
+  where
+    n
+      | pos < 0 = 0
+      | otherwise = fromIntegral pos
+
+parseJson :: Text -> Either JsonParseError (Val, Text)
+parseJson initial =
+  fmap fromLazyText <$> root (toLazyText initial)
+  where
+    err :: Text -> TL.Text -> Either JsonParseError a
+    err msg rest = Left $ JPErr msg pos rest
+      where
+        pos = Util.Text.size initial - fromIntegral (TL.length rest)
+
+    root = main . TL.stripStart
+
+    numberStart '-' = True
+    numberStart c = isDigit c
+
+    number txt = case sign txt of
+      0 -> Nothing
+      n -> Just (TL.splitAt n txt)
+
+    sign txt = case TL.uncons txt of
+      Just ('-', txt) -> firstDigit 1 txt
+      _ -> firstDigit 0 txt
+
+    firstDigit !n txt = case TL.uncons txt of
+      Just ('0', txt) -> decimal (n + 1) txt
+      Just (c, txt)
+        | '1' <= c, c <= '9' -> whole (n + 1) txt
+      _ -> 0
+
+    whole !n (TL.span isDigit -> (pre, txt)) =
+      decimal (n + TL.length pre) txt
+
+    decimal !n txt = case TL.uncons txt of
+      Just ('.', txt)
+        | (pre, txt) <- TL.span isDigit txt,
+          not (TL.null pre) ->
+            exponent (n + 1 + TL.length pre) txt
+      _ -> exponent n txt
+
+    exponent !n txt = case TL.uncons txt of
+      Just (c, txt) | c == 'e' || c == 'E' -> case TL.uncons txt of
+        Just (c, txt) | c == '-' || c == '+' -> digits (n + 2) txt
+        _ -> digits (n + 1) txt
+      _ -> n
+
+    digits !n (TL.takeWhile isDigit -> pre) = n + TL.length pre
+
+    main txt0 = case TL.uncons txt0 of
+      Nothing -> err "unexpected end of file" txt0
+      Just ('{', txt) -> obj Sq.empty txt
+      Just ('[', txt) -> array Sq.empty txt
+      Just ('"', _) -> first jsonText <$> textLit txt0
+      Just ('n', txt)
+        | (pre, post) <- TL.splitAt 3 txt ->
+            if pre == "ull"
+              then pure (jsonNull, post)
+              else err "expected null" txt0
+      Just ('t', txt)
+        | (pre, post) <- TL.splitAt 3 txt ->
+            if pre == "rue"
+              then pure (jsonTrue, post)
+              else err "expected true" txt0
+      Just ('f', txt)
+        | (pre, post) <- TL.splitAt 4 txt ->
+            if pre == "alse"
+              then pure (jsonFalse, post)
+              else err "expected false" txt0
+      Just (c, _)
+        | numberStart c,
+          Just (n, rest) <- number txt0 ->
+            pure (jsonNum n, rest)
+      _ -> err ("unknown token: " <> tok) txt0
+        where
+          tok = fromLazyText (TL.take 10 txt0)
+
+    array :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
+    array acc (TL.stripStart -> txt) = case TL.uncons txt of
+      Nothing ->
+        err "unexpected end of file while parsing an array" txt
+      Just (']', rest) ->
+        pure (jsonArr acc, rest)
+      _ ->
+        main txt >>= \case
+          (el, TL.stripStart -> rest) -> case TL.uncons rest of
+            Just (',', rest) -> array (acc Sq.|> el) rest
+            Just (']', rest) -> pure (jsonArr $ acc Sq.|> el, rest)
+            _ ->
+              err "expected ',' or ']'" rest
+
+    obj :: Sq.Seq Val -> TL.Text -> Either JsonParseError (Val, TL.Text)
+    obj acc (TL.stripStart -> txt) = case TL.uncons txt of
+      Nothing ->
+        err "unexpected end of file while parsing an object" txt
+      Just ('}', rest) ->
+        pure (jsonObj acc, rest)
+      _ ->
+        entry txt >>= \case
+          (el, TL.stripStart -> rest) -> case TL.uncons rest of
+            Just (',', rest) -> obj (acc Sq.|> el) rest
+            Just ('}', rest) -> pure (jsonObj $ acc Sq.|> el, rest)
+            _ -> err "expected ',' or '}'" rest
+
+    entry txt =
+      textLit txt >>= \case
+        (key, TL.stripStart -> txt) -> case TL.uncons txt of
+          Just (':', txt) ->
+            first (Tup2V key) <$> root txt
+          _ -> err "expected ':'" txt
+
+    textLit :: TL.Text -> Either JsonParseError (Val, TL.Text)
+    textLit txt = case TL.uncons txt of
+      Just ('"', rest) -> textBody txt [] rest
+      _ -> err "expected text literal" txt
+
+    hexDig txt =
+      TL.uncons txt >>= \case
+        (c, rest)
+          | '0' <= c, c <= '9' -> Just (digitToInt c, rest)
+          | 'a' <= c, c <= 'f' -> Just (10 + (ord c - ord 'a'), rest)
+          | 'A' <= c, c <= 'F' -> Just (10 + (ord c - ord 'A'), rest)
+          | otherwise -> Nothing
+
+    uescape txt = do
+      (a, txt) <- hexDig txt
+      (b, txt) <- hexDig txt
+      (c, txt) <- hexDig txt
+      (d, txt) <- hexDig txt
+      pure (((((a * 16) + b) * 16) + c) * 16 + d, txt)
+
+    special c = c == '"' || c == '\\'
+
+    textBody :: TL.Text -> [TL.Text] -> TL.Text -> Either JsonParseError (Val, TL.Text)
+    textBody txt0 acc txt
+      | (pre, txt) <- TL.break special txt,
+        acc <- pre : acc =
+          case TL.uncons txt of
+            Just ('"', txt) ->
+              pure (encodeVal @TL.Text . TL.concat $ reverse acc, txt)
+            Just ('\\', txt) -> case TL.uncons txt of
+              Just ('f', txt) -> textBody txt0 ("\f" : acc) txt
+              Just ('n', txt) -> textBody txt0 ("\n" : acc) txt
+              Just ('r', txt) -> textBody txt0 ("\r" : acc) txt
+              Just ('t', txt) -> textBody txt0 ("\t" : acc) txt
+              Just ('b', txt) -> textBody txt0 ("\b" : acc) txt
+              Just ('/', txt) -> textBody txt0 ("/" : acc) txt
+              Just ('\\', txt) -> textBody txt0 ("\\" : acc) txt
+              Just ('"', txt) -> textBody txt0 ("\"" : acc) txt
+              Just ('u', txt)
+                | Just (n, txt) <- uescape txt ->
+                    textBody txt0 (TL.singleton (chr n) : acc) txt
+              _ -> err "expected text literal" txt0
+            _ -> err "expected text literal" txt0
+
+emitJson :: Closure -> IO Text
+emitJson = \case
+  Enum _ t
+    | TT.jsonNullTag == t -> pure "null"
+  Data1 _ t v
+    | TT.jsonBoolTag == t,
+      BoolVal b <- v ->
+        pure $ if b then "true" else "false"
+    | TT.jsonNumTag == t ->
+        decodeVal @Text v
+    | TT.jsonObjTag == t ->
+        fmap renderObject . traverse emitPair =<< decodeVal @(Seq Val) v
+    | TT.jsonTextTag == t ->
+        literalForm <$> decodeVal @Text v
+    | TT.jsonArrTag == t ->
+        fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
+  c -> die $ "Json.toText: unrecognized Json value: " ++ show c
+  where
+    emitJsonVal (BoxedVal c) = emitJson c
+    emitJsonVal v =
+      die $ "Json.toText: unrecognized Json value: " ++ show v
+
+    commaSep = fold . Sq.intersperse ","
+    renderArray s = "[" <> commaSep s <> "]"
+    renderObject s = "{" <> commaSep s <> "}"
+
+    emitPair (Tup2V x y) =
+      mapping <$> decodeVal @Text x <*> emitJsonVal y
+    emitPair v =
+      die $ "Json.toText: unrecognized Json object pair: " ++ show v
+
+    mapping key val = literalForm key <> ":" <> val
+
+    special c = TL.any (== c) "\"\\/\b\f\n\r\t" || ord c <= 31
+
+    literalForm tx =
+      "\"" <> fromLazyText (escape [] (toLazyText tx)) <> "\""
+
+    escape acc tx
+      | TL.null tx = TL.concat (reverse acc)
+      | (pre, rest) <- TL.break special tx =
+          escape1 (pre : acc) rest
+
+    hexCode c = TL.pack $ replicate (2 - length s) '0' ++ s
+      where
+        s = showHex (ord c) ""
+
+    escape1 acc tx = case TL.uncons tx of
+      Nothing -> TL.concat (reverse acc)
+      Just (c, rest) -> escape (chs : acc) rest
+        where
+          chs
+            | '"' <- c = "\\\""
+            | '\\' <- c = "\\\\"
+            | '\b' <- c = "\\b"
+            | '\f' <- c = "\\f"
+            | '\n' <- c = "\\n"
+            | '\r' <- c = "\\r"
+            | '\t' <- c = "\\t"
+            | ord c <= 31 = "\\u00" <> hexCode c
+            | otherwise = TL.singleton c
 
 -- A ForeignConvention explains how to encode foreign values as
 -- unison types. Depending on the situation, this can take three
@@ -1950,6 +2219,13 @@ instance ForeignConvention Bool where
   readAtIndex = peekOffBool
   writeBack = pokeBool
 
+instance ForeignConvention TL.Text where
+  decodeVal = decodeAsBuiltin toLazyText
+  encodeVal = encodeAsBuiltin fromLazyText
+
+  readAtIndex = readAsBuiltin toLazyText
+  writeBack = writeAsBuiltin fromLazyText
+
 instance ForeignConvention Double where
   decodeVal (DoubleVal d) = pure d
   decodeVal v = foreignConventionError "Double" v
@@ -1987,7 +2263,8 @@ instance ForeignConvention Foreign where
   writeBack stk f = bpoke stk (Foreign f)
 
 instance ForeignConvention (Seq Val) where
-  decodeVal (BoxedVal (Foreign f)) = unwrapForeign f
+  decodeVal (BoxedVal (Foreign f)) =
+    pure $ unwrapForeign @(Seq Val) f
   decodeVal v = foreignConventionError "Seq" v
 
   encodeVal = BoxedVal . Foreign . Wrap listRef
@@ -2113,49 +2390,75 @@ pseudoConstructors =
         (fromIntegral Ty.mapBin, Map_bin)
       ]
 
-functionReplacementList :: [(Data.Text.Text, ForeignFunc)]
+functionReplacementList :: [(Data.Text.Text, Pos, ForeignFunc)]
 functionReplacementList =
   [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e",
+      0,
       Map_insert
     ),
     ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s",
+      0,
       Map_lookup
     ),
     ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du",
+      0,
       Map_fromList
     ),
     ( "01qqpul0ttlgjhr5i2gtmdr2uarns2hbtnjpipmk1575ipkrlug42",
+      0,
       Map_union
     ),
     ( "00c363e340il8q0fai6peiv3586o931nojj98qfek09hg1tjkm9ma",
+      0,
       Map_intersect
     ),
     ( "03pjq0jijrr7ebf6s3tuqi4d5hi5mrv19nagp7ql2j9ltm55c32ek",
+      0,
       Map_toList
     ),
     ( "03putoun7i5n0lhf8iu990u9p08laklnp668i170dka2itckmadlq",
+      0,
       Multimap_fromList
     ),
     ( "03q6giac0qlva6u4mja29tr7mv0jqnsugk8paibatdrns8lhqqb92",
+      0,
       Set_fromList
     ),
     ( "03362vaalqq28lcrmmsjhha637is312j01jme3juj980ugd93up28",
+      0,
       Set_union
     ),
     ( "01lm6ejo31na1ti6u85bv0klliefll7q0c0da2qnefvcrq1l8rlqe",
+      0,
       Set_intersect
     ),
     ( "01p7ot36tg62na408mnk1psve6rc7fog30gv6n7thkrv6t3na2gdm",
+      0,
       Set_toList
     ),
     ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk",
+      0,
       Map_eq
     ),
     ( "01f446li3b0j5gcnj7fa99jfqir43shs0jqu779oo0npb7v8d3v22",
+      0,
       List_range
     ),
     ( "00jh7o3l67okqqalho1sqgl4ei9n2sdhrpqobgkf7j390v4e938km",
+      0,
       List_sort
+    ),
+    ( "02n2eflppo81c4ako71f2ji347ljf1qoiij08q8tbid1p4k3n62k0",
+      1,
+      Json_toText
+    ),
+    ( "02d659vubpd4m2cqbupec8qg3jpdfkgotpqtera3hh72bc3b9o6m6",
+      0,
+      Json_unconsText
+    ),
+    ( "01pl56v6v0n2labp71cp6darcbftlj7d4h9t718mkfpj6lc905ro4",
+      0,
+      Json_tryUnconsText
     )
   ]
 
@@ -2171,8 +2474,8 @@ functionUnreplacements =
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.
-process :: (Data.Text.Text, ForeignFunc) -> (Reference, Reference)
-process (str, ff) = case derivedBase32Hex str 0 of
+process :: (Data.Text.Text, Pos, ForeignFunc) -> (Reference, Reference)
+process (str, pos, ff) = case derivedBase32Hex str pos of
   Nothing -> error $ "Could not create reference for " ++ sname
   Just r -> (r, Builtin name)
   where
