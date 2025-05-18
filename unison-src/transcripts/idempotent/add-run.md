@@ -82,7 +82,7 @@ main _ = y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       main : '{IO, Exception} (Nat -> Nat -> Nat)
       y    : Nat -> Nat -> Nat
@@ -115,7 +115,7 @@ inc x = x + 1
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       inc : Nat -> Nat
 ```
@@ -165,7 +165,7 @@ main = 'y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       main : 'Nat
       x    : Nat

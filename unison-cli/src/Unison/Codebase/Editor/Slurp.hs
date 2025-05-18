@@ -66,15 +66,15 @@ data DefnStatus
 -- all of its transitive dependencies.
 --
 -- For example, if any transitive dependency of a defnition requires an `update`, then so does the definition itself,
--- even if it's new (and thus ok to `add`).
+-- even if it's new.
 --
 -- Note: these must be defined in descending severity order, per @mostSevereDepStatus@!
 data DepStatus
-  = -- | Part of a term/ctor or ctor/term collision: neither `add` nor `update` ok
+  = -- | Part of a term/ctor or ctor/term collision: `update` not ok
     DepCollision
-  | -- | Requires an update: `add` not ok, `update` ok
+  | -- | Requires an update: `add.run` not ok
     DepNeedsUpdate
-  | -- | `add` or `update` both ok
+  | -- | `update` ok
     DepOk
   deriving stock (Eq, Ord, Show)
 

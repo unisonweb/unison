@@ -30,7 +30,7 @@ bar = foo + foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar : Nat
       foo : Nat
@@ -75,7 +75,7 @@ baz = foo.bar + foo.bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       baz     : Nat
       foo.bar : Nat
@@ -131,7 +131,7 @@ bar = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar : Nat
       foo : Nat
@@ -184,7 +184,7 @@ lib.foo = 16
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       lib.foo : Nat
 ```
@@ -226,7 +226,7 @@ type Foo = One
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```
@@ -275,7 +275,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```
@@ -326,7 +326,7 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural type Foo a
       structural type Foo.inner.Bar a
@@ -371,7 +371,7 @@ type Foo = Bar
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```

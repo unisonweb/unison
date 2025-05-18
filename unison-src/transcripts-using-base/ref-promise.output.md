@@ -32,7 +32,7 @@ casTest = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       casTest : '{IO} [Result]
 ```
@@ -95,7 +95,7 @@ promiseConcurrentTest = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       promiseConcurrentTest : '{IO} [Result]
       promiseSequentialTest : '{IO} [Result]
@@ -147,7 +147,7 @@ atomicUpdate ref f =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 ```
@@ -185,7 +185,7 @@ spawnN n fa =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       spawnN : Nat -> '{IO} a ->{IO} [a]
 ```
@@ -233,7 +233,7 @@ fullTest = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       fullTest : '{IO} [Result]
 ```

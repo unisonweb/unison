@@ -25,7 +25,7 @@ test> mytest = checks [x + 1 == 1001]
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       mytest : [Result]
     
@@ -64,7 +64,7 @@ test> useY = checks [y + 1 == 43]
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       useY : [Result]
       y    : Nat

@@ -10,7 +10,6 @@ module Unison.Names
     contains,
     difference,
     filter,
-    filterByHQs,
     filterBySHs,
     filterTypes,
     fromReferenceIds,
@@ -388,15 +387,6 @@ prefix0 n =
 
 filter :: (Name -> Bool) -> Names -> Names
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
-
--- currently used for filtering before a conditional `add`
-filterByHQs :: Set (HQ'.HashQualified Name) -> Names -> Names
-filterByHQs hqs Names {..} = Names terms' types'
-  where
-    terms' = R.filter f terms
-    types' = R.filter g types
-    f (n, r) = any (HQ'.matchesNamedReferent n r) hqs
-    g (n, r) = any (HQ'.matchesNamedReference n r) hqs
 
 filterBySHs :: Set ShortHash -> Names -> Names
 filterBySHs shs Names {..} = Names terms' types'

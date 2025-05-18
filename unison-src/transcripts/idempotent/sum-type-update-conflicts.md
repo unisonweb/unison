@@ -18,7 +18,7 @@ structural type X = x
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural type X
         (also named lib.builtins.Unit)
@@ -51,7 +51,7 @@ dependsOnX = Text.size X.x
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       X.x        : Text
       dependsOnX : Nat

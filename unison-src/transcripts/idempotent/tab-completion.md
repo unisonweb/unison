@@ -40,7 +40,7 @@ unique type subnamespace.AType = A | B
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type subnamespace.AType
       othernamespace.someName    : ##Nat
@@ -165,7 +165,7 @@ add b = b
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
       add : a -> a
@@ -220,7 +220,7 @@ mybranchsubnamespace.term = 1
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       mybranchsubnamespace.term : ##Nat
 ```

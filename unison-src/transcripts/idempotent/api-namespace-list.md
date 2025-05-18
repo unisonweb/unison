@@ -17,7 +17,7 @@ nested.names.readme = {{ I'm a readme! }}
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       nested.names.readme : Doc2
       nested.names.x      : Nat
