@@ -28,7 +28,11 @@ scratch/empty> view
 
   ⚠️
 
-  Sorry, I was expecting an argument for the definition to view, and I couldn't find any to suggest to you. 😅
+  Sorry, I wasn’t sure how to process your request:
+
+    I expected at least one argument, but received none.
+
+  You can run `help view` for more information on using `view`.
 ```
 
 ``` unison :hide
