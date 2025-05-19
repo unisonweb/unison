@@ -2346,7 +2346,8 @@ editNamespace =
       params = Parameters [] $ OnePlus ("namespace to load definitions from", namespaceArg),
       help =
         P.lines
-          [ "`edit.namespace .` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+          [ "`edit.namespace` loads all terms and types contained within the namespace you select into your scratch file. This includes definitions in namespaces, but excludes libraries (requires fzf).",
+            "`edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
       parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
