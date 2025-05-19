@@ -10,6 +10,7 @@
       - [`UNISON_READONLY`](#unison_readonly)
       - [`UNISON_ENTITY_VALIDATION`](#unison_entity_validation)
       - [`UNISON_SYNC_VERSION`](#unison_sync_version)
+      - [`UNISON_FZF_PATH`](#unison_fzf_path)
       - [Local Codebase Server](#local-codebase-server)
   - [Codebase Configuration](#codebase-configuration)
 
@@ -123,6 +124,23 @@ Allows regressing to sync version 1 when interacting with Share.
 
 ``` sh
 $ UNISON_SYNC_VERSION="1" ucm
+```
+
+### `UNISON_FZF_PATH`
+
+Allows configuring which binary to use when triggering fuzzy searches using `fzf`.
+If unset, we default to searching for a binary named `fzf` in your `$PATH`.
+
+E.g.
+
+``` sh
+$ UNISON_FZF_PATH="/opt/homebrew/bin/fzf" ucm
+```
+
+If you wish to disable `fzf` entirely, you can set `UNISON_FZF_PATH` to "NONE".
+
+``` sh
+$ UNISON_FZF_PATH="NONE" ucm
 ```
 
 ### `UNISON_PULL_WORKERS`
