@@ -66,8 +66,6 @@ Merge result:
 ``` ucm
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -138,8 +136,6 @@ Merge result:
 
 ``` ucm
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -225,8 +221,6 @@ Merge result:
 
 ``` ucm
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -334,8 +328,6 @@ Merge result:
 
 ``` ucm
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -453,8 +445,6 @@ Merge result:
 ``` ucm
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -542,8 +532,6 @@ Merge result:
 ``` ucm
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -624,8 +612,6 @@ Merge result:
 
 ``` ucm
 scratch/alice> merge bob
-
-  Merging...
 
   Loading branches...
 
@@ -869,8 +855,6 @@ scratch/bob> add
 
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -963,8 +947,6 @@ scratch/bob> update
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -1069,8 +1051,6 @@ scratch/bob> update
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -1179,8 +1159,6 @@ scratch/bob> update
 ``` ucm :error
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -1265,8 +1243,6 @@ scratch/bob> move.term Foo.Qux Foo.BobQux
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -1353,8 +1329,6 @@ scratch/bob> move.term Foo.Qux Foo.Bob
 ``` ucm :error
 scratch/alice> merge bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -1435,8 +1409,6 @@ scratch/bob> add
 
 ``` ucm :error
 scratch/alice> merge bob
-
-  Merging...
 
   Loading branches...
 
@@ -1535,8 +1507,6 @@ These won't cleanly merge.
 
 ``` ucm :error
 scratch/alice> merge bob
-
-  Merging...
 
   Loading branches...
 
@@ -1659,8 +1629,6 @@ Notably, Alice's "unconflicted" update on the name "Foo.Bar.Baz" (because she ch
 ``` ucm :error
 scratch/alice> merge bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -1754,8 +1722,6 @@ scratch/bob> add
 
 ``` ucm :error
 scratch/alice> merge bob
-
-  Merging...
 
   Loading branches...
 
@@ -1860,8 +1826,6 @@ scratch/bob> update
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -2037,8 +2001,6 @@ scratch/bob> add
 ``` ucm :error
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -2107,8 +2069,6 @@ scratch/bob> add
 ``` ucm :error
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -2175,8 +2135,6 @@ scratch/bob> add
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -2245,8 +2203,6 @@ scratch/bob> add
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -2317,8 +2273,6 @@ scratch/bob> add
 ``` ucm :error
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -2378,8 +2332,6 @@ scratch/bob> add
 ``` ucm :error
 scratch/alice> merge bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -2438,8 +2390,6 @@ scratch/bob> add
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -2590,8 +2540,6 @@ Now we merge:
 ``` ucm
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -2719,8 +2667,6 @@ scratch/bob> add
 ``` ucm
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -2831,8 +2777,6 @@ scratch/main> update
 
 ``` ucm
 scratch/main> merge topic
-
-  Merging...
 
   Loading branches...
 
@@ -2982,8 +2926,6 @@ the underlying namespace.
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -3159,8 +3101,6 @@ scratch/carol> add
 
 scratch/bob> merge /alice
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -3178,8 +3118,6 @@ scratch/bob> merge /alice
   I merged scratch/alice into scratch/bob.
 
 scratch/carol> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -3337,8 +3275,6 @@ scratch/alice> update
 ``` ucm
 scratch/alice> merge /bob
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -3420,8 +3356,6 @@ scratch/bob> move.term Foo.Lca Foo.Bob
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
@@ -3621,8 +3555,6 @@ Case 1: Merging child `/topic` into parent `/main` uses parent `/main`'s GUID
 ``` ucm :error
 scratch/main> merge /topic
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -3713,8 +3645,6 @@ Case 2: Merging parent `/main` into child `/topic` also uses parent `/main`'s GU
 ``` ucm :error
 scratch/topic> merge /main
 
-  Merging...
-
   Loading branches...
 
   Loading definitions...
@@ -3803,8 +3733,6 @@ Case 3: Merging `/topic` into `/topic2` (neither of which is a parent of the oth
 
 ``` ucm :error
 scratch/topic> merge /topic2
-
-  Merging...
 
   Loading branches...
 
@@ -4008,8 +3936,6 @@ Note Bob's `hello` references `foo` (Alice's name), not `bar` (Bob's name).
 
 ``` ucm :error
 scratch/alice> merge /bob
-
-  Merging...
 
   Loading branches...
 
