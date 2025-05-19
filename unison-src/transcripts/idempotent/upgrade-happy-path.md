@@ -59,7 +59,7 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin/ (476 terms, 76 types)
+  1. builtin/ (483 terms, 78 types)
   2. new/     (1 term)
 
 proj/main> view thingy
