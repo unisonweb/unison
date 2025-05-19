@@ -18,6 +18,9 @@ module Unison.Codebase.Editor.SlurpResult
     -- * Definion status
     Status (..),
     prettyStatus,
+
+    -- * Slurp entry
+    SlurpEntry (..),
   )
 where
 
@@ -333,3 +336,8 @@ filterUnisonFile
       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
       filterTLC (v, _, _, _) = Set.member v keepTerms
+
+data SlurpEntry
+  = SlurpEntry'Add
+  | SlurpEntry'Delete
+  | SlurpEntry'Update

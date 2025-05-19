@@ -9,25 +9,33 @@ where
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import System.Environment (withArgs)
+import System.Environment (lookupEnv, withArgs)
+import System.IO.Unsafe (unsafePerformIO)
+import U.Codebase.Sqlite.Project qualified as Sqlite
+import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
-import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Cli.UniqueTypeGuidLookup qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
+import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..))
 import Unison.Codebase.Execute qualified as Codebase
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.FileParsers qualified as FileParsers
-import Unison.Names (Names)
+import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
@@ -39,6 +47,8 @@ import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
+import Unison.ReferentPrime qualified as Referent'
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
@@ -48,9 +58,16 @@ import Unison.Term qualified as Term
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
+import Unison.Util.Defns (Defns (..))
+import Unison.Util.Relation qualified as Relation
 import Unison.Util.Timing qualified as Timing
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
+
+useUpdateV2 :: Bool
+useUpdateV2 =
+  isJust (unsafePerformIO (lookupEnv "UNISON_USE_UPDATE_V2"))
+{-# NOINLINE useUpdateV2 #-}
 
 handleLoad :: Maybe FilePath -> Cli ()
 handleLoad maybePath = do
@@ -67,13 +84,70 @@ handleLoad maybePath = do
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  currentNames <- Cli.currentNames
-  unisonFile <- withFile currentNames sourceName text
+  currentBranch0 <- Cli.getCurrentBranch0
+  let currentNames = Branch.toNames currentBranch0
+  unisonFile <- parseAndTypecheckUnisonFile currentNames sourceName text
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
   let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let ppe = PPE.suffixifiedPPE pped
-  Cli.respond $ Output.Typechecked sourceName ppe sr unisonFile
+  if useUpdateV2
+    then do
+      pp <- Cli.getCurrentProjectPath
+      maybeUpdateBranchParentCausalHash <-
+        Cli.runTransaction do
+          Queries.projectBranchIsUpdateBranch pp.project.projectId pp.branch.branchId >>= \case
+            False -> pure Nothing
+            True ->
+              case pp.branch.parentBranchId of
+                Nothing -> pure Nothing -- impossible
+                Just updateBranchParentBranchId -> do
+                  causalHashId <- Queries.expectProjectBranchHead pp.project.projectId updateBranchParentBranchId
+                  causalHash <- Queries.expectCausalHash causalHashId
+                  pure (Just causalHash)
+      case maybeUpdateBranchParentCausalHash of
+        Nothing -> Cli.respond (Output.Typechecked sourceName ppe sr unisonFile)
+        Just updateBranchParentCausalHash -> do
+          Cli.Env {codebase} <- ask
+          updateBranchParent <- liftIO (Codebase.expectBranchForHash codebase updateBranchParentCausalHash)
+          let updateBranchParentNames = Branch.toNames (Branch.deleteLibdeps (Branch.head updateBranchParent))
+          let updateBranchNames =
+                UF.addNamesFromTypeCheckedUnisonFile unisonFile (Branch.toNames (Branch.deleteLibdeps currentBranch0))
+          let slurpEntries =
+                Defns
+                  { terms =
+                      Map.merge
+                        ( Map.mapMaybeMissing \_ refs ->
+                            if Referent'.isConstructor (Set.findMin refs) then Nothing else Just SlurpEntry'Delete
+                        )
+                        ( Map.mapMaybeMissing \_ refs ->
+                            if Referent'.isConstructor (Set.findMin refs) then Nothing else Just SlurpEntry'Add
+                        )
+                        ( Map.zipWithMaybeMatched \_ oldRefs newRefs ->
+                            case (Set.findMin oldRefs, Set.findMin newRefs) of
+                              (Referent.Ref oldRef, Referent.Ref newRef) ->
+                                if oldRef /= newRef then Just SlurpEntry'Update else Nothing
+                              (Referent.Con _ _, Referent.Ref _) -> Just SlurpEntry'Update
+                              (Referent.Ref _, Referent.Con _ _) -> Just SlurpEntry'Update
+                              (Referent.Con _ _, Referent.Con _ _) -> Nothing
+                        )
+                        (Relation.domain updateBranchParentNames.terms)
+                        (Relation.domain updateBranchNames.terms),
+                    types =
+                      Map.merge
+                        (Map.mapMissing \_ _ -> SlurpEntry'Delete)
+                        (Map.mapMissing \_ _ -> SlurpEntry'Add)
+                        ( Map.zipWithMaybeMatched \_ oldRefs newRefs ->
+                            if Set.findMin oldRefs /= Set.findMin newRefs
+                              then Just SlurpEntry'Update
+                              else Nothing
+                        )
+                        (Relation.domain updateBranchParentNames.types)
+                        (Relation.domain updateBranchNames.types)
+                  }
+          Cli.respond (Output.Typechecked2 slurpEntries)
+    else do
+      Cli.respond (Output.Typechecked sourceName ppe sr unisonFile)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
@@ -85,82 +159,82 @@ loadUnisonFile sourceName text = do
         Left err -> Cli.respond (Output.EvaluationFailure err)
 
   #latestTypecheckedFile .= Just (Right unisonFile)
-  where
-    withFile ::
-      Names ->
-      Text ->
-      Text ->
-      Cli (TypecheckedUnisonFile Symbol Ann)
-    withFile names sourceName text = do
-      pp <- Cli.getCurrentProjectPath
-      State.modify' \loopState ->
-        loopState
-          & (#latestFile .~ Just (Text.unpack sourceName, False))
-          & (#latestTypecheckedFile .~ Nothing)
-      Cli.Env {codebase, generateUniqueName} <- ask
-      uniqueName <- liftIO generateUniqueName
-      let parsingEnv =
-            Parser.ParsingEnv
-              { uniqueNames = uniqueName,
-                uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
-                names,
-                maybeNamespace = Nothing,
-                localNamespacePrefixedTypesAndConstructors = mempty
-              }
-      unisonFile <-
-        Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
-          & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
-      -- set that the file at least parsed (but didn't typecheck)
-      State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
-      typecheckingEnv <-
-        Cli.runTransaction do
-          computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
-      let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
-          tws = reverse [wrn | Result.TypeWarning wrn <- toList notes]
-          suffixifiedPPE = PPED.suffixifiedPPE pped
-          pped =
-            let ns =
-                  names
-                    -- Shadow just the type decl and constructor names (because the unison file didn't typecheck so we
-                    -- don't have term `Names`)
-                    & Names.shadowing (UF.toNames unisonFile)
-             in PPED.makePPED
-                  (PPE.hqNamer 10 ns)
-                  ( PPE.suffixifyByHashWithUnhashedTermsInScope
-                      ( Set.union
-                          (Set.map Name.unsafeParseVar (Map.keysSet (UF.terms unisonFile)))
-                          ( foldMap
-                              ( foldMap \case
-                                  (v, _, _) ->
-                                    case Var.typeOf v of
-                                      Var.User _ -> Set.singleton (Name.unsafeParseVar v)
-                                      _ -> Set.empty
-                              )
-                              (UF.watches unisonFile)
+
+parseAndTypecheckUnisonFile ::
+  Names ->
+  Text ->
+  Text ->
+  Cli (TypecheckedUnisonFile Symbol Ann)
+parseAndTypecheckUnisonFile names sourceName text = do
+  pp <- Cli.getCurrentProjectPath
+  State.modify' \loopState ->
+    loopState
+      & (#latestFile .~ Just (Text.unpack sourceName, False))
+      & (#latestTypecheckedFile .~ Nothing)
+  Cli.Env {codebase, generateUniqueName} <- ask
+  uniqueName <- liftIO generateUniqueName
+  let parsingEnv =
+        Parser.ParsingEnv
+          { uniqueNames = uniqueName,
+            uniqueTypeGuid = Cli.loadUniqueTypeGuid pp,
+            names,
+            maybeNamespace = Nothing,
+            localNamespacePrefixedTypesAndConstructors = mempty
+          }
+  unisonFile <-
+    Cli.runTransaction (Parsers.parseFile (Text.unpack sourceName) (Text.unpack text) parsingEnv)
+      & onLeftM \err -> Cli.returnEarly (Output.ParseErrors text [err])
+  -- set that the file at least parsed (but didn't typecheck)
+  State.modify' (& #latestTypecheckedFile .~ Just (Left unisonFile))
+  typecheckingEnv <-
+    Cli.runTransaction do
+      computeTypecheckingEnvironment (FileParsers.ShouldUseTndr'Yes parsingEnv) codebase [] unisonFile
+  let Result.Result notes maybeTypecheckedUnisonFile = FileParsers.synthesizeFile typecheckingEnv unisonFile
+      tws = reverse [wrn | Result.TypeWarning wrn <- toList notes]
+      suffixifiedPPE = PPED.suffixifiedPPE pped
+      pped =
+        let ns =
+              names
+                -- Shadow just the type decl and constructor names (because the unison file didn't typecheck so we
+                -- don't have term `Names`)
+                & Names.shadowing (UF.toNames unisonFile)
+         in PPED.makePPED
+              (PPE.hqNamer 10 ns)
+              ( PPE.suffixifyByHashWithUnhashedTermsInScope
+                  ( Set.union
+                      (Set.map Name.unsafeParseVar (Map.keysSet (UF.terms unisonFile)))
+                      ( foldMap
+                          ( foldMap \case
+                              (v, _, _) ->
+                                case Var.typeOf v of
+                                  Var.User _ -> Set.singleton (Name.unsafeParseVar v)
+                                  _ -> Set.empty
                           )
+                          (UF.watches unisonFile)
                       )
-                      ns
                   )
+                  ns
+              )
 
-      when (not $ null tws) do
-        currentPath <- Cli.getCurrentPath
-        Cli.respond $
-          Output.TypeWarns currentPath text suffixifiedPPE tws
+  when (not $ null tws) do
+    currentPath <- Cli.getCurrentPath
+    Cli.respond $
+      Output.TypeWarns currentPath text suffixifiedPPE tws
 
-      maybeTypecheckedUnisonFile & onNothing do
-        let tes = [err | Result.TypeError err <- toList notes]
-            cbs =
-              [ bug
-                | Result.CompilerBug (Result.TypecheckerBug bug) <-
-                    toList notes
-              ]
+  maybeTypecheckedUnisonFile & onNothing do
+    let tes = [err | Result.TypeError err <- toList notes]
+        cbs =
+          [ bug
+            | Result.CompilerBug (Result.TypecheckerBug bug) <-
+                toList notes
+          ]
 
-        when (not (null tes)) do
-          currentPath <- Cli.getCurrentPath
-          Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
-        when (not (null cbs)) do
-          Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
-        Cli.returnEarlyWithoutOutput
+    when (not (null tes)) do
+      currentPath <- Cli.getCurrentPath
+      Cli.respond (Output.TypeErrors currentPath text suffixifiedPPE tes)
+    when (not (null cbs)) do
+      Cli.respond (Output.CompilerBugs text suffixifiedPPE cbs)
+    Cli.returnEarlyWithoutOutput
 
 -- | Evaluate all watched expressions in a UnisonFile and return
 -- their results, keyed by the name of the watch variable. The tuple returned

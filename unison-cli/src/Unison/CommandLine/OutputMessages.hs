@@ -962,6 +962,27 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
+  Typechecked2 slurpEntries -> do
+    let renderSlurpEntries :: Pretty -> Map Name SlurpResult.SlurpEntry -> Pretty
+        renderSlurpEntries kind =
+          Map.toList
+            >>> List.map \case
+              (name, SlurpResult.SlurpEntry'Add) -> P.green ("+" <> kind <> prettyName name)
+              (name, SlurpResult.SlurpEntry'Delete) -> P.red ("-" <> kind <> prettyName name)
+              (name, SlurpResult.SlurpEntry'Update) -> P.yellow ("%" <> kind <> prettyName name)
+            >>> P.lines
+    pure $
+      P.lines
+        [ P.wrap ("If you do an " <> P.group (IP.makeExample' IP.update <> ",") <> "here's how your codebase would change:"),
+          "",
+          P.indentN
+            2
+            ( P.linesNonEmpty
+                [ renderSlurpEntries " type " slurpEntries.types
+                , renderSlurpEntries " term " slurpEntries.terms
+                ]
+            )
+        ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably

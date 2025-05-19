@@ -283,6 +283,7 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
+  | Typechecked2 (DefnsF (Map Name) SR.SlurpEntry SR.SlurpEntry)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -567,6 +568,7 @@ isFailure o = case o of
   Evaluated {} -> False
   LoadingFile {} -> False
   Typechecked {} -> False
+  Typechecked2 {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
   DisplayRendered {} -> False
