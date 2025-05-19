@@ -28,7 +28,7 @@ scratch/main> update .
 
 scratch/main> ls .
 
-  1. lib/ (476 terms, 76 types)
+  1. lib/ (483 terms, 78 types)
   2. x    (Nat)
 
 scratch/main> add 1
@@ -43,7 +43,7 @@ scratch/main> add 1
 
 scratch/main> ls .
 
-  1. lib/ (476 terms, 76 types)
+  1. lib/ (483 terms, 78 types)
   2. x    (Nat)
 
 scratch/main> add 2

@@ -11,6 +11,7 @@ import Control.Monad.Reader (MonadReader (..))
 import Data.These (These (..))
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.Project qualified as Projects
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)
 import Unison.Cli.Monad (Cli)
@@ -24,7 +25,7 @@ import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (..))
 import Unison.Codebase.Editor.HandleInput.Branch qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Init qualified as Init
-import Unison.Codebase.ProjectPath (ProjectBranch (branchId), ProjectPathG (..))
+import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase qualified as SqliteCodebase
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
@@ -34,7 +35,7 @@ import Unison.SyncV2.Types (BranchRef)
 handleSyncToFile :: FilePath -> ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName) -> Cli ()
 handleSyncToFile destSyncFile branchToSync = do
   pp <- Cli.getCurrentProjectPath
-  projectBranch <- Project.resolveProjectBranchInProject (pp ^. #project) branchToSync
+  projectBranch <- Project.resolveProjectBranchInProject (pp ^. #project) (over #branch (Just . fromMaybe (pp.branch.name)) branchToSync)
   causalHash <- Cli.runTransaction $ Project.getProjectBranchCausalHash (projectBranch ^. #branch)
   let branchRef = into @BranchRef $ ProjectAndBranch (projectBranch ^. #project . #name) (projectBranch ^. #branch . #name)
   Cli.Env {codebase} <- ask
