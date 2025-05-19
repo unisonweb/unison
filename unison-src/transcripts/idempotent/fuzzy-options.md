@@ -3,11 +3,21 @@
 If an argument is required but doesn't have a fuzzy resolver, the command should just print the help.
 
 ``` ucm :error
--- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver
+-- The second argument of move.term is a 'new-name' and doesn't have a fuzzy resolver,
+
+-- So it should print the arg parsing error.
 
 scratch/main> move.term
 
-  `move.term foo bar` renames `foo` to `bar`.
+  ⚠️
+
+  Sorry, I wasn’t sure how to process your request:
+
+    `rename.term` takes two arguments, like `rename.term oldname
+    newname`.
+
+  You can run `help move.term` for more information on using
+  `move.term`.
 ```
 
 If a fuzzy resolver doesn't have any options available it should print a message instead of
@@ -39,7 +49,7 @@ scratch/main> add
 
 scratch/main> debug.fuzzy-options view _
 
-  Select a definition to view:
+  Select a definition to view or press <esc> to cancel:
     * optionOne
     * nested.optionTwo
 ```
@@ -54,6 +64,6 @@ scratch/main> add
 
 scratch/main> debug.fuzzy-options find-in _
 
-  Select a namespace:
+  Select a namespace or press <esc> to cancel:
     * nested
 ```

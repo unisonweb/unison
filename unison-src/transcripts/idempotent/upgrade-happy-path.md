@@ -41,14 +41,14 @@ proj/main> debug.tab-complete upgrade ol
 
 proj/main> debug.fuzzy-options upgrade _
 
-  Select a dependency to upgrade:
+  Select a dependency to upgrade or press <esc> to cancel:
     * builtin
     * new
     * old
 
 proj/main> debug.fuzzy-options upgrade old _
 
-  Select a dependency to upgrade to:
+  Select a dependency to upgrade to or press <esc> to cancel:
     * builtin
     * new
     * old
