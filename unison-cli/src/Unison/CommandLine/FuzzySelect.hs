@@ -4,6 +4,7 @@
 --     Shells out to fzf for the actual selection.
 module Unison.CommandLine.FuzzySelect
   ( fuzzySelect,
+    isFZFInstalled,
     Options (..),
     defaultOptions,
   )
@@ -15,12 +16,18 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import GHC.IO.Handle (hDuplicateTo)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
 import UnliftIO.Process qualified as Proc
+
+isFZFInstalled :: Bool
+isFZFInstalled =
+  unsafePerformIO (isJust <$> findExecutable "fzf")
+{-# NOINLINE isFZFInstalled #-}
 
 -- | Fuzzy Selection options
 data Options = Options

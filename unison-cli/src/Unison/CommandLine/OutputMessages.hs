@@ -871,7 +871,6 @@ notifyUser dir = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -1480,7 +1479,7 @@ notifyUser dir = \case
   DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
     pure $
       P.lines
-        [P.text (FZFResolvers.fuzzySelectHeader argDesc), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
+        [(FZFResolvers.fuzzySelectHeader argDesc), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
   DebugFuzzyOptionsIncorrectArgs _ -> pure $ P.string "Too many arguments were provided."
   DebugFuzzyOptionsNoCommand command -> pure $ "The command “" <> P.string command <> "” doesn’t exist."
   DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
