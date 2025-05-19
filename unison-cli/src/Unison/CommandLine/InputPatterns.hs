@@ -1220,9 +1220,10 @@ findShallow =
     I.Visible
     (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces within the selected namespace."),
-          ("`list foo`", "lists the 'foo' namespace."),
-          ("`list .foo`", "lists the '.foo' namespace.")
+        [ ("`list`", "lists definitions and namespaces in a namespace you select (requires fzf)."),
+          ("`list .`", "lists definitions and namespaces in the project root."),
+          ("`list .foo`", "lists definitions and namespaces in the '.foo' namespace."),
+          ("`list foo`", "lists definitions and namespaces in the 'foo' namespace.")
         ]
     )
     ( fmap Input.FindShallowI . \case
@@ -2345,7 +2346,8 @@ editNamespace =
       params = Parameters [] $ OnePlus ("namespace to load definitions from", namespaceArg),
       help =
         P.lines
-          [ "`edit.namespace .` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+          [ "`edit.namespace` loads all terms and types contained within the namespace you select into your scratch file. This includes definitions in namespaces, but excludes libraries (requires fzf).",
+            "`edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
       parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
