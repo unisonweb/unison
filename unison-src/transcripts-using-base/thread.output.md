@@ -22,7 +22,7 @@ testBasicFork = 'let
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       otherThread   : '{IO} ()
       testBasicFork : '{IO} [Result]
@@ -66,7 +66,7 @@ testBasicMultiThreadMVar = 'let
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       testBasicMultiThreadMVar : '{IO} [Result]
       thread1                  : Nat -> MVar Nat -> '{IO} ()
@@ -135,7 +135,7 @@ testTwoThreads = 'let
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       receivingThread : MVar Nat -> MVar Text -> '{IO} ()
       sendingThread   : Nat -> MVar Nat -> '{IO} ()

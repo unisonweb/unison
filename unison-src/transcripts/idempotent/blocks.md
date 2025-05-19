@@ -25,7 +25,7 @@ ex thing =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex : thing -> Nat
 
@@ -56,7 +56,7 @@ ex thing =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex : thing -> Nat
 
@@ -89,7 +89,7 @@ ex thing =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex : (Nat ->{g} Nat) ->{g} Nat
 
@@ -119,7 +119,7 @@ ex thing =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex : (Nat ->{g} Nat) ->{g} Nat
 
@@ -156,7 +156,7 @@ ex n =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex    : n -> r
       sumTo : Nat -> Nat
@@ -181,7 +181,7 @@ ex n =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex : n -> Nat
 ```
@@ -234,7 +234,7 @@ ex n =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex : n -> r
 ```
@@ -283,7 +283,7 @@ ex n =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural ability SpaceAttack
       ex : n ->{SpaceAttack} Nat
@@ -310,7 +310,7 @@ ex n =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural ability SpaceAttack
       ex : n ->{SpaceAttack} r
@@ -335,7 +335,7 @@ ex n =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural ability SpaceAttack
       ex : n ->{SpaceAttack} r

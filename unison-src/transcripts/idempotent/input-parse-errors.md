@@ -12,10 +12,10 @@ x = 55
 scratch/main> add
 ```
 
-`handleNameArg` parse error in `add`
+`handleNameArg` parse error in `update`
 
 ``` ucm :error
-scratch/main> add .
+scratch/main> update .
 
   ⚠️
 
@@ -23,7 +23,8 @@ scratch/main> add .
 
     I expected no arguments, but received one.
 
-  You can run `help add` for more information on using `update`.
+  You can run `help update` for more information on using
+  `update`.
 
 scratch/main> ls .
 
@@ -71,21 +72,6 @@ todo:
   SA.SearchResult mpath result ->
     maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
   otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a name" otherNumArg
-```
-
-aliasMany: skipped -- similar to `add`
-
-``` ucm :error
-scratch/main> update arg
-
-  ⚠️
-
-  Sorry, I wasn’t sure how to process your request:
-
-    I expected no arguments, but received one.
-
-  You can run `help update` for more information on using
-  `update`.
 ```
 
 aliasTerm

@@ -102,7 +102,7 @@ We can add a syntax for branch-qualified identifiers, then proceed with normal b
 meetup3> alias gh:aryairani/either/Either.rightToOptional Either.rightMay
   ┌
   │  ✅
-  │  
+  │
   │  I aliased the term gh:aryairani/either/Either.rightToOptional to
   │    Either.rightMay.
   └
@@ -130,11 +130,11 @@ meetup3>
 
 #### Idea: `import` statements are 1st class entities
 
-`import` statements could be first-class things that are added to the namespace on an `add`.  
+`import` statements could be first-class things that are added to the namespace on an `update`.
 
-> Side note: This reminds me, I think there are reasons to reconsider adding support for `add`ing individual definitions from .u to branch.  I have a WIP for this, but it doesn't work.  😅  Could probably knock it out quickly by pairing.
+> Side note: This reminds me, I think there are reasons to reconsider adding support for `update`ing individual definitions from .u to branch.  I have a WIP for this, but it doesn't work.  😅  Could probably knock it out quickly by pairing.
 
-Anyway, if we `>add` on this file,
+Anyway, if we `>update` on this file,
 
 ```haskell
 import gh:ghuser/ghrepo:treeish/unisonbranch as Foo
@@ -146,8 +146,8 @@ bar x = E.fromJust (Foo.foo x) + 1
 
 ```haskell
 ("Foo", QualifiedImport (Github "ghuser" "ghrepo" (Just treeish) "unisonbranch") Nothing)
-("E", QualifiedImport 
-				(Github "aryairani" "either" Nothing "default?master?") 
+("E", QualifiedImport
+				(Github "aryairani" "either" Nothing "default?master?")
 				(Just "Either") )
 ```
 
@@ -215,7 +215,7 @@ from gh:aryairani/AryaPack/AryaPack import myFunc
 --   ^^ repo       ^^ branch ^^ term; in this case, a namespace
 ```
 
-## 
+##
 
 #### Question: When do we actually download stuff?
 
@@ -223,7 +223,7 @@ When do we actually bring those names/definitions into the local codebase, so we
 
 ##### Idea: Copy referenced names/defs into the branch
 
-If we `>add` on this file:
+If we `>update` on this file:
 
 ```
 import gh:aryairani/either/Either as Either
@@ -247,7 +247,7 @@ we get a temporary copy of the `gh:aryairani/either` branch (maybe greedily get 
 />
 ```
 
-Sorry that I am using `/` and `.` interchangeably. 
+Sorry that I am using `/` and `.` interchangeably.
 
 I'm using  `.`, because it's the typical code identifier separator we're used to, and I'm using `/` because it looks like directories and also commonly represents a tree root.  `.` doesn't feel good as a tree root, because it common represents the "current" node in a tree.  There's also the Scala route of `.` separator and `_root_` means the tree root. 😅
 
@@ -351,10 +351,10 @@ You can easily imagine exporting a subtree, but what if that subtree references 
   /projects/FaceDetector/V2> publish.set-destination.scoped .. gh:aryairani/face-detector
   	I will publish /projects/FaceDetector to gh:aryairani/face-detector
   /projects/FaceDetector/V2> publish
-  
+
   	Syncing /projects/FaceDetector to gh:aryairani/face-detector
   	Syncing / to gh:aryairani/private-repo
-  	
+
   /projects/FaceDetector/V2>
   ```
 
@@ -363,7 +363,7 @@ You can easily imagine exporting a subtree, but what if that subtree references 
   ```
   libs> clone gh:aryairani/face-detector FaceDetector
   libs> ls FaceDetector
-  
+
     Dependencies.Abc.asdf : Blah -> Blah
     Dependencies.Abc.ghjk : Blah -> Blah
     Dependencies.Xyz.awww : Blah -> Blah
@@ -374,11 +374,11 @@ You can easily imagine exporting a subtree, but what if that subtree references 
   libs>
   ```
 
-  
+
 
 # Sharing my code as library
 
-TBD, but it will include: 
+TBD, but it will include:
 
 * specifying which code
 * specifying the publication destination

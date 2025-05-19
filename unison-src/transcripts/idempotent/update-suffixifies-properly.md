@@ -17,7 +17,7 @@ bar = a.x.x.x.x + c.y.y.y.y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       a.x.x.x.x : Nat
       b.x.x.x.x : Nat

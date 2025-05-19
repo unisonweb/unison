@@ -133,7 +133,7 @@ I still want this to be the same type.  None of the semantics have changed, I ju
 
 Thoughts?
 
-* @pchiusano - I'd say that "constructor display order" should be a bit of metadata that can be attached to a data declaration, and you should be able to edit this metadata somehow (perhaps by default, the `add` / `update` command can suggest "metadata edits" in reponse to this sort of thing).
+* @pchiusano - I'd say that "constructor display order" should be a bit of metadata that can be attached to a data declaration, and you should be able to edit this metadata somehow (perhaps by default, the `update` command can suggest "metadata edits" in reponse to this sort of thing).
 
 ## Old stuff: Algebraic Types?
 

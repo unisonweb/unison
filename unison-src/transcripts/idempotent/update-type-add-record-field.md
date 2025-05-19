@@ -12,7 +12,7 @@ unique type Foo = { bar : Nat }
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
       Foo.bar        : Foo -> Nat
@@ -39,7 +39,7 @@ unique type Foo = { bar : Nat, baz : Int }
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       Foo.baz        : Foo -> Int
       Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo

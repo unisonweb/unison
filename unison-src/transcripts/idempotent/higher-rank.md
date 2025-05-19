@@ -23,7 +23,7 @@ f id = (id 1, id "hi")
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
 
@@ -50,7 +50,7 @@ f id _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
 ```
@@ -76,7 +76,7 @@ Functor.blah = cases Functor f ->
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Functor f
       Functor.blah : Functor f -> ()
@@ -118,7 +118,7 @@ Loc.transform2 nt = cases Loc f ->
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Loc
       ability Remote t

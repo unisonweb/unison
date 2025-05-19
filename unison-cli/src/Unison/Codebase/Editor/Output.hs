@@ -177,7 +177,7 @@ data AmbiguousReset'Argument
 data Output
   = -- Generic Success response; we might consider deleting this.
     Success
-  | -- User did `add` or `update` before typechecking a file?
+  | -- User did `update` before typechecking a file?
     NoUnisonFile
   | -- Used in Welcome module to instruct user
     PrintMessage (P.Pretty P.ColorText)

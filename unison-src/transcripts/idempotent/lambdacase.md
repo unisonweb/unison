@@ -18,7 +18,7 @@ isEmpty x = match x with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       isEmpty : [t] -> Boolean
 ```
@@ -41,7 +41,7 @@ isEmpty2 = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       isEmpty2 : [t] -> Boolean
         (also named isEmpty)
@@ -101,7 +101,7 @@ merge2 = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       merge2 : [a] -> [a] -> [a]
         (also named merge)
@@ -148,7 +148,7 @@ blorf = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural type B
       blah  : B -> B -> Text
@@ -187,7 +187,7 @@ merge3 = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       merge3 : [a] -> [a] -> [a]
 ```
@@ -228,7 +228,7 @@ merge4 a b = match (a,b) with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       merge4 : [a] -> [a] -> [a]
         (also named merge3)
