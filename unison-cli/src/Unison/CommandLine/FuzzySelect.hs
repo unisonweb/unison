@@ -5,6 +5,7 @@
 module Unison.CommandLine.FuzzySelect
   ( fuzzySelect,
     isFZFInstalled,
+    fzfPathEnvVar,
     Options (..),
     defaultOptions,
   )
@@ -15,6 +16,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import GHC.IO.Handle (hDuplicateTo)
+import System.Environment (lookupEnv)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 import Unison.Prelude
@@ -24,9 +26,22 @@ import UnliftIO.Exception (bracket)
 import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
 import UnliftIO.Process qualified as Proc
 
+-- | An environment variable that can be set to override the default fzf executable.
+fzfPathEnvVar :: String
+fzfPathEnvVar = "UNISON_FZF_PATH"
+
+fzfExecutable :: IO (Maybe FilePath)
+fzfExecutable = do
+  envPath <- lookupEnv fzfPathEnvVar
+  case (envPath) of
+    Just path
+      | Text.toUpper (Text.pack path) == "NONE" -> pure Nothing
+      | otherwise -> pure (Just path)
+    Nothing -> findExecutable "fzf"
+
 isFZFInstalled :: Bool
 isFZFInstalled =
-  unsafePerformIO (isJust <$> findExecutable "fzf")
+  unsafePerformIO (isJust <$> fzfExecutable)
 {-# NOINLINE isFZFInstalled #-}
 
 -- | Fuzzy Selection options
@@ -70,7 +85,7 @@ fuzzySelect opts intoSearchText choices =
     . runExceptT
     $ do
       fzfPath <-
-        liftIO (findExecutable "fzf") >>= \case
+        liftIO fzfExecutable >>= \case
           Nothing -> throwError "I couldn't find the `fzf` executable on your path, consider installing `fzf` to enable fuzzy searching."
           Just fzfPath -> pure fzfPath
       let fzfArgs :: [String] =
