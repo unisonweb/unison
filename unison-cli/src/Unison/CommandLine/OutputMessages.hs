@@ -978,8 +978,8 @@ notifyUser dir = \case
           P.indentN
             2
             ( P.linesNonEmpty
-                [ renderSlurpEntries " type " slurpEntries.types
-                , renderSlurpEntries " term " slurpEntries.terms
+                [ renderSlurpEntries " type " slurpEntries.types,
+                  renderSlurpEntries " term " slurpEntries.terms
                 ]
             )
         ]
