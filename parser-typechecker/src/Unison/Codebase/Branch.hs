@@ -133,7 +133,7 @@ import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeRefe
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, alignDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith)
 import Unison.Util.List qualified as List
 import Unison.Util.Nametree (Nametree (..), unflattenNametree)
 import Unison.Util.Recursion (XNor (Both, Neither), cata, project)

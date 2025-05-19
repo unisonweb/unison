@@ -35,6 +35,8 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
+import Unison.Codebase.Editor.HandleInput.DeleteBranch qualified as DeleteBranch
+import Unison.Codebase.Editor.HandleInput.Merge2 qualified as Merge
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
@@ -56,7 +58,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectAndBranch (..), ProjectBranchName, projectBranchNameToValidProjectBranchNameText)
+import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent (Referent)
@@ -91,6 +93,7 @@ handleUpdate2 = do
   tuf <- Cli.expectLatestTypecheckedFile
   let termAndDeclNames = getTermAndDeclNames tuf
   pp <- Cli.getCurrentProjectPath
+  let projectId = pp.project.projectId
   currentBranch <- Cli.getCurrentBranch
   let currentBranch0 = Branch.head currentBranch
   let currentBranch0ExcludingLibdeps = Branch.deleteLibdeps currentBranch0
@@ -105,20 +108,23 @@ handleUpdate2 = do
       defns =
         flattenNametrees nametree
 
-  -- Get the number of constructors for every type declaration
-  numConstructors <-
+  -- Get the number of constructors for every type declaration, and whether we are on an "update" branch already
+  (numConstructors, onUpdateBranchAlready) <-
     Cli.runTransaction do
-      defns.types
-        & BiMultimap.dom
-        & Set.toList
-        & Foldable.foldlM
-          ( \acc -> \case
-              ReferenceBuiltin _ -> pure acc
-              ReferenceDerived ref -> do
-                num <- Operations.expectDeclNumConstructors ref
-                pure $! Map.insert ref num acc
-          )
-          Map.empty
+      numConstructors <-
+        defns.types
+          & BiMultimap.dom
+          & Set.toList
+          & Foldable.foldlM
+            ( \acc -> \case
+                ReferenceBuiltin _ -> pure acc
+                ReferenceDerived ref -> do
+                  num <- Operations.expectDeclNumConstructors ref
+                  pure $! Map.insert ref num acc
+            )
+            Map.empty
+      onUpdateBranchAlready <- Queries.projectBranchIsUpdateBranch projectId pp.branch.branchId
+      pure (numConstructors, onUpdateBranchAlready)
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
@@ -224,26 +230,24 @@ handleUpdate2 = do
                       let nextNamespace =
                             Branch.cons namespaceWithoutDependents currentBranch
 
-                      Cli.runTransaction (Queries.projectBranchIsUpdateBranch pp.project.projectId pp.branch.branchId) >>= \case
-                        False -> do
+                      if onUpdateBranchAlready
+                        then do
+                          Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
+                        else do
                           (_temporaryBranchId, _temporaryBranchName) <-
                             HandleInput.Branch.createBranch
                               ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
-                              ( HandleInput.Branch.CreateFrom'Update
-                                  pp.branch
-                                  nextNamespace
-                              )
+                              (HandleInput.Branch.CreateFrom'Update pp.branch nextNamespace)
                               pp.project
-                              ( let preferred :: ProjectBranchName
-                                    preferred =
-                                      ("update-" <> projectBranchNameToValidProjectBranchNameText pp.branch.name)
-                                        & Text.Builder.run
-                                        & unsafeFrom @Text
-                                 in ProjectUtils.findTemporaryBranchName pp.project.projectId preferred
+                              ( ProjectUtils.findTemporaryBranchName
+                                  projectId
+                                  ( ("update-" <> projectBranchNameToValidProjectBranchNameText pp.branch.name)
+                                      & Text.Builder.run
+                                      & unsafeFrom @Text
+                                  )
                               )
                           pure ()
-                        True -> do
-                          Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
+
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
                       done Output.UpdateTypecheckingFailure
@@ -266,6 +270,30 @@ handleUpdate2 = do
               secondTuf
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
+
+        when onUpdateBranchAlready do
+          -- When on an update branch, we don't expect parent branch id to be Nothing
+          whenJust pp.branch.parentBranchId \parentBranchId -> do
+            -- Switch to the parent branch
+            parentBranch <-
+              Cli.runTransaction do
+                Queries.expectProjectBranch projectId parentBranchId
+            Cli.switchProject (ProjectAndBranch projectId parentBranch.branchId)
+
+            -- Merge the update branch into the parent branch. This isn't guaranteed to succeed, but it probably will.
+
+            Merge.doMergeLocalBranch
+              Merge.TwoWay
+                { alice = ProjectAndBranch pp.project parentBranch,
+                  bob = ProjectAndBranch pp.project pp.branch
+                }
+
+            -- If the merge succeeded, delete the update branch. We may want to try to delete it even if the merge
+            -- fails, because otherwise the user will have to manually clean it up, which isn't as nice as a successful
+            -- `update` on an update branch. However, it's very likely that the merge is simply a fast-forward.
+
+            DeleteBranch.doDeleteProjectBranch (ProjectAndBranch pp.project pp.branch)
+
         pure Output.Success
 
   Cli.respond finalOutput
