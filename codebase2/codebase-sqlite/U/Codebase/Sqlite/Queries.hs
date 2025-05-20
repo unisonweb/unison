@@ -139,7 +139,7 @@ module U.Codebase.Sqlite.Queries
     insertMergeBranchLocal,
     insertMergeBranchRemote,
     insertMergeBranchLooseCode,
-    loadNamespaceUniqueTypeGuids,
+    loadNamespaceUniqueTypeGuid,
     existsAnyNamespaceUniqueTypeGuidForNamespace,
     insertNamespaceUniqueTypeGuid,
     projectBranchIsUpdateBranch,
@@ -4485,31 +4485,23 @@ insertMergeBranchLooseCode
         )
       |]
 
-loadNamespaceUniqueTypeGuids :: BranchHashId -> Transaction (Map Name Text)
-loadNamespaceUniqueTypeGuids namespaceHashId = do
-  rows <-
-    queryListRow
-      [sql|
-        SELECT type_name, type_guid
-        FROM namespace_unique_type_guid
-        WHERE namespace_hash_id = :namespaceHashId
-      |]
-
-  let f :: ByteString -> Name
-      f bytes =
-        case Aeson.decodeStrict @[Text] bytes of
-          Just (segment : segments) ->
-            Name.fromSegments (NameSegment segment NonEmpty.:| map NameSegment segments)
-          _ ->
-            error $
-              reportBug
-                "E955495"
-                ( "busted name in namespace_unique_type_guid (namespace hash id = "
-                    ++ show namespaceHashId
-                    ++ ")"
-                )
-
-  pure (Map.fromList (over (Lens.mapped . Lens._1) f rows))
+loadNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Transaction (Maybe Text)
+loadNamespaceUniqueTypeGuid namespaceHashId name = do
+  queryMaybeCol
+    [sql|
+      SELECT type_guid
+      FROM namespace_unique_type_guid
+      WHERE namespace_hash_id = :namespaceHashId
+        AND type_name = :segments
+    |]
+  where
+    segments :: LazyByteString
+    segments =
+      name
+        & Name.segments
+        & List.NonEmpty.toList
+        & map NameSegment.toUnescapedText
+        & Aeson.encode @[Text]
 
 existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
 existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
