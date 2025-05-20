@@ -18,6 +18,7 @@ import Data.Text qualified as Text
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Builder qualified
+import U.Codebase.Decl qualified as V2.Decl
 import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -234,10 +235,16 @@ handleUpdate2 = do
                         then do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                         else do
+                          uniqueTypeGuidsByName <-
+                            Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range defns.types))
+
                           (_temporaryBranchId, _temporaryBranchName) <-
                             HandleInput.Branch.createBranch
                               ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
-                              (HandleInput.Branch.CreateFrom'Update pp.branch nextNamespace)
+                              ( HandleInput.Branch.CreateFrom'Update
+                                  (pp.branch, Branch.headHash currentBranch, uniqueTypeGuidsByName)
+                                  nextNamespace
+                              )
                               pp.project
                               ( ProjectUtils.findTemporaryBranchName
                                   projectId
@@ -271,9 +278,10 @@ handleUpdate2 = do
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
 
-        when onUpdateBranchAlready do
-          -- When on an update branch, we don't expect parent branch id to be Nothing
-          whenJust pp.branch.parentBranchId \parentBranchId -> do
+        -- Special case: we are running a successful `update` on an update branch that has a parent (an update branch
+        -- only won't have a parent if the parent has been deleted for some reason).
+        case (onUpdateBranchAlready, pp.branch.parentBranchId) of
+          (True, Just parentBranchId) -> do
             -- Switch to the parent branch
             parentBranch <-
               Cli.runTransaction do
@@ -293,10 +301,37 @@ handleUpdate2 = do
             -- `update` on an update branch. However, it's very likely that the merge is simply a fast-forward.
 
             DeleteBranch.doDeleteProjectBranch (ProjectAndBranch pp.project pp.branch)
+          _ -> pure ()
 
         pure Output.Success
 
   Cli.respond finalOutput
+
+-- Make a unique type name to guid mapping from definitions, by looking up each decl individually. Maybe there will be
+-- a more efficient way to accomplish this some day, but this is how it works for now.
+makeUniqueTypeGuids :: Map Name TypeReference -> Transaction (Map Name Text)
+makeUniqueTypeGuids types = do
+  let step :: Map TypeReferenceId Text -> TypeReferenceId -> Transaction (Map TypeReferenceId Text)
+      step acc refId = do
+        decl <- Operations.expectDeclByReference refId
+        pure case decl.modifier of
+          V2.Decl.Unique guid -> Map.insert refId guid acc
+          V2.Decl.Structural -> acc
+
+  uniqueTypeGuidsByRef <-
+    Foldable.foldlM step Map.empty (foldMap toRefIds types)
+
+  let refToUniqueTypeGuid :: TypeReference -> Maybe Text
+      refToUniqueTypeGuid = \case
+        ReferenceDerived refId -> Map.lookup refId uniqueTypeGuidsByRef
+        ReferenceBuiltin _ -> Nothing
+
+  pure (Map.mapMaybe refToUniqueTypeGuid types)
+  where
+    toRefIds :: TypeReference -> Set TypeReferenceId
+    toRefIds = \case
+      ReferenceDerived refId -> Set.singleton refId
+      ReferenceBuiltin _ -> Set.empty
 
 makePrettyUnisonFile :: Pretty ColorText -> DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
 makePrettyUnisonFile originalFile dependents =
