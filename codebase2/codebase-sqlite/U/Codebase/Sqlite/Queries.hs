@@ -139,10 +139,12 @@ module U.Codebase.Sqlite.Queries
     insertMergeBranchLocal,
     insertMergeBranchRemote,
     insertMergeBranchLooseCode,
-    loadNamespaceUniqueTypeGuids,
+    loadNamespaceUniqueTypeGuid,
     existsAnyNamespaceUniqueTypeGuidForNamespace,
+    ensureUniqueTypeToGuidMappingForCausalHashId,
     insertNamespaceUniqueTypeGuid,
     projectBranchIsUpdateBranch,
+    loadUpdateBranchParentCausalHashId,
     setProjectBranchIsUpdateBranch,
 
     -- ** remote projects
@@ -4485,31 +4487,23 @@ insertMergeBranchLooseCode
         )
       |]
 
-loadNamespaceUniqueTypeGuids :: BranchHashId -> Transaction (Map Name Text)
-loadNamespaceUniqueTypeGuids namespaceHashId = do
-  rows <-
-    queryListRow
-      [sql|
-        SELECT type_name, type_guid
-        FROM namespace_unique_type_guid
-        WHERE namespace_hash_id = :namespaceHashId
-      |]
-
-  let f :: ByteString -> Name
-      f bytes =
-        case Aeson.decodeStrict @[Text] bytes of
-          Just (segment : segments) ->
-            Name.fromSegments (NameSegment segment NonEmpty.:| map NameSegment segments)
-          _ ->
-            error $
-              reportBug
-                "E955495"
-                ( "busted name in namespace_unique_type_guid (namespace hash id = "
-                    ++ show namespaceHashId
-                    ++ ")"
-                )
-
-  pure (Map.fromList (over (Lens.mapped . Lens._1) f rows))
+loadNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Transaction (Maybe Text)
+loadNamespaceUniqueTypeGuid namespaceHashId name = do
+  queryMaybeCol
+    [sql|
+      SELECT type_guid
+      FROM namespace_unique_type_guid
+      WHERE namespace_hash_id = :namespaceHashId
+        AND type_name = :segments
+    |]
+  where
+    segments :: LazyByteString
+    segments =
+      name
+        & Name.segments
+        & List.NonEmpty.toList
+        & map NameSegment.toUnescapedText
+        & Aeson.encode @[Text]
 
 existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
 existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
@@ -4521,6 +4515,16 @@ existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
         WHERE namespace_hash_id = :namespaceHashId
       )
     |]
+
+ensureUniqueTypeToGuidMappingForCausalHashId :: CausalHashId -> Map Name Text -> Transaction ()
+ensureUniqueTypeToGuidMappingForCausalHashId causalHashId uniqueTypeGuids =
+  when (not (Map.null uniqueTypeGuids)) do
+    namespaceHashId <- expectCausalValueHashId causalHashId
+    existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId >>= \case
+      True -> pure ()
+      False ->
+        for_ (Map.toList uniqueTypeGuids) \(name, guid) ->
+          insertNamespaceUniqueTypeGuid namespaceHashId name guid
 
 insertNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Text -> Transaction ()
 insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
@@ -4552,13 +4556,24 @@ projectBranchIsUpdateBranch projectId branchId =
       )
     |]
 
+-- | Load whether the given branch is an update branch, and if it is, return its parent's causal hash id.
+loadUpdateBranchParentCausalHashId :: ProjectId -> ProjectBranchId -> Transaction (Maybe CausalHashId)
+loadUpdateBranchParentCausalHashId projectId branchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_causal_hash_id
+      FROM update_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
 -- | Record that a project branch is an "update branch".
-setProjectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> Transaction ()
-setProjectBranchIsUpdateBranch projectId branchId =
+setProjectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchIsUpdateBranch projectId branchId parentCausalHashId =
   execute
     [sql|
-      INSERT INTO update_branch (project_id, branch_id)
-      VALUES (:projectId, :branchId)
+      INSERT INTO update_branch (project_id, branch_id, parent_causal_hash_id)
+      VALUES (:projectId, :branchId, :parentCausalHashId)
     |]
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments

@@ -5,8 +5,8 @@ module Unison.Cli.UniqueTypeGuidLookup
   )
 where
 
-import Data.Map.Strict qualified as Map
 import U.Codebase.Branch qualified as Codebase.Branch
+import U.Codebase.Sqlite.DbId qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
@@ -18,8 +18,8 @@ import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 
 loadUniqueTypeGuid :: ProjectPath -> Name -> Sqlite.Transaction (Maybe Text)
-loadUniqueTypeGuid pp name0 = do
-  let (namePath, finalSegment) = Path.splitFromName name0
+loadUniqueTypeGuid pp name = do
+  let (namePath, finalSegment) = Path.splitFromName name
   let fullPP = pp & over PP.path_ (<> namePath)
 
   -- Define an operation to load a branch by its full path from the root namespace.
@@ -30,36 +30,61 @@ loadUniqueTypeGuid pp name0 = do
       loadBranchAtPath = Codebase.getMaybeShallowBranchAtProjectPath
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath fullPP finalSegment >>= \case
-    Nothing ->
-      Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
-        Nothing -> pure Nothing
-        Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) -> do
-          aliceNamespaceHashId <- Queries.expectCausalValueHashId aliceCausalHashId
-          bobNamespaceHashId <- Queries.expectCausalValueHashId bobCausalHashId
-
-          aliceUniqueTypeGuids <- Queries.loadNamespaceUniqueTypeGuids aliceNamespaceHashId
-          bobUniqueTypeGuids <- Queries.loadNamespaceUniqueTypeGuids bobNamespaceHashId
-
-          case (Map.lookup name0 aliceUniqueTypeGuids, Map.lookup name0 bobUniqueTypeGuids) of
-            -- A few simple cases – reuse a GUID if it is sensible to do so
-            (Just aliceGuid, Just bobGuid) | aliceGuid == bobGuid -> pure (Just aliceGuid)
-            (Just aliceGuid, Nothing) -> pure (Just aliceGuid)
-            (Nothing, Just bobGuid) -> pure (Just bobGuid)
-            (Nothing, Nothing) -> pure Nothing
-            -- If alice and bob have different guids, and there is a parent-child relationship between them (i.e. alice
-            -- was directly branched off of bob or vice versa), then prefer the parent's GUID. Otherwise, just make up
-            -- a new GUID because it's not clear whether alice's or bob's should be preferred.
-            (Just aliceGuid, Just bobGuid) -> do
-              case (aliceMaybeBranchId, bobMaybeBranchId) of
-                (Just aliceBranchId, Just bobBranchId) -> do
-                  aliceParentBranchId <- Queries.loadProjectBranchParent pp.project.projectId aliceBranchId
-                  if aliceParentBranchId == Just bobBranchId
-                    then pure (Just bobGuid)
-                    else do
-                      bobParentBranchId <- Queries.loadProjectBranchParent pp.project.projectId bobBranchId
-                      pure
-                        if bobParentBranchId == Just aliceBranchId
-                          then Just aliceGuid
-                          else Nothing
-                _ -> pure Nothing
     Just guid -> pure (Just guid)
+    Nothing ->
+      Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
+        Just parentCausalHashId -> loadUniqueTypeGuidFromUpdateParent name parentCausalHashId
+        Nothing ->
+          Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
+            Nothing -> pure Nothing
+            Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
+              loadUniqueTypeGuidFromMergeParents
+                pp
+                name
+                bobMaybeBranchId
+                bobCausalHashId
+                aliceMaybeBranchId
+                aliceCausalHashId
+
+loadUniqueTypeGuidFromUpdateParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)
+loadUniqueTypeGuidFromUpdateParent name causalHashId = do
+  namespaceHashId <- Queries.expectCausalValueHashId causalHashId
+  Queries.loadNamespaceUniqueTypeGuid namespaceHashId name
+
+loadUniqueTypeGuidFromMergeParents ::
+  ProjectPath ->
+  Name ->
+  Maybe Sqlite.ProjectBranchId ->
+  Sqlite.CausalHashId ->
+  Maybe Sqlite.ProjectBranchId ->
+  Sqlite.CausalHashId ->
+  Sqlite.Transaction (Maybe Text)
+loadUniqueTypeGuidFromMergeParents pp name bobMaybeBranchId bobCausalHashId aliceMaybeBranchId aliceCausalHashId = do
+  aliceNamespaceHashId <- Queries.expectCausalValueHashId aliceCausalHashId
+  bobNamespaceHashId <- Queries.expectCausalValueHashId bobCausalHashId
+
+  maybeAliceGuid <- Queries.loadNamespaceUniqueTypeGuid aliceNamespaceHashId name
+  maybeBobGuid <- Queries.loadNamespaceUniqueTypeGuid bobNamespaceHashId name
+
+  case (maybeAliceGuid, maybeBobGuid) of
+    -- A few simple cases – reuse a GUID if it is sensible to do so
+    (Just aliceGuid, Just bobGuid) | aliceGuid == bobGuid -> pure (Just aliceGuid)
+    (Just aliceGuid, Nothing) -> pure (Just aliceGuid)
+    (Nothing, Just bobGuid) -> pure (Just bobGuid)
+    (Nothing, Nothing) -> pure Nothing
+    -- If alice and bob have different guids, and there is a parent-child relationship between them (i.e. alice was
+    -- directly branched off of bob or vice versa), then prefer the parent's GUID. Otherwise, just make up a new
+    -- GUID because it's not clear whether alice's or bob's should be preferred.
+    (Just aliceGuid, Just bobGuid) -> do
+      case (aliceMaybeBranchId, bobMaybeBranchId) of
+        (Just aliceBranchId, Just bobBranchId) -> do
+          aliceParentBranchId <- Queries.loadProjectBranchParent pp.project.projectId aliceBranchId
+          if aliceParentBranchId == Just bobBranchId
+            then pure (Just bobGuid)
+            else do
+              bobParentBranchId <- Queries.loadProjectBranchParent pp.project.projectId bobBranchId
+              pure
+                if bobParentBranchId == Just aliceBranchId
+                  then Just aliceGuid
+                  else Nothing
+        _ -> pure Nothing
