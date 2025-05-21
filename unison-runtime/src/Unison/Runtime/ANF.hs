@@ -2447,7 +2447,8 @@ prettyANF m ind tm =
       showString "handle"
         . prettyRefs rs
         . prettyANF False (ind + 1) bo
-        . showString " with "
+        . prettySpace True ind
+        . showString "with "
         . pvar nh
         . maybe id (\v -> showString " with affine " . pvar v) ah
     TLocal hr bo ->
