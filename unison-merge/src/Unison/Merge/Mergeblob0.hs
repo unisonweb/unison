@@ -25,9 +25,8 @@ makeMergeblob0 ::
   ThreeWay (Map NameSegment libdep) ->
   Mergeblob0 libdep
 makeMergeblob0 nametrees libdeps =
-  let defns = flattenNametrees <$> nametrees
-   in Mergeblob0
-        { defns,
-          libdeps,
-          nametrees
-        }
+  Mergeblob0
+    { defns = flattenNametrees <$> nametrees,
+      libdeps,
+      nametrees
+    }
