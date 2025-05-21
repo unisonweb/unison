@@ -26,7 +26,7 @@ import Unison.Syntax.NamePrinter (prettyShortHash)
 import Unison.Syntax.TermPrinter (pretty)
 import Unison.Term qualified as Tm
 import Unison.Util.EnumContainers
-import Unison.Util.Pretty (toANSI, toAnsiUnbroken, ColorText, Pretty)
+import Unison.Util.Pretty (ColorText, Pretty, toANSI, toAnsiUnbroken)
 import Unison.Var (Var)
 
 type Term v = Tm.Term v ()
@@ -119,4 +119,3 @@ tracePrettyCodes False = id
 tracePrettyCodes True = map f
   where
     f p@(r, c) = trace (prettyGroup (prettyRefStr r) (codeGroup c) "") p
-

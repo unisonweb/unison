@@ -285,7 +285,8 @@ scratch/main> help
   Like `edit`, but also includes all transitive dependents in the current project.
 
   edit.namespace
-  `edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
+  `edit.namespace` loads all terms and types contained within the namespace you select into your scratch file. This includes definitions in namespaces, but excludes libraries (requires fzf).
+  `edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.
   `edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces.
 
   edit.new
@@ -517,10 +518,14 @@ scratch/main> help
                                               `@unison/base`
 
   list (or ls, dir)
-  `list`       lists definitions and namespaces at the current
-               level of the current namespace.
-  `list foo`   lists the 'foo' namespace.
-  `list .foo`  lists the '.foo' namespace.
+  `list`       lists definitions and namespaces in a namespace
+               you select (requires fzf).
+  `list .`     lists definitions and namespaces in the project
+               root.
+  `list .foo`  lists definitions and namespaces in the '.foo'
+               namespace.
+  `list foo`   lists definitions and namespaces in the 'foo'
+               namespace.
 
   load
   `load`                 parses, typechecks, and evaluates the

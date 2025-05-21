@@ -335,7 +335,7 @@ termSignatureExternalLabeledDependencies
       -- exclude any references that are defined in this file
       (Set.map LD.typeRef $ localDeclRefs tuf)
 
-typeReferences :: Ord v => TypecheckedUnisonFile v a -> Set Reference
+typeReferences :: (Ord v) => TypecheckedUnisonFile v a -> Set Reference
 typeReferences (TypecheckedUnisonFile datas effs _ _ hterms) =
   Set.unions
     [ foldMap Type.dependencies

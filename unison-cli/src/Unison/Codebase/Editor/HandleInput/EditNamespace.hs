@@ -21,7 +21,6 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (showDefinitions)
 import Unison.Codebase.Editor.Input (OutputLocation (..))
-import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.DataDeclaration (Decl)
 import Unison.HashQualified qualified as HQ
@@ -44,7 +43,7 @@ import Unison.Type (Type)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Set qualified as Set
 
-handleEditNamespace :: OutputLocation -> [Path] -> Cli ()
+handleEditNamespace :: OutputLocation -> [Path.Path'] -> Cli ()
 handleEditNamespace outputLoc paths0 = do
   Cli.Env {codebase} <- ask
   currentBranch <- Cli.getCurrentBranch0
@@ -56,7 +55,7 @@ handleEditNamespace outputLoc paths0 = do
   let paths =
         if null paths0
           then [mempty]
-          else paths0
+          else Path.fromPath' <$> paths0
 
   -- Make a names object that contains the union of all names in the supplied paths (each prefixed with the associated
   -- path of course). Special case: if the path is the empty path, then ignore `lib`.

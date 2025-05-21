@@ -308,7 +308,6 @@ data Output
   | PullSuccessful
       (ReadRemoteNamespace Share.RemoteProjectBranch)
       (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
-  | AboutToMerge
   | -- | Indicates a trivial merge where the destination was empty and was just replaced.
     MergeOverEmpty (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
   | MergeAlreadyUpToDate2 !MergeSourceAndTarget
@@ -584,7 +583,6 @@ isFailure o = case o of
   NoBranchWithHash {} -> True
   PullAlreadyUpToDate {} -> False
   PullSuccessful {} -> False
-  AboutToMerge {} -> False
   MergeOverEmpty {} -> False
   MergeAlreadyUpToDate2 {} -> False
   ListShallow _ es -> null es

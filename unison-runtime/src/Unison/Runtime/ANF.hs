@@ -751,8 +751,8 @@ data ANormalF v e
   | AApp (Func v) [v]
   | AFrc v
   | AVar v
-  -- Affine handler support
-  | ADiscard v
+  | -- Affine handler support
+    ADiscard v
   | ALocal v e
   | AUpdate v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -2076,15 +2076,14 @@ anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
     tms = toList as
 anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
 
-
 type ReqBranches v = Map Reference (EnumMap CTag ([Mem], ANormal v))
 
 makeHandler ::
-  (Var v) =>
-  v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
+  (Var v) => v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
 makeHandler v abr df = do
-  hfvs <- groupVars <&> \gvs ->
-    Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
+  hfvs <-
+    groupVars <&> \gvs ->
+      Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
   pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
   where
     hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
@@ -2464,9 +2463,9 @@ prettyANF m ind tm =
         . pvar v
         . showString "]"
     ABTN.TAbs v (ABTN.TAbss vs bo) ->
-      prettyVars (v:vs) .
-      showString " ->" .
-      prettyANF True (ind + 1) bo
+      prettyVars (v : vs)
+        . showString " ->"
+        . prettyANF True (ind + 1) bo
     _ -> shows tm
 
 prettySpace :: Bool -> Int -> ShowS

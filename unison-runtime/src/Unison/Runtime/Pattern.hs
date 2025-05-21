@@ -93,7 +93,7 @@ builtinDataSpec = Map.fromList decls
              | (_, x, y) <- builtinEffectDecls
            ]
 
-findPattern :: Eq v => v -> PatternRow v -> Maybe (Pattern v)
+findPattern :: (Eq v) => v -> PatternRow v -> Maybe (Pattern v)
 findPattern v (PR ms _ _)
   | (_, p : _) <- break ((== v) . loc) ms = Just p
   | otherwise = Nothing
@@ -501,7 +501,7 @@ antiSplitMatrix ::
 antiSplitMatrix v (PM rs) = PM (f =<< rs)
   where
     -- keep rows that do not have a refutable pattern for v
-    f r = [ r | isNothing $ findPattern v r ]
+    f r = [r | isNothing $ findPattern v r]
 
 -- Monad for pattern preparation. It is a state monad carrying a fresh
 -- variable source, the list of variables bound the pattern being
@@ -636,8 +636,9 @@ compile spec ctx m@(PM (r : rs))
       case lookupData rf spec of
         Right cons ->
           match () (var () v) $
-            (buildCase spec rf False cons ctx
-              <$> splitMatrix v (Just rf) ncons m)
+            ( buildCase spec rf False cons ctx
+                <$> splitMatrix v (Just rf) ncons m
+            )
               ++ buildDefaultCase spec False needDefault ctx dm
           where
             needDefault = length ncons < length cons
@@ -663,7 +664,7 @@ compile spec ctx m@(PM (r : rs))
 -- Calculates the data constructors—with their arities—that should be
 -- matched on when splitting a matrix on a given variable. This
 -- includes
-relevantConstructors :: Ord v => PatternMatrix v -> v -> [(Int, Int)]
+relevantConstructors :: (Ord v) => PatternMatrix v -> v -> [(Int, Int)]
 relevantConstructors (PM rows) v = search [] rows
   where
     search acc (row : rows)
@@ -779,7 +780,7 @@ initialize r sc cs = do
         pv = freshenId n $ typed Pattern
 
 grabId :: State Word64 Word64
-grabId = state $ \n -> (n, n+1)
+grabId = state $ \n -> (n, n + 1)
 
 splitPatterns :: (Var v) => DataSpec -> Term v -> Term v
 splitPatterns spec0 tm = evalState (splitPatterns0 spec tm) 0

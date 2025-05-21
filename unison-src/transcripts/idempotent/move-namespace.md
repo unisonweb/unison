@@ -28,7 +28,7 @@ scratch/main> move.namespace . .root.at.path
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. root/ (1 term)
 
@@ -73,7 +73,7 @@ scratch/main> move.namespace .root.at.path .
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. foo (##Nat)
 

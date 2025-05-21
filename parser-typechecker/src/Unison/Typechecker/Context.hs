@@ -68,6 +68,7 @@ import Data.Sequence qualified as Seq
 import Data.Sequence.NonEmpty (NESeq)
 import Data.Sequence.NonEmpty qualified as NESeq
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
@@ -106,7 +107,6 @@ import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Data.Set.NonEmpty (NESet)
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -401,11 +401,10 @@ substituteSolved ::
   [Element v loc] ->
   InfoNote v loc ->
   InfoNote v loc
-substituteSolved ctx  = \case
+substituteSolved ctx = \case
   (SolvedBlank b v t) -> SolvedBlank b v (applyCtx ctx t)
   VarBinding v loc t -> VarBinding v loc (applyCtx ctx t)
   i -> i
-
 
 -- The typechecker generates synthetic type variables as part of type inference.
 -- This function converts these synthetic type variables to regular named type
@@ -866,11 +865,11 @@ getEffectDeclarations :: M v loc (EffectDeclarations v loc)
 getEffectDeclarations = MT \_ _ _ effects _ env -> pure (effects, env)
 
 getCurrentDefs :: M v loc [v]
-getCurrentDefs = MT \ _ _ _ _ defs env -> pure (defs, env)
+getCurrentDefs = MT \_ _ _ _ defs env -> pure (defs, env)
 
 insideDef :: v -> M v loc r -> M v loc r
 insideDef v (MT m) =
-  MT $ \ ppe pmc datas effs defs env -> m ppe pmc datas effs (v:defs) env
+  MT $ \ppe pmc datas effs defs env -> m ppe pmc datas effs (v : defs) env
 
 getPatternMatchCoverageCheckAndKindInferenceSwitch :: M v loc PatternMatchCoverageCheckAndKindInferenceSwitch
 getPatternMatchCoverageCheckAndKindInferenceSwitch = MT \_ pmcSwitch _ _ _ env -> pure (pmcSwitch, env)
@@ -1072,8 +1071,9 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
           -- currently being checked, require that the concrete
           -- abilities are not a subset for arguments, to try to rule
           -- out quadratic handler behavior
-          exact | Term.Apps' (Term.Var' f) _ <- fun = any (== f) defs
-                | otherwise = False
+          exact
+            | Term.Apps' (Term.Var' f) _ <- fun = any (== f) defs
+            | otherwise = False
       (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg i
     go (Type.Var' (TypeVar.Existential b a)) = do
       -- a^App
@@ -1151,7 +1151,7 @@ noteTopLevelType e binding typ = case binding of
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
-noteVarBinding :: (Var v) => v -> loc -> Type v loc ->  M v loc ()
+noteVarBinding :: (Var v) => v -> loc -> Type v loc -> M v loc ()
 noteVarBinding v loc t = btw $ VarBinding v loc t
 
 noteVarMention :: (Var v) => v -> loc -> M v loc ()
@@ -1275,7 +1275,7 @@ synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   appendContext [Ann v' boundVarAnn tbinding]
   (t, w) <- synthesize (ABT.bindInheritAnnotation e (Term.var () v'))
   t <- applyM t
-  when top $ noteTopLevelType  e binding tbinding
+  when top $ noteTopLevelType e binding tbinding
   want <- coalesceWanted w wb
   -- doRetract $ Ann v' tbinding
   pure (t, want)
@@ -1359,7 +1359,7 @@ synthesizeWanted e
             synthesizeApps e ft v
 
   -- ->I=> (Full Damas Milner rule)
-  -- | Term.Lam' body <- e = do
+  -- \| Term.Lam' body <- e = do
   | (ABT.Tm' (Term.Lam (ABT.Abs' boundVarAnn body))) <- e = do
       -- arya: are there more meaningful locations we could put into and
       -- pull out of the abschain?)
@@ -1910,7 +1910,8 @@ annotateLetRecBindings isTop letrec =
           btw $
             topLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
       pure body
-    else do -- If this isn't a top-level letrec, then we don't have to do anything special
+    else do
+      -- If this isn't a top-level letrec, then we don't have to do anything special
       (body, _vts) <- annotateLetRecBindings' True
       pure body
   where
@@ -3087,7 +3088,6 @@ checkConcreteAbilitySubset ((_loc, w) : want) have =
       | (hpre, _ : hpost) <- break (headMatch w) have = hpre ++ hpost
       | otherwise = have
 
-
 matchVariables ::
   (Var v) =>
   (Ord loc) =>
@@ -3140,9 +3140,10 @@ pruneAbilities want0 have0 = do
           want <- expandWanted pwant
           have <- expandAbilities have
           fixpoint want have
-        else if dflt
-          then expandWanted =<< pruneVariables [] pwant
-          else pure pwant
+        else
+          if dflt
+            then expandWanted =<< pruneVariables [] pwant
+            else pure pwant
 
     missing loc w = maybe id (scope . InSynthesize) loc $ do
       ctx <- getContext

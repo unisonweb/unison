@@ -167,8 +167,11 @@ module Unison.Runtime.Stack
   )
 where
 
+import Control.Concurrent (MVar)
+import Control.Concurrent.STM (TVar)
 import Control.Exception (throw, throwIO)
 import Control.Monad.Primitive
+import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
 import Data.Functor.Classes (Eq1 (..), Ord1 (..))
@@ -195,13 +198,8 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
-import Prelude hiding (words)
-import qualified Data.Atomics as Atomic
-
-import Control.Concurrent (MVar)
-import Control.Concurrent.STM (TVar)
 import Unison.Util.RefPromise (Promise)
-
+import Prelude hiding (words)
 
 #ifdef STACK_CHECK
 type DebugCallStack = (HasCallStack :: Constraint)
@@ -327,7 +325,7 @@ type DEnv = EnumMap Word64 Val
 --
 -- Instead, components are passed `evaluate` locally when built, or
 -- similar.
-data HEnv = HEnv { aenv :: AEnv, denv :: DEnv }
+data HEnv = HEnv {aenv :: AEnv, denv :: DEnv}
 
 instance Semigroup HEnv where
   HEnv la ld <> HEnv ra rd = HEnv (la <> ra) (ld <> rd)
@@ -364,6 +362,8 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
+{- ORMOLU_DISABLE -}
+{- because ormolu-0.7.2.0 can’t handle CPP used within a declaration. -}
 data GClosure comb
   = GPAp
       !CombIx
@@ -386,6 +386,7 @@ data GClosure comb
   | GUnboxedSentinel
 #endif
   deriving stock (Show, Functor, Foldable, Traversable)
+{- ORMOLU_ENABLE -}
 
 -- Wrap IORef to get a trivial `Show` instance
 newtype AffineRef = ARef (IORef Closure) deriving (Eq)
@@ -580,7 +581,7 @@ pattern IntVal i <- (matchIntVal -> Just i)
 
 matchBoolVal :: Val -> Maybe Bool
 matchBoolVal = \case
-  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.falseTag)
+  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.trueTag)
   _ -> Nothing
 
 pattern BoolVal :: Bool -> Val
@@ -856,7 +857,6 @@ instance BuiltinForeign (Map Val Val) where
   foreignName = Tagged "Map"
   foreignRef = Tagged Ty.hmapRef
 
-
 instance BuiltinForeign (IORef Val) where
   foreignName = Tagged "IORef"
   foreignRef = Tagged Ty.refRef
@@ -923,7 +923,10 @@ alloc = do
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}
 {-# INLINE alloc #-}
 
-peek :: DebugCallStack => Stack -> IO Val
+{- ORMOLU_DISABLE -}
+{- because ormolu-0.7.2.0 can’t handle CPP used within declarations. -}
+
+peek :: (DebugCallStack) => Stack -> IO Val
 peek stk@(Stack _ _ sp ustk _) = do
   -- Can't use upeek here because in stack-check mode it will assert that the stack slot is unboxed.
   u <- readByteArray ustk sp
@@ -931,7 +934,7 @@ peek stk@(Stack _ _ sp ustk _) = do
   pure (Val u b)
 {-# INLINE peek #-}
 
-peekI :: DebugCallStack => Stack -> IO Int
+peekI :: (DebugCallStack) => Stack -> IO Int
 peekI _stk@(Stack _ _ sp ustk _) = do
 #ifdef STACK_CHECK
   assertUnboxed _stk 0
@@ -939,7 +942,7 @@ peekI _stk@(Stack _ _ sp ustk _) = do
   readByteArray ustk sp
 {-# INLINE peekI #-}
 
-peekOffI :: DebugCallStack => Stack -> Off -> IO Int
+peekOffI :: (DebugCallStack) => Stack -> Off -> IO Int
 peekOffI _stk@(Stack _ _ sp ustk _) i = do
 #ifdef STACK_CHECK
   assertUnboxed _stk i
@@ -947,11 +950,11 @@ peekOffI _stk@(Stack _ _ sp ustk _) i = do
   readByteArray ustk (sp - i)
 {-# INLINE peekOffI #-}
 
-bpeek :: DebugCallStack => Stack -> IO BVal
+bpeek :: (DebugCallStack) => Stack -> IO BVal
 bpeek (Stack _ _ sp _ bstk) = readArray bstk sp
 {-# INLINE bpeek #-}
 
-upeek :: DebugCallStack => Stack -> IO UVal
+upeek :: (DebugCallStack) => Stack -> IO UVal
 upeek _stk@(Stack _ _ sp ustk _) = do
 #ifdef STACK_CHECK
   assertUnboxed _stk 0
@@ -959,7 +962,7 @@ upeek _stk@(Stack _ _ sp ustk _) = do
   readByteArray ustk sp
 {-# INLINE upeek #-}
 
-peekOff :: DebugCallStack => Stack -> Off -> IO Val
+peekOff :: (DebugCallStack) => Stack -> Off -> IO Val
 peekOff stk@(Stack _ _ sp ustk _) i = do
   -- Can't use upeekOff here because in stack-check mode it will assert that the stack slot is unboxed.
   u <- readByteArray ustk (sp - i)
@@ -967,11 +970,11 @@ peekOff stk@(Stack _ _ sp ustk _) i = do
   pure $ Val u b
 {-# INLINE peekOff #-}
 
-bpeekOff :: DebugCallStack => Stack -> Off -> IO BVal
+bpeekOff :: (DebugCallStack) => Stack -> Off -> IO BVal
 bpeekOff (Stack _ _ sp _ bstk) i = readArray bstk (sp - i)
 {-# INLINE bpeekOff #-}
 
-upeekOff :: DebugCallStack => Stack -> Off -> IO UVal
+upeekOff :: (DebugCallStack) => Stack -> Off -> IO UVal
 upeekOff _stk@(Stack _ _ sp ustk _) i = do
 #ifdef STACK_CHECK
   assertUnboxed _stk i
@@ -979,13 +982,13 @@ upeekOff _stk@(Stack _ _ sp ustk _) i = do
   readByteArray ustk (sp - i)
 {-# INLINE upeekOff #-}
 
-upokeT :: DebugCallStack => Stack -> UVal -> BVal -> IO ()
+upokeT :: (DebugCallStack) => Stack -> UVal -> BVal -> IO ()
 upokeT !stk@(Stack _ _ sp ustk _) !u !t = do
   bpoke stk t
   writeByteArray ustk sp u
 {-# INLINE upokeT #-}
 
-poke :: DebugCallStack => Stack -> Val -> IO ()
+poke :: (DebugCallStack) => Stack -> Val -> IO ()
 poke _stk@(Stack _ _ sp ustk bstk) (Val u b) = do
 #ifdef STACK_CHECK
   assertBumped _stk 0
@@ -997,7 +1000,7 @@ poke _stk@(Stack _ _ sp ustk bstk) (Val u b) = do
 -- | Sometimes we get back an int from a foreign call which we want to use as a Nat.
 -- If we know it's positive and smaller than 2^63 then we can safely store the Int directly as a Nat without
 -- checks.
-unsafePokeIasN :: DebugCallStack => Stack -> Int -> IO ()
+unsafePokeIasN :: (DebugCallStack) => Stack -> Int -> IO ()
 unsafePokeIasN stk n = do
   upokeT stk n natTypeTag
 {-# INLINE unsafePokeIasN #-}
@@ -1005,21 +1008,21 @@ unsafePokeIasN stk n = do
 -- | Store an unboxed tag to later match on.
 -- Often used to indicate the constructor of a data type that's been unpacked onto the stack,
 -- or some tag we're about to branch on.
-pokeTag :: DebugCallStack => Stack -> Int -> IO ()
+pokeTag :: (DebugCallStack) => Stack -> Int -> IO ()
 pokeTag =
   -- For now we just use ints, but maybe should have a separate type for tags so we can detect if we're leaking them.
   pokeI
 {-# INLINE pokeTag #-}
 
-peekTag :: DebugCallStack => Stack -> IO Int
+peekTag :: (DebugCallStack) => Stack -> IO Int
 peekTag = peekI
 {-# INLINE peekTag #-}
 
-peekTagOff :: DebugCallStack => Stack -> Off -> IO Int
+peekTagOff :: (DebugCallStack) => Stack -> Off -> IO Int
 peekTagOff = peekOffI
 {-# INLINE peekTagOff #-}
 
-pokeBool :: DebugCallStack => Stack -> Bool -> IO ()
+pokeBool :: (DebugCallStack) => Stack -> Bool -> IO ()
 pokeBool stk b =
   poke stk $ if b then trueVal else falseVal
 {-# INLINE pokeBool #-}
@@ -1027,7 +1030,7 @@ pokeBool stk b =
 -- | Store a boxed value.
 -- We don't bother nulling out the unboxed stack,
 -- it's extra work and there's nothing to garbage collect.
-bpoke :: DebugCallStack => Stack -> BVal -> IO ()
+bpoke :: (DebugCallStack) => Stack -> BVal -> IO ()
 bpoke _stk@(Stack _ _ sp _ bstk) b = do
 #ifdef STACK_CHECK
   assertBumped _stk 0
@@ -1035,19 +1038,19 @@ bpoke _stk@(Stack _ _ sp _ bstk) b = do
   writeArray bstk sp b
 {-# INLINE bpoke #-}
 
-pokeOff :: DebugCallStack => Stack -> Off -> Val -> IO ()
+pokeOff :: (DebugCallStack) => Stack -> Off -> Val -> IO ()
 pokeOff stk i (Val u t) = do
   bpokeOff stk i t
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE pokeOff #-}
 
-upokeOffT :: DebugCallStack => Stack -> Off -> UVal -> BVal -> IO ()
+upokeOffT :: (DebugCallStack) => Stack -> Off -> UVal -> BVal -> IO ()
 upokeOffT stk i u t = do
   bpokeOff stk i t
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE upokeOffT #-}
 
-bpokeOff :: DebugCallStack => Stack -> Off -> BVal -> IO ()
+bpokeOff :: (DebugCallStack) => Stack -> Off -> BVal -> IO ()
 bpokeOff _stk@(Stack _ _ sp _ bstk) i b = do
 #ifdef STACK_CHECK
   assertBumped _stk i
@@ -1307,6 +1310,8 @@ peekOffC _stk@(Stack _ _ sp ustk _) i = do
 #endif
   Char.chr <$> readByteArray ustk (sp - i)
 {-# INLINE peekOffC #-}
+
+{- ORMOLU_ENABLE -}
 
 pokeN :: Stack -> Word64 -> IO ()
 pokeN stk@(Stack _ _ sp ustk _) n = do

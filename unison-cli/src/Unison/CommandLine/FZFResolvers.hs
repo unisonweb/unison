@@ -49,6 +49,7 @@ import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation qualified as Relation
 
 type OptionFetcher = Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
@@ -195,11 +196,14 @@ projectBranchOptionsWithinCurrentProject codebase projCtx _searchBranch0 = do
 --
 -- >>> fuzzySelectHeader "alias name"
 -- "Select an alias name:"
-fuzzySelectHeader :: Text -> Text
-fuzzySelectHeader argDesc = "Select " <> aOrAn argDesc <> " " <> argDesc <> ":"
+fuzzySelectHeader :: Text -> P.Pretty P.ColorText
+fuzzySelectHeader argDesc =
+  P.lines
+    [ "Select " <> aOrAn <> " " <> P.cyan (P.text argDesc) <> P.text " or press <esc> to cancel" <> ":"
+    ]
   where
-    aOrAn :: Text -> Text
-    aOrAn txt =
-      Text.uncons txt & \case
+    aOrAn :: P.Pretty P.ColorText
+    aOrAn =
+      Text.uncons argDesc & \case
         Just (c, _) | c `elem` ("aeiou" :: [Char]) -> "an"
         _ -> "a"
