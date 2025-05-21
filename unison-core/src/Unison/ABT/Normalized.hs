@@ -152,17 +152,19 @@ renames0 subvs0 rnv0 tm = case tm of
     | not $ Map.null rnv' -> TAbs u' (renames0 subvs' rnv' body)
     where
       rnv' = Map.alter (const $ adjustment) u rnv
+      bfvs = freeVars body
       -- if u is in the set of variables we're substituting in, it
       -- needs to be renamed to avoid capturing things.
       u'
-        | u `Map.member` subvs = freshIn (fvs `Set.union` Map.keysSet subvs) u
+        | u `Map.member` subvs = freshIn (bfvs `Set.union` Map.keysSet subvs) u
         | otherwise = u
 
       -- if u needs to be renamed to avoid capturing subvs
       -- and u actually occurs in the body, then add it to
       -- the substitutions
       (adjustment, subvs')
-        | u /= u' && u `Set.member` fvs = (Just u', Map.insertWith (+) u' 1 subvs)
+        | u /= u' && u `Set.member` bfvs =
+            (Just u', Map.insertWith (+) u' 1 subvs)
         | otherwise = (Nothing, subvs)
   TTm body
     | not $ Map.null rnv ->
