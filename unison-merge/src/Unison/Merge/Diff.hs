@@ -239,7 +239,6 @@ partitionPropagated =
       | propagated -> Right (Synhashed.value <$> refs)
       | otherwise -> Left (DiffOp'Update refs)
 
-
 -- | Post-process a diff to identify relationships humans might care about, such as whether a given addition could be
 -- interpreted as an alias of an existing definition, or whether an add and deletion could be a rename.
 humanizeDiffs ::
