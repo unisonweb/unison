@@ -64,6 +64,7 @@ import Unison.Runtime.ANF as ANF
     valueLinks,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF.Optimize qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
@@ -1250,7 +1251,7 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
           ANF.replaceConstructors pseudoConstructors
             . ANF.replaceFunctions functionReplacements
         optimize r =
-          ANF.optimizeHandler r . ANF.inline inlinfo . replace
+          ANF.optimizeHandler r . ANF.optimize r inlinfo . replace
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) =
           (n, emitCombs rns r n $ optimize r g)

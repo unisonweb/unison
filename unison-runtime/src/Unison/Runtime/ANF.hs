@@ -80,9 +80,6 @@ module Unison.Runtime.ANF
     valueTermLinks,
     valueLinks,
     groupTermLinks,
-    buildInlineMap,
-    inline,
-    optimizeHandler,
     replaceConstructors,
     replaceFunctions,
     foldGroup,
@@ -102,13 +99,11 @@ import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
-import Control.Monad.Writer (WriterT (..), tell)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
-import Data.Monoid (Any (..))
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import GHC.Stack (CallStack, callStack)
@@ -139,7 +134,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-import Prelude qualified
 
 -- For internal errors
 data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
@@ -663,46 +657,6 @@ saturate dat = ABT.visitPure $ \case
         m = length args
         fvs = foldMap freeVars args
         args' = saturate dat <$> args
-
--- Performs inlining on a supergroup using the inlining information
--- in the map. The map can be created from typical SuperGroup data
--- using the `buildInlineMap` function.
-inline ::
-  (Var v) =>
-  Map Reference (Int, ANormal v) ->
-  SuperGroup v ->
-  SuperGroup v
-inline inls (Rec bs entry) = Rec (fmap go0 <$> bs) (go0 entry)
-  where
-    go0 (Lambda ccs body) = Lambda ccs $ go (30 :: Int) body
-    -- Note: number argument bails out in recursive inlining cases
-    go n | n <= 0 = id
-    go n = ABTN.visitPure \case
-      TApp (FComb r) args
-        | Just (arity, expr) <- Map.lookup r inls ->
-            go (n - 1) <$> tweak expr args arity
-      TName nv (Left r) args body
-        | Just (arity, expr) <- Map.lookup r inls ->
-            tweak expr args arity >>= \case
-              TCom r args ->
-                Just . go (n-1) $ TName nv (Left r) args body
-              TApv v args ->
-                Just . go (n-1) $ TName nv (Right v) args body
-              _ -> Nothing
-      _ -> Nothing
-
-    tweak (ABTN.TAbss vs body) args arity
-      -- exactly saturated
-      | length args == arity,
-        rn <- Map.fromList (zip vs args) =
-          Just $ ABTN.renames rn body
-      -- oversaturated, only makes sense if body is a call
-      | length args > arity,
-        (pre, post) <- splitAt arity args,
-        rn <- Map.fromList (zip vs pre),
-        TApp f pre <- ABTN.renames rn body =
-          Just $ TApp f (pre ++ post)
-      | otherwise = Nothing
 
 replaceConstructors ::
   (Var v) =>
@@ -1593,269 +1547,6 @@ arity (Lambda ccs _) = length ccs
 arities :: SuperGroup v -> [Int]
 arities (Rec bs e) = arity e : fmap (arity . snd) bs
 
--- Checks the body of a SuperGroup makes it eligible for inlining.
--- See below for the discussion.
-isInlinable :: (Var v) => Reference -> ANormal v -> Bool
-isInlinable r (TApp (FComb s) _) = r /= s
-isInlinable _ TApp {} = True
-isInlinable _ TBLit {} = True
-isInlinable _ TVar {} = True
-isInlinable _ _ = False
-
--- Checks a SuperGroup makes it eligible to be inlined.
--- Unfortunately we need to be quite conservative about this.
---
--- The heuristic implemented below is as follows:
---
---   1. There are no local bindings, so only the 'entry point'
---      matters.
---   2. The entry point body is just a single expression, that is,
---      an application, variable or literal.
---
--- The first condition ensures that there isn't any need to jump
--- into a non-entrypoint from outside a group. These should be rare
--- anyway, because the local bindings are no longer used for
--- (unison-level) local function definitions (those are lifted
--- out). The second condition ensures that inlining the body should
--- have no effect on the runtime stack of of the function we're
--- inlining into, because the combinator is just a wrapper around
--- the simple expression.
---
--- Fortunately, it should be possible to make _most_ builtins have
--- this form, so that their instructions can be inlined directly
--- into the call sites when saturated.
---
--- The result of this function is the information necessary to
--- inline the combinator—an arity and the body expression with
--- bound variables. This should allow checking if the call is
--- saturated and make it possible to locally substitute for an
--- inlined expression.
---
--- The `Reference` argument allows us to check if the body is a
--- direct recursive call to the same function, which would result
--- in infinite inlining. This isn't the only such scenario, but
--- it's one we can opportunistically rule out.
-inlineInfo :: (Var v) => Reference -> SuperGroup v -> Maybe (Int, ANormal v)
-inlineInfo r (Rec [] (Lambda ccs body@(ABTN.TAbss _ e)))
-  | isInlinable r e = Just (length ccs, body)
-inlineInfo _ _ = Nothing
-
--- Builds inlining information from a collection of SuperGroups.
--- They are all tested for inlinability, and the result map
--- contains only the information for groups that are able to be
--- inlined.
-buildInlineMap ::
-  (Var v) =>
-  Map Reference (SuperGroup v) ->
-  Map Reference (Int, ANormal v)
-buildInlineMap =
-  runIdentity
-    . Map.traverseMaybeWithKey (\r g -> Identity $ inlineInfo r g)
-
--- If the provided SuperGroup is recognized as a handler, applies
--- optimizations to improve it, like adding better code for affine
--- handlers.
-optimizeHandler :: Var v => Reference -> SuperGroup v -> SuperGroup v
-optimizeHandler self group =
-  fromMaybe group $ augmentHandler self group
-
--- moves the last value of a list to the start, for easier matching
-shiftArgs :: [v] -> [v]
-shiftArgs vs = case reverse vs of
-  v : vs -> v : reverse vs
-  [] -> []
-
--- Checks if the group represents a handler, and if so, tries to add
--- optimized affine code.
-augmentHandler ::
-  (Var v) => Reference -> SuperGroup v -> Maybe (SuperGroup v)
-augmentHandler self group
-  | Rec [(mv0, matcher)] entry <- group,
-    Lambda ccs (ABTN.TAbss args body) <- entry,
-    thunk : vs <- shiftArgs args,
-    Just body <- augmentHandlerEntry vs thunk mv0 ah body,
-    Just amatcher <- translateHandlerMatch self ah matcher =
-      Just .
-        Rec [(mv0, matcher), (ah, amatcher)] .
-        Lambda ccs $
-          ABTN.TAbss args body
-
-  | otherwise = Nothing
-  where
-    ah = freshAff 0
-
--- Recognizes the matching portion of a handler, and produces an
--- optimized affine version if possible.
-translateHandlerMatch
-  :: Var v => Reference -> v -> SuperNormal v -> Maybe (SuperNormal v)
-translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
-  | v : vs <- shiftArgs args,
-    TMatch u branches <- body, u == v,
-    MatchRequest cs df <- branches,
-    args <- vs ++ [ar, v],
-    ccs <- ccs ++ [BX] =
-      Lambda ccs . ABTN.TAbss args . TMatch u . flip MatchRequest df <$>
-        traverse3 (affineHandlerCase self vs ah) cs
-
-  | otherwise = Nothing
-
-  where
-    ar = freshAff 2
-    traverse3 = traverse . traverse . traverse
-
--- Recognizes the entry combinator of a compiled handler. If it is
--- one, then the result is a modified version with an affine handler
--- filled in.
-augmentHandlerEntry ::
-  Var v => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
-augmentHandlerEntry vs thunk0 mv0 ah body
-  | TName hv (Right mv1) us body <- body,
-    THnd rs nh Nothing (TFrc thunk1) <- body,
-    mv0 == mv1, nh == hv, thunk0 == thunk1,
-    Prelude.and (zipWith (==) us vs) =
-      Just .
-        TName hv (Right mv1) us .
-        TName ahp (Right ah) us $
-          THnd rs nh (Just ahp) (TFrc thunk1)
-
-  | otherwise = Nothing
-  where
-    ahp = freshAff 1
-
--- Recognizes an affine handler case, yielding a translated efficient
--- version if it is one.
-affineHandlerCase ::
-  Var v => Reference -> [v] -> v -> ANormal v -> Maybe (ANormal v)
-affineHandlerCase self vs rec br
-  | ABTN.TAbss us body <- br,
-    TShift _ kf0 body <- body,
-    TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
-    kf0 == kf1 =
-      ABTN.TAbss us <$>
-        affinePreBranch self Set.empty vs rec ar kf body
-
-  | otherwise = Nothing
-  where
-    ar = freshAff 2
-
--- Allows for having multiple branches that differ in the exact type
--- of affine handler recognized.
---
--- If the entire term doesn't use the continuation, then an irrelevant
--- handler is generated.
---
--- If the immediate term is a match, then we delay the choice of which
--- type of handler to generate into each branch.
---
--- If neither of the above cases hold, then we look for a linear case.
-affinePreBranch ::
-  Var v =>
-  Reference ->
-  Set v ->
-  [v] ->
-  v ->
-  v ->
-  v ->
-  ANormal v ->
-  Maybe (ANormal v)
-affinePreBranch self bound vs rec ar kf bd
-  | Just it <- irrelevantTail ar kf bd = Just it
-
-  | TMatch v bs <- bd =
-      TMatch v <$>
-        for bs \case
-          ABTN.TAbss us bd ->
-            ABTN.TAbss us <$>
-              affinePreBranch self bound' vs rec ar kf bd
-            where
-              bound' = Set.union (Set.fromList us) bound
-
-  | otherwise =
-      localize <$>
-        runWriterT (translateLinear self bound vs rec ar kf bd)
-  where
-    localize (tm, Any True) = TLocal ar tm
-    localize (tm, Any False) = tm
-
-translateLinear ::
-  Var v =>
-  Reference ->
-  Set v ->
-  [v] ->
-  v ->
-  v ->
-  v ->
-  ANormal v ->
-  WriterT Any Maybe (ANormal v)
-translateLinear self bound0 vs rec ar kf = go bound0
-  where
-  go bound body
-    | Just lt <- linearTail self vs bound rec ar kf body =
-        lt <$ tell (Any True)
-
-    | Just it <- irrelevantTail ar kf body = pure it
-
-    | TLet d v cc e body <- body,
-      kf `Set.notMember` ABTN.freeVars e =
-        TLet d v cc e <$> go (Set.insert v bound) body
-
-    | TName v f us body <- body,
-      all (kf /=) us =
-        TName v f us <$> go (Set.insert v bound) body
-
-    | TMatch v bs <- body =
-        TMatch v <$>
-          for bs \case
-            ABTN.TAbss us bd ->
-              ABTN.TAbss us <$>
-                go (Set.fromList us `Set.union` bound) bd
-
-    | otherwise = mzero
-
--- Recognizes the tail of a linear handler case, where the
--- continuation is called once in tail position. Returns a transformed
--- version if a match is found.
---
--- Arguments:
---   self: Reference to handler combinator
---   bound: arguments bound since header
---   vs: arguments to handler combinator
---   rec: local variable for affine handler
---   ar: argument variable for affine handler info
---   kf0: continuation variable
---   tm: term to transform
---
--- Note: this relies on inlining into the thunked continuation call to
--- avoid see exactly what the `k result` call is, rather than it
--- having multiple forms depending on the variable order.
-linearTail ::
-  Var v => Reference -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
-linearTail self vs bound rec ar kf0 tm
-  | TLet _ hr0 _ (TCom r us) tm <- tm, -- recursive handler call
-    TName thunk0 (Right kf1) [result] tm <- tm, -- lazy cont resume
-    TApv hr1 [thunk1] <- tm, -- apply handler to thunk
-    r == self, kf0 == kf1, thunk0 == thunk1, hr0 == hr1 =
-      Just . update hr0 us $ TVar result
-
-  | otherwise = Nothing
-
-  where
-    update huv us
-      -- recursive call with identical, non-shadowed variables;
-      -- no need to update
-      | Prelude.and (zipWith (==) us vs),
-        all (`Set.notMember` bound) us = id
-      -- repurpose hr0 variable for update call
-      | otherwise =
-          TName huv (Right rec) (us ++ [ar]) .
-          TLets Direct [] [] (TUpdate ar huv)
-
-irrelevantTail :: Var v => v -> v -> ANormal v -> Maybe (ANormal v)
-irrelevantTail ar kf tm
-  | kf `Set.notMember` ABTN.freeVars tm =
-      Just $ TLets Direct [] [] (TDiscard ar) tm
-  | otherwise = Nothing
-
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not
 -- equivalent, an example of conflicting structure is returned.
@@ -1966,9 +1657,6 @@ bindLocal vs = local (Set.\\ Set.fromList vs)
 
 freshANF :: (Var v) => Word64 -> v
 freshANF fr = Var.freshenId fr $ typed Var.ANFBlank
-
-freshAff :: (Var v) => Word64 -> v
-freshAff fr = Var.freshenId fr $ typed Var.AffBlank
 
 fresh :: (Var v) => ANFM v v
 fresh = state $ \(fr, bnd, cs) -> (freshANF fr, (fr + 1, bnd, cs))

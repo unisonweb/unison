@@ -37,6 +37,7 @@ library
   exposed-modules:
       Unison.Codebase.Execute
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array

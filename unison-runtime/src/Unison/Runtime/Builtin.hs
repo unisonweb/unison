@@ -34,6 +34,7 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.Builtin.Types
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.Stack (UnboxedTypeTag (..), Val (..), unboxedTypeTagToInt)
@@ -1341,7 +1342,7 @@ builtinArities =
   Map.fromList $
     [(r, arity s) | (r, (_, s)) <- Map.toList builtinLookup]
 
-builtinInlineInfo :: Map Reference (Int, ANormal Symbol)
+builtinInlineInfo :: Map Reference (ANF.InlineInfo Symbol)
 builtinInlineInfo =
   ANF.buildInlineMap $ fmap (Rec [] . snd) builtinLookup
 
