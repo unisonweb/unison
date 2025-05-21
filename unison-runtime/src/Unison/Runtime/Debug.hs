@@ -106,7 +106,7 @@ tracePrettyGroups False gs = gs
 tracePrettyGroups True gs =
   trace (appEndo (foldMap f (Map.toList gs)) "") gs
   where
-  f (r, g) = Endo $ prettyGroup (prettyRefStr r) g . showString "\n\n"
+    f (r, g) = Endo $ prettyGroup (prettyRefStr r) g . showString "\n\n"
 
 prettyRef :: Reference -> Pretty ColorText
 prettyRef = prettyShortHash . shortenTo 10 . toShortHash
