@@ -47,6 +47,12 @@ scratch/main> help
   branch.rename (or rename.branch)
   `branch.rename foo`  renames the current branch to `foo`
 
+  branch.squash (or squash.branch)
+  `branch.squash /foo /bar`  creates (or updates) the branch
+                             `/bar` with a snapshot of the code
+                             at branch `/foo` without any of its
+                             history.
+
   branches (or list.branch, ls.branch, branch.list)
   `branches`      lists all branches in the current project
   `branches foo`  lists all branches in the project `foo`
