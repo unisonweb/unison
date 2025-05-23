@@ -68,6 +68,7 @@ library:
     - pretty-simple
     - process
     - random-shuffle
+    - raw-strings-qq
     - recover-rtti
     - regex-tdfa
     - semialign
@@ -100,6 +101,7 @@ library:
     - unison-util-base32hex
     - unison-util-recursion
     - unison-util-relation
+    - unison-util-file-embed
     - uuid
     - vector
     - wai
