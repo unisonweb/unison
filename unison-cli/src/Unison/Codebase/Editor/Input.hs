@@ -244,6 +244,7 @@ data Input
   | MergeCommitI
   | DebugSynhashTermI !Name
   | EditDependentsI !(HQ.HashQualified Name)
+  | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
