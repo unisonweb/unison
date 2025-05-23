@@ -37,6 +37,7 @@ library:
     - containers >= 0.6.3
     - conduit
     - conduit-extra
+    - hs-mcp
     - stm-chans
     - cryptonite
     - either

@@ -13,7 +13,7 @@ where
 
 import ArgParse
   ( CodebasePathOption (..),
-    Command (Init, Launch, PrintVersion, Run, Transcript),
+    Command (..),
     GlobalOptions (..),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
@@ -84,6 +84,7 @@ import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
+import Unison.MCP qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -155,6 +156,7 @@ main version = do
       case command of
         PrintVersion ->
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
+        MCPServer -> MCP.runOnStdIO
         Init -> do
           exitError
             ( P.lines

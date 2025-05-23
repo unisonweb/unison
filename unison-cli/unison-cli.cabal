@@ -152,6 +152,7 @@ library
       Unison.LSP.Util.Signal
       Unison.LSP.VFS
       Unison.Main
+      Unison.MCP
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
@@ -227,6 +228,7 @@ library
     , fsnotify
     , generic-lens
     , haskeline
+    , hs-mcp
     , http-client >=0.7.6
     , http-client-tls
     , http-types
