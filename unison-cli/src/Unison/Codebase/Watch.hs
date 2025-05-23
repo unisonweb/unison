@@ -12,7 +12,7 @@ import Data.Time.Clock (UTCTime, diffUTCTime)
 import GHC.Conc (registerDelay)
 import GHC.IO (unsafeUnmask)
 import Ki qualified
-import System.FSNotify (Event (Added, Modified))
+import System.FSNotify (Event (..))
 import System.FSNotify qualified as FSNotify
 import Unison.Prelude
 import UnliftIO.Exception (finally, tryAny)
@@ -85,6 +85,7 @@ forkDirWatcherThread scope mgr dir allow = do
   let handler :: Event -> IO ()
       handler = \case
         Added fp t FSNotify.IsFile | allow fp -> atomically (STM.writeTQueue queue (fp, t))
+        CloseWrite fp t FSNotify.IsFile | allow fp -> atomically (STM.writeTQueue queue (fp, t))
         Modified fp t FSNotify.IsFile | allow fp -> atomically (STM.writeTQueue queue (fp, t))
         _ -> pure ()
 
