@@ -156,7 +156,10 @@ main version = do
       case command of
         PrintVersion ->
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
-        MCPServer -> MCP.runOnStdIO
+        MCPServer -> do
+          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
+            withRuntimes nrtp RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
+              MCP.runOnStdIO theCodebase runtime sbRuntime nRuntime currentDir (Version.gitDescribeWithDate version)
         Init -> do
           exitError
             ( P.lines

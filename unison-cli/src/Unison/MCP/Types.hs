@@ -15,19 +15,19 @@ import Control.Monad.Reader (MonadReader, ReaderT (..))
 import Data.Aeson
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Ki qualified
 import Unison.Codebase (Codebase)
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Parser.Ann (Ann)
 import Unison.Symbol (Symbol)
-import Unison.Version (Version)
 import UnliftIO (MonadIO, MonadUnliftIO)
 
 data Env = Env
   { codebase :: Codebase IO Symbol Ann,
     runtime :: Runtime Symbol,
-    scope :: Ki.Scope,
-    ucmVersion :: Version,
+    nRuntime :: Runtime Symbol,
+    sbRuntime :: Runtime Symbol,
+    ucmVersion :: UCMVersion,
     workDir :: FilePath
   }
 
