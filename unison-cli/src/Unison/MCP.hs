@@ -1,19 +1,40 @@
 module Unison.MCP (runOnStdIO) where
 
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson (Result (..), fromJSON)
 import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (Foldable (..))
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Data.Text.Encoding qualified as Text
 import Network.MCP.Server
 import Network.MCP.Server.StdIO
 import Network.MCP.Types
 import Text.RawString.QQ (r)
+import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Runtime (Runtime)
+import Unison.Core.Project (ProjectName (..))
+import Unison.MCP.Cli (handleInputMCP, ppForProjectName)
 import Unison.MCP.StaticResources (staticResources)
 import Unison.MCP.Types
+import Unison.Parser.Ann (Ann)
+import Unison.Symbol (Symbol)
 
-runOnStdIO :: IO ()
-runOnStdIO = do
+runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
+runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
+  let env =
+        Env
+          { codebase,
+            runtime,
+            nRuntime,
+            sbRuntime,
+            ucmVersion,
+            workDir
+          }
   -- Create server
   let serverInfo = Implementation "unison-mcp" "0.0.1"
       serverCapabilities =
@@ -41,13 +62,16 @@ runOnStdIO = do
     case (fromToolName callToolName, fromJSON callToolArguments) of
       (Just ProjectCodeTool, Success (ProjectCodeToolArguments {projectName})) ->
         do
-          -- Fetch code from the project (dummy implementation)
-          let code = "Code from project: " <> projectName
-          pure $
-            CallToolResult
-              { callToolIsError = False,
-                callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just code}]
-              }
+          runMCP env do
+            pp <- liftIO $ Codebase.runTransaction codebase $ do
+              ppForProjectName $ UnsafeProjectName projectName
+            output <- handleInputMCP pp (Right $ Input.EditNamespaceI [])
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $
+              CallToolResult
+                { callToolIsError = False,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                }
       (Just _, Error {}) -> pure $ CallToolResult [] True
       (Nothing, _) -> pure $ CallToolResult [] True
 
