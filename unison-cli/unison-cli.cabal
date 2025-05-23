@@ -153,6 +153,8 @@ library
       Unison.LSP.VFS
       Unison.Main
       Unison.MCP
+      Unison.MCP.StaticResources
+      Unison.MCP.Types
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
@@ -249,6 +251,7 @@ library
     , pretty-simple
     , process
     , random-shuffle
+    , raw-strings-qq
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -282,6 +285,7 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-file-embed
     , unison-util-recursion
     , unison-util-relation
     , unliftio
