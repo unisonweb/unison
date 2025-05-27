@@ -125,8 +125,7 @@ compile (Literal txt) !err !success = go
                in case Text.unsnoc candidate of
                     Just (_, c) -> success acc (Just c) t'
                     Nothing -> success acc oc t'
-            else
-              err acc oc t
+            else err acc oc t
 compile (Char Any) !err !success = go
   where
     go acc oc t = case Text.uncons t of
@@ -179,8 +178,7 @@ compile (Many correct p) !_ !success = case p of
         | otherwise = compile p success success'
       success' acc c rem =
         if Text.size rem == 0
-          then
-            success acc c rem
+          then success acc c rem
           else go acc c rem
   where
     walker ok = go
@@ -235,19 +233,15 @@ compile (Lookbehind1 cp) !err !success = \acc oc t ->
   case oc of
     Just c ->
       if charPatternPred cp c
-        then
-          success acc oc t
-        else
-          err acc oc t
+        then success acc oc t
+        else err acc oc t
     Nothing -> err acc oc t
 compile (NegativeLookbehind1 cp) !err !success = \acc oc t ->
   case oc of
     Just c ->
       if charPatternPred cp c
-        then
-          err acc oc t
-        else
-          success acc oc t
+        then err acc oc t
+        else success acc oc t
     Nothing -> success acc oc t
 
 charInPred, charNotInPred :: [Char] -> Char -> Bool

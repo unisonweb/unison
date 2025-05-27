@@ -82,8 +82,7 @@ type SyncErr = SyncError SyncV2.PullError
 -- The base monad we use within the conduit pipeline.
 type StreamM = (ExceptT SyncErr (C.ResourceT IO))
 
-data ProgressCallbacks
-  = ProgressCallbacks
+data ProgressCallbacks = ProgressCallbacks
   { setTotal :: Int -> IO (),
     downloadCounter :: Int -> IO (),
     doneDownloading :: IO (),
