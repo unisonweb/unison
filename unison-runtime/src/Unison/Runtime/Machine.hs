@@ -1247,9 +1247,10 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     let replace =
           ANF.replaceConstructors pseudoConstructors
             . ANF.replaceFunctions functionReplacements
-    opt0 <- stateTVar (optInfos cc) . ANF.optimize $ fmap replace new
-    opts <- readTVar (optInfos cc)
-    let opt = M.mapWithKey (ANF.optimizeHandler opts) opt0
+        haff (cmbs, opts) =
+          (M.mapWithKey (ANF.optimizeHandler opts) cmbs, opts)
+    opt <-
+      stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
