@@ -8,6 +8,7 @@ import Control.Concurrent.STM qualified as STM
 import Control.Exception (MaskingState (..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map qualified as Map
+import Data.Time (getCurrentTime)
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import GHC.Conc (registerDelay)
 import GHC.IO (unsafeUnmask)
@@ -25,7 +26,8 @@ watchDirectory scope mgr dir allow = do
   -- Await an event from the event queue with the following simple debounce logic, which is intended to work around the
   -- tendency for modern editors to create a flurry of rapid filesystem events when a file is saved:
   --
-  -- 1. Block until an event arrives.
+  -- 1. Block until an event arrives that occurred within the last second (which allows us to ignore old filesystem
+  --    events that may have buffered during a long-running IO action).
   -- 2. Keep consuming events until 50ms elapse without an event.
   -- 3. Return only the last event.
   --
@@ -44,8 +46,11 @@ watchDirectory scope mgr dir allow = do
                     STM.readTVar var >>= STM.check
                     pure (pure event0)
                 ]
-        event <- atomically (STM.readTQueue eventQueue)
-        go event
+        event@(_, eventTime) <- atomically (STM.readTQueue eventQueue)
+        now <- getCurrentTime
+        if (now `diffUTCTime` eventTime) <= 1.0
+          then go event
+          else awaitEvent0
 
   -- Enhance the previous "await event" action with a small file cache that serves as a second debounce implementation.
   -- We keep in memory the file contents of previously-saved files, so that we can avoid emitting events for files that
@@ -65,14 +70,7 @@ watchDirectory scope mgr dir allow = do
                 writeIORef previousFilesRef $! Map.insert file (contents, t) previousFiles
                 pure (file, contents)
 
-  -- Enhance the previous "await" event action by first clearing the whole event queue (tossing old filesystem events
-  -- we may have accumulated while e.g. running a long-running IO action), and *then* waiting.
-  let awaitEvent2 :: IO (FilePath, Text)
-      awaitEvent2 = do
-        _ <- STM.atomically (STM.flushTQueue eventQueue)
-        awaitEvent1
-
-  pure awaitEvent2
+  pure awaitEvent1
 
 -- | `forkDirWatcherThread scope mgr dir allow` forks a background thread into `scope` that, using "file watcher
 -- manager" `mgr` (just a boilerplate argument the caller is responsible for creating), watches directory `dir` for
