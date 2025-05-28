@@ -754,7 +754,8 @@ data ANormalF v e
   | -- Affine handler support
     ADiscard v
   | ALocal v e
-  | AUpdate v v
+  -- Boolean indicates whether there are indirect calls afterward
+  | AUpdate Bool v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance Bifunctor ANormalF where
@@ -770,7 +771,7 @@ instance Bifunctor ANormalF where
   bimap f _ (AApp fu args) = AApp (fmap f fu) $ fmap f args
   bimap f _ (ADiscard v) = ADiscard (f v)
   bimap f g (ALocal v bo) = ALocal (f v) (g bo)
-  bimap f _ (AUpdate r v) = AUpdate (f r) (f v)
+  bimap f _ (AUpdate b r v) = AUpdate b (f r) (f v)
 
 instance Bifoldable ANormalF where
   bifoldMap f _ (AVar v) = f v
@@ -785,7 +786,7 @@ instance Bifoldable ANormalF where
   bifoldMap f _ (AApp func args) = foldMap f func <> foldMap f args
   bifoldMap f _ (ADiscard v) = f v
   bifoldMap f g (ALocal v bo) = f v <> g bo
-  bifoldMap f _ (AUpdate r v) = f r <> f v
+  bifoldMap f _ (AUpdate _ r v) = f r <> f v
 
 instance ABTN.Align ANormalF where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
@@ -822,8 +823,8 @@ instance ABTN.Align ANormalF where
   align f _ (ADiscard u) (ADiscard v) = Just $ ADiscard <$> f u v
   align f g (ALocal u bl) (ALocal v br) =
     Just $ ALocal <$> f u v <*> g bl br
-  align f _ (AUpdate r u) (AUpdate s v) =
-    Just $ AUpdate <$> f r s <*> f u v
+  align f _ (AUpdate b r u) (AUpdate c s v)
+    | b == c = Just $ AUpdate b <$> f r s <*> f u v
   align _ _ _ _ = Nothing
 
 alignEither ::
@@ -1097,8 +1098,8 @@ pattern TLocal ::
   (ABT.Var v) => v -> ABTN.Term ANormalF v -> ABTN.Term ANormalF v
 pattern TLocal v e = ABTN.TTm (ALocal v e)
 
-pattern TUpdate :: (ABT.Var v) => v -> v -> ABTN.Term ANormalF v
-pattern TUpdate u v = ABTN.TTm (AUpdate u v)
+pattern TUpdate :: (ABT.Var v) => Bool -> v -> v -> ABTN.Term ANormalF v
+pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
 
 {-# COMPLETE
   TLet,
@@ -2456,7 +2457,7 @@ prettyANF m ind tm =
         . prettyANF True (ind + 1) bo
     TDiscard hr ->
       showString "discard[" . pvar hr . showString "]"
-    TUpdate hr v ->
+    TUpdate _ hr v ->
       showString "update["
         . pvar hr
         . showString ", "

@@ -9,13 +9,19 @@
 module Unison.Runtime.ANF.Optimize
   ( optimize,
     inline,
+    Arities,
     InlineInfo (..),
-    buildInlineMap,
+    InlineClass (..),
+    InlineInfos,
+    OptInfos,
     optimizeHandler,
+    buildOptInfos,
   )
 where
 
 import Control.Monad.Writer (MonadWriter (..), Writer, WriterT (..), runWriter, tell)
+import Control.Monad.State (modify, get, runState)
+import Data.Graph (SCC (..), stronglyConnComp)
 import Data.Map qualified as Map
 import Data.Monoid (Any (..))
 import Data.Set qualified as Set
@@ -26,14 +32,41 @@ import Unison.Runtime.ANF
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
+-- Characterizes the situations where it's acceptable to inline an
+-- expression.
+--
+-- Anywhere means that something is safe to inline anywhere the
+-- associated application occurs, because it won't change stack
+-- contents.
+--
+-- Tail means that it's acceptable to inline into an application in
+-- tail position, because any stack descrepancies wouldn't be noticed.
+--
+-- Don't means the expression shouldn't (normally) be inlined, and is
+-- provided just for other analyses.
+data InlineClass = AnywhereInl | TailInl | Don'tInl
+  deriving (Eq, Ord, Show)
+
+instance Semigroup InlineClass where
+  AnywhereInl <> c = c
+  c <> AnywhereInl = c
+  Don'tInl <> _ = Don'tInl
+  _ <> Don'tInl = Don'tInl
+  _ <> _        = TailInl
+
+instance Monoid InlineClass where
+  mempty = AnywhereInl
+
 data InlineInfo v = InlInfo
-  { inlArity :: Int,
-    inlExpr :: ANormal v,
-    -- inlines that should only be performed in tail position, as they
-    -- might change stack contents.
-    _tailOnly :: Bool
+  { _inlClass :: InlineClass,
+    inlExpr :: ANormal v
   }
-  deriving (Show)
+  deriving (Eq, Show)
+
+type Arities = Map Reference Int
+type InlineInfos v = Map Reference (InlineInfo v)
+
+type OptInfos v = (Arities, InlineInfos v)
 
 -- Checks a SuperGroup makes it eligible to be inlined.
 -- Unfortunately we need to be quite conservative about this.
@@ -69,25 +102,37 @@ data InlineInfo v = InlInfo
 -- in infinite inlining. This isn't the only such scenario, but
 -- it's one we can opportunistically rule out.
 inlineInfo ::
-  (Var v) => Reference -> SuperGroup v -> Maybe (InlineInfo v)
-inlineInfo r (Rec [] (Lambda ccs body@(ABTN.TAbss vs e)))
-  | isInlinable r e = Just $ InlInfo arity body False
-  | isThunkApp e = Just $ InlInfo arity body True
+  (Var v) => Bool -> SuperGroup v -> Maybe (InlineInfo v)
+inlineInfo rec (Rec [] (Lambda _ body@(ABTN.TAbss vs e)))
   | Just opt <- matchHandlerApp e =
-      Just $ InlInfo arity (ABTN.TAbss vs opt) True
+      Just $ InlInfo TailInl (ABTN.TAbss vs opt)
+  | otherwise =
+      Just $ InlInfo (classifyInline rec e) body
   where
-    arity = length ccs
 inlineInfo _ _ = Nothing
+
+-- Some special inline info that is relevant for optimizing recursive
+-- groups, but should not be inlined in general (due to being
+-- recursive).
+recInlineInfo :: (Var v) => Map Reference (SuperGroup v) -> InlineInfos v
+recInlineInfo = mapMapMaybe f
+  where
+  f (Rec [] (Lambda _ (ABTN.TAbss vs e))) =
+    InlInfo TailInl . ABTN.TAbss vs <$> matchHandlerApp e
+  f _ = Nothing
+
+arityInfo :: SuperGroup v -> Int
+arityInfo (Rec _ (Lambda ccs _)) = length ccs
 
 -- This is a special inlining available for handlers, inlining the
 -- entry point of the handler into the actual implementation. This
 -- improves recursive handlers slightly, enables other optimizations,
 -- and makes it easier to recognize affine handlers.
 entryInfo :: (Var v) => SuperGroup v -> Maybe (InlineInfo v)
-entryInfo (Rec [(him, _)] (Lambda ccs body@(ABTN.TAbss vs e)))
+entryInfo (Rec [(him, _)] (Lambda _ body@(ABTN.TAbss vs e)))
   | req : _ <- shiftArgs vs,
     isHandlerEntry him req e =
-      Just $ InlInfo (length ccs) body True
+      Just $ InlInfo TailInl body
 entryInfo _ = Nothing
 
 -- Rewriting
@@ -110,6 +155,11 @@ dirty = tell $ Any True
 
 runMemo :: Writer Any a -> a
 runMemo = fst . runWriter
+
+whenChanged :: (Memo m) => (a -> m a) -> m a -> m a
+whenChanged f act = do
+  (x, Any changed) <- listen act
+  if changed then f x else pure x
 
 descend ::
   (Memo m, Var v) =>
@@ -164,10 +214,10 @@ rewriteUp step = go True
 inline ::
   (Memo m, Var v) =>
   Reference ->
-  Map Reference (InlineInfo v) ->
+  OptInfos v ->
   SuperGroup v ->
   m (SuperGroup v)
-inline self inls0 grp@(Rec bs entry) =
+inline self (arities, inls0) grp@(Rec bs entry) =
   memo grp $ Rec <$> (traverse . traverse) go0 bs <*> go0 entry
   where
     inls = maybe id (Map.insert self) (entryInfo grp) inls0
@@ -184,11 +234,17 @@ inline self inls0 grp@(Rec bs entry) =
           dirty *> go (n - 1) new
     step _ _tail tm = pure tm
 
-    findInline tail r args =
-      tweak tail args =<< Map.lookup r inls
+    findInline tail r args = do
+      info <- Map.lookup r inls
+      arity <- Map.lookup r arities
+      tweak tail args arity info
 
-    tweak isTail args (InlInfo arity (ABTN.TAbss vs body) tailOnly)
-      | tailOnly && not isTail = Nothing
+    don'tInline Don'tInl _ = True
+    don'tInline TailInl isTail = not isTail
+    don'tInline AnywhereInl _ = False
+
+    tweak isTail args arity (InlInfo clazz (ABTN.TAbss vs body))
+      | don'tInline clazz isTail = Nothing
       -- exactly saturated
       | length args == arity,
         rn <- Map.fromList (zip vs args) =
@@ -209,43 +265,81 @@ inline self inls0 grp@(Rec bs entry) =
 -- optimization runs in case more inlining became available.
 peephole ::
   (Memo m, Var v) =>
-  Map Reference (InlineInfo v) ->
+  Arities ->
   SuperGroup v ->
   m (SuperGroup v)
-peephole inls grp@(Rec bs entry) =
+peephole arities grp@(Rec bs entry) =
   memo grp $ Rec <$> (traverse . traverse) go0 bs <*> go0 entry
   where
     go0 nrm@(Lambda ccs body) =
-      memo nrm $ Lambda ccs <$> go body
+      memo nrm $ Lambda ccs <$> go (30 :: Int) body
 
-    go = rewriteDown \_tail -> \case
+    go 0 = pure
+    go n = whenChanged (go $ n-1) . rewriteDown \_tail -> \case
+      TLets (Indirect _) vs ccs bn bd
+        | directAllowed bn ->
+            TLets Direct vs ccs bn bd <$ dirty
       HandlerApp rw -> rw <$ dirty
       HandlerResume _ f as lh h bs rs -> do
         dirty
         pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
       HandledThunk r n expr
-        | Just info <- Map.lookup r inls,
-          n < inlArity info ->
+        | Just arity <- Map.lookup r arities, n < arity ->
             expr <$ dirty
       tm -> pure tm
 
-optimize ::
+-- Optimizes a single group
+optSingle ::
   (Var v) =>
+  OptInfos v ->
   Reference ->
-  Map Reference (InlineInfo v) ->
   SuperGroup v ->
   SuperGroup v
-optimize self inls g0 = peep . runMemo $ inline self inls g0
+optSingle opts@(arities, _) self g0 =
+  peep . runMemo $ inline self opts g0
   where
-    inl g = case runWriter $ inline self inls g of
+    inl g = case runWriter $ inline self opts g of
       (g, Any changed)
         | changed -> peep g
         | otherwise -> g
 
-    peep g = case runWriter $ peephole inls g of
+    peep g = case runWriter $ peephole arities g of
       (g, Any changed)
         | changed -> inl g
         | otherwise -> g
+
+optimize ::
+  forall v.
+  (Var v) =>
+  Map Reference (SuperGroup v) ->
+  OptInfos v -> (Map Reference (SuperGroup v), OptInfos v)
+optimize gs = runState do
+  -- add new arities
+  modify $ first (Map.union $ arityInfo <$> gs)
+  let doOpt opts (r, sg) = (r, optSingle opts r sg)
+  -- Note: inlining info is never available to self-inline
+  ngs <- for sccs \case
+    AcyclicSCC p -> do
+      opts <- get
+      let rgs = [doOpt opts p]
+      rgs <$ addInls False rgs
+    CyclicSCC rgs0 -> do
+      opts <- augment rgs0 <$> get
+      let rgs = doOpt opts <$> rgs0
+      rgs <$ addInls True rgs
+  pure . Map.fromList $ fold ngs
+  where
+    f p@(r, sg) = (p, r, groupTermLinks sg)
+
+    -- Process code in dependency order.
+    sccs = stronglyConnComp . fmap f $ Map.toList gs
+
+    addInls rec rgs =
+      for_ rgs \(r, sg) -> do
+        modify . second . maybe id (Map.insert r) $ inlineInfo rec sg
+
+    augment rgs (ars, inls) =
+      (ars, recInlineInfo (Map.fromList rgs) `Map.union` inls)
 
 -- Optimizes a generated affine handler based on knowledge about
 -- contexts it will be used in.
@@ -351,26 +445,47 @@ matchHandledThunk _ = Nothing
 pattern HandledThunk ref ar expr <-
   (matchHandledThunk -> Just (ref, ar, expr))
 
--- Builds inlining information from a collection of SuperGroups.
--- They are all tested for inlinability, and the result map
--- contains only the information for groups that are able to be
--- inlined.
-buildInlineMap ::
-  (Var v) =>
-  Map Reference (SuperGroup v) ->
-  Map Reference (InlineInfo v)
-buildInlineMap =
-  runIdentity
-    . Map.traverseMaybeWithKey (\r g -> Identity $ inlineInfo r g)
+-- Builds a basic optimization map. Assumes the code in question is
+-- not recursive, and makes no effort to optimize the code, so it
+-- should be used only for something like builtins.
+buildOptInfos :: (Var v) => Map Reference (SuperGroup v) -> OptInfos v
+buildOptInfos sgs =
+  (arityInfo <$> sgs, mapMapMaybe (inlineInfo False) sgs)
 
--- Checks the body of a SuperGroup makes it eligible for inlining.
--- See below for the discussion.
-isInlinable :: (Var v) => Reference -> ANormal v -> Bool
-isInlinable r (TCom s _) = r /= s
-isInlinable _ TApp {} = True
-isInlinable _ TBLit {} = True
-isInlinable _ TVar {} = True
-isInlinable _ _ = False
+mapMapMaybe :: (u -> Maybe v) -> Map k u -> Map k v
+mapMapMaybe f = runIdentity . Map.traverseMaybeWithKey (\_ -> pure . f)
+
+-- Classifies an expression with regard to inlining. Generally:
+--
+--   - Constants, variables and applications can be inlined anywhere,
+--     because they're just replacing one call with another, or a
+--     non-call
+--   - More complex expressions that match or allocate extra values
+--     before doing something can be tail inlined, because the
+--     differences in the stack will be erased by the final jump
+--   - Expressions that call multiple complex functions can't be
+--     inlined easily because they add to the return-points of the
+--     combinator they're inlined to.
+classifyInline :: (Var v) => Bool -> ANormal v -> InlineClass
+classifyInline rec = \case
+-- Don't inline rec functions
+  TCom _ _ -> if rec then Don'tInl else AnywhereInl
+  TApp {} -> AnywhereInl
+  TBLit {} -> AnywhereInl
+  TLit {} -> AnywhereInl
+  TVar {} -> AnywhereInl
+  TName _ _ _ bd -> TailInl <> classifyInline rec bd
+  TLets Direct _ _ bn bd ->
+    TailInl <> classifyInline rec bn <> classifyInline rec bd
+  TLets {} -> Don'tInl
+  TMatch _ bs ->
+    TailInl <> foldMap (\(ABTN.TAbss _ bd) -> classifyInline rec bd) bs
+  TShift {} -> Don'tInl
+  THnd {} -> Don'tInl
+  TFrc {} -> Don'tInl
+  TDiscard {} -> Don'tInl
+  TLocal {} -> Don'tInl
+  TUpdate {} -> Don'tInl
 
 -- Recognizes the form resulting from certain `handle` calls in the
 -- surface syntax. The recognized pattern is:
@@ -402,6 +517,14 @@ matchHandlerApp tm
 
 pattern HandlerApp rw <- (matchHandlerApp -> Just rw)
 
+directAllowed :: (Var v) => ANormal v -> Bool
+directAllowed TLit{} = True
+directAllowed TBLit{} = True
+directAllowed TPrm{} = True
+directAllowed TFOp{} = True
+directAllowed TCon{} = True
+directAllowed _ = False
+
 -- Recognizes the entry point of a handler, for inlining into the
 -- actual handler if applicable.
 isHandlerEntry :: (Var v) => v -> v -> ANormal v -> Bool
@@ -411,19 +534,12 @@ isHandlerEntry him0 req0 tm
       lzh0 == lzh1 && him0 == him1 && req0 == req1
   | otherwise = False
 
-isThunkApp :: (Var v) => ANormal v -> Bool
-isThunkApp tm
-  | TLet _ un0 _ (TCon _ _ []) bd <- tm,
-    TApv _ (shiftArgs -> un1 : _) <- bd =
-      un0 == un1
-  | otherwise = False
-
 -- If the provided SuperGroup is recognized as a handler, applies
 -- optimizations to improve it, like adding better code for affine
 -- handlers.
-optimizeHandler :: (Var v) => Reference -> SuperGroup v -> SuperGroup v
-optimizeHandler self group =
-  fromMaybe group $ augmentHandler self group
+optimizeHandler :: (Var v) => OptInfos v -> Reference -> SuperGroup v -> SuperGroup v
+optimizeHandler opts self group =
+  fromMaybe group $ augmentHandler opts self group
 
 -- moves the last value of a list to the start, for easier matching
 shiftArgs :: [v] -> [v]
@@ -434,13 +550,13 @@ shiftArgs vs = case reverse vs of
 -- Checks if the group represents a handler, and if so, tries to add
 -- optimized affine code.
 augmentHandler ::
-  (Var v) => Reference -> SuperGroup v -> Maybe (SuperGroup v)
-augmentHandler _self group
+  (Var v) => OptInfos v -> Reference -> SuperGroup v -> Maybe (SuperGroup v)
+augmentHandler opts _self group
   | Rec [(mv0, matcher)] entry <- group,
     Lambda ccs (ABTN.TAbss args body) <- entry,
     thunk : vs <- shiftArgs args,
     Just body <- augmentHandlerEntry vs thunk mv0 ah body,
-    Just amatcher <- translateHandlerMatch mv0 ah matcher =
+    Just amatcher <- translateHandlerMatch opts mv0 ah matcher =
       Just
         . Rec [(mv0, matcher), (ah, amatcher)]
         . Lambda ccs
@@ -452,8 +568,8 @@ augmentHandler _self group
 -- Recognizes the matching portion of a handler, and produces an
 -- optimized affine version if possible.
 translateHandlerMatch ::
-  (Var v) => v -> v -> SuperNormal v -> Maybe (SuperNormal v)
-translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
+  (Var v) => OptInfos v -> v -> v -> SuperNormal v -> Maybe (SuperNormal v)
+translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
   | v : vs <- shiftArgs args,
     TMatch u branches <- body,
     u == v,
@@ -465,7 +581,7 @@ translateHandlerMatch self ah (Lambda ccs (ABTN.TAbss args body))
         . affineOptimize
         . TMatch u
         . flip MatchRequest df
-        <$> traverse3 (affineHandlerCase self vs ah) cs
+        <$> traverse3 (affineHandlerCase opts self vs ah) cs
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -494,14 +610,14 @@ augmentHandlerEntry vs thunk0 mv0 ah body
 -- Recognizes an affine handler case, yielding a translated efficient
 -- version if it is one.
 affineHandlerCase ::
-  (Var v) => v -> [v] -> v -> ANormal v -> Maybe (ANormal v)
-affineHandlerCase self vs rec br
+  (Var v) => OptInfos v -> v -> [v] -> v -> ANormal v -> Maybe (ANormal v)
+affineHandlerCase opts self vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
     kf0 == kf1 =
       ABTN.TAbss us
-        <$> affinePreBranch self Set.empty vs rec ar kf body
+        <$> affinePreBranch opts self Set.empty vs rec ar kf body
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -518,6 +634,7 @@ affineHandlerCase self vs rec br
 -- If neither of the above cases hold, then we look for a linear case.
 affinePreBranch ::
   (Var v) =>
+  OptInfos v ->
   v ->
   Set v ->
   [v] ->
@@ -526,25 +643,26 @@ affinePreBranch ::
   v ->
   ANormal v ->
   Maybe (ANormal v)
-affinePreBranch self bound vs rec ar kf bd
+affinePreBranch opts self bound vs rec ar kf bd
   | Just it <- irrelevantTail ar kf bd = Just it
   | TMatch v bs <- bd =
       TMatch v
         <$> for bs \case
           ABTN.TAbss us bd ->
             ABTN.TAbss us
-              <$> affinePreBranch self bound' vs rec ar kf bd
+              <$> affinePreBranch opts self bound' vs rec ar kf bd
             where
               bound' = Set.union (Set.fromList us) bound
   | otherwise =
       localize
-        <$> runWriterT (translateLinear self bound vs rec ar kf bd)
+        <$> runWriterT (translateLinear opts self bound vs rec ar kf bd)
   where
     localize (tm, Any True) = TLocal ar tm
     localize (tm, Any False) = tm
 
 translateLinear ::
   (Var v) =>
+  OptInfos v ->
   v ->
   Set v ->
   [v] ->
@@ -553,10 +671,10 @@ translateLinear ::
   v ->
   ANormal v ->
   WriterT Any Maybe (ANormal v)
-translateLinear self bound0 vs rec ar kf = go bound0
+translateLinear opts self bound0 vs rec ar kf = go bound0
   where
     go bound body
-      | Just lt <- linearTail self vs bound rec ar kf body =
+      | Just lt <- linearTail opts self vs bound rec ar kf body =
           lt <$ tell (Any True)
       | Just it <- irrelevantTail ar kf body = pure it
       | TLet d v cc e body <- body,
@@ -591,63 +709,71 @@ translateLinear self bound0 vs rec ar kf = go bound0
 -- avoid see exactly what the `k result` call is, rather than it
 -- having multiple forms depending on the variable order.
 linearTail ::
-  (Var v) => v -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
-linearTail self vs bound rec ar kf0 tm
-  -- \| TLet _ hr0 _ (TCom r us) tm <- tm, -- recursive handler call
-  --   TName thunk0 (Right kf1) [result] tm <- tm, -- lazy cont resume
-  --   TApv hr1 [thunk1] <- tm, -- apply handler to thunk
-  --   r == self, kf0 == kf1, thunk0 == thunk1, hr0 == hr1 =
-  --     Just . update hr0 us $ TVar result
-
-  -- \| TName thunk0 (Right kf1) [result] tm <- tm, -- lazy cont resume
-  --   TCom r (shiftArgs -> thunk1 : us) <- tm, -- apply handler to thunk
-  --   r == self, thunk0 == thunk1, kf0 == kf1 =
-  --     Just . update kf1 us $ TVar result
-
+  (Var v) => OptInfos v -> v -> [v] -> Set v -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
+linearTail opts self vs bound rec ar kf0 tm
   | TName rh (Right f) as tm <- tm,
     f == self, -- recursive handler call
     all (/= kf0) as,
     rh /= kf0, -- no shadowing or non-linearity
     THnd _rs hh Nothing bd <- tm,
     rh == hh, -- handle recursively
-    SimpleBody pre shad free kf1 result <- bd, -- simple enough body
+    bd <- replaceLinearBody opts bd,
+    SimpleBody pre ind shad free kf1 result <- bd, -- simple enough body
     kf0 `Set.notMember` shad, -- kf is not shadowed in body
     kf0 `Set.notMember` free, -- kf is not free in `pre`
     kf0 == kf1 -- continuation is called in tail position
     =
-      Just . update rh as . pre $ TVar result
+      Just . update ind rh as . pre $ TVar result
   | otherwise = Nothing
   where
-    update huv us
-      -- recursive call with identical, non-shadowed variables;
-      -- no need to update
-      | Prelude.and (zipWith (==) us vs),
+    update ind huv us
+      -- recursive call with identical, non-shadowed variables and no
+      -- indirect body calls; no need to update
+      | not ind,
+        Prelude.and (zipWith (==) us vs),
         all (`Set.notMember` bound) us =
           id
       -- repurpose hr0 variable for update call
       | otherwise =
           TName huv (Right rec) (us ++ [ar])
-            . TLets Direct [] [] (TUpdate ar huv)
+            . TLets Direct [] [] (TUpdate ind ar huv)
+
+-- Does one level of inlining to revert any floating of the handler
+-- body. This does not obey the normal inlining classification, so it
+-- may inline a function that makes indirect calls, and needs to
+-- account for that. This allows us to see more linear situations.
+replaceLinearBody :: (Var v) => OptInfos v -> ANormal v -> ANormal v
+replaceLinearBody (arities, inls) bd
+  | TCom r vs <- bd,
+    Just n <- Map.lookup r arities,
+    length vs == n,
+    Just (InlInfo _ (ABTN.TAbss us expr)) <- Map.lookup r inls,
+    rn <- Map.fromList (zip us vs) =
+      ABTN.renames rn expr
+replaceLinearBody _ bd = bd
 
 parseSimpleHandlerBody ::
   (Var v) =>
   ANormal v ->
-  Maybe (ANormal v -> ANormal v, Set v, Set v, v, v)
+  Maybe (ANormal v -> ANormal v, Bool, Set v, Set v, v, v)
 parseSimpleHandlerBody = \case
-  TLet d u cc bn@(TCon {}) bd ->
-    tweak u (ABTN.freeVars bn) (TLet d u cc bn)
+  TLet d u cc bn bd ->
+    tweak u d (ABTN.freeVars bn) (TLet d u cc bn)
       <$> parseSimpleHandlerBody bd
   TApv u [result] ->
-    Just (id, mempty, mempty, u, result)
+    Just (id, False, mempty, mempty, u, result)
   _ -> Nothing
   where
-    tweak w fvs1 f (g, sh, fvs0, u, v) =
-      (f . g, Set.insert w sh, fvs, u, v)
+    tweak w d fvs1 f (g, ind, sh, fvs0, u, v) =
+      (f . g, ind || isIndirect d, Set.insert w sh, fvs, u, v)
       where
         fvs = fvs1 `Set.union` Set.delete w fvs0
 
-pattern SimpleBody head shad free kf result <-
-  (parseSimpleHandlerBody -> Just (head, shad, free, kf, result))
+        isIndirect Direct = False
+        isIndirect _ = True
+
+pattern SimpleBody head ind shad free kf result <-
+  (parseSimpleHandlerBody -> Just (head, ind, shad, free, kf, result))
 
 irrelevantTail :: (Var v) => v -> v -> ANormal v -> Maybe (ANormal v)
 irrelevantTail ar kf tm

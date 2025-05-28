@@ -500,7 +500,13 @@ data GInstr comb
   | -- Set the value of an affine reference. Note that references are
     -- shared for the prompts of simultaneously installed affine
     -- handlers, so setting one sets all.
+    --
+    -- Also note: this corresponds to the `handle` part of a recursive
+    -- handler, meaning the handler would normally be put back on the
+    -- stack. So, this adds itself back to the current affine
+    -- environment unless a flag indicates that it's unnecessary.
     SetAff
+      !Bool -- is the env update necessary
       !Int -- stack index of the affine handler information
       !Int -- the stack index of the closure to store
   | -- Capture the continuation up to a given marker.
@@ -1237,10 +1243,10 @@ emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)
   | Just (i, _) <- ctxResolve ctx v = fmap (Ins $ Discard i)
-emitLet _ _ _ _ _ _ ctx (TUpdate r v)
+emitLet _ _ _ _ _ _ ctx (TUpdate ind r v)
   | Just (i, _) <- ctxResolve ctx r,
     Just (j, _) <- ctxResolve ctx v =
-      fmap (Ins $ SetAff i j)
+      fmap (Ins $ SetAff ind i j)
 emitLet rns grpr grpn rec d vcs ctx bnd
   | Direct <- d =
       internalBug $ "unsupported compound direct let: " ++ show bnd

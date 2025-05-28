@@ -13,7 +13,7 @@ module Unison.Runtime.Builtin
     builtinTermBackref,
     builtinTypeBackref,
     builtinArities,
-    builtinInlineInfo,
+    builtinOptInfo,
     numberedTermLookup,
     Sandbox (..),
     baseSandboxInfo,
@@ -1345,9 +1345,9 @@ builtinArities =
   Map.fromList $
     [(r, arity s) | (r, (_, s)) <- Map.toList builtinLookup]
 
-builtinInlineInfo :: Map Reference (ANF.InlineInfo Symbol)
-builtinInlineInfo =
-  ANF.buildInlineMap $ fmap (Rec [] . snd) builtinLookup
+builtinOptInfo :: ANF.OptInfos Symbol
+builtinOptInfo =
+  ANF.buildOptInfos $ fmap (Rec [] . snd) builtinLookup
 
 sandboxedForeignFuncs :: Set ForeignFunc
 sandboxedForeignFuncs =

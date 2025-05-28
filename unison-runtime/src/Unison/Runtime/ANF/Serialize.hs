@@ -26,6 +26,7 @@ import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Serialize
@@ -349,6 +350,70 @@ putCode fops (CodeRep g c) = putGroup mempty fops g *> putCacheability c
 
 getCode :: (MonadGet m, Versioned m) => m Code
 getCode = CodeRep <$> getGroup <*> getCacheability
+
+putInlineInfo ::
+  (MonadPut m, Var v) =>
+  Map ForeignFunc Text ->
+  [v] ->
+  InlineInfo v ->
+  m ()
+putInlineInfo fops ctx (InlInfo clazz expr) =
+  putInlineClass clazz *> putInlineExpr mempty fops ctx expr
+
+getInlineInfo ::
+  (MonadGet m, Versioned m, Var v) => [v] -> Word64 -> m (InlineInfo v)
+getInlineInfo ctx frsh =
+  InlInfo <$> getInlineClass <*> getInlineExpr ctx frsh
+
+putInlineExpr ::
+  (MonadPut m, Var v) =>
+  Map Reference Word64 ->
+  Map ForeignFunc Text ->
+  [v] ->
+  ANormal v ->
+  m ()
+putInlineExpr refrep fops ctx (TAbss vs body) =
+  putLength (length vs) *>
+    putNormal refrep fops (pushCtx vs ctx) body
+
+getInlineExpr ::
+  (MonadGet m, Versioned m, Var v) =>
+  [v] ->
+  Word64 ->
+  m (ANormal v)
+getInlineExpr ctx frsh0 = do
+  n <- getLength
+  let frsh = frsh0 + fromIntegral n
+      vs = getFresh <$> take n [frsh0 ..]
+  TAbss vs <$> getNormal (pushCtx vs ctx) frsh
+
+putOptInfos :: (MonadPut m, Var v) => Map ForeignFunc Text -> OptInfos v -> m ()
+putOptInfos fops (arities, inls) =
+  putMap putReference pInt arities *>
+    putMap putReference (putInlineInfo fops []) inls
+  where
+    pInt = serialize . VarInt
+
+-- Note: current version
+getOptInfos :: (MonadGet m, Var v) => m (OptInfos v)
+getOptInfos = flip runReaderT (Transfer codeVersion) $
+  (,) <$> getMap getReference gInt
+      <*> getMap getReference (getInlineInfo [] 0)
+  where
+    gInt = unVarInt <$> deserialize
+
+putInlineClass :: (MonadPut m) => InlineClass -> m ()
+putInlineClass = \case
+  AnywhereInl -> putWord8 0
+  TailInl -> putWord8 1
+  Don'tInl -> putWord8 2
+
+getInlineClass :: (MonadGet m) => m InlineClass
+getInlineClass = getWord8 >>= \case
+  0 -> pure AnywhereInl
+  1 -> pure TailInl
+  2 -> pure Don'tInl
+  n -> unknownTag "InlineClass" n
 
 putCacheability :: (MonadPut m) => Cacheability -> m ()
 putCacheability Uncacheable = putWord8 0
