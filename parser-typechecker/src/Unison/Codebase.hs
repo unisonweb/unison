@@ -248,7 +248,7 @@ getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMayb
 
 expectProjectBranchRoot :: (MonadIO m) => Codebase m v a -> Db.ProjectId -> Db.ProjectBranchId -> m (Branch m)
 expectProjectBranchRoot codebase projectId branchId = do
-  causalHash <- runTransaction codebase $ do
+  causalHash <- runTransaction codebase do
     causalHashId <- Q.expectProjectBranchHead projectId branchId
     Q.expectCausalHash causalHashId
   expectBranchForHash codebase causalHash

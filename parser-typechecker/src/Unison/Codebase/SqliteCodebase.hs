@@ -154,7 +154,9 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
   -- The two work in tandem, so the rootBranchCache keeps relevant branches alive, and the branchLoadCache
   -- stores ALL the subnamespaces of those branches, deduping them when loading from the DB.
   rootBranchCache <- Cache.semispaceCache 10
-  getDeclType <- CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
+  rootBranchCacheTx <- Cache.semispaceCache 10
+  declTypeCache <- Cache.semispaceCache 2048
+  let getDeclType = CodebaseOps.makeCachedTransaction declTypeCache CodebaseOps.getDeclType
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
   -- the individual definitions until a complete component has been written.
@@ -191,9 +193,13 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             printBuffer "Terms:" terms
 
       flip finally finalizer do
-        getTerm <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
-        getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
-        getTypeDeclaration <- CodebaseOps.makeMaybeCachedTransaction 1024 CodebaseOps.getTypeDeclaration
+        termCache <- Cache.semispaceCache 8192
+        let getTerm = CodebaseOps.makeMaybeCachedTransaction termCache (CodebaseOps.getTerm getDeclType)
+        typeOfTermCache <- Cache.semispaceCache 8192
+        let getTypeOfTermImpl = CodebaseOps.makeMaybeCachedTransaction typeOfTermCache CodebaseOps.getTypeOfTermImpl
+        typeDeclarationCache <- Cache.semispaceCache 1024
+        let getTypeDeclaration = CodebaseOps.makeMaybeCachedTransaction typeDeclarationCache CodebaseOps.getTypeDeclaration
+        let getBranchForHashTx = CodebaseOps.makeMaybeCachedTransaction rootBranchCacheTx (CodebaseOps.getBranchForHash branchLoadCache getDeclType)
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
             getTermComponentWithTypes =
@@ -226,14 +232,13 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             -- if this blows up on cromulent hashes, then switch from `hashToHashId`
             -- to one that returns Maybe.
             getBranchForHash :: CausalHash -> m (Maybe (Branch m))
-            getBranchForHash =
-              Cache.applyDefined rootBranchCache \h -> do
-                fmap (Branch.transform runTransaction) <$> runTransaction (CodebaseOps.getBranchForHash branchLoadCache getDeclType h)
+            getBranchForHash hash =
+              runTransaction (fmap (Branch.transform runTransaction) <$> (getBranchForHashTx hash))
 
             putBranch :: Branch m -> m ()
             putBranch branch =
               withRunInIO \runInIO ->
-                runInIO $ do
+                runInIO do
                   Cache.insert rootBranchCache (Branch.headHash branch) branch
                   runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
@@ -282,6 +287,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   putTypeDeclarationComponent,
                   getTermComponentWithTypes,
                   getBranchForHash,
+                  getBranchForHashTx,
                   putBranch,
                   getWatch,
                   termsOfTypeImpl,

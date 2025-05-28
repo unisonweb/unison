@@ -55,6 +55,8 @@ data Codebase m v a = Codebase
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
+    -- | Like `getBranchForHash`, but in Transaction... this should entirely replace `getBranchForHash` (some day)
+    getBranchForHashTx :: CausalHash -> Sqlite.Transaction (Maybe (Branch Sqlite.Transaction)),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
