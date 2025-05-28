@@ -170,8 +170,8 @@ descend ::
   ANormal v ->
   m (ANormal v)
 descend rec tail tm = memo tm $ case tm of
-  TLet d v ccs bn bd ->
-    TLet d v ccs <$> rec False bn <*> rec tail bd
+  TLets d vs ccs bn bd ->
+    TLets d vs ccs <$> rec False bn <*> rec tail bd
   TName v f vs bd ->
     TName v f vs <$> rec tail bd
   TMatch v bs ->
