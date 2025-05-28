@@ -16,6 +16,7 @@ import Data.Either.Extra ()
 import Data.Map qualified as Map
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase1
 import Unison.Codebase.Branch (Branch (..))
@@ -199,6 +200,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         let getTypeOfTermImpl = CodebaseOps.makeMaybeCachedTransaction typeOfTermCache CodebaseOps.getTypeOfTermImpl
         typeDeclarationCache <- Cache.semispaceCache 1024
         let getTypeDeclaration = CodebaseOps.makeMaybeCachedTransaction typeDeclarationCache CodebaseOps.getTypeDeclaration
+        declNumConstructorsCache <- Cache.semispaceCache 1024
+        let expectDeclNumConstructors = CodebaseOps.makeCachedTransaction declNumConstructorsCache Operations.expectDeclNumConstructors
         let getBranchForHashTx = CodebaseOps.makeMaybeCachedTransaction rootBranchCacheTx (CodebaseOps.getBranchForHash branchLoadCache getDeclType)
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
@@ -281,6 +284,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getTypeOfTermImpl,
                   getTypeDeclaration,
                   getDeclType,
+                  expectDeclNumConstructors,
                   putTerm,
                   putTermComponent,
                   putTypeDeclaration,

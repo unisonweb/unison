@@ -43,6 +43,7 @@ data Codebase m v a = Codebase
     getTypeDeclaration :: TypeReferenceId -> Sqlite.Transaction (Maybe (Decl v a)),
     -- | Get the type of a given decl.
     getDeclType :: TypeReference -> Sqlite.Transaction CT.ConstructorType,
+    expectDeclNumConstructors :: TypeReferenceId -> Sqlite.Transaction Int,
     -- | Enqueue the put of a user-defined term (with its type) into the codebase, if it doesn't already exist. The
     -- implementation may choose to delay the put until all of the term's (and its type's) references are stored as
     -- well.
