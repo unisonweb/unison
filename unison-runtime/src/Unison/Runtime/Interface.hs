@@ -100,11 +100,11 @@ import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
   ( getGroupCurrent,
+    getOptInfos,
     getVersionedValue,
     putGroup,
-    serializeValue,
-    getOptInfos,
     putOptInfos,
+    serializeValue,
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile

@@ -754,8 +754,8 @@ data ANormalF v e
   | -- Affine handler support
     ADiscard v
   | ALocal v e
-  -- Boolean indicates whether there are indirect calls afterward
-  | AUpdate Bool v v
+  | -- Boolean indicates whether there are indirect calls afterward
+    AUpdate Bool v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance Bifunctor ANormalF where

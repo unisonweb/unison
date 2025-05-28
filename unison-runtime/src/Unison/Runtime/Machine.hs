@@ -261,11 +261,11 @@ exec _ henv !_activeThreads !stk !k _ (SetAff u i j) =
       bpeekOff stk j >>= writeIORef r
       henv <-
         if u
-        then do
-          aenv <-
-            evaluate $ EC.unionWith const (mapFromSet ps ar) (aenv henv)
-          evaluate $ henv { aenv = aenv }
-        else pure henv
+          then do
+            aenv <-
+              evaluate $ EC.unionWith const (mapFromSet ps ar) (aenv henv)
+            evaluate $ henv {aenv = aenv}
+          else pure henv
       pure (False, henv, stk, k)
     _ -> die "SetAff called with bad handler reference"
 exec _ henv !_activeThreads !stk !k _ (Capture p) = do
@@ -1273,10 +1273,10 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
       let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs =
-            absurdCombs .
-              sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs .
-              mapFromList $
-                zipWith combinate [ntm ..] (M.toList opt)
+            absurdCombs
+              . sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
+              . mapFromList
+              $ zipWith combinate [ntm ..] (M.toList opt)
           (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
             EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
               if EC.member w newCacheableCombs

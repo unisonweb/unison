@@ -428,10 +428,11 @@ pInt :: (MonadPut m) => Int -> m ()
 pInt i = serialize (VarInt i)
 
 gBool :: (MonadGet m) => m Bool
-gBool = getWord8 >>= \case
-  0 -> pure False
-  1 -> pure True
-  n -> fail $ "bad byte `" ++ show n ++ "` while deserializing Bool"
+gBool =
+  getWord8 >>= \case
+    0 -> pure False
+    1 -> pure True
+    n -> fail $ "bad byte `" ++ show n ++ "` while deserializing Bool"
 
 pBool :: (MonadPut m) => Bool -> m ()
 pBool False = putWord8 0

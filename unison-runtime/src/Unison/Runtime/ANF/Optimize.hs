@@ -19,8 +19,8 @@ module Unison.Runtime.ANF.Optimize
   )
 where
 
+import Control.Monad.State (get, modify, runState)
 import Control.Monad.Writer (MonadWriter (..), Writer, WriterT (..), runWriter, tell)
-import Control.Monad.State (modify, get, runState)
 import Data.Graph (SCC (..), stronglyConnComp)
 import Data.Map qualified as Map
 import Data.Monoid (Any (..))
@@ -52,7 +52,7 @@ instance Semigroup InlineClass where
   c <> AnywhereInl = c
   Don'tInl <> _ = Don'tInl
   _ <> Don'tInl = Don'tInl
-  _ <> _        = TailInl
+  _ <> _ = TailInl
 
 instance Monoid InlineClass where
   mempty = AnywhereInl
@@ -64,6 +64,7 @@ data InlineInfo v = InlInfo
   deriving (Eq, Show)
 
 type Arities = Map Reference Int
+
 type InlineInfos v = Map Reference (InlineInfo v)
 
 type OptInfos v = (Arities, InlineInfos v)
@@ -109,6 +110,7 @@ inlineInfo rec (Rec [] (Lambda _ body@(ABTN.TAbss vs e)))
   | otherwise =
       Just $ InlInfo (classifyInline rec e) body
   where
+
 inlineInfo _ _ = Nothing
 
 -- Some special inline info that is relevant for optimizing recursive
@@ -117,9 +119,9 @@ inlineInfo _ _ = Nothing
 recInlineInfo :: (Var v) => Map Reference (SuperGroup v) -> InlineInfos v
 recInlineInfo = mapMapMaybe f
   where
-  f (Rec [] (Lambda _ (ABTN.TAbss vs e))) =
-    InlInfo TailInl . ABTN.TAbss vs <$> matchHandlerApp e
-  f _ = Nothing
+    f (Rec [] (Lambda _ (ABTN.TAbss vs e))) =
+      InlInfo TailInl . ABTN.TAbss vs <$> matchHandlerApp e
+    f _ = Nothing
 
 arityInfo :: SuperGroup v -> Int
 arityInfo (Rec _ (Lambda ccs _)) = length ccs
@@ -275,18 +277,20 @@ peephole arities grp@(Rec bs entry) =
       memo nrm $ Lambda ccs <$> go (30 :: Int) body
 
     go 0 = pure
-    go n = whenChanged (go $ n-1) . rewriteDown \_tail -> \case
-      TLets (Indirect _) vs ccs bn bd
-        | directAllowed bn ->
-            TLets Direct vs ccs bn bd <$ dirty
-      HandlerApp rw -> rw <$ dirty
-      HandlerResume _ f as lh h bs rs -> do
-        dirty
-        pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
-      HandledThunk r n expr
-        | Just arity <- Map.lookup r arities, n < arity ->
-            expr <$ dirty
-      tm -> pure tm
+    go n =
+      whenChanged (go $ n - 1) . rewriteDown \_tail -> \case
+        TLets (Indirect _) vs ccs bn bd
+          | directAllowed bn ->
+              TLets Direct vs ccs bn bd <$ dirty
+        HandlerApp rw -> rw <$ dirty
+        HandlerResume _ f as lh h bs rs -> do
+          dirty
+          pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
+        HandledThunk r n expr
+          | Just arity <- Map.lookup r arities,
+            n < arity ->
+              expr <$ dirty
+        tm -> pure tm
 
 -- Optimizes a single group
 optSingle ::
@@ -312,7 +316,8 @@ optimize ::
   forall v.
   (Var v) =>
   Map Reference (SuperGroup v) ->
-  OptInfos v -> (Map Reference (SuperGroup v), OptInfos v)
+  OptInfos v ->
+  (Map Reference (SuperGroup v), OptInfos v)
 optimize gs = runState do
   -- add new arities
   modify $ first (Map.union $ arityInfo <$> gs)
@@ -468,7 +473,7 @@ mapMapMaybe f = runIdentity . Map.traverseMaybeWithKey (\_ -> pure . f)
 --     combinator they're inlined to.
 classifyInline :: (Var v) => Bool -> ANormal v -> InlineClass
 classifyInline rec = \case
--- Don't inline rec functions
+  -- Don't inline rec functions
   TCom _ _ -> if rec then Don'tInl else AnywhereInl
   TApp {} -> AnywhereInl
   TBLit {} -> AnywhereInl
@@ -518,11 +523,11 @@ matchHandlerApp tm
 pattern HandlerApp rw <- (matchHandlerApp -> Just rw)
 
 directAllowed :: (Var v) => ANormal v -> Bool
-directAllowed TLit{} = True
-directAllowed TBLit{} = True
-directAllowed TPrm{} = True
-directAllowed TFOp{} = True
-directAllowed TCon{} = True
+directAllowed TLit {} = True
+directAllowed TBLit {} = True
+directAllowed TPrm {} = True
+directAllowed TFOp {} = True
+directAllowed TCon {} = True
 directAllowed _ = False
 
 -- Recognizes the entry point of a handler, for inlining into the

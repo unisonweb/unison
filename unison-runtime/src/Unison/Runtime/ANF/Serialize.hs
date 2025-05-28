@@ -373,8 +373,8 @@ putInlineExpr ::
   ANormal v ->
   m ()
 putInlineExpr refrep fops ctx (TAbss vs body) =
-  putLength (length vs) *>
-    putNormal refrep fops (pushCtx vs ctx) body
+  putLength (length vs)
+    *> putNormal refrep fops (pushCtx vs ctx) body
 
 getInlineExpr ::
   (MonadGet m, Versioned m, Var v) =>
@@ -389,15 +389,17 @@ getInlineExpr ctx frsh0 = do
 
 putOptInfos :: (MonadPut m, Var v) => Map ForeignFunc Text -> OptInfos v -> m ()
 putOptInfos fops (arities, inls) =
-  putMap putReference pInt arities *>
-    putMap putReference (putInlineInfo fops []) inls
+  putMap putReference pInt arities
+    *> putMap putReference (putInlineInfo fops []) inls
   where
     pInt = serialize . VarInt
 
 -- Note: current version
 getOptInfos :: (MonadGet m, Var v) => m (OptInfos v)
-getOptInfos = flip runReaderT (Transfer codeVersion) $
-  (,) <$> getMap getReference gInt
+getOptInfos =
+  flip runReaderT (Transfer codeVersion) $
+    (,)
+      <$> getMap getReference gInt
       <*> getMap getReference (getInlineInfo [] 0)
   where
     gInt = unVarInt <$> deserialize
@@ -409,11 +411,12 @@ putInlineClass = \case
   Don'tInl -> putWord8 2
 
 getInlineClass :: (MonadGet m) => m InlineClass
-getInlineClass = getWord8 >>= \case
-  0 -> pure AnywhereInl
-  1 -> pure TailInl
-  2 -> pure Don'tInl
-  n -> unknownTag "InlineClass" n
+getInlineClass =
+  getWord8 >>= \case
+    0 -> pure AnywhereInl
+    1 -> pure TailInl
+    2 -> pure Don'tInl
+    n -> unknownTag "InlineClass" n
 
 putCacheability :: (MonadPut m) => Cacheability -> m ()
 putCacheability Uncacheable = putWord8 0
