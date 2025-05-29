@@ -491,6 +491,7 @@ classifyInline rec = \case
   TDiscard {} -> Don'tInl
   TLocal {} -> Don'tInl
   TUpdate {} -> Don'tInl
+  ABTN.TAbs _ bd -> classifyInline rec bd
 
 -- Recognizes the form resulting from certain `handle` calls in the
 -- surface syntax. The recognized pattern is:

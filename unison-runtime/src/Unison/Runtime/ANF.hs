@@ -1102,22 +1102,24 @@ pattern TUpdate :: (ABT.Var v) => Bool -> v -> v -> ABTN.Term ANormalF v
 pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
 
 {-# COMPLETE
-  TLet,
+  TLets,
   TName,
   TVar,
   TApp,
   TFrc,
   TLit,
+  TBLit,
   THnd,
   TShift,
   TMatch,
   TDiscard,
   TLocal,
-  TUpdate
+  TUpdate,
+  ABTN.TAbs
   #-}
 
 {-# COMPLETE
-  TLet,
+  TLets,
   TName,
   TVar,
   TFrc,
@@ -1129,12 +1131,14 @@ pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
   TPrm,
   TFOp,
   TLit,
+  TBLit,
   THnd,
   TShift,
   TMatch,
   TDiscard,
   TLocal,
-  TUpdate
+  TUpdate,
+  ABTN.TAbs
   #-}
 
 bind :: (Var v) => Cte v -> ANormal v -> ANormal v
@@ -2428,6 +2432,7 @@ prettyANF m ind tm =
         . prettyVars vs
         . prettyANF True ind bo
     TLit l -> shows l
+    TBLit l -> shows l
     TFrc v -> showString "!" . pvar v
     TVar v -> pvar v
     TApp f vs -> prettyFunc f . prettyVars vs
@@ -2467,7 +2472,6 @@ prettyANF m ind tm =
       prettyVars (v : vs)
         . showString " ->"
         . prettyANF True (ind + 1) bo
-    _ -> shows tm
 
 prettySpace :: Bool -> Int -> ShowS
 prettySpace False _ = showString " "
