@@ -61,9 +61,9 @@ import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted (..))
-import Unison.Util.Defn (Defn (..), DefnF)
+import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
-import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName, unflattenNametrees)
+import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
