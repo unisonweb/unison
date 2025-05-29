@@ -17,6 +17,9 @@ import Unison.Util.Text qualified as Unison.Text
 genSmallWord64 :: Gen Word64
 genSmallWord64 = Gen.word64 (Range.linear 0 100)
 
+genBool :: Gen Bool
+genBool = Gen.choice [pure False, pure True]
+
 genSmallInt :: Gen Int
 genSmallInt = Gen.int (Range.linear 0 100)
 
