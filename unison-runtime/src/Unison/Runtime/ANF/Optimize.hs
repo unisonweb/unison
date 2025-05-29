@@ -747,6 +747,19 @@ linearTail opts self vs bound rec ar kf0 tm
 -- body. This does not obey the normal inlining classification, so it
 -- may inline a function that makes indirect calls, and needs to
 -- account for that. This allows us to see more linear situations.
+--
+-- Note: this does _not_ fix the `Direction` numbering in the result.
+-- The numbering is intended to allow returning to specific points
+-- within a function; each number mapping to a code section that is
+-- the rest of the function from that point.
+--
+-- However, this is not used during normal code execution. `Let` in
+-- code directly stores its body. The numbering is used to reconstruct
+-- continuations from the interchange format, since they only send the
+-- numbers. However, _affine_ handlers are only use in contexts where
+-- continuations aren't captured, so we don't actually need a correct
+-- numbering. If this is ever changed, then the numbering here must be
+-- adjusted.
 replaceLinearBody :: (Var v) => OptInfos v -> ANormal v -> ANormal v
 replaceLinearBody (arities, inls) bd
   | TCom r vs <- bd,
