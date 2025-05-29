@@ -355,10 +355,12 @@ optimize gs = runState do
 affineOptimize :: (Var v) => ANormal v -> ANormal v
 affineOptimize =
   runMemo . rewriteUp \_tail -> \case
-    TLetD v _ bn bd
+    TLet _ v _ bn bd
       | v `Set.notMember` ABTN.freeVars bd,
         effectless bn ->
           bd <$ dirty
+    -- eliminate `v = u` bindings
+    TLet _ v _ (TVar u) bd -> ABTN.rename u v bd <$ dirty
     tm -> pure tm
   where
     effectless (TCon {}) = True
@@ -529,6 +531,7 @@ directAllowed TBLit {} = True
 directAllowed TPrm {} = True
 directAllowed TFOp {} = True
 directAllowed TCon {} = True
+directAllowed TVar {} = True
 directAllowed _ = False
 
 -- Recognizes the entry point of a handler, for inlining into the
