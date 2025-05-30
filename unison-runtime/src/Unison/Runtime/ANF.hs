@@ -532,7 +532,7 @@ postFloat ::
     [(Reference, Term v a)],
     [(Reference, Term v a)]
   )
-postFloat orig (_,  bs, dcmp) =
+postFloat orig (_, bs, dcmp) =
   ( subs,
     subvs,
     fmap (first DerivedId) tops,
@@ -621,9 +621,10 @@ pattern LamsAnnot us mty vs bd <-
 lamsAnnot ::
   (Var v) => a -> [v] -> Maybe (Ty.Type v a) -> [v] -> Term v a -> Term v a
 lamsAnnot a us mty vs bd =
-  lamWithoutBindingAnns a us .
-    maybe id (flip $ ann a) mty .
-    lamWithoutBindingAnns a vs $ bd
+  lamWithoutBindingAnns a us
+    . maybe id (flip $ ann a) mty
+    . lamWithoutBindingAnns a vs
+    $ bd
 
 deannotate :: (Var v) => Term v a -> Term v a
 deannotate = ABT.visitPure $ \case
