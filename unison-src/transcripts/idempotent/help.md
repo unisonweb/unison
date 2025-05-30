@@ -924,9 +924,8 @@ scratch/main> help-topic filestatus
   definitions in a .u file.
 
   needs update         A definition with the same name as an
-                       existing definition. Doing `update` will
-                       turn this failure into a successful
-                       update.
+                       existing definition. Rename or delete the
+                       existing definition and then try again.
                        
   term/ctor collision  A definition with the same name as an
                        existing constructor for some data type.

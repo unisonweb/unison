@@ -2389,8 +2389,8 @@ helpTopicsMap =
           "",
           P.wrapColumn2
             [ ( P.bold $ SR.prettyStatus SR.Collision,
-                "A definition with the same name as an existing definition. Doing"
-                  <> "`update` will turn this failure into a successful update."
+                "A definition with the same name as an existing definition."
+                  <> "Rename or delete the existing definition and then try again."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
