@@ -299,11 +299,12 @@ doMerge info = do
             Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
             Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 
-        liftIO (debugFunctions.debugDiffs blob1.diffsFromLCA)
-
-        liftIO (debugFunctions.debugCombinedDiff blob1.diff)
-
-        liftIO (debugFunctions.debugHumanDiffs blob1.humanDiffsFromLCA)
+        liftIO do
+          debugFunctions.debugDiffs blob1.diffsFromLCA
+          debugFunctions.debugRenames blob1.renames
+          debugFunctions.debugSimpleRenames blob1.simpleRenames
+          debugFunctions.debugCombinedDiff blob1.diff
+          debugFunctions.debugHumanDiffs blob1.humanDiffsFromLCA
 
         blob2 <-
           Merge.makeMergeblob2 blob1 & onLeft \err ->
@@ -757,7 +758,9 @@ data DebugFunctions = DebugFunctions
     debugPartitionedDiff ::
       Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Merge.Unconflicts Referent TypeReference ->
-      IO ()
+      IO (),
+    debugRenames :: Merge.TwoWay (DefnsF [] Merge.Rename Merge.Rename) -> IO (),
+    debugSimpleRenames :: Merge.TwoWay (Defns Merge.SimpleRenames Merge.SimpleRenames) -> IO ()
   }
 
 realDebugFunctions :: DebugFunctions
@@ -769,12 +772,14 @@ realDebugFunctions =
       debugCombinedDiff = realDebugCombinedDiff,
       debugHumanDiffs = realDebugHumanDiffs,
       debugInitialDependents = realDebugInitialDependents,
-      debugPartitionedDiff = realDebugPartitionedDiff
+      debugPartitionedDiff = realDebugPartitionedDiff,
+      debugRenames = realDebugRenames,
+      debugSimpleRenames = realDebugSimpleRenames
     }
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 realDebugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
 realDebugCausals causals = do
@@ -1127,6 +1132,55 @@ realDebugPartitionedDiff conflicts unconflicts = do
                 <> name
                 <> " "
                 <> renderRef ref
+
+realDebugRenames :: Merge.TwoWay (DefnsF [] Merge.Rename Merge.Rename) -> IO ()
+realDebugRenames renames = do
+  Text.putStrLn (Text.bold "\n=== Alice renames ===")
+  renderRenames renames.alice
+  Text.putStrLn (Text.bold "\n=== Bob renames ===")
+  renderRenames renames.bob
+  where
+    renderRenames :: DefnsF [] Merge.Rename Merge.Rename -> IO ()
+    renderRenames renames = do
+      for_ renames.terms \rename ->
+        Text.putStrLn (Text.italic "term" <> " " <> renderRename rename)
+      for_ renames.types \rename ->
+        Text.putStrLn (Text.italic "type" <> " " <> renderRename rename)
+
+    renderRename :: Merge.Rename -> Text
+    renderRename rename =
+      Text.unwords $
+        catMaybes
+          [ case Set.toList rename.unchanged of
+              [] -> Nothing
+              unchanged -> Just (Text.unwords (map Name.toText unchanged)),
+            case Set.toList rename.deletes of
+              [] -> Nothing
+              deletes -> Just (Text.unwords (map (\name -> Text.red ("-" <> Name.toText name)) deletes)),
+            case Set.toList rename.adds of
+              [] -> Nothing
+              adds -> Just (Text.unwords (map (\name -> Text.green ("+" <> Name.toText name)) adds))
+          ]
+
+realDebugSimpleRenames :: Merge.TwoWay (Defns Merge.SimpleRenames Merge.SimpleRenames) -> IO ()
+realDebugSimpleRenames renames = do
+  Text.putStrLn (Text.bold "\n=== Alice simple renames ===")
+  renderRenames renames.alice
+  Text.putStrLn (Text.bold "\n=== Bob simple renames ===")
+  renderRenames renames.bob
+  where
+    renderRenames :: Defns Merge.SimpleRenames Merge.SimpleRenames -> IO ()
+    renderRenames renames = do
+      renames.terms.forwards
+        & Map.toList
+        & map (\(old, new) -> Text.italic "term" <> " " <> Name.toText old <> " → " <> Name.toText new)
+        & Text.unlines
+        & Text.putStr
+      renames.types.forwards
+        & Map.toList
+        & map (\(old, new) -> Text.italic "type" <> " " <> Name.toText old <> " → " <> Name.toText new)
+        & Text.unlines
+        & Text.putStr
 
 referentLabel :: Referent -> Text
 referentLabel ref
