@@ -157,8 +157,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
       _ <- Ki.fork scope (Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch)
       -- IOSource takes a while to compile, we should start compiling it on startup
       _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
-      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event (automatically
-      -- first tossing all that have accumulated since the last call)
+      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event.
       awaitFileEvent <- do
         (fmap . fmap)
           (\(file, contents) -> UnisonFileChanged (Text.pack file) contents)
