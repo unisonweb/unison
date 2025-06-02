@@ -22,10 +22,10 @@ This also affects commands like find. Notice lack of qualified names in output:
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo.bar.a       : Int
-    optional.isNone : Optional a -> Boolean
+  Done.
 
 scratch/main> find take
 
@@ -74,10 +74,9 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       cool.abra.cadabra            : Text
       lib.distributed.abra.cadabra : Text
@@ -88,12 +87,10 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    cool.abra.cadabra            : Text
-    lib.distributed.abra.cadabra : Text
-    lib.distributed.baz.qux      : Text
-    lib.distributed.lib.baz.qux  : Text
+  Done.
 ```
 
 ``` unison :error

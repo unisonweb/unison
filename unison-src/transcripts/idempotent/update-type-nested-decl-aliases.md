@@ -13,10 +13,9 @@ structural type A = B.TheOtherAlias Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural type A
       structural type A.B
@@ -26,11 +25,10 @@ structural type A = B.TheOtherAlias Foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type A
-    structural type A.B
-    type Foo
+  Done.
 ```
 
 ``` unison
@@ -41,8 +39,7 @@ unique type Foo = Bar Nat Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

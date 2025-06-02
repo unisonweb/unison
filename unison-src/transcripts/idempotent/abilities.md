@@ -24,8 +24,8 @@ ha = cases
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ability A
-    ha : Request {A} r -> r
+  Done.
 ```

@@ -29,10 +29,10 @@ structural type Foo = Foo ()
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
-    foo : Nat
+  Done.
 
 scratch/main> delete.verbose foo
 
@@ -72,10 +72,10 @@ a.bar = 2
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a.bar : Nat
-    a.foo : Nat
+  Done.
 
 scratch/main> debug.alias.term.force a.bar a.foo
 
@@ -115,11 +115,10 @@ structural type a.Bar = Bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type a.Bar
-      (also named lib.builtins.Unit)
-    structural type a.Foo
+  Done.
 
 scratch/main> debug.alias.type.force a.Bar a.Foo
 
@@ -161,10 +160,10 @@ structural type foo = Foo ()
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type foo
-    foo : Nat
+  Done.
 
 scratch/main> delete.verbose foo
 
@@ -175,6 +174,10 @@ scratch/main> delete.verbose foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
+
+scratch/main> delete foo.Foo
+
+  Done.
 ```
 
 We want to be able to delete multiple terms at once
@@ -188,11 +191,10 @@ c = "c"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : Text
-    b : Text
-    c : Text
+  Done.
 
 scratch/main> delete.verbose a b c
 
@@ -218,12 +220,10 @@ c = "c"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
-    a : Text
-    b : Text
-    c : Text
+  Done.
 
 scratch/main> delete.verbose a b c Foo
 
@@ -239,11 +239,9 @@ scratch/main> delete.verbose a b c Foo
 
 scratch/main> delete.verbose Foo.Foo
 
-  Name changes:
+  Removed definitions:
 
-    Original      Changes
-    1. Foo.Foo ┐  2. Foo.Foo (removed)
-    3. foo.Foo ┘  
+    1. Foo.Foo : '#089vmor9c5
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -258,21 +256,17 @@ structural type Foo = Foo ()
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
+  Done.
 
 scratch/main> delete.verbose Foo Foo.Foo
 
   Removed definitions:
 
     1. structural type Foo
-
-  Name changes:
-
-    Original      Changes
-    2. Foo.Foo ┐  3. Foo.Foo (removed)
-    4. foo.Foo ┘  
+    2. Foo.Foo : 'Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -290,13 +284,10 @@ d = a + b + c
 ``` ucm :error
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : Nat
-    b : Nat
-      (also named a.bar)
-    c : Nat
-    d : Nat
+  Done.
 
 scratch/main> delete.verbose a b c
 
@@ -323,12 +314,10 @@ h = e + f + g
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    e : Nat
-    f : Nat
-    g : Nat
-    h : Nat
+  Done.
 
 scratch/main> delete.verbose e f g h
 
@@ -356,10 +345,10 @@ incrementFoo = cases
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
-    incrementFoo : Foo -> Nat
+  Done.
 
 scratch/main> delete.verbose Foo Foo.Foo incrementFoo
 
@@ -385,12 +374,10 @@ h = e + f + g
 ``` ucm :error
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    e : Nat
-    f : Nat
-    g : Nat
-    h : Nat
+  Done.
 
 scratch/main> delete.verbose e f gg
 
@@ -410,10 +397,10 @@ pong _ = 4 Nat.+ !ping
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ping : 'Nat
-    pong : 'Nat
+  Done.
 
 scratch/main> delete.verbose ping
 

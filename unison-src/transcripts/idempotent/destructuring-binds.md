@@ -22,10 +22,9 @@ ex1 tup =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex0 : Nat -> Nat
       ex1 : (a, b, (Nat, Nat)) -> Nat
@@ -34,10 +33,10 @@ ex1 tup =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ex0 : Nat -> Nat
-    ex1 : (a, b, (Nat, Nat)) -> Nat
+  Done.
 
 scratch/main> view ex0 ex1
 
@@ -65,10 +64,9 @@ ex2 tup = match tup with
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex2 : (a, b, (Nat, Nat)) -> Nat
         (also named ex1)
@@ -121,10 +119,9 @@ ex5a _ = match (99 + 1, "hi") with
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       ex5  : 'Text
       ex5a : 'Text
@@ -133,10 +130,10 @@ ex5a _ = match (99 + 1, "hi") with
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ex5  : 'Text
-    ex5a : 'Text
+  Done.
 
 scratch/main> view ex5 ex5a
 
@@ -165,9 +162,10 @@ For clarity, the pretty-printer leaves this alone, even though in theory it coul
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ex6 : (Nat, Nat) -> Nat
+  Done.
 
 scratch/main> view ex6
 

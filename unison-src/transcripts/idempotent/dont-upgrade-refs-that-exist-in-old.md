@@ -16,10 +16,9 @@ mything = lib.old.foo + lib.old.foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       lib.new.foo   : Nat
       lib.new.other : Nat
@@ -30,12 +29,10 @@ mything = lib.old.foo + lib.old.foo
 ``` ucm
 foo/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.new.foo   : Nat
-    lib.new.other : Nat
-    lib.old.foo   : Nat
-    mything       : Nat
+  Done.
 
 foo/main> upgrade old new
 

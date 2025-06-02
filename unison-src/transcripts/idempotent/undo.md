@@ -13,9 +13,10 @@ scratch/main> builtins.merge lib.builtins
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : Nat
+  Done.
 
 scratch/main> ls .
 
@@ -99,9 +100,10 @@ scratch/branch1> builtins.merge lib.builtins
 
 scratch/branch1> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : Nat
+  Done.
 
 scratch/branch1> ls .
 

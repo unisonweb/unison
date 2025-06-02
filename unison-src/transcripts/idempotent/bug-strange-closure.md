@@ -207,16 +207,10 @@ scratch/main> display doc.guide
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    basicFormatting     : Doc2
-    doc.guide           : Doc2
-    evaluation          : Doc2
-    includingSource     : Doc2
-    lists               : Doc2
-    nonUnisonCodeBlocks : Doc2
-    otherElements       : Doc2
-    sqr                 : Nat -> Nat
+  Done.
 
 scratch/main> display doc.guide
 
@@ -427,10 +421,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       rendered : Annotated () (Either SpecialForm ConsoleText)
 ```
@@ -636,9 +629,10 @@ scratch/main> display rendered
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    rendered : Annotated () (Either SpecialForm ConsoleText)
+  Done.
 
 scratch/main> display rendered
 
@@ -859,10 +853,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       rendered : Annotated () (Either SpecialForm ConsoleText)
 

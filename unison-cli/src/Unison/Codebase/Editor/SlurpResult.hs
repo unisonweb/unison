@@ -204,7 +204,7 @@ pretty isPast ppe sr =
       okToAdd =
         ok
           (P.green "I've added these definitions:")
-          (P.green "These new definitions are ok to `add`:")
+          (P.green "These new definitions are ok to `update`:")
       notOks _past _present sr | isOk sr = mempty
       notOks past present sr =
         let header =
@@ -282,7 +282,7 @@ pretty isPast ppe sr =
           okToUpdate (updates sr),
           notOks
             (P.red "These definitions failed:")
-            (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
+            (P.wrap $ P.red "These definitions would fail on `update`:")
             sr
         ]
 

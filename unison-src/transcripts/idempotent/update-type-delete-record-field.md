@@ -10,10 +10,9 @@ unique type Foo = { bar : Nat, baz : Int }
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
       Foo.bar        : Foo -> Nat
@@ -27,15 +26,10 @@ unique type Foo = { bar : Nat, baz : Int }
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    Foo.bar        : Foo -> Nat
-    Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
-    Foo.bar.set    : Nat -> Foo -> Foo
-    Foo.baz        : Foo -> Int
-    Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
-    Foo.baz.set    : Int -> Foo -> Foo
+  Done.
 ```
 
 ``` unison
@@ -46,8 +40,7 @@ unique type Foo = { bar : Nat }
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

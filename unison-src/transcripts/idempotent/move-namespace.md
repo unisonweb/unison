@@ -11,9 +11,10 @@ foo = 1
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo : ##Nat
+  Done.
 
 -- Should request confirmation
 
@@ -121,10 +122,9 @@ unique type a.T = T
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type a.T
       a.termInA : Nat
@@ -133,10 +133,10 @@ unique type a.T = T
 ``` ucm
 scratch/happy> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type a.T
-    a.termInA : Nat
+  Done.
 ```
 
 ``` unison
@@ -148,8 +148,7 @@ unique type a.T = T1 | T2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -215,10 +214,9 @@ b.termInB = 10
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       a.termInA : Nat
       b.termInB : Nat
@@ -227,10 +225,10 @@ b.termInB = 10
 ``` ucm
 scratch/history> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a.termInA : Nat
-    b.termInB : Nat
+  Done.
 ```
 
 ``` unison
@@ -242,8 +240,7 @@ b.termInB = 11
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -318,10 +315,9 @@ b.termInB = 10
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       a.termInA : Nat
       b.termInB : Nat
@@ -330,10 +326,10 @@ b.termInB = 10
 ``` ucm
 scratch/existing> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a.termInA : Nat
-    b.termInB : Nat
+  Done.
 ```
 
 ``` unison
@@ -345,8 +341,7 @@ b.termInB = 11
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

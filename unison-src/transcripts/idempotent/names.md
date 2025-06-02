@@ -40,10 +40,9 @@ xyz.baz = 100.1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type a.baz
       type z.baz
@@ -67,25 +66,10 @@ xyz.baz = 100.1
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type a.baz
-    type z.baz
-    a.baz             : Nat
-    aa.baz            : Boolean
-    another.Boolean   : Boolean
-    b.baz             : Nat
-    bb.baz            : Boolean
-    c.baz             : Nat
-    cc.baz            : Boolean
-    d.baz             : Nat
-    dd.baz            : Boolean
-    some.otherplace.x : Nat
-    some.otherplace.y : Nat
-    some.place.x      : Nat
-    somewhere.y       : Nat
-    somewhere.z       : Nat
-    xyz.baz           : Float
+  Done.
 ```
 
 `names` searches relative to the current path.
