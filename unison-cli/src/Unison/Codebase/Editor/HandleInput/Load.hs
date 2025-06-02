@@ -34,6 +34,8 @@ import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..))
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.FileParsers qualified as FileParsers
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
@@ -46,6 +48,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Reference (TermReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
@@ -55,6 +58,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
+import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -84,13 +88,13 @@ handleLoad maybePath = do
 loadUnisonFile :: Text -> Text -> Cli ()
 loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
-  currentBranch0 <- Cli.getCurrentBranch0
-  let currentNames = Branch.toNames currentBranch0
-  unisonFile <- parseAndTypecheckUnisonFile currentNames sourceName text
-  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp currentNames
-  let names = UF.addNamesFromTypeCheckedUnisonFile unisonFile currentNames
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-  let ppe = PPE.suffixifiedPPE pped
+  oldBranch0 <- Cli.getCurrentBranch0
+  let oldNames = Branch.toNames oldBranch0
+  let oldPpe = PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
+  unisonFile <- parseAndTypecheckUnisonFile oldNames sourceName text
+  let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp oldNames
+  let newNames = UF.addNamesFromTypeCheckedUnisonFile unisonFile oldNames
+  let newPpe = PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
   if useUpdateV2
     then do
       pp <- Cli.getCurrentProjectPath
@@ -106,56 +110,90 @@ loadUnisonFile sourceName text = do
                   causalHash <- Queries.expectCausalHash causalHashId
                   pure (Just causalHash)
       case maybeUpdateBranchParentCausalHash of
-        Nothing -> Cli.respond (Output.Typechecked sourceName ppe sr unisonFile)
+        Nothing -> Cli.respond (Output.Typechecked sourceName newPpe sr unisonFile)
         Just updateBranchParentCausalHash -> do
           Cli.Env {codebase} <- ask
           updateBranchParent <- liftIO (Codebase.expectBranchForHash codebase updateBranchParentCausalHash)
           let updateBranchParentNames = Branch.toNames (Branch.deleteLibdeps (Branch.head updateBranchParent))
           let updateBranchNames =
-                UF.addNamesFromTypeCheckedUnisonFile unisonFile (Branch.toNames (Branch.deleteLibdeps currentBranch0))
+                Names.shadowing
+                  (UF.typecheckedToNames unisonFile)
+                  (Branch.toNames (Branch.deleteLibdeps oldBranch0))
+          slurpTerms <-
+            let getNewType name ref =
+                  let var = Name.toVar name
+                      termInfo = Map.lookup var (UF.hashTermsId unisonFile)
+                      conInfo = Map.lookup var (UF.constructorsId unisonFile)
+                   in case (ref, termInfo, conInfo) of
+                        (Referent.Ref _, Just (_, _, _, _, ty), _) -> pure ty
+                        (Referent.Con _ _, _, Just (ConstructorReference _ conId, decl)) ->
+                          pure (DataDeclaration.expectTypeOfConstructor (DataDeclaration.asDataDecl decl) conId)
+                        _ -> Codebase.expectTypeOfReferent codebase ref
+             in Cli.runTransaction do
+                  Map.mergeA
+                    ( Map.traverseMaybeMissing \_ refs ->
+                        let ref = Set.findMin refs
+                         in if Referent'.isConstructor ref
+                              then pure Nothing
+                              else Just . SlurpEntry'Delete <$> Codebase.expectTypeOfReferent codebase ref
+                    )
+                    ( Map.traverseMaybeMissing \name refs ->
+                        let ref = Set.findMin refs
+                         in if Referent'.isConstructor ref
+                              then pure Nothing
+                              else Just . SlurpEntry'Add <$> getNewType name ref
+                    )
+                    ( Map.zipWithMaybeAMatched \name oldRefs newRefs ->
+                        let oldRef = Set.findMin oldRefs
+                            newRef = Set.findMin newRefs
+                         in case (oldRef, newRef) of
+                              (Referent.Ref _, Referent.Ref _) ->
+                                if oldRef == newRef
+                                  then pure Nothing
+                                  else do
+                                    oldType <- Codebase.expectTypeOfReferent codebase oldRef
+                                    newType <- getNewType name newRef
+                                    pure (Just (SlurpEntry'Update oldType newType))
+                              (Referent.Con _ _, Referent.Ref _) -> do
+                                oldType <- Codebase.expectTypeOfReferent codebase oldRef
+                                newType <- getNewType name newRef
+                                pure (Just (SlurpEntry'Update oldType newType))
+                              (Referent.Ref _, Referent.Con _ _) -> do
+                                oldType <- Codebase.expectTypeOfReferent codebase oldRef
+                                newType <- getNewType name newRef
+                                pure (Just (SlurpEntry'Update oldType newType))
+                              (Referent.Con _ _, Referent.Con _ _) ->
+                                pure Nothing
+                    )
+                    (Relation.domain updateBranchParentNames.terms)
+                    (Relation.domain updateBranchNames.terms)
+          let slurpTypes =
+                Map.merge
+                  (Map.mapMissing \_ _ -> SlurpEntry'Delete ())
+                  (Map.mapMissing \_ _ -> SlurpEntry'Add ())
+                  ( Map.zipWithMaybeMatched \_ oldRefs newRefs ->
+                      if Set.findMin oldRefs /= Set.findMin newRefs
+                        then Just (SlurpEntry'Update () ())
+                        else Nothing
+                  )
+                  (Relation.domain updateBranchParentNames.types)
+                  (Relation.domain updateBranchNames.types)
           let slurpEntries =
                 Defns
-                  { terms =
-                      Map.merge
-                        ( Map.mapMaybeMissing \_ refs ->
-                            if Referent'.isConstructor (Set.findMin refs) then Nothing else Just SlurpEntry'Delete
-                        )
-                        ( Map.mapMaybeMissing \_ refs ->
-                            if Referent'.isConstructor (Set.findMin refs) then Nothing else Just SlurpEntry'Add
-                        )
-                        ( Map.zipWithMaybeMatched \_ oldRefs newRefs ->
-                            case (Set.findMin oldRefs, Set.findMin newRefs) of
-                              (Referent.Ref oldRef, Referent.Ref newRef) ->
-                                if oldRef /= newRef then Just SlurpEntry'Update else Nothing
-                              (Referent.Con _ _, Referent.Ref _) -> Just SlurpEntry'Update
-                              (Referent.Ref _, Referent.Con _ _) -> Just SlurpEntry'Update
-                              (Referent.Con _ _, Referent.Con _ _) -> Nothing
-                        )
-                        (Relation.domain updateBranchParentNames.terms)
-                        (Relation.domain updateBranchNames.terms),
-                    types =
-                      Map.merge
-                        (Map.mapMissing \_ _ -> SlurpEntry'Delete)
-                        (Map.mapMissing \_ _ -> SlurpEntry'Add)
-                        ( Map.zipWithMaybeMatched \_ oldRefs newRefs ->
-                            if Set.findMin oldRefs /= Set.findMin newRefs
-                              then Just SlurpEntry'Update
-                              else Nothing
-                        )
-                        (Relation.domain updateBranchParentNames.types)
-                        (Relation.domain updateBranchNames.types)
+                  { terms = slurpTerms,
+                    types = slurpTypes
                   }
-          Cli.respond (Output.Typechecked2 slurpEntries)
+          Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries)
     else do
-      Cli.respond (Output.Typechecked sourceName ppe sr unisonFile)
+      Cli.respond (Output.Typechecked sourceName newPpe sr unisonFile)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
-      evalUnisonFile Permissive ppe unisonFile [] >>= \case
+      evalUnisonFile Permissive newPpe unisonFile [] >>= \case
         Right (bindings, e) -> do
           when (not (null e)) do
             let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-            Cli.respond $ Output.Evaluated text ppe bindings (Map.map f e)
+            Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f e)
         Left err -> Cli.respond (Output.EvaluationFailure err)
 
   #latestTypecheckedFile .= Just (Right unisonFile)

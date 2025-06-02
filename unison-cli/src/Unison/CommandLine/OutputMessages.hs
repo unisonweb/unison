@@ -121,6 +121,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -962,14 +963,35 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  Typechecked2 slurpEntries -> do
-    let renderSlurpEntries :: Pretty -> Map Name SlurpResult.SlurpEntry -> Pretty
-        renderSlurpEntries kind =
+  Typechecked2 oldPpe newPpe slurpEntries -> do
+    let renderTerms :: Map Name (SlurpResult.SlurpEntry (Type Symbol Ann)) -> Pretty
+        renderTerms =
           Map.toList
             >>> List.map \case
-              (name, SlurpResult.SlurpEntry'Add) -> P.green ("+" <> kind <> prettyName name)
-              (name, SlurpResult.SlurpEntry'Delete) -> P.red ("-" <> kind <> prettyName name)
-              (name, SlurpResult.SlurpEntry'Update) -> P.yellow ("%" <> kind <> prettyName name)
+              (name, SlurpResult.SlurpEntry'Add ty) ->
+                P.green ("+ term " <> prettyName name) <> " : " <> TypePrinter.pretty newPpe ty
+              (name, SlurpResult.SlurpEntry'Delete ty) ->
+                P.red ("- term " <> prettyName name) <> " : " <> TypePrinter.pretty oldPpe ty
+              (name, SlurpResult.SlurpEntry'Update oldTy newTy) ->
+                let prettyOldTy = TypePrinter.pretty oldPpe oldTy
+                    prettyNewTy = TypePrinter.pretty newPpe newTy
+                 in if prettyOldTy == prettyNewTy
+                      then P.yellow ("% term " <> prettyName name) <> " : " <> prettyNewTy
+                      else
+                        P.yellow ("% term " <> prettyName name)
+                          <> P.newline
+                          <> P.indentN
+                            2
+                            ( "- " <> prettyOldTy <> P.newline <> "+ " <> prettyNewTy
+                            )
+            >>> P.lines
+    let renderTypes :: Map Name (SlurpResult.SlurpEntry ()) -> Pretty
+        renderTypes =
+          Map.toList
+            >>> List.map \case
+              (name, SlurpResult.SlurpEntry'Add _) -> P.green ("+ type " <> prettyName name)
+              (name, SlurpResult.SlurpEntry'Delete _) -> P.red ("- type " <> prettyName name)
+              (name, SlurpResult.SlurpEntry'Update _ _) -> P.yellow ("% type " <> prettyName name)
             >>> P.lines
     pure $
       P.lines
@@ -978,8 +1000,8 @@ notifyUser dir = \case
           P.indentN
             2
             ( P.linesNonEmpty
-                [ renderSlurpEntries " type " slurpEntries.types,
-                  renderSlurpEntries " term " slurpEntries.terms
+                [ renderTypes slurpEntries.types,
+                  renderTerms slurpEntries.terms
                 ]
             )
         ]

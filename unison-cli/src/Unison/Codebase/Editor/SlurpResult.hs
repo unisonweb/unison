@@ -337,7 +337,7 @@ filterUnisonFile
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
       filterTLC (v, _, _, _) = Set.member v keepTerms
 
-data SlurpEntry
-  = SlurpEntry'Add
-  | SlurpEntry'Delete
-  | SlurpEntry'Update
+data SlurpEntry a
+  = SlurpEntry'Add a
+  | SlurpEntry'Delete a
+  | SlurpEntry'Update a a

@@ -192,7 +192,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
 
       flip finally finalizer do
         getTerm <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTerm getDeclType)
-        getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 (CodebaseOps.getTypeOfTermImpl)
+        getTypeOfTermImpl <- CodebaseOps.makeMaybeCachedTransaction 8192 CodebaseOps.getTypeOfTermImpl
         getTypeDeclaration <- CodebaseOps.makeMaybeCachedTransaction 1024 CodebaseOps.getTypeDeclaration
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])

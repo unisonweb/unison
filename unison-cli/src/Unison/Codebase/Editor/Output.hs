@@ -89,7 +89,7 @@ import Unison.Typechecker.Context qualified as Context
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (DefnsF, defnsAreEmpty)
+import Unison.Util.Defns (Defns, DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -283,7 +283,7 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
-  | Typechecked2 (DefnsF (Map Name) SR.SlurpEntry SR.SlurpEntry)
+  | Typechecked2 PPE.PrettyPrintEnv PPE.PrettyPrintEnv (Defns (Map Name (SR.SlurpEntry (Type Symbol Ann))) (Map Name (SR.SlurpEntry ())))
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
