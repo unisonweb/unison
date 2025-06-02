@@ -28,7 +28,7 @@ scratch/main> builtins.merge
     "implement me later"
 
   Stack trace:
-    todo
+    #kuk93g9qt6
     #qe5e1lcfn8
 ```
 
@@ -54,7 +54,7 @@ scratch/main> builtins.merge
     "there's a bug in my code"
 
   Stack trace:
-    bug
+    #o6nuga5ucb
     #m67hcdcoda
 ```
 

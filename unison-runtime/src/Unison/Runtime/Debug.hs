@@ -5,11 +5,16 @@ module Unison.Runtime.Debug
     tracePrettyDefs,
     tracePrettyCodes,
     tracePrettyGroup,
+    tracePrettyRGroup,
+    tracePrettyRPGroup,
+    tracePrettyGroups,
     tracePrettyNormal,
     module Debug.Trace,
   )
 where
 
+import Data.Map qualified as Map
+import Data.Monoid (Endo (..))
 import Data.Word
 import Debug.Trace
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -75,6 +80,33 @@ tracePrettyGroup ::
   SuperGroup v
 tracePrettyGroup _ False g = g
 tracePrettyGroup w True g = trace (prettyGroup w g "") g
+
+tracePrettyRGroup ::
+  (Var v) =>
+  Reference ->
+  Bool ->
+  SuperGroup v ->
+  SuperGroup v
+tracePrettyRGroup = tracePrettyGroup . prettyRefStr
+
+tracePrettyRPGroup ::
+  (Var v) =>
+  Reference ->
+  (SuperGroup v -> Bool) ->
+  SuperGroup v ->
+  SuperGroup v
+tracePrettyRPGroup r p g = tracePrettyRGroup r (p g) g
+
+tracePrettyGroups ::
+  (Var v) =>
+  Bool ->
+  Map.Map Reference (SuperGroup v) ->
+  Map.Map Reference (SuperGroup v)
+tracePrettyGroups False gs = gs
+tracePrettyGroups True gs =
+  trace (appEndo (foldMap f (Map.toList gs)) "") gs
+  where
+    f (r, g) = Endo $ prettyGroup (prettyRefStr r) g . showString "\n\n"
 
 prettyRef :: Reference -> Pretty ColorText
 prettyRef = prettyShortHash . shortenTo 10 . toShortHash

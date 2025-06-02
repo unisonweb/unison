@@ -21,6 +21,7 @@ import Unison.Runtime.ANF
     foldGroupLinks,
     valueLinks,
   )
+import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign (Failure (..))
@@ -89,6 +90,7 @@ data CCache = CCache
     combRefs :: TVar (EnumMap Word64 Reference),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
+    optInfos :: TVar (OptInfos Symbol),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
@@ -117,6 +119,7 @@ baseCCache sandboxed = do
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
     <*> newTVarIO cacheableCombs
+    <*> newTVarIO builtinOptInfo
     <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
     <*> newTVarIO fty
