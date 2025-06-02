@@ -2,6 +2,23 @@
 scratch/main> builtins.merge
 ```
 
+This transcript gives some examples of affine handlers and tests that
+their performance is being improved. Handlers can be optimized if
+all their branches fall into two cases:
+
+1.  The continuation is unused in the branch
+2.  The continuation is used exactly once in tail position, handled
+    with the same handler.
+
+It's allowed to mix these cases together, and do some initial
+branching, so long as the branches ultimately fall into one of these
+two cases.
+
+Also, the optimized version of a handler can only be used if the
+context it's installed only contains other optimized handlers. If a
+non-optimized handler is already on the stack, the ordinary version of
+handlers below it must be used.
+
 ``` unison
 ability Repeat where
   times : Nat -> ()
@@ -135,6 +152,10 @@ scratch/main> io.test count'test
 
   Tip: Use view 1 to view the source of a test.
 ```
+
+The following test illustrates using both sort of handler cases.
+`fail` is never called in the test, but the optimization is only
+looking at handlers, not the effectful code.
 
 ``` unison
 ability CountOrFail where
