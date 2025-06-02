@@ -608,7 +608,7 @@ isFailure o = case o of
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
   ViewOnShare {} -> False
-  DisplayDebugCompletions {} -> False
+  DisplayDebugCompletions completions -> null completions
   DisplayDebugLSPNameCompletions {} -> False
   DebugDisplayFuzzyOptions {} -> False
   DebugFuzzyOptionsIncorrectArgs {} -> True

@@ -36,6 +36,7 @@ library
       Unison.Merge.Mergeblob5
       Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs
+      Unison.Merge.Rename
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay

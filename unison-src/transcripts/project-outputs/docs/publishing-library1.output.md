@@ -104,7 +104,7 @@ We can add a syntax for branch-qualified identifiers, then proceed with normal b
 meetup3> alias gh:aryairani/either/Either.rightToOptional Either.rightMay
   ┌
   │  ✅
-  │
+  │  
   │  I aliased the term gh:aryairani/either/Either.rightToOptional to
   │    Either.rightMay.
   └
@@ -132,11 +132,11 @@ meetup3>
 
 #### Idea: `import` statements are 1st class entities
 
-`import` statements could be first-class things that are added to the namespace on an `update`.
+`import` statements could be first-class things that are added to the namespace on an `add`.
 
-> Side note: This reminds me, I think there are reasons to reconsider adding support for `update`ing individual definitions from .u to branch.  I have a WIP for this, but it doesn't work.  😅  Could probably knock it out quickly by pairing.
+> Side note: This reminds me, I think there are reasons to reconsider adding support for `add`ing individual definitions from .u to branch.  I have a WIP for this, but it doesn't work.  😅  Could probably knock it out quickly by pairing.
 
-Anyway, if we `>update` on this file,
+Anyway, if we `>add` on this file,
 
 ``` haskell
 import gh:ghuser/ghrepo:treeish/unisonbranch as Foo
@@ -148,8 +148,8 @@ we also add an entry to the namespace:
 
 ``` haskell
 ("Foo", QualifiedImport (Github "ghuser" "ghrepo" (Just treeish) "unisonbranch") Nothing)
-("E", QualifiedImport
-				(Github "aryairani" "either" Nothing "default?master?")
+("E", QualifiedImport 
+				(Github "aryairani" "either" Nothing "default?master?") 
 				(Just "Either") )
 ```
 
@@ -225,7 +225,7 @@ When do we actually bring those names/definitions into the local codebase, so we
 
 ##### Idea: Copy referenced names/defs into the branch
 
-If we `>update` on this file:
+If we `>add` on this file:
 
 ``` 
 import gh:aryairani/either/Either as Either
@@ -358,7 +358,7 @@ You can easily imagine exporting a subtree, but what if that subtree references 
     
     	Syncing /projects/FaceDetector to gh:aryairani/face-detector
     	Syncing / to gh:aryairani/private-repo
-    
+    	
     /projects/FaceDetector/V2>
     ```
     
