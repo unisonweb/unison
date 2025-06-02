@@ -6,7 +6,7 @@ any : a -> Any
 any a = Any.Any (k -> k a)
 
 ---
-This typechecks fine, as expected, but try to `add` to codebase, get:
+This typechecks fine, as expected, but try to `update` to codebase, get:
 
 unison: unknown var in environment: "r" environment = [Right User "a"]
 CallStack (from HasCallStack):

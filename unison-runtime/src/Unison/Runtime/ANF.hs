@@ -224,7 +224,7 @@ enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e) =
       | Ann' _ ty <- b = ann a tm ty
       | otherwise = tm
     lamb = lamWithoutBindingAnns a evs (annotate $ lamWithoutBindingAnns a vs lbody)
-enclose keep rec t@(unLamsAnnot -> Just (vs0, mty, vs1, body)) =
+enclose keep rec t@(LamsAnnot vs0 mty vs1 body) =
   Just $ if null evs then lamb else apps' lamb $ map (var a) evs
   where
     -- remove shadowed variables
@@ -233,10 +233,7 @@ enclose keep rec t@(unLamsAnnot -> Just (vs0, mty, vs1, body)) =
     evs = Set.toList $ Set.difference fvs keep
     a = ABT.annotation t
     lbody = rec keep' body
-    annotate tm
-      | Just ty <- mty = ann a tm ty
-      | otherwise = tm
-    lamb = lamWithoutBindingAnns a (evs ++ vs0) . annotate . lamWithoutBindingAnns a vs1 $ lbody
+    lamb = lamsAnnot a (evs ++ vs0) mty vs1 lbody
 enclose keep rec t@(Handle' h body)
   | isStructured body =
       Just . handle (ABT.annotation t) (rec keep h) $ apps' lamb args
@@ -439,8 +436,8 @@ groupFloater rec vbs = do
   pure shadowMap
   where
     rec' b
-      | Just (vs0, mty, vs1, bd) <- unLamsAnnot b =
-          lamWithoutBindingAnns a vs0 . maybe id (flip $ ann a) mty . lamWithoutBindingAnns a vs1 <$> rec bd
+      | LamsAnnot vs0 mty vs1 bd <- b =
+          lamsAnnot a vs0 mty vs1 <$> rec bd
       where
         a = ABT.annotation b
     rec' b = rec b
@@ -502,18 +499,18 @@ floater top rec (LetRecNamed' vbs e) =
           a = ABT.annotation lm
       tm -> rec tm
 floater _ rec (Let1Named' v b e)
-  | Just (vs0, _, vs1, bd) <- unLamsAnnot b =
+  | LamsAnnot vs0 _ vs1 bd <- b =
       Just $
         rec bd
           >>= lamFloater True b (Just v) a (vs0 ++ vs1)
           >>= \lv -> rec $ ABT.renames (Map.singleton v lv) e
   where
     a = ABT.annotation b
-floater top rec tm@(LamsNamed' vs bd)
-  | top = Just $ lamWithoutBindingAnns a vs <$> rec bd
+floater top rec tm@(LamsAnnot vs0 mty vs1 bd)
+  | top = Just $ lamsAnnot a vs0 mty vs1 <$> rec bd
   | otherwise = Just $ do
       bd <- rec bd
-      lv <- lamFloater True tm Nothing a vs bd
+      lv <- lamFloater True tm Nothing a (vs0 ++ vs1) bd
       pure $ var a lv
   where
     a = ABT.annotation tm
@@ -601,6 +598,27 @@ unLamsAnnot tm0
     (vs1, bd)
       | LamsNamed' vs bd <- bd1 = (vs, bd)
       | otherwise = ([], bd1)
+
+-- Matches a lambda term with an annotation in the middle, like:
+--
+--   w x -> (y z -> ...) : ...
+--
+-- This can occur due to enclosing an annotated lambda term with free
+-- variables.
+pattern LamsAnnot ::
+  [v] -> Maybe (Ty.Type v a) -> [v] -> Term v a -> Term v a
+pattern LamsAnnot us mty vs bd <-
+  (unLamsAnnot -> Just (us, mty, vs, bd))
+
+-- Builds a lambda term with arguments separated by an annotation, as
+-- above. Just a convenience function that reverses the above pattern.
+lamsAnnot ::
+  (Var v) => a -> [v] -> Maybe (Ty.Type v a) -> [v] -> Term v a -> Term v a
+lamsAnnot a us mty vs bd =
+  lamWithoutBindingAnns a us
+    . maybe id (flip $ ann a) mty
+    . lamWithoutBindingAnns a vs
+    $ bd
 
 deannotate :: (Var v) => Term v a -> Term v a
 deannotate = ABT.visitPure $ \case

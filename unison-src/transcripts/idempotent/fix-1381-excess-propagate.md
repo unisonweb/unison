@@ -10,10 +10,10 @@ X.foo = "a namespace"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    X.foo : ##Text
-    a     : ##Text
+  Done.
 ```
 
 Here is an update which should not affect `X`:

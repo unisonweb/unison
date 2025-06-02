@@ -6,8 +6,6 @@ scratch/main> builtins.merge
 scratch/main> builtins.mergeio
 
 scratch/main> load unison-src/transcripts-using-base/base.u
-
-scratch/main> add
 ```
 
 Tests for IO builtins which wired to foreign haskell calls.
@@ -65,10 +63,9 @@ testCreateRename _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       testCreateRename : '{IO} [Result]
 ```
@@ -76,9 +73,10 @@ testCreateRename _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testCreateRename : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testCreateRename
 
@@ -148,10 +146,9 @@ testOpenClose _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       testOpenClose : '{IO} [Result]
 ```
@@ -159,9 +156,10 @@ testOpenClose _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testOpenClose : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testOpenClose
 
@@ -239,10 +237,9 @@ testGetSomeBytes _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       testGetSomeBytes : '{IO} [Result]
 ```
@@ -250,9 +247,10 @@ testGetSomeBytes _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testGetSomeBytes : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testGetSomeBytes
 
@@ -355,10 +353,9 @@ testAppend _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       testAppend  : '{IO} [Result]
       testSeek    : '{IO} [Result]
@@ -368,11 +365,10 @@ testAppend _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testAppend  : '{IO} [Result]
-    testSeek    : '{IO} [Result]
-    testSetEcho : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testSeek
 
@@ -427,10 +423,9 @@ testSystemTime _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       testSystemTime : '{IO} [Result]
 ```
@@ -438,9 +433,10 @@ testSystemTime _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testSystemTime : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testSystemTime
 
@@ -468,9 +464,10 @@ testGetTempDirectory _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testGetTempDirectory : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testGetTempDirectory
 
@@ -499,9 +496,10 @@ testGetCurrentDirectory _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testGetCurrentDirectory : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testGetCurrentDirectory
 
@@ -532,9 +530,10 @@ testDirContents _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testDirContents : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testDirContents
 
@@ -565,9 +564,10 @@ testGetEnv _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testGetEnv : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testGetEnv
 
@@ -620,12 +620,10 @@ Test that they can be run with the right number of args.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testGetArgs.fail             : Text -> Failure
-    testGetArgs.runMeWithNoArgs  : '{IO, Exception} ()
-    testGetArgs.runMeWithOneArg  : '{IO, Exception} ()
-    testGetArgs.runMeWithTwoArgs : '{IO, Exception} ()
+  Done.
 
 scratch/main> run runMeWithNoArgs
 
@@ -707,9 +705,10 @@ testTimeZone = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testTimeZone : '{IO} ()
+  Done.
 
 scratch/main> run testTimeZone
 
@@ -730,9 +729,10 @@ testRandom = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testRandom : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testGetEnv
 

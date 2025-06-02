@@ -1,4 +1,4 @@
-This transcript explains a few minor details about doc parsing and pretty-printing, both from a user point of view and with some implementation notes.  The later stuff is meant more as unit testing than for human consumption.  (The ucm `add` commands and their output are hidden for brevity.)
+This transcript explains a few minor details about doc parsing and pretty-printing, both from a user point of view and with some implementation notes.  The later stuff is meant more as unit testing than for human consumption.  (The ucm `update` commands and their output are hidden for brevity.)
 
 Docs can be used as inline code comments.
 
@@ -17,10 +17,9 @@ foo n =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       foo : Nat -> Nat
 ```
@@ -49,10 +48,9 @@ escaping = [: Docs look [: like \@this \:] :]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       escaping : Doc
 ```
@@ -84,10 +82,9 @@ commented = [:
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       commented : Doc
 ```
@@ -122,10 +119,9 @@ doc1 = [:   hi   :]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       doc1 : Doc
 ```
@@ -157,10 +153,9 @@ doc2 = [: hello
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       doc2 : Doc
 ```
@@ -199,10 +194,9 @@ Note that because of the special treatment of the first line mentioned above, wh
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       doc3 : Doc
 ```
@@ -249,10 +243,9 @@ doc4 = [: Here's another example of some paragraphs.
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       doc4 : Doc
 ```
@@ -287,10 +280,9 @@ doc5 = [:   - foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       doc5 : Doc
 ```
@@ -322,10 +314,9 @@ doc6 = [:
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       doc6 : Doc
 ```
@@ -358,10 +349,9 @@ expr = foo 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       empty : Doc
       expr  : Nat
@@ -422,10 +412,9 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       test1 : Doc
 ```
@@ -507,10 +496,9 @@ reg1363 = [: `@List.take foo` bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       reg1363 : Doc
 ```
@@ -540,10 +528,9 @@ test2 = [:
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       test2 : Doc
 ```

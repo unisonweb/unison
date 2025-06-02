@@ -47,10 +47,9 @@ mkTestCase = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural ability DC r
       structural type Delayed r
@@ -69,19 +68,10 @@ mkTestCase = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural ability DC r
-    structural type Delayed r
-    feed       : Nat -> Delayed r -> r
-    finish     : (Delayed Nat, Delayed Nat, Delayed Nat) -> Text
-    hreset     : Request {DC r} r -> r
-    l1         : [Nat]
-    l2         : [Nat]
-    l3         : [Nat]
-    mkTestCase : '{IO, Exception} ()
-    reset      : '{DC r} r -> r
-    suspSum    : [Nat] -> Delayed Nat
+  Done.
 
 scratch/main> run mkTestCase
 

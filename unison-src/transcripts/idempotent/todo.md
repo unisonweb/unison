@@ -28,10 +28,9 @@ bar = foo + foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar : Nat
       foo : Nat
@@ -40,10 +39,10 @@ bar = foo + foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    foo : Nat
+  Done.
 
 scratch/main> todo
 
@@ -74,10 +73,9 @@ baz = foo.bar + foo.bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       baz     : Nat
       foo.bar : Nat
@@ -86,10 +84,10 @@ baz = foo.bar + foo.bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    baz     : Nat
-    foo.bar : Nat
+  Done.
 
 scratch/main> delete.namespace.force foo
 
@@ -131,10 +129,9 @@ bar = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       bar : Nat
       foo : Nat
@@ -143,10 +140,10 @@ bar = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    foo : Nat
+  Done.
 
 scratch/main> debug.alias.term.force foo bar
 
@@ -185,10 +182,9 @@ lib.foo = 16
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       lib.foo : Nat
 ```
@@ -196,9 +192,10 @@ lib.foo = 16
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.foo : Nat
+  Done.
 
 scratch/main> todo
 
@@ -227,10 +224,9 @@ type Foo = One
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```
@@ -238,9 +234,10 @@ type Foo = One
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> alias.term Foo.One Foo.Two
 
@@ -276,10 +273,9 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```
@@ -287,9 +283,10 @@ type Foo = Bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> delete.term Foo.Bar
 
@@ -327,10 +324,9 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       structural type Foo a
       structural type Foo.inner.Bar a
@@ -339,10 +335,10 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo a
-    structural type Foo.inner.Bar a
+  Done.
 
 scratch/main> todo
 
@@ -373,10 +369,9 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type Foo
 ```
@@ -384,9 +379,10 @@ type Foo = Bar
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> alias.term Foo.Bar Baz
 

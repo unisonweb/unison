@@ -177,7 +177,7 @@ data AmbiguousReset'Argument
 data Output
   = -- Generic Success response; we might consider deleting this.
     Success
-  | -- User did `add` or `update` before typechecking a file?
+  | -- User did `update` before typechecking a file?
     NoUnisonFile
   | -- Used in Welcome module to instruct user
     PrintMessage (P.Pretty P.ColorText)
@@ -606,7 +606,7 @@ isFailure o = case o of
       IntegrityErrorDetected {} -> True
   ShareError {} -> True
   ViewOnShare {} -> False
-  DisplayDebugCompletions {} -> False
+  DisplayDebugCompletions completions -> null completions
   DisplayDebugLSPNameCompletions {} -> False
   DebugDisplayFuzzyOptions {} -> False
   DebugFuzzyOptionsIncorrectArgs {} -> True

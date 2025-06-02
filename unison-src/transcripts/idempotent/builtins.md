@@ -402,10 +402,9 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       Any.test1 : [Result]
       Any.test2 : [Result]
@@ -457,10 +456,9 @@ openFile]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       Sandbox.test1          : [Result]
       Sandbox.test2          : [Result]
@@ -513,10 +511,9 @@ openFilesIO = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       openFilesIO : '{IO} [Result]
 ```
@@ -524,9 +521,10 @@ openFilesIO = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    openFilesIO : '{IO} [Result]
+  Done.
 
 scratch/main> io.test openFilesIO
 
@@ -552,10 +550,9 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       Universal.murmurHash.tests : [Result]
 

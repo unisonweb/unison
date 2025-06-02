@@ -12,10 +12,9 @@ x = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       x : Nat
 ```
@@ -23,9 +22,10 @@ x = 1
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    x : Nat
+  Done.
 ```
 
 ``` unison
@@ -36,10 +36,9 @@ y = 2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       y : Nat
 ```
@@ -47,9 +46,10 @@ y = 2
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    y : Nat
+  Done.
 
 scratch/main> branch /other
 
@@ -84,8 +84,8 @@ scratch/main> reflog
        history.
 
        Branch         Hash          Description
-  1.   scratch/main   #q6hn6o6ko5   add
-  2.   scratch/main   #rln1cnmdtn   add
+  1.   scratch/main   #q6hn6o6ko5   update
+  2.   scratch/main   #rln1cnmdtn   update
   3.   scratch/main   #h1hqblg747   builtins.merge scratch/main:lib.builtins
   4.   scratch/main   #sg60bvjo91   Project Created
 ```
@@ -105,8 +105,8 @@ scratch/main> project.reflog
        Branch          Hash          Description
   1.   scratch/other   #puj83ii6li   alias.term y scratch/other:z
   2.   scratch/other   #q6hn6o6ko5   Branch created from scratch/main
-  3.   scratch/main    #q6hn6o6ko5   add
-  4.   scratch/main    #rln1cnmdtn   add
+  3.   scratch/main    #q6hn6o6ko5   update
+  4.   scratch/main    #rln1cnmdtn   update
   5.   scratch/main    #h1hqblg747   builtins.merge scratch/main:lib.builtins
   6.   scratch/main    #sg60bvjo91   Project Created
 ```
@@ -129,8 +129,8 @@ scratch/main> reflog.global
   3.   newproject/main   #sg60bvjo91   Branch Created
   4.   scratch/other     #puj83ii6li   alias.term y scratch/other:z
   5.   scratch/other     #q6hn6o6ko5   Branch created from scratch/main
-  6.   scratch/main      #q6hn6o6ko5   add
-  7.   scratch/main      #rln1cnmdtn   add
+  6.   scratch/main      #q6hn6o6ko5   update
+  7.   scratch/main      #rln1cnmdtn   update
   8.   scratch/main      #h1hqblg747   builtins.merge scratch/main:lib.builtins
   9.   scratch/main      #sg60bvjo91   Project Created
 ```
