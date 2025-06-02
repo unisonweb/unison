@@ -531,7 +531,6 @@ directAllowed TBLit {} = True
 directAllowed TPrm {} = True
 directAllowed TFOp {} = True
 directAllowed TCon {} = True
-directAllowed TVar {} = True
 directAllowed _ = False
 
 -- Recognizes the entry point of a handler, for inlining into the
