@@ -60,7 +60,7 @@ testPerf th =
 
   if ratio > 2.0
   then Ok "performance improved"
-  else Fail ("performance too similar:" ++ Float.toText ratio)
+  else Fail ("performance too similar: " ++ Float.toText ratio)
 
 ability Count where
   tick : Nat
@@ -105,8 +105,8 @@ count'wrap k = cases
   n -> handle count'wrap k (Nat.drop n 1) with provide 0
 
 count'test = do
-  [ testPerf do handle count'wrap 1000 20 with counter'ugly 0
-  , testPerf do counter'nice 0 do count'wrap 1000 20
+  [ testPerf do handle count'wrap 1000 100 with counter'ugly 0
+  , testPerf do counter'nice 0 do count'wrap 1000 100
   ]
 ```
 
@@ -181,7 +181,7 @@ fail'count'wrap k = cases
   n -> handle fail'count'wrap k (Nat.drop n 1) with provide 0
 
 fail'count'test = do
-  [ testPerf do fail'counter 1000 do fail'count'wrap 1000 20 ]
+  [ testPerf do fail'counter 1000 do fail'count'wrap 1000 100 ]
 ```
 
 ``` ucm :added-by-ucm
