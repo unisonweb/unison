@@ -590,16 +590,17 @@ putFunc refrep allowFop ctx f = case f of
 
 getFunc :: (MonadGet m, SerialConfig m, Var v) => [v] -> m (Func v)
 getFunc ctx =
-  askFOp >>= \allowFOp -> getTag >>= \case
-    FVarT -> FVar <$> getVar ctx
-    FCombT -> FComb <$> getReference
-    FContT -> FCont <$> getVar ctx
-    FConT -> FCon <$> getReference <*> getCTag
-    FReqT -> FReq <$> getReference <*> getCTag
-    FPrimT -> FPrim . Left <$> getPOp
-    FForeignT
-      | allowFOp -> FPrim . Right <$> getFOp
-      | otherwise -> exn "getFunc: can't deserialize a foreign func"
+  askFOp >>= \allowFOp ->
+    getTag >>= \case
+      FVarT -> FVar <$> getVar ctx
+      FCombT -> FComb <$> getReference
+      FContT -> FCont <$> getVar ctx
+      FConT -> FCon <$> getReference <*> getCTag
+      FReqT -> FReq <$> getReference <*> getCTag
+      FPrimT -> FPrim . Left <$> getPOp
+      FForeignT
+        | allowFOp -> FPrim . Right <$> getFOp
+        | otherwise -> exn "getFunc: can't deserialize a foreign func"
 
 -- Note: this numbering is derived, and so not particularly stable.
 -- However, foreign functions are not serialized for interchange. This
