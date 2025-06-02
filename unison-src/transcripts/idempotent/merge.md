@@ -1590,6 +1590,17 @@ scratch/alice> delete.term Foo.Bar.Baz
 scratch/alice> delete.term Foo.Bar.Qux
 ```
 
+``` unison :hide
+Foo.Bar.Baz : Nat
+Foo.Bar.Baz = 100
+
+Foo.Bar.Qux : Nat
+Foo.Bar.Qux = 200
+
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 18
+```
+
 ``` ucm :hide
 scratch/alice> update
 ```
@@ -2305,6 +2316,10 @@ Alice's branch:
 scratch/main> branch alice
 ```
 
+``` unison :hide
+unique type Foo = Bar
+```
+
 ``` ucm
 scratch/alice> add
 
@@ -2322,6 +2337,11 @@ Bob's branch:
 
 ``` ucm :hide
 scratch/main> branch bob
+```
+
+``` unison :hide
+bob : Nat
+bob = 101
 ```
 
 ``` ucm

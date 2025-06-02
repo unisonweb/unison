@@ -1,61 +1,6 @@
 # demonstrating our new input parsing errors
 
-``` ucm :hide
-scratch/main> builtins.merge lib.builtin
-```
-
-``` unison :hide
-x = 55
-```
-
-``` ucm :hide
-scratch/main> add
-```
-
-`handleNameArg` parse error in `update`
-
-``` ucm :error
-scratch/main> update .
-
-  ⚠️
-
-  Sorry, I wasn’t sure how to process your request:
-
-    I expected no arguments, but received one.
-
-  You can run `help update` for more information on using
-  `update`.
-
-scratch/main> ls .
-
-  1. lib/ (483 terms, 78 types)
-  2. x    (Nat)
-
-scratch/main> add 1
-
-  ⚠️
-
-  Sorry, I wasn’t sure how to process your request:
-
-    I expected no arguments, but received one.
-
-  You can run `help add` for more information on using `update`.
-
-scratch/main> ls .
-
-  1. lib/ (483 terms, 78 types)
-  2. x    (Nat)
-
-scratch/main> add 2
-
-  ⚠️
-
-  Sorry, I wasn’t sure how to process your request:
-
-    I expected no arguments, but received one.
-
-  You can run `help add` for more information on using `update`.
-```
+The example we'd had here was demonstrating the improved parsing error messages for `add`, but that command has been superseded by `update`.
 
 todo:
 

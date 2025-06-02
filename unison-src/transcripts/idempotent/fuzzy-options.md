@@ -64,5 +64,6 @@ Namespace args
 scratch/main> debug.fuzzy-options find-in _
 
   Select a namespace or press <esc> to cancel:
+    * .
     * nested
 ```
