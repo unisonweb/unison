@@ -94,7 +94,7 @@ genValue = Gen.sized \n -> do
 
 valueRoundtrip :: Property
 valueRoundtrip =
-  getPutRoundtrip (runReaderT getValue) putValue genValue
+  getPutRoundtrip (runReaderT getValue . (,False)) putValue genValue
 
 getPutRoundtrip :: (Eq a, Show a) => (Version -> Get a) -> (Version -> a -> Put) -> Gen a -> Property
 getPutRoundtrip get put builder =
