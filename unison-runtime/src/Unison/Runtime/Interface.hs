@@ -1287,11 +1287,11 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) 
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
   putEnumMap putNat putReference crs
   putEnumSet putNat cacheableCombs
-  putOptInfos builtinForeignNames oinfo
+  putOptInfos oinfo
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference (putGroup mempty mempty) int
+  putMap putReference (putGroup mempty False) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
@@ -1411,7 +1411,7 @@ buildSCache ::
   Map Reference Word64 ->
   Map Reference (Set Reference) ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs opt trsrc ftm fty int rtmsrc rtysrc sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sndbx =
   SCache
     cs
     crs
@@ -1439,6 +1439,8 @@ buildSCache crsrc cssrc cacheableCombs opt trsrc ftm fty int rtmsrc rtysrc sndbx
 
     cs :: EnumMap Word64 Combs
     cs = restrictTmW cssrc
+
+    opt = bimap restrictTmR restrictTmR optsrc
 
     typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
     trs = restrictTyW trsrc
