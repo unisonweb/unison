@@ -283,9 +283,10 @@ peephole arities grp@(Rec bs entry) =
           | directAllowed bn ->
               TLets Direct vs ccs bn bd <$ dirty
         HandlerApp rw -> rw <$ dirty
-        HandlerResume _ f as lh h bs rs -> do
-          dirty
-          pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
+        HandlerResume lz f as lh h bs rs
+          | all (/= lz) h, all (/= lz) bs -> do
+              dirty
+              pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
         HandledThunk r n expr
           | Just arity <- Map.lookup r arities,
             n < arity ->
