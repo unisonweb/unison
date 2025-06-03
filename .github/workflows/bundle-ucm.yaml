@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2019]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -151,7 +151,7 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
               text: "package-racket-lib failed on ${{ github.ref }}. See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} cc <@UF924D5S7>"
-  
+
   build-dist-unison-runtime:
     needs: package-racket-lib
     name: build unison-runtime
@@ -162,7 +162,7 @@ jobs:
           - ubuntu-24.04
           - macos-13
           - macos-14
-          - windows-2019
+          - windows-2022
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -230,7 +230,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2019]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
     steps:
       - name: set up environment
         run: |

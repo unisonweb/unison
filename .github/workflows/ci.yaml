@@ -46,7 +46,7 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - macos-13
-          - windows-2019
+          - windows-2022
           # - windows-2022
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -199,7 +199,7 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - macos-13
-          - windows-2019
+          - windows-2022
           # - windows-2022
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -282,7 +282,7 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - macos-13
-          # - windows-2019
+          # - windows-2022
           # - windows-2022
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
