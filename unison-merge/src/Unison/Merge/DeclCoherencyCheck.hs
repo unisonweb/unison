@@ -106,10 +106,10 @@ import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.DeclNameLookup (DeclNameLookup (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)

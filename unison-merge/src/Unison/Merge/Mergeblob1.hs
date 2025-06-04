@@ -22,7 +22,6 @@ import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
 import Unison.Merge.Mergeblob0 (Mergeblob0 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.Rename (Rename, SimpleRenames, makeRenames, makeSimpleRenames)
 import Unison.Merge.Synhashed (Synhashed (..))
@@ -34,6 +33,7 @@ import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED

@@ -1,4 +1,4 @@
-module Unison.Merge.PartialDeclNameLookup
+module Unison.PartialDeclNameLookup
   ( PartialDeclNameLookup (..),
   )
 where
