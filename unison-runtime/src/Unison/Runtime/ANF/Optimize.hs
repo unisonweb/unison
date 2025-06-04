@@ -224,6 +224,8 @@ inline self (arities, inls0) grp@(Rec bs entry) =
   where
     inls = maybe id (Map.insert self) (entryInfo grp) inls0
 
+    avoid = Set.fromList $ fst <$> bs
+
     go0 nrm@(Lambda ccs body) =
       memo nrm $ Lambda ccs <$> go (30 :: Int) body
 
@@ -245,17 +247,23 @@ inline self (arities, inls0) grp@(Rec bs entry) =
     don'tInline TailInl isTail = not isTail
     don'tInline AnywhereInl _ = False
 
+    -- Note: we use `renameAvoiding` because by adding `entryInfo` to
+    -- the inlining map, we may be inlining terms with free variables
+    -- referring to the floated handler code. This happens over
+    -- multiple inlining steps, so we freshen anything else we inline
+    -- to not be capable of capturing the variables from the entry
+    -- code.
     tweak isTail args arity (InlInfo clazz (ABTN.TAbss vs body))
       | don'tInline clazz isTail = Nothing
       -- exactly saturated
       | length args == arity,
         rn <- Map.fromList (zip vs args) =
-          Just $ ABTN.renames rn body
+          Just $ ABTN.renamesAvoiding avoid rn body
       -- oversaturated, only makes sense if body is a call
       | length args > arity,
         (pre, post) <- splitAt arity args,
         rn <- Map.fromList (zip vs pre),
-        TApp f pre <- ABTN.renames rn body =
+        TApp f pre <- ABTN.renamesAvoiding avoid rn body =
           Just $ TApp f (pre ++ post)
       | otherwise = Nothing
 

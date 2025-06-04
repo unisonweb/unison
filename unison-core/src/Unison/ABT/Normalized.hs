@@ -14,7 +14,9 @@ module Unison.ABT.Normalized
     Term (.., TAbs, TTm, TAbss),
     Align (..),
     alpha,
+    freshen,
     renames,
+    renamesAvoiding,
     rename,
     transform,
     visit,
@@ -105,7 +107,7 @@ class (Bifoldable f, Bifunctor f) => Align f where
 
 alphaErr ::
   (Align f) => (Var v) => Map v v -> Term f v -> Term f v -> Either (Term f v, Term f v) a
-alphaErr un tml tmr = Left (tml, renames0 count un tmr)
+alphaErr un tml tmr = Left (tml, renamesAndFreshen0 count un tmr)
   where
     count = Map.fromListWith (+) . flip zip [1, 1 ..] $ toList un
 
@@ -135,21 +137,30 @@ pattern TAbss vs bd <-
 
 {-# COMPLETE TAbss #-}
 
--- Simultaneous variable renaming implementation.
+-- Simultaneous variable renaming and freshening implementation.
 --
--- subvs0 counts the number of variables being renamed to a particular
--- variable
+-- subvs0 is a count of the number of conflicts associated with a
+-- variable. There are two sources of conflicts.
+--
+--   1. A variable is being renamed _to_ the given variable
+--   2. We want to avoid capturing the variable for other reasons
+--
+-- So, if you initially call `renamesAndFreshen0` with a higher count
+-- for `v` then there are variables being renamed to `v`, all bound
+-- occurrences of `v` will be freshened regardless of whether any
+-- actual renamings are left.
 --
 -- rnv0 is the variable renaming map.
-renames0 ::
-  (Var v, Ord v, Bifunctor f, Bifoldable f) =>
+renamesAndFreshen0 ::
+  (Var v, Bifunctor f, Bifoldable f) =>
   Map v Int ->
   Map v v ->
   Term f v ->
   Term f v
-renames0 subvs0 rnv0 tm = case tm of
+renamesAndFreshen0 subvs0 rnv0 tm = case tm of
   TAbs u body
-    | not $ Map.null rnv' -> TAbs u' (renames0 subvs' rnv' body)
+    | not $ Map.null subvs' ->
+        TAbs u' (renamesAndFreshen0 subvs' rnv' body)
     where
       rnv' = Map.alter (const $ adjustment) u rnv
       bfvs = freeVars body
@@ -167,14 +178,16 @@ renames0 subvs0 rnv0 tm = case tm of
             (Just u', Map.insertWith (+) u' 1 subvs)
         | otherwise = (Nothing, subvs)
   TTm body
-    | not $ Map.null rnv ->
-        TTm $ bimap (\u -> Map.findWithDefault u u rnv) (renames0 subvs rnv) body
+    | not $ Map.null subvs ->
+        TTm $ bimap lkup (renamesAndFreshen0 subvs rnv) body
   _ -> tm
   where
     fvs = freeVars tm
 
     -- throw out irrelevant renamings
     rnv = Map.restrictKeys rnv0 fvs
+
+    lkup u = Map.findWithDefault u u rnv
 
     -- decrement the variable usage counts for the renamings we threw away
     subvs = Map.foldl' decrement subvs0 $ Map.withoutKeys rnv0 fvs
@@ -183,13 +196,39 @@ renames0 subvs0 rnv0 tm = case tm of
       | n <= 1 = Nothing
       | otherwise = Just (n - 1)
 
--- Simultaneous variable renaming.
-renames ::
-  (Var v, Ord v, Bifunctor f, Bifoldable f) =>
+-- Freshens the bound variables in a term to avoid capturing variables
+-- in the set.
+freshen ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Set v ->
+  Term f v ->
+  Term f v
+freshen avoid = renamesAndFreshen0 subvs Map.empty
+  where
+    subvs = Map.fromSet (const 1) avoid
+
+-- Renames some variables while also avoiding a given set of variables
+-- for any bindings in the term.
+renamesAvoiding ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Set v ->
   Map v v ->
   Term f v ->
   Term f v
-renames rnv tm = renames0 subvs rnv tm
+renamesAvoiding avoid rnv = renamesAndFreshen0 subvs rnv
+  where
+    suba = Map.fromSet (const 1) avoid
+    subr = Map.fromListWith (+) . fmap (,1) $ Map.elems rnv
+
+    subvs = Map.unionWith (+) suba subr
+
+-- Simultaneous variable renaming.
+renames ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Map v v ->
+  Term f v ->
+  Term f v
+renames rnv tm = renamesAndFreshen0 subvs rnv tm
   where
     subvs = Map.fromListWith (+) . fmap (,1) $ Map.elems rnv
 
@@ -199,7 +238,7 @@ rename ::
   v ->
   Term f v ->
   Term f v
-rename old new = renames0 (Map.singleton new 1) (Map.singleton old new)
+rename old new = renamesAndFreshen0 (Map.singleton new 1) (Map.singleton old new)
 
 transform ::
   (Var v, Bifunctor g, Bifoldable f, Bifoldable g) =>
