@@ -81,10 +81,11 @@ projectNameParser = do
 -- >>> projectNameUserSlug "lens"
 -- Nothing
 projectNameUserSlug :: ProjectName -> Maybe Text
-projectNameUserSlug (UnsafeProjectName projectName) =
-  if Text.head projectName == '@'
-    then Just (Text.takeWhile (/= '/') (Text.drop 1 projectName))
-    else Nothing
+projectNameUserSlug (UnsafeProjectName projectName)
+  | Text.null projectName = Nothing
+  | Text.head projectName == '@' =
+      Just (Text.takeWhile (/= '/') (Text.drop 1 projectName))
+  | otherwise = Nothing
 
 -- | Parse a "@arya/lens" into the "arya" and "lens" parts.
 --
@@ -112,10 +113,11 @@ projectNameToUserProjectSlugs (UnsafeProjectName name) =
 -- >>> prependUserSlugToProjectName "???invalid???" "@unison/base"
 -- "@unison/base"
 prependUserSlugToProjectName :: Text -> ProjectName -> ProjectName
-prependUserSlugToProjectName userSlug (UnsafeProjectName projectName) =
-  if Text.head projectName == '@'
-    then UnsafeProjectName projectName
-    else fromMaybe (UnsafeProjectName projectName) (fst <$> Megaparsec.parseMaybe projectNameParser newProjectName)
+prependUserSlugToProjectName userSlug (UnsafeProjectName projectName)
+  | Text.null projectName = UnsafeProjectName projectName
+  | Text.head projectName == '@' = UnsafeProjectName projectName
+  | otherwise =
+      fromMaybe (UnsafeProjectName projectName) (fst <$> Megaparsec.parseMaybe projectNameParser newProjectName)
   where
     newProjectName =
       Text.Builder.run $
@@ -290,10 +292,11 @@ classifyProjectBranchName (UnsafeProjectBranchName branchName) =
 -- >>> projectBranchNameUserSlug "topic"
 -- Nothing
 projectBranchNameUserSlug :: ProjectBranchName -> Maybe Text
-projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
-  if Text.head branchName == '@'
-    then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
-    else Nothing
+projectBranchNameUserSlug (UnsafeProjectBranchName branchName)
+  | Text.null branchName = Nothing
+  | Text.head branchName == '@' =
+      Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
+  | otherwise = Nothing
 
 -- | A project branch name, or the latest release of its project.
 data ProjectBranchNameOrLatestRelease
