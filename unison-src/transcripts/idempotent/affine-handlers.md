@@ -36,10 +36,23 @@ repeated = cases
   { times n -> k } ->
     handle looped k n with repeated
 
-now : '{IO, Exception} Nat
+now : '{IO, Exception} TimeSpec
 now _ = match monotonic () with
   Left e -> raise e
-  Right t -> nsec t
+  Right t -> t
+
+elapsed : TimeSpec -> TimeSpec -> Float
+elapsed t0 t1 =
+  n0 = nsec t0
+  s0 = sec t0
+
+  n1 = nsec t1
+  s1 = sec t1
+
+  dn = Nat.sub n1 n0
+  ds = s1 - s0
+
+  Int.toFloat ds + Int.toFloat dn * 1e-9
 
 -- Tests that the thunk is at least twice as fast in an affine context
 testPerf : '() ->{IO, Exception} Result
@@ -53,10 +66,10 @@ testPerf th =
   with repeated
   t2 = now ()
 
-  dt0 = Nat.drop t1 t0
-  dt1 = Nat.drop t2 t1
+  dt0 = elapsed t0 t1
+  dt1 = elapsed t1 t2
 
-  ratio = Nat.toFloat dt1 Float./ Nat.toFloat dt0
+  ratio = dt1 / dt0
 
   if ratio > 2.0
   then Ok "performance improved"
@@ -126,8 +139,9 @@ count'test = do
       count'wrap   : Nat -> Nat ->{Count} ()
       counter'nice : Nat -> '{Count} r -> r
       counter'ugly : Nat -> Request {Count} r -> r
+      elapsed      : TimeSpec -> TimeSpec -> Float
       looped       : '{g} r -> Nat ->{g} ()
-      now          : '{IO, Exception} Nat
+      now          : '{IO, Exception} TimeSpec
       provide      : e -> Request {Env e} r -> r
       repeated     : Request {Repeat, g} () ->{g} ()
       testPerf     : '() ->{IO, Exception} Result
