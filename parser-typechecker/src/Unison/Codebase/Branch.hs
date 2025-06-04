@@ -81,13 +81,14 @@ module Unison.Codebase.Branch
     -- ** Term/type queries
     deepTerms,
     deepTypes,
-    deepDefns,
     deepPaths,
     deepReferents,
     deepTermReferences,
     deepTermReferenceIds,
     deepTypeReferences,
     deepTypeReferenceIds,
+    asUnconflicted,
+    UnconflictedBranchView (..),
     consBranchSnapshot,
   )
 where
@@ -101,16 +102,17 @@ import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase.Branch.Raw (Raw)
 import Unison.Codebase.Branch.Type
   ( Branch (..),
-    Branch0,
+    Branch0 (asUnconflicted),
     NamespaceHash,
     Star,
+    UnconflictedBranchView (..),
     UnwrappedBranch,
     branch0,
     children_,
-    deepDefns,
     deepPaths,
     deepTerms,
     deepTypes,
+    deleteLibdeps,
     edits_,
     head,
     headHash,
@@ -217,11 +219,6 @@ withoutTransitiveLibs b0 =
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
   over (children_ . ix NameSegment.libSegment . head_ . children_) (Map.delete dep)
-
--- | @deleteLibdeps branch@ deletes all libdeps from @branch@.
-deleteLibdeps :: Branch0 m -> Branch0 m
-deleteLibdeps =
-  over children_ (Map.delete NameSegment.libSegment)
 
 -- | @setLibdeps libdeps branch@ sets @branch@'s libdeps to @libdeps@.
 setLibdeps :: Branch0 m -> Branch0 m -> Branch0 m

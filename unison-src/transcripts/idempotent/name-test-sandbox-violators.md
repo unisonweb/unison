@@ -106,6 +106,6 @@ fresh/main> test
     "pure code can't perform I/O"
 
   Stack trace:
-    builtin.bug
+    #1k885m4e7g
     #tnbpslc0n3
 ```

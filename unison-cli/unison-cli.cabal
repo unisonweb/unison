@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -51,6 +51,7 @@ library
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
+      Unison.Codebase.Editor.HandleInput.BranchSquash
       Unison.Codebase.Editor.HandleInput.CommitMerge
       Unison.Codebase.Editor.HandleInput.CommitUpgrade
       Unison.Codebase.Editor.HandleInput.DebugDefinition

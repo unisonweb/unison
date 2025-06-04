@@ -48,6 +48,7 @@ import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
+import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.CommitMerge (handleCommitMerge)
 import Unison.Codebase.Editor.HandleInput.CommitUpgrade (handleCommitUpgrade)
@@ -758,6 +759,7 @@ loop e = do
         BranchRenameI name -> handleBranchRename name
         BranchesI name -> handleBranches name
         CloneI remoteNames localNames -> handleClone remoteNames localNames
+        BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
         ReleaseDraftI semver -> handleReleaseDraft semver
         UpgradeI old new -> handleUpgrade old new
         UpgradeCommitI -> handleCommitUpgrade
@@ -874,6 +876,8 @@ inputDescription input =
     BranchI {} -> wat
     BranchRenameI {} -> wat
     BranchesI {} -> wat
+    BranchSquashI branchToSquash destBranch ->
+      pure $ "branch.squash " <> into @Text branchToSquash <> " " <> into @Text destBranch
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat

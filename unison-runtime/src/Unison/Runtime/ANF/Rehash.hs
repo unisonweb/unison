@@ -80,7 +80,7 @@ rehashSCC scc
     sample = case fst $ head ps of
       Derived h _ -> h
       _ -> error "rehashSCC: impossible"
-    bss = fmap (uncurry $ serializeGroupForRehash mempty) ps
+    bss = fmap (uncurry serializeGroupForRehash) ps
     digest =
       hashFinalize $
         foldl'

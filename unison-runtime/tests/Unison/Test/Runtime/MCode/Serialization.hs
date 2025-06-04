@@ -113,7 +113,7 @@ genInstr =
     [ Prim1 <$> genPrim1 <*> genSmallInt,
       Prim2 <$> genPrim2 <*> genSmallInt <*> genSmallInt,
       ForeignCall <$> Gen.bool <*> genForeignCall <*> genArgs,
-      SetAff <$> genSmallInt <*> genSmallInt,
+      SetAff <$> genBool <*> genSmallInt <*> genSmallInt,
       Capture <$> genSmallWord64,
       Name <$> genGRef <*> genArgs,
       Info <$> Gen.string (Range.linear 0 10) Gen.alphaNum,
@@ -175,6 +175,8 @@ genStoredCache =
     <$> (genEnumMap genSmallWord64 genCombs)
     <*> (genEnumMap genSmallWord64 genReference)
     <*> (genEnumSet genSmallWord64)
+    -- don't generate inlining info for reasons below
+    <*> pure (mempty, mempty)
     <*> (genEnumMap genSmallWord64 genReference)
     <*> genSmallWord64
     <*> genSmallWord64

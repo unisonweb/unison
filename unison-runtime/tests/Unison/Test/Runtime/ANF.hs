@@ -83,6 +83,8 @@ denormalize (TLet _ v _ bn bo)
   where
     dbn = denormalize bn
     dbo = denormalize bo
+denormalize (TLets {}) =
+  error "can't denormalize non-unary let bindings"
 denormalize (TName _ _ _ _) =
   error "can't denormalize by-name bindings"
 denormalize (TMatch v cs) =
@@ -106,7 +108,8 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
 denormalize (TFrc _) = error "denormalize TFrc"
 denormalize (TDiscard _) = error "denormalize TDiscard"
 denormalize (TLocal _ _) = error "denormalize TLocal"
-denormalize (TUpdate _ _) = error "denormalize TUpdate"
+denormalize (TUpdate _ _ _) = error "denormalize TUpdate"
+denormalize (TAbs _ _) = error "denormalize TAbs"
 
 denormalizeRef :: RTag -> Reference
 denormalizeRef r

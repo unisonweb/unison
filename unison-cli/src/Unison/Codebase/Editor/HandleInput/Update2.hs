@@ -29,7 +29,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (getNamespaceDependentsOf2, hydrateDefns, narrowDefns, parseAndTypecheck)
+import Unison.Cli.UpdateUtils (getNamespaceDependentsOf2, hydrateDefns, parseAndTypecheck)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -62,7 +62,6 @@ import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
-import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
@@ -71,17 +70,16 @@ import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
-import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (flattenNametrees)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Unison.Referent (Referent)
 
 useUpdateV2 :: Bool
 useUpdateV2 =
@@ -101,19 +99,15 @@ handleUpdate2 = do
   let namesIncludingLibdeps = Branch.toNames currentBranch0
 
   -- Assert that the namespace doesn't have any conflicted names
-  nametree <-
-    narrowDefns (Branch.deepDefns currentBranch0ExcludingLibdeps)
+  unconflictedView <-
+    Branch.asUnconflicted currentBranch0ExcludingLibdeps
       & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
-
-  let defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
-      defns =
-        flattenNametrees nametree
 
   -- Get the number of constructors for every type declaration, and whether we are on an "update" branch already
   (numConstructors, onUpdateBranchAlready) <-
     Cli.runTransaction do
       numConstructors <-
-        defns.types
+        unconflictedView.defns.types
           & BiMultimap.dom
           & Set.toList
           & Foldable.foldlM
@@ -129,7 +123,7 @@ handleUpdate2 = do
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
-    Merge.checkDeclCoherency nametree numConstructors
+    Merge.checkDeclCoherency unconflictedView.nametree numConstructors
       & onLeft (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
   let fileTermNamespaceBindings :: Set Name
@@ -151,7 +145,7 @@ handleUpdate2 = do
             -- Get all dependents of things being updated
             dependents0 <-
               getNamespaceDependentsOf2
-                defns
+                unconflictedView.defns
                 (getExistingReferencesNamed termAndDeclNames (Branch.toNames currentBranch0ExcludingLibdeps))
 
             -- Throw away the dependents that are shadowed by the file itself
@@ -212,7 +206,7 @@ handleUpdate2 = do
                                     case ref of
                                       ReferenceBuiltin _ -> True
                                       ReferenceDerived refId -> not (Set.member refId dependentRefs.terms)
-                             in defns
+                             in unconflictedView.defns
                                   & bimap
                                     ( BiMultimap.range
                                         >>> (`Map.withoutKeys` fileTermNamespaceBindings)
@@ -236,7 +230,7 @@ handleUpdate2 = do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                         else do
                           uniqueTypeGuidsByName <-
-                            Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range defns.types))
+                            Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 
                           (_temporaryBranchId, _temporaryBranchName) <-
                             HandleInput.Branch.createBranch

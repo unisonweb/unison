@@ -504,7 +504,7 @@ foreignCallHelper = \case
       pure $ Wrap Ty.termLinkRef . Ref <$> ANF.groupTermLinks sg
   Code_serialize -> mkForeign $
     \(co :: ANF.Code) ->
-      pure . Bytes.fromArray $ ANF.serializeCode builtinForeignNames co
+      pure . Bytes.fromArray $ ANF.serializeCode False co
   Code_deserialize ->
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray

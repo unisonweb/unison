@@ -120,7 +120,7 @@ createBranch ::
   CreateFrom ->
   Sqlite.Project ->
   Sqlite.Transaction ProjectBranchName ->
-  Cli (ProjectBranchId, ProjectBranchName)
+  Cli (ProjectAndBranch ProjectId ProjectBranchId, ProjectBranchName)
 createBranch description createFrom project getNewBranchName = do
   let projectId = project ^. #projectId
   Cli.Env {codebase} <- ask
@@ -211,6 +211,6 @@ createBranch description createFrom project getNewBranchName = do
               Queries.ensureUniqueTypeToGuidMappingForCausalHashId parentCausalHashId parentUniqueTypeGuids
             _ -> pure ()
           pure (newBranchName, newBranchId)
-
-  Cli.switchProject (ProjectAndBranch projectId newBranchId)
-  pure (newBranchId, newBranchName)
+  let pabIds = ProjectAndBranch projectId newBranchId
+  Cli.switchProject pabIds
+  pure (pabIds, newBranchName)
