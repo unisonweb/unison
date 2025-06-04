@@ -3317,6 +3317,32 @@ branchRenameInputPattern =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+squashProjectBranch :: InputPattern
+squashProjectBranch =
+  InputPattern
+    { patternName = "branch.squash",
+      aliases = ["squash.branch"],
+      visibility = I.Visible,
+      params = Parameters [("branch-to-squash", projectBranchNameArg suggestionsConfig), ("destination-branch", newBranchNameArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ("`branch.squash /foo /bar`", "creates (or updates) the branch `/bar` with a snapshot of the code at branch `/foo` without any of its history.")
+          ],
+      parse = \case
+        [branchToSquash, newNameString] ->
+          Input.BranchSquashI
+            <$> handleMaybeProjectBranchArg branchToSquash
+            <*> handleMaybeProjectBranchArg newNameString
+        args -> wrongArgsLength "two arguments" args
+    }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = OnlyWithinCurrentProject,
+          branchInclusion = AllBranches
+        }
+
 clone :: InputPattern
 clone =
   InputPattern
@@ -3554,6 +3580,7 @@ validInputs =
       pushCreate,
       pushExhaustive,
       pushForce,
+      squashProjectBranch,
       syncToFile,
       syncFromFile,
       syncFromCodebase,
