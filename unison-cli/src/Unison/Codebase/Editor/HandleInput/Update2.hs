@@ -62,6 +62,7 @@ import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
@@ -79,7 +80,6 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
-import Unison.Referent (Referent)
 
 useUpdateV2 :: Bool
 useUpdateV2 =
