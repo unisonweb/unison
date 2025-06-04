@@ -64,6 +64,7 @@ import Unison.Runtime.ANF as ANF
     valueLinks,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF.Optimize qualified as ANF
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
@@ -132,7 +133,7 @@ topAEnv combs rfTy rfTm
     clo <- mCombVal cix $ rCombSection combs cix = do
       r <- newIORef BlackHole
       let ar = ARef r
-      ahv <- extendPAp clo . BoxedVal $ Affine mempty ar
+      ahv <- extendPAp clo . BoxedVal $ Affine (setSingleton n) mempty ar
       writeIORef r ahv
       pure (EC.mapSingleton n ar, AMark 0 mempty ar)
 topAEnv _ _ _ = pure (mempty, id)
@@ -254,10 +255,17 @@ exec env henv !_activeThreads !stk !k _ (Name r args) = do
   v <- resolve env henv stk r
   stk <- name stk args v
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (SetAff i j) =
+exec _ henv !_activeThreads !stk !k _ (SetAff u i j) =
   bpeekOff stk i >>= \case
-    Affine _ (ARef r) -> do
+    Affine ps _ ar@(ARef r) -> do
       bpeekOff stk j >>= writeIORef r
+      henv <-
+        if u
+          then do
+            aenv <-
+              evaluate $ EC.unionWith const (mapFromSet ps ar) (aenv henv)
+            evaluate $ henv {aenv = aenv}
+          else pure henv
       pure (False, henv, stk, k)
     _ -> die "SetAff called with bad handler reference"
 exec _ henv !_activeThreads !stk !k _ (Capture p) = do
@@ -268,14 +276,14 @@ exec _ henv !_activeThreads !stk !k _ (Capture p) = do
   pure (False, henv, stk, k)
 exec _ _henv !_activeThreads !stk !k _ (Discard i) = do
   bpeekOff stk i >>= \case
-    Affine _ r -> do
+    Affine _ _ r -> do
       (aenv, stk, k) <- abortCont stk k r
       henv <- evaluate $ HEnv aenv mempty
       pure (False, henv, stk, k)
     _ -> die "Discard called with bad handler reference"
 exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
-    Affine aenv _ -> do
+    Affine _ aenv _ -> do
       (stk, a) <- saveArgs stk
       henv <- evaluate $ HEnv aenv mempty
       pure (False, henv, stk, Local henv0 a k)
@@ -377,7 +385,7 @@ exec _ henv !_activeThreads !stk !k _ (Reset ps nhi mah)
       ahv0 <- peekOff stk ahi
       r <- newIORef BlackHole
       let ar = ARef r
-      ahv <- extendPAp ahv0 . BoxedVal $ Affine aenv0 ar
+      ahv <- extendPAp ahv0 . BoxedVal $ Affine ps aenv0 ar
       writeIORef r ahv
       aenv <- evaluate $ EC.unionWith const (mapFromSet ps ar) aenv0
       henv <- evaluate $ henv {aenv = aenv}
@@ -1234,25 +1242,23 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     have <- readTVar (intermed cc)
     let new = M.difference toAdd have
     let sz = fromIntegral $ M.size new
-    let rgs = M.toList new
-    let rs = fst <$> rgs
+    let rs = M.keys new
     int <- updateMap new (intermed cc)
+    let replace =
+          ANF.replaceConstructors pseudoConstructors
+            . ANF.replaceFunctions functionReplacements
+        haff (cmbs, opts) =
+          (M.mapWithKey (ANF.optimizeHandler opts) cmbs, opts)
+    opt <-
+      stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        inlinfo =
-          ANF.buildInlineMap (fmap replace int) <> builtinInlineInfo
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
-        replace =
-          ANF.replaceConstructors pseudoConstructors
-            . ANF.replaceFunctions functionReplacements
-        optimize r =
-          ANF.optimizeHandler r . ANF.inline inlinfo . replace
         combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
-        combinate n (r, g) =
-          (n, emitCombs rns r n $ optimize r g)
+        combinate n (r, g) = (n, emitCombs rns r n g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
     let newCacheableCombs =
@@ -1268,7 +1274,10 @@ cacheAdd0 ntys0 termSuperGroups sands cc = do
     (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
       let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs =
-            absurdCombs . sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs . mapFromList $ zipWith combinate [ntm ..] rgs
+            absurdCombs
+              . sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
+              . mapFromList
+              $ zipWith combinate [ntm ..] (M.toList opt)
           (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
             EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
               if EC.member w newCacheableCombs

@@ -56,6 +56,7 @@ module Unison.Codebase
     getShallowCausalAtPathFromRootHash,
     getShallowProjectBranchRoot,
     expectShallowProjectBranchRoot,
+    expectProjectBranchRootCausal,
     getShallowBranchAtProjectPath,
     getMaybeShallowBranchAtProjectPath,
     getShallowProjectRootByNames,
@@ -263,10 +264,20 @@ expectShallowProjectBranchRoot ProjectBranch {projectId, branchId} = do
   Operations.expectCausalBranchByCausalHash causalHash >>= V2Causal.value
 
 getShallowProjectBranchRoot :: ProjectBranch -> Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
-getShallowProjectBranchRoot ProjectBranch {projectId, branchId} = do
+getShallowProjectBranchRoot pb = do
+  getProjectBranchRootCausal pb >>= traverse V2Causal.value
+
+getProjectBranchRootCausal :: ProjectBranch -> Sqlite.Transaction (Maybe (V2Branch.CausalBranch Sqlite.Transaction))
+getProjectBranchRootCausal ProjectBranch {projectId, branchId} = do
   causalHashId <- Q.expectProjectBranchHead projectId branchId
   causalHash <- Q.expectCausalHash causalHashId
-  Operations.loadCausalBranchByCausalHash causalHash >>= traverse V2Causal.value
+  Operations.loadCausalBranchByCausalHash causalHash
+
+expectProjectBranchRootCausal :: ProjectBranch -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+expectProjectBranchRootCausal ProjectBranch {projectId, branchId} = do
+  causalHashId <- Q.expectProjectBranchHead projectId branchId
+  causalHash <- Q.expectCausalHash causalHashId
+  Operations.expectCausalBranchByCausalHash causalHash
 
 getBranchAtProjectPath ::
   (MonadIO m) =>

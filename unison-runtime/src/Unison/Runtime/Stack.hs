@@ -380,7 +380,9 @@ data GClosure comb
     -- We should consider adding separate constructors for common builtin type tags.
     --  GHC will optimize nullary constructors into singletons.
     GUnboxedTypeTag !UnboxedTypeTag
-  | GAffine !AEnv !AffineRef
+  | -- stores associated ability numbers, original handler environment,
+    -- and updateable reference
+    GAffine !(EnumSet Word64) !AEnv !AffineRef
   | GBlackHole
 #ifdef STACK_CHECK
   | GUnboxedSentinel
@@ -415,7 +417,7 @@ pattern Captured k a seg = Closure (GCaptured k a seg)
 
 pattern Foreign x = Closure (GForeign x)
 
-pattern Affine aenv r = Closure (GAffine aenv r)
+pattern Affine ps aenv r = Closure (GAffine ps aenv r)
 
 pattern BlackHole <- Closure GBlackHole
   where

@@ -13,6 +13,7 @@ module Unison.Cli.MonadUtils
     -- * Project and branch resolution
     getCurrentProjectAndBranch,
     getCurrentProjectBranch,
+    getCurrentProject,
 
     -- * Branches
 
@@ -22,6 +23,7 @@ module Unison.Cli.MonadUtils
     resolveBranchId,
     resolveBranchIdToAbsBranchId,
     resolveShortCausalHash,
+    resolveShortCausalHashToCausalHash,
 
     -- ** Getting/setting branches
     getCurrentProjectRoot,
@@ -134,6 +136,10 @@ getCurrentProjectPath = do
 getCurrentProjectAndBranch :: Cli (ProjectAndBranch Project ProjectBranch)
 getCurrentProjectAndBranch = do
   PP.toProjectAndBranch <$> getCurrentProjectPath
+
+getCurrentProject :: Cli Project
+getCurrentProject = do
+  view #project <$> getCurrentProjectPath
 
 getCurrentProjectBranch :: Cli ProjectBranch
 getCurrentProjectBranch = do

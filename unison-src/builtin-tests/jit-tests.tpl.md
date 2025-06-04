@@ -13,7 +13,7 @@ scratch/main> delete.project runtime-tests
 scratch/main> clone ${runtime_tests_version} runtime-tests/selected
 ```
 
-``` ucm
+``` ucm :hide
 runtime-tests/selected> run.native tests
 runtime-tests/selected> run.native tests.jit.only
 ```
@@ -21,7 +21,7 @@ runtime-tests/selected> run.native tests.jit.only
 Per Dan:
 It's testing a flaw in how we were sending code from a scratch file to the native runtime, when that happened multiple times.
 Related to the verifiable refs and recursive functions.
-``` unison
+``` unison :hide
 foo = do
   go : Nat ->{Exception} ()
   go = cases

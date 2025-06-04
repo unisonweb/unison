@@ -2223,6 +2223,13 @@ notifyUser dir = \case
           "Please open the other codebase with UCM directly to upgrade it to the latest version, then try again."
         ]
   UCMServerNotRunning -> pure (P.wrap "The UCM server is not running.")
+  BranchSquashSuccess srcPAB destPAB -> do
+    let sourceName = prettyProjectAndBranchName (ProjectAndBranch srcPAB.project.name srcPAB.branch.name)
+    let destName = prettyProjectAndBranchName (ProjectAndBranch destPAB.project.name destPAB.branch.name)
+    pure $
+      P.lines
+        [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName
+        ]
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

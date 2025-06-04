@@ -1,5 +1,6 @@
 module Unison.Util.Defn
   ( Defn (..),
+    DefnF,
   )
 where
 
@@ -28,3 +29,6 @@ instance Bitraversable Defn where
   bitraverse f g = \case
     TermDefn x -> TermDefn <$> f x
     TypeDefn y -> TypeDefn <$> g y
+
+type DefnF f term typ =
+  Defn (f term) (f typ)

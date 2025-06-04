@@ -443,6 +443,7 @@ data Output
   | SyncFromCodebaseMissingProjectBranch (ProjectAndBranch ProjectName ProjectBranchName)
   | OpenCodebaseError CodebasePath OpenCodebaseError
   | UCMServerNotRunning
+  | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -683,6 +684,7 @@ isFailure o = case o of
   SyncFromCodebaseMissingProjectBranch {} -> True
   OpenCodebaseError {} -> True
   UCMServerNotRunning -> True
+  BranchSquashSuccess {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

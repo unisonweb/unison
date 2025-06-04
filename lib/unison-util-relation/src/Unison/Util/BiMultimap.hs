@@ -61,8 +61,8 @@ import Prelude hiding (filter)
 --
 -- "Left-unique" means that for all @(x, y)@ in the relation, @y@ is related only to @x@.
 data BiMultimap a b = BiMultimap
-  { toMultimap :: !(Map a (NESet b)),
-    toMapR :: !(Map b a)
+  { toMultimap :: (Map a (NESet b)), -- intentionally lazy in case it's not used after `fromRange`
+    toMapR :: (Map b a)
   }
   deriving (Eq, Ord, Show)
 
