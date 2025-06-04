@@ -21,11 +21,10 @@ Will add `a` and `b` to the codebase and give `b` a longer (in terms of segment 
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a.a                     : Nat
-    a.aaa.but.more.segments : Nat
-    a.b                     : Nat
+  Done.
 
 scratch/main> view a.a
 
@@ -56,26 +55,10 @@ a3.long.name.but.shortest.suffixification = 1
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a2.a                                      : Nat
-      (also named a.a)
-    a2.aaa.but.more.segments                  : Nat
-      (also named a.b and a.aaa.but.more.segments)
-    a2.b                                      : Nat
-      (also named a.b and a.aaa.but.more.segments)
-    a2.c                                      : Nat
-    a2.d                                      : Nat
-    a2.long.name.but.shortest.suffixification : Nat
-    a3.a                                      : Nat
-      (also named a.a)
-    a3.aaa.but.more.segments                  : Nat
-      (also named a.b and a.aaa.but.more.segments)
-    a3.b                                      : Nat
-      (also named a.b and a.aaa.but.more.segments)
-    a3.c                                      : Nat
-    a3.d                                      : Nat
-    a3.long.name.but.shortest.suffixification : Nat
+  Done.
 
 scratch/main> debug.alias.term.force a2.c a3.c
 
@@ -135,10 +118,9 @@ a = 10
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       a                  : Nat
       deeply.nested.num  : Nat
@@ -148,11 +130,10 @@ a = 10
 ``` ucm
 scratch/biasing> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a                  : Nat
-    deeply.nested.num  : Nat
-    deeply.nested.term : Nat
+  Done.
 
 -- Despite being saved with name `a`,
 
@@ -178,10 +159,9 @@ other.num = 20
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       other.num : Nat
 ```
@@ -189,9 +169,10 @@ other.num = 20
 ``` ucm
 scratch/biasing> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    other.num : Nat
+  Done.
 
 -- nested.num should be preferred over the shorter name `a` due to biasing
 

@@ -94,7 +94,6 @@ import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
-import Unison.Codebase.Editor.HandleInput.Update (doSlurpAdds)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
 import Unison.Codebase.Editor.HandleInput.Upgrade (handleUpgrade)
 import Unison.Codebase.Editor.Input
@@ -102,8 +101,6 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
-import Unison.Codebase.Editor.Slurp qualified as Slurp
-import Unison.Codebase.Editor.SlurpResult qualified as SlurpResult
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.IntegrityCheck qualified as IntegrityCheck (integrityCheckFullCodebase)
@@ -192,13 +189,7 @@ loop e = do
         Just (_, True) -> (#latestFile . _Just . _2) .= False
         _ -> loadUnisonFile sourceName text
     Right input ->
-      let previewResponse sourceName sr uf = do
-            names <- Cli.currentNames
-            let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf names
-            let filePPED = PPED.makePPED (PPE.hqNamer 10 namesWithDefinitionsFromFile) (PPE.suffixifyByHash namesWithDefinitionsFromFile)
-            let suffixifiedPPE = PPE.suffixifiedPPE filePPED
-            Cli.respond $ Typechecked (Text.pack sourceName) suffixifiedPPE sr uf
-       in Cli.time "InputPattern" case input of
+      Cli.time "InputPattern" case input of
             ApiI -> do
               pp <- Cli.getCurrentProjectPath
               Cli.Env {serverBaseUrl} <- ask
@@ -533,30 +524,7 @@ loop e = do
             TextFindI allowLib ws -> handleTextFindI allowLib ws
             LoadI maybePath -> handleLoad maybePath
             ClearI -> Cli.respond ClearScreen
-            AddI requestedNames -> do
-              description <- inputDescription input
-              let vars = Set.map Name.toVar requestedNames
-              uf <- Cli.expectLatestTypecheckedFile
-              Cli.Env {codebase} <- ask
-              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-              let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
-              let adds = SlurpResult.adds sr
-              Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
-              pp <- Cli.getCurrentProjectPath
-              Cli.stepAt description (pp, doSlurpAdds adds uf)
-              let pped =
-                    let names = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
-                     in PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-              let suffixifiedPPE = PPED.suffixifiedPPE pped
-              Cli.respond $ SlurpOutput input suffixifiedPPE sr
             SaveExecuteResultI resultName -> handleAddRun input resultName
-            PreviewAddI requestedNames -> do
-              (sourceName, _) <- Cli.expectLatestFile
-              uf <- Cli.expectLatestTypecheckedFile
-              let vars = Set.map Name.toVar requestedNames
-              currentNames <- Branch.toNames <$> Cli.getCurrentBranch0
-              let sr = Slurp.slurpFile uf vars Slurp.AddOp currentNames
-              previewResponse sourceName sr uf
             Update2I -> handleUpdate2
             TodoI -> handleTodo
             TestI native testInput -> Tests.handleTest native testInput
@@ -872,7 +840,6 @@ inputDescription input =
           pure ("delete.namespace.force " <> opath)
         DeleteTarget'ProjectBranch _ -> wat
         DeleteTarget'Project _ -> wat
-    AddI _selection -> pure "add"
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
@@ -941,7 +908,6 @@ inputDescription input =
     NamesI {} -> wat
     NamespaceDependenciesI {} -> wat
     PopBranchI {} -> wat
-    PreviewAddI {} -> wat
     ProjectCreateI {} -> wat
     ProjectRenameI {} -> wat
     ProjectSwitchI {} -> wat

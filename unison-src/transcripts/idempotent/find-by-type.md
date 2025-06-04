@@ -19,12 +19,10 @@ baz = cases
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type A
-    bar : Text -> A
-    baz : A -> Text
-    foo : A
+  Done.
 
 scratch/main> find : Text -> A
 

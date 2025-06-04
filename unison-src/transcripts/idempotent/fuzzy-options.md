@@ -46,10 +46,10 @@ Definition args
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    nested.optionTwo : ##Nat
-    optionOne        : ##Nat
+  Done.
 
 scratch/main> debug.fuzzy-options view _
 
@@ -61,13 +61,9 @@ scratch/main> debug.fuzzy-options view _
 Namespace args
 
 ``` ucm
-scratch/main> add
-
-  ⊡ Ignored previously added definitions: nested.optionTwo
-    optionOne
-
 scratch/main> debug.fuzzy-options find-in _
 
   Select a namespace or press <esc> to cancel:
+    * .
     * nested
 ```

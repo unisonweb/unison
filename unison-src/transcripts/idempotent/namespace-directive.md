@@ -22,10 +22,9 @@ baz = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       foo.baz : Nat
 ```
@@ -49,10 +48,9 @@ longer.evil.factorial n = n
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       foo.factorial             : Int -> Int
       foo.longer.evil.factorial : Int -> Int
@@ -61,10 +59,10 @@ longer.evil.factorial n = n
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo.factorial             : Int -> Int
-    foo.longer.evil.factorial : Int -> Int
+  Done.
 
 scratch/main> view factorial
 
@@ -94,10 +92,9 @@ type longer.foo.Baz = { qux : Nat }
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type longer.foo.Baz
       type longer.foo.Foo
@@ -111,13 +108,10 @@ type longer.foo.Baz = { qux : Nat }
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type longer.foo.Baz
-    type longer.foo.Foo
-    longer.foo.Baz.qux        : Baz -> Nat
-    longer.foo.Baz.qux.modify : (Nat ->{g} Nat) -> Baz ->{g} Baz
-    longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
+  Done.
 ```
 
 ``` unison
@@ -142,10 +136,9 @@ hasTypeLink =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       type foo.Baz
       type foo.Foo
@@ -163,19 +156,10 @@ hasTypeLink =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type foo.Baz
-    type foo.Foo
-    type foo.RefersToFoo
-    foo.Baz.qux        : foo.Baz -> Nat
-    foo.Baz.qux.modify : (Nat ->{g} Nat)
-                         -> foo.Baz
-                         ->{g} foo.Baz
-    foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
-    foo.hasTypeLink    : Doc2
-    foo.refersToBar    : foo.Foo -> Nat
-    foo.refersToQux    : foo.Baz -> Nat
+  Done.
 
 scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
 

@@ -47,6 +47,7 @@ import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
+import Unison.Util.List (safeHead)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
@@ -97,7 +98,15 @@ namespaceOptions _codebase _projCtx searchBranch0 = do
     & Branch.deepPaths
     & Set.delete mempty {- The current path just renders as an empty string which isn't a valid arg -}
     & Set.toList
+    -- Sort libs last, then by path depth, then lexicographically
+    & List.sortOn
+      ( \path ->
+          let pathList = Path.toList path
+           in (safeHead pathList == Just NameSegment.libSegment, length pathList, pathList)
+      )
     & map (Path.toText . intoPath')
+    -- Add the root namespace to the path list
+    & (Path.toText Path.Root' :)
     & pure
 
 -- | Lists all dependencies of the current project.

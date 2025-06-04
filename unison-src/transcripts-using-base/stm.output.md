@@ -32,10 +32,9 @@ body k out v =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
       count : Nat -> ()
@@ -46,12 +45,10 @@ body k out v =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
-    count : Nat -> ()
-    inc   : TVar Nat ->{IO} Nat
-    loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
+  Done.
 ```
 
 Test case.
@@ -93,10 +90,9 @@ tests = '(map spawn nats)
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ These new definitions are ok to `update`:
     
       display : Nat -> Nat -> Nat -> Text
       nats    : [Nat]
@@ -107,12 +103,10 @@ tests = '(map spawn nats)
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    display : Nat -> Nat -> Nat -> Text
-    nats    : [Nat]
-    spawn   : Nat ->{IO} Result
-    tests   : '{IO} [Result]
+  Done.
 
 scratch/main> io.test tests
 

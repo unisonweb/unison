@@ -28,6 +28,8 @@ module Unison.Merge
     EitherWayI (..),
     HumanDiffOp (..),
     LibdepDiffOp (..),
+    Rename (..),
+    SimpleRenames (..),
     Synhashed (..),
     ThreeWay (..),
     TwoOrThreeWay (..),
@@ -58,6 +60,7 @@ import Unison.Merge.Mergeblob3 (Mergeblob3 (..), makeMergeblob3)
 import Unison.Merge.Mergeblob4 (Mergeblob4 (..), makeMergeblob4)
 import Unison.Merge.Mergeblob5 (Mergeblob5 (..), makeMergeblob5)
 import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
+import Unison.Merge.Rename (Rename (..), SimpleRenames (..))
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))

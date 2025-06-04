@@ -155,8 +155,6 @@ data Input
   | -- edits stuff:
     LoadI (Maybe FilePath)
   | ClearI
-  | AddI (Set Name)
-  | PreviewAddI (Set Name)
   | Update2I
   | TodoI
   | UndoI

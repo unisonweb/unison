@@ -15,11 +15,10 @@ mynamespace.dependsOnText = const external.mynat 10
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    const                     : a -> b -> a
-    external.mynat            : Nat
-    mynamespace.dependsOnText : Nat
+  Done.
 
 scratch/main> namespace.dependencies mynamespace
 
