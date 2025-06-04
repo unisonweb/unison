@@ -4,20 +4,20 @@ pull_request_rules:
       - check-success=check-contributor
       - check-success=build ucm (ubuntu-20.04)
       - check-success=build ucm (macos-13)
-      - check-success=build ucm (windows-2022)
+      - check-success=build ucm (windows-2025)
       - check-success=run transcripts (ubuntu-20.04)
       - check-success=run transcripts (macos-13)
-      - check-success=run transcripts (windows-2022)
+      - check-success=run transcripts (windows-2025)
       - check-success=run interpreter tests (ubuntu-20.04)
       - check-success=run interpreter tests (macos-13)
-      # - check-success=run interpreter tests (windows-2022)
+      # - check-success=run interpreter tests (windows-2025)
       - check-success=generate jit source
       - check-success=build jit binary / build jit binary (ubuntu-20.04)
       - check-success=build jit binary / build jit binary (macos-13)
-      - check-success=build jit binary / build jit binary (windows-2022)
+      - check-success=build jit binary / build jit binary (windows-2025)
       - check-success=test jit / test jit (ubuntu-20.04)
       - check-success=test jit / test jit (macos-13)
-      # - check-success=test jit / test jit (windows-2022)
+      # - check-success=test jit / test jit (windows-2025)
       - label=ready-to-merge
       - "#approved-reviews-by>=1"
     actions:
