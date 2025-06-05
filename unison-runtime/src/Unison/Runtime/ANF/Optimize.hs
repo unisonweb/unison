@@ -615,8 +615,7 @@ augmentHandlerEntry vs thunk0 mv0 ah body
     THnd rs nh Nothing (TFrc thunk1) <- body,
     mv0 == mv1,
     nh == hv,
-    thunk0 == thunk1,
-    Prelude.and (zipWith (==) us vs) =
+    thunk0 == thunk1 =
       Just
         . TName hv (Right mv1) us
         . TName ahp (Right ah) us
