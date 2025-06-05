@@ -2504,7 +2504,7 @@ prettyRefs [] = showString "{}"
 prettyRefs (r : rs) =
   showString "{"
     . showsShort r
-    . foldr (\t r -> shows t . showString "," . r) id rs
+    . foldr (\t r -> showString "," . showsShort t . r) id rs
     . showString "}"
 
 prettyFunc :: (Var v) => Func v -> ShowS
