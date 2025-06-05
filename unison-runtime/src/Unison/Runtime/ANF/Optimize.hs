@@ -572,8 +572,8 @@ augmentHandler ::
 augmentHandler opts _self group
   | Rec [(mv0, matcher)] entry <- group,
     Lambda ccs (ABTN.TAbss args body) <- entry,
-    thunk : vs <- shiftArgs args,
-    Just body <- augmentHandlerEntry vs thunk mv0 ah body,
+    thunk : _ <- shiftArgs args,
+    Just body <- augmentHandlerEntry thunk mv0 ah body,
     Just amatcher <- translateHandlerMatch opts mv0 ah matcher =
       Just
         . Rec [(mv0, matcher), (ah, amatcher)]
@@ -609,8 +609,8 @@ translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
 -- one, then the result is a modified version with an affine handler
 -- filled in.
 augmentHandlerEntry ::
-  (Var v) => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
-augmentHandlerEntry vs thunk0 mv0 ah body
+  (Var v) => v -> v -> v -> ANormal v -> Maybe (ANormal v)
+augmentHandlerEntry thunk0 mv0 ah body
   | TName hv (Right mv1) us body <- body,
     THnd rs nh Nothing (TFrc thunk1) <- body,
     mv0 == mv1,
