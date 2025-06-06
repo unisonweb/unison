@@ -166,9 +166,10 @@ data IncoherentDeclReasons = IncoherentDeclReasons
 -- want to convert that to just one arbitrary reason (if any).
 asOneRandomIncoherentDeclReason :: IncoherentDeclReasons -> IncoherentDeclReason
 asOneRandomIncoherentDeclReason reasons
+  -- N.B. it's better if `NestedDeclAlias` comes before `ConstructorAlias` here, as the former implies the latter
+  | (x, y) : _ <- reasons.nestedDeclAliases = IncoherentDeclReason'NestedDeclAlias x y
   | (x, y, z) : _ <- reasons.constructorAliases = IncoherentDeclReason'ConstructorAlias x y z
   | x : _ <- reasons.missingConstructorNames = IncoherentDeclReason'MissingConstructorName x
-  | (x, y) : _ <- reasons.nestedDeclAliases = IncoherentDeclReason'NestedDeclAlias x y
   | (x, y) : _ <- reasons.strayConstructors = IncoherentDeclReason'StrayConstructor x y
   | otherwise = error (reportBug "E963629" "empty IncoherentDeclReasons")
 
