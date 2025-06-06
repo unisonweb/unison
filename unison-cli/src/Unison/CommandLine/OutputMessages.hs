@@ -965,7 +965,7 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  Typechecked2 oldPpe newPpe slurpEntries -> do
+  Typechecked2 _oldPpe newPpe slurpEntries -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1004,60 +1004,54 @@ notifyUser dir = \case
         deletedTerms :: [(Name, Type Symbol Ann)]
         deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
 
-    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
-        renderType name decl =
-          P.syntaxToColor $
-            DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl
+    let renderType :: Pretty -> Name -> DeclOrBuiltin Symbol Ann -> Pretty
+        renderType status name decl =
+          status
+            <> " "
+            <> P.syntaxToColor
+              (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
 
-    let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
-        renderTerm ppe colored name ty =
-          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+    let renderTerm :: PPE.PrettyPrintEnv -> Pretty -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+        renderTerm ppe status name ty =
+          (status <> " " <> prettyName name, ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
 
-    let renderedNewTypesAndTerms :: Pretty
-        renderedNewTypesAndTerms =
-          if null newTypes && null newTerms
-            then mempty
-            else
-              P.indentNAfterNewline 2 $
-                "• Adds"
-                  <> "\n\n"
-                  <> P.linesNonEmpty
-                    [ P.lines (map (\(name, decl) -> renderType name decl) newTypes),
-                      P.column2 (map (\(name, ty) -> renderTerm newPpe P.boldGreen name ty) newTerms)
-                    ]
+    let renderedNewTypes :: Pretty
+        renderedNewTypes =
+          P.lines (map (\(name, decl) -> renderType (P.green "+") name decl) newTypes)
 
-    let renderedUpdatedTypesAndTerms :: Pretty
-        renderedUpdatedTypesAndTerms =
-          if null updatedTypes && null updatedTerms
-            then mempty
-            else
-              P.indentNAfterNewline 2 $
-                "• Updates"
-                  <> "\n\n"
-                  <> P.linesNonEmpty
-                    [ P.lines (map (\(name, _oldDecl, newDecl) -> renderType name newDecl) updatedTypes),
-                      P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe P.boldYellow name newTy) updatedTerms)
-                    ]
+    let renderedUpdatedTypes :: Pretty
+        renderedUpdatedTypes =
+          P.lines (map (\(name, _oldDecl, newDecl) -> renderType (P.yellow "~") name newDecl) updatedTypes)
 
-    let renderedDeletedTypesAndTerms :: Pretty
-        renderedDeletedTypesAndTerms =
-          if null deletedTypes && null deletedTerms
-            then mempty
-            else
-              P.indentNAfterNewline 2 $
-                "• Deletes"
-                  <> "\n\n"
-                  <> P.linesNonEmpty
-                    [ P.lines (map (\(name, decl) -> renderType name decl) deletedTypes),
-                      P.column2 (map (\(name, ty) -> renderTerm oldPpe P.boldRed name ty) deletedTerms)
-                    ]
+    let renderedDeletedTypes :: Pretty
+        renderedDeletedTypes =
+          P.lines (map (\(name, decl) -> renderType (P.red "-") name decl) deletedTypes)
+
+    let renderedNewTerms :: Pretty
+        renderedNewTerms =
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green "+") name ty) newTerms)
+
+    let renderedUpdatedTerms :: Pretty
+        renderedUpdatedTerms =
+          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow "~") name newTy) updatedTerms)
+
+    let renderedDeletedTerms :: Pretty
+        renderedDeletedTerms =
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.red "-") name ty) deletedTerms)
 
     pure $
       P.sepNonEmpty
         "\n\n"
-        [ renderedNewTypesAndTerms,
-          renderedUpdatedTypesAndTerms,
-          renderedDeletedTypesAndTerms,
+        [ P.linesNonEmpty
+            [ renderedNewTypes,
+              renderedUpdatedTypes,
+              renderedDeletedTypes
+            ],
+          P.linesNonEmpty
+            [ renderedNewTerms,
+              renderedUpdatedTerms,
+              renderedDeletedTerms
+            ],
           if defnsAreEmpty slurpEntries
             then mempty
             else
