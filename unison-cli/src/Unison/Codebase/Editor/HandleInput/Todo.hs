@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Todo
   )
 where
 
+import Control.Monad.Reader (ask)
 import Data.Either qualified as Either
 import Data.Set qualified as Set
 import U.Codebase.HashTags (BranchHash (..))
@@ -18,8 +19,8 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.HandleInput.Merge2 (hasDefnsInLib)
 import Unison.Codebase.Editor.Output
+import Unison.DeclCoherencyCheck (IncoherentDeclReasons (..), checkAllDeclCoherency)
 import Unison.Hash (HashFor (..))
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReasons (..), checkAllDeclCoherency)
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -31,6 +32,8 @@ import Unison.Util.Set qualified as Set
 
 handleTodo :: Cli ()
 handleTodo = do
+  env <- ask
+
   -- For now, we don't go through any great trouble to seek out the root of the project branch. Just assume the current
   -- namespace is the root, which will be the case unless the user uses `deprecated.cd`.
   currentCausal <- Cli.getCurrentBranch
@@ -73,7 +76,7 @@ handleTodo = do
       incoherentDeclReasons <-
         fmap (Either.fromLeft (IncoherentDeclReasons [] [] [] [])) $
           checkAllDeclCoherency
-            Operations.expectDeclNumConstructors
+            (Codebase.expectDeclNumConstructors env.codebase)
             (Names.lenientToNametree (Branch.toNames currentNamespaceWithoutLibdeps))
 
       pure (defnsInLib, dependentsOfTodo.terms, directDependencies, hashLen, incoherentDeclReasons)

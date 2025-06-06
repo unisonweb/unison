@@ -13,13 +13,6 @@ module Unison.Merge
     Mergeblob5 (..),
     makeMergeblob5,
 
-    -- * Decl coherency checks
-    IncoherentDeclReason (..),
-    checkDeclCoherency,
-    lenientCheckDeclCoherency,
-    IncoherentDeclReasons (..),
-    checkAllDeclCoherency,
-
     -- * Types
     CombinedDiffOp (..),
     DiffOp (..),
@@ -40,13 +33,6 @@ module Unison.Merge
 where
 
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..))
-import Unison.Merge.DeclCoherencyCheck
-  ( IncoherentDeclReason (..),
-    IncoherentDeclReasons (..),
-    checkAllDeclCoherency,
-    checkDeclCoherency,
-    lenientCheckDeclCoherency,
-  )
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))

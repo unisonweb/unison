@@ -13,13 +13,15 @@ module Unison.Codebase.SqliteCodebase
 where
 
 import Data.Either.Extra ()
+import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.HashTags (BranchHash, CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase1
-import Unison.Codebase.Branch (Branch (..))
+import Unison.Codebase.Branch (Branch (..), UnconflictedBranchView (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init qualified as Codebase
@@ -35,8 +37,9 @@ import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
-import Unison.Reference (Reference, TermReferenceId)
+import Unison.Reference (Reference, Reference' (..), TermReferenceId, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -44,13 +47,16 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Cache qualified as Cache
+import Unison.Util.Defns (Defns (..))
 import Unison.WatchKind qualified as UF
 import UnliftIO (finally)
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import UnliftIO.STM
+import Unison.DeclCoherencyCheck (lenientCheckDeclCoherency)
 
 debug :: Bool
 debug = False
@@ -204,6 +210,32 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         let expectDeclNumConstructors = CodebaseOps.makeCachedTransaction declNumConstructorsCache Operations.expectDeclNumConstructors
         let getBranchForHashTx = CodebaseOps.makeMaybeCachedTransaction rootBranchCacheTx (CodebaseOps.getBranchForHash branchLoadCache getDeclType)
 
+        branchDeclNumConstructorsCache <- Cache.semispaceCache 10
+        let getBranchDeclNumConstructors :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction (Map TypeReferenceId Int)
+            getBranchDeclNumConstructors =
+              CodebaseOps.makeCachedTransaction branchDeclNumConstructorsCache \(Keyed _ unconflictedView) ->
+                unconflictedView.defns.types
+                  & BiMultimap.dom
+                  & Set.toList
+                  & Foldable.foldlM
+                    ( \acc -> \case
+                        ReferenceBuiltin _ -> pure acc
+                        ReferenceDerived ref -> do
+                          num <- expectDeclNumConstructors ref
+                          pure $! Map.insert ref num acc
+                    )
+                    Map.empty
+
+        branchPartialDeclNameLookupCache <- Cache.semispaceCache 10
+        let getBranchPartialDeclNameLookup0 :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
+            getBranchPartialDeclNameLookup0 = do
+              CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k@(Keyed _ unconflictedView) -> do
+                numConstructors <- getBranchDeclNumConstructors k
+                pure (lenientCheckDeclCoherency unconflictedView.nametree numConstructors)
+        let getBranchPartialDeclNameLookup :: BranchHash -> UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
+            getBranchPartialDeclNameLookup namespaceHash unconflictedView =
+              getBranchPartialDeclNameLookup0 (Keyed namespaceHash unconflictedView)
+
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
             getTermComponentWithTypes =
               CodebaseOps.getTermComponentWithTypes getDeclType
@@ -292,6 +324,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getTermComponentWithTypes,
                   getBranchForHash,
                   getBranchForHashTx,
+                  getBranchPartialDeclNameLookup,
                   putBranch,
                   getWatch,
                   termsOfTypeImpl,
@@ -339,3 +372,16 @@ copyCodebase src dest = liftIO $ do
   -- We need to reset the journal mode because vacuum-into clears it.
   withConnection ("copy-to:" <> dest) dest $ \destConn -> do
     Sqlite.trySetJournalMode destConn Sqlite.JournalMode'WAL
+
+-- A `Keyed k v` is just a pair `(k, v)`, but where `k` implies `v` (i.e. it's a hash of `v` or similar), and so `k`
+-- can be used as the key in a map or set without requiring `Eq` or `Ord` on `v`.
+--
+-- Motivating use case: a cache of `PartialDeclNameLookup`, keyed by namespace hash id.
+data Keyed k v
+  = Keyed k v
+
+instance (Eq k) => Eq (Keyed k v) where
+  Keyed x _ == Keyed y _ = x == y
+
+instance (Ord k) => Ord (Keyed k v) where
+  Keyed x _ <= Keyed y _ = x <= y

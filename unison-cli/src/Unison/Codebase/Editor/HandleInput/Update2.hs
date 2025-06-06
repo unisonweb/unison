@@ -47,6 +47,7 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
+import Unison.DeclCoherencyCheck (checkDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
@@ -114,7 +115,7 @@ handleUpdate2 = do
             ( \acc -> \case
                 ReferenceBuiltin _ -> pure acc
                 ReferenceDerived ref -> do
-                  num <- Operations.expectDeclNumConstructors ref
+                  num <- Codebase.expectDeclNumConstructors env.codebase ref
                   pure $! Map.insert ref num acc
             )
             Map.empty
@@ -123,7 +124,7 @@ handleUpdate2 = do
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
-    Merge.checkDeclCoherency unconflictedView.nametree numConstructors
+    checkDeclCoherency unconflictedView.nametree numConstructors
       & onLeft (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
 
   let fileTermNamespaceBindings :: Set Name

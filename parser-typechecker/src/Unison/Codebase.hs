@@ -40,6 +40,7 @@ module Unison.Codebase
     putTypeDeclarationComponent,
     SqliteCodebase.Operations.typeReferencesByPrefix,
     isType,
+    expectDeclNumConstructors,
 
     -- * Branches
     SqliteCodebase.Operations.branchExists,

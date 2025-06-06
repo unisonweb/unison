@@ -79,7 +79,7 @@
 --
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
-module Unison.Merge.DeclCoherencyCheck
+module Unison.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
     checkDeclCoherency,
     lenientCheckDeclCoherency,

@@ -28,6 +28,7 @@ library
       Unison.DataDeclaration.ConstructorId
       Unison.DataDeclaration.Names
       Unison.DataDeclaration.Records
+      Unison.DeclCoherencyCheck
       Unison.DeclNameLookup
       Unison.Hashable
       Unison.HashQualified
@@ -113,6 +114,7 @@ library
     , text
     , text-builder
     , these
+    , transformers
     , unison-core
     , unison-hash
     , unison-prelude
