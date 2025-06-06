@@ -155,7 +155,11 @@ loadUnisonFile sourceName text = do
                          in case (oldRef, newRef) of
                               (Referent.Ref _, Referent.Ref _) ->
                                 if oldRef == newRef
-                                  then pure Nothing
+                                  then
+                                    pure
+                                      if Map.member (Name.toVar name) (UF.hashTermsId unisonFile)
+                                        then Just SlurpEntry'Unchanged
+                                        else Nothing
                                   else do
                                     oldType <- Codebase.expectTypeOfReferent codebase oldRef
                                     newType <- getNewType name newRef
@@ -201,7 +205,10 @@ loadUnisonFile sourceName text = do
                                 oldDecl <- getOldDecl oldRef
                                 newDecl <- getNewDecl name newRef
                                 pure (SlurpEntry'Update oldDecl newDecl)
-                              else pure Nothing
+                              else pure
+                                case UF.lookupDecl (Name.toVar name) unisonFile of
+                                  Nothing -> Nothing
+                                  Just _ -> Just SlurpEntry'Unchanged
                     )
                     (Relation.domain updateBranchParentNames.types)
                     (Relation.domain updateBranchNames.types)

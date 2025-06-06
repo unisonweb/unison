@@ -341,3 +341,4 @@ data SlurpEntry a
   = SlurpEntry'Add a
   | SlurpEntry'Delete a
   | SlurpEntry'Update a a
+  | SlurpEntry'Unchanged

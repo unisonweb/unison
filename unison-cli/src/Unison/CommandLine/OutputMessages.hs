@@ -969,14 +969,16 @@ notifyUser dir = \case
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
-        (newTypes0, updatedTypes0, deletedTypes0) =
+        numUnchangedTypes :: Int
+        (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
           Map.foldlWithKey'
             ( \acc name -> \case
                 SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
                 SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
                 SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
             )
-            ([], [], [])
+            ([], [], [], 0)
             slurpEntries.types
 
     let newTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -987,14 +989,18 @@ notifyUser dir = \case
         deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
 
     let newTerms0 :: [(Name, Type Symbol Ann)]
-        (newTerms0, updatedTerms0, deletedTerms0) =
+        updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        deletedTerms0 :: [(Name, Type Symbol Ann)]
+        numUnchangedTerms :: Int
+        (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
                 SlurpResult.SlurpEntry'Add ty -> over _1 ((name, ty) :) acc
                 SlurpResult.SlurpEntry'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
                 SlurpResult.SlurpEntry'Delete ty -> over _3 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
             )
-            ([], [], [])
+            ([], [], [], 0)
             slurpEntries.terms
 
     let newTerms :: [(Name, Type Symbol Ann)]
@@ -1004,40 +1010,38 @@ notifyUser dir = \case
         deletedTerms :: [(Name, Type Symbol Ann)]
         deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
 
-    let renderType :: Pretty -> Name -> DeclOrBuiltin Symbol Ann -> Pretty
-        renderType status name decl =
-          status
-            <> " "
-            <> P.syntaxToColor
-              (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+        renderType name decl =
+          P.syntaxToColor
+            (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
 
-    let renderTerm :: PPE.PrettyPrintEnv -> Pretty -> Name -> Type Symbol Ann -> (Pretty, Pretty)
-        renderTerm ppe status name ty =
-          (status <> " " <> prettyName name, ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+    let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+        renderTerm ppe colored name ty =
+          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
 
     let renderedNewTypes :: Pretty
         renderedNewTypes =
-          P.lines (map (\(name, decl) -> renderType (P.green "+") name decl) newTypes)
+          P.lines (map (\(name, decl) -> P.green ("+ " <> renderType name decl)) newTypes)
 
     let renderedUpdatedTypes :: Pretty
         renderedUpdatedTypes =
-          P.lines (map (\(name, _oldDecl, newDecl) -> renderType (P.yellow "~") name newDecl) updatedTypes)
+          P.lines (map (\(name, _oldDecl, newDecl) -> P.yellow ("~ " <> renderType name newDecl)) updatedTypes)
 
     let renderedDeletedTypes :: Pretty
         renderedDeletedTypes =
-          P.lines (map (\(name, decl) -> renderType (P.red "-") name decl) deletedTypes)
+          P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
 
     let renderedNewTerms :: Pretty
         renderedNewTerms =
-          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green "+") name ty) newTerms)
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green . ("+ " <>)) name ty) newTerms)
 
     let renderedUpdatedTerms :: Pretty
         renderedUpdatedTerms =
-          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow "~") name newTy) updatedTerms)
+          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy) updatedTerms)
 
     let renderedDeletedTerms :: Pretty
         renderedDeletedTerms =
-          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.red "-") name ty) deletedTerms)
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.red . ("- " <>)) name ty) deletedTerms)
 
     pure $
       P.sepNonEmpty
@@ -1052,16 +1056,39 @@ notifyUser dir = \case
               renderedUpdatedTerms,
               renderedDeletedTerms
             ],
+          if defnsAreEmpty slurpEntries then "No changes found." else mempty,
+          P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
+            (0, 0) -> mempty
+            (0, _) ->
+              "(and "
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> if numUnchangedTerms == 1 then ")" else "s)"
+            (_, 0) ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> if numUnchangedTypes == 1 then ")" else "s)"
+            _ ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> (if numUnchangedTypes == 1 then " and " else "s and ")
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> (if numUnchangedTerms == 1 then ")" else "s)"),
           if defnsAreEmpty slurpEntries
             then mempty
             else
-              P.wrap $
-                "Run"
-                  <> makeExample' IP.update
-                  <> "to apply these changes to your codebase."
+              P.lines
+                [ P.green "+" <> " (added), " <> P.yellow "~" <> " (modified), " <> P.red "-" <> " (deleted)",
+                  "",
+                  P.wrap $
+                    "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
+                ]
         ]
-  -- renderTypes slurpEntries.types,
-  -- renderTerms slurpEntries.terms
 
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
