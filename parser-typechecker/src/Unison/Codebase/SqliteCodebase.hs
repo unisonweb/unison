@@ -35,13 +35,13 @@ import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
-import Unison.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
+import Unison.DeclCoherencyCheck (IncoherentDeclReasons, checkAllDeclCoherency, lenientCheckDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
-import Unison.Reference (Reference, Reference' (..), TermReferenceId, TypeReferenceId)
+import Unison.Reference (Reference, Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
@@ -212,11 +212,10 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         let getBranchForHashTx = CodebaseOps.makeMaybeCachedTransaction rootBranchCacheTx (CodebaseOps.getBranchForHash branchLoadCache getDeclType)
 
         branchDeclNumConstructorsCache <- Cache.semispaceCache 10
-        let getBranchDeclNumConstructors :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction (Map TypeReferenceId Int)
-            getBranchDeclNumConstructors =
+        let getBranchDeclNumConstructors0 :: Keyed BranchHash (Set TypeReference) -> Sqlite.Transaction (Map TypeReferenceId Int)
+            getBranchDeclNumConstructors0 =
               CodebaseOps.makeCachedTransaction branchDeclNumConstructorsCache \k ->
-                k.value.defns.types
-                  & BiMultimap.dom
+                k.value
                   & Set.toList
                   & Foldable.foldlM
                     ( \acc -> \case
@@ -227,6 +226,10 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     )
                     Map.empty
 
+        let getBranchDeclNumConstructors :: BranchHash -> Set TypeReference -> Sqlite.Transaction (Map TypeReferenceId Int)
+            getBranchDeclNumConstructors namespaceHash refs =
+              getBranchDeclNumConstructors0 (Keyed namespaceHash refs)
+
         branchPartialDeclNameLookupCache <- Cache.semispaceCache 10
         let getBranchPartialDeclNameLookup ::
               BranchHash ->
@@ -236,7 +239,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
               let get :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
                   get =
                     CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k -> do
-                      numConstructors <- getBranchDeclNumConstructors k
+                      numConstructors <- getBranchDeclNumConstructors0 (Keyed k.key (BiMultimap.dom k.value.defns.types))
                       pure (lenientCheckDeclCoherency k.value.nametree numConstructors)
                in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView)
 
@@ -244,13 +247,15 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         let getBranchDeclNameLookup ::
               BranchHash ->
               UnconflictedBranchView ->
-              Sqlite.Transaction (Either IncoherentDeclReason DeclNameLookup)
+              Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
             getBranchDeclNameLookup =
-              let get :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction (Either IncoherentDeclReason DeclNameLookup)
+              let get ::
+                    Keyed BranchHash UnconflictedBranchView ->
+                    Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
                   get =
                     CodebaseOps.makeCachedTransaction branchDeclNameLookupCache \k -> do
-                      numConstructors <- getBranchDeclNumConstructors k
-                      pure (checkDeclCoherency k.value.nametree numConstructors)
+                      numConstructors <- getBranchDeclNumConstructors0 (Keyed k.key (BiMultimap.dom k.value.defns.types))
+                      pure (checkAllDeclCoherency k.value.nametree numConstructors)
                in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView)
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
@@ -341,6 +346,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getTermComponentWithTypes,
                   getBranchForHash,
                   getBranchForHashTx,
+                  getBranchDeclNumConstructors,
                   getBranchPartialDeclNameLookup,
                   getBranchDeclNameLookup,
                   putBranch,

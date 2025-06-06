@@ -155,7 +155,7 @@ data TodoOutput = TodoOutput
     dependentsOfTodo :: !(Set TermReferenceId),
     directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
     hashLen :: !Int,
-    incoherentDeclReasons :: !IncoherentDeclReasons,
+    incoherentDeclReasons :: !(Maybe IncoherentDeclReasons),
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
@@ -166,7 +166,7 @@ todoOutputIsEmpty todo =
     && defnsAreEmpty todo.directDependenciesWithoutNames
     && Names.isEmpty todo.nameConflicts
     && not todo.defnsInLib
-    && todo.incoherentDeclReasons == IncoherentDeclReasons [] [] [] []
+    && isNothing todo.incoherentDeclReasons
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash

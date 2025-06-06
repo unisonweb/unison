@@ -5,7 +5,6 @@ module Unison.Codebase.Editor.HandleInput.Todo
 where
 
 import Control.Monad.Reader (ask)
-import Data.Either qualified as Either
 import Data.Set qualified as Set
 import U.Codebase.HashTags (BranchHash (..))
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -19,7 +18,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.HandleInput.Merge2 (hasDefnsInLib)
 import Unison.Codebase.Editor.Output
-import Unison.DeclCoherencyCheck (IncoherentDeclReasons (..), checkAllDeclCoherency)
+import Unison.DeclCoherencyCheck (checkAllDeclCoherency)
 import Unison.Hash (HashFor (..))
 import Unison.Names qualified as Names
 import Unison.Prelude
@@ -74,10 +73,23 @@ handleTodo = do
       hashLen <- Codebase.hashLength
 
       incoherentDeclReasons <-
-        fmap (Either.fromLeft (IncoherentDeclReasons [] [] [] [])) $
-          checkAllDeclCoherency
-            (Codebase.expectDeclNumConstructors env.codebase)
-            (Names.lenientToNametree (Branch.toNames currentNamespaceWithoutLibdeps))
+        -- First try the happy path of an unconflicted namespace, which is cached in the Branch object. `todo` doesn't
+        -- require that the namespace is unconflicted, so we fall back on a more expensive computation in that case
+        case Branch.asUnconflicted currentNamespace of
+          Right unconflictedView ->
+            Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentCausal) unconflictedView <&> \case
+              Right _ -> Nothing
+              Left reasons -> Just reasons
+          _ -> do
+            let currentNamesWithoutLibdeps = Branch.toNames currentNamespaceWithoutLibdeps
+            numConstructors <-
+              Codebase.getBranchDeclNumConstructors
+                env.codebase
+                (Branch.namespaceHash currentCausal)
+                (Names.typeReferences currentNamesWithoutLibdeps)
+            pure case checkAllDeclCoherency (Names.lenientToNametree currentNamesWithoutLibdeps) numConstructors of
+              Right _ -> Nothing
+              Left reasons -> Just reasons
 
       pure (defnsInLib, dependentsOfTodo.terms, directDependencies, hashLen, incoherentDeclReasons)
 

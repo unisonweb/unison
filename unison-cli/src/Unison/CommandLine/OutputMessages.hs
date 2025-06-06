@@ -84,7 +84,7 @@ import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
-import Unison.DeclCoherencyCheck (IncoherentDeclReason (..), IncoherentDeclReasons (..))
+import Unison.DeclCoherencyCheck (IncoherentDeclReason (..))
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
@@ -2882,8 +2882,8 @@ handleTodoOutput todo
               foldr
                 (\(short, long) acc -> typeName /= short && typeName /= long && acc)
                 True
-                todo.incoherentDeclReasons.nestedDeclAliases
-         in case filter notNestedDeclAlias todo.incoherentDeclReasons.constructorAliases of
+                (maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons)
+         in case filter notNestedDeclAlias (maybe [] (view #constructorAliases) todo.incoherentDeclReasons) of
               [] -> pure mempty
               aliases -> do
                 things <-
@@ -2907,7 +2907,7 @@ handleTodoOutput todo
                     & P.sep "\n\n"
 
       prettyMissingConstructorNames <-
-        case NEList.nonEmpty todo.incoherentDeclReasons.missingConstructorNames of
+        case NEList.nonEmpty (maybe [] (view #missingConstructorNames) todo.incoherentDeclReasons) of
           Nothing -> pure mempty
           Just types0 -> do
             stuff <-
@@ -2939,7 +2939,7 @@ handleTodoOutput todo
                   )
 
       prettyNestedDeclAliases <-
-        case todo.incoherentDeclReasons.nestedDeclAliases of
+        case maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons of
           [] -> pure mempty
           aliases0 -> do
             aliases1 <-
@@ -2963,7 +2963,7 @@ handleTodoOutput todo
                 & P.sep "\n\n"
 
       prettyStrayConstructors <-
-        case todo.incoherentDeclReasons.strayConstructors of
+        case maybe [] (view #strayConstructors) todo.incoherentDeclReasons of
           [] -> pure mempty
           constructors -> do
             nums <-

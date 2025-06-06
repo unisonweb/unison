@@ -46,6 +46,8 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Prelude hiding (empty)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
@@ -129,15 +131,17 @@ instance Eq (Branch0 m) where
 -- intention is to use laziness to avoid recomputing data structures whenever possible.
 data UnconflictedBranchView = UnconflictedBranchView
   { defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
-    nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
+    nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference),
+    names :: Names
   }
 
 makeUnconflictedBranchView :: DefnsF (Map Name) Referent TypeReference -> UnconflictedBranchView
 makeUnconflictedBranchView defns0 =
-  UnconflictedBranchView {defns, nametree}
-  where
-    defns = bimap BiMultimap.fromRange BiMultimap.fromRange defns0
-    nametree = unflattenNametrees defns0
+  UnconflictedBranchView
+    { defns = bimap BiMultimap.fromRange BiMultimap.fromRange defns0,
+      nametree = unflattenNametrees defns0,
+      names = Names.fromUnconflicted defns0
+    }
 
 history_ :: Iso' (Branch m) (UnwrappedBranch m)
 history_ = iso _history Branch

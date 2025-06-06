@@ -64,6 +64,7 @@ module Unison.Codebase
     expectProjectBranchRoot,
     getBranchAtProjectPath,
     preloadProjectBranch,
+    getBranchDeclNumConstructors,
     getBranchPartialDeclNameLookup,
     getBranchDeclNameLookup,
 
