@@ -26,6 +26,9 @@ module Unison.Util.ColorText
     hiCyan,
     hiWhite,
     bold,
+    boldGreen,
+    boldYellow,
+    boldRed,
     underline,
     invert,
     background,
@@ -64,13 +67,16 @@ data Color
   | HiCyan
   | HiWhite
   | Bold
+  | BoldGreen
+  | BoldRed
+  | BoldYellow
   | Underline
   | Invert Color
   | Background Color Color
   | Default
   deriving (Eq, Ord, Show, Read)
 
-black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, underline :: ColorText -> ColorText
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold, boldGreen, boldRed, boldYellow, underline :: ColorText -> ColorText
 black = style Black
 red = style Red
 green = style Green
@@ -88,6 +94,9 @@ hiPurple = style HiPurple
 hiCyan = style HiCyan
 hiWhite = style HiWhite
 bold = style Bold
+boldGreen = style BoldGreen
+boldYellow = style BoldYellow
+boldRed = style BoldRed
 underline = style Underline
 
 unstyled :: ColorText -> ColorText
@@ -167,6 +176,9 @@ toANSI (AnnotatedText chunks) =
       HiCyan -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.Cyan]
       HiWhite -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.White]
       Bold -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
+      BoldGreen -> toANSI' Bold ++ toANSI' Green
+      BoldRed -> toANSI' Bold ++ toANSI' Red
+      BoldYellow -> toANSI' Bold ++ toANSI' Yellow
       Underline -> [ANSI.SetUnderlining ANSI.SingleUnderline]
 
 defaultColors :: ST.Element r -> Maybe Color

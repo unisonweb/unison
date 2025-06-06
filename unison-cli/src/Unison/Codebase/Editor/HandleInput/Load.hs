@@ -18,6 +18,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -35,8 +36,11 @@ import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DataDeclaration qualified as DeclOrBuiltin (DeclOrBuiltin (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -48,15 +52,18 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.Reference (TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
 import Unison.Result qualified as Result
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
+import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -117,7 +124,8 @@ loadUnisonFile sourceName text = do
                 Names.shadowing
                   (UF.typecheckedToNames unisonFile)
                   (Branch.toNames (Branch.deleteLibdeps oldBranch0))
-          slurpTerms <-
+
+          slurpTerms :: Map Name (SlurpEntry (Type Symbol Ann)) <-
             let getNewType name ref =
                   let var = Name.toVar name
                       termInfo = Map.lookup var (UF.hashTermsId unisonFile)
@@ -165,22 +173,45 @@ loadUnisonFile sourceName text = do
                     )
                     (Relation.domain updateBranchParentNames.terms)
                     (Relation.domain updateBranchNames.terms)
-          let slurpTypes =
-                Map.merge
-                  (Map.mapMissing \_ _ -> SlurpEntry'Delete ())
-                  (Map.mapMissing \_ _ -> SlurpEntry'Add ())
-                  ( Map.zipWithMaybeMatched \_ oldRefs newRefs ->
-                      if Set.findMin oldRefs /= Set.findMin newRefs
-                        then Just (SlurpEntry'Update () ())
-                        else Nothing
-                  )
-                  (Relation.domain updateBranchParentNames.types)
-                  (Relation.domain updateBranchNames.types)
+
+          slurpTypes :: Map Name (SlurpEntry (DeclOrBuiltin Symbol Ann)) <-
+            let getOldDecl :: TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
+                getOldDecl = \case
+                  Reference.DerivedId ref ->
+                    DeclOrBuiltin.Decl <$> Codebase.unsafeGetTypeDeclaration codebase ref
+                  Reference.Builtin builtin ->
+                    pure (DeclOrBuiltin.Builtin (Builtin.expectBuiltinConstructorType builtin))
+                getNewDecl :: Name -> TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
+                getNewDecl name = \case
+                  Reference.DerivedId ref ->
+                    case UF.lookupDecl (Name.toVar name) unisonFile of
+                      Just (_, decl) -> pure (DeclOrBuiltin.Decl decl)
+                      Nothing -> DeclOrBuiltin.Decl <$> Codebase.unsafeGetTypeDeclaration codebase ref
+                  Reference.Builtin builtin ->
+                    pure (DeclOrBuiltin.Builtin (Builtin.expectBuiltinConstructorType builtin))
+             in Cli.runTransaction do
+                  Map.mergeA
+                    (Map.traverseMissing \_ refs -> SlurpEntry'Delete <$> getOldDecl (Set.findMin refs))
+                    (Map.traverseMissing \name refs -> SlurpEntry'Add <$> getNewDecl name (Set.findMin refs))
+                    ( Map.zipWithMaybeAMatched \name oldRefs newRefs ->
+                        let oldRef = Set.findMin oldRefs
+                            newRef = Set.findMin newRefs
+                         in if oldRef /= newRef
+                              then fmap Just do
+                                oldDecl <- getOldDecl oldRef
+                                newDecl <- getNewDecl name newRef
+                                pure (SlurpEntry'Update oldDecl newDecl)
+                              else pure Nothing
+                    )
+                    (Relation.domain updateBranchParentNames.types)
+                    (Relation.domain updateBranchNames.types)
+
           let slurpEntries =
                 Defns
                   { terms = slurpTerms,
                     types = slurpTypes
                   }
+
           Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries)
     else do
       Cli.respond (Output.Typechecked sourceName newPpe sr unisonFile)

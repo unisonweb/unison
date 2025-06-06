@@ -139,6 +139,9 @@ module Unison.Util.Pretty
     hiCyan,
     hiWhite,
     bold,
+    boldGreen,
+    boldRed,
+    boldYellow,
     border,
     Width (..),
 
@@ -998,6 +1001,9 @@ black,
   hiCyan,
   hiWhite,
   bold,
+  boldGreen,
+  boldRed,
+  boldYellow,
   underline ::
     Pretty CT.ColorText -> Pretty CT.ColorText
 black = map CT.black
@@ -1017,6 +1023,9 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+boldGreen = map CT.boldGreen
+boldRed = map CT.boldRed
+boldYellow = map CT.boldYellow
 underline = map CT.underline
 
 -- invert the foreground and background colors
