@@ -35,6 +35,8 @@ import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
 import Unison.DataDeclaration (Decl)
+import Unison.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
+import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
@@ -56,7 +58,6 @@ import UnliftIO qualified as UnliftIO
 import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import UnliftIO.STM
-import Unison.DeclCoherencyCheck (lenientCheckDeclCoherency)
 
 debug :: Bool
 debug = False
@@ -213,8 +214,8 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         branchDeclNumConstructorsCache <- Cache.semispaceCache 10
         let getBranchDeclNumConstructors :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction (Map TypeReferenceId Int)
             getBranchDeclNumConstructors =
-              CodebaseOps.makeCachedTransaction branchDeclNumConstructorsCache \(Keyed _ unconflictedView) ->
-                unconflictedView.defns.types
+              CodebaseOps.makeCachedTransaction branchDeclNumConstructorsCache \k ->
+                k.value.defns.types
                   & BiMultimap.dom
                   & Set.toList
                   & Foldable.foldlM
@@ -227,14 +228,30 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     Map.empty
 
         branchPartialDeclNameLookupCache <- Cache.semispaceCache 10
-        let getBranchPartialDeclNameLookup0 :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
-            getBranchPartialDeclNameLookup0 = do
-              CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k@(Keyed _ unconflictedView) -> do
-                numConstructors <- getBranchDeclNumConstructors k
-                pure (lenientCheckDeclCoherency unconflictedView.nametree numConstructors)
-        let getBranchPartialDeclNameLookup :: BranchHash -> UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
-            getBranchPartialDeclNameLookup namespaceHash unconflictedView =
-              getBranchPartialDeclNameLookup0 (Keyed namespaceHash unconflictedView)
+        let getBranchPartialDeclNameLookup ::
+              BranchHash ->
+              UnconflictedBranchView ->
+              Sqlite.Transaction PartialDeclNameLookup
+            getBranchPartialDeclNameLookup =
+              let get :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
+                  get =
+                    CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k -> do
+                      numConstructors <- getBranchDeclNumConstructors k
+                      pure (lenientCheckDeclCoherency k.value.nametree numConstructors)
+               in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView)
+
+        branchDeclNameLookupCache <- Cache.semispaceCache 10
+        let getBranchDeclNameLookup ::
+              BranchHash ->
+              UnconflictedBranchView ->
+              Sqlite.Transaction (Either IncoherentDeclReason DeclNameLookup)
+            getBranchDeclNameLookup =
+              let get :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction (Either IncoherentDeclReason DeclNameLookup)
+                  get =
+                    CodebaseOps.makeCachedTransaction branchDeclNameLookupCache \k -> do
+                      numConstructors <- getBranchDeclNumConstructors k
+                      pure (checkDeclCoherency k.value.nametree numConstructors)
+               in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView)
 
         let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
             getTermComponentWithTypes =
@@ -325,6 +342,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getBranchForHash,
                   getBranchForHashTx,
                   getBranchPartialDeclNameLookup,
+                  getBranchDeclNameLookup,
                   putBranch,
                   getWatch,
                   termsOfTypeImpl,
@@ -377,8 +395,11 @@ copyCodebase src dest = liftIO $ do
 -- can be used as the key in a map or set without requiring `Eq` or `Ord` on `v`.
 --
 -- Motivating use case: a cache of `PartialDeclNameLookup`, keyed by namespace hash id.
-data Keyed k v
-  = Keyed k v
+data Keyed k v = Keyed
+  { key :: k,
+    value :: v
+  }
+  deriving stock (Generic)
 
 instance (Eq k) => Eq (Keyed k v) where
   Keyed x _ == Keyed y _ = x == y

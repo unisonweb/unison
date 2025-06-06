@@ -10,6 +10,8 @@ import Unison.Codebase.Branch (Branch, UnconflictedBranchView)
 import Unison.CodebasePath (CodebasePath)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
+import Unison.DeclCoherencyCheck (IncoherentDeclReason)
+import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Hash (Hash)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
@@ -56,8 +58,10 @@ data Codebase m v a = Codebase
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
     -- | Like `getBranchForHash`, but in Transaction... this should entirely replace `getBranchForHash` (some day)
     getBranchForHashTx :: CausalHash -> Sqlite.Transaction (Maybe (Branch Sqlite.Transaction)),
-    -- | Get a partial decl name lookup for a branch. Since this requires
+    -- | Get a partial decl name lookup for a branch.
     getBranchPartialDeclNameLookup :: BranchHash -> UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup,
+    -- | Get a decl name lookup for a branch (or an error, if there's an incoherent decl)
+    getBranchDeclNameLookup :: BranchHash -> UnconflictedBranchView -> Sqlite.Transaction (Either IncoherentDeclReason DeclNameLookup),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
