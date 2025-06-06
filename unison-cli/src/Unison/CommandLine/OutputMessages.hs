@@ -1089,7 +1089,6 @@ notifyUser dir = \case
                       <> "to apply these changes to your codebase."
                 ]
         ]
-
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably

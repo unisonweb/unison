@@ -119,9 +119,10 @@ import Unison.Codebase.Branch.Type
     headHash,
     history_,
     isEmpty0,
+    namespaceHash,
     nonEmptyChildren,
     terms_,
-    types_, namespaceHash,
+    types_,
   )
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal
