@@ -33,13 +33,14 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
-import U.Codebase.HashTags (CausalHash, PatchHash (..))
+import U.Codebase.HashTags (BranchHash (..), CausalHash, PatchHash (..))
 import Unison.Codebase.Causal.Type (Causal)
 import Unison.Codebase.Causal.Type qualified as Causal
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Hash (HashFor (..))
 import Unison.Hash qualified as Hash
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -79,8 +80,8 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> CausalHash
 headHash (Branch c) = Causal.currentHash c
 
-namespaceHash :: Branch m -> NamespaceHash m
-namespaceHash (Branch c) = Causal.valueHash c
+namespaceHash :: forall m. Branch m -> BranchHash
+namespaceHash (Branch c) = coerce @(HashFor (Branch0 m)) @BranchHash (Causal.valueHash c)
 
 -- | A node in the Unison namespace hierarchy.
 --
@@ -242,7 +243,7 @@ deriveDeepTerms branch =
           forall m.
           Seq (DeepChildAcc m) ->
           [(Referent, Name)] ->
-          DeepState m [(Referent, Name)]
+          DeepState [(Referent, Name)]
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let terms :: [(Referent, Name)]
@@ -264,7 +265,7 @@ deriveDeepTypes branch =
         go ::
           Seq (DeepChildAcc m) ->
           [(TypeReference, Name)] ->
-          DeepState m [(TypeReference, Name)]
+          DeepState [(TypeReference, Name)]
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let types :: [(TypeReference, Name)]
@@ -317,7 +318,7 @@ deriveDeepPaths branch =
     makeDeepPaths :: Branch0 m -> Set Path
     makeDeepPaths branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
-        go :: Seq (DeepChildAcc m) -> Set Path -> DeepState m (Set Path)
+        go :: Seq (DeepChildAcc m) -> Set Path -> DeepState (Set Path)
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let paths :: Set Path
@@ -330,7 +331,7 @@ deriveDeepPaths branch =
 
 -- | State used by deepChildrenHelper to determine whether to descend into a child branch.
 -- Contains the set of visited namespace hashes.
-type DeepState m = State (Set (NamespaceHash m))
+type DeepState = State (Set BranchHash)
 
 -- | Represents a unit of remaining work in traversing children for computing `deep*`.
 -- (reverse prefix to a branch, the number of `lib` segments in the reverse prefix, and the branch itself)
@@ -338,9 +339,9 @@ type DeepChildAcc m = ([NameSegment], Int, Branch0 m)
 
 -- | Helper for knowing whether to descend into a child branch or not.
 -- Accepts child namespaces with previously unseen hashes, and any nested under 1 or fewer `lib` segments.
-deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState m (Seq (DeepChildAcc m))
+deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState (Seq (DeepChildAcc m))
 deepChildrenHelper (reversePrefix, libDepth, b0) = do
-  let go :: (NameSegment, Branch m) -> DeepState m (Seq (DeepChildAcc m))
+  let go :: (NameSegment, Branch m) -> DeepState (Seq (DeepChildAcc m))
       go (ns, b) = do
         let h = namespaceHash b
         result <- do

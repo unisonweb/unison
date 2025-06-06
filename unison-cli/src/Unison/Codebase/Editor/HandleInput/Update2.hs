@@ -47,7 +47,6 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
-import Unison.DeclCoherencyCheck (checkDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
@@ -99,33 +98,19 @@ handleUpdate2 = do
   let currentBranch0ExcludingLibdeps = Branch.deleteLibdeps currentBranch0
   let namesIncludingLibdeps = Branch.toNames currentBranch0
 
-  -- Assert that the namespace doesn't have any conflicted names
+  -- Assert that the namespace doesn't have any conflicted names, and get whether we are on an "update" branch already
   unconflictedView <-
     Branch.asUnconflicted currentBranch0ExcludingLibdeps
       & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
 
-  -- Get the number of constructors for every type declaration, and whether we are on an "update" branch already
-  (numConstructors, onUpdateBranchAlready) <-
-    Cli.runTransaction do
-      numConstructors <-
-        unconflictedView.defns.types
-          & BiMultimap.dom
-          & Set.toList
-          & Foldable.foldlM
-            ( \acc -> \case
-                ReferenceBuiltin _ -> pure acc
-                ReferenceDerived ref -> do
-                  num <- Codebase.expectDeclNumConstructors env.codebase ref
-                  pure $! Map.insert ref num acc
-            )
-            Map.empty
-      onUpdateBranchAlready <- Queries.projectBranchIsUpdateBranch projectId pp.branch.branchId
-      pure (numConstructors, onUpdateBranchAlready)
-
   -- Assert that the namespace doesn't have any incoherent decls
-  declNameLookup <-
-    checkDeclCoherency unconflictedView.nametree numConstructors
-      & onLeft (Cli.returnEarly . Output.IncoherentDeclDuringUpdate)
+  (declNameLookup, onUpdateBranchAlready) <-
+    Cli.runTransactionWithRollback \rollback -> do
+      declNameLookup <-
+        Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentBranch) unconflictedView
+          & onLeftM (rollback . Output.IncoherentDeclDuringUpdate)
+      onUpdateBranchAlready <- Queries.projectBranchIsUpdateBranch projectId pp.branch.branchId
+      pure (declNameLookup, onUpdateBranchAlready)
 
   let fileTermNamespaceBindings :: Set Name
       fileTermNamespaceBindings =

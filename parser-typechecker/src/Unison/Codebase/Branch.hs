@@ -36,6 +36,7 @@ module Unison.Codebase.Branch
     head,
     head_,
     headHash,
+    namespaceHash,
     children_,
     nonEmptyChildren,
     namespaceStats,
@@ -120,7 +121,7 @@ import Unison.Codebase.Branch.Type
     isEmpty0,
     nonEmptyChildren,
     terms_,
-    types_,
+    types_, namespaceHash,
   )
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal

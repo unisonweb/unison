@@ -64,6 +64,8 @@ module Unison.Codebase
     expectProjectBranchRoot,
     getBranchAtProjectPath,
     preloadProjectBranch,
+    getBranchPartialDeclNameLookup,
+    getBranchDeclNameLookup,
 
     -- * Root branch
     SqliteCodebase.Operations.namesAtPath,
