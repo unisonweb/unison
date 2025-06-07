@@ -82,13 +82,14 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
+import Unison.DeclCoherencyCheck (IncoherentDeclReason (..))
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency as LD
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -121,6 +122,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -144,9 +146,10 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), defnsAreEmpty)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -962,6 +965,130 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
+  Typechecked2 _oldPpe newPpe slurpEntries -> do
+    let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
+        updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
+        deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
+        numUnchangedTypes :: Int
+        (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
+          Map.foldlWithKey'
+            ( \acc name -> \case
+                SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
+                SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+            )
+            ([], [], [], 0)
+            slurpEntries.types
+
+    let newTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
+        newTypes = sortAlphabeticallyOn (view _1) newTypes0
+        updatedTypes :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
+        updatedTypes = sortAlphabeticallyOn (view _1) updatedTypes0
+        deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
+        deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
+
+    let newTerms0 :: [(Name, Type Symbol Ann)]
+        updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        deletedTerms0 :: [(Name, Type Symbol Ann)]
+        numUnchangedTerms :: Int
+        (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
+          Map.foldlWithKey'
+            ( \acc name -> \case
+                SlurpResult.SlurpEntry'Add ty -> over _1 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
+                SlurpResult.SlurpEntry'Delete ty -> over _3 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+            )
+            ([], [], [], 0)
+            slurpEntries.terms
+
+    let newTerms :: [(Name, Type Symbol Ann)]
+        newTerms = sortAlphabeticallyOn (view _1) newTerms0
+        updatedTerms :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
+        deletedTerms :: [(Name, Type Symbol Ann)]
+        deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
+
+    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+        renderType name decl =
+          P.syntaxToColor
+            (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+
+    let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+        renderTerm ppe colored name ty =
+          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+
+    let renderedNewTypes :: Pretty
+        renderedNewTypes =
+          P.lines (map (\(name, decl) -> P.green ("+ " <> renderType name decl)) newTypes)
+
+    let renderedUpdatedTypes :: Pretty
+        renderedUpdatedTypes =
+          P.lines (map (\(name, _oldDecl, newDecl) -> P.yellow ("~ " <> renderType name newDecl)) updatedTypes)
+
+    let renderedDeletedTypes :: Pretty
+        renderedDeletedTypes =
+          P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
+
+    let renderedNewTerms :: Pretty
+        renderedNewTerms =
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green . ("+ " <>)) name ty) newTerms)
+
+    let renderedUpdatedTerms :: Pretty
+        renderedUpdatedTerms =
+          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy) updatedTerms)
+
+    let renderedDeletedTerms :: Pretty
+        renderedDeletedTerms =
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.red . ("- " <>)) name ty) deletedTerms)
+
+    pure $
+      P.sepNonEmpty
+        "\n\n"
+        [ P.linesNonEmpty
+            [ renderedNewTypes,
+              renderedUpdatedTypes,
+              renderedDeletedTypes
+            ],
+          P.linesNonEmpty
+            [ renderedNewTerms,
+              renderedUpdatedTerms,
+              renderedDeletedTerms
+            ],
+          if defnsAreEmpty slurpEntries then "No changes found." else mempty,
+          P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
+            (0, 0) -> mempty
+            (0, _) ->
+              "(and "
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> if numUnchangedTerms == 1 then ")" else "s)"
+            (_, 0) ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> if numUnchangedTypes == 1 then ")" else "s)"
+            _ ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> (if numUnchangedTypes == 1 then " and " else "s and ")
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> (if numUnchangedTerms == 1 then ")" else "s)"),
+          if defnsAreEmpty slurpEntries
+            then mempty
+            else
+              P.lines
+                [ P.green "+" <> " (added), " <> P.yellow "~" <> " (modified), " <> P.red "-" <> " (deleted)",
+                  "",
+                  P.wrap $
+                    "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
+                ]
+        ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -2775,8 +2902,8 @@ handleTodoOutput todo
               foldr
                 (\(short, long) acc -> typeName /= short && typeName /= long && acc)
                 True
-                todo.incoherentDeclReasons.nestedDeclAliases
-         in case filter notNestedDeclAlias todo.incoherentDeclReasons.constructorAliases of
+                (maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons)
+         in case filter notNestedDeclAlias (maybe [] (view #constructorAliases) todo.incoherentDeclReasons) of
               [] -> pure mempty
               aliases -> do
                 things <-
@@ -2800,7 +2927,7 @@ handleTodoOutput todo
                     & P.sep "\n\n"
 
       prettyMissingConstructorNames <-
-        case NEList.nonEmpty todo.incoherentDeclReasons.missingConstructorNames of
+        case NEList.nonEmpty (maybe [] (view #missingConstructorNames) todo.incoherentDeclReasons) of
           Nothing -> pure mempty
           Just types0 -> do
             stuff <-
@@ -2832,7 +2959,7 @@ handleTodoOutput todo
                   )
 
       prettyNestedDeclAliases <-
-        case todo.incoherentDeclReasons.nestedDeclAliases of
+        case maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons of
           [] -> pure mempty
           aliases0 -> do
             aliases1 <-
@@ -2856,7 +2983,7 @@ handleTodoOutput todo
                 & P.sep "\n\n"
 
       prettyStrayConstructors <-
-        case todo.incoherentDeclReasons.strayConstructors of
+        case maybe [] (view #strayConstructors) todo.incoherentDeclReasons of
           [] -> pure mempty
           constructors -> do
             nums <-

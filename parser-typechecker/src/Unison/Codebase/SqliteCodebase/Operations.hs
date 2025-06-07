@@ -229,14 +229,7 @@ getTerm doGetDeclType (Reference.Id h i) =
 
 getDeclType :: C.Reference.Reference -> Transaction CT.ConstructorType
 getDeclType = \case
-  C.Reference.ReferenceBuiltin t ->
-    let err =
-          error $
-            "I don't know about the builtin type ##"
-              ++ show t
-              ++ ", but I've been asked for it's ConstructorType."
-     in pure . fromMaybe err $
-          Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
+  C.Reference.ReferenceBuiltin t -> pure (Builtins.expectBuiltinConstructorType t)
   C.Reference.ReferenceDerived i -> expectDeclTypeById i
 
 expectDeclTypeById :: C.Reference.Id -> Transaction CT.ConstructorType

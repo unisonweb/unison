@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Unison.Codebase.Type
   ( Codebase (..),
     CodebasePath,
@@ -8,12 +5,15 @@ module Unison.Codebase.Type
   )
 where
 
-import U.Codebase.HashTags (CausalHash)
-import Unison.Codebase.Branch (Branch)
+import U.Codebase.HashTags (BranchHash, CausalHash)
+import Unison.Codebase.Branch (Branch, UnconflictedBranchView)
 import Unison.CodebasePath (CodebasePath)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
+import Unison.DeclCoherencyCheck (IncoherentDeclReasons)
+import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Hash (Hash)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.Reference (Reference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -58,6 +58,14 @@ data Codebase m v a = Codebase
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),
     -- | Like `getBranchForHash`, but in Transaction... this should entirely replace `getBranchForHash` (some day)
     getBranchForHashTx :: CausalHash -> Sqlite.Transaction (Maybe (Branch Sqlite.Transaction)),
+    getBranchDeclNumConstructors :: BranchHash -> Set TypeReference -> Sqlite.Transaction (Map TypeReferenceId Int),
+    -- | Get a partial decl name lookup for a branch.
+    getBranchPartialDeclNameLookup :: BranchHash -> UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup,
+    -- | Get a decl name lookup for a branch (or an error, if there's an incoherent decl)
+    getBranchDeclNameLookup ::
+      BranchHash ->
+      UnconflictedBranchView ->
+      Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.
     --
