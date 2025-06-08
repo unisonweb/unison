@@ -85,13 +85,11 @@ library
       base
     , containers
     , lens
-    , mtl
     , nonempty-containers
     , semialign
     , semigroups
     , text
     , these
-    , transformers
     , unison-core
     , unison-core1
     , unison-hash
