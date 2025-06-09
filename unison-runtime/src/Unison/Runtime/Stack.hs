@@ -1033,7 +1033,7 @@ pokeBool stk b =
 -- We don't bother nulling out the unboxed stack,
 -- it's extra work and there's nothing to garbage collect.
 bpoke :: (DebugCallStack) => Stack -> BVal -> IO ()
-bpoke _stk@(Stack _ _ sp _ bstk) b = do
+bpoke _stk@(Stack _ _ sp _ bstk) !b = do
 #ifdef STACK_CHECK
   assertBumped _stk 0
 #endif
@@ -1053,7 +1053,7 @@ upokeOffT stk i u t = do
 {-# INLINE upokeOffT #-}
 
 bpokeOff :: (DebugCallStack) => Stack -> Off -> BVal -> IO ()
-bpokeOff _stk@(Stack _ _ sp _ bstk) i b = do
+bpokeOff _stk@(Stack _ _ sp _ bstk) i !b = do
 #ifdef STACK_CHECK
   assertBumped _stk i
 #endif
