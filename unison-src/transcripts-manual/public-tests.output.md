@@ -2748,6 +2748,53 @@ x/cloud> test
 
   Tip: Use view 1 to view the source of a test.
 
+x/cloud> io.test internal.tests.cloud.runAllLocally
+
+    New test results:
+
+    1. cloud.runAllLocally   ◉ Passed
+                             ◉ basic cancellation
+                             ◉ basic program that doesn't use Remote
+                             ◉ allowCancel allows an interrupt
+                             ◉ cancel after await
+                             ◉ cancel await
+                             ◉ cancel awaits finalization
+                             ◉ await awaits finalization
+                             ◉ children get canceled
+                             ◉ Remote ops: forkAt, near, far, await
+                             ◉ forking here leaves you in the same location
+                             ◉ finalizers should run with unique ID generation (they shouldn't reuse a seed)
+                             ◉ The output of randomBytes should be reasonable
+                             ◉ delete on a nonexistent ref doesn't fail
+                             ◉ remote cancellation
+                             ◉ scope runs finalization synchronously
+                             ◉ Remote.scope propagates interruption
+                             ◉ bug in fork is returned as a normal failure
+                             ◉ bug in tryScope is returned as a normal failure
+                             ◉ fork finalizers run when there is a runtime exception
+                             ◉ scope finalizers run when there is a runtime exception
+                             ◉ Remote.time.now should be reasonable
+                             ◉ basic submit
+                             ◉ blobs CRUD
+                             ◉ environment CRUD
+                             ◉ deployment CRUD
+                             ◉ Scratch operations
+                             ◉ service name CRUD
+                             ◉ service name assign via Id
+                             ◉ deploy service
+                             ◉ deploy websocket service
+                             ◉ expose service
+                             ◉ database crud
+                             ◉ basic State
+                             ◉ state via service calls
+                             ◉ batch reads
+                             ◉ Ordered table constructor stability
+                             ◉ daemon CRUD
+
+  ✅ 38 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
 x/orderator> pull @pchiusano/orderator/releases/latest
 
   ✅

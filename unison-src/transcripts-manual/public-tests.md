@@ -11,6 +11,7 @@ x/json> test
 
 x/cloud> pull @unison/cloud/releases/latest
 x/cloud> test
+x/cloud> io.test internal.tests.cloud.runAllLocally
 
 x/orderator> pull @pchiusano/orderator/releases/latest
 x/orderator> test
