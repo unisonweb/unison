@@ -291,8 +291,8 @@ peephole arities affine n0 = memo n0 $ go (30 :: Int) n0
             all (/= lz) bs -> do
               dirty
               pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
-        HandledThunk r n lazy expr
-          | lazy || affine,
+        HandledThunk r n safe expr
+          | safe || affine,
             Just arity <- Map.lookup r arities,
             n < arity ->
               expr <$ dirty
@@ -472,7 +472,9 @@ pattern HandlerResume lz f as lh h bs rs <-
 -- Recognize a possibly underapplied combinator that is used at the
 -- end of a handler block. The result is the combinator reference, the
 -- length of the variables it's applied to, and a rewritten expression
--- that inlines the application to the single use site.
+-- that inlines the application to the single use site, with in
+-- indication of whether it's safe to use the rewritten expression in
+-- non-affine contexts.
 matchHandledThunk ::
   (Var v) => ANormal v -> Maybe (Reference, Int, Bool, ANormal v)
 matchHandledThunk (TLet _ th _ (TCom r vs) bd) =
@@ -507,10 +509,10 @@ matchHandledThunk (TLet _ th _ (TCom r vs) bd) =
     -- Some values may be bound before the thunk call as long as
     -- they're 'direct' calls that can't capture stacks and reveal
     -- that we've changed the convention.
-    suffix (TLetD v cc bn bd)
-      | v /= th,
+    suffix (TLets d vs ccs bn bd)
+      | all (/= th) vs,
         th `Set.notMember` ABTN.freeVars bn =
-          TLetD v cc bn <$> suffix bd
+          TLets d vs ccs bn <$> suffix bd <* tell (All $ d == Direct)
     -- final expression in handle body is a call to the thunk.
     suffix (TApv h us)
       | h == th,
@@ -538,9 +540,11 @@ matchHandledThunk _ = Nothing
 --    f <vs> w x ...
 --  with ...
 --
--- `lazy` indicates whether all bindings in the `v` section are lazy.
-pattern HandledThunk ref ar lazy expr <-
-  (matchHandledThunk -> Just (ref, ar, lazy, expr))
+-- `safe` indicates whether the rewritten expression is safe to use in
+-- arbitrary contexts, or whether it should only be applied in affine
+-- contexts where nothing in it might observe odd stack behavior.
+pattern HandledThunk ref ar safe expr <-
+  (matchHandledThunk -> Just (ref, ar, safe, expr))
 
 -- Builds a basic optimization map. Assumes the code in question is
 -- not recursive, and makes no effort to optimize the code, so it
@@ -873,7 +877,9 @@ linearTail opts self vs bound rec ar kf0 tm
 -- numbering. If this is ever changed, then the numbering here must be
 -- adjusted.
 replaceLinearBody :: (Var v) => OptInfos v -> ANormal v -> ANormal v
-replaceLinearBody (arities, inls) bd
+replaceLinearBody opts@(arities, inls) bd
+  | TLetD v cc bn bd <- bd =
+      TLetD v cc bn $ replaceLinearBody opts bd
   | TCom r vs <- bd,
     Just n <- Map.lookup r arities,
     length vs == n,
