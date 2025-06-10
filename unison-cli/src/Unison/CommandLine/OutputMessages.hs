@@ -1883,14 +1883,26 @@ notifyUser dir = \case
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName main <> ".")
         ]
-  UpgradeSuccess old new ->
-    pure . P.wrap $
-      "I upgraded"
-        <> P.text (NameSegment.toEscapedText old)
-        <> "to"
-        <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
-        <> "and removed"
-        <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
+  UpgradeSuccess old new maybeFinal ->
+    let prettyLib = P.blue . P.text . NameSegment.toEscapedText
+        prettyOld = prettyLib old
+        prettyNew = prettyLib new
+     in pure . P.wrap $
+          "I upgraded"
+            <> prettyOld
+            <> "to"
+            <> P.group (prettyNew <> ",")
+            <> case maybeFinal of
+              Nothing ->
+                "and removed"
+                  <> P.group (prettyOld <> ".")
+              Just final ->
+                "removed"
+                  <> P.group (prettyOld <> ",")
+                  <> "and renamed"
+                  <> prettyNew
+                  <> "to"
+                  <> P.group (prettyLib final <> ".")
   MergeFailure path aliceAndBob temp ->
     pure $
       P.lines $

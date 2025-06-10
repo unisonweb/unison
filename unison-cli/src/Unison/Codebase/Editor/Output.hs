@@ -418,7 +418,7 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
-  | UpgradeSuccess !NameSegment !NameSegment
+  | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeFailureWithMergetool !MergeSourceAndTarget !ProjectBranchName !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget

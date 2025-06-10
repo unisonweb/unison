@@ -64,6 +64,7 @@ module Unison.Codebase.Branch
     children0,
 
     -- *** Libdep manipulations
+    libdeps_,
     withoutLib,
     withoutTransitiveLibs,
     deleteLibdep,
@@ -151,6 +152,10 @@ instance AsEmpty (Branch m) where
 instance Hashing.ContentAddressable (Branch0 m) where
   contentHash = H.hashBranch0
 
+libdeps_ :: Traversal' (Branch0 m) (Map NameSegment (Branch m))
+libdeps_ =
+  children . ix NameSegment.libSegment . head_ . children
+
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutLib :: Branch0 m -> Branch0 m
@@ -181,7 +186,7 @@ withoutTransitiveLibs b0 =
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
-  over (children . ix NameSegment.libSegment . head_ . children) (Map.delete dep)
+  over libdeps_ (Map.delete dep)
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
