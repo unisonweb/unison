@@ -493,3 +493,101 @@ foo/main> view mything
 ``` ucm :hide
 foo/main> project.delete foo
 ```
+
+# Rename `__N` suffix
+
+On a successful upgrade, if the new dependency's name ends in `__N` (where `N` is a number), then we delete that suffix
+(if possible). This is because commonly one incurs `__N` suffixes when installing in-progress dependencies that don't
+have an associated release yet, e.g. multiple invocations of `lib.install @user/project/main`.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.dep.foo = 1
+lib.dep__2.foo = 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ These new definitions are ok to `update`:
+    
+      lib.dep.foo    : Nat
+      lib.dep__2.foo : Nat
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade dep dep__2
+
+  I upgraded dep to dep__2, removed dep, and renamed dep__2 to
+  dep.
+
+scratch/main> ls lib
+
+  1. builtin/ (483 terms, 78 types)
+  2. dep/     (1 term)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+It's possible the desired name is taken, though, in which case we just leave the name alone.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.dep.foo = 1
+lib.hello.foo = 2
+lib.dep__2.foo = 3
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ These new definitions are ok to `update`:
+    
+      lib.dep.foo    : Nat
+      lib.dep__2.foo : Nat
+      lib.hello.foo  : Nat
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade hello dep__2
+
+  I upgraded hello to dep__2, and removed hello.
+
+scratch/main> ls lib
+
+  1. builtin/ (483 terms, 78 types)
+  2. dep/     (1 term)
+  3. dep__2/  (1 term)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
