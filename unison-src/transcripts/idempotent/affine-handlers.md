@@ -292,3 +292,88 @@ scratch/main> io.test local'count'test
 
   Tip: Use view 1 to view the source of a test.
 ```
+
+This tests some more elaborate handlers
+
+``` unison
+ability Rec where
+  rec : {Rec} ('{Rec} r -> r)
+
+recurse : '{Rec} r -> r
+recurse th = handle !th with cases
+  { rec -> k } ->
+    recurse do k recurse
+  { r } -> r
+
+rec'loop : Nat ->{Rec} ()
+rec'loop = cases
+  0 -> ()
+  n ->
+    _ = rec
+    rec'loop (Nat.drop n 1)
+
+rec'wrap : Nat -> Nat ->{Rec} ()
+rec'wrap k = cases
+  0 -> rec'loop k
+  n -> handle rec'wrap k (Nat.drop n 1) with provide 0
+
+f m = cases
+  0 -> m + 1
+  n -> g m (drop n 1)
+
+g m = cases
+  0 -> m + 1
+  n -> f m (drop n 1)
+
+count'extra : Nat -> '{Count} r -> r
+count'extra n th =
+  m = f n 3
+  handle !th
+  with cases
+    { tick -> k } ->
+      count'extra m do k m
+    { r } -> r
+
+elaborate'test = do
+  [ testPerf do recurse do rec'wrap 1000 100
+  , testPerf do count'extra 0 do count'wrap 1000 100
+  ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ These new definitions are ok to `update`:
+    
+      ability Rec
+      count'extra    : Nat -> '{Count} r -> r
+      elaborate'test : '{IO, Exception} [Result]
+      f              : Nat -> Nat -> Nat
+      g              : Nat -> Nat -> Nat
+      rec'loop       : Nat ->{Rec} ()
+      rec'wrap       : Nat -> Nat ->{Rec} ()
+      recurse        : '{Rec} r -> r
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> io.test elaborate'test
+
+    New test results:
+
+    1. elaborate'test   ◉ performance improved
+                        ◉ performance improved
+
+  ✅ 2 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
