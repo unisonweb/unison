@@ -197,6 +197,7 @@ library
     , aeson
     , async
     , atomic-primops
+    , avro
     , base
     , bytes
     , bytestring

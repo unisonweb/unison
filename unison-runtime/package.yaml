@@ -45,6 +45,7 @@ library:
     - asn1-encoding
     - asn1-types
     - atomic-primops
+    - avro
     - base
     - binary
     - bytes
@@ -92,6 +93,7 @@ library:
     - unison-util-bytes
     - unison-util-recursion
     - unliftio
+    - unordered-containers
     - vector
     - crypton-x509
     - crypton-x509-store

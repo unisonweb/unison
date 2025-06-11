@@ -14,6 +14,7 @@ library:
     - ListLike
     - aeson
     - async
+    - avro
     - atomic-primops
     - base
     - bytes
