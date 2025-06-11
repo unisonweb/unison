@@ -23,7 +23,7 @@ import Control.Monad.State (get, modify, runState)
 import Control.Monad.Writer (MonadWriter (..), Writer, WriterT (..), runWriter, tell)
 import Data.Graph (SCC (..), stronglyConnComp)
 import Data.Map qualified as Map
-import Data.Monoid (Any (..), All (..))
+import Data.Monoid (All (..), Any (..))
 import Data.Set qualified as Set
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Prelude
@@ -334,8 +334,9 @@ optGroup ::
   SuperGroup v
 optGroup (arities, inls0) self grp@(Rec bs en) =
   runMemo . memo grp $
-    Rec <$> (traverse . traverse) (optSuper opts avoid False) bs
-        <*> optSuper opts avoid False en
+    Rec
+      <$> (traverse . traverse) (optSuper opts avoid False) bs
+      <*> optSuper opts avoid False en
   where
     avoid = Set.fromList $ fst <$> bs
 
@@ -415,7 +416,7 @@ affinePostOptimize =
     TLet _ v _ (TVar u) bd -> ABTN.rename v u bd <$ dirty
     tm -> pure tm
 
-effectless :: Var v => ANormal v -> Bool
+effectless :: (Var v) => ANormal v -> Bool
 effectless (TCon {}) = True
 effectless (TLit {}) = True
 effectless (TBLit {}) = True
@@ -426,7 +427,7 @@ effectless _ = False
 -- contents. Useful if you want to decide whether you can eliminate an
 -- unused binding, for example (because if you can only do so if it
 -- not being on the stack is okay).
-stackInsensitive :: Var v => ANormal v -> Bool
+stackInsensitive :: (Var v) => ANormal v -> Bool
 stackInsensitive = go True
   where
     go tail = \case
