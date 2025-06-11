@@ -36,6 +36,7 @@ import Network.Wai.Handler.Warp
     setHost,
     setPort,
   )
+import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Middleware.Cors (cors, corsMethods, corsOrigins, simpleCorsResourcePolicy)
 import Servant
   ( Handler,
@@ -471,31 +472,41 @@ startServer env opts rt codebase onStart = do
     Nothing -> withPort settings baseUrl app' 5858
     Just p -> withPort settings baseUrl app' p
   where
-    withPort settings baseUrl app' p = do
+    withPort settings baseUrl app' preferredPort = do
       started <- mkWaiter
+      portVar <- UnliftIO.newTVarIO preferredPort
       let settings' = setBeforeMainLoop (notify started ()) settings
       let runServer = do
             UnliftIO.try (runSettings settings' app') >>= \case
               Left ioerror | IOError.isAlreadyInUseError ioerror -> do
+                (actualPort, socket) <- Warp.openFreePort
+                UnliftIO.atomically $ UnliftIO.writeTVar portVar actualPort
                 Text.hPutStrLn UnliftIO.stderr $
                   Text.unlines
-                    [ "Note: Port "
-                        <> Text.pack (show p)
-                        <> " is already bound by another process or another UCM. The UCM server will not be started."
+                    [ "⚠️  Port "
+                        <> Text.pack (show preferredPort)
+                        <> " is already bound by another process or another UCM.",
+                      "   The UCM server will be started on port "
+                        <> Text.pack (show actualPort)
+                        <> " instead.",
+                      "   Tools which expect the server on a specific port may not behave as intended."
                     ]
+                Warp.runSettingsSocket settings' socket app'
               Left e -> do
                 Text.hPutStrLn UnliftIO.stderr $
                   Text.unlines
-                    [ "UCM server failure: " <> Text.pack (show e),
-                      "The UCM server will not be restarted."
+                    [ "⚠️  UCM server failure: " <> Text.pack (show e),
+                      "   The UCM server will not be restarted."
                     ]
               Right _ -> do
-                throwIO $ ErrorCall "The UCM server exited unexpectedly, it will not be restarted."
+                throwIO $ ErrorCall "⚠️  The UCM server exited unexpectedly, it will not be restarted."
       Async.withAsync runServer \serverHandle -> do
         -- Wait until either the server has started or the server has failed to start, then proceed with the callback, passing the base URL if the server started, and Nothing otherwise.
         UnliftIO.race (UnliftIO.wait serverHandle) (waitFor started) >>= \case
           Left _ -> onStart Nothing
-          Right _ -> onStart (Just $ baseUrl p)
+          Right _ -> do
+            runningPort <- UnliftIO.readTVarIO portVar
+            onStart (Just $ baseUrl runningPort)
 
 serveIndex :: FilePath -> Handler RawHtml
 serveIndex path = do
