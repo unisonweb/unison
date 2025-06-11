@@ -449,13 +449,14 @@ defaultCodebaseServerOpts =
 
 -- The auth token required for accessing the server is passed to the function k
 startServer ::
+  Bool ->
   BackendEnv ->
   CodebaseServerOpts ->
   Rt.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   (Maybe BaseUrl -> IO a) ->
   IO a
-startServer env opts rt codebase onStart = do
+startServer isTest env opts rt codebase onStart = do
   -- the `canonicalizePath` resolves symlinks
   exePath <- canonicalizePath =<< getExecutablePath
   envUI <- canonicalizePath $ fromMaybe (FilePath.takeDirectory exePath </> "ui") (codebaseUIPath opts)
@@ -481,16 +482,17 @@ startServer env opts rt codebase onStart = do
               Left ioerror | IOError.isAlreadyInUseError ioerror -> do
                 (actualPort, socket) <- Warp.openFreePort
                 UnliftIO.atomically $ UnliftIO.writeTVar portVar actualPort
-                Text.hPutStrLn UnliftIO.stderr $
-                  Text.unlines
-                    [ "⚠️  Port "
-                        <> Text.pack (show preferredPort)
-                        <> " is already bound by another process or another UCM.",
-                      "   The UCM server will be started on port "
-                        <> Text.pack (show actualPort)
-                        <> " instead.",
-                      "   Tools which expect the server on a specific port may not behave as intended."
-                    ]
+                when (not isTest) $
+                  Text.hPutStrLn UnliftIO.stderr $
+                    Text.unlines
+                      [ "⚠️  Port "
+                          <> Text.pack (show preferredPort)
+                          <> " is already bound by another process or another UCM.",
+                        "   The UCM server will be started on port "
+                          <> Text.pack (show actualPort)
+                          <> " instead.",
+                        "   Tools which expect the server on a specific port may not behave as intended."
+                      ]
                 Warp.runSettingsSocket settings' socket app'
               Left e -> do
                 Text.hPutStrLn UnliftIO.stderr $
