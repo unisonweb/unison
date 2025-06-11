@@ -331,7 +331,7 @@ count'extra n th =
   handle !th
   with cases
     { tick -> k } ->
-      count'extra m do k m
+      count'extra m do k (f m 2)
     { r } -> r
 
 elaborate'test = do
