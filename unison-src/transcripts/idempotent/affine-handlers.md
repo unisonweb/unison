@@ -231,3 +231,64 @@ scratch/main> io.test fail'count'test
 
   Tip: Use view 1 to view the source of a test.
 ```
+
+This tests a case where affine handlers were not being optimized due
+to overly restrictive criteria for recognizing them. In this case,
+because n \< o, parts of the handler will end up with the n and o
+variables in different orders. I.E. an 'entry point' will end up with
+`o n -> ...` because the `o` gets prepended, but the matching cases
+will end up with `n o -> ...` because its argument list is generated
+based completely on the order in which free variables are sorted by
+name.
+
+This has nothing to do with the handler being affine, and was just an
+overly restrictive assumption about the exact form that handlers end
+up in in the intermediate code. It shouldn't even matter if some
+variables in the entry are unused in the matcher, although I'm
+uncertain if that can happen. So, checking the relationship between
+the argument list of the matcher and the entry point has just been
+removed.
+
+``` unison
+local'counter : Nat -> '{Count} r -> r
+local'counter o th =
+  h n = cases
+    { tick -> k } ->
+      handle k (n + o) with h (n+1)
+    { r } -> r
+  handle !th with h 0
+
+local'count'test = do
+  [ testPerf do local'counter 5 do count'wrap 1000 100 ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ These new definitions are ok to `update`:
+    
+      local'count'test : '{IO, Exception} [Result]
+      local'counter    : Nat -> '{Count} r -> r
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> io.test local'count'test
+
+    New test results:
+
+    1. local'count'test   ◉ performance improved
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
