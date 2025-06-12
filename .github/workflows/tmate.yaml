@@ -1,0 +1,44 @@
+name: launch tmate
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: runner image
+        type: choice
+        options:
+        - ubuntu-24.04
+        - macos-13
+        - macos-14
+        - windows-2022
+        - windows-2025
+      custom_runner:
+        description: a different runner image
+        type: string
+
+jobs:
+  set-runner:
+    name: select workflow runner
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.set_runner.outputs.runner }}
+    steps:
+      - id: set_runner
+        run: |
+          if [[ -n "${{ inputs.custom_runner }}" ]]; then
+            echo "runner=${{ inputs.custom_runner }}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ inputs.runner }}" ]]; then
+            echo "runner=${{ inputs.runner }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Error: Neither `runner` nor `custom_runner` is defined." >&2
+            exit 1
+          fi
+
+  tmate:
+    name: launch tmate
+    needs: set-runner
+    runs-on: ${{ needs.set-runner.outputs.runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: setup tmate session
+        uses: mxschmitt/action-tmate/detached@7b6a61a73bbb9793cb80ad69b8dd8ac19261834c # v3.22
