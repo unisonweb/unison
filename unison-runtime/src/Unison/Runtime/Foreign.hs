@@ -1,10 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE MagicHash #-}
 
 module Unison.Runtime.Foreign
   ( Foreign (..),
@@ -20,8 +20,6 @@ module Unison.Runtime.Foreign
   )
 where
 
-import System.Mem.StableName
-import System.IO.Unsafe (unsafePerformIO)
 -- import GHC.Exts (unsafePtrEquality#, isTrue#, Any)
 -- import Unsafe.Coerce (unsafeCoerce)
 import Control.Concurrent (MVar, ThreadId)
@@ -35,6 +33,8 @@ import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Mem.StableName
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -193,7 +193,6 @@ ref2cmp r
   | r == Ty.patternRef = Just $ promote cpatCmp
   | r == Ty.charClassRef = Just $ promote charClassCmp
   | otherwise = Nothing
-
 
 ptrEq :: a -> b -> Bool
 ptrEq x y =

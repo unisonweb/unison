@@ -471,7 +471,6 @@ foreignCallHelper = \case
       \( tls :: Tls,
          bytes :: Bytes.Bytes
          ) -> TLS.sendData tls.context (Bytes.toLazyByteString bytes)
-
   Tls_decodeCert_impl_v3 ->
     let wrapFailure t = F.Failure Ty.tlsFailureRef (Util.Text.pack t) unitValue
         decoded :: Bytes.Bytes -> Either String PEM
