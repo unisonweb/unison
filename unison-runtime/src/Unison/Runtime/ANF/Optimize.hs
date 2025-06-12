@@ -489,47 +489,57 @@ pattern HandlerResume lz f as lh h bs rs <-
 matchHandledThunk ::
   (Var v) => ANormal v -> Maybe (Reference, Int, Bool, ANormal v)
 matchHandledThunk (TLet _ th _ (TCom r vs) bd) =
-  final <$> runWriterT (prefix bd)
+  final <$> runWriterT (prefix (ABTN.avoiding . Set.fromList $ th : vs) bd)
   where
     none = WriterT Nothing
 
     final (bd, All lazy) = (r, length vs, lazy, bd)
 
-    prefix (TName v g bs bd)
+    prefix rn (TName v g bs bd)
       | v /= th,
         all (/= th) g,
-        all (/= th) bs =
-          TName v g bs <$> prefix bd
-    prefix (TLets d vs ccs bn bd)
+        all (/= th) bs,
+        g <- ABTN.renameVar rn <$> g,
+        bs <- ABTN.renameVar rn <$> bs,
+        (rn, v) <- ABTN.freshenBinder (ABTN.freeVars bd) rn v =
+          TName v g bs <$> prefix rn bd
+    prefix rn (TLets d vs ccs bn bd)
       | all (/= th) vs,
-        th `Set.notMember` ABTN.freeVars bn =
-          TLets d vs ccs bn <$> prefix bd <* tell (All False)
-    prefix (TMatch sc bs) =
-      TMatch sc <$> traverse under bs
+        th `Set.notMember` ABTN.freeVars bn,
+        bn <- ABTN.renamesAndFreshen0 rn bn,
+        (rn, vs) <- ABTN.freshenBinders (ABTN.freeVars bd) rn vs =
+          TLets d vs ccs bn <$> prefix rn bd <* tell (All False)
+    prefix rn (TMatch sc bs) =
+      TMatch (ABTN.renameVar rn sc) <$> traverse under bs
       where
         under (ABTN.TAbss vs bd)
-          | all (/= th) vs =
-              ABTN.TAbss vs <$> prefix bd
+          | all (/= th) vs,
+            (rn, vs) <- ABTN.freshenBinders (ABTN.freeVars bd) rn vs =
+              ABTN.TAbss vs <$> prefix rn bd
         under _ = none
-    prefix (THnd rs nh ah bd)
+    prefix rn (THnd rs nh ah bd)
       | nh /= th,
-        all (/= th) ah =
-          THnd rs nh ah <$> suffix bd
-    prefix _ = none
+        all (/= th) ah,
+        ah <- ABTN.renameVar rn <$> ah,
+        nh <- ABTN.renameVar rn nh =
+          THnd rs nh ah <$> suffix rn bd
+    prefix _ _ = none
 
     -- Some values may be bound before the thunk call as long as
     -- they're 'direct' calls that can't capture stacks and reveal
     -- that we've changed the convention.
-    suffix (TLets d vs ccs bn bd)
+    suffix rn (TLets d vs ccs bn bd)
       | all (/= th) vs,
-        th `Set.notMember` ABTN.freeVars bn =
-          TLets d vs ccs bn <$> suffix bd <* tell (All $ d == Direct)
+        th `Set.notMember` ABTN.freeVars bn,
+        bn <- ABTN.renamesAndFreshen0 rn bn,
+        (rn, vs) <- ABTN.freshenBinders (ABTN.freeVars bd) rn vs =
+          TLets d vs ccs bn <$> suffix rn bd <* tell (All $ d == Direct)
     -- final expression in handle body is a call to the thunk.
-    suffix (TApv h us)
+    suffix rn (TApv h us)
       | h == th,
         all (/= th) us =
-          pure . TCom r $ vs ++ us
-    suffix _ = none
+          pure . TCom r $ vs ++ fmap (ABTN.renameVar rn) us
+    suffix _ _ = none
 matchHandledThunk _ = Nothing
 
 --  th = f <vs> -- undersaturated
@@ -748,9 +758,10 @@ affineHandlerCase opts self vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
+    bound <- Set.fromList (kf0 : kf : us),
     kf0 == kf1 =
       ABTN.TAbss us
-        <$> affinePreBranch opts self Set.empty vs rec ar kf body
+        <$> affinePreBranch opts self bound vs rec ar kf body
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -850,7 +861,8 @@ linearTail opts self vs bound rec ar kf0 tm
     rh /= kf0, -- no shadowing or non-linearity
     THnd _rs hh Nothing bd <- tm,
     rh == hh, -- handle recursively
-    bd <- replaceLinearBody opts bd,
+    avoid <- Set.insert rh bound,
+    bd <- replaceLinearBody opts avoid bd,
     SimpleBody pre ind shad free kf1 result <- bd, -- simple enough body
     kf0 `Set.notMember` shad, -- kf is not shadowed in body
     kf0 `Set.notMember` free, -- kf is not free in `pre`
@@ -888,17 +900,18 @@ linearTail opts self vs bound rec ar kf0 tm
 -- continuations aren't captured, so we don't actually need a correct
 -- numbering. If this is ever changed, then the numbering here must be
 -- adjusted.
-replaceLinearBody :: (Var v) => OptInfos v -> ANormal v -> ANormal v
-replaceLinearBody opts@(arities, inls) bd
+replaceLinearBody ::
+  (Var v) => OptInfos v -> Set v -> ANormal v -> ANormal v
+replaceLinearBody opts@(arities, inls) avoid bd
   | TLetD v cc bn bd <- bd =
-      TLetD v cc bn $ replaceLinearBody opts bd
+      TLetD v cc bn $ replaceLinearBody opts (Set.insert v avoid) bd
   | TCom r vs <- bd,
     Just n <- Map.lookup r arities,
     length vs == n,
     Just (InlInfo _ (ABTN.TAbss us expr)) <- Map.lookup r inls,
     rn <- Map.fromList (zip us vs) =
-      ABTN.renames rn expr
-replaceLinearBody _ bd = bd
+      ABTN.renamesAvoiding avoid rn expr
+replaceLinearBody _ _ bd = bd
 
 parseSimpleHandlerBody ::
   (Var v) =>
