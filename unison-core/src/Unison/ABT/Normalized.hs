@@ -18,7 +18,9 @@ module Unison.ABT.Normalized
     Renaming (..),
     isEmptyRenaming,
     freshenBinder,
+    freshenBinders,
     pruneRenaming,
+    renameVar,
     mapping,
     avoiding,
     mappingAndAvoiding,
@@ -40,6 +42,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Traversable (mapAccumL)
 import Unison.ABT (Var (..))
 
 -- ABTs with support for 'normalized' structure where only variables
@@ -191,6 +194,9 @@ pruneRenaming fvs (RN cf rn) = RN
       | n <= 1 = Nothing
       | otherwise = Just (n - 1)
 
+renameVar :: Var v => Renaming v -> v -> v
+renameVar (RN _ rn) u = Map.findWithDefault u u rn
+
 -- Tests if the renaming is empty in the sense that it will never
 -- cause bound variables to be renamed. This is _not_ just a test of
 -- whether the substitutions are empty, because the conflicts can
@@ -203,8 +209,8 @@ isEmptyRenaming = null . conflicts
 -- fresh variable and a renaming appropriate for the term within the
 -- binder. The `Set` should be the free variables of the expression
 -- within the binder, for proper freshening.
-freshenBinder :: Var v => v -> Set v -> Renaming v -> (v, Renaming v)
-freshenBinder u fvs rn0@(RN cf rn) = (u', rn')
+freshenBinder :: Var v => Set v -> Renaming v -> v -> (Renaming v, v)
+freshenBinder fvs rn0@(RN cf rn) u = (rn', u')
   where
     -- if u conflicts with the renaming, freshen it
     u' | u `Map.member` cf = freshIn (fvs `Set.union` Map.keysSet cf) u
@@ -218,6 +224,10 @@ freshenBinder u fvs rn0@(RN cf rn) = (u', rn')
                renamings = Map.alter (const $ Just u') u rn
              }
       | otherwise = rn0
+
+freshenBinders ::
+  Var v => Set v -> Renaming v -> [v] -> (Renaming v, [v])
+freshenBinders fvs = mapAccumL (freshenBinder fvs)
 
 -- Simultaneous variable renaming and freshening implementation.
 --
@@ -240,19 +250,17 @@ renamesAndFreshen0 ::
   Term f v
 renamesAndFreshen0 rn0 tm = case tm of
   TAbs u body
-    | (u', rn) <- freshenBinder u (freeVars body) rn,
+    | (rn, u') <- freshenBinder (freeVars body) rn u,
       u /= u' || not (isEmptyRenaming rn) ->
         TAbs u' (renamesAndFreshen0 rn body)
   TTm body
     | not $ isEmptyRenaming rn ->
-        TTm $ bimap lkup (renamesAndFreshen0 rn) body
+        TTm $ bimap (renameVar rn) (renamesAndFreshen0 rn) body
   _ -> tm
   where
     fvs = freeVars tm
 
     rn = pruneRenaming fvs rn0
-
-    lkup u = Map.findWithDefault u u $ renamings rn
 
 -- Freshens the bound variables in a term to avoid capturing variables
 -- in the set.
