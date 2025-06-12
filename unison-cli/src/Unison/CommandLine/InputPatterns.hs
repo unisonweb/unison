@@ -1189,12 +1189,11 @@ findShallow =
     "list"
     ["ls", "dir"]
     I.Visible
-    (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
+    (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces in a namespace you select (requires fzf)."),
-          ("`list .`", "lists definitions and namespaces in the project root."),
-          ("`list .foo`", "lists definitions and namespaces in the '.foo' namespace."),
-          ("`list foo`", "lists definitions and namespaces in the 'foo' namespace.")
+        [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
+          ("`list foo`", "lists the 'foo' namespace."),
+          ("`list .foo`", "lists the '.foo' namespace.")
         ]
     )
     ( fmap Input.FindShallowI . \case
