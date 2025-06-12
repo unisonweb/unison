@@ -489,7 +489,7 @@ pattern HandlerResume lz f as lh h bs rs <-
 matchHandledThunk ::
   (Var v) => ANormal v -> Maybe (Reference, Int, Bool, ANormal v)
 matchHandledThunk (TLet _ th _ (TCom r vs) bd) =
-  final <$> runWriterT (prefix (ABTN.avoiding . Set.fromList $ th:vs) bd)
+  final <$> runWriterT (prefix (ABTN.avoiding . Set.fromList $ th : vs) bd)
   where
     none = WriterT Nothing
 
@@ -758,7 +758,7 @@ affineHandlerCase opts self vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
-    bound <- Set.fromList (kf0:kf:us),
+    bound <- Set.fromList (kf0 : kf : us),
     kf0 == kf1 =
       ABTN.TAbss us
         <$> affinePreBranch opts self bound vs rec ar kf body

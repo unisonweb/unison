@@ -169,32 +169,35 @@ data Renaming v = RN
 avoiding :: Set v -> Renaming v
 avoiding avoid = RN (Map.fromSet (const 1) avoid) Map.empty
 
-mapping :: Var v => Map v v -> Renaming v
+mapping :: (Var v) => Map v v -> Renaming v
 mapping rn = RN cf rn
   where
     cf = Map.fromListWith (+) . fmap (,1) $ Map.elems rn
 
-mappingAndAvoiding :: Var v => Map v v -> Set v -> Renaming v
+mappingAndAvoiding :: (Var v) => Map v v -> Set v -> Renaming v
 mappingAndAvoiding rn avoid = RN cf rn
   where
-    cf = Map.unionWith (+)
-          (Map.fromSet (const 1) avoid)
-          (Map.fromListWith (+) . fmap (,1) $ Map.elems rn)
+    cf =
+      Map.unionWith
+        (+)
+        (Map.fromSet (const 1) avoid)
+        (Map.fromListWith (+) . fmap (,1) $ Map.elems rn)
 
 -- Adjusts a renaming with respect to a remaining set of free
 -- variables. Unnecessary renamings are discarded.
-pruneRenaming :: Var v => Set v -> Renaming v -> Renaming v
-pruneRenaming fvs (RN cf rn) = RN
-  { renamings = Map.restrictKeys rn fvs,
-    conflicts = Map.foldl' decrement cf $ Map.withoutKeys rn fvs
-  }
+pruneRenaming :: (Var v) => Set v -> Renaming v -> Renaming v
+pruneRenaming fvs (RN cf rn) =
+  RN
+    { renamings = Map.restrictKeys rn fvs,
+      conflicts = Map.foldl' decrement cf $ Map.withoutKeys rn fvs
+    }
   where
     decrement sv v = Map.update drop v sv
     drop n
       | n <= 1 = Nothing
       | otherwise = Just (n - 1)
 
-renameVar :: Var v => Renaming v -> v -> v
+renameVar :: (Var v) => Renaming v -> v -> v
 renameVar (RN _ rn) u = Map.findWithDefault u u rn
 
 -- Tests if the renaming is empty in the sense that it will never
@@ -209,24 +212,26 @@ isEmptyRenaming = null . conflicts
 -- fresh variable and a renaming appropriate for the term within the
 -- binder. The `Set` should be the free variables of the expression
 -- within the binder, for proper freshening.
-freshenBinder :: Var v => Set v -> Renaming v -> v -> (Renaming v, v)
+freshenBinder :: (Var v) => Set v -> Renaming v -> v -> (Renaming v, v)
 freshenBinder fvs rn0@(RN cf rn) u = (rn', u')
   where
     -- if u conflicts with the renaming, freshen it
-    u' | u `Map.member` cf = freshIn (fvs `Set.union` Map.keysSet cf) u
-       | otherwise = u
+    u'
+      | u `Map.member` cf = freshIn (fvs `Set.union` Map.keysSet cf) u
+      | otherwise = u
 
     -- if u needs to be renamed, and it actually occurs in the body,
     -- add it to the Renaming.
     rn'
       | u /= u' && u `Set.member` fvs =
-          RN { conflicts = Map.insertWith (+) u' 1 cf,
-               renamings = Map.alter (const $ Just u') u rn
-             }
+          RN
+            { conflicts = Map.insertWith (+) u' 1 cf,
+              renamings = Map.alter (const $ Just u') u rn
+            }
       | otherwise = rn0
 
 freshenBinders ::
-  Var v => Set v -> Renaming v -> [v] -> (Renaming v, [v])
+  (Var v) => Set v -> Renaming v -> [v] -> (Renaming v, [v])
 freshenBinders fvs = mapAccumL (freshenBinder fvs)
 
 -- Simultaneous variable renaming and freshening implementation.
