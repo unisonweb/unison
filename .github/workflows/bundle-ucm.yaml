@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2025]
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -152,7 +152,7 @@ jobs:
           - ubuntu-24.04
           - macos-13
           - macos-14
-          - windows-2022
+          - windows-2025
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -209,7 +209,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2025]
     steps:
       - name: set up environment
         run: |
