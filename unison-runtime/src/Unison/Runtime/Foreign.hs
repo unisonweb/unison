@@ -4,6 +4,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MagicHash #-}
 
 module Unison.Runtime.Foreign
   ( Foreign (..),
@@ -19,6 +20,8 @@ module Unison.Runtime.Foreign
   )
 where
 
+import GHC.Exts (unsafePtrEquality#, isTrue#, Any)
+import Unsafe.Coerce (unsafeCoerce)
 import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
@@ -189,14 +192,18 @@ ref2cmp r
   | r == Ty.charClassRef = Just $ promote charClassCmp
   | otherwise = Nothing
 
+
+ptrEq :: forall a b. a -> a -> Bool
+ptrEq x y =
+  let x' = unsafeCoerce @a @Any x
+      y' = unsafeCoerce @b @Any y
+  in isTrue# (unsafePtrEquality# x' y')
+
 instance Eq Foreign where
   Wrap rl t == Wrap rr u
     | rl == rr, Just (~~) <- ref2eq rl = t ~~ u
-  Wrap rl _ == Wrap rr _
-    | rl == rr =
-        error $
-          "Do not know how to compare values of type: "
-            <> show rl
+  Wrap rl t == Wrap rr u
+    | rl == rr = ptrEq t u
   Wrap rl1 _ == Wrap rl2 _ =
     error $
       "Attempting to check equality of two values of different types: "
