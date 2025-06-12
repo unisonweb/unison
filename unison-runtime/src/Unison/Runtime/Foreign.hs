@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -20,8 +19,6 @@ module Unison.Runtime.Foreign
   )
 where
 
--- import GHC.Exts (unsafePtrEquality#, isTrue#, Any)
--- import Unsafe.Coerce (unsafeCoerce)
 import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
