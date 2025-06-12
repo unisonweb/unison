@@ -20,8 +20,10 @@ module Unison.Runtime.Foreign
   )
 where
 
-import GHC.Exts (unsafePtrEquality#, isTrue#, Any)
-import Unsafe.Coerce (unsafeCoerce)
+import System.Mem.StableName
+import System.IO.Unsafe (unsafePerformIO)
+-- import GHC.Exts (unsafePtrEquality#, isTrue#, Any)
+-- import Unsafe.Coerce (unsafeCoerce)
 import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
@@ -193,11 +195,12 @@ ref2cmp r
   | otherwise = Nothing
 
 
-ptrEq :: forall a b. a -> a -> Bool
+ptrEq :: a -> b -> Bool
 ptrEq x y =
-  let x' = unsafeCoerce @a @Any x
-      y' = unsafeCoerce @b @Any y
-  in isTrue# (unsafePtrEquality# x' y')
+  unsafePerformIO $ do
+    sn1 <- makeStableName $! x
+    sn2 <- makeStableName $! y
+    return (sn1 == unsafeCoerce sn2)
 
 instance Eq Foreign where
   Wrap rl t == Wrap rr u
