@@ -184,12 +184,6 @@ jobs:
         run: |
           raco pkg install --auto --skip-installed scheme-libs/racket/unison.zip || \
             raco pkg update --auto scheme-libs/racket/unison.zip
-      - name: install libb2 (macos)
-        if: runner.os == 'macOS'
-        run: |
-          brew install libb2
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
-                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
       - name: build unison-runtime
         run: |
           raco exe --embed-dlls --orig-exe scheme-libs/racket/unison-runtime.rkt
