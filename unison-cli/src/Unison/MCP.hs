@@ -1,6 +1,5 @@
 module Unison.MCP (runOnStdIO) where
 
-import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson (Result (..), fromJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
@@ -14,14 +13,15 @@ import Network.MCP.Server.StdIO
 import Network.MCP.Types
 import Text.RawString.QQ (r)
 import Unison.Codebase (Codebase)
-import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Runtime (Runtime)
-import Unison.Core.Project (ProjectName (..))
-import Unison.MCP.Cli (handleInputMCP, ppForProjectName)
+import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
+import Unison.MCP.Cli (cliToMCP, handleInputMCP)
 import Unison.MCP.StaticResources (staticResources)
 import Unison.MCP.Types
 import Unison.Parser.Ann (Ann)
+import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Symbol (Symbol)
 
 runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
@@ -59,41 +59,31 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
 
   -- Register tool call handler
   registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
-    case fromToolName callToolName of
+    runMCP env $ case fromToolName callToolName of
       Nothing -> pure $ CallToolResult [] True
       Just LibInstallTool ->
         case fromJSON callToolArguments of
-          Success (LibInstallToolArguments {}) ->
-            error ""
-            -- do
-            --   runMCP env do
-            --     handleInstallLib (ProjectAndBranch (UnsafeProjectName projectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> branchName)
-            --     pp <- liftIO $ Codebase.runTransaction codebase $ do
-            --       ProjectBranchNameKind projectBranchNameKind <-
-            --         Codebase.classifyProjectBranchName (UnsafeProjectName projectName) branchName
-            --       ppForProjectName $ UnsafeProjectName projectName
-            --     output <- handleInputMCP pp (Right $ Input.InstallLibI projectBranchNameKind)
-            --     let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-            --     pure $
-            --       CallToolResult
-            --         { callToolIsError = False,
-            --           callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-            --         }
+          Success (LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
+            (_r, output) <- cliToMCP projectContext $ do
+              handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $
+              CallToolResult
+                { callToolIsError = False,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                }
           _ -> pure $ CallToolResult [] True
       Just ProjectCodeTool ->
         case fromJSON callToolArguments of
-          Success (ProjectCodeToolArguments {projectName}) ->
+          Success (ProjectCodeToolArguments {projectContext}) ->
             do
-              runMCP env do
-                pp <- liftIO $ Codebase.runTransaction codebase $ do
-                  ppForProjectName $ UnsafeProjectName projectName
-                output <- handleInputMCP pp (Right $ Input.EditNamespaceI [])
-                let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-                pure $
-                  CallToolResult
-                    { callToolIsError = False,
-                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-                    }
+              output <- handleInputMCP projectContext (Right $ Input.EditNamespaceI [])
+              let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+              pure $
+                CallToolResult
+                  { callToolIsError = False,
+                    callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                  }
           Error {} -> pure $ CallToolResult [] True
 
   -- Start the server with StdIO transport
@@ -136,23 +126,38 @@ installLibTool =
   Tool
     { toolName = toToolName LibInstallTool,
       toolDescription = Just "Install a library from Unison Share into the current project.",
-      toolInputSchema = [r|
+      toolInputSchema =
+        [r|
         {
           "type": "object",
           "properties": {
-            "projectName": {
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to install the library into"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to install the library into"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            },
+            "libProjectName": {
               "type": "string",
               "description": "The name of the library project to install"
             },
-            "branchName": {
+            "libBranchName": {
               "type": ["string", "null"],
               "description": "The optional branch of the library project to install. If null, the latest release will be used."
             }
           },
-          "required": ["projectName"]
+          "required": ["libProjectName"]
         }
-        |]
-    , toolAnnotations =
+        |],
+      toolAnnotations =
         Just $
           ToolAnnotations
             { title = Just "Install Library",

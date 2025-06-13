@@ -7,6 +7,7 @@ module Unison.MCP.Types
     ToolKind (..),
     ProjectCodeToolArguments (..),
     LibInstallToolArguments (..),
+    ProjectContext (..),
     toToolName,
     fromToolName,
   )
@@ -14,14 +15,15 @@ where
 
 import Control.Monad.Reader (MonadReader, ReaderT (..))
 import Data.Aeson
-import Data.Text qualified as Text
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Runtime (Runtime)
+import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
 import Unison.Parser.Ann (Ann)
-import Unison.Symbol (Symbol)
 import Unison.Prelude
+import Unison.Symbol (Symbol)
 
 data Env = Env
   { codebase :: Codebase IO Symbol Ann,
@@ -46,29 +48,52 @@ data ToolKind
   | LibInstallTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
-data ProjectCodeToolArguments = ProjectCodeToolArguments {projectName :: Text}
+data ProjectCodeToolArguments
+  = ProjectCodeToolArguments
+  { projectContext :: ProjectContext
+  }
 
 instance FromJSON ProjectCodeToolArguments where
   parseJSON = withObject "ProjectCodeToolArguments" $ \o -> do
-    projectName <- o .: "projectName"
-    pure $ ProjectCodeToolArguments {projectName}
+    projectContext <- o .: "projectContext"
+    pure $ ProjectCodeToolArguments {projectContext}
 
+data ProjectContext = ProjectContext
+  { projectName :: ProjectName,
+    branchName :: ProjectBranchName
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ProjectContext where
+  parseJSON = withObject "ProjectContext" $ \o -> do
+    projectName <- UnsafeProjectName <$> o .: "projectName"
+    branchName <- UnsafeProjectBranchName <$> o .: "branchName"
+    pure $ ProjectContext {projectName, branchName}
 
 data LibInstallToolArguments = LibInstallToolArguments
-  { projectName :: Text,
-    branchName :: Maybe Text
+  { projectContext :: ProjectContext,
+    libProjectName :: Text,
+    libBranchName :: Maybe Text
   }
+
 instance FromJSON LibInstallToolArguments where
   parseJSON = withObject "LibInstallToolArguments" $ \o -> do
-    projectName <- o .: "projectName"
-    branchName <- o .:? "branchName"
-    pure $ LibInstallToolArguments {projectName, branchName}
+    projectContext <- o .: "projectContext"
+    libProjectName <- o .: "libProjectName"
+    libBranchName <- o .:? "libBranchName"
+    pure $
+      LibInstallToolArguments
+        { projectContext,
+          libProjectName,
+          libBranchName
+        }
 
 kindNameMapping :: Map ToolKind Text
-kindNameMapping = Map.fromList
-  [ (ProjectCodeTool, "project-code"),
-    (LibInstallTool, "lib-install")
-  ]
+kindNameMapping =
+  Map.fromList
+    [ (ProjectCodeTool, "project-code"),
+      (LibInstallTool, "lib-install")
+    ]
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =
@@ -79,7 +104,7 @@ nameKindMapping =
 toToolName :: ToolKind -> Text.Text
 toToolName kind =
   (Map.lookup kind kindNameMapping)
-   & fromMaybe (error $ "Unknown tool kind: " ++ show kind)
+    & fromMaybe (error $ "Unknown tool kind: " ++ show kind)
 
 fromToolName :: Text.Text -> Maybe ToolKind
 fromToolName name = Map.lookup name nameKindMapping
