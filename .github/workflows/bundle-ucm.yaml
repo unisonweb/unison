@@ -181,7 +181,9 @@ jobs:
           version: ${{env.racket_version}}
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
-        run: raco pkg install --auto scheme-libs/racket/unison.zip
+        run: |
+          raco pkg install --auto --skip-installed scheme-libs/racket/unison.zip || \
+            raco pkg update --auto scheme-libs/racket/unison.zip
       - name: install libb2 (macos)
         if: runner.os == 'macOS'
         run: |
