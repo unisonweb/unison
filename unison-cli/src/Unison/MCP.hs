@@ -103,9 +103,19 @@ projectCodeTool =
         {
           "type": "object",
           "properties": {
-            "projectName": {
-              "type": "string",
-              "description": "The name of the project to fetch code from"
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to fetch code for"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to fetch code for"
+                }
+              },
+              "required": ["projectName", "branchName"]
             }
           }
         }
