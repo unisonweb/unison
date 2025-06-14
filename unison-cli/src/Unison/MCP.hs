@@ -55,7 +55,13 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
             promptsCapability = Nothing
           }
 
-  server <- createServer serverInfo serverCapabilities ""
+  let serverDescription =
+        [r|
+        This server provides endpoints for searching code on Unison Share, which is a platform for sharing Unison projects and libraries.
+
+        It also provides some mechanisms for editing and updating local Unison projects.
+    |]
+  server <- createServer serverInfo serverCapabilities serverDescription
 
   registerResources server (fst <$> toList staticResources)
 
@@ -215,7 +221,7 @@ shareProjectSearchTool :: Tool
 shareProjectSearchTool =
   Tool
     { toolName = toToolName ShareProjectSearchTool,
-      toolDescription = Just "Search for projects on Unison Share.",
+      toolDescription = Just "Search Unison Share for projects and libraries.",
       toolInputSchema =
         fromMaybe (error "Invalid shareProjectSearchTool schema") $
           Aeson.decode $
@@ -225,7 +231,7 @@ shareProjectSearchTool =
           "properties": {
             "query": {
               "type": "string",
-              "description": "The search query to use"
+              "description": "The search query to use. Must only be a single word."
             }
           },
           "required": ["query"]
