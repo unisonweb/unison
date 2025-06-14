@@ -137,7 +137,9 @@ installLibTool =
     { toolName = toToolName LibInstallTool,
       toolDescription = Just "Install a library from Unison Share into the current project.",
       toolInputSchema =
-        [r|
+        fromMaybe (error "Invalid projectCodeTool schema") $
+          Aeson.decode $
+            [r|
         {
           "type": "object",
           "properties": {
