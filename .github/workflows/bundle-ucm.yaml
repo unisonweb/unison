@@ -182,7 +182,7 @@ jobs:
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
         run: |
-          raco pkg install --auto --skip-installed scheme-libs/racket/unison.zip || \
+          raco pkg install --auto --skip-installed scheme-libs/racket/unison.zip && \
             raco pkg update --auto scheme-libs/racket/unison.zip
       - name: build unison-runtime
         run: |
