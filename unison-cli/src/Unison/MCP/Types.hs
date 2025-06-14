@@ -7,6 +7,7 @@ module Unison.MCP.Types
     ToolKind (..),
     ProjectCodeToolArguments (..),
     LibInstallToolArguments (..),
+    ShareProjectSearchToolArguments (..),
     ProjectContext (..),
     toToolName,
     fromToolName,
@@ -17,6 +18,7 @@ import Control.Monad.Reader (MonadReader, ReaderT (..))
 import Data.Aeson
 import Data.Map qualified as Map
 import Data.Text qualified as Text
+import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Runtime (Runtime)
@@ -31,7 +33,8 @@ data Env = Env
     nRuntime :: Runtime Symbol,
     sbRuntime :: Runtime Symbol,
     ucmVersion :: UCMVersion,
-    workDir :: FilePath
+    workDir :: FilePath,
+    authenticatedHTTPClient :: AuthenticatedHttpClient
   }
 
 newtype MCP a = MCP
@@ -46,7 +49,16 @@ runMCP env (MCP m) = do
 data ToolKind
   = ProjectCodeTool
   | LibInstallTool
+  | ShareProjectSearchTool
   deriving (Eq, Ord, Show, Bounded, Enum)
+
+kindNameMapping :: Map ToolKind Text
+kindNameMapping =
+  Map.fromList
+    [ (ProjectCodeTool, "project-code"),
+      (LibInstallTool, "lib-install"),
+      (ShareProjectSearchTool, "share-project-search")
+    ]
 
 data ProjectCodeToolArguments
   = ProjectCodeToolArguments
@@ -88,12 +100,15 @@ instance FromJSON LibInstallToolArguments where
           libBranchName
         }
 
-kindNameMapping :: Map ToolKind Text
-kindNameMapping =
-  Map.fromList
-    [ (ProjectCodeTool, "project-code"),
-      (LibInstallTool, "lib-install")
-    ]
+data ShareProjectSearchToolArguments = ShareProjectSearchToolArguments
+  { query :: Text
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ShareProjectSearchToolArguments where
+  parseJSON = withObject "ShareProjectSearchToolArguments" $ \o -> do
+    query <- o .: "query"
+    pure $ ShareProjectSearchToolArguments {query}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =

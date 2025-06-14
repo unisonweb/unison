@@ -7,25 +7,35 @@ import Data.Foldable (Foldable (..))
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Network.MCP.Server
 import Network.MCP.Server.StdIO
 import Network.MCP.Types
 import Text.RawString.QQ (r)
+import Unison.Auth.CredentialManager qualified as AuthN
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.MCP.Cli (cliToMCP, handleInputMCP)
+import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.StaticResources (staticResources)
 import Unison.MCP.Types
 import Unison.Parser.Ann (Ann)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Symbol (Symbol)
+import UnliftIO qualified
 
 runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
 runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
+  credMan <- AuthN.newCredentialManager
+  let tokenProvider :: AuthN.TokenProvider
+      tokenProvider = AuthN.newTokenProvider credMan
+  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
   let env =
         Env
           { codebase,
@@ -33,7 +43,8 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
             nRuntime,
             sbRuntime,
             ucmVersion,
-            workDir
+            workDir,
+            authenticatedHTTPClient
           }
   -- Create server
   let serverInfo = Implementation "unison-mcp" "0.0.1"
@@ -55,7 +66,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         pure . ReadResourceResult $ [content]
       _ -> pure $ ReadResourceResult []
 
-  registerTools server [projectCodeTool, installLibTool]
+  registerTools server [projectCodeTool, installLibTool, shareProjectSearchTool]
 
   -- Register tool call handler
   registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
@@ -84,6 +95,26 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                   { callToolIsError = False,
                     callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
                   }
+          Error {} -> pure $ CallToolResult [] True
+      Just ShareProjectSearchTool ->
+        case fromJSON callToolArguments of
+          Success (ShareProjectSearchToolArguments {query}) -> do
+            result <- UnliftIO.liftIO $ Share.shareSearch authenticatedHTTPClient query
+            case result of
+              Right searchResult -> do
+                let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode searchResult
+                pure $
+                  CallToolResult
+                    { callToolIsError = False,
+                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                    }
+              Left err -> do
+                let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
+                pure $
+                  CallToolResult
+                    { callToolIsError = True,
+                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
+                    }
           Error {} -> pure $ CallToolResult [] True
 
   -- Start the server with StdIO transport
@@ -176,6 +207,37 @@ installLibTool =
               readOnlyHint = Just False,
               destructiveHint = Just True,
               idempotentHint = Just False,
+              openWorldHint = Just True
+            }
+    }
+
+shareProjectSearchTool :: Tool
+shareProjectSearchTool =
+  Tool
+    { toolName = toToolName ShareProjectSearchTool,
+      toolDescription = Just "Search for projects on Unison Share.",
+      toolInputSchema =
+        fromMaybe (error "Invalid shareProjectSearchTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query to use"
+            }
+          },
+          "required": ["query"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Share Project Search",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
               openWorldHint = Just True
             }
     }
