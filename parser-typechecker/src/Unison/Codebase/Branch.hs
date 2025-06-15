@@ -66,6 +66,7 @@ module Unison.Codebase.Branch
     children0,
 
     -- *** Libdep manipulations
+    libdeps_,
     withoutLib,
     withoutTransitiveLibs,
     deleteLibdep,
@@ -190,6 +191,10 @@ fromNametree nametree =
     rel2star rel =
       Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
 
+libdeps_ :: Traversal' (Branch0 m) (Map NameSegment (Branch m))
+libdeps_ =
+  children_ . ix NameSegment.libSegment . head_ . children_
+
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutLib :: Branch0 m -> Branch0 m
@@ -220,7 +225,7 @@ withoutTransitiveLibs b0 =
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
-  over (children_ . ix NameSegment.libSegment . head_ . children_) (Map.delete dep)
+  over libdeps_ (Map.delete dep)
 
 -- | @setLibdeps libdeps branch@ sets @branch@'s libdeps to @libdeps@.
 setLibdeps :: Branch0 m -> Branch0 m -> Branch0 m
