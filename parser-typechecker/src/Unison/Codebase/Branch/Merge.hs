@@ -57,12 +57,12 @@ merge'' lca mode (Branch x) (Branch y) =
           (Map.traverseMaybeMissing $ combineMissing ca)
           (Map.traverseMaybeMissing $ combineMissing ca)
           (Map.zipWithAMatched $ const (merge'' lca mode))
-          (l ^. Branch.children)
-          (r ^. Branch.children)
-      pure $ branch0 (head0 ^. Branch.terms) (head0 ^. Branch.types) children (head0 ^. Branch.edits)
+          (l ^. Branch.children_)
+          (r ^. Branch.children_)
+      pure $ branch0 (head0 ^. Branch.terms_) (head0 ^. Branch.types_) children (head0 ^. Branch.edits_)
 
     combineMissing ca k cur =
-      case Map.lookup k (ca ^. Branch.children) of
+      case Map.lookup k (ca ^. Branch.children_) of
         Nothing -> pure $ Just cur
         Just old -> do
           nw <- merge'' lca mode (cons empty0 old) cur
@@ -73,9 +73,9 @@ merge'' lca mode (Branch x) (Branch y) =
     apply :: Branch0 m -> BranchDiff -> Branch0 m
     apply b0 (BranchDiff addedTerms removedTerms addedTypes removedTypes) = do
       branch0
-        (Star2.difference (b0 ^. Branch.terms) removedTerms <> addedTerms)
-        (Star2.difference (b0 ^. Branch.types) removedTypes <> addedTypes)
-        (b0 ^. Branch.children)
+        (Star2.difference (b0 ^. Branch.terms_) removedTerms <> addedTerms)
+        (Star2.difference (b0 ^. Branch.types_) removedTypes <> addedTypes)
+        (b0 ^. Branch.children_)
         Map.empty
 
 merge0 ::
@@ -87,10 +87,10 @@ merge0 ::
   Branch0 m ->
   m (Branch0 m)
 merge0 lca mode b1 b2 = do
-  c3 <- unionWithM (merge'' lca mode) (b1 ^. Branch.children) (b2 ^. Branch.children)
+  c3 <- unionWithM (merge'' lca mode) (b1 ^. Branch.children_) (b2 ^. Branch.children_)
   pure $
     branch0
-      (b1 ^. Branch.terms <> b2 ^. Branch.terms)
-      (b1 ^. Branch.types <> b2 ^. Branch.types)
+      (b1 ^. Branch.terms_ <> b2 ^. Branch.terms_)
+      (b1 ^. Branch.types_ <> b2 ^. Branch.types_)
       c3
       Map.empty

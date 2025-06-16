@@ -216,7 +216,7 @@ makeLegacyProjectFromLooseCode = do
     CodebaseOps.getBranchForHash branchCache getDeclType rootCh `whenNothingM` do
       Sqlite.unsafeIO . UnliftIO.throwIO $ MissingRootBranch
   -- Remove the hidden projects root if one existed.
-  let rootWithoutProjects = rootBranch & over (Branch.head_ . Branch.children) (Map.delete projectsNameSegment)
+  let rootWithoutProjects = rootBranch & over (Branch.head_ . Branch.children_) (Map.delete projectsNameSegment)
   CodebaseOps.putBranch rootWithoutProjects
   let legacyBranchRootHash = Branch.headHash rootWithoutProjects
   legacyBranchRootHashId <- Q.expectCausalHashIdByCausalHash legacyBranchRootHash
