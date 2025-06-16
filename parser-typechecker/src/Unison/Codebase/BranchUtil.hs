@@ -52,7 +52,7 @@ getTerm hq b = case hq of
   HQ'.HashQualified (p, n) sh -> filter sh . Star2.lookupD1 n $ terms p
   where
     filter sh = Set.filter (SH.isPrefixOf sh . Referent.toShortHash)
-    terms p = (Branch.getAt0 p b) ^. Branch.terms
+    terms p = (Branch.getAt0 p b) ^. Branch.terms_
 
 getType :: HQ'.HashQualified (Path.Split Path) -> Branch0 m -> Set Reference.TypeReference
 getType hq b = case hq of
@@ -60,13 +60,13 @@ getType hq b = case hq of
   HQ'.HashQualified (p, n) sh -> filter sh . Star2.lookupD1 n $ types p
   where
     filter sh = Set.filter (SH.isPrefixOf sh . Reference.toShortHash)
-    types p = (Branch.getAt0 p b) ^. Branch.types
+    types p = (Branch.getAt0 p b) ^. Branch.types_
 
 getBranch :: Path.Split Path -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
-  [] -> Map.lookup seg (b ^. Branch.children)
+  [] -> Map.lookup seg (b ^. Branch.children_)
   h : p ->
-    (Branch.head <$> Map.lookup h (b ^. Branch.children))
+    (Branch.head <$> Map.lookup h (b ^. Branch.children_))
       >>= getBranch (Path.fromList p, seg)
 
 makeAddTermName :: Path.Split p -> Referent -> (p, Branch0 m -> Branch0 m)

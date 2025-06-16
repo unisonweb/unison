@@ -27,6 +27,7 @@ library:
     - text
     - text-builder
     - these
+    - transformers
     - unison-core
     - unison-hash
     - unison-prelude

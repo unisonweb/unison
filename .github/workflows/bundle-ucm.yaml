@@ -13,7 +13,7 @@ on:
         required: true
 
 env:
-  racket_version: "8.14"
+  racket_version: "8.17"
 
 defaults:
   run:
@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2025]
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -104,14 +104,6 @@ jobs:
       - name: set up environment
         run: |
           echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
-          case "$RUNNER_ARCH" in
-            X86) racket_arch=x86 ;;
-            X64) racket_arch=x64 ;;
-            ARM) racket_arch=arm32 ;;
-            ARM64) racket_arch=arm64 ;;
-            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
-          esac
-          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
       - name: download racket `unison` source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -125,11 +117,9 @@ jobs:
         run: |
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
-      - uses: Bogdanp/setup-racket@0094a9d8bd157633293a2210f373bb542687fa6d # v1.11
+      - name: install racket
+        uses: unisonweb/actions/racket/install@a944f9bc3fb62b5b7eaf99a813f90db0df3b36f2
         with:
-          architecture: ${{ env.racket_arch }}
-          distribution: "full"
-          variant: "CS"
           version: ${{env.racket_version}}
       - name: create racket lib
         run: |
@@ -162,7 +152,7 @@ jobs:
           - ubuntu-24.04
           - macos-13
           - macos-14
-          - windows-2022
+          - windows-2025
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -184,31 +174,16 @@ jobs:
           # This isn't right because unison.zip is going to include different dates each time.
           # Maybe we can unpack it and hash the contents.
           key: ${{matrix.os}}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
-      - name: set up environment
-        run: |
-          case "$RUNNER_ARCH" in
-            X86) racket_arch=x86 ;;
-            X64) racket_arch=x64 ;;
-            ARM) racket_arch=arm32 ;;
-            ARM64) racket_arch=arm64 ;;
-            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
-          esac
-          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
-      - uses: Bogdanp/setup-racket@0094a9d8bd157633293a2210f373bb542687fa6d # v1.11
+      - name: install racket
+        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
+        uses: unisonweb/actions/racket/install@a944f9bc3fb62b5b7eaf99a813f90db0df3b36f2
         with:
-          architecture: ${{ env.racket_arch }}
-          distribution: "full"
-          variant: "CS"
           version: ${{env.racket_version}}
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
-        run: raco pkg install --auto scheme-libs/racket/unison.zip
-      - name: install libb2 (macos)
-        if: runner.os == 'macOS'
         run: |
-          brew install libb2
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
-                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
+          raco pkg install --auto --skip-installed scheme-libs/racket/unison.zip && \
+            raco pkg update --auto scheme-libs/racket/unison.zip
       - name: build unison-runtime
         run: |
           raco exe --embed-dlls --orig-exe scheme-libs/racket/unison-runtime.rkt
@@ -230,7 +205,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-13, macos-14, windows-2025]
     steps:
       - name: set up environment
         run: |

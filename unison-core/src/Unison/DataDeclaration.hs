@@ -27,6 +27,7 @@ module Unison.DataDeclaration
     mkDataDecl',
     mkEffectDecl',
     typeOfConstructor,
+    expectTypeOfConstructor,
     withEffectDeclM,
     amap,
     updateDependencies,
@@ -155,6 +156,13 @@ declFields = bimap cf cf . first toDataDecl
 
 typeOfConstructor :: DataDeclaration v a -> ConstructorId -> Maybe (Type v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` fromIntegral i
+
+expectTypeOfConstructor :: (Show a, Show v) => DataDeclaration v a -> ConstructorId -> Type v a
+expectTypeOfConstructor dd i =
+  typeOfConstructor dd i & fromMaybe err
+  where
+    err =
+      error (reportBug "E343153" ("data declaration " ++ show dd ++ " doesn't have constructor " ++ show i))
 
 constructors :: DataDeclaration v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v, t) | (_, v, t) <- ctors]
