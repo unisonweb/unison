@@ -29,7 +29,7 @@ module Unison.Runtime.Interface
 where
 
 import Control.Concurrent.STM as STM
-import Control.Exception (throwIO, tryJust, fromException)
+import Control.Exception (fromException, throwIO, tryJust)
 import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
@@ -1054,11 +1054,12 @@ evalInContext ppe ctx activeThreads w = do
                   "The program halted with a runtime panic:",
                 "",
                 P.string msg
-              ] ++ maybe [] (render . decom) mval
+              ]
+                ++ maybe [] (render . decom) mval
         | otherwise = Nothing
         where
           render (errs, tm) =
-            [ "", P.indentN 2 $ pretty ppe tm, tabulateErrors errs ]
+            ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]
 
       debugText fancy val = case decom val of
         (errs, dv)
