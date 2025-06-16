@@ -23,7 +23,6 @@ import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Hash (Hash (Hash))
 import Unison.Merge.DiffOp (DiffOp (..), DiffOp2 (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.Synhashed qualified as Synhashed
@@ -35,6 +34,7 @@ import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE

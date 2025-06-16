@@ -13,6 +13,7 @@ module Unison.Codebase
     getTermComponentWithTypes,
     unsafeGetTermComponent,
     getTypeOfTerm,
+    expectTypeOfTerm,
     getDeclType,
     unsafeGetTypeOfTermById,
     isTerm,
@@ -21,6 +22,7 @@ module Unison.Codebase
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
+    expectTypeOfReferent,
 
     -- ** Search
     termsOfType,
@@ -38,6 +40,7 @@ module Unison.Codebase
     putTypeDeclarationComponent,
     SqliteCodebase.Operations.typeReferencesByPrefix,
     isType,
+    expectDeclNumConstructors,
 
     -- * Branches
     SqliteCodebase.Operations.branchExists,
@@ -61,6 +64,9 @@ module Unison.Codebase
     expectProjectBranchRoot,
     getBranchAtProjectPath,
     preloadProjectBranch,
+    getBranchDeclNumConstructors,
+    getBranchPartialDeclNameLookup,
+    getBranchDeclNameLookup,
 
     -- * Root branch
     SqliteCodebase.Operations.namesAtPath,
@@ -117,6 +123,7 @@ where
 import Control.Monad.Except (ExceptT)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
@@ -347,7 +354,7 @@ getTypeOfConstructor codebase (ConstructorReference r0 cid) =
   case r0 of
     Reference.DerivedId r -> do
       maybeDecl <- getTypeDeclaration codebase r
-      pure $ case maybeDecl of
+      pure case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
     Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
@@ -438,6 +445,17 @@ getTypeOfTerm c r = case r of
       fmap (const builtinAnnotation)
         <$> Map.lookup r Builtin.termRefTypes
 
+expectTypeOfTerm ::
+  (BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
+  Reference ->
+  Sqlite.Transaction (Type Symbol a)
+expectTypeOfTerm codebase ref =
+  getTypeOfTerm codebase ref <&> fromMaybe err
+  where
+    err =
+      error (reportBug "E464302" ("term reference " ++ Text.unpack (Reference.toText ref) ++ " not found"))
+
 -- | Get the type of a referent.
 getTypeOfReferent ::
   (BuiltinAnnotation a) =>
@@ -447,6 +465,17 @@ getTypeOfReferent ::
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
+
+expectTypeOfReferent ::
+  (BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
+  Referent.Referent ->
+  Sqlite.Transaction (Type Symbol a)
+expectTypeOfReferent c r =
+  getTypeOfReferent c r <&> fromMaybe err
+  where
+    err =
+      error (reportBug "E772282" ("referent " ++ Text.unpack (Referent.toText r) ++ " not found"))
 
 componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
 componentReferencesForReference = \case

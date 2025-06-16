@@ -141,7 +141,11 @@ module U.Codebase.Sqlite.Queries
     insertMergeBranchLooseCode,
     loadNamespaceUniqueTypeGuid,
     existsAnyNamespaceUniqueTypeGuidForNamespace,
+    ensureUniqueTypeToGuidMappingForCausalHashId,
     insertNamespaceUniqueTypeGuid,
+    projectBranchIsUpdateBranch,
+    loadUpdateBranchParentCausalHashId,
+    setProjectBranchIsUpdateBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -266,6 +270,7 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchCausalHashIdColumn,
     addProjectBranchLastAccessedColumn,
     addMergeBranchTables,
+    addUpdateBranchTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -434,7 +439,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 19
+currentSchemaVersion = 20
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -507,6 +512,10 @@ addProjectBranchLastAccessedColumn =
 addMergeBranchTables :: Transaction ()
 addMergeBranchTables =
   executeStatements $(embedProjectStringFile "sql/016-add-merge-branch-tables.sql")
+
+addUpdateBranchTable :: Transaction ()
+addUpdateBranchTable =
+  executeStatements $(embedProjectStringFile "sql/017-add-update-branch-table.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -4507,6 +4516,16 @@ existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
       )
     |]
 
+ensureUniqueTypeToGuidMappingForCausalHashId :: CausalHashId -> Map Name Text -> Transaction ()
+ensureUniqueTypeToGuidMappingForCausalHashId causalHashId uniqueTypeGuids =
+  when (not (Map.null uniqueTypeGuids)) do
+    namespaceHashId <- expectCausalValueHashId causalHashId
+    existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId >>= \case
+      True -> pure ()
+      False ->
+        for_ (Map.toList uniqueTypeGuids) \(name, guid) ->
+          insertNamespaceUniqueTypeGuid namespaceHashId name guid
+
 insertNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Text -> Transaction ()
 insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
   execute
@@ -4522,6 +4541,40 @@ insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
         & List.NonEmpty.toList
         & map NameSegment.toUnescapedText
         & Aeson.encode
+
+-- | Get whether or not a project branch is an "update branch". Returns false if the branch either isn't a project
+-- branch (likely) or doesn't exist at all (weird).
+projectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchIsUpdateBranch projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM update_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
+    |]
+
+-- | Load whether the given branch is an update branch, and if it is, return its parent's causal hash id.
+loadUpdateBranchParentCausalHashId :: ProjectId -> ProjectBranchId -> Transaction (Maybe CausalHashId)
+loadUpdateBranchParentCausalHashId projectId branchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_causal_hash_id
+      FROM update_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+-- | Record that a project branch is an "update branch".
+setProjectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchIsUpdateBranch projectId branchId parentCausalHashId =
+  execute
+    [sql|
+      INSERT INTO update_branch (project_id, branch_id, parent_causal_hash_id)
+      VALUES (:projectId, :branchId, :parentCausalHashId)
+    |]
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments
 -- in order.

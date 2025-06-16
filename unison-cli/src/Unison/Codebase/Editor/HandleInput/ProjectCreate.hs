@@ -127,15 +127,15 @@ projectCreate tryDownloadingBase maybeProjectName = do
     -- lib.base
     let projectBranchLibBaseObject =
           Branch.empty0
-            & Branch.children
+            & Branch.children_
               . at NameSegment.baseSegment
               .~ Just baseLatestReleaseBranchObject
         projectBranchLibObject = Branch.cons projectBranchLibBaseObject Branch.empty
     let branchWithBase =
           Branch.empty
-            & Branch.history
+            & Branch.history_
               . Causal.head_
-              . Branch.children
+              . Branch.children_
               . at NameSegment.libSegment
               .~ Just projectBranchLibObject
     Cli.Env {codebase} <- ask
