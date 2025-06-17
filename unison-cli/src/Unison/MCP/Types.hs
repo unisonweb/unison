@@ -8,6 +8,7 @@ module Unison.MCP.Types
     ProjectCodeToolArguments (..),
     LibInstallToolArguments (..),
     ShareProjectSearchToolArguments (..),
+    TypecheckCodeToolArguments (..),
     ProjectContext (..),
     toToolName,
     fromToolName,
@@ -50,6 +51,7 @@ data ToolKind
   = ProjectCodeTool
   | LibInstallTool
   | ShareProjectSearchTool
+  | TypecheckCodeTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -57,8 +59,22 @@ kindNameMapping =
   Map.fromList
     [ (ProjectCodeTool, "project-code"),
       (LibInstallTool, "lib-install"),
-      (ShareProjectSearchTool, "share-project-search")
+      (ShareProjectSearchTool, "share-project-search"),
+      (TypecheckCodeTool, "typecheck-code")
     ]
+
+data TypecheckCodeToolArguments
+  = TypecheckCodeToolArguments
+  { projectContext :: ProjectContext,
+    code :: Text
+  }
+  deriving (Eq, Show)
+
+instance FromJSON TypecheckCodeToolArguments where
+  parseJSON = withObject "TypecheckCodeToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    code <- o .: "code"
+    pure $ TypecheckCodeToolArguments {projectContext, code}
 
 data ProjectCodeToolArguments
   = ProjectCodeToolArguments

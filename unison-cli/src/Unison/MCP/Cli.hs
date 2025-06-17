@@ -37,6 +37,13 @@ data CliOutput = CliOutput
   }
   deriving (Eq, Show)
 
+instance Semigroup CliOutput where
+  CliOutput src1 out1 <> CliOutput src2 out2 =
+    CliOutput (src1 <> src2) (out1 <> out2)
+
+instance Monoid CliOutput where
+  mempty = CliOutput [] []
+
 instance ToJSON CliOutput where
   toJSON (CliOutput sourceCodeUpdates outputMessages) =
     object
@@ -55,10 +62,13 @@ ppForProjectContext ProjectContext {projectName, branchName} = do
       Just projectBranch -> pure projectBranch
   pure $ PP.fromProjectAndBranch (PP.ProjectAndBranch project branch) Path.Root
 
-handleInputMCP :: ProjectContext -> Either Event Input -> MCP CliOutput
+handleInputMCP :: ProjectContext -> [Either Event Input] -> MCP CliOutput
 handleInputMCP projectContext input = do
-  (_, cliOutput) <- cliToMCP projectContext (HandleInput.loop input)
-  pure cliOutput
+  case input of
+    (inp : rest) -> do
+      (_, cliOutput) <- cliToMCP projectContext (HandleInput.loop inp)
+      (cliOutput <>) <$> handleInputMCP projectContext rest
+    [] -> pure mempty
 
 cliToMCP :: ProjectContext -> Cli.Cli a -> MCP (Maybe a, CliOutput)
 cliToMCP projCtx cli = do
