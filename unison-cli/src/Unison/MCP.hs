@@ -18,6 +18,7 @@ import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
+import Unison.Codebase.Editor.Input (Event (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
@@ -29,6 +30,16 @@ import Unison.Parser.Ann (Ann)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Symbol (Symbol)
 import UnliftIO qualified
+
+serverDescription :: Text
+serverDescription =
+  [r|
+        This server provides endpoints for searching code on Unison Share, which is a platform for sharing Unison projects and libraries.
+
+        It also provides some mechanisms for editing and updating local Unison projects.
+
+        Before doing any work in unison please read the file://unison-guide resource for information on how to write unison.
+    |]
 
 runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
 runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
@@ -55,12 +66,6 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
             promptsCapability = Nothing
           }
 
-  let serverDescription =
-        [r|
-        This server provides endpoints for searching code on Unison Share, which is a platform for sharing Unison projects and libraries.
-
-        It also provides some mechanisms for editing and updating local Unison projects.
-    |]
   server <- createServer serverInfo serverCapabilities serverDescription
 
   registerResources server (fst <$> toList staticResources)
@@ -72,7 +77,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         pure . ReadResourceResult $ [content]
       _ -> pure $ ReadResourceResult []
 
-  registerTools server [projectCodeTool, installLibTool, shareProjectSearchTool]
+  registerTools server [projectCodeTool, installLibTool, shareProjectSearchTool, typecheckCodeTool]
 
   -- Register tool call handler
   registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
@@ -94,7 +99,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         case fromJSON callToolArguments of
           Success (ProjectCodeToolArguments {projectContext}) ->
             do
-              output <- handleInputMCP projectContext (Right $ Input.EditNamespaceI [])
+              output <- handleInputMCP projectContext [Right $ Input.EditNamespaceI []]
               let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
               pure $
                 CallToolResult
@@ -121,6 +126,17 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                     { callToolIsError = True,
                       callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
                     }
+          Error {} -> pure $ CallToolResult [] True
+      Just TypecheckCodeTool ->
+        case fromJSON callToolArguments of
+          Success (TypecheckCodeToolArguments {code, projectContext}) -> do
+            output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $
+              CallToolResult
+                { callToolIsError = False,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                }
           Error {} -> pure $ CallToolResult [] True
 
   -- Start the server with StdIO transport
@@ -245,5 +261,67 @@ shareProjectSearchTool =
               destructiveHint = Just False,
               idempotentHint = Just True,
               openWorldHint = Just True
+            }
+    }
+
+typecheckCodeTool :: Tool
+typecheckCodeTool =
+  Tool
+    { toolName = toToolName TypecheckCodeTool,
+      toolDescription =
+        Just
+          [r| Typecheck a code snippet within the context of a project. Only definitions which which are part of libraries or which have been previously added or updated will be available to reference within code.
+
+          The result will indicate any errors and suggested fixes, or will indicate that the code typechecks and is ready to add or update.
+
+          If you would like to test the behaviour of any pure functions, you may prefix a code snippet with an angle bracket.
+
+          e.g.
+          ```
+          > 1 + 2
+          ```
+
+          Or
+          ```
+          > let
+              isGreatarThan3 x = x > 3
+              isGreatarThan3 4
+        |],
+      toolInputSchema =
+        fromMaybe (error "Invalid typecheckCodeTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "The code to typecheck, as a string."
+            },
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to typecheck"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to typecheck"
+                }
+              },
+              "required": ["projectName", "branchName", "code"]
+            }
+          }
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Typecheck Code",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
             }
     }
