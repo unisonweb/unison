@@ -23,6 +23,7 @@ import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.MCP.Cli (cliToMCP, handleInputMCP)
+import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.StaticResources (staticResources)
 import Unison.MCP.Types
@@ -141,12 +142,11 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
           Success (ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}) -> do
             result <- UnliftIO.liftIO $ Share.shareProjectReadme authenticatedHTTPClient projectOwnerHandle projectName
             case result of
-              Right searchResult -> do
-                let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode searchResult
+              Right ReadmeResponse {markdownReadMe} -> do
                 pure $
                   CallToolResult
                     { callToolIsError = False,
-                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just markdownReadMe}]
                     }
               Left err -> do
                 let errorMsg = "Error getting readme from Unison Share: " <> Text.pack (show err)
@@ -228,7 +228,7 @@ installLibTool :: Tool
 installLibTool =
   Tool
     { toolName = toToolName LibInstallTool,
-      toolDescription = Just "Install a library from Unison Share into the current project.",
+      toolDescription = Just "Install a library from Unison Share into the specified project.",
       toolInputSchema =
         fromMaybe (error "Invalid projectCodeTool schema") $
           Aeson.decode $
@@ -287,7 +287,7 @@ shareProjectSearchTool =
           "properties": {
             "query": {
               "type": "string",
-              "description": "The search query to use. Must only be a single word."
+              "description": "The search query to use. E.g. \"http client\". By default, each search word is ANDed together, but you can use OR to search for multiple terms. E.g. \"http OR client\" will return results that match either term. You can also exclude results using \"-\", e.g. \"-http\" will exclude results that match the term \"http\". Wrap a term in quotes to search for an exact phrase, e.g. \"\"http client\"\" will search for the exact phrase \"http client\"."
             }
           },
           "required": ["query"]
@@ -371,7 +371,7 @@ docsTool :: Tool
 docsTool =
   Tool
     { toolName = toToolName DocsTool,
-      toolDescription = Just "Fetch documentation for the given definition.",
+      toolDescription = Just "Fetch documentation for a definition in a local project.",
       toolInputSchema =
         fromMaybe (error "Invalid docsTool schema") $
           Aeson.decode $
@@ -416,7 +416,7 @@ projectReadmeTool :: Tool
 projectReadmeTool =
   Tool
     { toolName = toToolName ShareProjectReadmeTool,
-      toolDescription = Just "Fetch the README for a project from Unison Share.",
+      toolDescription = Just "Fetch the README for a project from Unison Share. Read the markdownReadMe value in the response.",
       toolInputSchema =
         fromMaybe (error "Invalid projectReadmeTool schema") $
           Aeson.decode $
