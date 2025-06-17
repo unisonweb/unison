@@ -20,11 +20,11 @@ jobs:
       matrix:
         os:
           - ubuntu-24.04
-          - ubuntu-24.04-arm
+          # - ubuntu-24.04-arm # no racket installer for linux arm
           - macos-13
           - macos-14
           - windows-2025
-          # - windows-11-arm
+          # - windows-11-arm # no ucm built
 
     runs-on: ${{matrix.os}}
     steps:
@@ -83,23 +83,6 @@ jobs:
         uses: unisonweb/actions/racket/install@a944f9bc3fb62b5b7eaf99a813f90db0df3b36f2
         with:
           version: ${{env.racket_version}}
-
-      - name: set up redistributables (macos)
-        if: runner.os == 'macOS' && steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        run: |
-          brew install libb2
-          brew_lib_dir=$(brew --prefix)/lib
-          racket_lib_dir=$(dirname $(dirname $(readlink -f $(which raco))))/lib
-
-          # link libb2 if not already present/cached
-          for dll in $brew_lib_dir/libb2.*.dylib; do
-            file=$(basename "$dll")
-            if [ ! -e "$racket_lib_dir/$file" ]; then
-              ln -s "$brew_lib_dir/$file" "$racket_lib_dir/$file"
-            else
-              echo "$racket_lib_dir/$file" already exists.
-            fi
-          done
 
       - name: build jit binary
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
