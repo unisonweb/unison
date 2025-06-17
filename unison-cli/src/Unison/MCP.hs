@@ -34,9 +34,9 @@ import UnliftIO qualified
 serverDescription :: Text
 serverDescription =
   [r|
-        This server provides endpoints for searching code on Unison Share, which is a platform for sharing Unison projects and libraries.
+        This server provides tools for interacting with Unison Code locally, such as typechecking or reading documentation, as well as tools for searching Unison Share, which is a platform for sharing Unison projects and libraries.
 
-        It also provides some mechanisms for editing and updating local Unison projects.
+        It also provides some mechanisms for editing and updating local Unison projects, such as installing libraries from Unison Share.
 
         Before doing any work in unison please read the file://unison-guide resource for information on how to write unison.
     |]
@@ -324,8 +324,8 @@ typecheckCodeTool =
           Or
           ```
           > let
-              isGreatarThan3 x = x > 3
-              isGreatarThan3 4
+              isGreaterThan3 x = x > 3
+              isGreaterThan3 4
         |],
       toolInputSchema =
         fromMaybe (error "Invalid typecheckCodeTool schema") $
