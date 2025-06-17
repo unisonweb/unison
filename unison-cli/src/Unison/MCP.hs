@@ -18,7 +18,7 @@ import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
-import Unison.Codebase.Editor.Input (Event (..))
+import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
@@ -77,7 +77,15 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         pure . ReadResourceResult $ [content]
       _ -> pure $ ReadResourceResult []
 
-  registerTools server [projectCodeTool, installLibTool, shareProjectSearchTool, typecheckCodeTool]
+  registerTools
+    server
+    [ {- projectCodeTool ,-}
+      -- Removed for now cuz it fills up too much of the context window.
+      installLibTool,
+      shareProjectSearchTool,
+      typecheckCodeTool,
+      docsTool
+    ]
 
   -- Register tool call handler
   registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
@@ -138,12 +146,23 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                   callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
                 }
           Error {} -> pure $ CallToolResult [] True
+      Just DocsTool ->
+        case fromJSON callToolArguments of
+          Success (DocsToolArguments {name, projectContext}) -> do
+            output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $
+              CallToolResult
+                { callToolIsError = False,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                }
+          Error {} -> pure $ CallToolResult [] True
 
   -- Start the server with StdIO transport
   runServerWithSTDIO server
 
-projectCodeTool :: Tool
-projectCodeTool =
+_projectCodeTool :: Tool
+_projectCodeTool =
   Tool
     { toolName = toToolName ProjectCodeTool,
       toolDescription = Just "Fetch all of the code within a project",
@@ -310,15 +329,61 @@ typecheckCodeTool =
                   "description": "The branch of the project to typecheck"
                 }
               },
-              "required": ["projectName", "branchName", "code"]
+              "required": ["projectName", "branchName"]
             }
-          }
+          },
+          "required": ["code", "projectContext"]
         }
         |],
       toolAnnotations =
         Just $
           ToolAnnotations
             { title = Just "Typecheck Code",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+docsTool :: Tool
+docsTool =
+  Tool
+    { toolName = toToolName DocsTool,
+      toolDescription = Just "Fetch documentation for the given definition.",
+      toolInputSchema =
+        fromMaybe (error "Invalid docsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The definition name to fetch documentation for. E.g. `README` or `data.Map.fromList`"
+            },
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to fetch documentation from"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to fetch documentation from"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            }
+          },
+          "required": ["name", "projectContext"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Documentation",
               readOnlyHint = Just True,
               destructiveHint = Just False,
               idempotentHint = Just True,
