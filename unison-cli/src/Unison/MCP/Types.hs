@@ -9,6 +9,7 @@ module Unison.MCP.Types
     LibInstallToolArguments (..),
     ShareProjectSearchToolArguments (..),
     TypecheckCodeToolArguments (..),
+    DocsToolArguments (..),
     ProjectContext (..),
     toToolName,
     fromToolName,
@@ -24,9 +25,11 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
+import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 
 data Env = Env
   { codebase :: Codebase IO Symbol Ann,
@@ -52,6 +55,7 @@ data ToolKind
   | LibInstallTool
   | ShareProjectSearchTool
   | TypecheckCodeTool
+  | DocsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -60,7 +64,8 @@ kindNameMapping =
     [ (ProjectCodeTool, "project-code"),
       (LibInstallTool, "lib-install"),
       (ShareProjectSearchTool, "share-project-search"),
-      (TypecheckCodeTool, "typecheck-code")
+      (TypecheckCodeTool, "typecheck-code"),
+      (DocsTool, "docs")
     ]
 
 data TypecheckCodeToolArguments
@@ -75,6 +80,19 @@ instance FromJSON TypecheckCodeToolArguments where
     projectContext <- o .: "projectContext"
     code <- o .: "code"
     pure $ TypecheckCodeToolArguments {projectContext, code}
+
+data DocsToolArguments
+  = DocsToolArguments
+  { projectContext :: ProjectContext,
+    name :: Name
+  }
+  deriving (Eq, Show)
+
+instance FromJSON DocsToolArguments where
+  parseJSON = withObject "DocsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    name <- Name.unsafeParseText <$> o .: "name"
+    pure $ DocsToolArguments {projectContext, name}
 
 data ProjectCodeToolArguments
   = ProjectCodeToolArguments
