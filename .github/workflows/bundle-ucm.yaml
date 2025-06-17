@@ -31,7 +31,7 @@ jobs:
           - macos-13 # intel
           - macos-14 # apple silicon
           - windows-2025
-          - windows-11-arm
+          # - windows-11-arm # 2025-06-17 apparently there's no stack or ghc builds for arm64 windows
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -160,7 +160,7 @@ jobs:
           - macos-13 # intel
           - macos-14 # apple silicon
           - windows-2025
-          - windows-11-arm
+          # - windows-11-arm
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -219,7 +219,7 @@ jobs:
           - macos-13
           - macos-14
           - windows-2025
-          - windows-11-arm
+          # - windows-11-arm
     steps:
       - name: set up environment
         run: |

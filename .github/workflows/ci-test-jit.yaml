@@ -28,7 +28,7 @@ jobs:
           - macos-13
           - macos-14
           - windows-2025
-          - windows-11-arm
+          # - windows-11-arm
     runs-on: ${{matrix.os}}
     steps:
       - name: set up environment
