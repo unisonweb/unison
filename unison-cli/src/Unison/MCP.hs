@@ -84,7 +84,8 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
       installLibTool,
       shareProjectSearchTool,
       typecheckCodeTool,
-      docsTool
+      docsTool,
+      projectReadmeTool
     ]
 
   -- Register tool call handler
@@ -129,6 +130,26 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                     }
               Left err -> do
                 let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
+                pure $
+                  CallToolResult
+                    { callToolIsError = True,
+                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
+                    }
+          Error {} -> pure $ CallToolResult [] True
+      Just ShareProjectReadmeTool ->
+        case fromJSON callToolArguments of
+          Success (ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}) -> do
+            result <- UnliftIO.liftIO $ Share.shareProjectReadme authenticatedHTTPClient projectOwnerHandle projectName
+            case result of
+              Right searchResult -> do
+                let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode searchResult
+                pure $
+                  CallToolResult
+                    { callToolIsError = False,
+                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                    }
+              Left err -> do
+                let errorMsg = "Error getting readme from Unison Share: " <> Text.pack (show err)
                 pure $
                   CallToolResult
                     { callToolIsError = True,
@@ -388,5 +409,40 @@ docsTool =
               destructiveHint = Just False,
               idempotentHint = Just True,
               openWorldHint = Just False
+            }
+    }
+
+projectReadmeTool :: Tool
+projectReadmeTool =
+  Tool
+    { toolName = toToolName ShareProjectReadmeTool,
+      toolDescription = Just "Fetch the README for a project from Unison Share.",
+      toolInputSchema =
+        fromMaybe (error "Invalid projectReadmeTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectName": {
+              "type": "string",
+              "description": "The name of the project to fetch the README for. E.g. in a project reference like `@owner/project-name` this would be `project-name`"
+            },
+            "projectOwnerHandle": {
+              "type": "string",
+              "description": "The handle of the project owner, e.g. in a project reference like `@owner/project-name` this would be `owner`"
+            }
+          },
+          "required": ["projectName", "projectOwnerHandle"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Project README",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just True
             }
     }

@@ -9,6 +9,7 @@ module Unison.MCP.Types
     LibInstallToolArguments (..),
     ShareProjectSearchToolArguments (..),
     TypecheckCodeToolArguments (..),
+    ShareProjectReadmeToolArguments (..),
     DocsToolArguments (..),
     ProjectContext (..),
     toToolName,
@@ -54,6 +55,7 @@ data ToolKind
   = ProjectCodeTool
   | LibInstallTool
   | ShareProjectSearchTool
+  | ShareProjectReadmeTool
   | TypecheckCodeTool
   | DocsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -64,9 +66,22 @@ kindNameMapping =
     [ (ProjectCodeTool, "project-code"),
       (LibInstallTool, "lib-install"),
       (ShareProjectSearchTool, "share-project-search"),
+      (ShareProjectReadmeTool, "share-project-readme"),
       (TypecheckCodeTool, "typecheck-code"),
       (DocsTool, "docs")
     ]
+
+data ShareProjectReadmeToolArguments = ShareProjectReadmeToolArguments
+  { projectName :: Text,
+    projectOwnerHandle :: Text
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ShareProjectReadmeToolArguments where
+  parseJSON = withObject "ShareProjectReadmeToolArguments" $ \o -> do
+    projectName <- o .: "projectName"
+    projectOwnerHandle <- o .: "projectOwnerHandle"
+    pure $ ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}
 
 data TypecheckCodeToolArguments
   = TypecheckCodeToolArguments

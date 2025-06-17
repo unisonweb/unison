@@ -1,5 +1,5 @@
 -- A subset of the Share API which we expose as MCP tools
-module Unison.MCP.Share.API (shareSearch) where
+module Unison.MCP.Share.API (shareSearch, shareProjectReadme) where
 
 import Data.Aeson qualified as Aeson
 import Data.Proxy (Proxy (..))
@@ -16,15 +16,23 @@ shareSearch ::
   (IO (Either Servant.ClientError Aeson.Value))
 shareSearch authedHTTPClient query = runClientM authedHTTPClient $ httpSearch (Just query)
 
+shareProjectReadme ::
+  AuthenticatedHttpClient ->
+  Text ->
+  Text ->
+  (IO (Either Servant.ClientError Aeson.Value))
+shareProjectReadme authedHTTPClient ownerHandle projectSlug =
+  runClientM authedHTTPClient $ httpProjectReadme ownerHandle projectSlug
+
 -- https://api.unison-lang.org/search?query=%40http
 type ShareAPI =
   ("search" :> QueryParam "query" Text :> Get '[JSON] Aeson.Value)
-    :<|> ("search" :> QueryParam "query" Text :> Get '[JSON] Aeson.Value)
+    :<|> ("users" :> Capture "owner-handle" Text :> "projects" :> Capture "project-slug" Text :> "readme" :> Get '[JSON] Aeson.Value)
 
 httpSearch :: Maybe Text -> Servant.ClientM Aeson.Value
-_httpSearch :: Maybe Text -> Servant.ClientM Aeson.Value
+httpProjectReadme :: Text -> Text -> Servant.ClientM Aeson.Value
 ( httpSearch
-    :<|> _httpSearch
+    :<|> httpProjectReadme
   ) =
     let pp :: Proxy ShareAPI
         pp = Proxy
