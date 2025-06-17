@@ -20,7 +20,7 @@ jobs:
       matrix:
         os:
           - ubuntu-24.04
-          - ubuntu-24.04-arm
+          # - ubuntu-24.04-arm # no racket installer for linux arm
           - macos-13
           - macos-14
           - windows-2025
