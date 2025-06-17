@@ -1,6 +1,12 @@
 -- A subset of the Share API which we expose as MCP tools
-module Unison.MCP.Share.API (shareSearch, shareProjectReadme) where
+module Unison.MCP.Share.API
+  ( shareSearch,
+    shareProjectReadme,
+    ReadmeResponse (..),
+  )
+where
 
+import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.Proxy (Proxy (..))
 import Servant.API
@@ -20,17 +26,28 @@ shareProjectReadme ::
   AuthenticatedHttpClient ->
   Text ->
   Text ->
-  (IO (Either Servant.ClientError Aeson.Value))
+  (IO (Either Servant.ClientError ReadmeResponse))
 shareProjectReadme authedHTTPClient ownerHandle projectSlug =
   runClientM authedHTTPClient $ httpProjectReadme ownerHandle projectSlug
+
+data ReadmeResponse = ReadmeResponse
+  { markdownReadMe :: Text
+  }
+  deriving (Show, Eq, Generic)
+
+instance FromJSON ReadmeResponse where
+  parseJSON = do
+    Aeson.withObject "ReadmeResponse" $ \o -> do
+      markdownReadMe <- o Aeson..: "markdownReadMe"
+      pure ReadmeResponse {markdownReadMe}
 
 -- https://api.unison-lang.org/search?query=%40http
 type ShareAPI =
   ("search" :> QueryParam "query" Text :> Get '[JSON] Aeson.Value)
-    :<|> ("users" :> Capture "owner-handle" Text :> "projects" :> Capture "project-slug" Text :> "readme" :> Get '[JSON] Aeson.Value)
+    :<|> ("users" :> Capture "owner-handle" Text :> "projects" :> Capture "project-slug" Text :> "readme" :> Get '[JSON] ReadmeResponse)
 
 httpSearch :: Maybe Text -> Servant.ClientM Aeson.Value
-httpProjectReadme :: Text -> Text -> Servant.ClientM Aeson.Value
+httpProjectReadme :: Text -> Text -> Servant.ClientM ReadmeResponse
 ( httpSearch
     :<|> httpProjectReadme
   ) =
