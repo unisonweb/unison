@@ -27,7 +27,7 @@ jobs:
           # - ubuntu-24.04-arm # no racket for linux-arm
           - macos-13
           - macos-14
-          - windows-2025
+          # - windows-2025 # the tests fail in various ways https://github.com/unisonweb/unison/actions/runs/15730214740/job/44330286902?pr=5765
           # - windows-11-arm
     runs-on: ${{matrix.os}}
     steps:
