@@ -223,16 +223,6 @@ jobs:
           - os: ubuntu-24.04-arm
             nojit: true
     steps:
-      - name: starting up ${{matrix.os}} ${{matrix.nojit}}
-        run: |
-          echo "Running on ${{matrix.nojit == true}}"
-          echo "Running on ${{matrix.nojit == 'true'}}"
-          echo "Running on ${{matrix.nojit == false}}"
-          echo "Running on ${{matrix.nojit == 'false'}}"
-          echo "Running on ${{matrix.nojit != true}}"
-          echo "Running on ${{matrix.nojit != 'true'}}"
-          echo "Running on ${{!matrix.nojit}}"
-          echo "Running on ${{!(matrix.nojit)}}"
       - name: set up environment
         run: |
           staging_dir="${RUNNER_TEMP//\\//}/ucm-staging"
