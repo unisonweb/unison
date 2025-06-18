@@ -227,6 +227,8 @@ jobs:
         run: |
           echo "Running on ${{matrix.nojit == true}}"
           echo "Running on ${{matrix.nojit == 'true'}}"
+          echo "Running on ${{matrix.nojit == false}}"
+          echo "Running on ${{matrix.nojit == 'false'}}"
           echo "Running on ${{matrix.nojit != true}}"
           echo "Running on ${{matrix.nojit != 'true'}}"
           echo "Running on ${{!matrix.nojit}}"
@@ -245,13 +247,13 @@ jobs:
       - name: restore permissions on ucm
         run: chmod +x ${{env.staging_dir}}/unison/unison
       - name: download racket lib
-        if: matrix.nojit && matrix.nojit != 'true'
+        if: (!matrix.nojit)
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: racket-lib
           path: ${{env.staging_dir}}/racket/
       - name: download unison-runtime
-        if: matrix.nojit && matrix.nojit != 'true'
+        if: (!matrix.nojit)
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-runtime-${{matrix.os}}
@@ -260,7 +262,7 @@ jobs:
         # here we have the `if:` not because of the missing .exe on Windows,
         # nor the lack of need to chmod, but because /runtime/bin/ probably doesn't exist
         # due to differences in `raco distribute` on Windows vs macOS and Linux.
-        if: runner.os != 'Windows' && matrix.nojit && matrix.nojit != 'true'
+        if: runner.os != 'Windows' && !matrix.nojit
         run: chmod +x ${{env.staging_dir}}/runtime/bin/unison-runtime
       - name: download latest unison-local-ui
         run: |
