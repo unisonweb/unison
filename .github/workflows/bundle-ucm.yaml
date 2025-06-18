@@ -229,6 +229,8 @@ jobs:
           echo "Running on ${{matrix.nojit == 'true'}}"
           echo "Running on ${{matrix.nojit != true}}"
           echo "Running on ${{matrix.nojit != 'true'}}"
+          echo "Running on ${{!matrix.nojit}}"
+          echo "Running on ${{!(matrix.nojit)}}"
       - name: set up environment
         run: |
           staging_dir="${RUNNER_TEMP//\\//}/ucm-staging"
