@@ -156,7 +156,7 @@ jobs:
       matrix:
         os:
           - ubuntu-24.04
-          - ubuntu-24.04-arm
+          # - ubuntu-24.04-arm # no racket for arm linux
           - macos-13 # intel
           - macos-14 # apple silicon
           - windows-2025
