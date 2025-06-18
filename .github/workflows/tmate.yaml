@@ -13,7 +13,7 @@ on:
         - macos-14
         - windows-2022
         - windows-2025
-        - windows-2025-arm
+        - windows-11-arm
       custom_runner:
         description: a different runner image
         type: string
