@@ -318,7 +318,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   m <- readTVarIO (tagRefs env)
   c <- peekOff stk i
   stk <- bump stk
-  pokeBi stk =<< reflectValue m c
+  pokeBi stk =<< reflectValue env m c
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
@@ -1375,20 +1375,35 @@ cacheAdd l cc = do
     then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
-reflectValue :: EnumMap Word64 Reference -> Val -> IO ANF.Value
-reflectValue rty = goV
+reflectValue ::
+  CCache -> EnumMap Word64 Reference -> Val -> IO ANF.Value
+reflectValue env rty = goV0
   where
-    err s = "reflectValue: cannot prepare value for serialization: " ++ s
+    err s v =
+      "reflectValue: cannot prepare value for serialization: "
+        ++ s
+        ++ "\n\nSerialized value:\n\n"
+        ++ v
+
     refTy w
-      | Just r <- EC.lookup w rty = pure r
-      | otherwise =
-          die $ err "unknown type reference"
+      | Just r <- EC.lookup w rty = Right r
+      | otherwise = Left "unknown type reference"
 
     goIx (CIx r0 _ i) = ANF.GR r i
       where
         r = M.findWithDefault r0 r0 functionUnreplacements
 
-    goV :: Val -> IO ANF.Value
+    goV0 :: Val -> IO ANF.Value
+    goV0 v = case goV v of
+      Right rv -> pure rv
+      Left problem -> die $ err problem rendered
+      where
+        rendered = case tracer env False v of
+          NoTrace -> show v
+          MsgTrace _ _ pre -> pre
+          SimpleTrace ugl -> ugl
+
+    goV :: Val -> Either String ANF.Value
     goV = \case
       -- For back-compatibility we reflect all Unboxed values into boxed literals, we could change this in the future,
       -- but there's not much of a big reason to.
@@ -1399,7 +1414,7 @@ reflectValue rty = goV
         | otherwise -> pure . ANF.BLit $ ANF.Neg (fromIntegral (abs n))
       DoubleVal f -> pure . ANF.BLit $ ANF.Float f
       CharVal c -> pure . ANF.BLit $ ANF.Char c
-      val@(Val _ clos) ->
+      Val _ clos ->
         case clos of
           (PApV cix _rComb args) ->
             ANF.Partial (goIx cix) <$> traverse goV args
@@ -1411,12 +1426,13 @@ reflectValue rty = goV
             | Just m <- maybeUnwrapForeign Rf.hmapRef f ->
                 goV . BoxedVal $ inflateMap m
             | otherwise -> ANF.BLit <$> goF f
-          BlackHole -> die $ err "black hole"
-          UnboxedTypeTag {} -> die $ err $ "unknown unboxed value" <> show val
+          BlackHole -> Left "black hole"
+          UnboxedTypeTag {} -> Left "unknown unboxed value"
+          Affine {} -> Left "affine info"
 
-    goK (CB _) = die $ err "callback continuation"
-    goK (Local {}) = die $ err "reflectValue: captured Local frame"
-    goK (AMark {}) = die $ err "reflectValue: captured AMark frame"
+    goK (CB _) = Left "callback continuation"
+    goK (Local {}) = Left "captured Local frame"
+    goK (AMark {}) = Left "captured AMark frame"
     goK KE = pure ANF.KE
     goK (Mark a ps de k) = do
       ps <- traverse refTy (EC.setToList ps)
@@ -1448,7 +1464,7 @@ reflectValue rty = goV
           pure (ANF.BArr a)
       | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
           ANF.Arr <$> traverse goV a
-      | otherwise = die $ err $ "foreign value: " <> (show f)
+      | otherwise = Left "foreign value"
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do
