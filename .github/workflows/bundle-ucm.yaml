@@ -220,8 +220,8 @@ jobs:
           - windows-2025
           # - windows-11-arm
         include: # doesn't do anything right now
-          os: ubuntu-24.04-arm
-          nojit: true
+          - os: ubuntu-24.04-arm
+            nojit: true
     steps:
       - name: set up environment
         run: |
