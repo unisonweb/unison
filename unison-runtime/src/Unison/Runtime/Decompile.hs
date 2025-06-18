@@ -100,6 +100,7 @@ data DecompError
   | UnkLocal !Reference !Word64
   | Cont
   | Exn
+  | Aff
   deriving (Eq, Ord)
 
 type DecompResult v = (Set DecompError, Term v ())
@@ -150,6 +151,7 @@ renderDecompError (UnkLocal rf n) =
     ]
 renderDecompError Cont = "A continuation value was encountered"
 renderDecompError Exn = "An exception value was encountered"
+renderDecompError Aff = "An affine info value was encountered"
 
 decompile ::
   forall v.
@@ -189,6 +191,7 @@ decompile backref topTerms = \case
       err (BadPAp rf) $ bug "<Unknown>"
     BlackHole -> err Exn $ bug "<Exception>"
     (Captured {}) -> err Cont $ bug "<Continuation>"
+    (Affine {}) -> err Aff $ bug "<Affine>"
     (Foreign f) ->
       decompileForeign backref topTerms f
 
