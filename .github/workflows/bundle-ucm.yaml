@@ -237,13 +237,13 @@ jobs:
       - name: restore permissions on ucm
         run: chmod +x ${{env.staging_dir}}/unison/unison
       - name: download racket lib
-        if: matrix.nojit && matrix.nojit != 'true'
+        if: matrix.nojit && matrix.nojit && matrix.nojit != 'true'
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: racket-lib
           path: ${{env.staging_dir}}/racket/
       - name: download unison-runtime
-        if: matrix.nojit && matrix.nojit != 'true'
+        if: matrix.nojit && matrix.nojit && matrix.nojit != 'true'
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-runtime-${{matrix.os}}
