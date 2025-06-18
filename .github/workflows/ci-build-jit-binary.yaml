@@ -80,7 +80,7 @@ jobs:
 
       - name: install racket
         if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
-        uses: unisonweb/actions/racket/install@a944f9bc3fb62b5b7eaf99a813f90db0df3b36f2
+        uses: unisonweb/actions/racket/install@main
         with:
           version: ${{env.racket_version}}
 
