@@ -1503,6 +1503,7 @@ closureNum Captured {} = 2
 closureNum Foreign {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
+closureNum Affine {} = 6
 
 universalEq ::
   (Foreign -> Foreign -> Bool) ->
