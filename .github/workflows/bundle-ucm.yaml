@@ -183,7 +183,6 @@ jobs:
           # Maybe we can unpack it and hash the contents.
           key: ${{matrix.os}}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
       - name: install racket
-        if: steps.cache-jit-binaries.outputs.cache-hit != 'true'
         uses: unisonweb/actions/racket/install@main
         with:
           version: ${{env.racket_version}}
