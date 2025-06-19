@@ -18,8 +18,9 @@ import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
-import Unison.Codebase.Editor.Input (Event (..), Input (..))
+import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
 import Unison.MCP.Cli (cliToMCP, handleInputMCP)
@@ -86,13 +87,25 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
       shareProjectSearchTool,
       typecheckCodeTool,
       docsTool,
-      projectReadmeTool
+      projectReadmeTool,
+      listProjectDefinitionsTool
     ]
 
   -- Register tool call handler
   registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
     runMCP env $ case fromToolName callToolName of
       Nothing -> pure $ CallToolResult [] True
+      Just ListProjectDefinitionsTool ->
+        case fromJSON callToolArguments of
+          Success (projectContext@ProjectContext {}) -> do
+            definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') []]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+            pure $
+              CallToolResult
+                { callToolIsError = False,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                }
+          Error {} -> pure $ CallToolResult [] True
       Just LibInstallTool ->
         case fromJSON callToolArguments of
           Success (LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
@@ -444,5 +457,46 @@ projectReadmeTool =
               destructiveHint = Just False,
               idempotentHint = Just True,
               openWorldHint = Just True
+            }
+    }
+
+listProjectDefinitionsTool :: Tool
+listProjectDefinitionsTool =
+  Tool
+    { toolName = toToolName ListProjectDefinitionsTool,
+      toolDescription = Just "List all definitions in the provided project.",
+      toolInputSchema =
+        fromMaybe (error "Invalid listProjectDefinitionsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to list definitions for"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to list definitions for"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            }
+          },
+          "required": ["projectContext"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "List Project Definitions",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
             }
     }

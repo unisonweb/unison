@@ -58,6 +58,7 @@ data ToolKind
   | ShareProjectReadmeTool
   | TypecheckCodeTool
   | DocsTool
+  | ListProjectDefinitionsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -68,8 +69,21 @@ kindNameMapping =
       (ShareProjectSearchTool, "share-project-search"),
       (ShareProjectReadmeTool, "share-project-readme"),
       (TypecheckCodeTool, "typecheck-code"),
-      (DocsTool, "docs")
+      (DocsTool, "docs"),
+      (ListProjectDefinitionsTool, "list-project-definitions")
     ]
+
+data ProjectContextArgument = ProjectContextArgument
+  { projectName :: ProjectName,
+    branchName :: ProjectBranchName
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ProjectContextArgument where
+  parseJSON = withObject "ProjectContextArgument" $ \o -> do
+    projectName <- UnsafeProjectName <$> o .: "projectName"
+    branchName <- UnsafeProjectBranchName <$> o .: "branchName"
+    pure $ ProjectContextArgument {projectName, branchName}
 
 data ShareProjectReadmeToolArguments = ShareProjectReadmeToolArguments
   { projectName :: Text,
