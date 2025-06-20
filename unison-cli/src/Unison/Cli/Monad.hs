@@ -422,10 +422,7 @@ popd = do
             False -> loop paths
   state <- State.get
   runTransaction (loop (List.NonEmpty.tail (projectPathStack state))) >>= \case
-    Nothing -> do
-      -- blow out deleted branches from stack, if any.
-      #projectPathStack %= \(path List.NonEmpty.:| _) -> (path List.NonEmpty.:| [])
-      pure False
+    Nothing -> pure False
     Just (path, paths) -> do
       #projectPathStack .= (path List.NonEmpty.:| paths)
       env <- ask
