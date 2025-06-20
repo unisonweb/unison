@@ -110,7 +110,13 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
               localNames
 
           localNames = Set.map Name.unsafeParseVar (UF.toTermAndWatchNames uf)
-          globalNamesShadowed = Names.shadowing (UF.toNames uf) (Parser.names parsingEnv)
+          -- We exclude names from indirect dependencies for fuzzy searching during name resolution,
+          -- that is dependencies under lib.*.lib for performance
+          -- TODO: We may consider exposing user configuration to enable searching through indirect dependencies
+          globalNamesShadowed = excludeNamesFromIndirectDeps $ Names.shadowing (UF.toNames uf) (Parser.names parsingEnv)
+            where
+              excludeNamesFromIndirectDeps = Names.filter (Name.classifyNameLocation >>> excludeIndirectDeps)
+              excludeIndirectDeps = (\case Name.NameLocation'IndirectDep -> False; _otherwise -> True)
 
           freeNames :: [Name]
           freeNames =
