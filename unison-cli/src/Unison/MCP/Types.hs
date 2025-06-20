@@ -11,6 +11,7 @@ module Unison.MCP.Types
     TypecheckCodeToolArguments (..),
     ShareProjectReadmeToolArguments (..),
     ListLibraryDefinitionsToolArguments (..),
+    ViewDefinitionsToolArguments (..),
     DocsToolArguments (..),
     ProjectContext (..),
     ProjectContextArgument (..),
@@ -63,6 +64,8 @@ data ToolKind
   | ListProjectDefinitionsTool
   | ListProjectLibrariesTool
   | ListLibraryDefinitionsTool
+  | ViewDefinitionsTool
+  | ListLocalProjectsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -76,7 +79,9 @@ kindNameMapping =
       (DocsTool, "docs"),
       (ListProjectDefinitionsTool, "list-project-definitions"),
       (ListProjectLibrariesTool, "list-project-libraries"),
-      (ListLibraryDefinitionsTool, "list-library-definitions")
+      (ListLibraryDefinitionsTool, "list-library-definitions"),
+      (ViewDefinitionsTool, "view-definitions"),
+      (ListLocalProjectsTool, "list-local-projects")
     ]
 
 data ProjectContextArgument = ProjectContextArgument ProjectContext
@@ -86,6 +91,18 @@ instance FromJSON ProjectContextArgument where
   parseJSON = withObject "ProjectContextArgument" $ \o -> do
     projectContext <- o .: "projectContext"
     pure $ ProjectContextArgument projectContext
+
+data ViewDefinitionsToolArguments = ViewDefinitionsToolArguments
+  { projectContext :: ProjectContext,
+    names :: [Name]
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ViewDefinitionsToolArguments where
+  parseJSON = withObject "ViewDefinitionsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    names <- fmap Name.unsafeParseText <$> o .: "names"
+    pure $ ViewDefinitionsToolArguments {projectContext, names}
 
 data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
   { projectContext :: ProjectContext,

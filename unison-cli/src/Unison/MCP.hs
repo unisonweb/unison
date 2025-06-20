@@ -1,9 +1,11 @@
 module Unison.MCP (runOnStdIO) where
 
+import Control.Monad.Reader
 import Data.Aeson (Result (..), fromJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -15,12 +17,15 @@ import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
 import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath
 import Unison.Codebase.Runtime (Runtime)
-import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
+import Unison.HashQualified qualified as HQ
 import Unison.MCP.Cli (cliToMCP, handleInputMCP)
 import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
@@ -79,20 +84,6 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
       Just (_, content) ->
         pure . ReadResourceResult $ [content]
       _ -> pure $ ReadResourceResult []
-
-  registerTools
-    server
-    [ {- projectCodeTool ,-}
-      -- Removed for now cuz it fills up too much of the context window.
-      installLibTool,
-      shareProjectSearchTool,
-      typecheckCodeTool,
-      docsTool,
-      shareProjectReadmeTool,
-      listProjectDefinitionsTool,
-      listProjectLibrariesTool,
-      listLibraryDefinitionsTool
-    ]
 
   registerToolHandlers env server $
     [ mkToolHandler installLibTool \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
@@ -178,11 +169,47 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
           CallToolResult
             { callToolIsError = False,
               callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler viewDefinitionsTool \(ViewDefinitionsToolArguments {projectContext, names}) -> do
+        case NEL.nonEmpty names of
+          Nothing ->
+            pure $
+              CallToolResult
+                { callToolIsError = True,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just "No names provided to view definitions"}]
+                }
+          Just nonEmptyNames -> do
+            let names' = HQ.NameOnly <$> nonEmptyNames
+            definitions <- handleInputMCP projectContext [Right $ Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal names']
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+            pure $
+              CallToolResult
+                { callToolIsError = False,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                },
+      mkToolHandler listLocalProjectsTool \(()) -> do
+        pc <- currentProjectContext
+        projects <- handleInputMCP pc [Right Input.ProjectsI]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projects
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
             }
     ]
 
   -- Start the server with StdIO transport
   runServerWithSTDIO server
+
+currentProjectContext :: MCP ProjectContext
+currentProjectContext = do
+  Env {codebase} <- ask
+  pp <- liftIO $ Codebase.runTransaction codebase $ Codebase.expectCurrentProjectPath
+  pure $
+    ProjectContext
+      { projectName = pp.project.name,
+        branchName = pp.branch.name
+      }
 
 data ToolHandler = ToolHandler
   { tool :: Tool,
@@ -598,6 +625,72 @@ listLibraryDefinitionsTool =
         Just $
           ToolAnnotations
             { title = Just "List Library Definitions",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+viewDefinitionsTool :: Tool
+viewDefinitionsTool =
+  Tool
+    { toolName = toToolName ViewDefinitionsTool,
+      toolDescription = Just "View the source code of the specified definitions",
+      toolInputSchema =
+        fromMaybe (error "Invalid viewDefinitionsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to view definitions for"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to view definitions for"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            },
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "The names of the definitions to view, e.g. `mynamespace.foo` or `lib.unison_base_1_0_0.data.List`"
+              },
+              "description": "The names of the definitions to view"
+            }
+          },
+          "required": ["projectContext", "names"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "View Definitions",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+listLocalProjectsTool :: Tool
+listLocalProjectsTool =
+  Tool
+    { toolName = toToolName ListLocalProjectsTool,
+      toolDescription = Just "List all local projects.",
+      toolInputSchema = Aeson.object [],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "List Local Projects",
               readOnlyHint = Just True,
               destructiveHint = Just False,
               idempotentHint = Just True,
