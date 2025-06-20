@@ -33,7 +33,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.MCP.Cli (cliToMCP, handleInputMCP)
 import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
-import Unison.MCP.StaticResources (staticResources)
+import Unison.MCP.StaticResources (staticResources, unisonGuideText)
 import Unison.MCP.Types
 import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
@@ -76,7 +76,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         ServerCapabilities
           { resourcesCapability = Just $ ResourcesCapability True,
             toolsCapability = Just $ ToolsCapability True,
-            promptsCapability = Nothing
+            promptsCapability = Just $ PromptsCapability True
           }
 
   server <- createServer serverInfo serverCapabilities serverDescription
@@ -89,6 +89,40 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
       Just (_, content) ->
         pure . ReadResourceResult $ [content]
       _ -> pure $ ReadResourceResult []
+
+  registerPrompts server [writeUnisonCodePrompt]
+
+  registerPromptHandler server $ \(GetPromptRequest {getPromptName, getPromptArguments}) -> do
+    case getPromptName of
+      pName
+        | pName == promptName writeUnisonCodePrompt -> do
+            pure $
+              GetPromptResult
+                { getPromptDescription = Just "Ask the agent to write some Unison code for you.",
+                  getPromptMessages =
+                    [ PromptMessage
+                        { promptMessageRole = "assistant",
+                          promptMessageContent =
+                            PromptContent
+                              { promptContentType = TextPromptContent,
+                                promptContentText =
+                                  Text.unlines
+                                    [ "Your role is to be a helpful Unison programming assistant. You will be given a description of a program to write in Unison, and you should write the code to implement it.",
+                                      case Map.lookup "preferred-libraries" getPromptArguments of
+                                        Just preferredLibs -> "You should use the following unison libraries to accomplish the task if they are applicable: " <> preferredLibs <> " if they are not already installed, you may search share for the libraries and then install them."
+                                        Nothing -> "",
+                                      "After implementing the code, ensure you typecheck it, and add watch expressions to test any pure functions.",
+                                      "You can use the tools available to search Unison Share and the local project and its dependencies for definitions and documentation to help you accomplish your task.",
+                                      "",
+                                      "You should use the following guidelines when writing Unison code:",
+                                      "",
+                                      unisonGuideText
+                                    ]
+                              }
+                        }
+                    ]
+                }
+        | otherwise -> error $ "Unknown prompt: " <> Text.unpack pName
 
   registerToolHandlers env server $
     [ mkToolHandler installLibTool \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
@@ -462,7 +496,7 @@ typecheckCodeTool =
           "properties": {
             "code": {
               "type": "string",
-              "description": "The code to typecheck, as a string."
+              "description": "The code to typecheck, as a string. All the code you've written which is not yet part of the project must be provided at once."
             },
             "projectContext": {
               "type": "object",
@@ -954,4 +988,25 @@ searchByTypeTool =
               idempotentHint = Just True,
               openWorldHint = Just False
             }
+    }
+
+--- PROMPTs
+
+writeUnisonCodePrompt :: Prompt
+writeUnisonCodePrompt =
+  Prompt
+    { promptName = "unison-programming-assistant",
+      promptDescription = Just "Unison Programming Assistant",
+      promptArguments =
+        [ PromptArgument
+            { promptArgumentName = "project-and-branch",
+              promptArgumentDescription = Just "[Optional] The Unison project and branch this code should be implemented in. E.g. scratch/main",
+              promptArgumentRequired = False
+            },
+          PromptArgument
+            { promptArgumentName = "preferred-libraries",
+              promptArgumentDescription = Just "[Optional] Specific libraries you'd like to be used. E.g. `@ceedubs/json and @unison/base`",
+              promptArgumentRequired = False
+            }
+        ]
     }

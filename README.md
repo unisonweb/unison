@@ -18,7 +18,7 @@ Overview
 [Unison](https://unison-lang.org) is a statically-typed functional language with type inference, an effect system, and advanced tooling. It is based around [a big idea of content-addressed code](https://www.unison-lang.org/learn/the-big-idea/), in which function are identified by a hash of their implementation rather than by name, and code is stored as its AST in a database. This provides a number of benefits:
 
 * No builds. Unison has perfect incremental compilation, with a shared compilation cache that is part of the codebase format. Despite the strong static typing, you are almost never waiting for code to compile.
-* Instant, non-breaking renaming of definitions. 
+* Instant, non-breaking renaming of definitions.
 * Perfect caching of tests, only rerunning determinstic tests if dependencies changed.
 * Semantically-aware version control, avoiding spurious merge conflicts from things like order of imports, whitespace or code formatting differences, and so on.
 
@@ -79,6 +79,11 @@ Language Server Protocol (LSP)
 ------------------------------
 
 View Language Server setup instructions [here](docs/language-server.markdown).
+
+AI Agent Server (MCP)
+----------------------
+
+View AI Agent Server setup instructions [here](docs/mcp.md).
 
 Codebase Server
 ---------------

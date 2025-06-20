@@ -1,6 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.MCP.StaticResources (staticResources) where
+module Unison.MCP.StaticResources
+  ( staticResources,
+    unisonGuideText,
+  )
+where
 
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -14,6 +18,9 @@ staticResources =
     [ (resourceUri . fst $ unisonGuideResource, unisonGuideResource)
     ]
 
+unisonGuideText :: Text
+unisonGuideText = $(embedProjectStringFile "src/Unison/MCP/StaticResources/unison-guide.md")
+
 unisonGuideResource :: (Resource, ResourceContent)
 unisonGuideResource =
   ( Resource
@@ -26,7 +33,7 @@ unisonGuideResource =
     ResourceContent
       { resourceContentUri = "file://unison-guide",
         resourceContentMimeType = Just "text/markdown",
-        resourceContentText = Just $(embedProjectStringFile "src/Unison/MCP/StaticResources/unison-guide.md"),
+        resourceContentText = Just unisonGuideText,
         resourceContentBlob = Nothing
       }
   )
