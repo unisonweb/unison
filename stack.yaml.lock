@@ -16,6 +16,17 @@ packages:
   original:
     url: https://github.com/unisonweb/haskeline/archive/9275eea7982dabbf47be2ba078ced669ae7ef3d5.tar.gz
 - completed:
+    name: hs-mcp
+    pantry-tree:
+      sha256: 5e0faf4005ccdce8bb93f0295e6017ed54419e7ee5584e83aae2bc62d805e169
+      size: 1207
+    sha256: d922d8682940c8d191209a518c9fd2293b13eca93bc6d9975b134825dac836c8
+    size: 20595
+    url: https://github.com/ChrisPenner/hs-mcp/archive/14fe82d086a04e82b1c05d7f5a4bbd30eec22042.tar.gz
+    version: 0.1.0.0
+  original:
+    url: https://github.com/ChrisPenner/hs-mcp/archive/14fe82d086a04e82b1c05d7f5a4bbd30eec22042.tar.gz
+- completed:
     hackage: fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921
     pantry-tree:
       sha256: 5bb9d39dbc4a619cf9b65409dde0d58dd488c7abab030f71ac83ba849595ee05
