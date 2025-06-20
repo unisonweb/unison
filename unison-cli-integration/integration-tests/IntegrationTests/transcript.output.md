@@ -8,7 +8,7 @@ scratch/main> load ./unison-src/transcripts-using-base/base.u
 scratch/main> add
 ```
 
-``` unison :hide
+``` unison
 use lib.builtins
 
 unique type MyBool = MyTrue | MyFalse
