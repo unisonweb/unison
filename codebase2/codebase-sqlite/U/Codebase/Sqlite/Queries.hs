@@ -118,6 +118,7 @@ module U.Codebase.Sqlite.Queries
     deleteProject,
 
     -- ** project branches
+    projectBranchExists,
     projectBranchExistsByName,
     loadProjectBranchByName,
     loadProjectBranchByNames,
@@ -3659,6 +3660,19 @@ renameProject projectId name =
       UPDATE project
       SET name = :name
       WHERE id = :projectId
+    |]
+
+-- | Does a project branch exist?
+projectBranchExists :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchExists projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
     |]
 
 -- | Does a project branch exist by this name?
