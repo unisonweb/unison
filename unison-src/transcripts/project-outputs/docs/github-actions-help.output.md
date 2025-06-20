@@ -3,12 +3,15 @@
 You can't have an `env:` key defined in terms of another `env` key, but you can use `$GITHUB_ENV` to get around this.
 
 You can't define a `matrix` at the top level, it has to be defined within a `job`'s `strategy`.
+Matrix values aren't automatically strings. They can be other JSON types (or at least they can be booleans)\!
+This matters if you are using them in boolean expressions later, because `true != 'true'`.
+Note that `!` at the start of a YAML value is a special syntax for casting the value as a particular standard or custom data type.  So `foo: !bar` won't work, and does it fact get red squigglies in vscode. `foo: (!bar)` works, and I think `foo: ! bar` might also.
 
 `runs-on:` doesn't allow `env` for some reason.
 
 Strings don't need quotes, unless you need to force something to be a string.
 
-A `@ref` is always needed on a remote action.
+A `@ref` is always needed on a remote action, i.e. `owner/repo[/subaction]@main`.
 
 Windows doesn't seem to honor the `default: run: shell:` setting, so you need to set the `shell:` on `run:` manually?
 
@@ -50,7 +53,7 @@ The whole thing with `.exe` is a mess. Unix commands typically drop and add `.ex
 
 When using the `cache` action, getting a cache hit on the primary key means you won't update the cache with any changes.
 
-When picking a key, you have to ask, "Which key, if exactly matched, would mean that I'm already so done that I don't even want to save anything new from this run."
+When picking a key, you have to ask, "Which key, if exactly matched, would mean that I'm already SO done that I don't even want to save anything new from this run."
 
 Similarly, `save-always: true` only if a key hit means there will be nothing new to save, even if a previous run failed AND a failed result is worth starting with.
 
