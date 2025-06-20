@@ -424,6 +424,7 @@ data Output
   | HappyCoding
   | ProjectHasNoReleases ProjectName
   | UpdateTypecheckingFailure
+  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
@@ -509,6 +510,7 @@ type SourceFileContents = Text
 isFailure :: Output -> Bool
 isFailure o = case o of
   UpdateTypecheckingFailure {} -> True
+  UpdateTypecheckingFailure2 {} -> True
   UpdateIncompleteConstructorSet {} -> True
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
