@@ -1963,6 +1963,26 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
+  UpdateTypecheckingFailure2 scratchFile0 baseBranch updateBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap
+        ( "Some definitions don't typecheck with your changes. I've update the file"
+            <> scratchFile
+            <> "with the definitions that need fixing. Once the file is compiling, try"
+            <> makeExample' IP.update
+            <> "again."
+        )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "I've also switched you to a new branch"
+              <> prettyProjectBranchName updateBranch
+              <> "for this work. On"
+              <> P.group (makeExample' IP.update <> ",")
+              <> "it will be merged back into"
+              <> P.group (prettyProjectBranchName baseBranch <> ".")
+          )
   UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
     let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
      in pure $
