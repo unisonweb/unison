@@ -3,10 +3,8 @@ module Unison.MCP (runOnStdIO) where
 import Data.Aeson (Result (..), fromJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
-import Data.Foldable (Foldable (..))
+import Data.List qualified as List
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
-import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Network.MCP.Server
@@ -28,9 +26,12 @@ import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.StaticResources (staticResources)
 import Unison.MCP.Types
+import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
+import Unison.Prelude
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Symbol (Symbol)
+import Unison.Syntax.NameSegment qualified as NameSegment
 import UnliftIO qualified
 
 serverDescription :: Text
@@ -87,113 +88,130 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
       shareProjectSearchTool,
       typecheckCodeTool,
       docsTool,
-      projectReadmeTool,
-      listProjectDefinitionsTool
+      shareProjectReadmeTool,
+      listProjectDefinitionsTool,
+      listProjectLibrariesTool,
+      listLibraryDefinitionsTool
     ]
 
-  -- Register tool call handler
-  registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
-    runMCP env $ case fromToolName callToolName of
-      Nothing -> pure $ CallToolResult [] True
-      Just ListProjectDefinitionsTool ->
-        case fromJSON callToolArguments of
-          Success (projectContext@ProjectContext {}) -> do
-            definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') []]
-            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+  registerToolHandlers env server $
+    [ mkToolHandler installLibTool \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
+        (_r, output) <- cliToMCP projectContext $ do
+          handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler shareProjectSearchTool \(ShareProjectSearchToolArguments {query}) -> do
+        result <- UnliftIO.liftIO $ Share.shareSearch authenticatedHTTPClient query
+        case result of
+          Right searchResult -> do
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode searchResult
             pure $
               CallToolResult
                 { callToolIsError = False,
                   callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
                 }
-          Error {} -> pure $ CallToolResult [] True
-      Just LibInstallTool ->
-        case fromJSON callToolArguments of
-          Success (LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
-            (_r, output) <- cliToMCP projectContext $ do
-              handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
-            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+          Left err -> do
+            let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
+            pure $
+              CallToolResult
+                { callToolIsError = True,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
+                },
+      mkToolHandler typecheckCodeTool \(TypecheckCodeToolArguments {code, projectContext}) -> do
+        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler docsTool \(DocsToolArguments {name, projectContext}) -> do
+        output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler shareProjectReadmeTool \(ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}) -> do
+        result <- UnliftIO.liftIO $ Share.shareProjectReadme authenticatedHTTPClient projectOwnerHandle projectName
+        case result of
+          Right ReadmeResponse {markdownReadMe} -> do
             pure $
               CallToolResult
                 { callToolIsError = False,
-                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just markdownReadMe}]
                 }
-          _ -> pure $ CallToolResult [] True
-      Just ProjectCodeTool ->
-        case fromJSON callToolArguments of
-          Success (ProjectCodeToolArguments {projectContext}) ->
-            do
-              output <- handleInputMCP projectContext [Right $ Input.EditNamespaceI []]
-              let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-              pure $
-                CallToolResult
-                  { callToolIsError = False,
-                    callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-                  }
-          Error {} -> pure $ CallToolResult [] True
-      Just ShareProjectSearchTool ->
-        case fromJSON callToolArguments of
-          Success (ShareProjectSearchToolArguments {query}) -> do
-            result <- UnliftIO.liftIO $ Share.shareSearch authenticatedHTTPClient query
-            case result of
-              Right searchResult -> do
-                let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode searchResult
-                pure $
-                  CallToolResult
-                    { callToolIsError = False,
-                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-                    }
-              Left err -> do
-                let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
-                pure $
-                  CallToolResult
-                    { callToolIsError = True,
-                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
-                    }
-          Error {} -> pure $ CallToolResult [] True
-      Just ShareProjectReadmeTool ->
-        case fromJSON callToolArguments of
-          Success (ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}) -> do
-            result <- UnliftIO.liftIO $ Share.shareProjectReadme authenticatedHTTPClient projectOwnerHandle projectName
-            case result of
-              Right ReadmeResponse {markdownReadMe} -> do
-                pure $
-                  CallToolResult
-                    { callToolIsError = False,
-                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just markdownReadMe}]
-                    }
-              Left err -> do
-                let errorMsg = "Error getting readme from Unison Share: " <> Text.pack (show err)
-                pure $
-                  CallToolResult
-                    { callToolIsError = True,
-                      callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
-                    }
-          Error {} -> pure $ CallToolResult [] True
-      Just TypecheckCodeTool ->
-        case fromJSON callToolArguments of
-          Success (TypecheckCodeToolArguments {code, projectContext}) -> do
-            output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
-            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+          Left err -> do
+            let errorMsg = "Error getting readme from Unison Share: " <> Text.pack (show err)
             pure $
               CallToolResult
-                { callToolIsError = False,
-                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-                }
-          Error {} -> pure $ CallToolResult [] True
-      Just DocsTool ->
-        case fromJSON callToolArguments of
-          Success (DocsToolArguments {name, projectContext}) -> do
-            output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
-            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-            pure $
-              CallToolResult
-                { callToolIsError = False,
-                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-                }
-          Error {} -> pure $ CallToolResult [] True
+                { callToolIsError = True,
+                  callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
+                },
+      mkToolHandler listProjectDefinitionsTool \(ProjectContextArgument projectContext) -> do
+        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') []]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler listProjectLibrariesTool \(ProjectContextArgument projectContext) -> do
+        let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment])
+        output <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler listLibraryDefinitionsTool \(ListLibraryDefinitionsToolArguments {libName, projectContext}) -> do
+        let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment, NameSegment.unsafeParseText libName])
+        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            }
+    ]
 
   -- Start the server with StdIO transport
   runServerWithSTDIO server
+
+data ToolHandler = ToolHandler
+  { tool :: Tool,
+    handler :: Aeson.Value -> MCP CallToolResult
+  }
+
+mkToolHandler :: (Aeson.FromJSON args) => Tool -> (args -> MCP CallToolResult) -> ToolHandler
+mkToolHandler tool handlerFunc =
+  ToolHandler
+    { tool,
+      handler = \v -> decodeHandler handlerFunc v
+    }
+  where
+    decodeHandler :: (Aeson.FromJSON args, Applicative m) => (args -> m CallToolResult) -> Aeson.Value -> m CallToolResult
+    decodeHandler handlerFunc v = do
+      case fromJSON v of
+        Success args -> handlerFunc args
+        Error err -> pure $ CallToolResult {callToolIsError = True, callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just $ "Invalid arguments: " <> Text.pack err}]}
+
+registerToolHandlers :: Env -> Server -> [ToolHandler] -> IO ()
+registerToolHandlers env server handlers = do
+  registerTools server (tool <$> handlers)
+  registerToolCallHandler server $ \(CallToolRequest {callToolName, callToolArguments}) -> do
+    case List.find (\(ToolHandler {tool = Tool {toolName}}) -> toolName == callToolName) handlers of
+      Nothing ->
+        pure $ CallToolResult {callToolIsError = True, callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just $ "Unknown tool: " <> callToolName}]}
+      Just ToolHandler {handler} -> do
+        runMCP env $ do
+          handler callToolArguments
 
 _projectCodeTool :: Tool
 _projectCodeTool =
@@ -425,8 +443,8 @@ docsTool =
             }
     }
 
-projectReadmeTool :: Tool
-projectReadmeTool =
+shareProjectReadmeTool :: Tool
+shareProjectReadmeTool =
   Tool
     { toolName = toToolName ShareProjectReadmeTool,
       toolDescription = Just "Fetch the README for a project from Unison Share. Read the markdownReadMe value in the response.",
@@ -494,6 +512,92 @@ listProjectDefinitionsTool =
         Just $
           ToolAnnotations
             { title = Just "List Project Definitions",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+listProjectLibrariesTool :: Tool
+listProjectLibrariesTool =
+  Tool
+    { toolName = toToolName ListProjectLibrariesTool,
+      toolDescription = Just "List the all libraries in the provided project's lib namespace.",
+      toolInputSchema =
+        fromMaybe (error "Invalid listProjectLibrariesTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to list libraries within."
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to list libraries within."
+                }
+              },
+              "required": ["projectName", "branchName"]
+            }
+          },
+          "required": ["projectContext"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "List Project Libraries",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+listLibraryDefinitionsTool :: Tool
+listLibraryDefinitionsTool =
+  Tool
+    { toolName = toToolName ListLibraryDefinitionsTool,
+      toolDescription = Just "List all definitions in the specified library.",
+      toolInputSchema =
+        fromMaybe (error "Invalid listLibraryDefinitionsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "libName": {
+              "type": "string",
+              "description": "The name of the library to list definitions for, e.g. \"unison_base_1_0_0\""
+            },
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to list definitions for"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to list definitions for"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            }
+          },
+          "required": ["projectContext", "libName"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "List Library Definitions",
               readOnlyHint = Just True,
               destructiveHint = Just False,
               idempotentHint = Just True,
