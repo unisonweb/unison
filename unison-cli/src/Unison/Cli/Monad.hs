@@ -406,18 +406,25 @@ switchProject pab@(ProjectAndBranch projectId branchId) = do
     Codebase.preloadProjectBranch env.codebase pab
     env.lspCheckForChanges newPP
 
--- | Pop the latest path off the stack, if it's not the only path in the stack.
+-- | Pop the latest path off the stack, if it's not the only path in the stack, and keep popping until we either get to
+-- a project branch that still exists (i.e. wasn't deleted), or we get to a singleton stack.
 --
--- Returns whether anything was popped.
+-- Returns whether the current path has changed.
 popd :: Cli Bool
 popd = do
+  let loop = \case
+        [] -> pure Nothing
+        path : paths ->
+          Q.projectBranchExists path.project path.branch >>= \case
+            True -> do
+              Codebase.setCurrentProjectPath path
+              pure (Just (path, paths))
+            False -> loop paths
   state <- State.get
-  case List.NonEmpty.uncons (projectPathStack state) of
-    (_, Nothing) -> pure False
-    (_, Just paths) -> do
-      let path = List.NonEmpty.head paths
-      runTransaction (Codebase.setCurrentProjectPath path)
-      State.put state {projectPathStack = paths}
+  runTransaction (loop (List.NonEmpty.tail (projectPathStack state))) >>= \case
+    Nothing -> pure False
+    Just (path, paths) -> do
+      #projectPathStack .= (path List.NonEmpty.:| paths)
       env <- ask
       liftIO (env.lspCheckForChanges path)
       pure True
