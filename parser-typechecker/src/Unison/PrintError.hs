@@ -685,7 +685,7 @@ renderTypeError e env src = case e of
         Type.Var' (TypeVar.Existential {}) -> mempty
         _ -> Pr.wrap $ "It should be of type " <> Pr.group (style Type1 (renderType' env expectedType) <> ".")
   UnknownTerm {..} ->
-    let (correct, rightNameWrongTypes, wrongNameRightTypes, similarNameRightTypes, similarNameWrongTypes) =
+    let (suggestionsRightNameRightType, suggestionsRightNameWrongType, suggestionsWrongNameRightType, suggestionsSimilarNameRightType, suggestionsSimilarNameWrongType) =
           foldr
             sep
             id
@@ -700,16 +700,15 @@ renderTypeError e env src = case e of
             C.SimilarNameWrongType -> (_5 %~ (s :)) . r
         undefinedSymbolHelp =
           mconcat
-            [ ( case expectedType of
-                  Type.Var' (TypeVar.Existential {}) ->
-                    Pr.wrap "I also don't know what type it should be."
-                  _ ->
-                    mconcat
-                      [ Pr.wrap "I think its type should be:",
-                        "\n\n",
-                        Pr.indentN 4 (style Type1 (renderType' env expectedType))
-                      ]
-              ),
+            [ case expectedType of
+                Type.Var' (TypeVar.Existential {}) ->
+                  Pr.wrap "I also don't know what type it should be."
+                _ ->
+                  mconcat
+                    [ Pr.wrap "I think its type should be:",
+                      "\n\n",
+                      Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                    ],
               "\n\n",
               Pr.hang
                 "Some common causes of this error include:"
@@ -720,89 +719,83 @@ renderTypeError e env src = case e of
                     ]
                 )
             ]
+
+        -- Handle various types of transitions
+        -- The suggestions should be ordered such that handling the first set of suggestions that is non-empty is sufficient
+        handleSuggestions (suggestionsRightNameRightType, _, _, _, _)
+          | not $ null suggestionsRightNameRightType =
+              mconcat
+                [ Pr.wrap
+                    ( mconcat
+                        [ mconcat
+                            [ "The name ",
+                              style Identifier (Var.nameStr unknownTermV),
+                              " is ambiguous. "
+                            ],
+                          case expectedType of
+                            Type.Var' (TypeVar.Existential {}) -> "I couldn't narrow it down by type, as any type would work here."
+                            _ ->
+                              "Its type should be:\n\n"
+                                <> Pr.indentN 4 (style Type1 (renderType' env expectedType))
+                        ]
+                    ),
+                  "\n\n",
+                  Pr.wrap "I found some terms in scope that have matching names and types. Maybe you meant one of these:",
+                  "\n\n",
+                  intercalateMap "\n" (renderSuggestion env) suggestionsRightNameRightType
+                ]
+        handleSuggestions (_, suggestionsRightNameWrongType, _, _, _)
+          | not $ null suggestionsRightNameWrongType =
+              let helpMeOut =
+                    Pr.wrap
+                      ( mconcat
+                          [ "Help me out by",
+                            Pr.bold "using a more specific name here",
+                            "or",
+                            Pr.bold "adding a type annotation."
+                          ]
+                      )
+               in Pr.wrap
+                    ( "The name "
+                        <> style Identifier (Var.nameStr unknownTermV)
+                        <> " is ambiguous. I tried to resolve it by type but"
+                    )
+                    <> " "
+                    <> case expectedType of
+                      Type.Var' (TypeVar.Existential {}) -> Pr.wrap ("its type could be anything." <> helpMeOut) <> "\n"
+                      _ ->
+                        mconcat
+                          [ Pr.wrap $
+                              mconcat
+                                [ "no term with that name would pass typechecking.",
+                                  "I think its type should be:"
+                                ],
+                            "\n\n",
+                            Pr.indentN 4 (style Type1 (renderType' env expectedType)),
+                            "\n\n",
+                            Pr.wrap
+                              ( mconcat
+                                  [ "If that's not what you expected, you may have a type error somewhere else in your code.",
+                                    helpMeOut
+                                  ]
+                              )
+                          ]
+                    <> "\n\n"
+                    <> formatWrongs preambleRightNameWrongType suggestionsRightNameWrongType
+        handleSuggestions (_, _, suggestionsSimilarNameRightType, _, _)
+          | not $ null suggestionsSimilarNameRightType =
+              formatWrongs preambleSimilarNameRightType suggestionsSimilarNameRightType
+        handleSuggestions (_, _, _, suggestionsWrongNameRightType, suggestionsSimilarNameWrongType)
+          | not $ null (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType) =
+              formatWrongs preambleDifferentNameWrongType (suggestionsSimilarNameWrongType ++ suggestionsWrongNameRightType)
+        handleSuggestions (_, _, _, _, _) = undefinedSymbolHelp
      in mconcat
           [ "I couldn't figure out what ",
             style ErrorSite (Var.nameStr unknownTermV),
             " refers to here:\n\n",
             annotatedAsErrorSite src termSite,
             "\n",
-            case correct of
-              [] -> case rightNameWrongTypes of
-                [] -> case similarNameRightTypes of
-                  [] ->
-                    -- If available, show any 'WrongNameRightType' or 'SimilarNameWrongType' suggestions
-                    -- Otherwise if no suggestions are available show 'undefinedSymbolHelp'
-                    if null wrongNameRightTypes && null similarNameWrongTypes
-                      then undefinedSymbolHelp
-                      else
-                        mconcat
-                          [ if null similarNameWrongTypes
-                              then ""
-                              else formatWrongs similarNameWrongTypeText similarNameWrongTypes,
-                            if null wrongNameRightTypes
-                              then ""
-                              else formatWrongs wrongNameRightTypeText wrongNameRightTypes
-                          ]
-                  similarNameRightTypes -> formatWrongs similarNameRightTypeText similarNameRightTypes
-                rightNameWrongTypes ->
-                  let helpMeOut =
-                        Pr.wrap
-                          ( mconcat
-                              [ "Help me out by",
-                                Pr.bold "using a more specific name here",
-                                "or",
-                                Pr.bold "adding a type annotation."
-                              ]
-                          )
-                   in Pr.wrap
-                        ( "The name "
-                            <> style Identifier (Var.nameStr unknownTermV)
-                            <> " is ambiguous. I tried to resolve it by type but"
-                        )
-                        <> " "
-                        <> case expectedType of
-                          Type.Var' (TypeVar.Existential {}) -> Pr.wrap ("its type could be anything." <> helpMeOut) <> "\n"
-                          _ ->
-                            mconcat
-                              [ ( Pr.wrap $
-                                    mconcat
-                                      [ "no term with that name would pass typechecking.",
-                                        "I think its type should be:"
-                                      ]
-                                ),
-                                "\n\n",
-                                Pr.indentN 4 (style Type1 (renderType' env expectedType)),
-                                "\n\n",
-                                Pr.wrap
-                                  ( mconcat
-                                      [ "If that's not what you expected, you may have a type error somewhere else in your code.",
-                                        helpMeOut
-                                      ]
-                                  )
-                              ]
-                        <> "\n\n"
-                        <> formatWrongs rightNameWrongTypeText rightNameWrongTypes
-              suggs ->
-                mconcat
-                  [ Pr.wrap
-                      ( mconcat
-                          [ mconcat
-                              [ "The name ",
-                                style Identifier (Var.nameStr unknownTermV),
-                                " is ambiguous. "
-                              ],
-                            case expectedType of
-                              Type.Var' (TypeVar.Existential {}) -> "I couldn't narrow it down by type, as any type would work here."
-                              _ ->
-                                "Its type should be:\n\n"
-                                  <> Pr.indentN 4 (style Type1 (renderType' env expectedType))
-                          ]
-                      ),
-                    "\n\n",
-                    Pr.wrap "I found some terms in scope that have matching names and types. Maybe you meant one of these:",
-                    "\n\n",
-                    intercalateMap "\n" (renderSuggestion env) suggs
-                  ]
+            handleSuggestions (suggestionsRightNameRightType, suggestionsRightNameWrongType, suggestionsWrongNameRightType, suggestionsSimilarNameRightType, suggestionsSimilarNameWrongType)
           ]
   DuplicateDefinitions {..} ->
     mconcat
@@ -862,46 +855,64 @@ renderTypeError e env src = case e of
         summary note
       ]
   where
-    rightNameWrongTypeText _ =
-      mconcat
-        [ "I found one or more terms in scope with the ",
-          Pr.bold "right names ",
-          "but the ",
-          Pr.bold "wrong types.",
-          "\n",
-          "If you meant to use one of these, try using it with its full name and then adjusting types",
-          ":\n\n"
-        ]
-    similarNameRightTypeText _ =
-      mconcat
-        [ "I found one or more terms in scope with ",
-          Pr.bold "similar names ",
-          "and the ",
-          Pr.bold "right types.",
-          "\n",
-          "If you meant to use one of these, try using it instead",
-          ":\n\n"
-        ]
-    similarNameWrongTypeText _ =
-      mconcat
-        [ "I found one or more terms in scope with ",
-          Pr.bold "similar names ",
-          "but the ",
-          Pr.bold "wrong types.",
-          "\n",
-          "If you meant to use one of these, try using it instead and then adjusting types",
-          ":\n\n"
-        ]
-    wrongNameRightTypeText _ =
-      mconcat
-        [ "I found one or more terms in scope with the ",
-          Pr.bold "wrong names ",
-          "but the ",
-          Pr.bold "right types.",
-          "\n",
-          "If you meant to use one of these, try using it instead",
-          ":\n\n"
-        ]
+    preambleRightNameWrongType pl =
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "matching name",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different type",
+              pl "" "s",
+              ". ",
+              "If ",
+              pl "this" "one of these",
+              " is what you meant, try using its full name:"
+            ]
+        )
+        <> "\n\n"
+    preambleSimilarNameRightType pl =
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "matching type",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different name",
+              pl "" "s",
+              ". ",
+              "Maybe you meant ",
+              pl "this" "one of these",
+              ":\n\n"
+            ]
+        )
+    preambleDifferentNameWrongType pl =
+      Pr.paragraphyText
+        ( mconcat
+            [ "I found ",
+              pl "a term" "some terms",
+              " in scope with ",
+              pl "a " "",
+              "similar name",
+              pl "" "s",
+              " but ",
+              pl "a " "",
+              "different type",
+              pl "" "s",
+              ". ",
+              "Maybe you meant ",
+              pl "this" "one of these",
+              ":\n\n"
+            ]
+        )
     formatWrongs txt wrongs =
       let sz = length wrongs
           pl a b = if sz == 1 then a else b

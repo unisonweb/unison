@@ -338,8 +338,8 @@ scratch/main> load
 
      19 |   bar21
 
-  I found one or more terms in scope with similar names and the right types.
-  If you meant to use one of these, try using it instead:
+  I found a term in scope with a similar name but a different 
+  type. Maybe you meant this:
 
   bar1 : Nat
 ```
@@ -391,8 +391,8 @@ scratch/main> load
 
       6 |   a1
 
-  I found one or more terms in scope with similar names and the right types.
-  If you meant to use one of these, try using it instead:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
   (<|) : (i ->{g} o) -> i ->{g} o
   Bytes.at : Nat -> Bytes -> Optional Nat

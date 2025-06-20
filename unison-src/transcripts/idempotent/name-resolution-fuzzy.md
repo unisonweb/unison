@@ -64,9 +64,10 @@ myFunction = TRuncate
 
       4 | myFunction = TRuncate
 
-  I found one or more terms in scope with similar names and the right types.
-  If you meant to use one of these, try using it instead:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
+  truncate0 : Int -> Nat
   truncate : Float -> Int
 ```
 
@@ -84,8 +85,8 @@ myFunction = builtin.io2.Ref.ca1
 
       4 | myFunction = builtin.io2.Ref.ca1
 
-  I found one or more terms in scope with similar names and the right types.
-  If you meant to use one of these, try using it instead:
+  I found a term in scope with a similar name but a different 
+  type. Maybe you meant this:
 
   cas : Ref {IO} a -> Ticket a -> a ->{IO} Boolean
 ```
@@ -115,8 +116,8 @@ x = biz.bete
 
       2 | x = biz.bete
 
-  I found one or more terms in scope with similar names and the right types.
-  If you meant to use one of these, try using it instead:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
   byte : Boolean
   bite : Nat
@@ -139,8 +140,8 @@ myFunction = Flat.TRuncate2x4
 
       3 | myFunction = Flat.TRuncate2x4
 
-  I found one or more terms in scope with similar names but the wrong types.
-  If you meant to use one of these, try using it instead and then adjusting types:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
   truncate : Float -> Int
   truncate0 : Int -> Nat
@@ -160,8 +161,8 @@ myFunction = X
 
       4 | myFunction = X
 
-  I found one or more terms in scope with similar names but the wrong types.
-  If you meant to use one of these, try using it instead and then adjusting types:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
   (Float.*) : Float -> Float -> Float
   (Int.*) : Int -> Int -> Int
@@ -182,8 +183,8 @@ myFunction = In.X
 
       4 | myFunction = In.X
 
-  I found one or more terms in scope with similar names but the wrong types.
-  If you meant to use one of these, try using it instead and then adjusting types:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
   (Int.*) : Int -> Int -> Int
   (Int.+) : Int -> Int -> Int
@@ -214,9 +215,11 @@ f =
 
      10 |   if A then xYzlmno else ()
 
-  I found one or more terms in scope with similar names and the right types.
-  If you meant to use one of these, try using it instead:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
+  (Float.*) : Float -> Float -> Float
+  (Int.*) : Int -> Int -> Int
   a : Boolean
 ```
 
@@ -240,8 +243,8 @@ f =
 
      10 |   if R.xYzlmno then A else ()
 
-  I found one or more terms in scope with similar names but the wrong types.
-  If you meant to use one of these, try using it instead and then adjusting types:
+  I found a term in scope with a similar name but a different 
+  type. Maybe you meant this:
 
   L.xyzlmno : Int
 ```

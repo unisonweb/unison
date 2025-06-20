@@ -388,10 +388,8 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
                   (TypeVar.liftType foundType)
                   replace
                   if not fuzzyNameMatch
-                    then
-                      if typeMatches then Context.Exact else Context.RightNameWrongType
-                    else
-                      if typeMatches then Context.SimilarNameRightType else Context.SimilarNameWrongType
+                    then if typeMatches then Context.Exact else Context.RightNameWrongType
+                    else if typeMatches then Context.SimilarNameRightType else Context.SimilarNameWrongType
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors

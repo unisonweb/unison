@@ -89,8 +89,8 @@ ex4 =
 
       2 |   (a,b) = (a Nat.+ b, 19)
 
-  I found one or more terms in scope with similar names but the wrong types.
-  If you meant to use one of these, try using it instead and then adjusting types:
+  I found some terms in scope with similar names but different 
+  types. Maybe you meant one of these:
 
   (Float.*) : Float -> Float -> Float
   (Int.*) : Int -> Int -> Int
