@@ -10,8 +10,10 @@ module Unison.MCP.Types
     ShareProjectSearchToolArguments (..),
     TypecheckCodeToolArguments (..),
     ShareProjectReadmeToolArguments (..),
+    ListLibraryDefinitionsToolArguments (..),
     DocsToolArguments (..),
     ProjectContext (..),
+    ProjectContextArgument (..),
     toToolName,
     fromToolName,
   )
@@ -59,6 +61,8 @@ data ToolKind
   | TypecheckCodeTool
   | DocsTool
   | ListProjectDefinitionsTool
+  | ListProjectLibrariesTool
+  | ListLibraryDefinitionsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -70,20 +74,30 @@ kindNameMapping =
       (ShareProjectReadmeTool, "share-project-readme"),
       (TypecheckCodeTool, "typecheck-code"),
       (DocsTool, "docs"),
-      (ListProjectDefinitionsTool, "list-project-definitions")
+      (ListProjectDefinitionsTool, "list-project-definitions"),
+      (ListProjectLibrariesTool, "list-project-libraries"),
+      (ListLibraryDefinitionsTool, "list-library-definitions")
     ]
 
-data ProjectContextArgument = ProjectContextArgument
-  { projectName :: ProjectName,
-    branchName :: ProjectBranchName
-  }
+data ProjectContextArgument = ProjectContextArgument ProjectContext
   deriving (Eq, Show)
 
 instance FromJSON ProjectContextArgument where
   parseJSON = withObject "ProjectContextArgument" $ \o -> do
-    projectName <- UnsafeProjectName <$> o .: "projectName"
-    branchName <- UnsafeProjectBranchName <$> o .: "branchName"
-    pure $ ProjectContextArgument {projectName, branchName}
+    projectContext <- o .: "projectContext"
+    pure $ ProjectContextArgument projectContext
+
+data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
+  { projectContext :: ProjectContext,
+    libName :: Text
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ListLibraryDefinitionsToolArguments where
+  parseJSON = withObject "ListLibraryDefinitionsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    libName <- o .: "libName"
+    pure $ ListLibraryDefinitionsToolArguments {projectContext, libName}
 
 data ShareProjectReadmeToolArguments = ShareProjectReadmeToolArguments
   { projectName :: Text,
