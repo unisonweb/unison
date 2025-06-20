@@ -7,7 +7,7 @@ module Unison.Codebase.Editor.HandleInput.Update2
   )
 where
 
-import Control.Lens (mapped, (.=))
+import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Foldable qualified as Foldable
@@ -236,10 +236,12 @@ handleUpdate2 = do
                           pure ()
 
                       scratchFilePath <- fst <$> Cli.expectLatestFile
+                      #latestFile ?= (scratchFilePath, True)
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
                       done Output.UpdateTypecheckingFailure
                     else do
                       scratchFilePath <- fst <$> Cli.expectLatestFile
+                      #latestFile ?= (scratchFilePath, True)
                       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
                       done Output.UpdateTypecheckingFailure
 
