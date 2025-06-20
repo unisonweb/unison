@@ -713,7 +713,16 @@ listLocalProjectsTool =
   Tool
     { toolName = toToolName ListLocalProjectsTool,
       toolDescription = Just "List all local projects.",
-      toolInputSchema = Aeson.object [],
+      toolInputSchema =
+        fromMaybe (error "Invalid listLocalProjectsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+        |],
       toolAnnotations =
         Just $
           ToolAnnotations
@@ -761,7 +770,15 @@ getCurrentProjectContextTool =
   Tool
     { toolName = toToolName GetCurrentProjectContextTool,
       toolDescription = Just "Get the current project context.",
-      toolInputSchema = Aeson.object [],
+      toolInputSchema =
+        fromMaybe (error "Invalid getCurrentProjectContextTool schema") $
+          Aeson.decode $
+            [r|
+          { "type": "object",
+            "properties": {},
+            "required": []
+          }
+            |],
       toolAnnotations =
         Just $
           ToolAnnotations
