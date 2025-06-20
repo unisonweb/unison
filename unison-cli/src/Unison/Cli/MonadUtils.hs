@@ -442,7 +442,7 @@ updateProjectBranchRoot projectBranch reason f = do
         liftIO (env.lspCheckForChanges projectPathIds)
     pure result
 
-setProjectBranchRootToCausalHash :: ProjectBranch -> Text -> CausalHash -> Cli ()
+setProjectBranchRootToCausalHash :: (HasCallStack) => ProjectBranch -> Text -> CausalHash -> Cli ()
 setProjectBranchRootToCausalHash projectBranch reason targetCH = do
   Cli.time "setProjectBranchRootToCausalHash" do
     Cli.runTransaction $ do

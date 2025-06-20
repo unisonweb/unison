@@ -131,6 +131,7 @@ module U.Codebase.Sqlite.Queries
     renameProjectBranch,
     deleteProjectBranch,
     setProjectBranchHead,
+    loadProjectBranchHead,
     expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
@@ -3968,14 +3969,21 @@ setProjectBranchHead description projectId branchId causalHashId = do
         reason = description
       }
 
+loadProjectBranchHead :: ProjectId -> ProjectBranchId -> Transaction (Maybe CausalHashId)
+loadProjectBranchHead projectId branchId =
+  queryMaybeCol (loadProjectBranchHeadSql projectId branchId)
+
 expectProjectBranchHead :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction CausalHashId
 expectProjectBranchHead projectId branchId =
-  queryOneCol
-    [sql|
-      SELECT causal_hash_id
-      FROM project_branch
-      WHERE project_id = :projectId AND branch_id = :branchId
-    |]
+  queryOneCol (loadProjectBranchHeadSql projectId branchId)
+
+loadProjectBranchHeadSql :: ProjectId -> ProjectBranchId -> Sql
+loadProjectBranchHeadSql projectId branchId =
+  [sql|
+    SELECT causal_hash_id
+    FROM project_branch
+    WHERE project_id = :projectId AND branch_id = :branchId
+  |]
 
 data LoadRemoteBranchFlag
   = IncludeSelfRemote
