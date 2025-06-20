@@ -12,6 +12,8 @@ module Unison.MCP.Types
     ShareProjectReadmeToolArguments (..),
     ListLibraryDefinitionsToolArguments (..),
     ViewDefinitionsToolArguments (..),
+    SearchDefinitionsToolArguments (..),
+    SearchByTypeToolArguments (..),
     DocsToolArguments (..),
     ProjectContext (..),
     ProjectContextArgument (..),
@@ -66,6 +68,8 @@ data ToolKind
   | ListProjectLibrariesTool
   | ListLibraryDefinitionsTool
   | ViewDefinitionsTool
+  | SearchDefinitionsTool
+  | SearchByTypeTool
   | ListLocalProjectsTool
   | ListProjectBranchesTool
   | GetCurrentProjectContextTool
@@ -85,6 +89,8 @@ kindNameMapping =
       (ListProjectLibrariesTool, "list-project-libraries"),
       (ListLibraryDefinitionsTool, "list-library-definitions"),
       (ViewDefinitionsTool, "view-definitions"),
+      (SearchDefinitionsTool, "search-definitions-by-name"),
+      (SearchByTypeTool, "search-by-type"),
       (ListLocalProjectsTool, "list-local-projects"),
       (ListProjectBranchesTool, "list-project-branches"),
       (GetCurrentProjectContextTool, "get-current-project-context"),
@@ -108,6 +114,30 @@ instance FromJSON ProjectNameArgument where
   parseJSON = withObject "ProjectNameArgument" $ \o -> do
     projectName <- UnsafeProjectName <$> o .: "projectName"
     pure $ ProjectNameArgument {projectName}
+
+data SearchByTypeToolArguments = SearchByTypeToolArguments
+  { projectContext :: ProjectContext,
+    query :: Text
+  }
+  deriving (Eq, Show)
+
+instance FromJSON SearchByTypeToolArguments where
+  parseJSON = withObject "SearchByTypeToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    query <- o .: "query"
+    pure $ SearchByTypeToolArguments {projectContext, query}
+
+data SearchDefinitionsToolArguments = SearchDefinitionsToolArguments
+  { projectContext :: ProjectContext,
+    query :: Text
+  }
+  deriving (Eq, Show)
+
+instance FromJSON SearchDefinitionsToolArguments where
+  parseJSON = withObject "SearchDefinitionsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    query <- o .: "query"
+    pure $ SearchDefinitionsToolArguments {projectContext, query}
 
 data ViewDefinitionsToolArguments = ViewDefinitionsToolArguments
   { projectContext :: ProjectContext,

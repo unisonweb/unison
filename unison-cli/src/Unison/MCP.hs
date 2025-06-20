@@ -1,5 +1,6 @@
 module Unison.MCP (runOnStdIO) where
 
+import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson (Result (..), fromJSON)
 import Data.Aeson qualified as Aeson
@@ -17,8 +18,10 @@ import Text.RawString.QQ (r)
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
 import Unison.Auth.Tokens qualified as AuthN
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
@@ -38,6 +41,7 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchNameOrLatestRelease (..))
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
+import Unison.Util.Relation qualified as R
 import UnliftIO qualified
 
 serverDescription :: Text
@@ -88,7 +92,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
 
   registerToolHandlers env server $
     [ mkToolHandler installLibTool \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
-        (_r, output) <- cliToMCP projectContext $ do
+        (_r, output) <- lift $ cliToMCP projectContext $ do
           handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $
@@ -114,7 +118,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                   callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
                 },
       mkToolHandler typecheckCodeTool \(TypecheckCodeToolArguments {code, projectContext}) -> do
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
+        output <- lift $ handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $
           CallToolResult
@@ -122,7 +126,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
               callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
             },
       mkToolHandler docsTool \(DocsToolArguments {name, projectContext}) -> do
-        output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
+        output <- lift $ handleInputMCP projectContext [Right $ DocToMarkdownI name]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $
           CallToolResult
@@ -146,16 +150,34 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                   callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just errorMsg}]
                 },
       mkToolHandler listProjectDefinitionsTool \(ProjectContextArgument projectContext) -> do
-        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') []]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
-        pure $
-          CallToolResult
-            { callToolIsError = False,
-              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
-            },
+        lift $
+          cliToMCP projectContext Cli.getCurrentBranch0 >>= \case
+            (Just b, _output) -> do
+              let noLibBranch = Branch.deleteLibdeps b
+              if (R.null $ Branch.deepTerms noLibBranch) && (R.null $ Branch.deepTypes noLibBranch)
+                then
+                  pure $
+                    CallToolResult
+                      { callToolIsError = False,
+                        callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just "No definitions found in the project. There may be definitions within the project's installed libraries."}]
+                      }
+                else do
+                  definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') []]
+                  let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+                  pure $
+                    CallToolResult
+                      { callToolIsError = False,
+                        callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+                      }
+            _ ->
+              pure $
+                CallToolResult
+                  { callToolIsError = True,
+                    callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just "No current branch found"}]
+                  },
       mkToolHandler listProjectLibrariesTool \(ProjectContextArgument projectContext) -> do
         let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment])
-        output <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
+        output <- lift $ handleInputMCP projectContext [Right $ Input.FindShallowI libPath]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $
           CallToolResult
@@ -164,7 +186,23 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
             },
       mkToolHandler listLibraryDefinitionsTool \(ListLibraryDefinitionsToolArguments {libName, projectContext}) -> do
         let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment, NameSegment.unsafeParseText libName])
-        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
+        definitions <- lift $ handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler searchDefinitionsTool \(SearchDefinitionsToolArguments {projectContext, query}) -> do
+        definitions <- lift $ handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [Text.unpack query]]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler searchByTypeTool \(SearchByTypeToolArguments {projectContext, query}) -> do
+        definitions <- lift $ handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [":", Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
         pure $
           CallToolResult
@@ -181,7 +219,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                 }
           Just nonEmptyNames -> do
             let names' = HQ.NameOnly <$> nonEmptyNames
-            definitions <- handleInputMCP projectContext [Right $ Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal names']
+            definitions <- lift $ handleInputMCP projectContext [Right $ Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal names']
             let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
             pure $
               CallToolResult
@@ -189,8 +227,8 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
                   callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
                 },
       mkToolHandler listLocalProjectsTool \(()) -> do
-        pc <- currentProjectContext
-        projects <- handleInputMCP pc [Right Input.ProjectsI]
+        pc <- lift $ currentProjectContext
+        projects <- lift $ handleInputMCP pc [Right Input.ProjectsI]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projects
         pure $
           CallToolResult
@@ -198,8 +236,8 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
               callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
             },
       mkToolHandler listProjectBranchesTool \(ProjectNameArgument {projectName}) -> do
-        projectContext <- currentProjectContext
-        branches <- handleInputMCP projectContext [Right $ Input.BranchesI (Just projectName)]
+        projectContext <- lift $ currentProjectContext
+        branches <- lift $ handleInputMCP projectContext [Right $ Input.BranchesI (Just projectName)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode branches
         pure $
           CallToolResult
@@ -207,7 +245,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
               callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
             },
       mkToolHandler getCurrentProjectContextTool \(()) -> do
-        projectContext <- currentProjectContext
+        projectContext <- lift $ currentProjectContext
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projectContext
         pure $
           CallToolResult
@@ -216,7 +254,7 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
             },
       mkToolHandler setCurrentProjectContextTool \(ProjectContextArgument projectContext) -> do
         -- Set the current project context
-        output <- handleInputMCP projectContext [Right $ Input.ProjectSwitchI (ProjectAndBranchNames'Unambiguous $ These projectContext.projectName projectContext.branchName)]
+        output <- lift $ handleInputMCP projectContext [Right $ Input.ProjectSwitchI (ProjectAndBranchNames'Unambiguous $ These projectContext.projectName projectContext.branchName)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $
           CallToolResult
@@ -243,11 +281,14 @@ data ToolHandler = ToolHandler
     handler :: Aeson.Value -> MCP CallToolResult
   }
 
-mkToolHandler :: (Aeson.FromJSON args) => Tool -> (args -> MCP CallToolResult) -> ToolHandler
+mkToolHandler :: (Aeson.FromJSON args) => Tool -> (args -> ExceptT Text MCP CallToolResult) -> ToolHandler
 mkToolHandler tool handlerFunc =
   ToolHandler
     { tool,
-      handler = \v -> decodeHandler handlerFunc v
+      handler = \v -> do
+        runExceptT (decodeHandler handlerFunc v) >>= \case
+          Left err -> pure $ CallToolResult {callToolIsError = True, callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just $ err}]}
+          Right result -> pure result
     }
   where
     decodeHandler :: (Aeson.FromJSON args, Applicative m) => (args -> m CallToolResult) -> Aeson.Value -> m CallToolResult
@@ -267,47 +308,47 @@ registerToolHandlers env server handlers = do
         runMCP env $ do
           handler callToolArguments
 
-_projectCodeTool :: Tool
-_projectCodeTool =
-  Tool
-    { toolName = toToolName ProjectCodeTool,
-      toolDescription = Just "Fetch all of the code within a project",
-      -- JSON Schema for the tool input.
-      -- Which is just the name of the project.
-      toolInputSchema =
-        fromMaybe (error "Invalid projectCodeTool schema") $
-          Aeson.decode $
-            [r|
-        {
-          "type": "object",
-          "properties": {
-            "projectContext": {
-              "type": "object",
-              "properties": {
-                "projectName": {
-                  "type": "string",
-                  "description": "The name of the project to fetch code for"
-                },
-                "branchName": {
-                  "type": "string",
-                  "description": "The branch of the project to fetch code for"
-                }
-              },
-              "required": ["projectName", "branchName"]
-            }
-          }
-        }
-        |],
-      toolAnnotations =
-        Just $
-          ToolAnnotations
-            { title = Just "Project Code",
-              readOnlyHint = Just True,
-              destructiveHint = Just False,
-              idempotentHint = Just True,
-              openWorldHint = Just False
-            }
-    }
+-- _projectCodeTool :: Tool
+-- _projectCodeTool =
+--   Tool
+--     { toolName = toToolName ProjectCodeTool,
+--       toolDescription = Just "Fetch all of the code within a project",
+--       -- JSON Schema for the tool input.
+--       -- Which is just the name of the project.
+--       toolInputSchema =
+--         fromMaybe (error "Invalid projectCodeTool schema") $
+--           Aeson.decode $
+--             [r|
+--         {
+--           "type": "object",
+--           "properties": {
+--             "projectContext": {
+--               "type": "object",
+--               "properties": {
+--                 "projectName": {
+--                   "type": "string",
+--                   "description": "The name of the project to fetch code for"
+--                 },
+--                 "branchName": {
+--                   "type": "string",
+--                   "description": "The branch of the project to fetch code for"
+--                 }
+--               },
+--               "required": ["projectName", "branchName"]
+--             }
+--           }
+--         }
+--         |],
+--       toolAnnotations =
+--         Just $
+--           ToolAnnotations
+--             { title = Just "Project Code",
+--               readOnlyHint = Just True,
+--               destructiveHint = Just False,
+--               idempotentHint = Just True,
+--               openWorldHint = Just False
+--             }
+--     }
 
 installLibTool :: Tool
 installLibTool =
@@ -315,7 +356,7 @@ installLibTool =
     { toolName = toToolName LibInstallTool,
       toolDescription = Just "Install a library from Unison Share into the specified project.",
       toolInputSchema =
-        fromMaybe (error "Invalid projectCodeTool schema") $
+        fromMaybe (error "Invalid Lib Tool schema") $
           Aeson.decode $
             [r|
         {
@@ -337,11 +378,11 @@ installLibTool =
             },
             "libProjectName": {
               "type": "string",
-              "description": "The name of the library project to install"
+              "description": "The uer-qualified name of the library project to install, e.g. `@unison/base` or `@ceedubs/json`"
             },
             "libBranchName": {
               "type": ["string", "null"],
-              "description": "The optional branch of the library project to install. If null, the latest release will be used."
+              "description": "The optional branch of the library project to install, E.g. `main`. If null, the latest release will be used."
             }
           },
           "required": ["libProjectName"]
@@ -663,7 +704,7 @@ viewDefinitionsTool :: Tool
 viewDefinitionsTool =
   Tool
     { toolName = toToolName ViewDefinitionsTool,
-      toolDescription = Just "View the source code of the specified definitions",
+      toolDescription = Just "View the source code of the specified definitions. Definitions inside a library must be prefixed by their full library prefix, e.g. `lib.unison_base_1_0_0.data.List`",
       toolInputSchema =
         fromMaybe (error "Invalid viewDefinitionsTool schema") $
           Aeson.decode $
@@ -819,6 +860,96 @@ setCurrentProjectContextTool =
           ToolAnnotations
             { title = Just "Set Current Project Context",
               readOnlyHint = Just False,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+searchDefinitionsTool :: Tool
+searchDefinitionsTool =
+  Tool
+    { toolName = toToolName SearchDefinitionsTool,
+      toolDescription = Just "Search for definitions in the current project or its library dependencies by name.",
+      toolInputSchema =
+        fromMaybe (error "Invalid searchDefinitionsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to search within"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to search within"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            },
+            "query": {
+              "type": "string",
+              "description": "A name to search for, e.g. `foldl`."
+            }
+          },
+        "required": ["projectContext", "query"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Search Definitions By Name",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+searchByTypeTool :: Tool
+searchByTypeTool =
+  Tool
+    { toolName = toToolName SearchByTypeTool,
+      toolDescription = Just "Search for definitions in the current project or its library dependencies by type.",
+      toolInputSchema =
+        fromMaybe (error "Invalid searchDefinitionsTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to search within"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to search within"
+                }
+              },
+              "required": ["projectName", "branchName"]
+            },
+            "query": {
+              "type": "string",
+              "description": "A type to search for, e.g. `[Nat] -> Nat`."
+            }
+          },
+        "required": ["projectContext", "query"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Search Definitions By Type",
+              readOnlyHint = Just True,
               destructiveHint = Just False,
               idempotentHint = Just True,
               openWorldHint = Just False
