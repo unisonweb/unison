@@ -15,6 +15,7 @@ module Unison.MCP.Types
     DocsToolArguments (..),
     ProjectContext (..),
     ProjectContextArgument (..),
+    ProjectNameArgument (..),
     toToolName,
     fromToolName,
   )
@@ -66,6 +67,9 @@ data ToolKind
   | ListLibraryDefinitionsTool
   | ViewDefinitionsTool
   | ListLocalProjectsTool
+  | ListProjectBranchesTool
+  | GetCurrentProjectContextTool
+  | SetCurrentProjectContextTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -81,7 +85,10 @@ kindNameMapping =
       (ListProjectLibrariesTool, "list-project-libraries"),
       (ListLibraryDefinitionsTool, "list-library-definitions"),
       (ViewDefinitionsTool, "view-definitions"),
-      (ListLocalProjectsTool, "list-local-projects")
+      (ListLocalProjectsTool, "list-local-projects"),
+      (ListProjectBranchesTool, "list-project-branches"),
+      (GetCurrentProjectContextTool, "get-current-project-context"),
+      (SetCurrentProjectContextTool, "set-current-project-context")
     ]
 
 data ProjectContextArgument = ProjectContextArgument ProjectContext
@@ -91,6 +98,16 @@ instance FromJSON ProjectContextArgument where
   parseJSON = withObject "ProjectContextArgument" $ \o -> do
     projectContext <- o .: "projectContext"
     pure $ ProjectContextArgument projectContext
+
+data ProjectNameArgument = ProjectNameArgument
+  { projectName :: ProjectName
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ProjectNameArgument where
+  parseJSON = withObject "ProjectNameArgument" $ \o -> do
+    projectName <- UnsafeProjectName <$> o .: "projectName"
+    pure $ ProjectNameArgument {projectName}
 
 data ViewDefinitionsToolArguments = ViewDefinitionsToolArguments
   { projectContext :: ProjectContext,
@@ -175,6 +192,13 @@ instance FromJSON ProjectContext where
     projectName <- UnsafeProjectName <$> o .: "projectName"
     branchName <- UnsafeProjectBranchName <$> o .: "branchName"
     pure $ ProjectContext {projectName, branchName}
+
+instance ToJSON ProjectContext where
+  toJSON (ProjectContext (UnsafeProjectName projectName) (UnsafeProjectBranchName branchName)) =
+    object
+      [ "projectName" .= projectName,
+        "branchName" .= branchName
+      ]
 
 data LibInstallToolArguments = LibInstallToolArguments
   { projectContext :: ProjectContext,

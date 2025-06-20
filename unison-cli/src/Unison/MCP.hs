@@ -9,6 +9,7 @@ import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.These (These (..))
 import Network.MCP.Server
 import Network.MCP.Server.StdIO
 import Network.MCP.Types
@@ -34,7 +35,7 @@ import Unison.MCP.Types
 import Unison.NameSegment qualified as NameSegment
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
-import Unison.Project (ProjectBranchNameOrLatestRelease (..))
+import Unison.Project (ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchNameOrLatestRelease (..))
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import UnliftIO qualified
@@ -191,6 +192,32 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         pc <- currentProjectContext
         projects <- handleInputMCP pc [Right Input.ProjectsI]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projects
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler listProjectBranchesTool \(ProjectNameArgument {projectName}) -> do
+        projectContext <- currentProjectContext
+        branches <- handleInputMCP projectContext [Right $ Input.BranchesI (Just projectName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode branches
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler getCurrentProjectContextTool \(()) -> do
+        projectContext <- currentProjectContext
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projectContext
+        pure $
+          CallToolResult
+            { callToolIsError = False,
+              callToolContent = [ToolContent {toolContentType = TextualContent, toolContentText = Just outputJSON}]
+            },
+      mkToolHandler setCurrentProjectContextTool \(ProjectContextArgument projectContext) -> do
+        -- Set the current project context
+        output <- handleInputMCP projectContext [Right $ Input.ProjectSwitchI (ProjectAndBranchNames'Unambiguous $ These projectContext.projectName projectContext.branchName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $
           CallToolResult
             { callToolIsError = False,
@@ -692,6 +719,89 @@ listLocalProjectsTool =
           ToolAnnotations
             { title = Just "List Local Projects",
               readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+listProjectBranchesTool :: Tool
+listProjectBranchesTool =
+  Tool
+    { toolName = toToolName ListProjectBranchesTool,
+      toolDescription = Just "List all branches of a project.",
+      toolInputSchema =
+        fromMaybe (error "Invalid listProjectBranchesTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectName": {
+              "type": "string",
+              "description": "The name of the project to list branches for"
+            }
+          },
+          "required": ["projectName"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "List Project Branches",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+getCurrentProjectContextTool :: Tool
+getCurrentProjectContextTool =
+  Tool
+    { toolName = toToolName GetCurrentProjectContextTool,
+      toolDescription = Just "Get the current project context.",
+      toolInputSchema = Aeson.object [],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Get Current Project Context",
+              readOnlyHint = Just True,
+              destructiveHint = Just False,
+              idempotentHint = Just True,
+              openWorldHint = Just False
+            }
+    }
+
+setCurrentProjectContextTool :: Tool
+setCurrentProjectContextTool =
+  Tool
+    { toolName = toToolName SetCurrentProjectContextTool,
+      toolDescription = Just "Set the current project context.",
+      toolInputSchema =
+        fromMaybe (error "Invalid setCurrentProjectContextTool schema") $
+          Aeson.decode $
+            [r|
+        {
+          "type": "object",
+          "properties": {
+            "projectName": {
+              "type": "string",
+              "description": "The name of the project to set as the current project"
+            },
+            "branchName": {
+              "type": "string",
+              "description": "The branch of the project to set as the current branch"
+            }
+          },
+          "required": ["projectName", "branchName"]
+        }
+        |],
+      toolAnnotations =
+        Just $
+          ToolAnnotations
+            { title = Just "Set Current Project Context",
+              readOnlyHint = Just False,
               destructiveHint = Just False,
               idempotentHint = Just True,
               openWorldHint = Just False
