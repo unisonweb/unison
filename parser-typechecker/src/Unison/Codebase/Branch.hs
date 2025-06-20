@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Codebase.Branch
@@ -11,6 +10,8 @@ module Unison.Codebase.Branch
     NamespaceHash,
 
     -- * Branch construction
+    fromUnconflictedDefns,
+    fromNametree,
     branch0,
     one,
     cons,
@@ -31,11 +32,12 @@ module Unison.Codebase.Branch
     lca,
 
     -- * properties
-    history,
+    history_,
     head,
     head_,
     headHash,
-    children,
+    namespaceHash,
+    children_,
     nonEmptyChildren,
     namespaceStats,
 
@@ -69,13 +71,14 @@ module Unison.Codebase.Branch
     withoutTransitiveLibs,
     deleteLibdep,
     deleteLibdeps,
+    setLibdeps,
 
     -- * Branch terms/types/edits
 
     -- ** Term/type/edits lenses
-    terms,
-    types,
-    edits,
+    terms_,
+    types_,
+    edits_,
 
     -- ** Term/type queries
     deepTerms,
@@ -107,25 +110,27 @@ import Unison.Codebase.Branch.Type
     UnconflictedBranchView (..),
     UnwrappedBranch,
     branch0,
-    children,
+    children_,
     deepPaths,
     deepTerms,
     deepTypes,
     deleteLibdeps,
-    edits,
+    edits_,
     head,
     headHash,
-    history,
+    history_,
     isEmpty0,
+    namespaceHash,
     nonEmptyChildren,
-    terms,
-    types,
+    terms_,
+    types_,
   )
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Path (Path)
 import Unison.Hashing.V2 qualified as Hashing (ContentAddressable (contentHash))
 import Unison.Hashing.V2.Convert qualified as H
+import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude hiding (empty)
@@ -133,11 +138,15 @@ import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeRefe
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Util.Defns (Defns (..), DefnsF, alignDefnsWith)
 import Unison.Util.List qualified as List
+import Unison.Util.Nametree (Nametree (..), unflattenNametree)
 import Unison.Util.Recursion (XNor (Both, Neither), cata, project)
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
+import Unison.Util.Star2 (Star2)
 import Unison.Util.Star2 qualified as Star2
 import Witherable (FilterableWithIndex (imapMaybe))
 import Prelude hiding (head, read, subtract)
@@ -152,16 +161,46 @@ instance AsEmpty (Branch m) where
 instance Hashing.ContentAddressable (Branch0 m) where
   contentHash = H.hashBranch0
 
+fromUnconflictedDefns :: DefnsF (Map Name) Referent TypeReference -> Branch0 m
+fromUnconflictedDefns =
+  -- Unflatten the collection of terms into tree, ditto for types
+  bimap unflattenNametree unflattenNametree
+    -- Align the tree of terms and tree of types into one tree
+    >>> alignDefnsWith f
+    >>> fromNametree
+  where
+    f :: These (Map NameSegment tm) (Map NameSegment ty) -> DefnsF (Map NameSegment) tm ty
+    f = \case
+      This terms -> Defns {terms, types = Map.empty}
+      That types -> Defns {terms = Map.empty, types}
+      These terms types -> Defns terms types
+
+fromNametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference) -> Branch0 m
+fromNametree nametree =
+  branch0
+    (rel2star defns.terms)
+    (rel2star defns.types)
+    (one . fromNametree <$> nametree.children)
+    Map.empty
+  where
+    defns :: Defns (Relation Referent NameSegment) (Relation TypeReference NameSegment)
+    defns =
+      bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
+
+    rel2star :: Relation ref name -> Star2 ref name metadata
+    rel2star rel =
+      Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
+
 libdeps_ :: Traversal' (Branch0 m) (Map NameSegment (Branch m))
 libdeps_ =
-  children . ix NameSegment.libSegment . head_ . children
+  children_ . ix NameSegment.libSegment . head_ . children_
 
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutLib :: Branch0 m -> Branch0 m
 withoutLib b =
   b
-    & children
+    & children_
       %~ imapMaybe
         ( \nameSegment child ->
             if nameSegment == NameSegment.libSegment
@@ -174,19 +213,24 @@ withoutLib b =
 withoutTransitiveLibs :: Branch0 m -> Branch0 m
 withoutTransitiveLibs b0 =
   let newChildren =
-        (b0 ^. children)
+        (b0 ^. children_)
           & imapMaybe
             ( \nameSegment child ->
                 if nameSegment == NameSegment.libSegment
                   then Just (child & head_ %~ withoutLib)
                   else Just (child & head_ %~ withoutTransitiveLibs)
             )
-   in b0 & children .~ newChildren
+   in b0 & children_ .~ newChildren
 
 -- | @deleteLibdep name branch@ deletes the libdep named @name@ from @branch@, if it exists.
 deleteLibdep :: NameSegment -> Branch0 m -> Branch0 m
 deleteLibdep dep =
   over libdeps_ (Map.delete dep)
+
+-- | @setLibdeps libdeps branch@ sets @branch@'s libdeps to @libdeps@.
+setLibdeps :: Branch0 m -> Branch0 m -> Branch0 m
+setLibdeps libdeps =
+  setChildBranch NameSegment.libSegment (one libdeps)
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = R.dom . deepTerms
@@ -217,11 +261,11 @@ namespaceStats b =
 -- | Update the head of the current causal.
 -- This re-hashes the current causal head after modifications.
 head_ :: Lens' (Branch m) (Branch0 m)
-head_ = history . Causal.head_
+head_ = history_ . Causal.head_
 
 -- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: (Applicative m) => Branch0 m -> Branch0 m
-discardHistory0 = over children (fmap tweak)
+discardHistory0 = over children_ (fmap tweak)
   where
     tweak b = one (discardHistory0 (head b))
 
@@ -238,7 +282,7 @@ before (Branch b1) (Branch b2) = Causal.before b1 b2
 getAt :: Path -> Branch m -> Maybe (Branch m)
 getAt = cata \case
   Neither -> \root -> if isEmpty root then Nothing else Just root
-  Both seg fn -> fn <=< Map.lookup seg . view children . head
+  Both seg fn -> fn <=< Map.lookup seg . view children_ . head
 
 getAt' :: Path -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
@@ -246,7 +290,7 @@ getAt' p b = fromMaybe empty $ getAt p b
 getAt0 :: Path -> Branch0 m -> Branch0 m
 getAt0 = cata \case
   Neither -> id
-  Both seg fn -> fn . maybe empty0 head . Map.lookup seg . view children
+  Both seg fn -> fn . maybe empty0 head . Map.lookup seg . view children_
 
 empty :: Branch m
 empty = Branch $ Causal.one empty0
@@ -269,7 +313,7 @@ step f = runIdentity . stepM (Identity . f)
 stepM :: (Monad n, Applicative m) => (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepM f = \case
   Branch (Causal.One _h _eh e) | e == empty0 -> Branch . Causal.one <$> f empty0
-  b -> mapMOf history (Causal.stepDistinctM f) b
+  b -> mapMOf history_ (Causal.stepDistinctM f) b
 
 cons :: (Applicative m) => Branch0 m -> Branch m -> Branch m
 cons = step . const
@@ -345,7 +389,7 @@ stepManyAtM actions startBranch = do
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere ::
   (Applicative m) => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
-stepEverywhere f b0 = f (b0 & children %~ updates)
+stepEverywhere f b0 = f (b0 & children_ %~ updates)
   where
     updates = fmap (step $ stepEverywhere f)
 
@@ -354,10 +398,10 @@ stepEverywhere f b0 = f (b0 & children %~ updates)
 -- otherwise update it.
 -- Todo: Fix this in hashing & serialization instead of here?
 getChildBranch :: NameSegment -> Branch0 m -> Branch m
-getChildBranch seg b = fromMaybe empty $ Map.lookup seg (b ^. children)
+getChildBranch seg b = fromMaybe empty $ Map.lookup seg (b ^. children_)
 
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
-setChildBranch seg b = over children (updateChildren seg b)
+setChildBranch seg b = over children_ (updateChildren seg b)
 
 updateChildren ::
   NameSegment ->
@@ -440,7 +484,7 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
       )
     execActions b = \case
       (HereActions, acts) -> foldM (\b (_, act) -> act b) b acts
-      (ChildActions, acts) -> b & children %%~ adjustChildren (groupByNextSegment acts)
+      (ChildActions, acts) -> b & children_ %%~ adjustChildren (groupByNextSegment acts)
 
     adjustChildren ::
       Map NameSegment [(Path, Branch0 m -> n (Branch0 m))] ->
@@ -474,28 +518,28 @@ batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (group
 -- todo: consider inlining these into Actions2
 addTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 addTermName r new =
-  over terms (Star2.insertD1 (r, new))
+  over terms_ (Star2.insertD1 (r, new))
 
 addTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 addTypeName r new =
-  over types (Star2.insertD1 (r, new))
+  over types_ (Star2.insertD1 (r, new))
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b
-  | Star2.memberD1 (r, n) (view terms b) =
-      over terms (Star2.deletePrimaryD1 (r, n)) b
+  | Star2.memberD1 (r, n) (view terms_ b) =
+      over terms_ (Star2.deletePrimaryD1 (r, n)) b
 deleteTermName _ _ b = b
 
 annihilateTermName :: NameSegment -> Branch0 m -> Branch0 m
-annihilateTermName = over terms . Star2.deleteD1
+annihilateTermName = over terms_ . Star2.deleteD1
 
 annihilateTypeName :: NameSegment -> Branch0 m -> Branch0 m
-annihilateTypeName = over types . Star2.deleteD1
+annihilateTypeName = over types_ . Star2.deleteD1
 
 deleteTypeName :: TypeReference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b
-  | Star2.memberD1 (r, n) (view types b) =
-      over types (Star2.deletePrimaryD1 (r, n)) b
+  | Star2.memberD1 (r, n) (view types_ b) =
+      over types_ (Star2.deletePrimaryD1 (r, n)) b
 deleteTypeName _ _ b = b
 
 lca :: (Monad m) => Branch m -> Branch m -> m (Maybe (Branch m))
@@ -510,15 +554,15 @@ transform f b = case _history b of
 
 transform0 :: (Functor m) => (forall a. m a -> n a) -> Branch0 m -> Branch0 n
 transform0 f b =
-  branch0 (b ^. terms) (b ^. types) newChildren newEdits
+  branch0 (b ^. terms_) (b ^. types_) newChildren newEdits
   where
-    newChildren = transform f <$> (b ^. children)
-    newEdits = second f <$> (b ^. edits)
+    newChildren = transform f <$> (b ^. children_)
+    newEdits = second f <$> (b ^. edits_)
 
 -- | Traverse the head branch of all direct children.
 -- The index of the traversal is the name of that child branch according to the parent.
 children0 :: IndexedTraversal' NameSegment (Branch0 m) (Branch0 m)
-children0 = children .> itraversed <. (history . Causal.head_)
+children0 = children_ .> itraversed <. (history_ . Causal.head_)
 
 -- | @head `consBranchSnapshot` base@ Cons's the current state of @head@ onto @base@ as-is.
 -- Consider whether you really want this behaviour or the behaviour of 'Causal.squashMerge'
@@ -539,7 +583,7 @@ consBranchSnapshot headBranch baseBranch =
     else
       Branch $
         Causal.consDistinct
-          (head headBranch & children .~ combinedChildren)
+          (head headBranch & children_ .~ combinedChildren)
           (_history baseBranch)
   where
     combineChildren :: These (Branch m) (Branch m) -> Maybe (Branch m)
@@ -555,5 +599,5 @@ consBranchSnapshot headBranch baseBranch =
     combinedChildren =
       Map.mapMaybe combineChildren $
         Align.align
-          (head baseBranch ^. children)
-          (head headBranch ^. children)
+          (head baseBranch ^. children_)
+          (head headBranch ^. children_)

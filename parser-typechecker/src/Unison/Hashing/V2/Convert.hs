@@ -362,10 +362,10 @@ hashCausal e tails =
 m2hBranch0 :: Memory.Branch.Branch0 m -> Hashing.Branch
 m2hBranch0 b =
   Hashing.Branch
-    (doTerms (b ^. Memory.Branch.terms))
-    (doTypes (b ^. Memory.Branch.types))
-    (doPatches (b ^. Memory.Branch.edits))
-    (doChildren (b ^. Memory.Branch.children))
+    (doTerms (b ^. Memory.Branch.terms_))
+    (doTypes (b ^. Memory.Branch.types_))
+    (doPatches (b ^. Memory.Branch.edits_))
+    (doChildren (b ^. Memory.Branch.children_))
   where
     -- is there a more readable way to structure these that's also linear?
     doTerms ::

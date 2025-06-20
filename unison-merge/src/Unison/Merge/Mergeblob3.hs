@@ -23,7 +23,6 @@ import Unison.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
 import Unison.Merge.EitherWay (EitherWay)
 import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
@@ -34,6 +33,7 @@ import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)

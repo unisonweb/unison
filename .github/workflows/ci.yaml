@@ -45,9 +45,11 @@ jobs:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
+          - ubuntu-24.04-arm
           - macos-13
-          - windows-2022
-          # - windows-2022
+          - macos-14
+          - windows-2025
+          # - windows-11-arm
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
@@ -198,9 +200,11 @@ jobs:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
+          - ubuntu-24.04-arm
           - macos-13
-          - windows-2022
-          # - windows-2022
+          - macos-14
+          - windows-2025
+          # - windows-11-arm
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: tweak environment
@@ -281,9 +285,11 @@ jobs:
         os:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
+          - ubuntu-24.04-arm
           - macos-13
-          # - windows-2022
-          # - windows-2022
+          - macos-14
+          # - windows-2025 fails! :-\ https://github.com/unisonweb/unison/actions/runs/15706568824/job/44253742036?pr=5765
+          # - windows-11-arm
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: tweak environment

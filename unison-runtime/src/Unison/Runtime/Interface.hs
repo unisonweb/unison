@@ -29,7 +29,7 @@ module Unison.Runtime.Interface
 where
 
 import Control.Concurrent.STM as STM
-import Control.Exception (throwIO)
+import Control.Exception (fromException, throwIO, tryJust)
 import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
@@ -1042,11 +1042,24 @@ evalInContext ppe ctx activeThreads w = do
       decom = decompileCtx crs ctx
       finish = fmap (first listErrors . decom)
 
-      prettyError (PE _ p) = p
-      prettyError (BU tr0 nm c) =
-        bugMsg ppe tr nm $ decom c
+      prettyError e
+        | Just rte <- fromException e = case rte of
+            PE _ p -> Just p
+            BU tr0 nm c -> Just . bugMsg ppe tr nm $ decom c
+              where
+                tr = first (backmapRef ctx) <$> tr0
+        | Just (Panic msg mval) <- fromException e =
+            Just . P.callout panicIcon . P.linesNonEmpty $
+              [ P.wrap $
+                  "The program halted with a runtime panic:",
+                "",
+                P.string msg
+              ]
+                ++ maybe [] (render . decom) mval
+        | otherwise = Nothing
         where
-          tr = first (backmapRef ctx) <$> tr0
+          render (errs, tm) =
+            ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]
 
       debugText fancy val = case decom val of
         (errs, dv)
@@ -1060,8 +1073,7 @@ evalInContext ppe ctx activeThreads w = do
 
   result <-
     traverse (const $ readIORef r)
-      . first prettyError
-      <=< try
+      <=< tryJust prettyError
       $ apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
   pure $ finish result
 
@@ -1182,6 +1194,9 @@ stackTrace ppe tr = "\nStack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
 
 icon :: Pretty ColorText
 icon = "💔💥"
+
+panicIcon :: Pretty ColorText
+panicIcon = "💥🤯💥"
 
 catchInternalErrors ::
   IO (Either Error a) ->
