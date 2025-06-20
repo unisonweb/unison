@@ -95,7 +95,6 @@ loadUnisonFile sourceName text = do
   Cli.respond $ Output.LoadingFile sourceName
   oldBranch0 <- Cli.getCurrentBranch0
   let oldNames = Branch.toNames oldBranch0
-  let oldPpe = PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
   unisonFile <- parseAndTypecheckUnisonFile oldNames sourceName text
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp oldNames
   let newNames = UF.addNamesFromTypeCheckedUnisonFile unisonFile oldNames
@@ -119,8 +118,9 @@ loadUnisonFile sourceName text = do
         Just updateBranchParentCausalHash -> do
           Cli.Env {codebase} <- ask
           updateBranchParent <- liftIO (Codebase.expectBranchForHash codebase updateBranchParentCausalHash)
-          let updateBranchParentNames = Branch.toNames (Branch.deleteLibdeps (Branch.head updateBranchParent))
-          let updateBranchNames =
+          let updateBranchParent0 = Branch.head updateBranchParent
+          let updateBranchParentLocalNames = Branch.toNames (Branch.deleteLibdeps updateBranchParent0)
+          let updateBranchLocalNames =
                 Names.shadowing
                   (UF.typecheckedToNames unisonFile)
                   (Branch.toNames (Branch.deleteLibdeps oldBranch0))
@@ -175,8 +175,8 @@ loadUnisonFile sourceName text = do
                               (Referent.Con _ _, Referent.Con _ _) ->
                                 pure Nothing
                     )
-                    (Relation.domain updateBranchParentNames.terms)
-                    (Relation.domain updateBranchNames.terms)
+                    (Relation.domain updateBranchParentLocalNames.terms)
+                    (Relation.domain updateBranchLocalNames.terms)
 
           slurpTypes :: Map Name (SlurpEntry (DeclOrBuiltin Symbol Ann)) <-
             let getOldDecl :: TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
@@ -210,8 +210,8 @@ loadUnisonFile sourceName text = do
                                   Nothing -> Nothing
                                   Just _ -> Just SlurpEntry'Unchanged
                     )
-                    (Relation.domain updateBranchParentNames.types)
-                    (Relation.domain updateBranchNames.types)
+                    (Relation.domain updateBranchParentLocalNames.types)
+                    (Relation.domain updateBranchLocalNames.types)
 
           let slurpEntries =
                 Defns
@@ -219,6 +219,12 @@ loadUnisonFile sourceName text = do
                     types = slurpTypes
                   }
 
+          let updateBranchParentNames = Branch.toNames updateBranchParent0
+          let oldPpe =
+                PPE.suffixifiedPPE $
+                  PPED.makePPED
+                    (PPE.hqNamer 10 updateBranchParentNames)
+                    (PPE.suffixifyByHash updateBranchParentNames)
           Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries)
     else do
       Cli.respond (Output.Typechecked sourceName newPpe sr unisonFile)
