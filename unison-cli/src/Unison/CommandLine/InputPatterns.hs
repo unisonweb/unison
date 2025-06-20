@@ -1191,10 +1191,27 @@ findShallow =
     I.Visible
     (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
-          ("`list foo`", "lists the 'foo' namespace."),
-          ("`list .foo`", "lists the '.foo' namespace.")
+        [ (makeExample findShallow [], "lists definitions and namespaces in the current namespace."),
+          (makeExample findShallow ["foo"], "lists the 'foo' namespace."),
+          (makeExample findShallow [".foo"], "lists the '.foo' namespace.")
         ]
+    )
+    ( fmap Input.FindShallowI . \case
+        [] -> pure Path.Current'
+        path : _ -> handlePath'Arg path
+    )
+
+findFuzzy :: InputPattern
+findFuzzy =
+  InputPattern
+    "list-fuzzy"
+    ["lsf"]
+    I.Visible
+    (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
+    ( P.wrapColumn2
+        [(makeExample' findFuzzy, "lists definitions and namespaces in a namespace you select (requires fzf).")]
+        <> P.newline
+        <> P.wrap ("If you pass arguments to" <> makeExample' findFuzzy <> "it will behave the same as as" <> makeExample' findShallow)
     )
     ( fmap Input.FindShallowI . \case
         [] -> pure Path.Current'
@@ -3541,6 +3558,7 @@ validInputs =
       findIn,
       findAll,
       findInAll,
+      findFuzzy,
       findGlobal,
       findShallow,
       findVerbose,
