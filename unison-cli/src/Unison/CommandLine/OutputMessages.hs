@@ -965,7 +965,7 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  Typechecked2 _oldPpe newPpe slurpEntries -> do
+  Typechecked2 oldPpe newPpe slurpEntries -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -1041,7 +1041,7 @@ notifyUser dir = \case
 
     let renderedDeletedTerms :: Pretty
         renderedDeletedTerms =
-          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.red . ("- " <>)) name ty) deletedTerms)
+          P.column2 (map (\(name, ty) -> renderTerm oldPpe (P.red . ("- " <>)) name ty) deletedTerms)
 
     pure $
       P.sepNonEmpty
