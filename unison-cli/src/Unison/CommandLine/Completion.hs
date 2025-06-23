@@ -16,6 +16,7 @@ module Unison.CommandLine.Completion
     fixupCompletion,
     haskelineTabComplete,
     sharePathCompletion,
+    filenameCompletion,
   )
 where
 
@@ -78,12 +79,12 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+      case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p <- Map.lookup h patterns
+          paramType <- IP.paramType (IP.params p) (length t)
+          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+        _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -439,3 +440,13 @@ instance Aeson.FromJSON SearchResult where
     handle <- obj Aeson..: "handle"
     tag <- obj Aeson..: "tag"
     pure $ SearchResult {..}
+
+filenameCompletion ::
+  (MonadIO m) =>
+  String ->
+  m [Completion]
+filenameCompletion query = do
+  -- Haskeline uses a zipper-style cursor format, so it expects the prefix to be reversed.
+  let prefix = reverse query
+  (_leftovers, results) <- Line.completeFilename (prefix, "")
+  pure results

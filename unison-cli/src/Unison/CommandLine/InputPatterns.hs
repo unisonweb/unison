@@ -3746,7 +3746,7 @@ filePathArg :: ParameterType
 filePathArg =
   ParameterType
     { typeName = "file-path",
-      suggestions = noCompletions,
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
       fzfResolver = Nothing,
       isStructured = False
     }
