@@ -1815,7 +1815,7 @@ debugFormat =
     "debug.format"
     []
     I.Hidden
-    (Parameters [] $ Optional [("source-file", filePathArg)] Nothing)
+    (Parameters [] $ Optional [("source file", filePathArg)] Nothing)
     ( P.lines
         [ P.wrap $ "This command can be used to test ucm's file formatter on the latest typechecked file.",
           makeExample' debugFormat
@@ -2016,7 +2016,7 @@ syncToFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg)] $
+        Parameters [("destination sync file", filePathArg)] $
           Optional [("branch", projectAndBranchNamesArg suggestionsConfig)] Nothing,
       help =
         ( P.wrapColumn2
@@ -2048,7 +2048,7 @@ syncFromFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
+        Parameters [("file to sync from", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
           Optional [] Nothing,
       help =
         ( P.wrapColumn2
@@ -2077,9 +2077,9 @@ syncFromCodebase =
       visibility = I.Visible,
       params =
         Parameters
-          [ ("codebase-location", filePathArg),
-            ("branch-to-sync", projectAndBranchNamesArg suggestionsConfig),
-            ("destination-branch", projectAndBranchNamesArg suggestionsConfig)
+          [ ("codebase location", directoryPathArg),
+            ("branch to sync", projectAndBranchNamesArg suggestionsConfig),
+            ("destination branch", projectAndBranchNamesArg suggestionsConfig)
           ]
           $ Optional [] Nothing,
       help =
@@ -2867,7 +2867,7 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    (Parameters [("namespace", branchRelativePathArg), ("output directory", filePathArg)] $ Optional [] Nothing)
+    (Parameters [("namespace", branchRelativePathArg), ("output directory", directoryPathArg)] $ Optional [] Nothing)
     ( P.wrapColumn2
         [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
             "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
@@ -3746,6 +3746,15 @@ filePathArg :: ParameterType
 filePathArg =
   ParameterType
     { typeName = "file-path",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Just I.DefaultFZFFileSearch,
+      isStructured = False
+    }
+
+directoryPathArg :: ParameterType
+directoryPathArg =
+  ParameterType
+    { typeName = "directory-path",
       suggestions = \prefix _ _ _ -> filenameCompletion prefix,
       fzfResolver = Nothing,
       isStructured = False

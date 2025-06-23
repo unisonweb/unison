@@ -632,7 +632,9 @@ loop e = do
                   ( \_ (paramName, IP.ParameterType {fzfResolver}) arg ->
                       if arg == "_"
                         then case fzfResolver of
-                          Just IP.FZFResolver {getOptions} -> do
+                          Just IP.DefaultFZFFileSearch -> do
+                            (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName ["<files>"])
+                          Just (IP.FetchOptions getOptions) -> do
                             pp <- Cli.getCurrentProjectPath
                             results <- liftIO $ getOptions codebase pp currentBranch
                             (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName (Text.unpack <$> results))
