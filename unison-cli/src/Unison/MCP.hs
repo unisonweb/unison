@@ -871,22 +871,28 @@ setCurrentProjectContextTool =
     { toolName = toToolName SetCurrentProjectContextTool,
       toolDescription = Just "Set the current project context.",
       toolInputSchema =
-        fromMaybe (error "Invalid setCurrentProjectContextTool schema") $
+        fromMaybe (error "Invalid setProjectContextTool schema") $
           Aeson.decode $
             [r|
         {
           "type": "object",
           "properties": {
-            "projectName": {
-              "type": "string",
-              "description": "The name of the project to set as the current project"
-            },
-            "branchName": {
-              "type": "string",
-              "description": "The branch of the project to set as the current branch"
+            "projectContext": {
+              "type": "object",
+              "properties": {
+                "projectName": {
+                  "type": "string",
+                  "description": "The name of the project to set as the current context"
+                },
+                "branchName": {
+                  "type": "string",
+                  "description": "The branch of the project to set as the current context"
+                }
+              },
+              "required": ["projectName", "branchName"]
             }
           },
-          "required": ["projectName", "branchName"]
+          "required": ["projectContext"]
         }
         |],
       toolAnnotations =
