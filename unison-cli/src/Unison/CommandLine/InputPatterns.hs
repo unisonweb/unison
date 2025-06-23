@@ -1680,7 +1680,7 @@ pullImpl name aliases pullMode addendum = do
           params =
             Parameters [] $
               Optional
-                [ ("remote namespace to pull", remoteNamespaceArg),
+                [ ("remote namespace to pull", remoteProjectArg),
                   ( "destination branch",
                     projectBranchNameArg
                       ProjectBranchSuggestionsConfig
@@ -1848,7 +1848,7 @@ push =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1904,7 +1904,7 @@ pushCreate =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1957,7 +1957,7 @@ pushForce =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     (P.wrap "Like `push`, but forcibly overwrites the remote namespace.")
@@ -1990,7 +1990,7 @@ pushExhaustive =
     I.Hidden
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -3777,12 +3777,11 @@ directoryPathArg =
       isStructured = False
     }
 
--- | Refers to a namespace on some remote code host.
-remoteNamespaceArg :: ParameterType
-remoteNamespaceArg =
+remoteProjectArg :: ParameterType
+remoteProjectArg =
   ParameterType
-    { typeName = "remote-namespace",
-      suggestions = noCompletions,
+    { typeName = "remote-project",
+      suggestions = \input _cb http _p -> shareProjectCompletion http input,
       fzfResolver = Nothing,
       isStructured = True
     }

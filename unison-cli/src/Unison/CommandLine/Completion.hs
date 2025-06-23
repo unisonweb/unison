@@ -14,12 +14,9 @@ module Unison.CommandLine.Completion
     fixupCompletion,
     haskelineTabComplete,
     shareProjectCompletion,
+    filenameCompletion,
     -- Unused for now, but may be useful later
     prettyCompletion,
-    fixupCompletion,
-    haskelineTabComplete,
-    sharePathCompletion,
-    filenameCompletion,
   )
 where
 
@@ -365,32 +362,37 @@ searchProjects (AuthenticatedHttpClient httpManager) query =
         let uri =
               (Share.codeserverToURI Codeserver.defaultCodeserver)
                 { URI.uriPath = "/search",
-                  URI.uriQuery = Text.unpack $ "?kinds=project&project-search-kind=" <> psk <> "&query=" <> query
+                  URI.uriQuery = Text.unpack $ "?project-search-kind=" <> psk <> "&query=" <> query
                 }
         req <- MaybeT $ pure (HTTP.requestFromURI uri)
         fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
         resp <- either (const empty) pure $ fullResp
-        (MaybeT . pure . Aeson.decode @[ProjectSearchResult] $ HTTP.responseBody resp)
-          <&> fmap projectRef
+        (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
+          <&> fmap \case
+            SearchResultUserLike handle -> handle
+            SearchResultProject ref -> ref
 
-data SearchResult = SearchResult
-  { handle :: Text,
-    tag :: Text
+data UserLike = UserLike
+  { handle :: Text
   }
   deriving (Show)
 
-instance Aeson.FromJSON SearchResult where
-  parseJSON = Aeson.withObject "SearchResult" \obj -> do
-    handle <- obj Aeson..: "handle"
-    tag <- obj Aeson..: "tag"
-    pure $ SearchResult {..}
+instance FromJSON SearchResult where
+  parseJSON = Aeson.withObject "SearchResultUserLike" \obj -> do
+    obj Aeson..: "tag" >>= \case
+      ("user" :: Text) -> SearchResultUserLike <$> (obj Aeson..: "handle")
+      "org" -> do
+        user <- obj Aeson..: "user"
+        SearchResultUserLike <$> (user Aeson..: "handle")
+      "project" -> do
+        ref <- obj Aeson..: "projectRef"
+        pure $ SearchResultProject ref
+      _ -> fail "Expected 'user' or 'org' or 'project' tag"
 
-instance FromJSON ProjectSearchResult where
-  parseJSON = Aeson.withObject "ProjectSearchResult" \obj -> do
-    projectRef <- obj Aeson..: "projectRef"
-    summary <- obj Aeson..: "summary"
-    visibility <- obj Aeson..: "visibility"
-    pure $ ProjectSearchResult {..}
+data SearchResult
+  = SearchResultUserLike Text
+  | SearchResultProject Text
+  deriving (Show)
 
 filenameCompletion ::
   (MonadIO m) =>
