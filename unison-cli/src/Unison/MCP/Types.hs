@@ -175,8 +175,7 @@ instance FromJSON ShareProjectReadmeToolArguments where
     projectOwnerHandle <- o .: "projectOwnerHandle"
     pure $ ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}
 
-data TypecheckCodeToolArguments
-  = TypecheckCodeToolArguments
+data TypecheckCodeToolArguments = TypecheckCodeToolArguments
   { projectContext :: ProjectContext,
     code :: Text
   }
@@ -188,8 +187,7 @@ instance FromJSON TypecheckCodeToolArguments where
     code <- o .: "code"
     pure $ TypecheckCodeToolArguments {projectContext, code}
 
-data DocsToolArguments
-  = DocsToolArguments
+data DocsToolArguments = DocsToolArguments
   { projectContext :: ProjectContext,
     name :: Name
   }
@@ -201,8 +199,7 @@ instance FromJSON DocsToolArguments where
     name <- Name.unsafeParseText <$> o .: "name"
     pure $ DocsToolArguments {projectContext, name}
 
-data ProjectCodeToolArguments
-  = ProjectCodeToolArguments
+data ProjectCodeToolArguments = ProjectCodeToolArguments
   { projectContext :: ProjectContext
   }
 
