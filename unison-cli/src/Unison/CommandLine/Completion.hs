@@ -16,6 +16,7 @@ module Unison.CommandLine.Completion
     fixupCompletion,
     haskelineTabComplete,
     sharePathCompletion,
+    filenameCompletion,
   )
 where
 
@@ -439,3 +440,13 @@ instance Aeson.FromJSON SearchResult where
     handle <- obj Aeson..: "handle"
     tag <- obj Aeson..: "tag"
     pure $ SearchResult {..}
+
+filenameCompletion ::
+  (MonadIO m) =>
+  String ->
+  m [Completion]
+filenameCompletion query = do
+  -- Haskeline uses a zipper-style cursor format, so it expects the prefix to be reversed.
+  let prefix = reverse query
+  (_leftovers, results) <- Line.completeFilename (prefix, "")
+  pure results
