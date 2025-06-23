@@ -11,6 +11,9 @@ module Unison.CommandLine.Completion
     prefixCompleteType,
     noCompletions,
     prefixCompleteNamespace,
+    fixupCompletion,
+    haskelineTabComplete,
+    shareProjectCompletion,
     -- Unused for now, but may be useful later
     prettyCompletion,
     fixupCompletion,
@@ -21,11 +24,11 @@ module Unison.CommandLine.Completion
 where
 
 import Control.Lens
+import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
 import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
-import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
@@ -50,16 +53,11 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
-import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
-import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
-import Unison.Server.Types qualified as Server
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Types qualified as Share
 import Unison.Sqlite qualified as Sqlite
-import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
@@ -79,12 +77,12 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+      case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p <- Map.lookup h patterns
+          paramType <- IP.paramType (IP.params p) (length t)
+          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+        _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -336,98 +334,44 @@ fixupCompletion q cs@(h : t) =
         then [c {Line.replacement = q} | c <- cs]
         else cs
 
-sharePathCompletion ::
+shareProjectCompletion ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
   String ->
   m [Completion]
-sharePathCompletion = shareCompletion (NESet.singleton NamespaceCompletion)
+shareProjectCompletion authHTTPClient str =
+  searchProjects authHTTPClient (Text.pack str)
+    <&> fmap (\projectRef -> prettyCompletionWithQueryPrefix True str (Text.unpack projectRef))
 
-shareCompletion ::
-  (MonadIO m) =>
-  NESet CompletionType ->
-  AuthenticatedHttpClient ->
-  String ->
-  m [Completion]
-shareCompletion completionTypes authHTTPClient str =
-  fromMaybe [] <$> runMaybeT do
-    case Path.toList <$> Path.parsePath str of
-      Left _err -> empty
-      Right [] -> empty
-      Right [userPrefix] -> do
-        userHandles <- searchUsers authHTTPClient (NameSegment.toEscapedText userPrefix)
-        pure $
-          userHandles
-            & filter (\userHandle -> NameSegment.toEscapedText userPrefix `Text.isPrefixOf` userHandle)
-            <&> \handle -> prettyCompletionWithQueryPrefix False (Text.unpack (NameSegment.toEscapedText userPrefix)) (Text.unpack handle)
-      Right (userHandle : path0) -> do
-        let (path, pathSuffix) =
-              case unsnoc path0 of
-                Just (path, pathSuffix) -> (Path.fromList path, NameSegment.toEscapedText pathSuffix)
-                Nothing -> (mempty, "")
-        NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient (NameSegment.toEscapedText userHandle) path
-        namespaceListingChildren
-          & fmap
-            ( \case
-                Server.Subnamespace nn ->
-                  let name = Server.namespaceName nn
-                   in (NamespaceCompletion, name)
-                Server.TermObject nt ->
-                  let name = HQ'.toTextWith Name.toText $ Server.termName nt
-                   in (NamespaceCompletion, name)
-                Server.TypeObject nt ->
-                  let name = HQ'.toTextWith Name.toText $ Server.typeName nt
-                   in (TermCompletion, name)
-                Server.PatchObject np ->
-                  let name = Server.patchName np
-                   in (NamespaceCompletion, name)
-            )
-          & filter (\(typ, name) -> typ `NESet.member` completionTypes && pathSuffix `Text.isPrefixOf` name)
-          & fmap
-            ( \(_, name) ->
-                let queryPath = userHandle : Path.toList path
-                    result =
-                      (queryPath ++ [NameSegment.unsafeParseText name])
-                        & List.NonEmpty.fromList
-                        & Name.fromSegments
-                        & Name.toText
-                        & Text.unpack
-                 in prettyCompletionWithQueryPrefix False str result
-            )
-          & pure
-
-fetchShareNamespaceInfo :: (MonadIO m) => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
-fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = runMaybeT do
-  let uri =
-        (Share.codeserverToURI Codeserver.defaultCodeserver)
-          { URI.uriPath = Text.unpack $ "/codebases/" <> userHandle <> "/browse",
-            URI.uriQuery =
-              if not . null $ Path.toList path
-                then Text.unpack $ "?relativeTo=" <> tShow path
-                else ""
-          }
-  req <- MaybeT $ pure (HTTP.requestFromURI uri)
-  fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
-  resp <- either (const empty) pure $ fullResp
-  MaybeT . pure . Aeson.decode @Server.NamespaceListing $ HTTP.responseBody resp
-
-searchUsers :: (MonadIO m) => AuthenticatedHttpClient -> Text -> m [Text]
-searchUsers _ "" = pure []
-searchUsers (AuthenticatedHttpClient httpManager) userHandlePrefix =
-  fromMaybe [] <$> runMaybeT do
-    let uri =
-          (Share.codeserverToURI Codeserver.defaultCodeserver)
-            { URI.uriPath = "/search",
-              URI.uriQuery = Text.unpack $ "?query=" <> userHandlePrefix
-            }
-    req <- MaybeT $ pure (HTTP.requestFromURI uri)
-    fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
-    resp <- either (const empty) pure $ fullResp
-    results <- (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
-    pure $
-      results
-        & filter (\SearchResult {tag} -> tag == "User")
-        & fmap handle
+-- | Searches for matching projects on the codeserver.
+-- Query is flexible, e.g.
+--
+-- - "base"
+-- - "@unison"
+-- - "@unison/b"
+-- - "postgres"
+-- - "database"
+searchProjects :: (MonadIO m) => AuthenticatedHttpClient -> Text -> m [Text]
+searchProjects _ "" = pure []
+searchProjects (AuthenticatedHttpClient httpManager) query =
+  runSearch "slug-infix" >>= \case
+    -- Fall back to the web search if slug-infix returns no results
+    [] -> runSearch "web-search"
+    results -> pure results
+  where
+    runSearch :: (MonadIO m) => Text -> m [Text]
+    runSearch psk = do
+      fromMaybe [] <$> runMaybeT do
+        let uri =
+              (Share.codeserverToURI Codeserver.defaultCodeserver)
+                { URI.uriPath = "/search",
+                  URI.uriQuery = Text.unpack $ "?kinds=project&project-search-kind=" <> psk <> "&query=" <> query
+                }
+        req <- MaybeT $ pure (HTTP.requestFromURI uri)
+        fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
+        resp <- either (const empty) pure $ fullResp
+        (MaybeT . pure . Aeson.decode @[ProjectSearchResult] $ HTTP.responseBody resp)
+          <&> fmap projectRef
 
 data SearchResult = SearchResult
   { handle :: Text,
@@ -440,6 +384,13 @@ instance Aeson.FromJSON SearchResult where
     handle <- obj Aeson..: "handle"
     tag <- obj Aeson..: "tag"
     pure $ SearchResult {..}
+
+instance FromJSON ProjectSearchResult where
+  parseJSON = Aeson.withObject "ProjectSearchResult" \obj -> do
+    projectRef <- obj Aeson..: "projectRef"
+    summary <- obj Aeson..: "summary"
+    visibility <- obj Aeson..: "visibility"
+    pure $ ProjectSearchResult {..}
 
 filenameCompletion ::
   (MonadIO m) =>

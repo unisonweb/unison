@@ -3782,7 +3782,7 @@ remoteNamespaceArg :: ParameterType
 remoteNamespaceArg =
   ParameterType
     { typeName = "remote-namespace",
-      suggestions = \input _cb http _p -> sharePathCompletion http input,
+      suggestions = noCompletions,
       fzfResolver = Nothing,
       isStructured = True
     }
