@@ -3781,7 +3781,7 @@ remoteProjectArg :: ParameterType
 remoteProjectArg =
   ParameterType
     { typeName = "remote-project",
-      suggestions = \input _cb http _p -> shareProjectCompletion http input,
+      suggestions = \input _cb http _p -> completeShareProject http input,
       fzfResolver = Nothing,
       isStructured = True
     }
