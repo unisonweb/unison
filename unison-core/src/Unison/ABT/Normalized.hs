@@ -230,9 +230,16 @@ freshenBinder fvs rn0@(RN cf rn) u = (rn', u')
             }
       | otherwise = rn0
 
+-- Simultaneously freshens some binders. This ensures not just that
+-- they're fresh with respect to the given set of variables, but
+-- mutually distinct.
 freshenBinders ::
   (Var v) => Set v -> Renaming v -> [v] -> (Renaming v, [v])
-freshenBinders fvs = mapAccumL (freshenBinder fvs)
+freshenBinders fvs rn0 = first snd . mapAccumL f (Set.empty, rn0)
+  where
+    f (avoid, rn) u
+      | (rn, v) <- freshenBinder (Set.union avoid fvs) rn u =
+          ((Set.insert v avoid, rn), v)
 
 -- Simultaneous variable renaming and freshening implementation.
 --
@@ -254,10 +261,10 @@ renamesAndFreshen0 ::
   Term f v ->
   Term f v
 renamesAndFreshen0 rn0 tm = case tm of
-  TAbs u body
-    | (rn, u') <- freshenBinder (freeVars body) rn u,
-      u /= u' || not (isEmptyRenaming rn) ->
-        TAbs u' (renamesAndFreshen0 rn body)
+  TAbs u (TAbss us body)
+    | (rn, vs) <- freshenBinders (freeVars body) rn (u:us),
+      u:us /= vs || not (isEmptyRenaming rn) ->
+        TAbss vs (renamesAndFreshen0 rn body)
   TTm body
     | not $ isEmptyRenaming rn ->
         TTm $ bimap (renameVar rn) (renamesAndFreshen0 rn) body
