@@ -165,46 +165,52 @@ whenChanged f act = do
 
 descend ::
   (Memo m, Var v) =>
-  (Bool -> ANormal v -> m (ANormal v)) ->
+  (Bool -> Set v -> ANormal v -> m (ANormal v)) ->
   Bool ->
+  Set v ->
   ANormal v ->
   m (ANormal v)
-descend rec tail tm = memo tm $ case tm of
+descend rec tail bound tm = memo tm $ case tm of
   TLets d vs ccs bn bd ->
-    TLets d vs ccs <$> rec False bn <*> rec tail bd
+    TLets d vs ccs <$> rec False bound bn <*> rec tail bnd bd
+    where
+      bnd = Set.union (Set.fromList vs) bound
   TName v f vs bd ->
-    TName v f vs <$> rec tail bd
+    TName v f vs <$> rec tail (Set.insert v bound) bd
   TMatch v bs ->
-    TMatch v <$> traverse (rec tail) bs
+    TMatch v <$> traverse (rec tail bound) bs
   TShift r v bd ->
-    TShift r v <$> rec tail bd
+    TShift r v <$> rec tail (Set.insert v bound) bd
   THnd rs hn ha bd ->
-    THnd rs hn ha <$> rec tail bd
+    THnd rs hn ha <$> rec tail bound bd
   TLocal v bd ->
-    TLocal v <$> rec tail bd
+    TLocal v <$> rec tail bound bd
   ABTN.TAbs v (ABTN.TAbss vs bd) ->
-    ABTN.TAbss (v : vs) <$> rec tail bd
+    ABTN.TAbss (v : vs) <$> rec tail bnd bd
+    where
+      bnd = Set.union (Set.fromList $ v:vs) bound
   _ -> pure tm
 
 -- Rewrites a term from the top down, first applying the step
 -- transform given, then descending to children.
 rewriteDown ::
   (Memo m, Var v) =>
-  (Bool -> ANormal v -> m (ANormal v)) ->
+  (Bool -> Set v -> ANormal v -> m (ANormal v)) ->
   ANormal v ->
   m (ANormal v)
-rewriteDown step = go True
+rewriteDown step = go True Set.empty
   where
-    go tail tm = step tail tm >>= descend go tail
+    go tail bound tm = step tail bound tm >>= descend go tail bound
 
 rewriteUp ::
   (Memo m, Var v) =>
-  (Bool -> ANormal v -> m (ANormal v)) ->
+  (Bool -> Set v -> ANormal v -> m (ANormal v)) ->
   ANormal v ->
   m (ANormal v)
-rewriteUp step = go True
+rewriteUp step = go True Set.empty
   where
-    go tail tm = memo tm (descend go tail tm) >>= step tail
+    go tail bound tm =
+      memo tm (descend go tail bound tm) >>= step tail bound
 
 -- Performs inlining on a `SuperGroup` using the inlining information
 -- in the map. The map can be created from typical `SuperGroup` data
@@ -225,15 +231,15 @@ inline avoid (arities, inls) n0 = memo n0 $ go (30 :: Int) n0
       | n <= 0 = pure tm
       | otherwise = rewriteUp (step n) tm
 
-    step n tail (TApp (FComb r) args)
-      | Just new <- findInline tail r args =
+    step n tail bound (TApp (FComb r) args)
+      | Just new <- findInline tail bound r args =
           dirty *> go (n - 1) new
-    step _ _tail tm = pure tm
+    step _ _tail _bound tm = pure tm
 
-    findInline tail r args = do
+    findInline tail bound r args = do
       info <- Map.lookup r inls
       arity <- Map.lookup r arities
-      tweak tail args arity info
+      tweak tail bound args arity info
 
     don'tInline Don'tInl _ = True
     don'tInline TailInl isTail = not isTail
@@ -245,17 +251,17 @@ inline avoid (arities, inls) n0 = memo n0 $ go (30 :: Int) n0
     -- multiple inlining steps, so we freshen anything else we inline
     -- to not be capable of capturing the variables from the entry
     -- code.
-    tweak isTail args arity (InlInfo clazz (ABTN.TAbss vs body))
+    tweak isTail bound args arity (InlInfo clazz (ABTN.TAbss vs body))
       | don'tInline clazz isTail = Nothing
       -- exactly saturated
       | length args == arity,
         rn <- Map.fromList (zip vs args) =
-          Just $ ABTN.renamesAvoiding avoid rn body
+          Just $ ABTN.renamesAvoiding (avoid `Set.union` bound) rn body
       -- oversaturated, only makes sense if body is a call
       | length args > arity,
         (pre, post) <- splitAt arity args,
         rn <- Map.fromList (zip vs pre),
-        TApp f pre <- ABTN.renamesAvoiding avoid rn body =
+        TApp f pre <- ABTN.renamesAvoiding (avoid `Set.union` bound) rn body =
           Just $ TApp f (pre ++ post)
       | otherwise = Nothing
 
@@ -276,7 +282,7 @@ peephole arities affine n0 = memo n0 $ go (30 :: Int) n0
   where
     go 0 = pure
     go n =
-      whenChanged (go $ n - 1) . rewriteDown \tail -> \case
+      whenChanged (go $ n - 1) . rewriteDown \tail _bound -> \case
         -- eliminate `v = u` bindings in affine contexts
         TLet _ v _ (TVar u) bd
           | affine -> ABTN.rename v u bd <$ dirty
@@ -338,9 +344,11 @@ optSuper ::
   Bool ->
   SuperNormal v ->
   m (SuperNormal v)
-optSuper opts avoid affine sn@(Lambda ccs (ABTN.TAbss vs bd)) =
+optSuper opts avoid0 affine sn@(Lambda ccs (ABTN.TAbss vs bd)) =
   memo sn $
     Lambda ccs . ABTN.TAbss vs <$> optNormal opts avoid affine bd
+  where
+    avoid = Set.union (Set.fromList vs) avoid0
 
 -- Optimizes a single group
 optGroup ::
@@ -716,6 +724,7 @@ translateHandlerMatch ::
   (Var v) => OptInfos v -> v -> v -> SuperNormal v -> Maybe (SuperNormal v)
 translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
   | v : vs <- shiftArgs args,
+    bound <- Set.fromList (self:args),
     TMatch u branches <- body,
     u == v,
     MatchRequest cs df <- branches,
@@ -725,7 +734,7 @@ translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
         . ABTN.TAbss args
         . TMatch u
         . flip MatchRequest df
-        <$> traverse3 (affineHandlerCase opts self vs ah) cs
+        <$> traverse3 (affineHandlerCase opts self bound vs ah) cs
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -753,12 +762,12 @@ augmentHandlerEntry thunk0 mv0 ah body
 -- Recognizes an affine handler case, yielding a translated efficient
 -- version if it is one.
 affineHandlerCase ::
-  (Var v) => OptInfos v -> v -> [v] -> v -> ANormal v -> Maybe (ANormal v)
-affineHandlerCase opts self vs rec br
+  (Var v) => OptInfos v -> v -> Set v -> [v] -> v -> ANormal v -> Maybe (ANormal v)
+affineHandlerCase opts self bound vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
-    bound <- Set.fromList (kf0 : kf : us),
+    bound <- Set.union bound (Set.fromList (kf0 : kf : us)),
     kf0 == kf1 =
       ABTN.TAbss us
         <$> affinePreBranch opts self bound vs rec ar kf body
