@@ -188,7 +188,7 @@ descend rec tail bound tm = memo tm $ case tm of
   ABTN.TAbs v (ABTN.TAbss vs bd) ->
     ABTN.TAbss (v : vs) <$> rec tail bnd bd
     where
-      bnd = Set.union (Set.fromList $ v:vs) bound
+      bnd = Set.union (Set.fromList $ v : vs) bound
   _ -> pure tm
 
 -- Rewrites a term from the top down, first applying the step
@@ -724,7 +724,7 @@ translateHandlerMatch ::
   (Var v) => OptInfos v -> v -> v -> SuperNormal v -> Maybe (SuperNormal v)
 translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
   | v : vs <- shiftArgs args,
-    bound <- Set.fromList (self:args),
+    bound <- Set.fromList (self : args),
     TMatch u branches <- body,
     u == v,
     MatchRequest cs df <- branches,

@@ -262,8 +262,8 @@ renamesAndFreshen0 ::
   Term f v
 renamesAndFreshen0 rn0 tm = case tm of
   TAbs u (TAbss us body)
-    | (rn, vs) <- freshenBinders (freeVars body) rn (u:us),
-      u:us /= vs || not (isEmptyRenaming rn) ->
+    | (rn, vs) <- freshenBinders (freeVars body) rn (u : us),
+      u : us /= vs || not (isEmptyRenaming rn) ->
         TAbss vs (renamesAndFreshen0 rn body)
   TTm body
     | not $ isEmptyRenaming rn ->
