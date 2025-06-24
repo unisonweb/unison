@@ -65,6 +65,9 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+#ifdef CODE_SERIAL_CHECK
+import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
+#endif
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
@@ -1233,13 +1236,35 @@ addRefs vfrsh vfrom vto rs = do
 evaluateSTM :: a -> STM a
 evaluateSTM x = unsafeIOToSTM (evaluate x)
 
+-- If this flag is set, all code is run through serialization before
+-- loading. This renames variables, and it's possible a problem would
+-- only be visible with the renamed variables. This allows testing
+-- these cases just by rebuilding ucm, rather than actually concocting
+-- a test that involves remote code loading.
+#if defined(CODE_SERIAL_CHECK)
+
+normalizeCode :: Code -> Code
+normalizeCode co = case deserializeCode (serializeCode False co) of
+  Left _ -> error "normalizeCode: impossible"
+  Right co -> co
+
+normalizeCodes :: [(Reference, Code)] -> [(Reference, Code)]
+normalizeCodes = fmap $ second normalizeCode
+
+#else
+
+normalizeCodes :: [(Reference, Code)] -> [(Reference, Code)]
+normalizeCodes = id
+
+#endif
+
 cacheAdd0 ::
   S.Set Reference ->
   [(Reference, Code)] ->
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
-cacheAdd0 ntys0 termSuperGroups sands cc = do
+cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
