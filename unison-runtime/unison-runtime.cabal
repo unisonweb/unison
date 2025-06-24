@@ -29,6 +29,10 @@ flag optchecks
   manual: True
   default: False
 
+flag codeserialchecks
+  manual: True
+  default: False
+
 flag stackchecks
   manual: True
   default: False
@@ -161,6 +165,8 @@ library
     cpp-options: -DOPT_CHECK
     build-depends:
         inspection-testing
+  if flag(codeserialchecks)
+    cpp-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
 
