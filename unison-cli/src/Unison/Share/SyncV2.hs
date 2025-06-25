@@ -11,6 +11,7 @@ where
 import Codec.Serialise qualified as CBOR
 import Conduit (ConduitT)
 import Conduit qualified as C
+import Control.Concurrent.STM (retry)
 import Control.Concurrent.STM.TBMQueue qualified as STM
 import Control.Lens
 import Control.Monad.Except
@@ -51,6 +52,7 @@ import Unison.Auth.HTTPClient qualified as Auth
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
@@ -126,7 +128,7 @@ syncFromFile shouldValidate syncFilePath = do
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
   Cli.runTransaction Q.clearTempEntityTables
-  liftIO $ withStreamProgress False \progressCounters -> do
+  liftIO $ noStreamProgress False \progressCounters -> do
     runExceptT do
       mapExceptT liftIO $ Timing.time "File Sync" $ do
         header <- mapExceptT C.runResourceT $ do
@@ -149,7 +151,7 @@ syncFromCodebase shouldValidate srcConn destCodebase causalHash = do
   -- Every insert into SQLite checks the temp entity tables, but syncv2 doesn't actually use them, so it's faster
   -- if we clear them out before starting a sync.
   Sqlite.runTransaction srcConn Q.clearTempEntityTables
-  withStreamProgress False \progressCounters -> do
+  noStreamProgress False \progressCounters -> do
     liftIO . C.runResourceT . runExceptT $ withCodebaseEntityStream srcConn causalHash Nothing \_total entityStream -> do
       (header, rest) <- initializeStream (setTotal progressCounters) entityStream
       streamIntoCodebase progressCounters shouldValidate destCodebase header rest
@@ -176,7 +178,7 @@ syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
     ExceptT $ do
       (Cli.runTransaction (Q.entityLocation hash)) >>= \case
         Just Q.EntityInMainStorage -> pure $ Right ()
-        _ -> liftIO $ withStreamProgress True \progressCallbacks -> do
+        _ -> liftIO $ noStreamProgress True \progressCallbacks -> do
           Timing.time "Entity Download" $ do
             liftIO . C.runResourceT . runExceptT $ httpStreamEntities
               (setTotal progressCallbacks)
@@ -194,22 +196,19 @@ syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
 ------------------------------------------------------------------------------------------------------------------------
 
 -- | Validate that the provided entities match their expected hashes, and if so, save them to the codebase.
-validateAndSave :: Bool -> (Codebase.Codebase IO v a) -> Vector (Hash32, TempEntity) -> StreamM ()
-validateAndSave shouldValidate codebase entities = do
-  let validateEntities =
-        runExceptT $ when shouldValidate (batchValidateEntities entities)
-  -- Validation is slow, so we run it in parallel with insertion (which can also be slow),
-  -- but we don't commit the transaction until we're done validation to avoid inserting invalid entities.
-  ExceptT . liftIO $ IO.withAsync validateEntities \validationTask -> do
-    Timing.time "Inserting entities" $ Codebase.runTransactionExceptT codebase do
-      for_ entities \(hash, entity) -> do
-        void . lift $ Q.saveTempEntityInMain v2HashHandle hash entity
-      lift (Sqlite.unsafeIO (IO.wait validationTask)) >>= \case
-        Left err -> throwError err
-        Right _ -> pure ()
+save :: (Codebase.Codebase IO v a) -> Vector (Hash32, TempEntity) -> StreamM ()
+save codebase entities = ExceptT $ do
+  liftIO $ Codebase.runTransactionExceptT codebase do
+    for_ entities \(hash, entity) -> do
+      void . lift $ Q.saveTempEntityInMain v2HashHandle hash entity
+
+-- | Validate that the provided entities match their expected hashes, and if so, save them to the codebase.
+validate :: Bool -> Vector (Hash32, TempEntity) -> StreamM ()
+validate shouldValidate entities = do
+  when shouldValidate (batchValidateEntities entities)
 
 -- | Validate that a batch of entities matches the hashes they're keyed by, throwing an error if any of them fail validation.
-batchValidateEntities :: Vector (Hash32, TempEntity) -> ExceptT SyncErr IO ()
+batchValidateEntities :: Vector (Hash32, TempEntity) -> StreamM ()
 batchValidateEntities entities = do
   mismatches <- fmap Vector.catMaybes $ liftIO $ IO.pooledForConcurrently entities \(hash, entity) -> do
     IO.evaluate $ EV.validateTempEntity hash entity
@@ -262,7 +261,7 @@ syncUnsortedStream (ProgressCallbacks {setTotal, downloadCounter, doneDownloadin
 
     validateBatch :: Stream (Vector (Hash32, TempEntity)) (Vector (Hash32, TempEntity))
     validateBatch = C.iterM \entities -> do
-      when shouldValidate (mapExceptT lift $ batchValidateEntities entities)
+      when shouldValidate (batchValidateEntities entities)
 
 -- | Syncs a stream which sends entities which are already sorted in dependency order.
 -- This allows us to stream them directly into the codebase as they're received.
@@ -273,31 +272,39 @@ syncSortedStream ::
   Stream () SyncV2.EntityChunk ->
   StreamM ()
 syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCounter}) shouldValidate codebase stream = do
-  (downloaderSink, downloaderSource) <- parallelSinkAndSource (3 * batchSize) -- Allow downloading up to triple our current batch size in advance
-  (unpackerSink, unpackerSource) <- parallelSinkAndSource 5 -- Buffer of up to 5 batches.
-  let handler :: Stream (Vector (Hash32, TempEntity)) o
-      handler = C.mapM_C \entityBatch -> do
-        validateAndSave shouldValidate codebase entityBatch
-        liftIO $ importCounter (length entityBatch)
+  (downloaderSink, downloaderSource) <- parallelSinkAndSource "downloader" (2 * batchSize) -- Allow downloading up to triple our current batch size in advance
+  (unpackerSink, unpackerSource) <- parallelSinkAndSource "unpacker" 2 -- Buffer of up to n batches.
+  (validatorSink, validatorSource) <- parallelSinkAndSource "validator" 2 -- Buffer of up to n batches.
   let downloadC = stream C..| downloaderSink
-  let saverC =
+  let unpackerC =
         downloaderSource
           C..| CL.chunksOf batchSize
           C..| unpackChunks codebase
           C..| C.iterM (liftIO . downloadCounter . length)
           C..| (unpackerSink *> liftIO doneDownloading)
-  let handlerC =
+  let validatorC =
         unpackerSource
-          C..| handler
+          C..| C.mapM
+            ( \entityBatch -> do
+                validate shouldValidate entityBatch
+                pure entityBatch
+            )
+          C..| validatorSink
+  let saverC =
+        validatorSource
+          C..| C.mapM_C \entityBatch -> do
+            save codebase entityBatch
+            liftIO $ importCounter (length entityBatch)
 
-  -- Run the three conduits concurrently, and wait for them all to finish, fail if any of them fail.
+  -- Run the conduits concurrently, and wait for them all to finish, fail if any of them fail.
   ExceptT . Async.runConc $ do
     a <- Async.conc . runExceptT $ C.runConduit downloadC
-    b <- Async.conc . runExceptT $ C.runConduit saverC
-    c <- Async.conc . runExceptT $ C.runConduit handlerC
-    pure (a >> b >> c)
+    b <- Async.conc . runExceptT $ C.runConduit unpackerC
+    c <- Async.conc . runExceptT $ C.runConduit validatorC
+    d <- Async.conc . runExceptT $ C.runConduit saverC
+    pure (a >> b >> c >> d)
   where
-    batchSize = 1000
+    batchSize = 10000
 
 -- | Topologically sort entities based on their dependencies, returning a list in dependency-first order.
 sortDependencyFirst :: (Foldable f, Functor f) => f (Hash32, TempEntity) -> [(Hash32, TempEntity)]
@@ -684,8 +691,18 @@ withCausalNegotiationCallback maxEntities action = do
   let msg n = "\n    Identifying missing entities:  " <> tShow n <> "/" <> tShow maxEntities <> " 🔎 \n\n"
   counterProgress msg action
 
-withStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
-withStreamProgress hasDownload action = do
+noStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
+noStreamProgress _hasDownload action = do
+  action $
+    ProgressCallbacks
+      { setTotal = \_total -> pure (),
+        downloadCounter = \_i -> pure (),
+        doneDownloading = pure (),
+        importCounter = \_i -> pure ()
+      }
+
+_withStreamProgress :: (MonadUnliftIO n) => Bool -> (ProgressCallbacks -> n a) -> n a
+_withStreamProgress hasDownload action = do
   downloadedVar <- IO.newTVarIO 0
   doneUnpackingVar <- IO.newTVarIO False
   savedVar <- IO.newTVarIO (0 :: Int)
@@ -733,17 +750,26 @@ withStreamProgress hasDownload action = do
 
 -- * Conduit helpers
 
-parallelSinkAndSource :: (MonadIO m) => Int -> m (ConduitT i void1 m (), ConduitT void2 i m ())
-parallelSinkAndSource bufferSize = do
+parallelSinkAndSource :: (MonadIO m) => Text -> Int -> m (ConduitT i void1 m (), ConduitT void2 i m ())
+parallelSinkAndSource qname bufferSize = do
   q <- liftIO $ STM.newTBMQueueIO bufferSize
+  let read = do
+        STM.readTBMQueue q <|> do
+          Debug.debugLogM Debug.Temp $ "Blocked Reading from " <> Text.unpack qname
+          retry
+  let write chunk = do
+        STM.writeTBMQueue q chunk <|> do
+          Debug.debugLogM Debug.Temp $ "Blocked Writing to " <> Text.unpack qname
+          retry
   let sink = do
         C.await >>= \case
           Nothing -> STM.atomically $ STM.closeTBMQueue q
           Just chunk -> do
-            STM.atomically $ STM.writeTBMQueue q chunk
+            STM.atomically $ write chunk
             sink
+
   let source = do
-        STM.atomically (STM.readTBMQueue q) >>= \case
+        STM.atomically read >>= \case
           Nothing -> pure ()
           Just chunk -> do
             C.yield chunk
