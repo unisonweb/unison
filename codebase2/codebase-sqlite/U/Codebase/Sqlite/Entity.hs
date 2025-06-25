@@ -16,17 +16,17 @@ import U.Codebase.Sqlite.Term.Format qualified as Term
 --   | P SyncPatchFormat
 --   | C SyncCausalFormat
 type SyncEntity =
-  SyncEntity' TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId
+  SyncEntity' Term.SyncTermFormat' Decl.SyncDeclFormat' TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId
 
-data SyncEntity' text hash defn patch branchh branch causal
-  = TC (Term.SyncTermFormat' text defn)
-  | DC (Decl.SyncDeclFormat' text defn)
+data SyncEntity' tf df text hash defn patch branchh branch causal
+  = TC (tf text defn)
+  | DC (df text defn)
   | N (Namespace.SyncBranchFormat' branch text defn patch (branch, causal))
   | P (Patch.SyncPatchFormat' patch text hash defn)
   | C (Causal.SyncCausalFormat' causal branchh)
   deriving stock (Eq, Show)
 
-entityType :: SyncEntity' text hash defn patch branchh branch causal -> TempEntityType
+entityType :: SyncEntity' tf df text hash defn patch branchh branch causal -> TempEntityType
 entityType = \case
   TC _ -> TermComponentType
   DC _ -> DeclComponentType

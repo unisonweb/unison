@@ -18,7 +18,7 @@ import Unison.Prelude
 --   | P TempPatchFormat
 --   | C TempCausalFormat
 type TempEntity =
-  Entity.SyncEntity' Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
+  Entity.SyncEntity' Term.SyncTermFormat' Decl.SyncDeclFormat' Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
 
 type TempLocalIds = LocalIds' Text Hash32
 
