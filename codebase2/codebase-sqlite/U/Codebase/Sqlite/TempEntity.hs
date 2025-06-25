@@ -24,7 +24,7 @@ type DecodedTempEntityF tf df =
   Entity.SyncEntity' tf df Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
 
 type DecodedTempEntity =
-  DecodedTempEntityF Term.LocallyIndexedComponent' Decl.LocallyIndexedComponent'
+  DecodedTempEntityF (Entity.WithEncoded Term.LocallyIndexedComponent') (Entity.WithEncoded Decl.LocallyIndexedComponent')
 
 type TempLocalIds = LocalIds' Text Hash32
 

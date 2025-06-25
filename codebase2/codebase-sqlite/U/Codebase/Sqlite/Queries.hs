@@ -318,6 +318,7 @@ import Control.Monad.Writer (MonadWriter, runWriterT)
 import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
+import Data.Bifunctor.Tannen (Tannen (..))
 import Data.Bitraversable (Bitraversable, bitraverse)
 import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
@@ -1124,7 +1125,7 @@ tempToSyncEntity = \case
         <$> expectBranchHashIdForHash32 valueHash
         <*> traverse expectCausalHashIdForHash32 parents
 
-    tempToSyncF :: (Bifunctor f) => f Text Hash32 -> Transaction (f TextId ObjectId)
+    tempToSyncF :: (Bitraversable f) => f Text Hash32 -> Transaction (f TextId ObjectId)
     tempToSyncF =
       bitraverse saveText expectObjectIdForHash32
 
@@ -3040,49 +3041,59 @@ moveTempEntityToMain hh hash = do
 -- Decodes the term and decl formats of an entity.
 decodeEntity ::
   Entity.SyncEntity' TermFormat.SyncTermFormat' DeclFormat.SyncDeclFormat' text hash defn patch branchh branch causal ->
-  Either DecodeError (Entity.SyncEntity' TermFormat.LocallyIndexedComponent' DeclFormat.LocallyIndexedComponent' text hash defn patch branchh branch causal)
+  Either DecodeError (Entity.SyncEntity' (Entity.WithEncoded TermFormat.LocallyIndexedComponent') (Entity.WithEncoded DeclFormat.LocallyIndexedComponent') text hash defn patch branchh branch causal)
 decodeEntity entity =
-  Entity.hoistTermFormat (\(TermFormat.SyncTerm st) -> unsyncTermComponent st) entity
-    >>= Entity.hoistDeclFormat (\(DeclFormat.SyncDecl sd) -> unsyncDeclComponent sd)
+  Entity.hoistTermFormat
+    ( \(TermFormat.SyncTerm st@(TermFormat.SyncLocallyIndexedComponent vec)) -> do
+        let bss = snd <$> vec
+        Tannen . (bss,) <$> unsyncTermComponent st
+    )
+    entity
+    >>= Entity.hoistDeclFormat
+      ( \(DeclFormat.SyncDecl sd@(DeclFormat.SyncLocallyIndexedComponent vec)) -> do
+          let bss = snd <$> vec
+          Tannen . (bss,) <$> unsyncDeclComponent sd
+      )
 
 -- | Save a temp entity in main storage.
 --
 -- Precondition: all of its dependencies are already in main storage.
-saveTempEntityInMain :: HashHandle -> Hash32 -> TempEntity.DecodedTempEntity -> Transaction (Either CausalHashId ObjectId)
+saveTempEntityInMain :: HashHandle -> Hash32 -> TempEntity.TempEntity -> Transaction (Either CausalHashId ObjectId)
 saveTempEntityInMain hh hash entity = do
+  entity' <- tempToSyncEntity entity
+  decoded <- either (unsafeIO . UnliftIO.throwIO) pure $ (decodeEntity entity')
+  saveSyncEntity hh hash decoded
+
+-- | Save a temp entity in main storage.
+--
+-- Precondition: all of its dependencies are already in main storage.
+saveDecodedTempEntityInMain :: HashHandle -> Hash32 -> TempEntity.DecodedTempEntity -> Transaction (Either CausalHashId ObjectId)
+saveDecodedTempEntityInMain hh hash entity = do
   entity' <- tempToSyncEntity entity
   saveSyncEntity hh hash entity'
 
 saveSyncEntity ::
   HashHandle ->
   Hash32 ->
-  SyncEntity ->
+  Entity.DecodedSyncEntity ->
   Transaction (Either CausalHashId ObjectId)
 saveSyncEntity hh hash entity = do
   case entity of
-    Entity.TC stf -> do
-      lic :: TermFormat.LocallyIndexedComponent <- do
-        let TermFormat.SyncTerm x = stf
-        either (unsafeIO . UnliftIO.throwIO) pure $ unsyncTermComponent x
-
+    Entity.TC (Tannen (bss, lic)) -> do
       tc :: [(C.Term Symbol, C.Term.Type Symbol)] <-
         traverse
           (\(a, b, c) -> s2cTermWithType a b c)
           (toList $ TermFormat.unLocallyIndexedComponent lic)
-      let bytes = runPutS (Serialization.recomposeTermFormat stf)
+      let bytes = runPutS (Serialization.recomposeTermFormat (TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent $ Vector.zip (view Lens._1 <$> TermFormat.unLocallyIndexedComponent lic) bss))
       objId <- saveTermComponent hh (Just bytes) (Hash32.toHash hash) tc
       pure (Right objId)
-    Entity.DC sdf -> do
-      lic :: S.Decl.LocallyIndexedComponent <- do
-        let S.Decl.SyncDecl xs = sdf
-        either (unsafeIO . UnliftIO.throwIO) pure $ unsyncDeclComponent xs
-
+    Entity.DC (Tannen (bss, lic)) -> do
       dc :: [C.Decl.Decl Symbol] <-
         traverse
           (\(localIds, decl) -> s2cDecl localIds decl)
           (toList $ S.Decl.unLocallyIndexedComponent lic)
 
-      let bytes = runPutS (Serialization.recomposeDeclFormat sdf)
+      let bytes = runPutS (Serialization.recomposeDeclFormat (DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent $ Vector.zip (view Lens._1 <$> S.Decl.unLocallyIndexedComponent lic) bss))
       objId <- saveDeclComponent hh (Just bytes) (Hash32.toHash hash) dc
 
       pure (Right objId)

@@ -13,6 +13,7 @@ extra-source-files:
 dependencies:
   - aeson
   - base
+  - bifunctors
   - bytes
   - bytestring
   - containers

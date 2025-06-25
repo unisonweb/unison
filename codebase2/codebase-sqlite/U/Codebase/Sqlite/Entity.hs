@@ -1,5 +1,8 @@
 module U.Codebase.Sqlite.Entity where
 
+import Data.Bifunctor.Tannen (Tannen)
+import Data.ByteString (ByteString)
+import Data.Vector (Vector)
 import U.Codebase.Sqlite.Branch.Format qualified as Namespace
 import U.Codebase.Sqlite.Causal qualified as Causal
 import U.Codebase.Sqlite.DbId (BranchHashId, BranchObjectId, CausalHashId, HashId, ObjectId, PatchObjectId, TextId)
@@ -18,8 +21,11 @@ import U.Codebase.Sqlite.Term.Format qualified as Term
 type SyncEntity =
   SyncEntity' Term.SyncTermFormat' Decl.SyncDeclFormat' TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId
 
+-- Include the encoded bytestring, alongside the locally indexed component bifunctor.
+type WithEncoded p = Tannen ((,) (Vector ByteString)) p
+
 type DecodedSyncEntity =
-  DecodedSyncEntityF Term.LocallyIndexedComponent' Decl.LocallyIndexedComponent'
+  DecodedSyncEntityF (WithEncoded Term.LocallyIndexedComponent') (WithEncoded Decl.LocallyIndexedComponent')
 
 type DecodedSyncEntityF tf df =
   SyncEntity' tf df TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId

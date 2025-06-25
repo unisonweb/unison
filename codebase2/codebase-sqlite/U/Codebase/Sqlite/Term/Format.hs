@@ -2,8 +2,9 @@
 
 module U.Codebase.Sqlite.Term.Format where
 
-import Data.ByteString (ByteString)
-import Data.Text (Text)
+import Control.Lens
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Vector (Vector)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
@@ -15,6 +16,7 @@ import U.Codebase.Term qualified as Term
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
 import Unison.Hash32 (Hash32)
+import Unison.Prelude
 
 -- |
 -- * Builtin terms are represented as local text ids.
@@ -45,11 +47,31 @@ type HashLocallyIndexedComponent = LocallyIndexedComponent' Text Hash32
 
 newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
   {unLocallyIndexedComponent :: Vector (LocalIds' t d, Term, Type)}
-  deriving (Show)
+  deriving (Show, Functor, Foldable, Traversable)
 
 newtype SyncLocallyIndexedComponent' t d
   = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor LocallyIndexedComponent' where
+  bimap = bimapDefault
+
+instance Bifoldable LocallyIndexedComponent' where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable LocallyIndexedComponent' where
+  bitraverse f g (LocallyIndexedComponent v) =
+    LocallyIndexedComponent <$> (v & traversed . _1 %%~ bitraverse f g)
+
+instance Bifunctor SyncLocallyIndexedComponent' where
+  bimap = bimapDefault
+
+instance Bifoldable SyncLocallyIndexedComponent' where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable SyncLocallyIndexedComponent' where
+  bitraverse f g (SyncLocallyIndexedComponent v) =
+    SyncLocallyIndexedComponent <$> (v & traversed . _1 %%~ bitraverse f g)
 
 {-
 message = "hello, world"     -> ABT { ... { Term.F.Text "hello, world" } }    -> hashes to (#abc, 0)
@@ -127,8 +149,18 @@ data TermFormat' t d = Term (LocallyIndexedComponent' t d)
 
 type SyncTermFormat = SyncTermFormat' TextId ObjectId
 
-data SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
+newtype SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
   deriving stock (Eq, Show)
+  deriving newtype (Functor, Foldable)
+
+instance Bifunctor SyncTermFormat' where
+  bimap = bimapDefault
+
+instance Bifoldable SyncTermFormat' where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable SyncTermFormat' where
+  bitraverse f g (SyncTerm st) = SyncTerm <$> bitraverse f g st
 
 data WatchResultFormat
   = WatchResult WatchLocalIds Term
