@@ -388,7 +388,7 @@ bar = foo + 10
   The name foo is ambiguous. Its type should be: Nat
 
   I found some terms in scope that have matching names and
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   file.foo : Nat
   ns.foo : Nat

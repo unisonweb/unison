@@ -111,7 +111,7 @@ useAmbiguousTerm = ambiguousTerm
   by type, as any type would work here.
 
   I found some terms in scope that have matching names and
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   one.ambiguousTerm : Text
   two.ambiguousTerm : Text

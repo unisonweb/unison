@@ -90,7 +90,7 @@ ex4 =
       2 |   (a,b) = (a Nat.+ b, 19)
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   (Float.*) : Float -> Float -> Float
   (Int.*) : Int -> Int -> Int

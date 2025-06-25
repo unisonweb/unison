@@ -740,7 +740,7 @@ renderTypeError e env src = case e of
                         ]
                     ),
                   "\n\n",
-                  Pr.wrap "I found some terms in scope that have matching names and types. Maybe you meant one of these:",
+                  Pr.wrap "I found some terms in scope that have matching names and types. Was any of these what you wanted?",
                   "\n\n",
                   intercalateMap "\n" (renderSuggestion env) suggestionsRightNameRightType
                 ]
@@ -889,9 +889,9 @@ renderTypeError e env src = case e of
               "different name",
               pl "" "s",
               ". ",
-              "Maybe you meant ",
-              pl "this" "one of these",
-              ":\n\n"
+              "Was ",
+              pl "this" "any of these",
+              " what you wanted?\n\n"
             ]
         )
     preambleDifferentNameWrongType pl =
@@ -908,9 +908,9 @@ renderTypeError e env src = case e of
               "different type",
               pl "" "s",
               ". ",
-              "Maybe you meant ",
-              pl "this" "one of these",
-              ":\n\n"
+              "Was ",
+              pl "this" "any of these",
+              " what you wanted?\n\n"
             ]
         )
     formatWrongs txt wrongs =

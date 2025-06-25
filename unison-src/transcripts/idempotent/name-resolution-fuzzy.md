@@ -65,7 +65,7 @@ myFunction = TRuncate
       4 | myFunction = TRuncate
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   truncate0 : Int -> Nat
   truncate : Float -> Int
@@ -86,7 +86,7 @@ myFunction = builtin.io2.Ref.ca1
       4 | myFunction = builtin.io2.Ref.ca1
 
   I found a term in scope with a similar name but a different 
-  type. Maybe you meant this:
+  type. Was this what you wanted?
 
   cas : Ref {IO} a -> Ticket a -> a ->{IO} Boolean
 ```
@@ -117,7 +117,7 @@ x = biz.bete
       2 | x = biz.bete
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   byte : Boolean
   bite : Nat
@@ -141,7 +141,7 @@ myFunction = Flat.TRuncate2x4
       3 | myFunction = Flat.TRuncate2x4
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   truncate : Float -> Int
   truncate0 : Int -> Nat
@@ -162,7 +162,7 @@ myFunction = X
       4 | myFunction = X
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   (Float.*) : Float -> Float -> Float
   (Int.*) : Int -> Int -> Int
@@ -184,7 +184,7 @@ myFunction = In.X
       4 | myFunction = In.X
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   (Int.*) : Int -> Int -> Int
   (Int.+) : Int -> Int -> Int
@@ -216,7 +216,7 @@ f =
      10 |   if A then xYzlmno else ()
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   (Float.*) : Float -> Float -> Float
   (Int.*) : Int -> Int -> Int
@@ -244,7 +244,7 @@ f =
      10 |   if R.xYzlmno then A else ()
 
   I found a term in scope with a similar name but a different 
-  type. Maybe you meant this:
+  type. Was this what you wanted?
 
   L.xyzlmno : Int
 ```
