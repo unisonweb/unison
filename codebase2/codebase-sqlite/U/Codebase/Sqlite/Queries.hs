@@ -243,6 +243,8 @@ module U.Codebase.Sqlite.Queries
     syncToTempEntity,
     insertTempEntity,
     saveTempEntityInMain,
+    saveDecodedTempEntityInMain,
+    decodeEntity,
     expectTempEntity,
     deleteTempEntity,
     clearTempEntityTables,

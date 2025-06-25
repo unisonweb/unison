@@ -2,6 +2,9 @@
 
 module U.Codebase.Sqlite.Decl.Format where
 
+import Control.Lens
+import Data.Bifoldable
+import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Vector (Vector)
 import U.Codebase.Decl (DeclR)
 import U.Codebase.Reference (Reference')
@@ -29,18 +32,52 @@ type LocallyIndexedComponent =
 
 newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
   {unLocallyIndexedComponent :: Vector (LocalIds' t d, Decl Symbol)}
-  deriving (Show)
+  deriving (Show, Functor, Foldable, Traversable)
+
+instance Bifunctor LocallyIndexedComponent' where
+  bimap = bimapDefault
+
+instance Bifoldable LocallyIndexedComponent' where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable LocallyIndexedComponent' where
+  bitraverse f g (LocallyIndexedComponent v) =
+    v
+      & traversed . _1 %%~ bitraverse f g
+      <&> LocallyIndexedComponent
 
 type SyncDeclFormat =
   SyncDeclFormat' TextId ObjectId
 
-data SyncDeclFormat' t d
+newtype SyncDeclFormat' t d
   = SyncDecl (SyncLocallyIndexedComponent' t d)
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor SyncDeclFormat' where
+  bimap = bimapDefault
+
+instance Bifoldable SyncDeclFormat' where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable SyncDeclFormat' where
+  bitraverse f g (SyncDecl c) =
+    SyncDecl <$> bitraverse f g c
 
 newtype SyncLocallyIndexedComponent' t d
   = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+
+instance Bifunctor SyncLocallyIndexedComponent' where
+  bimap = bimapDefault
+
+instance Bifoldable SyncLocallyIndexedComponent' where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable SyncLocallyIndexedComponent' where
+  bitraverse f g (SyncLocallyIndexedComponent v) =
+    v
+      & traversed . _1 %%~ bitraverse f g
+      <&> SyncLocallyIndexedComponent
 
 -- [OldDecl] ==map==> [NewDecl] ==number==> [(NewDecl, Int)] ==sort==> [(NewDecl, Int)] ==> permutation is map snd of that
 
