@@ -47,6 +47,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId (CausalHashId)
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
+import U.Codebase.Sqlite.TempEntity qualified as TempEntity
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Auth.HTTPClient qualified as Auth
 import Unison.Cli.Monad (Cli)
@@ -196,11 +197,11 @@ syncFromCodeserver shouldValidate unisonShareUrl branchRef hashJwt = do
 ------------------------------------------------------------------------------------------------------------------------
 
 -- | Validate that the provided entities match their expected hashes, and if so, save them to the codebase.
-save :: (Codebase.Codebase IO v a) -> Vector (Hash32, TempEntity) -> StreamM ()
+save :: (Codebase.Codebase IO v a) -> Vector (Hash32, TempEntity.DecodedTempEntity) -> StreamM ()
 save codebase entities = ExceptT $ do
   liftIO $ Codebase.runTransactionExceptT codebase do
     for_ entities \(hash, entity) -> do
-      void . lift $ Q.saveTempEntityInMain v2HashHandle hash entity
+      void . lift $ Q.saveDecodedTempEntityInMain v2HashHandle hash entity
 
 -- | Validate that the provided entities match their expected hashes, and if so, save them to the codebase.
 validate :: Bool -> Vector (Hash32, TempEntity) -> StreamM ()
@@ -275,6 +276,7 @@ syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCou
   (downloaderSink, downloaderSource) <- parallelSinkAndSource "downloader" (2 * batchSize) -- Allow downloading up to triple our current batch size in advance
   (unpackerSink, unpackerSource) <- parallelSinkAndSource "unpacker" 2 -- Buffer of up to n batches.
   (validatorSink, validatorSource) <- parallelSinkAndSource "validator" 2 -- Buffer of up to n batches.
+  (decoderSink, decoderSource) <- parallelSinkAndSource "decoder" 2 -- Buffer of up to n batches.
   let downloadC = stream C..| downloaderSink
   let unpackerC =
         downloaderSource
@@ -290,8 +292,18 @@ syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCou
                 pure entityBatch
             )
           C..| validatorSink
-  let saverC =
+  let decoderC =
         validatorSource
+          C..| C.mapM
+            ( \entityBatch -> do
+                liftIO $ UnliftIO.pooledForConcurrently entityBatch \(hash, entity) -> do
+                  case Q.decodeEntity entity of
+                    Left err -> liftIO $ IO.throwIO err
+                    Right decodedEntity -> pure (hash, decodedEntity)
+            )
+          C..| decoderSink
+  let saverC =
+        decoderSource
           C..| C.mapM_C \entityBatch -> do
             save codebase entityBatch
             liftIO $ importCounter (length entityBatch)
@@ -301,8 +313,9 @@ syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCou
     a <- Async.conc . runExceptT $ C.runConduit downloadC
     b <- Async.conc . runExceptT $ C.runConduit unpackerC
     c <- Async.conc . runExceptT $ C.runConduit validatorC
-    d <- Async.conc . runExceptT $ C.runConduit saverC
-    pure (a >> b >> c >> d)
+    d <- Async.conc . runExceptT $ C.runConduit decoderC
+    e <- Async.conc . runExceptT $ C.runConduit saverC
+    pure (a >> b >> c >> d >> e)
   where
     batchSize = 10000
 

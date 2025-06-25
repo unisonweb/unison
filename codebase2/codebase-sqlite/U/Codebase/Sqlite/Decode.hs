@@ -176,13 +176,13 @@ decodeWatchResultFormat =
 unsyncTermComponent :: (HasCallStack) => TermFormat.SyncLocallyIndexedComponent' t d -> Either DecodeError (TermFormat.LocallyIndexedComponent' t d)
 unsyncTermComponent (TermFormat.SyncLocallyIndexedComponent terms) = do
   let phi (localIds, bs) = do
-        (a, b) <- decodeSyncTermAndType bs
-        pure $ (localIds, a, b)
+        (!a, !b) <- decodeSyncTermAndType bs
+        pure $! (localIds, a, b)
   TermFormat.LocallyIndexedComponent <$> traverse phi terms
 
 unsyncDeclComponent :: DeclFormat.SyncLocallyIndexedComponent' t d -> Either DecodeError (DeclFormat.LocallyIndexedComponent' t d)
 unsyncDeclComponent (DeclFormat.SyncLocallyIndexedComponent decls) = do
   let phi (localIds, bs) = do
-        decl <- decodeDecl bs
-        pure (localIds, decl)
+        !decl <- decodeDecl bs
+        pure $! (localIds, decl)
   DeclFormat.LocallyIndexedComponent <$> traverse phi decls
