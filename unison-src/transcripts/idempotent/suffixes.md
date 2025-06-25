@@ -108,7 +108,7 @@ scratch/main> add
   by type, as any type would work here.
 
   I found some terms in scope that have matching names and
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   cool.abra.cadabra : Text
   distributed.abra.cadabra : Text

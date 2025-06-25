@@ -339,7 +339,7 @@ scratch/main> load
      19 |   bar21
 
   I found a term in scope with a similar name but a different 
-  type. Maybe you meant this:
+  type. Was this what you wanted?
 
   bar1 : Nat
 ```
@@ -392,7 +392,7 @@ scratch/main> load
       6 |   a1
 
   I found some terms in scope with similar names but different 
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   (<|) : (i ->{g} o) -> i ->{g} o
   Bytes.at : Nat -> Bytes -> Optional Nat
