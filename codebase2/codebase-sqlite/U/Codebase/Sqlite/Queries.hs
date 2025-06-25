@@ -318,7 +318,7 @@ import Control.Monad.Writer (MonadWriter, runWriterT)
 import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
-import Data.Bitraversable (bitraverse)
+import Data.Bitraversable (Bitraversable, bitraverse)
 import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
@@ -1110,10 +1110,10 @@ expectTempEntity hash = do
         TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
 
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
-tempToSyncEntity :: TempEntity -> Transaction SyncEntity
+tempToSyncEntity :: forall tf df. (Bitraversable tf, Bitraversable df) => TempEntity.DecodedTempEntityF tf df -> Transaction (Entity.DecodedSyncEntityF tf df)
 tempToSyncEntity = \case
-  Entity.TC term -> Entity.TC <$> tempToSyncTermComponent term
-  Entity.DC decl -> Entity.DC <$> tempToSyncDeclComponent decl
+  Entity.TC term -> Entity.TC <$> tempToSyncF term
+  Entity.DC decl -> Entity.DC <$> tempToSyncF decl
   Entity.N namespace -> Entity.N <$> tempToSyncNamespace namespace
   Entity.P patch -> Entity.P <$> tempToSyncPatch patch
   Entity.C causal -> Entity.C <$> tempToSyncCausal causal
@@ -1124,18 +1124,9 @@ tempToSyncEntity = \case
         <$> expectBranchHashIdForHash32 valueHash
         <*> traverse expectCausalHashIdForHash32 parents
 
-    tempToSyncDeclComponent :: TempEntity.TempDeclFormat -> Transaction DeclFormat.SyncDeclFormat
-    tempToSyncDeclComponent = \case
-      DeclFormat.SyncDecl (DeclFormat.SyncLocallyIndexedComponent decls) ->
-        DeclFormat.SyncDecl . DeclFormat.SyncLocallyIndexedComponent
-          <$> Lens.traverseOf
-            (traverse . Lens._1)
-            ( \LocalIds.LocalIds {textLookup, defnLookup} ->
-                LocalIds.LocalIds
-                  <$> saveTexts textLookup
-                  <*> traverse expectObjectIdForHash32 defnLookup
-            )
-            decls
+    tempToSyncF :: (Bifunctor f) => f Text Hash32 -> Transaction (f TextId ObjectId)
+    tempToSyncF =
+      bitraverse saveText expectObjectIdForHash32
 
     tempToSyncNamespace :: TempEntity.TempNamespaceFormat -> Transaction NamespaceFormat.SyncBranchFormat
     tempToSyncNamespace = \case
@@ -1176,19 +1167,6 @@ tempToSyncEntity = \case
         <$> saveTexts texts
         <*> saveHashes hashes
         <*> traverse expectObjectIdForHash32 defns
-
-    tempToSyncTermComponent :: TempEntity.TempTermFormat -> Transaction TermFormat.SyncTermFormat
-    tempToSyncTermComponent = \case
-      TermFormat.SyncTerm (TermFormat.SyncLocallyIndexedComponent terms) ->
-        TermFormat.SyncTerm . TermFormat.SyncLocallyIndexedComponent
-          <$> Lens.traverseOf
-            (traverse . Lens._1)
-            ( \LocalIds.LocalIds {textLookup, defnLookup} ->
-                LocalIds.LocalIds
-                  <$> saveTexts textLookup
-                  <*> traverse expectObjectIdForHash32 defnLookup
-            )
-            terms
 
 -- | looking up all of the text and hashes is the first step of converting a SyncEntity to a Share.Entity
 syncToTempEntity :: SyncEntity -> Transaction TempEntity
@@ -3059,10 +3037,18 @@ moveTempEntityToMain hh hash = do
   _ <- saveTempEntityInMain hh hash entity
   pure ()
 
+-- Decodes the term and decl formats of an entity.
+decodeEntity ::
+  Entity.SyncEntity' TermFormat.SyncTermFormat' DeclFormat.SyncDeclFormat' text hash defn patch branchh branch causal ->
+  Either DecodeError (Entity.SyncEntity' TermFormat.LocallyIndexedComponent' DeclFormat.LocallyIndexedComponent' text hash defn patch branchh branch causal)
+decodeEntity entity =
+  Entity.hoistTermFormat (\(TermFormat.SyncTerm st) -> unsyncTermComponent st) entity
+    >>= Entity.hoistDeclFormat (\(DeclFormat.SyncDecl sd) -> unsyncDeclComponent sd)
+
 -- | Save a temp entity in main storage.
 --
 -- Precondition: all of its dependencies are already in main storage.
-saveTempEntityInMain :: HashHandle -> Hash32 -> TempEntity -> Transaction (Either CausalHashId ObjectId)
+saveTempEntityInMain :: HashHandle -> Hash32 -> TempEntity.DecodedTempEntity -> Transaction (Either CausalHashId ObjectId)
 saveTempEntityInMain hh hash entity = do
   entity' <- tempToSyncEntity entity
   saveSyncEntity hh hash entity'

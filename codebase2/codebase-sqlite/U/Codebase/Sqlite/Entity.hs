@@ -18,6 +18,12 @@ import U.Codebase.Sqlite.Term.Format qualified as Term
 type SyncEntity =
   SyncEntity' Term.SyncTermFormat' Decl.SyncDeclFormat' TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId
 
+type DecodedSyncEntity =
+  DecodedSyncEntityF Term.LocallyIndexedComponent' Decl.LocallyIndexedComponent'
+
+type DecodedSyncEntityF tf df =
+  SyncEntity' tf df TextId HashId ObjectId PatchObjectId BranchHashId BranchObjectId CausalHashId
+
 data SyncEntity' tf df text hash defn patch branchh branch causal
   = TC (tf text defn)
   | DC (df text defn)
@@ -25,6 +31,24 @@ data SyncEntity' tf df text hash defn patch branchh branch causal
   | P (Patch.SyncPatchFormat' patch text hash defn)
   | C (Causal.SyncCausalFormat' causal branchh)
   deriving stock (Eq, Show)
+
+-- | Natural transformation for the entity's term format container.
+hoistTermFormat :: (Applicative m) => (tf text defn -> m (tf' text defn)) -> SyncEntity' tf df text hash defn patch branchh branch causal -> m (SyncEntity' tf' df text hash defn patch branchh branch causal)
+hoistTermFormat f = \case
+  TC t -> TC <$> (f t)
+  DC d -> pure $ DC d
+  N n -> pure $ N n
+  P p -> pure $ P p
+  C c -> pure $ C c
+
+-- | Natural transformation for the entity's decl format container.
+hoistDeclFormat :: (Applicative m) => (df text defn -> m (df' text defn)) -> SyncEntity' tf df text hash defn patch branchh branch causal -> m (SyncEntity' tf df' text hash defn patch branchh branch causal)
+hoistDeclFormat f = \case
+  TC t -> pure $ TC t
+  DC d -> DC <$> (f d)
+  N n -> pure $ N n
+  P p -> pure $ P p
+  C c -> pure $ C c
 
 entityType :: SyncEntity' tf df text hash defn patch branchh branch causal -> TempEntityType
 entityType = \case

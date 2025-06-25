@@ -20,6 +20,12 @@ import Unison.Prelude
 type TempEntity =
   Entity.SyncEntity' Term.SyncTermFormat' Decl.SyncDeclFormat' Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
 
+type DecodedTempEntityF tf df =
+  Entity.SyncEntity' tf df Text Hash32 Hash32 Hash32 Hash32 Hash32 Hash32
+
+type DecodedTempEntity =
+  DecodedTempEntityF Term.LocallyIndexedComponent' Decl.LocallyIndexedComponent'
+
 type TempLocalIds = LocalIds' Text Hash32
 
 type TempTermFormat = Term.SyncTermFormat' Text Hash32
