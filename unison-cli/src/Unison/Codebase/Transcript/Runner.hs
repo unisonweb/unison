@@ -110,6 +110,7 @@ withRunner isTest verbosity ucmVersion action = do
         Server.defaultCodebaseServerOpts
         runtime
         codebase
+        (error "IMPLEMENT MCP SERVER in transcripts")
         \case
           Nothing -> pure $ Left PortBindingFailure
           Just baseUrl ->
