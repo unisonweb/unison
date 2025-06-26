@@ -273,10 +273,10 @@ syncSortedStream ::
   Stream () SyncV2.EntityChunk ->
   StreamM ()
 syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCounter}) shouldValidate codebase stream = do
-  (downloaderSink, downloaderSource) <- parallelSinkAndSource "downloader" (2 * batchSize) -- Allow downloading up to triple our current batch size in advance
-  (unpackerSink, unpackerSource) <- parallelSinkAndSource "unpacker" 2 -- Buffer of up to n batches.
-  (validatorSink, validatorSource) <- parallelSinkAndSource "validator" 2 -- Buffer of up to n batches.
-  (decoderSink, decoderSource) <- parallelSinkAndSource "decoder" 2 -- Buffer of up to n batches.
+  (downloaderSink, downloaderSource) <- parallelSinkAndSource "downloader" (5 * batchSize) -- Allow downloading up to triple our current batch size in advance
+  (unpackerSink, unpackerSource) <- parallelSinkAndSource "unpacker" 5 -- Buffer of up to n batches.
+  (validatorSink, validatorSource) <- parallelSinkAndSource "validator" 5 -- Buffer of up to n batches.
+  (decoderSink, decoderSource) <- parallelSinkAndSource "decoder" 5 -- Buffer of up to n batches.
   let downloadC = stream C..| downloaderSink
   let unpackerC =
         downloaderSource
@@ -299,7 +299,9 @@ syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCou
                 liftIO $ UnliftIO.pooledForConcurrently entityBatch \(hash, entity) -> do
                   case Q.decodeEntity entity of
                     Left err -> liftIO $ IO.throwIO err
-                    Right decodedEntity -> pure (hash, decodedEntity)
+                    Right decodedEntity -> do
+                      UnliftIO.evaluate decodedEntity
+                      pure (hash, decodedEntity)
             )
           C..| decoderSink
   let saverC =
@@ -317,7 +319,7 @@ syncSortedStream (ProgressCallbacks {downloadCounter, doneDownloading, importCou
     e <- Async.conc . runExceptT $ C.runConduit saverC
     pure (a >> b >> c >> d >> e)
   where
-    batchSize = 10000
+    batchSize = 1000
 
 -- | Topologically sort entities based on their dependencies, returning a list in dependency-first order.
 sortDependencyFirst :: (Foldable f, Functor f) => f (Hash32, TempEntity) -> [(Hash32, TempEntity)]
