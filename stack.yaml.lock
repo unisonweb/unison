@@ -18,14 +18,14 @@ packages:
 - completed:
     name: hs-mcp
     pantry-tree:
-      sha256: 5e0faf4005ccdce8bb93f0295e6017ed54419e7ee5584e83aae2bc62d805e169
+      sha256: d1e8c5b2d6b45d89f7f50ec87caee24e9971d1d4c0f0620fe4155915815d9bb3
       size: 1207
-    sha256: d922d8682940c8d191209a518c9fd2293b13eca93bc6d9975b134825dac836c8
-    size: 20595
-    url: https://github.com/ChrisPenner/hs-mcp/archive/14fe82d086a04e82b1c05d7f5a4bbd30eec22042.tar.gz
+    sha256: 9b281f6d3481aae22ff76376844259432ef6f807655cb113d6437579f182ed16
+    size: 20762
+    url: https://github.com/ChrisPenner/hs-mcp/archive/1469ba7ef807d567ff05ba21d7cc8cd817649018.tar.gz
     version: 0.1.0.0
   original:
-    url: https://github.com/ChrisPenner/hs-mcp/archive/14fe82d086a04e82b1c05d7f5a4bbd30eec22042.tar.gz
+    url: https://github.com/ChrisPenner/hs-mcp/archive/1469ba7ef807d567ff05ba21d7cc8cd817649018.tar.gz
 - completed:
     hackage: fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921
     pantry-tree:
