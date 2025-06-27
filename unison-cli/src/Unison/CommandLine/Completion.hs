@@ -51,7 +51,6 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
-import Unison.Debug qualified as Debug
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
@@ -77,12 +76,12 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+      case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p <- Map.lookup h patterns
+          paramType <- IP.paramType (IP.params p) (length t)
+          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+        _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -334,50 +333,10 @@ fixupCompletion q cs@(h : t) =
         then [c {Line.replacement = q} | c <- cs]
         else cs
 
--- | Searches for matching projects on the codeserver.
--- Query is flexible, e.g.
---
--- - "base"
--- - "@unison"
--- - "@unison/b"
--- - "postgres"
--- - "database"
-_searchProjects :: (MonadIO m) => AuthenticatedHttpClient -> Text -> m [Text]
-_searchProjects _ "" = pure []
-_searchProjects (AuthenticatedHttpClient httpManager) query = do
-  infixResults <- runSearch "slug-infix"
-  Debug.debugM Debug.Temp "shareProjectCompletion: slug-infix results: " infixResults
-  case infixResults of
-    -- Fall back to the web search if slug-infix returns no results
-    [] -> do
-      webSearchResults <- runSearch "web-search"
-      Debug.debugM Debug.Temp "shareProjectCompletion: web-search results: " webSearchResults
-      pure webSearchResults
-    results -> pure results
-  where
-    searchKinds
-      -- If the query contains a '/', we assume it's a project search.
-      | Text.isInfixOf "/" query = "projects"
-      | otherwise = "users"
-    runSearch :: (MonadIO m) => Text -> m [Text]
-    runSearch psk = do
-      fromMaybe [] <$> runMaybeT do
-        let uri =
-              (Share.codeserverToURI Codeserver.defaultCodeserver)
-                { URI.uriPath = "/search",
-                  URI.uriQuery = Text.unpack $ "?kinds=" <> searchKinds <> "&project-search-kind=" <> psk <> "&query=" <> query
-                }
-        req <- MaybeT $ pure (HTTP.requestFromURI uri)
-        fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
-        resp <- either (const empty) pure $ fullResp
-        (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
-          <&> fmap \case
-            SearchResultUserLike handle -> "@" <> ensureTrailingSlash handle
-            SearchResultProject ref -> ensureTrailingSlash ref
-
 data SearchKind = UserKind | ProjectKind
   deriving (Show, Eq)
 
+-- | Completes a user handle by searching Share.
 completeShareUser ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
@@ -392,6 +351,7 @@ completeShareUser authHTTPClient query =
           Line.isFinished = False
         }
 
+-- | E.g. "@uni" -> "@unison"
 completeShareUserHelper ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
@@ -405,6 +365,10 @@ completeShareUserHelper authHTTPClient query = do
       SearchResultProject _ -> Nothing
     & pure
 
+-- | Does progressive tab-completion, so if you're working on the user-segment it'll complete that, then if you mash tab
+-- it'll proceed to project completion.
+-- E.g. "@uni" -> "@unison/"
+-- Then "@unison/" -> "@unison/base"
 completeShareProject ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
@@ -436,22 +400,28 @@ completeShareProjectHelper authHTTPClient query
       completeShareUserHelper authHTTPClient query
         <&> fmap \handle -> ensureTrailingSlash handle
 
+-- | Does progressive tab-completion, so if you're working on the user-segment it'll complete that, then if you mash tab
+-- it'll proceed to project completion, then branch or release completion.
+-- E.g. "@uni" -> "@unison/"
+-- Then "@unison/" -> "@unison/base/"
+-- Then "@unison/base/" -> "@unison/base/main"
+-- or "@unison/base/@cont" -> "@unison/base/@contributor/"
+-- or "@unison/base/@contributor/" -> "@unison/base/@contributor/feature"
+-- or "@unison/base/releases/lat" -> "@unison/base/releases/latest"
+-- or "@unison/base/releases/1." -> "@unison/base/releases/1.2.3"
 completeShareBranchOrRelease ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
   String ->
   m [Completion]
 completeShareBranchOrRelease authHTTPClient query = do
-  r <- completeShareBranchHelper authHTTPClient (Text.pack query)
-  Debug.debugM Debug.Temp "results" r
-  pure $
-    r
-      & fmap \branch ->
-        Line.Completion
-          { Line.replacement = Text.unpack branch,
-            Line.display = Text.unpack branch,
-            Line.isFinished = False
-          }
+  completeShareBranchHelper authHTTPClient (Text.pack query)
+    <&> fmap \branch ->
+      Line.Completion
+        { Line.replacement = Text.unpack branch,
+          Line.display = Text.unpack branch,
+          Line.isFinished = False
+        }
 
 completeShareBranchHelper ::
   (MonadIO m) =>
@@ -489,6 +459,7 @@ completeShareBranchHelper authHTTPClient query = do
       completeShareProjectHelper authHTTPClient query
         <&> fmap ensureTrailingSlash
 
+-- | Search share for branches within the provided handle and project
 searchProjectBranches ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
@@ -508,7 +479,6 @@ searchProjectBranches (AuthenticatedHttpClient httpManager) handle proj contribu
             { URI.uriPath = "/users/" <> Text.unpack cleanedHandle <> "/projects/" <> Text.unpack proj <> "/branches",
               URI.uriQuery = Text.unpack $ "?name-prefix=" <> query <> "&kind=" <> searchKind <> contributorFilter
             }
-    Debug.debugM Debug.Temp "searchProjectBranches: uri: " (Text.pack $ show uri)
     req <- MaybeT $ pure (HTTP.requestFromURI uri)
     let req' = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 5000000} -- 5 seconds
     -- Set a timeout on the request
@@ -519,6 +489,7 @@ searchProjectBranches (AuthenticatedHttpClient httpManager) handle proj contribu
         items <&> \BranchResult {branchRef, projectSlug, projectOwnerHandle} ->
           projectOwnerHandle <> "/" <> projectSlug <> "/" <> branchRef
 
+-- | Search share for releases within the provided handle and project
 searchProjectReleases ::
   (MonadIO m) =>
   AuthenticatedHttpClient ->
@@ -534,7 +505,6 @@ searchProjectReleases (AuthenticatedHttpClient httpManager) handle proj query = 
             { URI.uriPath = "/users/" <> Text.unpack cleanedHandle <> "/projects/" <> Text.unpack proj <> "/releases",
               URI.uriQuery = Text.unpack $ "?version-prefix=" <> query
             }
-    Debug.debugM Debug.Temp "searchProjectRelease: uri: " (Text.pack $ show uri)
     req <- MaybeT $ pure (HTTP.requestFromURI uri)
     let req' = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 5000000} -- 5 seconds
     -- Set a timeout on the request
@@ -551,6 +521,7 @@ ensureTrailingSlash ref =
     Nothing -> ref <> "/"
     Just stripped -> stripped <> "/"
 
+-- | Search Share for users and projects based on the provided query and search kinds.
 runShareOmniSearch :: (MonadIO m) => AuthenticatedHttpClient -> NESet SearchKind -> Text -> Maybe Text -> m [SearchResult]
 runShareOmniSearch (AuthenticatedHttpClient httpManager) kinds query mayPsk = do
   fromMaybe [] <$> runMaybeT do
@@ -559,14 +530,11 @@ runShareOmniSearch (AuthenticatedHttpClient httpManager) kinds query mayPsk = do
             { URI.uriPath = "/search",
               URI.uriQuery = Text.unpack $ "?user-search-kind=handle-prefix&kinds=" <> searchKinds <> "&query=" <> query <> psk
             }
-    Debug.debugM Debug.Temp "runShareOmniSearch: uri: " (Text.pack $ show uri)
     req <- MaybeT $ pure (HTTP.requestFromURI uri)
     let req' = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 5000000} -- 5 seconds
     fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req' httpManager
     resp <- either (const empty) pure $ fullResp
-    results <- (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
-    Debug.debugM Debug.Temp "runShareOmniSearch: results: " results
-    pure results
+    (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
   where
     psk :: Text
     psk =
