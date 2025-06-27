@@ -77,12 +77,12 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-      case words $ reverse prev of
-        h : t -> fromMaybe (pure []) $ do
-          p <- Map.lookup h patterns
-          paramType <- IP.paramType (IP.params p) (length t)
-          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-        _ -> pure []
+    case words $ reverse prev of
+      h : t -> fromMaybe (pure []) $ do
+        p <- Map.lookup h patterns
+        paramType <- IP.paramType (IP.params p) (length t)
+        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+      _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
