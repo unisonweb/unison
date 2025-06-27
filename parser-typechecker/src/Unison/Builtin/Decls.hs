@@ -154,6 +154,23 @@ avroFloat = Maybe.fromJust $ constructorId avroRef "avro.Value.FloatValue"
 avroDouble = Maybe.fromJust $ constructorId avroRef "avro.Value.DoubleValue"
 avroBoolean = Maybe.fromJust $ constructorId avroRef "avro.Value.BooleanValue"
 
+avroDefaultNull, avroDefaultBoolean, avroDefaultInt, avroDefaultLong, avroDefaultFloat, avroDefaultDouble, avroDefaultBytes, avroDefaultString, avroDefaultArray, avroDefaultMap, avroDefaultRecord, avroDefaultEnum, avroDefaultUnion, avroDefaultFixed, avroDefaultNamedType :: ConstructorId
+avroDefaultNull = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Null"
+avroDefaultBoolean = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Boolean"
+avroDefaultInt = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Int"
+avroDefaultLong = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Long"
+avroDefaultFloat = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Float"
+avroDefaultDouble = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Double"
+avroDefaultBytes = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Bytes"
+avroDefaultString = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.String"
+avroDefaultArray = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Array"
+avroDefaultMap = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Map"
+avroDefaultRecord = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Record"
+avroDefaultEnum = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Enum"
+avroDefaultUnion = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Union"
+avroDefaultFixed = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Fixed"
+avroDefaultNamedType = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.NamedType"
+
 avroReadSchemaNull, avroReadSchemaBoolean, avroReadSchemaInt, avroReadSchemaLong, avroReadSchemaFloat, avroReadSchemaDouble, avroReadSchemaBytes, avroReadSchemaString, avroReadSchemaArray, avroReadSchemaMap, avroReadSchemaRecord, avroReadSchemaEnum, avroReadSchemaUnion, avroReadSchemaFixed, avroReadSchemaFreeUnion, avroReadSchemaNamedType :: ConstructorId
 avroReadSchemaNull = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.Null"
 avroReadSchemaBoolean = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.Boolean"
@@ -171,6 +188,35 @@ avroReadSchemaUnion = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.sch
 avroReadSchemaFixed = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.Fixed"
 avroReadSchemaFreeUnion = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.FreeUnion"
 avroReadSchemaNamedType = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.NamedType"
+
+avroSchemaRef = lookupDeclRef "avro.schema.Schema"
+
+avroSchemaNull, avroSchemaBoolean, avroSchemaInt, avroSchemaLong, avroSchemaFloat, avroSchemaBytes, avroSchemaString, avroSchemaArray, avroSchemaMap, avroSchemaNamedType, avroSchemaRecord, avroSchemaEnum, avroSchemaUnion, avroSchemaFixed :: ConstructorId
+avroSchemaNull = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Null"
+avroSchemaBoolean = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Boolean"
+avroSchemaInt = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Int"
+avroSchemaLong = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Long"
+avroSchemaFloat = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Float"
+
+avroSchemaDouble = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Double"
+
+avroSchemaBytes = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Bytes"
+
+avroSchemaString = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.String"
+
+avroSchemaArray = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Array"
+
+avroSchemaMap = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Map"
+
+avroSchemaNamedType = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.NamedType"
+
+avroSchemaRecord = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Record"
+
+avroSchemaEnum = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Enum"
+
+avroSchemaUnion = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Union"
+
+avroSchemaFixed = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Fixed"
 
 avroEnumRef = lookupDeclRef "avro.schema.AvroEnum"
 
@@ -364,6 +410,9 @@ parseErrorRef = lookupDeclRef "Json.ParseError"
 avroRef :: Reference
 avroRef = lookupDeclRef "avro.Value"
 
+avroDefaultRef :: Reference
+avroDefaultRef = lookupDeclRef "avro.schema.DefaultValue"
+
 avroReadSchemaRef :: Reference
 avroReadSchemaRef = lookupDeclRef "avro.schema.deconflicted.ReadSchema"
 
@@ -388,9 +437,44 @@ avroReadDoubleRef = lookupDeclRef "avro.schema.deconflicted.ReadDouble"
 avroReadLongRef :: Reference
 avroReadLongRef = lookupDeclRef "avro.schema.deconflicted.ReadLong"
 
+avroFieldStatusRef :: Reference
+avroFieldStatusRef = lookupDeclRef "avro.schema.deconflicted.FieldStatus"
+
+avroOrderRef :: Reference
+avroOrderRef = lookupDeclRef "avro.schema.Order"
+
 avroReadLongInt32, avroReadLong :: ConstructorId
 avroReadLongInt32 = Maybe.fromJust $ constructorId avroReadLongRef "avro.schema.deconflicted.ReadLong.LongFromInt32"
 avroReadLong = Maybe.fromJust $ constructorId avroReadLongRef "avro.schema.deconflicted.ReadLong"
+
+avroFieldStatusAsIs, avroFieldStatusDefaulted, avroFieldStatusIgnored :: ConstructorId
+avroFieldStatusAsIs = Maybe.fromJust $ constructorId avroFieldStatusRef "avro.schema.deconflicted.FieldStatus.AsIs"
+avroFieldStatusDefaulted = Maybe.fromJust $ constructorId avroFieldStatusRef "avro.schema.deconflicted.FieldStatus.Defaulted"
+avroFieldStatusIgnored = Maybe.fromJust $ constructorId avroFieldStatusRef "avro.schema.deconflicted.FieldStatus.Ignored"
+
+avroOrderAscending, avroOrderDescending, avroOrderIgnore :: ConstructorId
+avroOrderAscending = Maybe.fromJust $ constructorId avroOrderRef "avro.schema.Order.Ascending"
+avroOrderDescending = Maybe.fromJust $ constructorId avroOrderRef "avro.schema.Order.Descending"
+avroOrderIgnore = Maybe.fromJust $ constructorId avroOrderRef "avro.schema.Order.Ignore"
+
+avroDefaultValueRef :: Reference
+avroDefaultValueRef = lookupDeclRef "avro.schema.DefaultValue"
+
+avroDefaultValueBytes, avroDefaultValueFixed, avroDefaultValueArray, avroDefaultValueInt32, avroDefaultValueInt64, avroDefaultValueEnum, avroDefaultValueBoolean, avroDefaultValueNull, avroDefaultValueMap, avroDefaultValueString, avroDefaultValueFloat, avroDefaultValueDouble, avroDefaultValueRecord, avroDefaultValueUnion :: ConstructorId
+avroDefaultValueBytes = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Bytes"
+avroDefaultValueFixed = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Fixed"
+avroDefaultValueArray = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Array"
+avroDefaultValueInt32 = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Int32"
+avroDefaultValueInt64 = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Int64"
+avroDefaultValueEnum = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Enum"
+avroDefaultValueBoolean = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Boolean"
+avroDefaultValueNull = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Null"
+avroDefaultValueMap = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Map"
+avroDefaultValueString = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.String"
+avroDefaultValueFloat = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Float"
+avroDefaultValueDouble = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Double"
+avroDefaultValueRecord = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Record"
+avroDefaultValueUnion = Maybe.fromJust $ constructorId avroDefaultValueRef "avro.schema.DefaultValue.Union"
 
 pattern Rewrites' :: [Term2 vt at ap v a] -> Term2 vt at ap v a
 pattern Rewrites' ts <- (unRewrites -> Just ts)
@@ -460,7 +544,7 @@ builtinDataDecls = rs1 ++ rs
           (v "avro.schema.deconflicted.ReadRecord", avroReadRecord),
           (v "avro.schema.deconflicted.ReadField", avroReadField),
           (v "avro.schema.Order", avroOrder),
-          (v "avro.schema.FieldStatus", avroFieldStatus),
+          (v "avro.schema.deconflicted.FieldStatus", avroFieldStatus),
           (v "avro.schema.AvroEnum", avroEnum),
           (v "avro.schema.DefaultValue", avroDefaultValue),
           (v "avro.schema.TypeName", avroTypeName),
@@ -1066,7 +1150,7 @@ builtinDataDecls = rs1 ++ rs
         ()
         []
         let readField = var "avro.schema.deconflicted.ReadField"
-            fieldStatus = var "avro.schema.FieldStatus"
+            fieldStatus = var "avro.schema.deconflicted.FieldStatus"
             readSchema = var "avro.schema.deconflicted.ReadSchema"
             order = var "avro.schema.Order"
             defaultValue = var "avro.schema.DefaultValue"
@@ -1091,12 +1175,12 @@ builtinDataDecls = rs1 ++ rs
         (Unique "o0hrihuckkskb90jvob2mpiclv8ocj1a")
         ()
         []
-        let fieldStatus = var "avro.schema.FieldStatus"
+        let fieldStatus = var "avro.schema.deconflicted.FieldStatus"
             defaultValue = var "avro.schema.DefaultValue"
             nat = Type.nat ()
-         in [ ((), v "avro.schema.FieldStatus.AsIs", nat `arr` fieldStatus),
-              ((), v "avro.schema.FieldStatus.Ignored", fieldStatus),
-              ((), v "avro.schema.FieldStatus.Defaulted", nat `arr` defaultValue `arr` fieldStatus)
+         in [ ((), v "avro.schema.deconflicted.FieldStatus.AsIs", nat `arr` fieldStatus),
+              ((), v "avro.schema.deconflicted.FieldStatus.Ignored", fieldStatus),
+              ((), v "avro.schema.deconflicted.FieldStatus.Defaulted", nat `arr` defaultValue `arr` fieldStatus)
             ]
 
     avroEnum =

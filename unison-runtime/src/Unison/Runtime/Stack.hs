@@ -17,6 +17,7 @@ module Unison.Runtime.Stack
         Data1,
         Data2,
         DataG,
+        DataGBoxed,
         Captured,
         Foreign,
         Affine,
@@ -412,6 +413,10 @@ pattern Data1 r t i = Closure (GData1 r t i)
 pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
+
+pattern DataGBoxed r t cs <- Closure (GDataG r t (_, L.toList -> cs))
+  where
+    DataGBoxed r t cs = Closure (GDataG r t (useg [], bseg cs))
 
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
