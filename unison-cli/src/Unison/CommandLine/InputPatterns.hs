@@ -1680,7 +1680,7 @@ pullImpl name aliases pullMode addendum = do
           params =
             Parameters [] $
               Optional
-                [ ("remote namespace to pull", remoteProjectArg),
+                [ ("remote namespace to pull", remoteProjectBranchArg),
                   ( "destination branch",
                     projectBranchNameArg
                       ProjectBranchSuggestionsConfig
@@ -1848,7 +1848,7 @@ push =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteProjectArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1904,7 +1904,7 @@ pushCreate =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteProjectArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1957,7 +1957,7 @@ pushForce =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteProjectArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     (P.wrap "Like `push`, but forcibly overwrites the remote namespace.")
@@ -1990,7 +1990,7 @@ pushExhaustive =
     I.Hidden
     ( Parameters [] $
         Optional
-          [("remote destination", remoteProjectArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -3777,11 +3777,20 @@ directoryPathArg =
       isStructured = False
     }
 
-remoteProjectArg :: ParameterType
-remoteProjectArg =
+_remoteProjectArg :: ParameterType
+_remoteProjectArg =
   ParameterType
     { typeName = "remote-project",
       suggestions = \input _cb http _p -> completeShareProject http input,
+      fzfResolver = Nothing,
+      isStructured = True
+    }
+
+remoteProjectBranchArg :: ParameterType
+remoteProjectBranchArg =
+  ParameterType
+    { typeName = "remote-project-branch",
+      suggestions = \input _cb http _p -> completeShareBranch http input,
       fzfResolver = Nothing,
       isStructured = True
     }
