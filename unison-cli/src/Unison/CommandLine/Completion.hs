@@ -476,6 +476,9 @@ completeShareBranchHelper authHTTPClient query = do
           pure $
             Monoid.whenM (Text.isPrefixOf branchOrContributorPrefix "releases") [handle <> "/" <> proj <> "/releases/"]
               <> results
+    [handle, proj, "releases", ""] -> do
+      searchProjectReleases authHTTPClient handle proj ""
+        <&> (handle <> "/" <> proj <> "/releases/latest" :)
     [handle, proj, "releases", branch]
       | Text.isPrefixOf branch "latest" -> pure [handle <> "/" <> proj <> "/releases/latest"]
       | otherwise -> do
@@ -496,14 +499,14 @@ searchProjectBranches ::
   m [Text]
 searchProjectBranches (AuthenticatedHttpClient httpManager) handle proj contributor query = do
   fromMaybe [] <$> runMaybeT do
-    let searchKind = case contributor of
-          Just {} -> "contributor"
-          Nothing -> "core"
+    let (searchKind, contributorFilter) = case contributor of
+          Just contributor -> ("contributor", "&contributor-handle=" <> contributor)
+          Nothing -> ("core", "")
     let cleanedHandle = Text.dropWhile (== '@') handle
     let uri =
           (Share.codeserverToURI Codeserver.defaultCodeserver)
             { URI.uriPath = "/users/" <> Text.unpack cleanedHandle <> "/projects/" <> Text.unpack proj <> "/branches",
-              URI.uriQuery = Text.unpack $ "?name-prefix=" <> query <> "&kind=" <> searchKind
+              URI.uriQuery = Text.unpack $ "?name-prefix=" <> query <> "&kind=" <> searchKind <> contributorFilter
             }
     Debug.debugM Debug.Temp "searchProjectBranches: uri: " (Text.pack $ show uri)
     req <- MaybeT $ pure (HTTP.requestFromURI uri)
