@@ -65,7 +65,7 @@ testCreateRename _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       testCreateRename : '{IO} [Result]
 ```
@@ -148,7 +148,7 @@ testOpenClose _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       testOpenClose : '{IO} [Result]
 ```
@@ -239,7 +239,7 @@ testGetSomeBytes _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       testGetSomeBytes : '{IO} [Result]
 ```
@@ -355,7 +355,7 @@ testAppend _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       testAppend  : '{IO} [Result]
       testSeek    : '{IO} [Result]
@@ -425,7 +425,7 @@ testSystemTime _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       testSystemTime : '{IO} [Result]
 ```

@@ -15,7 +15,7 @@ makeFoo n = Bar (n+10)
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type Foo
       makeFoo : Nat -> Foo
@@ -45,7 +45,7 @@ Foo.Bar n = internal.Bar n
 
     ⊡ Previously added definitions will be ignored: Foo
     
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       Foo.Bar : Nat -> Foo
 ```

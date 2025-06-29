@@ -30,7 +30,7 @@ assertRight = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       assertRight : Either a b -> b
       frank       : '{IO} ()

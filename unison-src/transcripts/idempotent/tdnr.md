@@ -16,7 +16,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -43,7 +43,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo : Text
 ```
@@ -68,7 +68,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -94,7 +94,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo : Text
 ```
@@ -120,7 +120,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -151,7 +151,7 @@ good.foo = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo : Nat
 ```
@@ -176,7 +176,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo : Text
       thing   : Nat
@@ -203,7 +203,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -228,7 +228,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -254,7 +254,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -280,7 +280,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -310,7 +310,7 @@ good.foo = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo : Nat
 ```
@@ -336,7 +336,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo : Text
       thing   : Nat
@@ -368,7 +368,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -394,7 +394,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -425,7 +425,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -452,7 +452,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -485,7 +485,7 @@ lib.bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.bad.foo : Text
 ```
@@ -510,7 +510,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -537,7 +537,7 @@ lib.bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo    : Nat
       lib.bad.foo : Text
@@ -562,7 +562,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -588,7 +588,7 @@ lib.bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo    : Nat
       lib.bad.foo : Text
@@ -614,7 +614,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -644,7 +644,7 @@ lib.dep.lib.dep.foo = 217
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.lib.dep.foo : Nat
 ```
@@ -669,7 +669,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -696,7 +696,7 @@ lib.dep.lib.dep.foo = 217
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo            : Nat
       lib.dep.lib.dep.foo : Nat
@@ -721,7 +721,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -747,7 +747,7 @@ lib.dep.lib.dep.foo = 217
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       good.foo            : Nat
       lib.dep.lib.dep.foo : Nat
@@ -773,7 +773,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -803,7 +803,7 @@ lib.good.foo = 17
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.good.foo : Nat
 ```
@@ -828,7 +828,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo : Text
       thing   : Nat
@@ -855,7 +855,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo      : Text
       lib.good.foo : Nat
@@ -880,7 +880,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -906,7 +906,7 @@ bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bad.foo      : Text
       lib.good.foo : Nat
@@ -932,7 +932,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -963,7 +963,7 @@ lib.bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.bad.foo  : Text
       lib.good.foo : Nat
@@ -988,7 +988,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -1014,7 +1014,7 @@ lib.dep.lib.dep.foo = 217
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.lib.dep.foo : Nat
       lib.good.foo        : Nat
@@ -1039,7 +1039,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -1065,7 +1065,7 @@ lib.dep.lib.bad.foo = "bar"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.lib.bad.foo  : Text
       lib.dep.lib.good.foo : Nat
@@ -1090,7 +1090,7 @@ thing = foo Nat.+ foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       thing : Nat
 ```

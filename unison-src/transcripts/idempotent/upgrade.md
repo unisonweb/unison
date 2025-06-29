@@ -16,7 +16,7 @@ thingy = lib.old.foo + 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.new.foo : Nat
       lib.old.foo : Nat
@@ -94,7 +94,7 @@ thingy = lib.old.foo + 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.new.foo : Int
       lib.old.foo : Nat
@@ -203,7 +203,7 @@ thingy = lib.old.foo + 10
 
     ⊡ Previously added definitions will be ignored: lib.new.foo
     
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.old.foo : Nat
     
@@ -320,7 +320,7 @@ mything = lib.old.foo + 100
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bar         : Nat
       lib.new.foo : Nat
@@ -379,7 +379,7 @@ bar = a.x.x.x.x + c.y.y.y.y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       a.x.x.x.x   : Nat
       b.x.x.x.x   : Nat
@@ -462,7 +462,7 @@ mything = lib.old.foo + lib.old.foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.new.foo   : Nat
       lib.new.other : Nat
@@ -515,7 +515,7 @@ lib.dep__2.foo = 2
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.foo    : Nat
       lib.dep__2.foo : Nat
@@ -562,7 +562,7 @@ lib.dep__2.foo = 3
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.foo    : Nat
       lib.dep__2.foo : Nat

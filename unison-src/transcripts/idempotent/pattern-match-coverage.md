@@ -114,7 +114,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type V
       test : Optional (Optional V) -> ()
@@ -217,7 +217,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       test : Optional Nat -> Nat
 ```
@@ -336,7 +336,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       test : Nat -> ()
 ```
@@ -356,7 +356,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       test : Boolean -> ()
 ```
@@ -416,7 +416,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       test : [()] -> ()
 ```
@@ -535,7 +535,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type V
       test : [V] -> ()
@@ -565,7 +565,7 @@ test = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       test : [Boolean] -> ()
 ```
@@ -630,7 +630,7 @@ unit2t = cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type T
       unit2t : 'T
@@ -665,7 +665,7 @@ witht = match unit2t () with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       witht : ()
 ```
@@ -683,7 +683,7 @@ evil = bug ""
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type V
       evil : 'V
@@ -722,7 +722,7 @@ unique type SomeType = A
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type SomeType
 ```
@@ -749,7 +749,7 @@ get x = match x with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type R
       get : R -> SomeType
@@ -765,7 +765,7 @@ unique type R = { someType : SomeType }
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type R
       R.someType        : R -> SomeType
@@ -794,7 +794,7 @@ result f = handle !f with cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Abort
       result : '{e, Abort} a ->{e} a
@@ -819,7 +819,7 @@ result f = handle !f with cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Abort
       result : '{e, Abort} T ->{e} ()
@@ -848,7 +848,7 @@ result f =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Abort
       result : '{e, Abort} V ->{e} V
@@ -876,7 +876,7 @@ handleMulti c =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Abort
       structural ability Stream a
@@ -1033,7 +1033,7 @@ result f = handle !f with cases
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Abort
       result : '{e, Abort} a ->{e, Abort} a
@@ -1059,7 +1059,7 @@ result f =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Abort a
       result : '{e, Abort V} a ->{e, Abort V} a
@@ -1152,7 +1152,7 @@ result f =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability Give a
       result : '{e, Give V} r ->{e} r
@@ -1178,7 +1178,7 @@ result f =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability Give a
       result : '{e, Give V} r ->{e} r
@@ -1261,7 +1261,7 @@ result f =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability GiveA a
       ability GiveB a
