@@ -19,7 +19,7 @@ fooToInt _ = +42
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type Foo
       fooToInt : Foo -> Int
@@ -114,7 +114,7 @@ preserve.otherTerm y = someTerm y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       preserve.otherTerm : Optional baz -> Optional baz
       preserve.someTerm  : Optional foo -> Optional foo

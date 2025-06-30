@@ -129,7 +129,7 @@ count'test = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability Count
       ability Env e
@@ -204,7 +204,7 @@ fail'count'test = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability CountOrFail
       fail'count'loop : Nat ->{CountOrFail} ()
@@ -268,7 +268,7 @@ local'count'test = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       local'count'test : '{IO, Exception} [Result]
       local'counter    : Nat -> '{Count} r -> r
@@ -346,7 +346,7 @@ elaborate'test = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability Rec
       count'extra    : Nat -> '{Count} r -> r
