@@ -8,15 +8,31 @@ module Unison.MCP.Wrapper
     Prompt (..),
     HasInputSchema (..),
     mkServer,
+    CallToolResult (..),
+    PromptArgument (..),
+    StaticResources,
+    Server,
+    MCP.ServerCapabilities (..),
+    MCP.ToolAnnotations (..),
+    MCP.Implementation (..),
+    MCP.ResourcesCapability (..),
+    MCP.ToolsCapability (..),
+    MCP.PromptsCapability (..),
+    MCP.PromptContentType (..),
+    errorToolResult,
+    textToolResult,
+    jsonToolResult,
   )
 where
 
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Data (Proxy)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Network.MCP.Server
+import Network.MCP.Types (CallToolResult (CallToolResult))
 import Network.MCP.Types qualified as MCP
 import Unison.Prelude
 
@@ -24,6 +40,14 @@ type StaticResources = Map Text (MCP.Resource, MCP.ResourceContent)
 
 class HasInputSchema arg where
   toInputSchema :: Proxy arg -> Aeson.Value
+
+instance HasInputSchema () where
+  toInputSchema _ =
+    Aeson.object
+      [ ("type", Aeson.String "object"),
+        ("properties", Aeson.object []),
+        ("required", Aeson.Array mempty)
+      ]
 
 data Tool m = forall arg. (FromJSON arg, HasInputSchema arg) => Tool
   { toolName :: Text,
@@ -46,8 +70,14 @@ data PromptArgument = PromptArgument
     promptArgumentRequired :: Bool
   }
 
-mkServer :: (MonadUnliftIO m) => MCP.ServerInfo -> MCP.ServerCapabilities -> Text -> StaticResources -> [Tool m] -> [Prompt m] -> m Server
-mkServer serverInfo serverCapabilities serverDescription staticResources tools prompts = do
+mkServer :: (MonadUnliftIO m) => MCP.ServerInfo -> Text -> StaticResources -> [Tool m] -> [Prompt m] -> m Server
+mkServer serverInfo serverDescription staticResources tools prompts = do
+  let serverCapabilities =
+        MCP.ServerCapabilities
+          { resourcesCapability = Just $ MCP.ResourcesCapability (not $ Map.null staticResources),
+            toolsCapability = Just $ MCP.ToolsCapability (not $ null tools),
+            promptsCapability = Just $ MCP.PromptsCapability (not $ null prompts)
+          }
   server <- liftIO $ createServer serverInfo serverCapabilities serverDescription
 
   doResources server staticResources
@@ -120,3 +150,13 @@ doPrompts server prompts = do
       Nothing -> error $ "Prompt '" <> Text.unpack getPromptName <> "' not found."
       Just (Prompt {promptHandler}) -> do
         promptHandler getPromptArguments
+
+textToolResult :: Text -> MCP.CallToolResult
+textToolResult msg =
+  MCP.CallToolResult
+    { MCP.callToolContent = [MCP.ToolContent MCP.TextualContent $ Just msg],
+      MCP.callToolIsError = False
+    }
+
+jsonToolResult :: (Aeson.ToJSON a) => a -> MCP.CallToolResult
+jsonToolResult msg = textToolResult $ Text.pack $ BL.unpack $ Aeson.encode msg
