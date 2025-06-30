@@ -1,0 +1,122 @@
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+
+-- | Wrapper to provide safer interface in constructing an MCP server.
+module Unison.MCP.Wrapper
+  ( Tool (..),
+    Prompt (..),
+    HasInputSchema (..),
+    mkServer,
+  )
+where
+
+import Data.Aeson (FromJSON)
+import Data.Aeson qualified as Aeson
+import Data.Data (Proxy)
+import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Network.MCP.Server
+import Network.MCP.Types qualified as MCP
+import Unison.Prelude
+
+type StaticResources = Map Text (MCP.Resource, MCP.ResourceContent)
+
+class HasInputSchema arg where
+  toInputSchema :: Proxy arg -> Aeson.Value
+
+data Tool m = forall arg. (FromJSON arg, HasInputSchema arg) => Tool
+  { toolName :: Text,
+    toolDescription :: Text,
+    toolAnnotations :: MCP.ToolAnnotations,
+    toolArgType :: Proxy arg,
+    toolHandler :: arg -> m MCP.CallToolResult
+  }
+
+data Prompt m = Prompt
+  { promptName :: Text,
+    promptDescription :: Text,
+    promptArgs :: Map Text PromptArgument,
+    promptHandler :: Map Text Text -> m MCP.GetPromptResult
+  }
+
+data PromptArgument = PromptArgument
+  { promptArgumentDescription :: Text,
+    -- | Whether the argument is required
+    promptArgumentRequired :: Bool
+  }
+
+mkServer :: (MonadUnliftIO m) => MCP.ServerInfo -> MCP.ServerCapabilities -> Text -> StaticResources -> [Tool m] -> [Prompt m] -> m Server
+mkServer serverInfo serverCapabilities serverDescription staticResources tools prompts = do
+  server <- liftIO $ createServer serverInfo serverCapabilities serverDescription
+
+  doResources server staticResources
+  doTools server tools
+  doPrompts server prompts
+
+  pure server
+
+doResources :: (MonadUnliftIO m) => Server -> StaticResources -> m ()
+doResources server staticResources = do
+  liftIO $ registerResources server (fst <$> Map.elems staticResources)
+
+  -- Register resource read handler
+  liftIO $ registerResourceReadHandler server $ \(MCP.ReadResourceRequest {resourceReadUri}) -> do
+    case Map.lookup resourceReadUri staticResources of
+      Just (_, content) ->
+        pure . MCP.ReadResourceResult $ [content]
+      _ -> pure $ MCP.ReadResourceResult []
+
+doTools :: (MonadUnliftIO m) => Server -> [Tool m] -> m ()
+doTools server tools = do
+  runInIO <- askRunInIO
+  let toolMap = Map.fromList (tools <&> (\tool -> (toolName tool, tool)))
+  let mcpTools =
+        tools <&> \(Tool {toolName, toolDescription, toolAnnotations, toolArgType}) ->
+          MCP.Tool
+            { MCP.toolName,
+              MCP.toolDescription = Just toolDescription,
+              MCP.toolInputSchema = toInputSchema toolArgType,
+              MCP.toolAnnotations = Just toolAnnotations
+            }
+  liftIO $ registerTools server mcpTools
+  liftIO $ registerToolCallHandler server \(MCP.CallToolRequest {callToolName, callToolArguments}) -> runInIO $ do
+    case Map.lookup callToolName toolMap of
+      Just Tool {toolHandler} -> do
+        case Aeson.fromJSON callToolArguments of
+          Aeson.Success arg -> toolHandler arg
+          Aeson.Error err -> pure $ errorToolResult $ "Failed to parse arguments for tool '" <> callToolName <> "': " <> Text.pack err
+      Nothing -> pure $ errorToolResult $ "Tool '" <> callToolName <> "' not found."
+
+errorToolResult :: Text -> MCP.CallToolResult
+errorToolResult errMsg =
+  MCP.CallToolResult
+    { MCP.callToolContent = [MCP.ToolContent MCP.TextualContent $ Just errMsg],
+      MCP.callToolIsError = True
+    }
+
+doPrompts :: (MonadUnliftIO m) => Server -> [Prompt m] -> m ()
+doPrompts server prompts = do
+  let mcpPrompts =
+        prompts <&> \(Prompt {promptName, promptDescription, promptArgs}) ->
+          MCP.Prompt
+            { MCP.promptName,
+              MCP.promptDescription = Just promptDescription,
+              MCP.promptArguments =
+                promptArgs
+                  & Map.toList
+                  <&> \(argName, PromptArgument {promptArgumentDescription, promptArgumentRequired}) ->
+                    MCP.PromptArgument
+                      { MCP.promptArgumentName = argName,
+                        MCP.promptArgumentDescription = Just promptArgumentDescription,
+                        MCP.promptArgumentRequired = promptArgumentRequired
+                      }
+            }
+  let promptsMap = Map.fromList $ prompts <&> (\p -> (promptName p, p))
+  liftIO $ registerPrompts server mcpPrompts
+  runInIO <- askRunInIO
+  liftIO $ registerPromptHandler server $ \(MCP.GetPromptRequest {getPromptName, getPromptArguments}) -> runInIO do
+    case Map.lookup getPromptName promptsMap of
+      Nothing -> error $ "Prompt '" <> Text.unpack getPromptName <> "' not found."
+      Just (Prompt {promptHandler}) -> do
+        promptHandler getPromptArguments
