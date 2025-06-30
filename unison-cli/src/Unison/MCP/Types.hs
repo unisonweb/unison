@@ -26,12 +26,14 @@ where
 import Control.Monad.Reader (MonadReader, ReaderT (..))
 import Data.Aeson
 import Data.Map qualified as Map
+import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
+import Unison.MCP.Wrapper (HasInputSchema (..))
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -97,8 +99,8 @@ kindNameMapping =
       (SetCurrentProjectContextTool, "set-current-project-context")
     ]
 
-data ProjectContextArgument = ProjectContextArgument ProjectContext
-  deriving (Eq, Show)
+newtype ProjectContextArgument = ProjectContextArgument ProjectContext
+  deriving newtype (Eq, Show, HasInputSchema)
 
 instance FromJSON ProjectContextArgument where
   parseJSON = withObject "ProjectContextArgument" $ \o -> do
@@ -110,6 +112,21 @@ data ProjectNameArgument = ProjectNameArgument
   }
   deriving (Eq, Show)
 
+instance HasInputSchema ProjectNameArgument where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of a project to work within, e.g. `@unison/base` or `@ceedubs/json`" :: Text)
+                  ]
+            ],
+        "required" .= ["projectName" :: Text]
+      ]
+
 instance FromJSON ProjectNameArgument where
   parseJSON = withObject "ProjectNameArgument" $ \o -> do
     projectName <- UnsafeProjectName <$> o .: "projectName"
@@ -120,6 +137,22 @@ data SearchByTypeToolArguments = SearchByTypeToolArguments
     query :: Text
   }
   deriving (Eq, Show)
+
+instance HasInputSchema SearchByTypeToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "query"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("A type to search for, e.g. `[Nat] -> Nat`." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "query" :: Text]
+      ]
 
 instance FromJSON SearchByTypeToolArguments where
   parseJSON = withObject "SearchByTypeToolArguments" $ \o -> do
@@ -133,6 +166,22 @@ data SearchDefinitionsToolArguments = SearchDefinitionsToolArguments
   }
   deriving (Eq, Show)
 
+instance HasInputSchema SearchDefinitionsToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "query"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("A name to search for, e.g. `foldl`." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "query" :: Text]
+      ]
+
 instance FromJSON SearchDefinitionsToolArguments where
   parseJSON = withObject "SearchDefinitionsToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
@@ -144,6 +193,27 @@ data ViewDefinitionsToolArguments = ViewDefinitionsToolArguments
     names :: [Name]
   }
   deriving (Eq, Show)
+
+instance HasInputSchema ViewDefinitionsToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "names"
+                .= object
+                  [ "type" .= ("array" :: Text),
+                    "items"
+                      .= object
+                        [ "type" .= ("string" :: Text),
+                          "description" .= ("The names of the definitions to view, e.g. `mynamespace.foo` or `lib.unison_base_1_0_0.data.List`." :: Text)
+                        ],
+                    "description" .= ("The names of the definitions to view." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "names" :: Text]
+      ]
 
 instance FromJSON ViewDefinitionsToolArguments where
   parseJSON = withObject "ViewDefinitionsToolArguments" $ \o -> do
@@ -157,6 +227,22 @@ data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
   }
   deriving (Eq, Show)
 
+instance HasInputSchema ListLibraryDefinitionsToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "libName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the library to list definitions for, e.g. `base` or `json`." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "libName" :: Text]
+      ]
+
 instance FromJSON ListLibraryDefinitionsToolArguments where
   parseJSON = withObject "ListLibraryDefinitionsToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
@@ -168,6 +254,26 @@ data ShareProjectReadmeToolArguments = ShareProjectReadmeToolArguments
     projectOwnerHandle :: Text
   }
   deriving (Eq, Show)
+
+instance HasInputSchema ShareProjectReadmeToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the project to fetch the README for. E.g. in a project reference like `@owner/project-name` this would be `project-name`" :: Text)
+                  ],
+              "projectOwnerHandle"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The handle of the project owner, e.g. in a project reference like `@owner/project-name` this would be `owner`" :: Text)
+                  ]
+            ],
+        "required" .= ["projectName", "projectOwnerHandle" :: Text]
+      ]
 
 instance FromJSON ShareProjectReadmeToolArguments where
   parseJSON = withObject "ShareProjectReadmeToolArguments" $ \o -> do
@@ -181,6 +287,22 @@ data TypecheckCodeToolArguments = TypecheckCodeToolArguments
   }
   deriving (Eq, Show)
 
+instance HasInputSchema TypecheckCodeToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "code"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The code to typecheck, as a string. All the code you've written which is not yet part of the project must be provided at once." :: Text)
+                  ],
+              "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext)
+            ],
+        "required" .= ["code", "projectContext" :: Text]
+      ]
+
 instance FromJSON TypecheckCodeToolArguments where
   parseJSON = withObject "TypecheckCodeToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
@@ -192,6 +314,22 @@ data DocsToolArguments = DocsToolArguments
     name :: Name
   }
   deriving (Eq, Show)
+
+instance HasInputSchema DocsToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "name"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The definition name to fetch documentation for. E.g. `README` or `data.Map.fromList`" :: Text)
+                  ],
+              "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext)
+            ],
+        "required" .= ["name", "projectContext" :: Text]
+      ]
 
 instance FromJSON DocsToolArguments where
   parseJSON = withObject "DocsToolArguments" $ \o -> do
@@ -213,6 +351,26 @@ data ProjectContext = ProjectContext
     branchName :: ProjectBranchName
   }
   deriving (Eq, Show)
+
+instance HasInputSchema ProjectContext where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the project to work within, e.g. `@unison/base` or `@ceedubs/json`" :: Text)
+                  ],
+              "branchName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The branch of the project to work within, e.g. `main` or `develop`" :: Text)
+                  ]
+            ],
+        "required" .= ["projectName", "branchName" :: Text]
+      ]
 
 instance FromJSON ProjectContext where
   parseJSON = withObject "ProjectContext" $ \o -> do
@@ -245,10 +403,46 @@ instance FromJSON LibInstallToolArguments where
           libBranchName
         }
 
+instance HasInputSchema LibInstallToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "libProjectName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "The user-qualified name of the library project to install, e.g. `@unison/base` or `@ceedubs/json`" .= ("The name of the library project to install" :: Text)
+                  ],
+              "libBranchName"
+                .= object
+                  [ "type" .= ["string" :: Text, "null"],
+                    "description" .= ("The optional branch of the library project to install, E.g. `main`. If null, the latest release will be used." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "libProjectName" :: Text]
+      ]
+
 data ShareProjectSearchToolArguments = ShareProjectSearchToolArguments
   { query :: Text
   }
   deriving (Eq, Show)
+
+instance HasInputSchema ShareProjectSearchToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "query"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The search query to use. E.g. \"http client\". By default, each search word is ANDed together, but you can use OR to search for multiple terms. E.g. \"http OR client\" will return results that match either term. You can also exclude results using \"-\", e.g. \"-http\" will exclude results that match the term \"http\". Wrap a term in quotes to search for an exact phrase, e.g. \"\"http client\"\" will search for the exact phrase \"http client\"." :: Text)
+                  ]
+            ],
+        "required" .= ["query" :: Text]
+      ]
 
 instance FromJSON ShareProjectSearchToolArguments where
   parseJSON = withObject "ShareProjectSearchToolArguments" $ \o -> do
