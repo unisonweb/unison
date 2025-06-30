@@ -157,6 +157,7 @@ library
       Unison.MCP.Share.API
       Unison.MCP.StaticResources
       Unison.MCP.Types
+      Unison.MCP.Wrapper
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
