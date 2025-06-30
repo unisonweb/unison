@@ -871,7 +871,6 @@ notifyUser dir = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -2346,6 +2345,9 @@ notifyUser dir = \case
       P.lines
         [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName
         ]
+  BranchUpdate'BranchChanged -> do
+    pure $
+      P.wrap "Another process updated the codebase while your command was running, so I didn't apply the update. Please run the command again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

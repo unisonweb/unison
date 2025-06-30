@@ -189,7 +189,7 @@ data Env = Env
 --
 -- There's an additional pseudo @"currentPath"@ field lens, for convenience.
 data LoopState = LoopState
-  { -- the current position in the codebase, with the head being the most recent lcoation.
+  { -- the current position in the codebase, with the head being the most recent location.
     projectPathStack :: List.NonEmpty PP.ProjectPathIds,
     -- TBD
     -- , _activeEdits :: Set Branch.EditGuid
