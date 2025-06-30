@@ -37,7 +37,7 @@ repeated = cases
     handle looped k n with repeated
 
 now : '{IO, Exception} TimeSpec
-now _ = match monotonic () with
+now _ = match threadCPUTime () with
   Left e -> raise e
   Right t -> t
 
