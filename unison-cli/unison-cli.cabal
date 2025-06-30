@@ -154,8 +154,10 @@ library
       Unison.Main
       Unison.MCP
       Unison.MCP.Cli
+      Unison.MCP.Prompts
       Unison.MCP.Share.API
       Unison.MCP.StaticResources
+      Unison.MCP.Tools
       Unison.MCP.Types
       Unison.MCP.Wrapper
       Unison.Share.Codeserver
