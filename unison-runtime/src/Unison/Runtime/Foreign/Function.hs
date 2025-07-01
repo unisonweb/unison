@@ -519,7 +519,7 @@ foreignCallHelper = \case
       pure . Bytes.fromArray . ANF.serializeValue
   Value_deserialize ->
     mkForeign $
-      pure . ANF.deserializeValue . Bytes.toArray
+      pure . ANF.deserializeValue . Bytes.toLazyByteString
   Crypto_HashAlgorithm_Sha3_512 -> mkHashAlgorithm "Sha3_512" Hash.SHA3_512
   Crypto_HashAlgorithm_Sha3_256 -> mkHashAlgorithm "Sha3_256" Hash.SHA3_256
   Crypto_HashAlgorithm_Sha2_512 -> mkHashAlgorithm "Sha2_512" Hash.SHA512

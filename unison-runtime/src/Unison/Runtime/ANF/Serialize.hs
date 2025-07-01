@@ -7,7 +7,8 @@ module Unison.Runtime.ANF.Serialize where
 
 import Control.Monad
 import Control.Monad.Reader
-import Data.Bifunctor (first)
+import Data.Bifunctor (bimap, first)
+import Data.Binary.Get (runGetOrFail)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
@@ -1164,8 +1165,10 @@ getVersionedValue =
           | n <= 5 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
-deserializeValue :: ByteString -> Either String Value
-deserializeValue bs = runGetS getVersionedValue bs
+deserializeValue :: L.ByteString -> Either String Value
+deserializeValue bs = bimap thd thd $ runGetOrFail getVersionedValue bs
+  where
+    thd (_, _, x) = x
 
 serializeValue :: Value -> ByteString
 serializeValue v =
