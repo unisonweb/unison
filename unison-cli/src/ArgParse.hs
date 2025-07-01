@@ -174,7 +174,7 @@ versionCommand :: Mod CommandFields Command
 versionCommand = command "version" (info versionParser (fullDesc <> progDesc "Print the version of unison you're running"))
 
 mcpCommand :: Mod CommandFields Command
-mcpCommand = command "mcp" (info mcpParser (fullDesc <> progDesc "Run the MCP server"))
+mcpCommand = command "mcp" (info mcpParser (fullDesc <> progDesc "Run the MCP server using stdin/stdout"))
 
 initCommand :: Mod CommandFields Command
 initCommand = command "init" (info initParser (progDesc initHelp))

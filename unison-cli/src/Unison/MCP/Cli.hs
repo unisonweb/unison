@@ -5,6 +5,7 @@ module Unison.MCP.Cli
   )
 where
 
+import Control.Monad.Except (ExceptT (..), throwError)
 import Control.Monad.Reader
 import Crypto.Random qualified as Random
 import Data.Aeson
@@ -51,18 +52,18 @@ instance ToJSON CliOutput where
         "outputMessages" .= outputMessages
       ]
 
-ppForProjectContext :: ProjectContext -> Transaction PP.ProjectPath
+ppForProjectContext :: ProjectContext -> ExceptT Text Transaction PP.ProjectPath
 ppForProjectContext ProjectContext {projectName, branchName} = do
   project <-
-    Queries.loadProjectByName projectName & onNothingM do
-      error "TODO: handle project not found"
+    lift (Queries.loadProjectByName projectName) & onNothingM do
+      throwError $ "Project not found: " <> into @Text projectName
   branch <-
-    Queries.loadProjectBranchByName project.projectId branchName >>= \case
-      Nothing -> error "TODO: handle branch not found"
+    lift (Queries.loadProjectBranchByName project.projectId branchName) >>= \case
+      Nothing -> throwError $ "Branch not found: " <> into @Text branchName
       Just projectBranch -> pure projectBranch
   pure $ PP.fromProjectAndBranch (PP.ProjectAndBranch project branch) Path.Root
 
-handleInputMCP :: ProjectContext -> [Either Event Input] -> MCP CliOutput
+handleInputMCP :: ProjectContext -> [Either Event Input] -> ExceptT Text MCP CliOutput
 handleInputMCP projectContext input = do
   case input of
     (inp : rest) -> do
@@ -70,10 +71,10 @@ handleInputMCP projectContext input = do
       (cliOutput <>) <$> handleInputMCP projectContext rest
     [] -> pure mempty
 
-cliToMCP :: ProjectContext -> Cli.Cli a -> MCP (Maybe a, CliOutput)
+cliToMCP :: ProjectContext -> Cli.Cli a -> ExceptT Text MCP (Maybe a, CliOutput)
 cliToMCP projCtx cli = do
   MCP.Env {ucmVersion, codebase, runtime, workDir} <- ask
-  initialPP <- liftIO $ Codebase.runTransaction codebase $ do
+  initialPP <- ExceptT . liftIO $ Codebase.runTransactionExceptT codebase $ do
     ppForProjectContext projCtx
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
@@ -89,7 +90,7 @@ cliToMCP projCtx cli = do
         atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
         pure nargs
 
-  let loadSource = error "TODO implement loadSource"
+  let loadSource = error "loadSource is not implemented for the MCP server."
   let writeSource _sourceName content replace = do
         if replace
           then do
@@ -112,8 +113,8 @@ cliToMCP projCtx cli = do
             notify,
             notifyNumbered,
             runtime,
-            sandboxedRuntime = error "Sandboxed runtime not implemented",
-            nativeRuntime = error "Native runtime not implemented",
+            sandboxedRuntime = error "Sandboxed runtime not implemented in MCP Server",
+            nativeRuntime = error "Native runtime not implemented in MCP Server",
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = False
