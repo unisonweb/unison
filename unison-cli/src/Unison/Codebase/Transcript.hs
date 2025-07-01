@@ -54,7 +54,7 @@ data APIRequest
   | -- | URL, Body
     PostRequest Text Text
   | APIComment Text
-  | APIResponseLine Text
+  | APIResponse Text
   deriving (Eq, Show)
 
 pattern CMarkCodeBlock :: (Maybe CMark.PosInfo) -> Text -> Text -> CMark.Node

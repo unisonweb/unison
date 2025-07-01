@@ -34,9 +34,9 @@ formatAPIRequest :: APIRequest -> Text
 formatAPIRequest = \case
   GetRequest txt -> "GET " <> txt <> "\n"
   PostRequest url body ->
-    "POST " <> url <> "\n" <> Text.unlines (fmap padIfNonEmpty $ Text.lines body) <> "\n"
+    "POST " <> url <> "\n" <> Text.unlines ("BODY:" : fmap padIfNonEmpty (Text.lines body)) <> "\n"
   APIComment txt -> "--" <> txt <> "\n"
-  APIResponseLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
+  APIResponse txt -> Text.unlines ("RESPONSE:" : fmap padIfNonEmpty (Text.lines txt)) <> "\n"
 
 formatUcmLine :: UcmLine -> Text
 formatUcmLine = \case
@@ -97,17 +97,32 @@ restOfLine = P.takeWhileP Nothing (/= '\n') <* P.single '\n'
 
 apiRequest :: P APIRequest
 apiRequest =
-  GetRequest <$> (word "GET" *> spaces *> restOfLine)
+  (getRequest
     <|> postRequest
-    <|> APIComment <$> (P.chunk "--" *> restOfLine)
-    <|> APIResponseLine <$> (P.chunk "  " *> restOfLine <|> "" <$ P.single '\n' <|> "" <$ P.chunk " \n")
+    <|> apiComment
+    <|> apiResponse
+  ) <* spaces
   where
+    getRequest = do
+      _ <- word "GET"
+      spaces
+      url <- restOfLine
+      pure $ GetRequest url
     postRequest = do
       _ <- word "POST"
       spaces
       url <- restOfLine
+      _ <- word "BODY:" *> P.many (P.single ' ') *> P.single '\n'
       body <- Text.unlines <$> some (P.chunk "  " *> restOfLine)
       pure $ PostRequest url body
+    apiComment = do
+      _ <- P.chunk "--"
+      comment <- restOfLine
+      pure $ APIComment comment
+    apiResponse = do
+      _ <- word "RESPONSE:" <* P.many (P.single ' ') *> P.single '\n'
+      response <- Text.unlines <$> some (P.chunk "  " *> restOfLine)
+      pure $ APIResponse response
 
 formatInfoString :: (a -> Maybe Text) -> Text -> InfoTags a -> Text
 formatInfoString formatA language infoTags =

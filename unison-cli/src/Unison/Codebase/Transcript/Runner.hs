@@ -254,7 +254,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
         hide <- hideOutput False
         case req of
           -- We just discard this, because the runner will produce new output lines.
-          APIResponseLine {} -> pure []
+          APIResponse {} -> pure []
           APIComment {} -> pure $ pure req
           GetRequest path -> do
             httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
@@ -263,7 +263,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
             respTxt <- doHttpRequest httpReq
             if hide
               then pure [req]
-              else pure [req, APIResponseLine respTxt]
+              else pure [req, APIResponse respTxt]
           PostRequest path body -> do
             httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
               Left err -> dieWithMsg (show err)
@@ -279,7 +279,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
             Debug.debugM Debug.Temp "RESPONSE" respTxt
             if hide
               then pure [req]
-              else pure [req, APIResponseLine respTxt]
+              else pure [req, APIResponse respTxt]
 
       endUcmBlock = do
         liftIO $ do
