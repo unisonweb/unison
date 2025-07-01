@@ -75,7 +75,6 @@ data ToolKind
   | ListLocalProjectsTool
   | ListProjectBranchesTool
   | GetCurrentProjectContextTool
-  | SetCurrentProjectContextTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -95,8 +94,7 @@ kindNameMapping =
       (SearchByTypeTool, "search-by-type"),
       (ListLocalProjectsTool, "list-local-projects"),
       (ListProjectBranchesTool, "list-project-branches"),
-      (GetCurrentProjectContextTool, "get-current-project-context"),
-      (SetCurrentProjectContextTool, "set-current-project-context")
+      (GetCurrentProjectContextTool, "get-current-project-context")
     ]
 
 newtype ProjectContextArgument = ProjectContextArgument ProjectContext
