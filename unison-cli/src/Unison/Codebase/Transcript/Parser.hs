@@ -33,6 +33,8 @@ padIfNonEmpty line = if Text.null line then line else "  " <> line
 formatAPIRequest :: APIRequest -> Text
 formatAPIRequest = \case
   GetRequest txt -> "GET " <> txt <> "\n"
+  PostRequest url body ->
+    "POST " <> url <> "\n" <> Text.unlines (fmap padIfNonEmpty $ Text.lines body) <> "\n"
   APIComment txt -> "--" <> txt <> "\n"
   APIResponseLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
 
@@ -96,8 +98,16 @@ restOfLine = P.takeWhileP Nothing (/= '\n') <* P.single '\n'
 apiRequest :: P APIRequest
 apiRequest =
   GetRequest <$> (word "GET" *> spaces *> restOfLine)
+    <|> postRequest
     <|> APIComment <$> (P.chunk "--" *> restOfLine)
     <|> APIResponseLine <$> (P.chunk "  " *> restOfLine <|> "" <$ P.single '\n' <|> "" <$ P.chunk " \n")
+  where
+    postRequest = do
+      _ <- word "POST"
+      spaces
+      url <- restOfLine
+      body <- Text.unlines <$> some (P.chunk "  " *> restOfLine)
+      pure $ PostRequest url body
 
 formatInfoString :: (a -> Maybe Text) -> Text -> InfoTags a -> Text
 formatInfoString formatA language infoTags =

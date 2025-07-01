@@ -321,8 +321,8 @@ main version = do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
-              server <- MCP.initServer theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
-              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase (MCP.mcpServer server) $ \mayBaseUrl -> do
+              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
+              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase (MCP.mcpServer mcpServerConfig) $ \mayBaseUrl -> do
                 case exitOption of
                   DoNotExit -> do
                     case isHeadless of

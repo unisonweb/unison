@@ -49,7 +49,10 @@ data UcmContext
   deriving (Eq, Show)
 
 data APIRequest
-  = GetRequest Text
+  = -- URL
+    GetRequest Text
+  | -- | URL, Body
+    PostRequest Text Text
   | APIComment Text
   | APIResponseLine Text
   deriving (Eq, Show)
