@@ -1,10 +1,13 @@
 module Unison.MCP.Tools (tools) where
 
+import Control.Monad.Except (ExceptT)
 import Control.Monad.Reader
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.Data (Proxy (..))
 import Data.List.NonEmpty qualified as NEL
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Text.RawString.QQ (r)
@@ -30,6 +33,11 @@ import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Relation qualified as R
 import UnliftIO qualified
 
+-- MCP errors are just returned to the agent as text.
+type MCPError = Text
+
+type EMCP = ExceptT MCPError MCP
+
 tools :: [MCPWrapper.Tool MCP]
 tools =
   [ installLibTool,
@@ -48,7 +56,7 @@ tools =
     searchByTypeTool
   ]
 
-currentProjectContext :: MCP ProjectContext
+currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
 currentProjectContext = do
   Env {codebase} <- ask
   pp <- liftIO $ Codebase.runTransaction codebase $ Codebase.expectCurrentProjectPath
@@ -72,7 +80,7 @@ installLibTool =
             openWorldHint = Just True
           },
       toolArgType = Proxy,
-      toolHandler = \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> do
+      toolHandler = \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> handleToolError $ do
         (_r, output) <- cliToMCP projectContext $ do
           handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
@@ -136,7 +144,7 @@ typecheckCodeTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> do
+      toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> handleToolError do
         output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
@@ -156,7 +164,7 @@ docsTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(DocsToolArguments {name, projectContext}) -> do
+      toolHandler = \(DocsToolArguments {name, projectContext}) -> handleToolError $ do
         output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
@@ -176,7 +184,7 @@ shareProjectReadmeTool =
             openWorldHint = Just True
           },
       toolArgType = Proxy,
-      toolHandler = \(ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}) -> do
+      toolHandler = \(ShareProjectReadmeToolArguments {projectName, projectOwnerHandle}) -> handleToolError $ do
         Env {authenticatedHTTPClient} <- ask
         result <- UnliftIO.liftIO $ Share.shareProjectReadme authenticatedHTTPClient projectOwnerHandle projectName
         case result of
@@ -201,7 +209,7 @@ listProjectDefinitionsTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(ProjectContextArgument projectContext) -> do
+      toolHandler = \(ProjectContextArgument projectContext) -> handleToolError $ do
         output <-
           cliToMCP projectContext Cli.getCurrentBranch0 >>= \case
             (Just b, _output) -> do
@@ -228,7 +236,7 @@ listProjectLibrariesTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(ProjectContextArgument projectContext) -> do
+      toolHandler = \(ProjectContextArgument projectContext) -> handleToolError $ do
         let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment])
         output <- handleInputMCP projectContext [Right $ Input.FindShallowI libPath]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
@@ -249,7 +257,7 @@ listLibraryDefinitionsTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(ListLibraryDefinitionsToolArguments {libName, projectContext}) -> do
+      toolHandler = \(ListLibraryDefinitionsToolArguments {libName, projectContext}) -> handleToolError $ do
         let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment, NameSegment.unsafeParseText libName])
         definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
@@ -270,7 +278,7 @@ viewDefinitionsTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(ViewDefinitionsToolArguments {projectContext, names}) -> do
+      toolHandler = \(ViewDefinitionsToolArguments {projectContext, names}) -> handleToolError $ do
         case NEL.nonEmpty names of
           Nothing ->
             pure $ errorToolResult "No names provided to view definitions"
@@ -295,7 +303,7 @@ listLocalProjectsTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(()) -> do
+      toolHandler = \(()) -> handleToolError $ do
         pc <- currentProjectContext
         projects <- handleInputMCP pc [Right Input.ProjectsI]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projects
@@ -316,7 +324,7 @@ listProjectBranchesTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(ProjectNameArgument {projectName}) -> do
+      toolHandler = \(ProjectNameArgument {projectName}) -> handleToolError $ do
         projectContext <- currentProjectContext
         branches <- handleInputMCP projectContext [Right $ Input.BranchesI (Just projectName)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode branches
@@ -337,7 +345,7 @@ getCurrentProjectContextTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \() -> do
+      toolHandler = \() -> handleToolError $ do
         projectContext <- currentProjectContext
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projectContext
         pure $ textToolResult outputJSON
@@ -357,7 +365,7 @@ searchDefinitionsTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(SearchDefinitionsToolArguments {projectContext, query}) -> do
+      toolHandler = \(SearchDefinitionsToolArguments {projectContext, query}) -> handleToolError $ do
         definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
         pure $ textToolResult outputJSON
@@ -377,8 +385,15 @@ searchByTypeTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(SearchByTypeToolArguments {projectContext, query}) -> do
+      toolHandler = \(SearchByTypeToolArguments {projectContext, query}) -> handleToolError $ do
         definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [":", Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
         pure $ textToolResult outputJSON
     }
+
+handleToolError :: EMCP CallToolResult -> MCP CallToolResult
+handleToolError action = do
+  result <- runExceptT action
+  case result of
+    Left err -> pure $ errorToolResult err
+    Right res -> pure res
