@@ -156,6 +156,7 @@ term = 42
 
 ``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=term
+RESPONSE:
   {
       "missingDefinitions": [],
       "termDefinitions": {
@@ -948,4 +949,5 @@ GET /api/projects/scratch/branches/main/getDefinition?names=term
       },
       "typeDefinitions": {}
   }
+
 ```
