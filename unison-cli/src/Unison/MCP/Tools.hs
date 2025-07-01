@@ -7,7 +7,6 @@ import Data.Data (Proxy (..))
 import Data.List.NonEmpty qualified as NEL
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.These (These (..))
 import Text.RawString.QQ (r)
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -26,7 +25,7 @@ import Unison.MCP.Types
 import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.NameSegment qualified as NameSegment
-import Unison.Project (ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous), ProjectBranchNameOrLatestRelease (..))
+import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Relation qualified as R
 import UnliftIO qualified
@@ -45,7 +44,6 @@ tools =
     listLocalProjectsTool,
     listProjectBranchesTool,
     getCurrentProjectContextTool,
-    setCurrentProjectContextTool,
     searchDefinitionsTool,
     searchByTypeTool
   ]
@@ -342,27 +340,6 @@ getCurrentProjectContextTool =
       toolHandler = \() -> do
         projectContext <- currentProjectContext
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projectContext
-        pure $ textToolResult outputJSON
-    }
-
-setCurrentProjectContextTool :: Tool MCP
-setCurrentProjectContextTool =
-  Tool
-    { toolName = toToolName SetCurrentProjectContextTool,
-      toolDescription = "Set the current project context.",
-      toolAnnotations =
-        ToolAnnotations
-          { title = Just "Set Current Project Context",
-            readOnlyHint = Just False,
-            destructiveHint = Just False,
-            idempotentHint = Just True,
-            openWorldHint = Just False
-          },
-      toolArgType = Proxy,
-      toolHandler = \(ProjectContextArgument projectContext) -> do
-        -- Set the current project context
-        output <- handleInputMCP projectContext [Right $ Input.ProjectSwitchI (ProjectAndBranchNames'Unambiguous $ These projectContext.projectName projectContext.branchName)]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
 
