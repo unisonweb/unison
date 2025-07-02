@@ -105,6 +105,7 @@ module Unison.Runtime.TypeTags
     avroLogicalBytesDecimalTag,
     avroLogicalStringUuidTag,
     avroReadFieldTag,
+    avroFieldTag,
     avroFieldStatusAsIsTag,
     avroFieldStatusDefaultedTag,
     avroFieldStatusIgnoredTag,
@@ -140,6 +141,10 @@ module Unison.Runtime.TypeTags
     avroSchemaEnumTag,
     avroSchemaUnionTag,
     avroSchemaFixedTag,
+    avroReadRecordTag,
+    avroFixedTypeTag,
+    avroRecordTypeTag,
+    avroEnumTypeTag,
   )
 where
 
@@ -426,6 +431,15 @@ avroNullTag, avroRecordTag, avroBytesTag, avroFixedTag, avroArrayTag, avroMapTag
       (nlt, rct, bct, fct, act, mct, ut, et, st, it, lt, ft, dt, bt)
   | otherwise = error "internal error: avro tags"
 
+avroFixedTypeTag :: PackedTag
+avroFixedTypeTag = mkSimpleTag "avroFixedTypeTag" Ty.avroFixedRef
+
+avroRecordTypeTag :: PackedTag
+avroRecordTypeTag = mkSimpleTag "avroRecordTypeTag" Ty.avroRecordRef
+
+avroEnumTypeTag :: PackedTag
+avroEnumTypeTag = mkSimpleTag "avroEnumTypeTag" Ty.avroEnumRef
+
 avroDefaultValueIntTag, avroDefaultValueLongTag, avroDefaultValueFloatTag, avroDefaultValueDoubleTag, avroDefaultValueBytesTag, avroDefaultValueStringTag, avroDefaultValueArrayTag, avroDefaultValueMapTag, avroDefaultValueRecordTag, avroDefaultValueUnionTag, avroDefaultValueFixedTag, avroDefaultValueEnumTag, avroDefaultValueNullTag, avroDefaultValueBooleanTag :: PackedTag
 (avroDefaultValueIntTag, avroDefaultValueLongTag, avroDefaultValueFloatTag, avroDefaultValueDoubleTag, avroDefaultValueBytesTag, avroDefaultValueStringTag, avroDefaultValueArrayTag, avroDefaultValueMapTag, avroDefaultValueRecordTag, avroDefaultValueUnionTag, avroDefaultValueFixedTag, avroDefaultValueEnumTag, avroDefaultValueNullTag, avroDefaultValueBooleanTag)
   | [it, lt, ft, dt, bct, st, art, mct, rct, ut, fct, ent, nct, bot] <-
@@ -468,6 +482,12 @@ avroLogicalIntDateTag, avroLogicalIntTimeTag, avroLogicalIntDecimalTag :: Packed
 
 avroReadFieldTag :: PackedTag
 avroReadFieldTag = mkSimpleTag "avroReadFieldTag" Ty.avroReadFieldRef
+
+avroFieldTag :: PackedTag
+avroFieldTag = mkSimpleTag "avroFieldTag" Ty.avroFieldRef
+
+avroReadRecordTag :: PackedTag
+avroReadRecordTag = mkSimpleTag "avroReadRecordTag" Ty.avroReadRecordRef
 
 avroLogicalStringUuidTag :: PackedTag
 avroLogicalStringUuidTag = mkSimpleTag "avroLogicalStringUuidTag" Ty.avroLogicalStringRef

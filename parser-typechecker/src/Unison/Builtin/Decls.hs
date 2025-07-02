@@ -189,39 +189,36 @@ avroReadSchemaFixed = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.sch
 avroReadSchemaFreeUnion = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.FreeUnion"
 avroReadSchemaNamedType = Maybe.fromJust $ constructorId avroReadSchemaRef "avro.schema.ReadSchema.NamedType"
 
+avroSchemaRef :: Reference
 avroSchemaRef = lookupDeclRef "avro.schema.Schema"
 
-avroSchemaNull, avroSchemaBoolean, avroSchemaInt, avroSchemaLong, avroSchemaFloat, avroSchemaBytes, avroSchemaString, avroSchemaArray, avroSchemaMap, avroSchemaNamedType, avroSchemaRecord, avroSchemaEnum, avroSchemaUnion, avroSchemaFixed :: ConstructorId
+avroSchemaNull, avroSchemaBoolean, avroSchemaInt, avroSchemaLong, avroSchemaFloat, avroSchemaDouble, avroSchemaBytes, avroSchemaString, avroSchemaArray, avroSchemaMap, avroSchemaNamedType, avroSchemaRecord, avroSchemaEnum, avroSchemaUnion, avroSchemaFixed :: ConstructorId
 avroSchemaNull = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Null"
 avroSchemaBoolean = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Boolean"
 avroSchemaInt = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Int"
 avroSchemaLong = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Long"
 avroSchemaFloat = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Float"
-
 avroSchemaDouble = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Double"
-
 avroSchemaBytes = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Bytes"
-
 avroSchemaString = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.String"
-
 avroSchemaArray = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Array"
-
 avroSchemaMap = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Map"
-
 avroSchemaNamedType = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.NamedType"
-
 avroSchemaRecord = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Record"
-
 avroSchemaEnum = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Enum"
-
 avroSchemaUnion = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Union"
-
 avroSchemaFixed = Maybe.fromJust $ constructorId avroSchemaRef "avro.schema.Schema.Fixed"
 
+avroFieldRef :: Reference
+avroFieldRef = lookupDeclRef "avro.schema.AvroField"
+
+avroEnumRef :: Reference
 avroEnumRef = lookupDeclRef "avro.schema.AvroEnum"
 
+avroDecimalRef :: Reference
 avroDecimalRef = lookupDeclRef "avro.schema.AvroDecimal"
 
+avroLogicalIntRef :: Reference
 avroLogicalIntRef = lookupDeclRef "avro.schema.LogicalIntType"
 
 avroLogicalIntDate, avroLogicalIntTime, avroLogicalIntDecimal :: ConstructorId
@@ -229,6 +226,7 @@ avroLogicalIntDate = Maybe.fromJust $ constructorId avroLogicalIntRef "avro.sche
 avroLogicalIntTime = Maybe.fromJust $ constructorId avroLogicalIntRef "avro.schema.LogicalIntType.Time"
 avroLogicalIntDecimal = Maybe.fromJust $ constructorId avroLogicalIntRef "avro.schema.LogicalIntType.Decimal"
 
+avroLogicalLongRef :: Reference
 avroLogicalLongRef = lookupDeclRef "avro.schema.LogicalLongType"
 
 avroLogicalLongTimeMicros, avroLogicalLongTimestampMillis, avroLogicalLongTimestampMicros, avroLogicalLongLocalTimestampMillis, avroLogicalLongLocalTimestampMicros, avroLogicalLongDecimal :: ConstructorId
@@ -239,17 +237,20 @@ avroLogicalLongLocalTimestampMillis = Maybe.fromJust $ constructorId avroLogical
 avroLogicalLongLocalTimestampMicros = Maybe.fromJust $ constructorId avroLogicalLongRef "avro.schema.LogicalLongType.LocalTimestampMicros"
 avroLogicalLongDecimal = Maybe.fromJust $ constructorId avroLogicalLongRef "avro.schema.LogicalLongType.Decimal"
 
+avroLogicalFixedRef :: Reference
 avroLogicalFixedRef = lookupDeclRef "avro.schema.LogicalFixedType"
 
 avroLogicalFixedDuration, avroLogicalFixedDecimal :: ConstructorId
 avroLogicalFixedDuration = Maybe.fromJust $ constructorId avroLogicalFixedRef "avro.schema.LogicalFixedType.Duration"
 avroLogicalFixedDecimal = Maybe.fromJust $ constructorId avroLogicalFixedRef "avro.schema.LogicalFixedType.Decimal"
 
+avroLogicalStringRef :: Reference
 avroLogicalStringRef = lookupDeclRef "avro.schema.LogicalStringType"
 
 avroLogicalStringUUID :: ConstructorId
 avroLogicalStringUUID = Maybe.fromJust $ constructorId avroLogicalStringRef "avro.schema.LogicalStringType.UUID"
 
+avroLogicalBytesRef :: Reference
 avroLogicalBytesRef = lookupDeclRef "avro.schema.LogicalBytesType"
 
 avroLogicalBytesDecimal :: ConstructorId
@@ -422,6 +423,9 @@ avroTypeNameRef = lookupDeclRef "avro.schema.TypeName"
 avroReadRecordRef :: Reference
 avroReadRecordRef = lookupDeclRef "avro.schema.deconflicted.ReadRecord"
 
+avroRecordRef :: Reference
+avroRecordRef = lookupDeclRef "avro.schema.AvroRecord"
+
 avroReadFieldRef :: Reference
 avroReadFieldRef = lookupDeclRef "avro.schema.deconflicted.ReadField"
 
@@ -542,9 +546,11 @@ builtinDataDecls = rs1 ++ rs
           (v "avro.schema.deconflicted.ReadDouble", avroReadDouble),
           (v "avro.schema.deconflicted.ReadLong", avroReadLong),
           (v "avro.schema.deconflicted.ReadRecord", avroReadRecord),
+          (v "avro.schema.AvroRecord", avroRecord),
           (v "avro.schema.deconflicted.ReadField", avroReadField),
           (v "avro.schema.Order", avroOrder),
           (v "avro.schema.deconflicted.FieldStatus", avroFieldStatus),
+          (v "avro.schema.AvroField", avroField),
           (v "avro.schema.AvroEnum", avroEnum),
           (v "avro.schema.DefaultValue", avroDefaultValue),
           (v "avro.schema.TypeName", avroTypeName),
@@ -1183,6 +1189,20 @@ builtinDataDecls = rs1 ++ rs
               ((), v "avro.schema.deconflicted.FieldStatus.Defaulted", nat `arr` defaultValue `arr` fieldStatus)
             ]
 
+    avroField =
+      DataDeclaration
+        (Unique "hdtsj889pvvvhmn482d9ipnlchjl16ua")
+        ()
+        []
+        let avroField = var "avro.schema.AvroField"
+            avroSchema = var "avro.schema.Schema"
+            avroOrder = var "avro.schema.Order"
+            defaultValue = var "avro.schema.DefaultValue"
+            opt = Type.app' (var "Optional")
+            list = Type.app () (Type.list ())
+            text = Type.text ()
+         in [((), v "avro.schema.AvroField.AvroField", text `arr` opt text `arr` avroSchema `arr` list text `arr` avroOrder `arr` opt defaultValue `arr` avroField)]
+
     avroEnum =
       DataDeclaration
         (Unique "h3c1uc2gnhv0q2k0sqnsc28m3vvpdf0b")
@@ -1194,6 +1214,19 @@ builtinDataDecls = rs1 ++ rs
             list = Type.app () (Type.list ())
             text = Type.text ()
          in [((), v "avro.schema.AvroEnum.AvroEnum", typeName `arr` opt text `arr` list typeName `arr` list text `arr` opt text `arr` avroEnum)]
+
+    avroRecord =
+      DataDeclaration
+        (Unique "caboag889sudpeepia4436ae50346077")
+        ()
+        []
+        let avroRecord = var "avro.schema.AvroRecord"
+            typeName = var "avro.schema.TypeName"
+            avroField = var "avro.schema.AvroField"
+            opt = Type.app' (var "Optional")
+            list = Type.app () (Type.list ())
+            text = Type.text ()
+         in [((), v "avro.schema.AvroRecord.AvroRecord", typeName `arr` opt text `arr` list typeName `arr` list avroField `arr` avroRecord)]
 
     avroReadLong =
       DataDeclaration
