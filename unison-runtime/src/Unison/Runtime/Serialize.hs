@@ -220,7 +220,7 @@ putHash h = do
 getHash :: (MonadGet m) => m Hash
 getHash = do
   len <- getLength
-  bs <- B.copy <$> Ser.getBytes len
+  bs <- Ser.getBytes len
   pure $ Hash.fromByteString bs
 
 putReferent :: (MonadPut m) => Referent -> m ()
