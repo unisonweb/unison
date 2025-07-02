@@ -3,14 +3,13 @@
 module Unison.Runtime.Serialize where
 
 import Control.Monad (replicateM)
-import Data.Bits (Bits)
+import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString qualified as B
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Get qualified as Ser
 import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.Signed (Unsigned)
-import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
@@ -56,12 +55,30 @@ putTag = putWord8 . tag2word
 getTag :: (MonadGet m) => (Tag t) => m t
 getTag = word2tag =<< getWord8
 
+getVarInt :: (MonadGet m, Num b, Bits b) => m b
+getVarInt = getWord8 >>= go
+  where
+    go n
+      | testBit n 7 = do
+        m <- getWord8 >>= go
+        return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
+      | otherwise = return $ fromIntegral n
+{-# INLINE getVarInt #-}
+
+putVarInt :: (MonadPut m, Integral a, Bits a) => a -> m ()
+putVarInt n
+  | n < 0x80 = putWord8 $ fromIntegral n
+  | otherwise = do
+    putWord8 $ setBit (fromIntegral n) 7
+    putVarInt $ shiftR n 7
+{-# INLINE putVarInt #-}
+
 -- Some basics, moved over from V1 serialization
 putChar :: (MonadPut m) => Char -> m ()
-putChar = serialize . VarInt . fromEnum
+putChar = putVarInt . fromEnum
 
 getChar :: (MonadGet m) => m Char
-getChar = toEnum . unVarInt <$> deserialize
+getChar = toEnum <$> getVarInt
 
 putFloat :: (MonadPut m) => Double -> m ()
 putFloat = serializeBE
@@ -100,7 +117,7 @@ putLength ::
   ) =>
   n ->
   m ()
-putLength = serialize . VarInt
+putLength = putVarInt
 
 getLength ::
   ( MonadGet m,
@@ -110,7 +127,7 @@ getLength ::
     Bits (Unsigned n)
   ) =>
   m n
-getLength = unVarInt <$> deserialize
+getLength = getVarInt
 
 -- Checks for negatives, in case you put an Integer, which does not
 -- behave properly for negative numbers.
@@ -120,12 +137,12 @@ putPositive ::
   m ()
 putPositive n
   | n < 0 = exn $ "putPositive: negative number: " ++ show (toInteger n)
-  | otherwise = serialize (VarInt n)
+  | otherwise = putVarInt n
 
 -- Reads as an Integer, then checks that the result will fit in the
 -- result type.
 getPositive :: forall m n. (Bounded n, Integral n, MonadGet m) => m n
-getPositive = validate . unVarInt =<< deserialize
+getPositive = validate =<< getVarInt
   where
     mx0 :: n
     mx0 = maxBound
