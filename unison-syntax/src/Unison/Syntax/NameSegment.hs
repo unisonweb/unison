@@ -45,7 +45,7 @@ import Unison.Syntax.ReservedWords (keywords, reservedOperators)
 -- | Convert a name segment to escaped text, for display purposes.
 --
 -- > toEscapedText (unsafeFromText ".~") = "`.~`"
-toEscapedText :: NameSegment -> Text
+toEscapedText :: (HasCallStack) => NameSegment -> Text
 toEscapedText segment@(NameSegment text)
   | shouldEscape = "`" <> text <> "`"
   | otherwise = text
@@ -58,7 +58,7 @@ toEscapedText segment@(NameSegment text)
     isReservedOperator = Set.member text reservedOperators
     symbolNeedsEscaping = not (Text.all symbolyIdChar text)
 
-toEscapedTextBuilder :: NameSegment -> Text.Builder
+toEscapedTextBuilder :: (HasCallStack) => NameSegment -> Text.Builder
 toEscapedTextBuilder =
   Text.Builder.fromText . toEscapedText
 
@@ -161,7 +161,7 @@ escapeP parser =
 ------------------------------------------------------------------------------------------------------------------------
 -- Character classifiers
 
-isSymboly :: NameSegment -> Bool
+isSymboly :: (HasCallStack) => NameSegment -> Bool
 isSymboly =
   not . wordyIdStartChar . Text.head . NameSegment.toUnescapedText
 
