@@ -13,6 +13,7 @@ import Data.Bytes.Signed (Unsigned)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
+import Data.Sequence (Seq, (|>))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Primitive qualified as BA
@@ -171,6 +172,14 @@ putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
 getList :: (MonadGet m) => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
 {-# INLINE getList #-}
+
+getSeq :: (MonadGet m) => m a -> m (Seq a)
+getSeq a = getLength >>= pull mempty
+  where
+    pull !acc (n :: Int)
+      | n <= 0 = pure acc
+      | otherwise = a >>= \x -> pull (acc |> x) (n-1)
+{-# INLINE getSeq #-}
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)

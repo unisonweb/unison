@@ -19,7 +19,6 @@ import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
 import Data.Maybe (mapMaybe)
-import Data.Sequence qualified as Seq
 import Data.Serialize.Put (runPutLazy)
 import Data.Word (Word16, Word32, Word64)
 import GHC.IsList qualified (fromList)
@@ -834,7 +833,7 @@ getBLit :: (MonadGet m, SerialConfig m) => m BLit
 getBLit =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
-    ListT -> List . Seq.fromList <$> getList getValue
+    ListT -> List <$> getSeq getValue
     TmLinkT -> TmLink <$> getReferent
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
