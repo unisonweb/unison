@@ -51,9 +51,11 @@ class Tag t where
 
 putTag :: (MonadPut m) => (Tag t) => t -> m ()
 putTag = putWord8 . tag2word
+{-# INLINE putTag #-}
 
 getTag :: (MonadGet m) => (Tag t) => m t
 getTag = word2tag =<< getWord8
+{-# INLINE getTag #-}
 
 getVarInt :: (MonadGet m, Num b, Bits b) => m b
 getVarInt = getWord8 >>= go
@@ -128,6 +130,7 @@ getLength ::
   ) =>
   m n
 getLength = getVarInt
+{-# INLINE getLength #-}
 
 -- Checks for negatives, in case you put an Integer, which does not
 -- behave properly for negative numbers.
@@ -138,6 +141,7 @@ putPositive ::
 putPositive n
   | n < 0 = exn $ "putPositive: negative number: " ++ show (toInteger n)
   | otherwise = putVarInt n
+{-# INLINE putPositive #-}
 
 -- Reads as an Integer, then checks that the result will fit in the
 -- result type.
@@ -153,6 +157,7 @@ getPositive = validate =<< getVarInt
     validate n
       | n <= mx = pure $ fromIntegral n
       | otherwise = fail $ "getPositive: overflow: " ++ show n
+{-# INLINE getPositive #-}
 
 putFoldable ::
   (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
@@ -165,6 +170,7 @@ putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
 
 getList :: (MonadGet m) => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
+{-# INLINE getList #-}
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getList (getPair getA getB)
@@ -233,12 +239,14 @@ putHash h = do
   let bs = Hash.toByteString h
   putLength (B.length bs)
   putByteString bs
+{-# INLINE putHash #-}
 
 getHash :: (MonadGet m) => m Hash
 getHash = do
   len <- getLength
   bs <- Ser.getBytes len
   pure $ Hash.fromByteString bs
+{-# INLINE getHash #-}
 
 putReferent :: (MonadPut m) => Referent -> m ()
 putReferent = \case
@@ -291,6 +299,7 @@ putReference r = case r of
     putWord8 1
     putHash hash
     putLength i
+{-# INLINE putReference #-}
 
 getReference :: (MonadGet m) => m Reference
 getReference = do
@@ -299,6 +308,7 @@ getReference = do
     0 -> Builtin <$> getText
     1 -> DerivedId <$> (Id <$> getHash <*> getLength)
     _ -> unknownTag "Reference" tag
+{-# INLINE getReference #-}
 
 putConstructorReference :: (MonadPut m) => ConstructorReference -> m ()
 putConstructorReference (ConstructorReference r i) = do
