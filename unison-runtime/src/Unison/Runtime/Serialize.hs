@@ -165,6 +165,7 @@ putFoldable ::
 putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
+{-# INLINE putFoldable #-}
 
 putMap :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
 putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
