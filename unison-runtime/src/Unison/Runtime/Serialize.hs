@@ -9,7 +9,7 @@ import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Get qualified as Ser
 import Data.Bytes.Put
 import Data.Bytes.Serial
-import Data.Bytes.Signed (Unsigned)
+import Data.Bytes.Signed (Unsigned, unsigned)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
@@ -68,12 +68,14 @@ getVarInt = getWord8 >>= go
       | otherwise = return $ fromIntegral n
 {-# INLINE getVarInt #-}
 
-putVarInt :: (MonadPut m, Integral a, Bits a) => a -> m ()
-putVarInt n
-  | n < 0x80 = putWord8 $ fromIntegral n
-  | otherwise = do
-    putWord8 $ setBit (fromIntegral n) 7
-    putVarInt $ shiftR n 7
+putVarInt :: (MonadPut m, Integral a, Integral (Unsigned a), Bits (Unsigned a)) => a -> m ()
+putVarInt = go . unsigned
+  where
+    go n
+      | n < 0x80 = putWord8 $ fromIntegral n
+      | otherwise = do
+        putWord8 $ setBit (fromIntegral n) 7
+        go $ shiftR n 7
 {-# INLINE putVarInt #-}
 
 -- Some basics, moved over from V1 serialization
@@ -121,6 +123,7 @@ putLength ::
   n ->
   m ()
 putLength = putVarInt
+{-# INLINE putLength #-}
 
 getLength ::
   ( MonadGet m,
