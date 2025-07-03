@@ -35,7 +35,7 @@ scratch/main> view foo
 Note that `{{`, `@`, and `}}` must be escaped within docs.
 
 ``` unison
-escaping = {{ Docs look --doc open-- like --amphora--this --doc close-- }}
+escaping = {{ Docs look `{{ like @this }}` }}
 ```
 
 ``` ucm
@@ -55,10 +55,7 @@ escaping = {{ Docs look --doc open-- like --amphora--this --doc close-- }}
 scratch/main> view escaping
 
   escaping : Doc2
-  escaping =
-    {{
-    Docs look --doc open-- like --amphora--this --doc close--
-    }}
+  escaping = {{ Docs look `{{ like @this }}` }}
 
 ```
 (Alas you can't have `\@` or `\}}` in your doc, as there's currently no way to 'unescape' them.)

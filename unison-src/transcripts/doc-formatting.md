@@ -23,7 +23,7 @@ scratch/main> view foo
 Note that `{{`, `@`, and `}}` must be escaped within docs.
 
 ```unison
-escaping = {{ Docs look --doc open-- like --amphora--this --doc close-- }}
+escaping = {{ Docs look `{{ like @this }}` }}
 ```
 
 ```ucm:hide
