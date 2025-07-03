@@ -36,6 +36,7 @@ import Data.Avro qualified as Avro
 import Data.Avro.Encoding.FromAvro qualified as FromAvro
 import Data.Avro.Schema.ReadSchema qualified as ReadSchema
 import Data.Avro.Schema.Schema qualified as AvroSchema
+import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bimapM)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
@@ -948,6 +949,8 @@ foreignCallHelper = \case
           errv = encodeJsonParseError err
   Json_tryUnconsText -> mkForeign $ \(txt :: Text) ->
     pure . bimap encodeJsonParseError (second encodeVal) $ parseJson txt
+  Avro_decodeBinary -> mkForeign $ \(env :: Closure, readSchema :: Closure, bytes :: Bytes.Bytes) -> do
+    avroDecodeBinary env readSchema bytes
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -2024,11 +2027,16 @@ avroEncodeField :: AvroSchema.Field -> Val
 avroEncodeField = \case
   AvroSchema.Field name aliases doc order typ def -> BoxedVal $ DataG Ty.avroFieldRef TT.avroFieldTag (segFromList [encodeVal (Util.Text.fromText name), encodeVal (map Util.Text.fromText aliases), encodeVal (Util.Text.fromText <$> doc), avroEncodeSchema typ, encodeVal (fmap avroEncodeOrder order), encodeVal (fmap avroEncodeDefaultValue def)])
 
-avroDecodeBinary :: Closure -> Val -> IO (Either String Closure)
-avroDecodeBinary readSchema bytes =
-  -- TODO: Handle lookup of named types. Currently we just assume
-  -- that the named types are already resolved.
-  error "TODO: avroDecodeBinary"
+avroDecodeBinary :: Closure -> Closure -> Bytes.Bytes -> IO Val
+avroDecodeBinary _env readSchema bytes = do
+  -- envVal <- decodeVal @[(Closure, Closure)] (BoxedVal env)
+  -- envDecoded <- traverse (bimapM avroDecodeTypeName avroDecodeReadSchema) envVal
+  readSchemaDecoded <- avroDecodeReadSchema readSchema
+  -- let envMap = (HashMap.fromList envDecoded) <> ReadSchema.extractBindings readSchemaDecoded
+  -- TODO: Modify the avro library to allow us to call getField directly
+  case Get.runGetOrFail (FromAvro.getValue readSchemaDecoded) (L.fromStrict (Bytes.toByteString bytes)) of
+    Left (_, _, err) -> pure $ encodeVal @(Either String Val) (Left err)
+    Right (_, _, value) -> pure $ encodeVal @(Either String Val) (Right (avroEncodeValue value))
 
 -- go schema = case schema of
 --   Enum _ t
@@ -2863,6 +2871,10 @@ functionReplacementList =
     ( "01pl56v6v0n2labp71cp6darcbftlj7d4h9t718mkfpj6lc905ro4",
       0,
       Json_tryUnconsText
+    ),
+    ( "01csmdujt5ot550j9t0o1gfop4ephtssv358rkfqdo2e01knekgds",
+      0,
+      Avro_decodeBinary
     )
   ]
 
