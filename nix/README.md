@@ -31,6 +31,14 @@ and run `sudo nixos-rebuild switch` afterward.
 
 It is _not_ recommended to add your user to `trusted-users`. This _can_ make enabling flake configurations simpler (like the Unison Nix cache here), but [it is equivalent to giving that user root access (without need for sudo)](https://nix.dev/manual/nix/2.23/command-ref/conf-file.html#conf-trusted-users).
 
+## exploring the project
+
+``` bash
+nix develop --command hoogle server --local
+```
+
+will run a [Hoogle](github.com/ndmitchell/hoogle#readme) server at http://127.0.0.1:8080 with all of the Unison code & dependencies available.
+
 ## Building package components with nix
 
 ### Build the unison executable
