@@ -36,10 +36,6 @@
           pkgs.pkg-config
           pkgs.stack-wrapped
         ];
-      # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
-      shellHook = ''
-        export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
-      '';
       tools =
         (args.tools or {})
         // {
