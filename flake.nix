@@ -49,6 +49,12 @@
           name = fn name;
         });
     in
+      ## These are optional, since we set them in ./nix/haskell-nix-flake.nix, but sticking with the default versions
+      ## from Nixpkgs can help with caching and make sure the packages stay up-to-date. They can be removed if there is
+      ## a reason to use a different version.
+      assert pkgs.cabal-install.version == versions.cabal;
+      assert pkgs.haskell-language-server.version == versions.hls;
+      ## This one is required. Otherwise Nix may build with a different Stack than is exposed in the shell.
       assert pkgs.stack.version == versions.stack; {
         packages =
           renameAttrs (name: "component-${name}") haskell-nix-flake.packages
