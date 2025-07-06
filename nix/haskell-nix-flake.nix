@@ -33,7 +33,6 @@
         ++ [
           pkgs.cachix
           pkgs.gettext # for envsubst, used by unison-src/builtin-tests/interpreter-tests.sh
-          pkgs.hpack
           pkgs.pkg-config
           pkgs.stack-wrapped
         ];
@@ -44,8 +43,7 @@
       tools =
         (args.tools or {})
         // {
-          cabal = {version = versions.cabal;};
-          ormolu = {version = versions.ormolu;};
+          cabal.version = versions.cabal;
           haskell-language-server = {
             version = versions.hls;
             modules = [
@@ -64,6 +62,8 @@
               constraints: ormolu == ${versions.ormolu}
             '';
           };
+          hpack.version = versions.hpack;
+          ormolu.version = versions.ormolu;
         };
     };
 
