@@ -53,8 +53,7 @@
           name = fn name;
         });
     in
-      assert pkgs.stack.version == versions.stack;
-      assert pkgs.hpack.version == versions.hpack; {
+      assert pkgs.stack.version == versions.stack; {
         packages =
           renameAttrs (name: "component-${name}") haskell-nix-flake.packages
           // renameAttrs (name: "docker-${name}") (import ./nix/docker.nix {
