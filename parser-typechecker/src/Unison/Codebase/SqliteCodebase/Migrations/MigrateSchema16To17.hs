@@ -32,6 +32,7 @@ import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sqlite.Connection qualified as Connection
 import Unison.Syntax.NameSegment qualified as NameSegment
+import Unison.Util.Cache qualified as Cache
 import UnliftIO qualified
 import UnliftIO qualified as UnsafeIO
 
@@ -209,12 +210,13 @@ makeLegacyProjectFromLooseCode = do
   |]
   rootCh <- Q.expectCausalHash rootChId
   branchCache <- Sqlite.unsafeIO BranchCache.newBranchCache
-  getDeclType <- Sqlite.unsafeIO $ CodebaseOps.makeCachedTransaction 2048 CodebaseOps.getDeclType
+  declTypeCache <- Sqlite.unsafeIO (Cache.semispaceCache 2048)
+  let getDeclType = CodebaseOps.makeCachedTransaction declTypeCache CodebaseOps.getDeclType
   rootBranch <-
     CodebaseOps.getBranchForHash branchCache getDeclType rootCh `whenNothingM` do
       Sqlite.unsafeIO . UnliftIO.throwIO $ MissingRootBranch
   -- Remove the hidden projects root if one existed.
-  let rootWithoutProjects = rootBranch & over (Branch.head_ . Branch.children) (Map.delete projectsNameSegment)
+  let rootWithoutProjects = rootBranch & over (Branch.head_ . Branch.children_) (Map.delete projectsNameSegment)
   CodebaseOps.putBranch rootWithoutProjects
   let legacyBranchRootHash = Branch.headHash rootWithoutProjects
   legacyBranchRootHashId <- Q.expectCausalHashIdByCausalHash legacyBranchRootHash

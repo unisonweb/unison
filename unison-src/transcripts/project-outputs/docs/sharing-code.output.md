@@ -8,13 +8,13 @@ data Causal m e
   | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal e)) }
 
 -- just one level of name, like Foo or Bar, but not Foo.Bar
-newtype NameSegment = NameSegment { toText :: Text } 
+newtype NameSegment = NameSegment { toText :: Text }
 newtype Path = Path { toList :: [NameSegment] }
 
 data Namespace m = Namespace
 	{ terms :: Relation NameSegment Referent
   , types :: Relation NameSegment Reference
-  , children :: Relation NameSegment (Codetree m) 
+  , children :: Relation NameSegment (Codetree m)
   }
 
 data Codetree m = Codetree (Causal m Namespace)
@@ -28,10 +28,10 @@ data RemoteRef = GithubRef { username :: Text, repo :: Text, treeish :: Text }
 
 newtype EditMap = EditMap { toMap :: Map GUID (Causal Edits) }
 data Edits = Edits
-	{ terms :: Relation Reference TermEdit 
+	{ terms :: Relation Reference TermEdit
 	, types :: Relation Reference TypeEdit
 	}
-	
+
 -- maps local paths to remote paths
 data RemoteStatus = Map Path RemoteSpec
 ```
@@ -57,7 +57,7 @@ Questions:
         /mycode> mv ClassA* ClassA/
         /mycode> mv ClassB* ClassB/
         /mycode> cd ClassA
-        /mycode/ClassA> ls
+        /mycode/ClassA> ls .
         ```
     
       - ``` 
@@ -86,9 +86,9 @@ data NameTree a = Causal (Relation Name (NameTree a))
 or
 
 ``` haskell
-data NameTree a 
-	= Leaf a 
-	| Branch (Relation Name (NameTree a)) 
+data NameTree a
+	= Leaf a
+	| Branch (Relation Name (NameTree a))
 	| SharePoint (Causal (NameTree a))
 ```
 
@@ -101,10 +101,10 @@ Branches: https://api.github.com/repos/unisonweb/unison/branches
 A directory:
 
 ``` 
-url: 
+url:
 https://api.github.com/repos/unisonweb/unison/contents/unison-src/demo?ref=master
 
-html_url: 
+html_url:
 https://github.com/unisonweb/unison/tree/master/unison-src/demo
 
 git_url

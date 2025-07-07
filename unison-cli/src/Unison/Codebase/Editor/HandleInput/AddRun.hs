@@ -26,16 +26,25 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
-import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 
 handleAddRun :: Input -> Name -> Cli ()
 handleAddRun input resultName = do
   let resultVar = Name.toVar resultName
-  uf <- addSavedTermToUnisonFile resultName
+  let resultSymbol = Name.toVar resultName
+  (trm, typ, uf0) <-
+    use #lastRunResult & onNothingM do
+      Cli.returnEarly NoLastRunResult
+  whenJust (Map.lookup resultSymbol (UF.hashTermsId uf0)) \_ -> do
+    Cli.returnEarly (SaveTermNameConflict resultName)
+  let uf =
+        UF.typecheckedUnisonFile
+          (UF.dataDeclarationsId' uf0)
+          (UF.effectDeclarationsId' uf0)
+          ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf0)
+          (UF.watchComponents uf0)
   Cli.Env {codebase} <- ask
   currentNames <- Cli.currentNames
   let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
@@ -48,18 +57,3 @@ handleAddRun input resultName = do
   let pped = PPED.makePPED (PPE.hqNamer 10 namesWithDefinitionsFromFile) (PPE.suffixifyByHash namesWithDefinitionsFromFile)
   let suffixifiedPPE = PPE.suffixifiedPPE pped
   Cli.respond $ SlurpOutput input suffixifiedPPE sr
-
-addSavedTermToUnisonFile :: Name -> Cli (TypecheckedUnisonFile Symbol Ann)
-addSavedTermToUnisonFile resultName = do
-  let resultSymbol = Name.toVar resultName
-  (trm, typ, uf) <-
-    use #lastRunResult & onNothingM do
-      Cli.returnEarly NoLastRunResult
-  whenJust (Map.lookup resultSymbol (UF.hashTermsId uf)) \_ -> do
-    Cli.returnEarly (SaveTermNameConflict resultName)
-  pure $
-    UF.typecheckedUnisonFile
-      (UF.dataDeclarationsId' uf)
-      (UF.effectDeclarationsId' uf)
-      ([(resultSymbol, External, trm, typ)] : UF.topLevelComponents' uf)
-      (UF.watchComponents uf)

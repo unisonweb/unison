@@ -19,7 +19,6 @@ module Unison.Codebase.Editor.Input
     parseShortCausalHash,
     Insistence (..),
     PullMode (..),
-    OptionalPatch (..),
     FindScope (..),
     ShowDefinitionScope (..),
     IsGlobal,
@@ -35,7 +34,6 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
-import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
@@ -61,16 +59,11 @@ type Source = Text -- "id x = x\nconst a b = a"
 
 type SourceName = Text -- "foo.u" or "buffer 7"
 
-type PatchPath = Path.Split Path'
-
 type ErrorMessageOrValue a = Either (P.Pretty P.ColorText) a
 
 type ErrorMessageOrName = ErrorMessageOrValue (HQ.HashQualified Name)
 
 type RawQuery = String
-
-data OptionalPatch = NoPatch | DefaultPatch | UsePatch PatchPath
-  deriving (Eq, Ord, Show)
 
 data BranchIdG p
   = BranchAtSCH ShortCausalHash
@@ -126,9 +119,6 @@ data Input
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
     ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
-  | -- merge first causal into destination
-    MergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath) Branch.MergeMode
-  | PreviewMergeLocalBranchI BranchRelativePath (Maybe BranchRelativePath)
   | DiffNamespaceI BranchId2 BranchId2 -- old new
   | PullI !PullSourceTarget !PullMode
   | PushRemoteBranchI PushRemoteBranchInput
@@ -165,11 +155,7 @@ data Input
   | -- edits stuff:
     LoadI (Maybe FilePath)
   | ClearI
-  | AddI (Set Name)
-  | PreviewAddI (Set Name)
-  | UpdateI OptionalPatch (Set Name)
   | Update2I
-  | PreviewUpdateI (Set Name)
   | TodoI
   | UndoI
   | -- First `Maybe Int` is cap on number of results, if any
@@ -246,7 +232,7 @@ data Input
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | ReleaseDraftI Semver
   | UpgradeI !NameSegment !NameSegment
-  | EditNamespaceI [Path.Path]
+  | EditNamespaceI [Path.Path']
   | -- New merge algorithm: merge the given project branch into the current one.
     MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | LibInstallI
@@ -256,6 +242,7 @@ data Input
   | MergeCommitI
   | DebugSynhashTermI !Name
   | EditDependentsI !(HQ.HashQualified Name)
+  | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

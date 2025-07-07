@@ -15,10 +15,10 @@ test> mynamespace.foo.test =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo                  : Nat -> Nat
-    mynamespace.foo.test : [Result]
+  Done.
 ```
 
 if we change the type of the dependency, the test should show in the scratch file as a test watch.
@@ -31,8 +31,7 @@ foo n = "hello, world!"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

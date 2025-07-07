@@ -155,10 +155,9 @@ swapped name link =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural type Three a b c
       Code.get       : Link.Term ->{IO, Throw Text} Code
@@ -200,43 +199,10 @@ swapped name link =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Three a b c
-    Code.get       : Link.Term ->{IO, Throw Text} Code
-    Code.load      : Bytes ->{IO, Throw Text} Code
-    Code.save      : Code -> Bytes
-    concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
-    expectFailure  : Text -> Request {Throw Text} a -> Result
-    extensionality : Text
-                     -> (Three Nat Nat Nat -> Nat -> b)
-                     ->{IO} Result
-    extensionals   : (a -> b -> Text)
-                     -> (a -> b -> c)
-                     -> (a -> b -> c)
-                     -> [(a, b)]
-                     ->{Throw Text} ()
-    fib10          : [Nat]
-    handleTest     : Text -> Request {Throw Text} a -> Result
-    idempotence    : Text -> Link.Term ->{IO} Result
-    identical      : Text -> a -> a ->{Throw Text} ()
-    identicality   : Text -> a ->{IO} Result
-    load           : Bytes ->{IO, Throw Text} a
-    missed         : Text -> Link.Term ->{IO} Result
-    mutual0        : Nat -> Nat
-    mutual1        : Nat -> Nat
-    mutual2        : Nat -> Nat
-    prod           : [a] -> [b] -> [(a, b)]
-    rejected       : Text -> [(Link.Term, Code)] ->{IO} Result
-    roundtrip      : a ->{IO, Throw Text} a
-    save           : a -> Bytes
-    showThree      : Three Nat Nat Nat -> Text
-    swapped        : Text -> Link.Term ->{IO} Result
-    threes         : [Three Nat Nat Nat]
-    verified       : Text -> Link.Term ->{IO} Result
-    verify         : Text
-                     -> [(Link.Term, Code)]
-                     ->{Throw Text} ()
+  Done.
 ```
 
 ``` unison
@@ -318,10 +284,9 @@ badLoad _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural ability Zap
       badLoad : '{IO} [Result]
@@ -343,19 +308,10 @@ to actual show that the serialization works.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural ability Zap
-    badLoad : '{IO} [Result]
-    bigFun  : Nat -> Nat -> Nat -> Nat
-    f       : Nat ->{Zap} Nat
-    fDeps   : [Link.Term]
-    fSer    : Bytes
-    fVal    : Value
-    h       : Three Nat Nat Nat -> Nat -> Nat
-    rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
-    tests   : '{IO} [Result]
-    zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
+  Done.
 
 scratch/main> io.test tests
 
@@ -430,10 +386,9 @@ codeTests =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       codeTests : '{IO} [Result]
 ```
@@ -441,9 +396,10 @@ codeTests =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    codeTests : '{IO} [Result]
+  Done.
 
 scratch/main> io.test codeTests
 
@@ -515,10 +471,9 @@ vtests _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       validateTest : Link.Term ->{IO} Result
       vtests       : '{IO} [Result]
@@ -527,10 +482,10 @@ vtests _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    validateTest : Link.Term ->{IO} Result
-    vtests       : '{IO} [Result]
+  Done.
 
 scratch/main> io.test vtests
 

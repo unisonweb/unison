@@ -131,7 +131,7 @@ data FileAnalysis = FileAnalysis
     diagnostics :: IntervalMap Position [Diagnostic],
     codeActions :: IntervalMap Position [CodeAction],
     -- | The types of local variable bindings keyed by the mention's location.
-    localBindingTypes :: IntervalMap Position (Context.Type Symbol Ann),
+    localBindingInfo :: IntervalMap Position (Context.Type Symbol Ann {- type of binding -}, Range {- binding definition site -}),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
     fileSummary :: Maybe FileSummary
   }

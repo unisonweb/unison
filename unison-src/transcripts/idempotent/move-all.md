@@ -19,10 +19,9 @@ unique type Foo.T = T
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Foo
       type Foo.T
@@ -33,12 +32,10 @@ unique type Foo.T = T
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    type Foo.T
-    Foo         : Nat
-    Foo.termInA : Nat
+  Done.
 ```
 
 ``` unison
@@ -50,8 +47,7 @@ unique type Foo.T = T1 | T2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -77,12 +73,12 @@ scratch/main> move Foo Bar
 
   Done.
 
-scratch/main> ls
+scratch/main> ls .
 
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar/     (4 terms, 1 type)
-  4. builtin/ (476 terms, 76 types)
+  4. builtin/ (483 terms, 78 types)
 
 scratch/main> ls Bar
 
@@ -119,10 +115,9 @@ bonk = 5
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bonk : Nat
 ```
@@ -134,17 +129,18 @@ z/main> builtins.merge
 
 z/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bonk : Nat
+  Done.
 
 z/main> move bonk zonk
 
   Done.
 
-z/main> ls
+z/main> ls .
 
-  1. builtin/ (476 terms, 76 types)
+  1. builtin/ (483 terms, 78 types)
   2. zonk     (Nat)
 ```
 
@@ -158,10 +154,9 @@ bonk.zonk = 5
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bonk.zonk : Nat
         (also named zonk)
@@ -174,17 +169,18 @@ a/main> builtins.merge
 
 a/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bonk.zonk : Nat
+  Done.
 
 a/main> move bonk zonk
 
   Done.
 
-a/main> ls
+a/main> ls .
 
-  1. builtin/ (476 terms, 76 types)
+  1. builtin/ (483 terms, 78 types)
   2. zonk/    (1 term)
 
 a/main> view zonk.zonk

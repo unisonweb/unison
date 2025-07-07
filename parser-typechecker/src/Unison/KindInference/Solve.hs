@@ -299,7 +299,7 @@ union _unionLoc a b = do
       M.put st {constraints = m}
       pure []
 
--- | Do an occurence check and return an error or the resulting solve
+-- | Do an occurrence check and return an error or the resulting solve
 -- state
 verify ::
   (Var v) =>
@@ -339,10 +339,10 @@ assertGen gen = do
     Right st -> M.put st
 
 --------------------------------------------------------------------------------
--- Occurence check and helpers
+-- Occurrence check and helpers
 --------------------------------------------------------------------------------
 
--- | occurence check and report any errors
+-- | occurrence check and report any errors
 occCheck ::
   forall v loc.
   (Var v) =>

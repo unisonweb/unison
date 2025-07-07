@@ -39,6 +39,8 @@ pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
 
 {-# COMPLETE Result #-}
 
+pattern TypeWarning w = TypeInfo (Context.Warning w)
+
 makeResult :: (Applicative m) => notes -> Maybe a -> ResultT notes m a
 makeResult notes value =
   MaybeT (WriterT (pure (value, notes)))

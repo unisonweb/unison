@@ -13,6 +13,13 @@ rangeToInterval :: Range -> Interval.Interval Position
 rangeToInterval (Range start end) =
   Interval.ClosedInterval start end
 
+intervalToRange :: Interval.Interval Position -> Range
+intervalToRange = \case
+  (Interval.ClosedInterval start end) -> Range start end
+  (Interval.OpenInterval start end) -> Range start end
+  (Interval.IntervalCO start end) -> Range start end
+  (Interval.IntervalOC start end) -> Range start end
+
 annToInterval :: Ann -> Maybe (Interval.Interval Position)
 annToInterval ann = annToRange ann <&> rangeToInterval
 

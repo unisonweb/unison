@@ -15,7 +15,7 @@ import Hedgehog.Range qualified as Range
 import Unison.Prelude
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
-import Unison.Runtime.MCode (Args (..), Prim1, Prim2, Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Ref, Section)
+import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, Ref, Section)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
@@ -113,14 +113,17 @@ genInstr =
     [ Prim1 <$> genPrim1 <*> genSmallInt,
       Prim2 <$> genPrim2 <*> genSmallInt <*> genSmallInt,
       ForeignCall <$> Gen.bool <*> genForeignCall <*> genArgs,
-      SetDyn <$> genSmallWord64 <*> genSmallInt,
+      SetAff <$> genBool <*> genSmallInt <*> genSmallInt,
       Capture <$> genSmallWord64,
       Name <$> genGRef <*> genArgs,
       Info <$> Gen.string (Range.linear 0 10) Gen.alphaNum,
       Pack <$> genReference <*> genPackedTag <*> genArgs,
       Lit <$> genMLit,
       Print <$> genSmallInt,
-      Reset <$> genEnumSet genSmallWord64,
+      Reset
+        <$> genEnumSet genSmallWord64
+        <*> genSmallInt
+        <*> Gen.maybe genSmallInt,
       Fork <$> genSmallInt,
       Atomically <$> genSmallInt,
       Seq <$> genArgs,
@@ -172,6 +175,8 @@ genStoredCache =
     <$> (genEnumMap genSmallWord64 genCombs)
     <*> (genEnumMap genSmallWord64 genReference)
     <*> (genEnumSet genSmallWord64)
+    -- don't generate inlining info for reasons below
+    <*> pure (mempty, mempty)
     <*> (genEnumMap genSmallWord64 genReference)
     <*> genSmallWord64
     <*> genSmallWord64

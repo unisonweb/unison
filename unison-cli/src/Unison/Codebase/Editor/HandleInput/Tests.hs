@@ -120,9 +120,8 @@ handleTest native TestInput {includeLibNamespace, path, showFailures, showSucces
           case tm' of
             Left e -> do
               Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
-              let
-                testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
-                e' = P.callout ("Error while evaluating test " <> P.backticked testName) e
+              let testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
+                  e' = P.callout ("Error while evaluating test " <> P.backticked testName) e
               Cli.returnEarly (EvaluationFailure e')
             Right tm' -> do
               -- After evaluation, cache the result of the test

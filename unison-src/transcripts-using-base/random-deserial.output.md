@@ -59,10 +59,9 @@ serialTests = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       availableCases : '{IO, Exception} [Text]
       directory      : Text
@@ -75,14 +74,10 @@ serialTests = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    availableCases : '{IO, Exception} [Text]
-    directory      : Text
-    gen            : Nat -> Nat -> (Nat, Nat)
-    runTestCase    : Text ->{IO, Exception} (Text, Result)
-    serialTests    : '{IO, Exception} [Result]
-    shuffle        : Nat -> [a] -> [a]
+  Done.
 
 scratch/main> io.test serialTests
 

@@ -1,6 +1,7 @@
 -- | @branch@ input handler
 module Unison.Codebase.Editor.HandleInput.Branch
   ( CreateFrom (..),
+    CreateFromMergeSource (..),
     handleBranch,
     createBranch,
   )
@@ -8,6 +9,7 @@ where
 
 import Control.Monad.Reader
 import Data.UUID.V4 qualified as UUID
+import Network.URI (URI)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -19,12 +21,14 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects.Types (RemoteProjectBranch (..))
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.ProjectPath qualified as PP
+import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectBranchNameKind (..), ProjectName, classifyProjectBranchName)
 import Unison.Sqlite qualified as Sqlite
@@ -34,7 +38,22 @@ data CreateFrom
   | CreateFrom'ParentBranch Sqlite.ProjectBranch
   | CreateFrom'Namespace (Branch IO)
   | CreateFrom'CausalHash CausalHash
+  | -- A merge failed (from local branch, remote branch, or remote loose code), and we're making a branch for the user
+    -- to resolve the merge on
+    CreateFrom'MergeParents
+      (CreateFromMergeSource, CausalHash, Map Name Text {- unique type name to guid -}) -- source
+      (Sqlite.ProjectBranch, CausalHash, Map Name Text {- unique type name to guid -}) -- target
+      (Branch IO) -- merge branch
+  | -- An update failed, and we're making a branch for the user to complete the update on
+    CreateFrom'Update
+      (Sqlite.ProjectBranch, CausalHash, Map Name Text {- unique type name to guid -})
+      (Branch IO) -- update branch contents
   | CreateFrom'Nothingness
+
+data CreateFromMergeSource
+  = CreateFromMergeSource'Local Sqlite.ProjectBranch
+  | CreateFromMergeSource'Remote RemoteProjectBranch URI
+  | CreateFromMergeSource'LooseCode
 
 -- | Create a new project branch from an existing project branch or namespace.
 handleBranch :: Input.BranchSourceI -> ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Cli ()
@@ -101,7 +120,7 @@ createBranch ::
   CreateFrom ->
   Sqlite.Project ->
   Sqlite.Transaction ProjectBranchName ->
-  Cli (ProjectBranchId, ProjectBranchName)
+  Cli (ProjectAndBranch ProjectId ProjectBranchId, ProjectBranchName)
 createBranch description createFrom project getNewBranchName = do
   let projectId = project ^. #projectId
   Cli.Env {codebase} <- ask
@@ -115,17 +134,27 @@ createBranch description createFrom project getNewBranchName = do
       pure (Nothing, causalHashId)
     CreateFrom'NamespaceWithParent parentBranch namespace -> do
       liftIO $ Codebase.putBranch codebase namespace
-      Cli.runTransaction $ do
+      Cli.runTransaction do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
         let parentBranchId = if parentBranch.projectId == projectId then Just parentBranch.branchId else Nothing
         pure (parentBranchId, newBranchCausalHashId)
+    CreateFrom'MergeParents _ (targetBranch, _, _) namespace -> do
+      liftIO $ Codebase.putBranch codebase namespace
+      Cli.runTransaction do
+        newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
+        pure (Just targetBranch.branchId, newBranchCausalHashId)
+    CreateFrom'Update (parentBranch, _, _) namespace -> do
+      liftIO $ Codebase.putBranch codebase namespace
+      Cli.runTransaction do
+        newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
+        pure (Just parentBranch.branchId, newBranchCausalHashId)
     CreateFrom'CausalHash causalHash -> do
-      Cli.runTransaction $ do
+      Cli.runTransaction do
         causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
         pure (Nothing, causalHashId)
     CreateFrom'Namespace branch -> do
       liftIO $ Codebase.putBranch codebase branch
-      Cli.runTransaction $ do
+      Cli.runTransaction do
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash branch)
         pure (Nothing, newBranchCausalHashId)
   (newBranchName, newBranchId) <-
@@ -146,7 +175,42 @@ createBranch description createFrom project getNewBranchName = do
                 name = newBranchName,
                 parentBranchId = mayParentBranchId
               }
+          case createFrom of
+            CreateFrom'MergeParents
+              (source, sourceCausalHash, sourceUniqueTypeGuids)
+              (targetBranch, targetCausalHash, targetUniqueTypeGuids)
+              _ -> do
+                sourceCausalHashId <- Queries.expectCausalHashIdByCausalHash sourceCausalHash
+                targetCausalHashId <- Queries.expectCausalHashIdByCausalHash targetCausalHash
+                case source of
+                  CreateFromMergeSource'Local sourceBranch -> do
+                    Queries.insertMergeBranchLocal
+                      targetBranch.projectId
+                      newBranchId
+                      (sourceBranch.branchId, sourceCausalHashId)
+                      (targetBranch.branchId, targetCausalHashId)
+                  CreateFromMergeSource'Remote sourceBranch sourceHost -> do
+                    Queries.insertMergeBranchRemote
+                      targetBranch.projectId
+                      newBranchId
+                      (sourceBranch.projectId, sourceBranch.branchId, sourceHost, sourceCausalHashId)
+                      (targetBranch.branchId, targetCausalHashId)
+                  CreateFromMergeSource'LooseCode -> do
+                    Queries.insertMergeBranchLooseCode
+                      targetBranch.projectId
+                      newBranchId
+                      sourceCausalHashId
+                      (targetBranch.branchId, targetCausalHashId)
+                -- Create unique type to GUID mapping for source and target namespaces
+                Queries.ensureUniqueTypeToGuidMappingForCausalHashId sourceCausalHashId sourceUniqueTypeGuids
+                Queries.ensureUniqueTypeToGuidMappingForCausalHashId targetCausalHashId targetUniqueTypeGuids
+            CreateFrom'Update (parentBranch, parentCausalHash, parentUniqueTypeGuids) _namespace -> do
+              parentCausalHashId <- Queries.expectCausalHashIdByCausalHash parentCausalHash
+              Queries.setProjectBranchIsUpdateBranch parentBranch.projectId newBranchId parentCausalHashId
+              -- Create unique type to GUID mapping for parent namespace
+              Queries.ensureUniqueTypeToGuidMappingForCausalHashId parentCausalHashId parentUniqueTypeGuids
+            _ -> pure ()
           pure (newBranchName, newBranchId)
-
-  Cli.switchProject (ProjectAndBranch projectId newBranchId)
-  pure (newBranchId, newBranchName)
+  let pabIds = ProjectAndBranch projectId newBranchId
+  Cli.switchProject pabIds
+  pure (pabIds, newBranchName)

@@ -22,9 +22,7 @@ where
 import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.STM (TVar)
 import Crypto.Hash qualified as Hash
-import Data.Atomics qualified as Atomic
 import Data.IORef (IORef)
-import Data.Map.Strict (Map)
 import Data.Tagged (Tagged (..))
 import Data.X509 qualified as X509
 import Network.Socket (Socket)
@@ -32,6 +30,8 @@ import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Mem.StableName
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
@@ -39,7 +39,6 @@ import Unison.Runtime.ANF (Code, Value)
 import Unison.Runtime.Array
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
-import Unison.Util.RefPromise (Promise)
 import Unison.Util.Text (Text)
 import Unison.Util.Text.Pattern (CPattern, CharPattern)
 import Unsafe.Coerce
@@ -83,6 +82,10 @@ tvarEq l r = l == r
 socketEq :: Socket -> Socket -> Bool
 socketEq l r = l == r
 {-# NOINLINE socketEq #-}
+
+tlsEq :: Tls -> Tls -> Bool
+tlsEq (Tls s1 _) (Tls s2 _) = socketEq s1 s2
+{-# NOINLINE tlsEq #-}
 
 udpSocketEq :: UDPSocket -> UDPSocket -> Bool
 udpSocketEq l r = l == r
@@ -164,6 +167,7 @@ ref2eq r
   -- Ditto
   | r == Ty.tvarRef = Just $ promote tvarEq
   | r == Ty.socketRef = Just $ promote socketEq
+  | r == Ty.tlsRef = Just $ promote tlsEq
   | r == Ty.udpSocketRef = Just $ promote udpSocketEq
   | r == Ty.refRef = Just $ promote refEq
   | r == Ty.threadIdRef = Just $ promote tidEq
@@ -187,9 +191,18 @@ ref2cmp r
   | r == Ty.charClassRef = Just $ promote charClassCmp
   | otherwise = Nothing
 
+ptrEq :: a -> b -> Bool
+ptrEq x y =
+  unsafePerformIO $ do
+    sn1 <- makeStableName $! x
+    sn2 <- makeStableName $! y
+    return (sn1 == unsafeCoerce sn2)
+
 instance Eq Foreign where
   Wrap rl t == Wrap rr u
     | rl == rr, Just (~~) <- ref2eq rl = t ~~ u
+  Wrap rl t == Wrap rr u
+    | rl == rr = ptrEq t u
   Wrap rl1 _ == Wrap rl2 _ =
     error $
       "Attempting to check equality of two values of different types: "
@@ -198,6 +211,11 @@ instance Eq Foreign where
 instance Ord Foreign where
   Wrap rl t `compare` Wrap rr u
     | rl == rr, Just cmp <- ref2cmp rl = cmp t u
+  Wrap rl _ `compare` Wrap rr _
+    | rl == rr =
+        error $
+          "Do not know how to compare values of type: "
+            <> show rl
   compare (Wrap rl1 _) (Wrap rl2 _) =
     error $
       "Attempting to compare two values of different types: "
@@ -291,8 +309,8 @@ instance BuiltinForeign FilePath where
   foreignName = Tagged "FilePath"
   foreignRef = Tagged Ty.filePathRef
 
-instance BuiltinForeign TLS.Context where
-  foreignName = Tagged "TLS.Context"
+instance BuiltinForeign Tls where
+  foreignName = Tagged "Tls"
   foreignRef = Tagged Ty.tlsRef
 
 instance BuiltinForeign Code where
@@ -307,30 +325,6 @@ instance BuiltinForeign TimeSpec where
   foreignName = Tagged "TimeSpec"
   foreignRef = Tagged Ty.timeSpecRef
 
-instance BuiltinForeign (Atomic.Ticket a) where
-  foreignName = Tagged "Ticket"
-  foreignRef = Tagged Ty.ticketRef
-
-instance BuiltinForeign (MVar a) where
-  foreignName = Tagged "MVar"
-  foreignRef = Tagged Ty.mvarRef
-
-instance BuiltinForeign (TVar a) where
-  foreignName = Tagged "TVar"
-  foreignRef = Tagged Ty.tvarRef
-
-instance BuiltinForeign (Promise a) where
-  foreignName = Tagged "Promise"
-  foreignRef = Tagged Ty.promiseRef
-
-instance BuiltinForeign (MutableArray s e) where
-  foreignName = Tagged "MutableArray"
-  foreignRef = Tagged Ty.marrayRef
-
-instance BuiltinForeign (Array e) where
-  foreignName = Tagged "Array"
-  foreignRef = Tagged Ty.iarrayRef
-
 instance BuiltinForeign (MutableByteArray s) where
   foreignName = Tagged "MutableByteArray"
   foreignRef = Tagged Ty.mbytearrayRef
@@ -343,7 +337,13 @@ data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: (Hash.HashAlgorithm a) => Reference -> a -> HashAlgorithm
 
-newtype Tls = Tls TLS.Context
+data Tls = Tls
+  { socket :: Socket,
+    context :: TLS.Context
+  }
+
+instance Eq Tls where
+  Tls s1 _ == Tls s2 _ = socketEq s1 s2
 
 data Failure a = Failure Reference Text a
 
@@ -358,15 +358,6 @@ instance BuiltinForeign CPattern where
 instance BuiltinForeign CharPattern where
   foreignName = Tagged "CharPattern"
   foreignRef = Tagged Ty.charClassRef
-
--- Note: this doesn't do any recursive conversion of keys/values,
--- so any use of it needs to be an exact match for the map that was
--- originally placed in the box. The current intention is for use
--- at `Map Val Val`, but `Val` is in a module further along the
--- dependency graph.
-instance BuiltinForeign (Map k v) where
-  foreignName = Tagged "Map"
-  foreignRef = Tagged Ty.hmapRef
 
 wrapBuiltin :: forall f. (BuiltinForeign f) => f -> Foreign
 wrapBuiltin x = Wrap r x

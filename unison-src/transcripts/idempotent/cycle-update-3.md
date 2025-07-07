@@ -16,10 +16,9 @@ pong _ = !ping + 2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       ping : 'Nat
       pong : 'Nat
@@ -28,10 +27,10 @@ pong _ = !ping + 2
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ping : 'Nat
-    pong : 'Nat
+  Done.
 ```
 
 ``` unison
@@ -43,8 +42,7 @@ ping = 3
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -52,20 +50,29 @@ ping = 3
       ping : Nat
 ```
 
-``` ucm
-scratch/main> update.old
+``` ucm :error
+scratch/main> update
 
-  ⍟ I've updated these names to your new definition:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ping : Nat
+  That's done. Now I'm making sure everything typechecks...
 
-scratch/main> view ping pong
+  Typechecking failed. I've updated your scratch file with the
+  definitions that need fixing. Once the file is compiling, try
+  `update` again.
+```
 
-  ping : Nat
-  ping = 3
+``` unison :added-by-ucm scratch.u
+ping : Nat
+ping = 3
 
-  pong : 'Nat
-  pong _ =
-    use Nat +
-    #4t465jk908.1() + 2
+-- The definitions below no longer typecheck with the changes above.
+-- Please fix the errors and try `update` again.
+
+pong : 'Nat
+pong _ =
+  use Nat +
+  ping() + 2
+
 ```

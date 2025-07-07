@@ -118,6 +118,7 @@ module U.Codebase.Sqlite.Queries
     deleteProject,
 
     -- ** project branches
+    projectBranchExists,
     projectBranchExistsByName,
     loadProjectBranchByName,
     loadProjectBranchByNames,
@@ -131,9 +132,22 @@ module U.Codebase.Sqlite.Queries
     renameProjectBranch,
     deleteProjectBranch,
     setProjectBranchHead,
+    loadProjectBranchHead,
     expectProjectBranchHead,
     setMostRecentBranch,
     loadMostRecentBranch,
+    loadProjectBranchParent,
+    loadMergeBranchParents,
+    insertMergeBranchLocal,
+    insertMergeBranchRemote,
+    insertMergeBranchLooseCode,
+    loadNamespaceUniqueTypeGuid,
+    existsAnyNamespaceUniqueTypeGuidForNamespace,
+    ensureUniqueTypeToGuidMappingForCausalHashId,
+    insertNamespaceUniqueTypeGuid,
+    projectBranchIsUpdateBranch,
+    loadUpdateBranchParentCausalHashId,
+    setProjectBranchIsUpdateBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -257,6 +271,8 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchReflogTable,
     addProjectBranchCausalHashIdColumn,
     addProjectBranchLastAccessedColumn,
+    addMergeBranchTables,
+    addUpdateBranchTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -303,11 +319,13 @@ import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
 import Data.Bitraversable (bitraverse)
+import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as Nel
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -401,6 +419,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
+import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
@@ -421,7 +441,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 18
+currentSchemaVersion = 20
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -490,6 +510,14 @@ addProjectBranchCausalHashIdColumn =
 addProjectBranchLastAccessedColumn :: Transaction ()
 addProjectBranchLastAccessedColumn =
   executeStatements $(embedProjectStringFile "sql/015-add-project-branch-last-accessed.sql")
+
+addMergeBranchTables :: Transaction ()
+addMergeBranchTables =
+  executeStatements $(embedProjectStringFile "sql/016-add-merge-branch-tables.sql")
+
+addUpdateBranchTable :: Transaction ()
+addUpdateBranchTable =
+  executeStatements $(embedProjectStringFile "sql/017-add-update-branch-table.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -3635,6 +3663,19 @@ renameProject projectId name =
       WHERE id = :projectId
     |]
 
+-- | Does a project branch exist?
+projectBranchExists :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchExists projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM project_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
+    |]
+
 -- | Does a project branch exist by this name?
 projectBranchExistsByName :: ProjectId -> ProjectBranchName -> Transaction Bool
 projectBranchExistsByName projectId name =
@@ -3942,14 +3983,21 @@ setProjectBranchHead description projectId branchId causalHashId = do
         reason = description
       }
 
+loadProjectBranchHead :: ProjectId -> ProjectBranchId -> Transaction (Maybe CausalHashId)
+loadProjectBranchHead projectId branchId =
+  queryMaybeCol (loadProjectBranchHeadSql projectId branchId)
+
 expectProjectBranchHead :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction CausalHashId
 expectProjectBranchHead projectId branchId =
-  queryOneCol
-    [sql|
-      SELECT causal_hash_id
-      FROM project_branch
-      WHERE project_id = :projectId AND branch_id = :branchId
-    |]
+  queryOneCol (loadProjectBranchHeadSql projectId branchId)
+
+loadProjectBranchHeadSql :: ProjectId -> ProjectBranchId -> Sql
+loadProjectBranchHeadSql projectId branchId =
+  [sql|
+    SELECT causal_hash_id
+    FROM project_branch
+    WHERE project_id = :projectId AND branch_id = :branchId
+  |]
 
 data LoadRemoteBranchFlag
   = IncludeSelfRemote
@@ -4326,6 +4374,228 @@ loadMostRecentBranch projectId =
         most_recent_branch
       WHERE
         project_id = :projectId
+    |]
+
+loadProjectBranchParent :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranchId)
+loadProjectBranchParent projectId projectBranchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_branch_id
+      FROM project_branch_parent
+      WHERE project_id = :projectId
+        AND branch_id = :projectBranchId
+    |]
+
+loadMergeBranchParents ::
+  ProjectId ->
+  ProjectBranchId ->
+  Transaction
+    ( Maybe
+        ( Maybe ProjectBranchId,
+          CausalHashId,
+          Maybe ProjectBranchId,
+          CausalHashId
+        )
+    )
+loadMergeBranchParents projectId branchId =
+  queryMaybeRow
+    [sql|
+      SELECT local_source_branch_id, source_causal_hash_id, target_branch_id, target_causal_hash_id
+      FROM merge_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+insertMergeBranchLocal ::
+  ProjectId ->
+  ProjectBranchId ->
+  (ProjectBranchId, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLocal
+  projectId
+  mergeBranchId
+  (sourceBranchId, sourceCausalHashId)
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          local_source_project_id,
+          local_source_branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :projectId,
+          :sourceBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+insertMergeBranchRemote ::
+  ProjectId ->
+  ProjectBranchId ->
+  (RemoteProjectId, RemoteProjectBranchId, URI, CausalHashId) ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchRemote
+  projectId
+  mergeBranchId
+  (sourceProjectId, sourceBranchId, sourceHost, sourceCausalHashId)
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          remote_source_project_id,
+          remote_source_branch_id,
+          remote_source_host,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceProjectId,
+          :sourceBranchId,
+          :sourceHost,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+insertMergeBranchLooseCode ::
+  ProjectId ->
+  ProjectBranchId ->
+  CausalHashId ->
+  (ProjectBranchId, CausalHashId) ->
+  Transaction ()
+insertMergeBranchLooseCode
+  projectId
+  mergeBranchId
+  sourceCausalHashId
+  (targetBranchId, targetCausalHashId) =
+    execute
+      [sql|
+        INSERT INTO merge_branch (
+          project_id,
+          branch_id,
+          source_causal_hash_id,
+          target_project_id,
+          target_branch_id,
+          target_causal_hash_id
+        )
+        VALUES (
+          :projectId,
+          :mergeBranchId,
+          :sourceCausalHashId,
+          :projectId,
+          :targetBranchId,
+          :targetCausalHashId
+        )
+      |]
+
+loadNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Transaction (Maybe Text)
+loadNamespaceUniqueTypeGuid namespaceHashId name = do
+  queryMaybeCol
+    [sql|
+      SELECT type_guid
+      FROM namespace_unique_type_guid
+      WHERE namespace_hash_id = :namespaceHashId
+        AND type_name = :segments
+    |]
+  where
+    segments :: LazyByteString
+    segments =
+      name
+        & Name.segments
+        & List.NonEmpty.toList
+        & map NameSegment.toUnescapedText
+        & Aeson.encode @[Text]
+
+existsAnyNamespaceUniqueTypeGuidForNamespace :: BranchHashId -> Transaction Bool
+existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM namespace_unique_type_guid
+        WHERE namespace_hash_id = :namespaceHashId
+      )
+    |]
+
+ensureUniqueTypeToGuidMappingForCausalHashId :: CausalHashId -> Map Name Text -> Transaction ()
+ensureUniqueTypeToGuidMappingForCausalHashId causalHashId uniqueTypeGuids =
+  when (not (Map.null uniqueTypeGuids)) do
+    namespaceHashId <- expectCausalValueHashId causalHashId
+    existsAnyNamespaceUniqueTypeGuidForNamespace namespaceHashId >>= \case
+      True -> pure ()
+      False ->
+        for_ (Map.toList uniqueTypeGuids) \(name, guid) ->
+          insertNamespaceUniqueTypeGuid namespaceHashId name guid
+
+insertNamespaceUniqueTypeGuid :: BranchHashId -> Name -> Text -> Transaction ()
+insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
+  execute
+    [sql|
+      INSERT INTO namespace_unique_type_guid (namespace_hash_id, type_name, type_guid)
+      VALUES (:namespaceHashId, :typeNameJson, :typeGuid)
+    |]
+  where
+    typeNameJson :: LazyByteString
+    typeNameJson =
+      typeName
+        & Name.segments
+        & List.NonEmpty.toList
+        & map NameSegment.toUnescapedText
+        & Aeson.encode
+
+-- | Get whether or not a project branch is an "update branch". Returns false if the branch either isn't a project
+-- branch (likely) or doesn't exist at all (weird).
+projectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchIsUpdateBranch projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM update_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
+    |]
+
+-- | Load whether the given branch is an update branch, and if it is, return its parent's causal hash id.
+loadUpdateBranchParentCausalHashId :: ProjectId -> ProjectBranchId -> Transaction (Maybe CausalHashId)
+loadUpdateBranchParentCausalHashId projectId branchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_causal_hash_id
+      FROM update_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+-- | Record that a project branch is an "update branch".
+setProjectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchIsUpdateBranch projectId branchId parentCausalHashId =
+  execute
+    [sql|
+      INSERT INTO update_branch (project_id, branch_id, parent_causal_hash_id)
+      VALUES (:projectId, :branchId, :parentCausalHashId)
     |]
 
 -- | Searches for all names within the given name lookup which contain the provided list of segments

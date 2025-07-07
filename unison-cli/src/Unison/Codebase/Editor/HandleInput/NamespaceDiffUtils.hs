@@ -36,7 +36,6 @@ diffHelper before after =
   Cli.time "diffHelper" do
     Cli.Env {codebase} <- ask
     hqLength <- Cli.runTransaction Codebase.hashLength
-    diff <- liftIO (BranchDiff.diff0 before after)
     names <- Cli.currentNames <&> \currentNames -> currentNames <> Branch.toNames before <> Branch.toNames after
     let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
 
@@ -48,7 +47,7 @@ diffHelper before after =
         hqLength
         (Branch.toNames before)
         (Branch.toNames after)
-        diff
+        (BranchDiff.diff0 before after)
 
 declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))
 declOrBuiltin codebase r = case r of

@@ -13,7 +13,7 @@ module Unison.Runtime.Builtin
     builtinTermBackref,
     builtinTypeBackref,
     builtinArities,
-    builtinInlineInfo,
+    builtinOptInfo,
     numberedTermLookup,
     Sandbox (..),
     baseSandboxInfo,
@@ -34,6 +34,7 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.Builtin.Types
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.Stack (UnboxedTypeTag (..), Val (..), unboxedTypeTagToInt)
@@ -484,7 +485,7 @@ watch =
 
 raise :: SuperNormal Symbol
 raise =
-  unop0 3 $ \[r, f, n, k] ->
+  binop0 2 $ \[ah, r, f, n] ->
     TMatch r
       . flip MatchRequest (TAbs f $ TVar f)
       . Map.singleton Ty.exceptionRef
@@ -492,7 +493,7 @@ raise =
         0
         ( [BX],
           TAbs f
-            . TShift Ty.exceptionRef k
+            . TLets Direct [] [] (TDiscard ah)
             . TLetD n BX (TLit $ T "builtin.raise")
             $ TPrm EROR [n, f]
         )
@@ -1296,6 +1297,9 @@ declareForeigns = do
   declareForeign Untracked 2 Set_union
   declareForeign Untracked 2 Set_intersect
   declareForeign Untracked 1 Set_toList
+  declareForeign Untracked 1 Json_toText
+  declareForeign Untracked 1 Json_unconsText
+  declareForeign Untracked 1 Json_tryUnconsText
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =
@@ -1341,9 +1345,9 @@ builtinArities =
   Map.fromList $
     [(r, arity s) | (r, (_, s)) <- Map.toList builtinLookup]
 
-builtinInlineInfo :: Map Reference (Int, ANormal Symbol)
-builtinInlineInfo =
-  ANF.buildInlineMap $ fmap (Rec [] . snd) builtinLookup
+builtinOptInfo :: ANF.OptInfos Symbol
+builtinOptInfo =
+  ANF.buildOptInfos $ fmap (Rec [] . snd) builtinLookup
 
 sandboxedForeignFuncs :: Set ForeignFunc
 sandboxedForeignFuncs =

@@ -29,6 +29,7 @@ module Unison.Runtime.Interface
 where
 
 import Control.Concurrent.STM as STM
+import Control.Exception (fromException, tryJust)
 import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
@@ -95,11 +96,14 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
 import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
-  ( getGroup,
+  ( getGroupCurrent,
+    getOptInfos,
     getVersionedValue,
     putGroup,
+    putOptInfos,
     serializeValue,
   )
 import Unison.Runtime.Builtin
@@ -1046,7 +1050,20 @@ evalInContext ppe ctx activeThreads w = do
       decom = decompileCtx crs ctx
       finish = fmap (first listErrors . decom)
 
-      prettyError = prettyRuntimeExn ppe (backmapRef ctx) decom
+      prettyError e
+        | Just rte <- fromException e = Just $ prettyRuntimeExn ppe (backmapRef ctx) decom rte
+        | Just (Panic msg mval) <- fromException e =
+            Just . pure . P.callout panicIcon . P.linesNonEmpty $
+              [ P.wrap $
+                  "The program halted with a runtime panic:",
+                "",
+                P.string msg
+              ]
+                ++ maybe [] (render . decom) mval
+        | otherwise = Nothing
+        where
+          render (errs, tm) =
+            ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]
 
       debugText fancy val = case decom val of
         (errs, dv)
@@ -1059,7 +1076,7 @@ evalInContext ppe ctx activeThreads w = do
                 (debugTextFormat fancy $ pretty ppe dv)
 
   result <-
-    bitraverse prettyError (const $ readIORef r) <=< try $
+    bitraverse id (const $ readIORef r) <=< tryJust prettyError $
       apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
   pure $ finish result
 
@@ -1088,6 +1105,9 @@ executeMainComb init cc = do
                   (decompTm ctx)
               )
       prettyRuntimeExn mempty id decom re
+
+panicIcon :: Pretty ColorText
+panicIcon = "💥🤯💥"
 
 catchInternalErrors ::
   IO (Either Error a) ->
@@ -1176,6 +1196,7 @@ data StoredCache
       (EnumMap Word64 Combs)
       (EnumMap Word64 Reference)
       (EnumSet Word64)
+      (OptInfos Symbol)
       (EnumMap Word64 Reference)
       Word64
       Word64
@@ -1186,14 +1207,15 @@ data StoredCache
   deriving (Show, Eq)
 
 putStoredCache :: (MonadPut m) => StoredCache -> m ()
-putStoredCache (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) = do
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
   putEnumMap putNat putReference crs
   putEnumSet putNat cacheableCombs
+  putOptInfos oinfo
   putEnumMap putNat putReference trs
   putNat ftm
   putNat fty
-  putMap putReference (putGroup mempty mempty) int
+  putMap putReference (putGroup mempty False) int
   putMap putReference putNat rtm
   putMap putReference putNat rty
   putMap putReference (putFoldable putReference) sbs
@@ -1204,10 +1226,11 @@ getStoredCache =
     <$> getEnumMap getNat (getEnumMap getNat getComb)
     <*> getEnumMap getNat getReference
     <*> getEnumSet getNat
+    <*> getOptInfos
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
-    <*> getMap getReference getGroup
+    <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
     <*> getMap getReference (fromList <$> getList getReference)
@@ -1219,13 +1242,14 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO CCache
-restoreCache sandboxed (SCache cs crs cacheableCombs trs ftm fty int rtm rty sbs) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
     CCache sandboxed debugText
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
       <*> newTVarIO cacheableCombs
+      <*> newTVarIO (opt <> builtinOptInfo)
       <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
       <*> newTVarIO fty
@@ -1291,6 +1315,7 @@ buildSCache ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Combs ->
   EnumSet Word64 ->
+  OptInfos Symbol ->
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
@@ -1299,11 +1324,12 @@ buildSCache ::
   Map Reference Word64 ->
   Map Reference (Set Reference) ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs trsrc ftm fty int rtmsrc rtysrc sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sndbx =
   SCache
     cs
     crs
     cacheableCombs
+    opt
     trs
     ftm
     fty
@@ -1327,6 +1353,8 @@ buildSCache crsrc cssrc cacheableCombs trsrc ftm fty int rtmsrc rtysrc sndbx =
     cs :: EnumMap Word64 Combs
     cs = restrictTmW cssrc
 
+    opt = bimap restrictTmR restrictTmR optsrc
+
     typeKeys = setFromList $ (foldMap . foldMap) combTypes cs
     trs = restrictTyW trsrc
     typeRefs = foldMap Set.singleton trs
@@ -1347,6 +1375,7 @@ standalone cc init =
         buildSCache crs
           <$> readTVarIO (srcCombs cc)
           <*> readTVarIO (cacheableCombs cc)
+          <*> readTVarIO (optInfos cc)
           <*> readTVarIO (tagRefs cc)
           <*> readTVarIO (freshTm cc)
           <*> readTVarIO (freshTy cc)

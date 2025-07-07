@@ -8,7 +8,6 @@ module Unison.Codebase.Editor.SlurpResult
     -- ** Predicates
     isOk,
     isAllDuplicates,
-    hasAddsOrUpdates,
 
     -- ** Filtering a Unison file
     filterUnisonFile,
@@ -19,6 +18,9 @@ module Unison.Codebase.Editor.SlurpResult
     -- * Definion status
     Status (..),
     prettyStatus,
+
+    -- * Slurp entry
+    SlurpEntry (..),
   )
 where
 
@@ -81,14 +83,6 @@ data SlurpResult = SlurpResult
     defsWithBlockedDependencies :: SlurpComponent
   }
   deriving (Show)
-
-hasAddsOrUpdates :: SlurpResult -> Bool
-hasAddsOrUpdates s =
-  -- We intentionally ignore constructors here since they are added as part of adding their
-  -- types.
-  let SC.SlurpComponent {terms = termAdds, types = typeAdds} = adds s
-      SC.SlurpComponent {terms = termUpdates, types = typeUpdates} = updates s
-   in not . null $ termAdds <> typeAdds <> termUpdates <> typeUpdates
 
 data Status
   = Add
@@ -213,7 +207,7 @@ pretty isPast ppe sr =
       okToAdd =
         ok
           (P.green "I've added these definitions:")
-          (P.green "These new definitions are ok to `add`:")
+          (P.green "New definitions:")
       notOks _past _present sr | isOk sr = mempty
       notOks past present sr =
         let header =
@@ -291,7 +285,7 @@ pretty isPast ppe sr =
           okToUpdate (updates sr),
           notOks
             (P.red "These definitions failed:")
-            (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
+            (P.wrap $ P.red "These definitions would fail on `update`:")
             sr
         ]
 
@@ -342,3 +336,9 @@ filterUnisonFile
       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
       filterTLC (v, _, _, _) = Set.member v keepTerms
+
+data SlurpEntry a
+  = SlurpEntry'Add a
+  | SlurpEntry'Delete a
+  | SlurpEntry'Update a a
+  | SlurpEntry'Unchanged

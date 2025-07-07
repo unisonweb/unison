@@ -19,9 +19,10 @@ scratch/main> builtins.merge lib.builtins
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    someterm : Nat
+  Done.
 ```
 
 Now, the `branch` demo:

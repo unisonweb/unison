@@ -33,7 +33,7 @@ Here is some sample code:
 factorial : Nat -> Nat
 factorial n = product (range 0 (n + 1))
 
--- Signatures can left off; they will be inferred
+-- Signatures can be left off; they will be inferred
 List.map f as =
   go acc rem = match rem with
     [] -> acc

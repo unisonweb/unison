@@ -36,7 +36,6 @@ import Unison.WatchKind (watchKindShouldBeStoredInDatabase)
 -- | The operation which is being performed or checked.
 data SlurpOp
   = AddOp
-  | UpdateOp
   | -- Run when the user saves the scratch file.
     CheckOp
   deriving (Eq, Show)
@@ -67,15 +66,15 @@ data DefnStatus
 -- all of its transitive dependencies.
 --
 -- For example, if any transitive dependency of a defnition requires an `update`, then so does the definition itself,
--- even if it's new (and thus ok to `add`).
+-- even if it's new.
 --
 -- Note: these must be defined in descending severity order, per @mostSevereDepStatus@!
 data DepStatus
-  = -- | Part of a term/ctor or ctor/term collision: neither `add` nor `update` ok
+  = -- | Part of a term/ctor or ctor/term collision: `update` not ok
     DepCollision
-  | -- | Requires an update: `add` not ok, `update` ok
+  | -- | Requires an update: `add.run` not ok
     DepNeedsUpdate
-  | -- | `add` or `update` both ok
+  | -- | `update` ok
     DepOk
   deriving stock (Eq, Ord, Show)
 
@@ -146,7 +145,6 @@ computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
   -- If we're 'adding', there won't be any deprecations to worry about.
   AddOp -> unalteredCodebaseNames
   CheckOp -> codebaseNames
-  UpdateOp -> codebaseNames
   where
     -- Get the set of all DIRECT definitions in the file which a definition depends on.
     codebaseNames :: Names
@@ -390,7 +388,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
             case op of
               AddOp -> mempty {blocked = sc}
               CheckOp -> mempty {adds = sc}
-              UpdateOp -> mempty {adds = sc}
           DepCollision -> mempty {blocked = sc}
       Updated ->
         case depStatus of

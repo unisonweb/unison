@@ -79,13 +79,14 @@
 --
 -- Note: once upon a time, decls could be "incoherent". Then, we decided we want decls to be "coherent". Thus, this
 -- machinery was invented.
-module Unison.Merge.DeclCoherencyCheck
+module Unison.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
     checkDeclCoherency,
     lenientCheckDeclCoherency,
 
     -- * Getting all failures rather than just the first
     IncoherentDeclReasons (..),
+    asOneRandomIncoherentDeclReason,
     checkAllDeclCoherency,
   )
 where
@@ -106,10 +107,10 @@ import U.Codebase.Reference (Reference' (..), TypeReference, TypeReferenceId)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.DeclNameLookup (DeclNameLookup (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -150,6 +151,7 @@ checkDeclCoherency nametree numConstructorsById =
       }
     nametree
 
+-- | Invariant: lists aren't all empty
 data IncoherentDeclReasons = IncoherentDeclReasons
   { constructorAliases :: ![(Name, Name, Name)],
     missingConstructorNames :: ![Name],
@@ -158,23 +160,34 @@ data IncoherentDeclReasons = IncoherentDeclReasons
   }
   deriving stock (Eq, Generic)
 
+-- | This is just a silly compatibility thing: the plural one really ought to be the only one that exists. First came
+-- `merge` which bailed on the first reason for performance, then came `todo` which wanted all the reasons. It'd be
+-- fine if `merge` failed with all the reasons, too, but it doesn't yet. So, sometimes you have all the reasons and
+-- want to convert that to just one arbitrary reason (if any).
+asOneRandomIncoherentDeclReason :: IncoherentDeclReasons -> IncoherentDeclReason
+asOneRandomIncoherentDeclReason reasons
+  -- N.B. it's better if `NestedDeclAlias` comes before `ConstructorAlias` here, as the former implies the latter
+  | (x, y) : _ <- reasons.nestedDeclAliases = IncoherentDeclReason'NestedDeclAlias x y
+  | (x, y, z) : _ <- reasons.constructorAliases = IncoherentDeclReason'ConstructorAlias x y z
+  | x : _ <- reasons.missingConstructorNames = IncoherentDeclReason'MissingConstructorName x
+  | (x, y) : _ <- reasons.strayConstructors = IncoherentDeclReason'StrayConstructor x y
+  | otherwise = error (reportBug "E963629" "empty IncoherentDeclReasons")
+
 -- | Like 'checkDeclCoherency', but returns info about all of the incoherent decls found, not just the first.
 checkAllDeclCoherency ::
-  forall m.
-  (Monad m) =>
-  (TypeReferenceId -> m Int) ->
   Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  m (Either IncoherentDeclReasons DeclNameLookup)
-checkAllDeclCoherency loadDeclNumConstructors nametree = do
-  State.runStateT doCheck emptyReasons <&> \(declNameLookup, reasons) ->
-    if reasons == emptyReasons
-      then Right declNameLookup
-      else Left (reverseReasons reasons)
+  Map TypeReferenceId Int ->
+  Either IncoherentDeclReasons DeclNameLookup
+checkAllDeclCoherency nametree numConstructorsById =
+  let (declNameLookup, reasons) = State.runState doCheck emptyReasons
+   in if reasons == emptyReasons
+        then Right declNameLookup
+        else Left (reverseReasons reasons)
   where
-    doCheck :: StateT IncoherentDeclReasons m DeclNameLookup
+    doCheck :: State IncoherentDeclReasons DeclNameLookup
     doCheck =
       checkDeclCoherencyWith
-        (lift . loadDeclNumConstructors)
+        (\refId -> pure (expectNumConstructors refId numConstructorsById))
         ( OnIncoherentDeclReasons
             { onConstructorAlias = \x y z -> #constructorAliases %= ((x, y, z) :),
               onMissingConstructorName = \x -> #missingConstructorNames %= (x :),

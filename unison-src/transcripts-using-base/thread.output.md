@@ -20,10 +20,9 @@ testBasicFork = 'let
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       otherThread   : '{IO} ()
       testBasicFork : '{IO} [Result]
@@ -65,10 +64,9 @@ testBasicMultiThreadMVar = 'let
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       testBasicMultiThreadMVar : '{IO} [Result]
       thread1                  : Nat -> MVar Nat -> '{IO} ()
@@ -77,10 +75,10 @@ testBasicMultiThreadMVar = 'let
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    testBasicMultiThreadMVar : '{IO} [Result]
-    thread1                  : Nat -> MVar Nat -> '{IO} ()
+  Done.
 
 scratch/main> io.test testBasicMultiThreadMVar
 
@@ -135,10 +133,9 @@ testTwoThreads = 'let
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       receivingThread : MVar Nat -> MVar Text -> '{IO} ()
       sendingThread   : Nat -> MVar Nat -> '{IO} ()
@@ -149,12 +146,10 @@ testTwoThreads = 'let
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    receivingThread : MVar Nat -> MVar Text -> '{IO} ()
-    sendingThread   : Nat -> MVar Nat -> '{IO} ()
-      (also named thread1)
-    testTwoThreads  : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testTwoThreads
 

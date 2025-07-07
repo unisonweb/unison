@@ -1,5 +1,6 @@
 module U.Util.Text
   ( stripMargin,
+    unsafeToInt,
   )
 where
 
@@ -7,7 +8,10 @@ import Data.Char qualified as Char
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Read qualified as Text
+import GHC.Stack (HasCallStack)
 import Safe.Foldable (minimumMay)
+import Unison.Prelude (reportBug)
 
 -- | remove however many spaces prefix all of the lines of the input
 -- e.g.
@@ -35,3 +39,12 @@ stripMargin str =
         . dropFirstIf Text.null
         . map (Text.drop stripLen)
         $ Text.lines str
+
+-- |
+-- >>> unsafeToInt "123"
+-- 123
+unsafeToInt :: (HasCallStack) => Text -> Int
+unsafeToInt text =
+  case Text.decimal text of
+    Right (n, "") -> n
+    _ -> error (reportBug "E573530" ("not an int: " ++ Text.unpack text))

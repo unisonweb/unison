@@ -19,9 +19,14 @@ module Unison.Runtime.Stack
         DataG,
         Captured,
         Foreign,
+        Affine,
         BlackHole,
         UnboxedTypeTag
       ),
+    AffineRef (..),
+    AEnv,
+    DEnv,
+    HEnv (..),
     closureTag,
     formDataReplaced,
     unitClosure,
@@ -129,7 +134,8 @@ module Unison.Runtime.Stack
     unsafePokeIasN,
     bump,
     bumpn,
-    grab,
+    grabSeg,
+    truncateSeg,
     ensure,
     duplicate,
     discardFrame,
@@ -161,8 +167,11 @@ module Unison.Runtime.Stack
   )
 where
 
+import Control.Concurrent (MVar)
+import Control.Concurrent.STM (TVar)
 import Control.Exception (throw, throwIO)
 import Control.Monad.Primitive
+import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
 import Data.Functor.Classes (Eq1 (..), Ord1 (..))
@@ -189,6 +198,7 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.RefPromise (Promise)
 import Prelude hiding (words)
 
 #ifdef STACK_CHECK
@@ -239,11 +249,17 @@ data K
   = KE
   | -- callback hook
     CB Callback
+  | -- mark continuation with affine prompt
+    AMark
+      !Int -- pending args
+      AEnv -- saved handler environment; intentionally lazy
+      !AffineRef -- updateable reference for handler
+      !K
   | -- mark continuation with a prompt
     Mark
       !Int -- pending args
       !(EnumSet Word64)
-      !(EnumMap Word64 Val)
+      DEnv -- saved shadowed handlers; intentionally lazy
       !K
   | -- save information about a frame for later resumption
     Push
@@ -253,9 +269,70 @@ data K
       !Int -- stack guard
       !(RSection Val) -- resumption section
       !K
+  | -- saved context during affine handler
+    Local
+      HEnv -- stored environment; intentionally lazy
+      !Int -- pending args
+      !K
 
 newtype Closure = Closure {unClosure :: (GClosure (RComb Val))}
   deriving stock (Show)
+
+-- A handler is 'affine' if its action does not change the structure
+-- of the stack except possibly by truncation to that handler. The two
+-- scenarios that satisfy this are:
+--
+--   1. Exception-like handlers that never resume the continuation
+--      (this is the truncation case).
+--   2. Handlers that call the continuation _in tail position_ and
+--      also _with an (affine) handler for the same abilities_. The
+--      simplest case is when a handler calls itself recursively to
+--      implement a "deep" handler.
+--
+-- The advantage of affine handlers is that they do not need to be
+-- implemented by continuation capture. Case 1 can be implemented by
+-- simply _discarding_ the continuation. For case 2, as long as all
+-- handlers are affine, it is sufficient to simply keep track of the
+-- current state of each handler, and the local environment the
+-- handler executes in. The restrictions ensure that these don't
+-- change in an arbitrary way—just by stateful updates.
+--
+-- Non-affine handlers spoil this when they are higher in the stack,
+-- because they could change the dynamic environment of handlers below
+-- them, and it is no longer simple to properly update the state in
+-- place. Possibly this could be handled by modifying affine handler
+-- state when reinstating copied continuations in the future.
+--
+-- If we arrange things such that we use affine versions of handlers
+-- until a non-affine one is installed, then we can avoid affine
+-- handlers ever being captured in a continuation. This lets us avoid
+-- issues with equality of mutable references for efficient affine
+-- implementation.
+--
+-- The calling convention for affine handlers takes an extra argument
+-- which enables using associated operations.
+type AEnv = EnumMap Word64 AffineRef
+
+-- dynamic environment
+type DEnv = EnumMap Word64 Val
+
+-- Handler environment.
+--
+-- Note: the fields are intentionally not strict. This seems to yield
+-- better performance. At a guess, strict fields and being strict in
+-- the HEnv requires GHC to emit forcing instructions that cause
+-- overhead.
+--
+-- Instead, components are passed `evaluate` locally when built, or
+-- similar.
+data HEnv = HEnv {aenv :: AEnv, denv :: DEnv}
+
+instance Semigroup HEnv where
+  HEnv la ld <> HEnv ra rd = HEnv (la <> ra) (ld <> rd)
+
+instance Monoid HEnv where
+  mempty = HEnv mempty mempty
+  mappend = (<>)
 
 -- | Implementation for Unison sequences.
 type USeq = Seq Val
@@ -285,6 +362,8 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
+{- ORMOLU_DISABLE -}
+{- because ormolu-0.7.2.0 can’t handle CPP used within a declaration. -}
 data GClosure comb
   = GPAp
       !CombIx
@@ -301,11 +380,21 @@ data GClosure comb
     -- We should consider adding separate constructors for common builtin type tags.
     --  GHC will optimize nullary constructors into singletons.
     GUnboxedTypeTag !UnboxedTypeTag
+  | -- stores associated ability numbers, original handler environment,
+    -- and updateable reference
+    GAffine !(EnumSet Word64) !AEnv !AffineRef
   | GBlackHole
 #ifdef STACK_CHECK
   | GUnboxedSentinel
 #endif
   deriving stock (Show, Functor, Foldable, Traversable)
+{- ORMOLU_ENABLE -}
+
+-- Wrap IORef to get a trivial `Show` instance
+newtype AffineRef = ARef (IORef Closure) deriving (Eq)
+
+instance Show AffineRef where
+  show _ = "<AffineRef>"
 
 -- Singleton black hole value to avoid allocation.
 blackHole :: Closure
@@ -328,6 +417,8 @@ pattern Captured k a seg = Closure (GCaptured k a seg)
 
 pattern Foreign x = Closure (GForeign x)
 
+pattern Affine ps aenv r = Closure (GAffine ps aenv r)
+
 pattern BlackHole <- Closure GBlackHole
   where
     BlackHole = blackHole
@@ -340,13 +431,13 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag #-}
+{-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag #-}
+{-# COMPLETE DataC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag #-}
+{-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
@@ -439,6 +530,10 @@ frameDataSize = go 0
     go sz (Mark a _ _ k) = go (sz + a) k
     go sz (Push f a _ _ _ k) =
       go (sz + f + a) k
+    go _ (Local {}) =
+      error "frameDataSize: captured Local frame"
+    go _ (AMark {}) =
+      error "frameDataSize: captured AMark frame"
 
 pattern DataC :: Reference -> PackedTag -> SegList -> Closure
 pattern DataC rf ct segs <-
@@ -488,7 +583,7 @@ pattern IntVal i <- (matchIntVal -> Just i)
 
 matchBoolVal :: Val -> Maybe Bool
 matchBoolVal = \case
-  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.falseTag)
+  (BoxedVal (Enum r t)) | r == Ty.booleanRef -> Just (t == TT.trueTag)
   _ -> Nothing
 
 pattern BoolVal :: Bool -> Val
@@ -763,9 +858,37 @@ instance Eq Val where
 instance Ord Val where
   compare = universalCompare compare
 
+instance BuiltinForeign (Map Val Val) where
+  foreignName = Tagged "Map"
+  foreignRef = Tagged Ty.hmapRef
+
 instance BuiltinForeign (IORef Val) where
   foreignName = Tagged "IORef"
   foreignRef = Tagged Ty.refRef
+
+instance BuiltinForeign (Atomic.Ticket Val) where
+  foreignName = Tagged "Ticket"
+  foreignRef = Tagged Ty.ticketRef
+
+instance BuiltinForeign (MVar Val) where
+  foreignName = Tagged "MVar"
+  foreignRef = Tagged Ty.mvarRef
+
+instance BuiltinForeign (TVar Val) where
+  foreignName = Tagged "TVar"
+  foreignRef = Tagged Ty.tvarRef
+
+instance BuiltinForeign (Promise Val) where
+  foreignName = Tagged "Promise"
+  foreignRef = Tagged Ty.promiseRef
+
+instance BuiltinForeign (MutableArray s Val) where
+  foreignName = Tagged "MutableArray"
+  foreignRef = Tagged Ty.marrayRef
+
+instance BuiltinForeign (Array Val) where
+  foreignName = Tagged "Array"
+  foreignRef = Tagged Ty.iarrayRef
 
 -- | A nulled out value you can use when filling empty arrays, etc.
 emptyVal :: Val
@@ -805,7 +928,10 @@ alloc = do
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}
 {-# INLINE alloc #-}
 
-peek :: DebugCallStack => Stack -> IO Val
+{- ORMOLU_DISABLE -}
+{- because ormolu-0.7.2.0 can’t handle CPP used within declarations. -}
+
+peek :: (DebugCallStack) => Stack -> IO Val
 peek stk@(Stack _ _ sp ustk _) = do
   -- Can't use upeek here because in stack-check mode it will assert that the stack slot is unboxed.
   u <- readByteArray ustk sp
@@ -813,7 +939,7 @@ peek stk@(Stack _ _ sp ustk _) = do
   pure (Val u b)
 {-# INLINE peek #-}
 
-peekI :: DebugCallStack => Stack -> IO Int
+peekI :: (DebugCallStack) => Stack -> IO Int
 peekI _stk@(Stack _ _ sp ustk _) = do
 #ifdef STACK_CHECK
   assertUnboxed _stk 0
@@ -821,7 +947,7 @@ peekI _stk@(Stack _ _ sp ustk _) = do
   readByteArray ustk sp
 {-# INLINE peekI #-}
 
-peekOffI :: DebugCallStack => Stack -> Off -> IO Int
+peekOffI :: (DebugCallStack) => Stack -> Off -> IO Int
 peekOffI _stk@(Stack _ _ sp ustk _) i = do
 #ifdef STACK_CHECK
   assertUnboxed _stk i
@@ -829,11 +955,11 @@ peekOffI _stk@(Stack _ _ sp ustk _) i = do
   readByteArray ustk (sp - i)
 {-# INLINE peekOffI #-}
 
-bpeek :: DebugCallStack => Stack -> IO BVal
+bpeek :: (DebugCallStack) => Stack -> IO BVal
 bpeek (Stack _ _ sp _ bstk) = readArray bstk sp
 {-# INLINE bpeek #-}
 
-upeek :: DebugCallStack => Stack -> IO UVal
+upeek :: (DebugCallStack) => Stack -> IO UVal
 upeek _stk@(Stack _ _ sp ustk _) = do
 #ifdef STACK_CHECK
   assertUnboxed _stk 0
@@ -841,7 +967,7 @@ upeek _stk@(Stack _ _ sp ustk _) = do
   readByteArray ustk sp
 {-# INLINE upeek #-}
 
-peekOff :: DebugCallStack => Stack -> Off -> IO Val
+peekOff :: (DebugCallStack) => Stack -> Off -> IO Val
 peekOff stk@(Stack _ _ sp ustk _) i = do
   -- Can't use upeekOff here because in stack-check mode it will assert that the stack slot is unboxed.
   u <- readByteArray ustk (sp - i)
@@ -849,11 +975,11 @@ peekOff stk@(Stack _ _ sp ustk _) i = do
   pure $ Val u b
 {-# INLINE peekOff #-}
 
-bpeekOff :: DebugCallStack => Stack -> Off -> IO BVal
+bpeekOff :: (DebugCallStack) => Stack -> Off -> IO BVal
 bpeekOff (Stack _ _ sp _ bstk) i = readArray bstk (sp - i)
 {-# INLINE bpeekOff #-}
 
-upeekOff :: DebugCallStack => Stack -> Off -> IO UVal
+upeekOff :: (DebugCallStack) => Stack -> Off -> IO UVal
 upeekOff _stk@(Stack _ _ sp ustk _) i = do
 #ifdef STACK_CHECK
   assertUnboxed _stk i
@@ -861,13 +987,13 @@ upeekOff _stk@(Stack _ _ sp ustk _) i = do
   readByteArray ustk (sp - i)
 {-# INLINE upeekOff #-}
 
-upokeT :: DebugCallStack => Stack -> UVal -> BVal -> IO ()
+upokeT :: (DebugCallStack) => Stack -> UVal -> BVal -> IO ()
 upokeT !stk@(Stack _ _ sp ustk _) !u !t = do
   bpoke stk t
   writeByteArray ustk sp u
 {-# INLINE upokeT #-}
 
-poke :: DebugCallStack => Stack -> Val -> IO ()
+poke :: (DebugCallStack) => Stack -> Val -> IO ()
 poke _stk@(Stack _ _ sp ustk bstk) (Val u b) = do
 #ifdef STACK_CHECK
   assertBumped _stk 0
@@ -879,7 +1005,7 @@ poke _stk@(Stack _ _ sp ustk bstk) (Val u b) = do
 -- | Sometimes we get back an int from a foreign call which we want to use as a Nat.
 -- If we know it's positive and smaller than 2^63 then we can safely store the Int directly as a Nat without
 -- checks.
-unsafePokeIasN :: DebugCallStack => Stack -> Int -> IO ()
+unsafePokeIasN :: (DebugCallStack) => Stack -> Int -> IO ()
 unsafePokeIasN stk n = do
   upokeT stk n natTypeTag
 {-# INLINE unsafePokeIasN #-}
@@ -887,21 +1013,21 @@ unsafePokeIasN stk n = do
 -- | Store an unboxed tag to later match on.
 -- Often used to indicate the constructor of a data type that's been unpacked onto the stack,
 -- or some tag we're about to branch on.
-pokeTag :: DebugCallStack => Stack -> Int -> IO ()
+pokeTag :: (DebugCallStack) => Stack -> Int -> IO ()
 pokeTag =
   -- For now we just use ints, but maybe should have a separate type for tags so we can detect if we're leaking them.
   pokeI
 {-# INLINE pokeTag #-}
 
-peekTag :: DebugCallStack => Stack -> IO Int
+peekTag :: (DebugCallStack) => Stack -> IO Int
 peekTag = peekI
 {-# INLINE peekTag #-}
 
-peekTagOff :: DebugCallStack => Stack -> Off -> IO Int
+peekTagOff :: (DebugCallStack) => Stack -> Off -> IO Int
 peekTagOff = peekOffI
 {-# INLINE peekTagOff #-}
 
-pokeBool :: DebugCallStack => Stack -> Bool -> IO ()
+pokeBool :: (DebugCallStack) => Stack -> Bool -> IO ()
 pokeBool stk b =
   poke stk $ if b then trueVal else falseVal
 {-# INLINE pokeBool #-}
@@ -909,28 +1035,28 @@ pokeBool stk b =
 -- | Store a boxed value.
 -- We don't bother nulling out the unboxed stack,
 -- it's extra work and there's nothing to garbage collect.
-bpoke :: DebugCallStack => Stack -> BVal -> IO ()
-bpoke _stk@(Stack _ _ sp _ bstk) b = do
+bpoke :: (DebugCallStack) => Stack -> BVal -> IO ()
+bpoke _stk@(Stack _ _ sp _ bstk) !b = do
 #ifdef STACK_CHECK
   assertBumped _stk 0
 #endif
   writeArray bstk sp b
 {-# INLINE bpoke #-}
 
-pokeOff :: DebugCallStack => Stack -> Off -> Val -> IO ()
+pokeOff :: (DebugCallStack) => Stack -> Off -> Val -> IO ()
 pokeOff stk i (Val u t) = do
   bpokeOff stk i t
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE pokeOff #-}
 
-upokeOffT :: DebugCallStack => Stack -> Off -> UVal -> BVal -> IO ()
+upokeOffT :: (DebugCallStack) => Stack -> Off -> UVal -> BVal -> IO ()
 upokeOffT stk i u t = do
   bpokeOff stk i t
   writeByteArray (ustk stk) (sp stk - i) u
 {-# INLINE upokeOffT #-}
 
-bpokeOff :: DebugCallStack => Stack -> Off -> BVal -> IO ()
-bpokeOff _stk@(Stack _ _ sp _ bstk) i b = do
+bpokeOff :: (DebugCallStack) => Stack -> Off -> BVal -> IO ()
+bpokeOff _stk@(Stack _ _ sp _ bstk) i !b = do
 #ifdef STACK_CHECK
   assertBumped _stk i
 #endif
@@ -938,8 +1064,8 @@ bpokeOff _stk@(Stack _ _ sp _ bstk) i b = do
 {-# INLINE bpokeOff #-}
 
 -- | Eats up arguments
-grab :: Stack -> SZ -> IO (Seg, Stack)
-grab (Stack _ fp sp ustk bstk) sze = do
+grabSeg :: Stack -> SZ -> IO (Seg, Stack)
+grabSeg (Stack _ fp sp ustk bstk) sze = do
   uSeg <- ugrab
   bSeg <- bgrab
   pure $ ((uSeg, bSeg), Stack (fp - sze) (fp - sze) (sp - sze) ustk bstk)
@@ -960,7 +1086,23 @@ grab (Stack _ fp sp ustk bstk) sze = do
       pure seg
       where
         fsz = sp - fp
-{-# INLINE grab #-}
+{-# INLINE grabSeg #-}
+
+-- Truncates a portion of a stack, yielding the new stack without the
+-- discarded portion. This is analogous to the stack yielded by
+-- `grab`, but without doing the work of capturing the discarded
+-- portion.
+truncateSeg :: Stack -> SZ -> IO Stack
+truncateSeg (Stack _ fp sp ustk bstk) sze = do
+  moveByteArray ustk (bfp - bsz) ustk bfp fsz
+  copyMutableArray bstk (fp + 1 - sze) bstk (fp + 1) fsz
+  -- TODO: overwrite stale stack values?
+  pure $ Stack (fp - sze) (fp - sze) (sp - sze) ustk bstk
+  where
+    bfp = bytes $ fp + 1
+    bsz = bytes sze
+    fsz = bytes $ sp - fp
+{-# INLINE truncateSeg #-}
 
 ensure :: Stack -> SZ -> IO Stack
 ensure stk@(Stack ap fp sp ustk bstk) sze
@@ -1174,6 +1316,8 @@ peekOffC _stk@(Stack _ _ sp ustk _) i = do
   Char.chr <$> readByteArray ustk (sp - i)
 {-# INLINE peekOffC #-}
 
+{- ORMOLU_ENABLE -}
+
 pokeN :: Stack -> Word64 -> IO ()
 pokeN stk@(Stack _ _ sp ustk _) n = do
   bpoke stk natTypeTag
@@ -1291,6 +1435,10 @@ instance Show K where
         com ++ show (f, a, ci) ++ go "," k
       go com (Mark a ps _ k) =
         com ++ "M " ++ show a ++ " " ++ show ps ++ go "," k
+      go com (Local _ a k) =
+        com ++ "L " ++ show a ++ go "," k
+      go com (AMark a _ _ k) =
+        com ++ "A " ++ show a ++ go "," k
 
 frameView :: Stack -> IO ()
 frameView stk = putStr "|" >> gof False 0
@@ -1358,6 +1506,7 @@ closureNum Captured {} = 2
 closureNum Foreign {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
+closureNum Affine {} = 6
 
 universalEq ::
   (Foreign -> Foreign -> Bool) ->
@@ -1529,6 +1678,10 @@ universalCompare frn = cmpVal False
       _ (CB {}) -> GT
       (Mark {}) _ -> LT
       _ (Mark {}) -> GT
+      (Local {}) _ -> error "compare K: captured Local frame"
+      _ (Local {}) -> error "compare K: captured Local frame"
+      (AMark {}) _ -> error "compare K: captured AMark frame"
+      _ (AMark {}) -> error "compare K: captured AMark frame"
 
 arrayCmp ::
   (a -> a -> Ordering) ->

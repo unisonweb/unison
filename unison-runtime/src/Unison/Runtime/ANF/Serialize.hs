@@ -1,10 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Runtime.ANF.Serialize where
 
 import Control.Monad
+import Control.Monad.Reader
+import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
@@ -17,13 +20,13 @@ import Data.Map as Map (Map, fromList, lookup)
 import Data.Maybe (mapMaybe)
 import Data.Sequence qualified as Seq
 import Data.Serialize.Put (runPutLazy)
-import Data.Text (Text)
 import Data.Word (Word16, Word32, Word64)
 import GHC.IsList qualified (fromList)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.Exception (exn)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Serialize
@@ -317,7 +320,7 @@ putGroup ::
   (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
-  Map ForeignFunc Text ->
+  Bool ->
   SuperGroup v ->
   m ()
 putGroup refrep fops (Rec bs e) =
@@ -329,7 +332,11 @@ putGroup refrep fops (Rec bs e) =
     (us, cs) = unzip bs
     ctx = pushCtx us []
 
-getGroup :: (MonadGet m) => (Var v) => m (SuperGroup v)
+getGroup ::
+  (MonadGet m) =>
+  (SerialConfig m) =>
+  (Var v) =>
+  m (SuperGroup v)
 getGroup = do
   l <- getLength
   let n = fromIntegral l
@@ -338,32 +345,96 @@ getGroup = do
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
 
-putCode :: (MonadPut m) => Map ForeignFunc Text -> Code -> m ()
+putCode :: (MonadPut m) => Bool -> Code -> m ()
 putCode fops (CodeRep g c) = putGroup mempty fops g *> putCacheability c
 
-getCode :: (MonadGet m) => Word32 -> m Code
-getCode v = CodeRep <$> getGroup <*> getCache
+getCode :: (MonadGet m, SerialConfig m) => m Code
+getCode = CodeRep <$> getGroup <*> getCacheability
+
+putInlineInfo ::
+  (MonadPut m, Var v) =>
+  [v] ->
+  InlineInfo v ->
+  m ()
+putInlineInfo ctx (InlInfo clazz expr) =
+  putInlineClass clazz *> putInlineExpr ctx expr
+
+getInlineInfo ::
+  (MonadGet m, SerialConfig m, Var v) => [v] -> Word64 -> m (InlineInfo v)
+getInlineInfo ctx frsh =
+  InlInfo <$> getInlineClass <*> getInlineExpr ctx frsh
+
+putInlineExpr ::
+  (MonadPut m, Var v) =>
+  [v] ->
+  ANormal v ->
+  m ()
+putInlineExpr ctx (TAbss vs body) =
+  putLength (length vs)
+    *> putNormal mempty True (pushCtx vs ctx) body
+
+getInlineExpr ::
+  (MonadGet m, SerialConfig m, Var v) =>
+  [v] ->
+  Word64 ->
+  m (ANormal v)
+getInlineExpr ctx frsh0 = do
+  n <- getLength
+  let frsh = frsh0 + fromIntegral n
+      vs = getFresh <$> take n [frsh0 ..]
+  TAbss vs <$> getNormal (pushCtx vs ctx) frsh
+
+putOptInfos :: (MonadPut m, Var v) => OptInfos v -> m ()
+putOptInfos (arities, inls) =
+  putMap putReference pInt arities
+    *> putMap putReference (putInlineInfo []) inls
   where
-    getCache
-      | v == 3 = getCacheability
-      | otherwise = pure Uncacheable
+    pInt = serialize . VarInt
+
+-- Note: current version
+getOptInfos :: (MonadGet m, Var v) => m (OptInfos v)
+getOptInfos =
+  flip runReaderT (Transfer codeVersion, True) $
+    (,)
+      <$> getMap getReference gInt
+      <*> getMap getReference (getInlineInfo [] 0)
+  where
+    gInt = unVarInt <$> deserialize
+
+putInlineClass :: (MonadPut m) => InlineClass -> m ()
+putInlineClass = \case
+  AnywhereInl -> putWord8 0
+  TailInl -> putWord8 1
+  Don'tInl -> putWord8 2
+
+getInlineClass :: (MonadGet m) => m InlineClass
+getInlineClass =
+  getWord8 >>= \case
+    0 -> pure AnywhereInl
+    1 -> pure TailInl
+    2 -> pure Don'tInl
+    n -> unknownTag "InlineClass" n
 
 putCacheability :: (MonadPut m) => Cacheability -> m ()
 putCacheability Uncacheable = putWord8 0
 putCacheability Cacheable = putWord8 1
 
-getCacheability :: (MonadGet m) => m Cacheability
+getCacheability :: (MonadGet m, SerialConfig m) => m Cacheability
 getCacheability =
-  getWord8 >>= \case
-    0 -> pure Uncacheable
-    1 -> pure Cacheable
-    n -> exn [] $ "getBLit: unrecognized cacheability byte: " ++ show n
+  askVersion >>= \case
+    Transfer v
+      | v >= 3 ->
+          getWord8 >>= \case
+            0 -> pure Uncacheable
+            1 -> pure Cacheable
+            n -> exn [] $ "getBLit: unrecognized cacheability byte: " ++ show n
+    _ -> pure Uncacheable
 
 putComb ::
   (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
-  Map ForeignFunc Text ->
+  Bool ->
   [v] ->
   SuperNormal v ->
   m ()
@@ -373,7 +444,13 @@ putComb refrep fops ctx (Lambda ccs (TAbss us e)) =
 getFresh :: (Var v) => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
 
-getComb :: (MonadGet m) => (Var v) => [v] -> Word64 -> m (SuperNormal v)
+getComb ::
+  (MonadGet m) =>
+  (SerialConfig m) =>
+  (Var v) =>
+  [v] ->
+  Word64 ->
+  m (SuperNormal v)
 getComb ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
@@ -384,7 +461,7 @@ putNormal ::
   (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
-  Map ForeignFunc Text ->
+  Bool ->
   [v] ->
   ANormal v ->
   m ()
@@ -392,10 +469,10 @@ putNormal refrep fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
   TFrc v -> putTag ForceT *> putVar ctx v
   TApp f as -> putTag AppT *> putFunc refrep fops ctx f *> putArgs ctx as
-  THnd rs h e ->
+  THnd rs nh _ah e ->
     putTag HandleT
       *> putRefs rs
-      *> putVar ctx h
+      *> putVar ctx nh
       *> putNormal refrep fops ctx e
   TShift r v e ->
     putTag ShiftT *> putReference r *> putNormal refrep fops (v : ctx) e
@@ -430,15 +507,26 @@ putNormal refrep fops ctx tm = case tm of
       *> putCCs ccs
       *> putNormal refrep fops ctx l
       *> putNormal refrep fops (pushCtx us ctx) e
-  _ -> exn [] "putNormal: malformed term"
+  v -> exn [] $ "putNormal: malformed term\n" ++ show v
 
-getNormal :: (MonadGet m) => (Var v) => [v] -> Word64 -> m (ANormal v)
+getNormal ::
+  (MonadGet m) =>
+  (SerialConfig m) =>
+  (Var v) =>
+  [v] ->
+  Word64 ->
+  m (ANormal v)
 getNormal ctx frsh0 =
   getTag >>= \case
     VarT -> TVar <$> getVar ctx
     ForceT -> TFrc <$> getVar ctx
     AppT -> TApp <$> getFunc ctx <*> getArgs ctx
-    HandleT -> THnd <$> getRefs <*> getVar ctx <*> getNormal ctx frsh0
+    HandleT ->
+      THnd
+        <$> getRefs
+        <*> getVar ctx
+        <*> pure Nothing
+        <*> getNormal ctx frsh0
     ShiftT ->
       flip TShift v <$> getReference <*> getNormal (v : ctx) (frsh0 + 1)
       where
@@ -482,11 +570,11 @@ putFunc ::
   (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
-  Map ForeignFunc Text ->
+  Bool ->
   [v] ->
   Func v ->
   m ()
-putFunc refrep fops ctx f = case f of
+putFunc refrep allowFop ctx f = case f of
   FVar v -> putTag FVarT *> putVar ctx v
   FComb r
     | Just w <- Map.lookup r refrep -> putTag FCombT *> putWord64be w
@@ -496,21 +584,33 @@ putFunc refrep fops ctx f = case f of
   FReq r c -> putTag FReqT *> putReference r *> putCTag c
   FPrim (Left p) -> putTag FPrimT *> putPOp p
   FPrim (Right f)
-    | Just nm <- Map.lookup f fops ->
-        putTag FForeignT *> putText nm
+    | allowFop -> putTag FForeignT *> putFOp f
     | otherwise ->
         exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
 
-getFunc :: (MonadGet m) => (Var v) => [v] -> m (Func v)
+getFunc :: (MonadGet m, SerialConfig m, Var v) => [v] -> m (Func v)
 getFunc ctx =
-  getTag >>= \case
-    FVarT -> FVar <$> getVar ctx
-    FCombT -> FComb <$> getReference
-    FContT -> FCont <$> getVar ctx
-    FConT -> FCon <$> getReference <*> getCTag
-    FReqT -> FReq <$> getReference <*> getCTag
-    FPrimT -> FPrim . Left <$> getPOp
-    FForeignT -> exn [] "getFunc: can't deserialize a foreign func"
+  askFOp >>= \allowFOp ->
+    getTag >>= \case
+      FVarT -> FVar <$> getVar ctx
+      FCombT -> FComb <$> getReference
+      FContT -> FCont <$> getVar ctx
+      FConT -> FCon <$> getReference <*> getCTag
+      FReqT -> FReq <$> getReference <*> getCTag
+      FPrimT -> FPrim . Left <$> getPOp
+      FForeignT
+        | allowFOp -> FPrim . Right <$> getFOp
+        | otherwise -> exn [] "getFunc: can't deserialize a foreign func"
+
+-- Note: this numbering is derived, and so not particularly stable.
+-- However, foreign functions are not serialized for interchange. This
+-- is for serializing optimization information for standalaone
+-- programs.
+putFOp :: (MonadPut m) => ForeignFunc -> m ()
+putFOp = serialize . VarInt . fromEnum
+
+getFOp :: (MonadGet m) => m ForeignFunc
+getFOp = toEnum . unVarInt <$> deserialize
 
 putPOp :: (MonadPut m) => POp -> m ()
 putPOp op
@@ -713,7 +813,7 @@ putBLit _ (TyLink r) = putTag TyLinkT *> putReference r
 putBLit _ (Bytes b) = putTag BytesT *> putBytes b
 putBLit v (Quote vl) = putTag QuoteT *> putValue v vl
 putBLit v (Code (CodeRep sg ch)) =
-  putTag tag *> putGroup mempty mempty sg
+  putTag tag *> putGroup mempty False sg
   where
     -- Hashing treats everything as uncacheable for consistent
     -- results.
@@ -729,22 +829,23 @@ putBLit _ (Char c) = putTag CharT *> putChar c
 putBLit _ (Float d) = putTag FloatT *> putFloat d
 putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
 
-getBLit :: (MonadGet m) => Version -> m BLit
-getBLit v =
+getBLit :: (MonadGet m, SerialConfig m) => m BLit
+getBLit =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
-    ListT -> List . Seq.fromList <$> getList (getValue v)
+    ListT -> List . Seq.fromList <$> getList getValue
     TmLinkT -> TmLink <$> getReferent
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
-    QuoteT -> Quote <$> getValue v
-    CodeT -> Code . flip CodeRep Uncacheable <$> getGroup
+    QuoteT -> Quote <$> getValue
+    CodeT ->
+      Code . flip CodeRep Uncacheable <$> withCodeVersion getGroup
     BArrT -> BArr <$> getByteArray
     PosT -> Pos <$> getPositive
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
-    ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue v)
+    ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
@@ -757,7 +858,7 @@ putBranches ::
   (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
-  Map ForeignFunc Text ->
+  Bool ->
   [v] ->
   Branched (ANormal v) ->
   m ()
@@ -791,7 +892,12 @@ putBranches refrep fops ctx bs = case bs of
   _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
-  (MonadGet m) => (Var v) => [v] -> Word64 -> m (Branched (ANormal v))
+  (MonadGet m) =>
+  (SerialConfig m) =>
+  (Var v) =>
+  [v] ->
+  Word64 ->
+  m (Branched (ANormal v))
 getBranches ctx frsh0 =
   getTag >>= \case
     MEmptyT -> pure MatchEmpty
@@ -825,14 +931,20 @@ putCase ::
   (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
-  Map ForeignFunc Text ->
+  Bool ->
   [v] ->
   ([Mem], ANormal v) ->
   m ()
 putCase refrep fops ctx (ccs, (TAbss us e)) =
   putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
 
-getCase :: (MonadGet m) => (Var v) => [v] -> Word64 -> m ([Mem], ANormal v)
+getCase ::
+  (MonadGet m) =>
+  (SerialConfig m) =>
+  (Var v) =>
+  [v] ->
+  Word64 ->
+  m ([Mem], ANormal v)
 getCase ctx frsh0 = do
   ccs <- getCCs
   let l = length ccs
@@ -891,45 +1003,46 @@ putValue v (Cont bs k) =
 putValue v (BLit l) =
   putTag BLitT *> putBLit v l
 
-getValue :: (MonadGet m) => Version -> m Value
-getValue v =
-  getTag >>= \case
-    PartialT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          gr <- getGroupRef
-          getList getWord64be >>= assertEmptyUnboxed
-          bs <- getList (getValue v)
-          pure $ Partial gr bs
-      | otherwise -> do
-          gr <- getGroupRef
-          vs <- getList (getValue v)
-          pure $ Partial gr vs
-    DataT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          r <- getReference
-          w <- getWord64be
-          getList getWord64be >>= assertEmptyUnboxed
-          vs <- getList (getValue v)
-          pure $ Data r w vs
-      | otherwise -> do
-          r <- getReference
-          w <- getWord64be
-          vs <- getList (getValue v)
-          pure $ Data r w vs
-    ContT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          getList getWord64be >>= assertEmptyUnboxed
-          bs <- getList (getValue v)
-          k <- getCont v
-          pure $ Cont bs k
-      | otherwise -> do
-          bs <- getList (getValue v)
-          k <- getCont v
-          pure $ Cont bs k
-    BLitT -> BLit <$> getBLit v
+getValue :: (MonadGet m, SerialConfig m) => m Value
+getValue =
+  askVersion >>= \v ->
+    getTag >>= \case
+      PartialT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            gr <- getGroupRef
+            getList getWord64be >>= assertEmptyUnboxed
+            bs <- getList getValue
+            pure $ Partial gr bs
+        | otherwise -> do
+            gr <- getGroupRef
+            vs <- getList getValue
+            pure $ Partial gr vs
+      DataT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            r <- getReference
+            w <- getWord64be
+            getList getWord64be >>= assertEmptyUnboxed
+            vs <- getList getValue
+            pure $ Data r w vs
+        | otherwise -> do
+            r <- getReference
+            w <- getWord64be
+            vs <- getList getValue
+            pure $ Data r w vs
+      ContT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            getList getWord64be >>= assertEmptyUnboxed
+            bs <- getList getValue
+            k <- getCont
+            pure $ Cont bs k
+        | otherwise -> do
+            bs <- getList getValue
+            k <- getCont
+            pure $ Cont bs k
+      BLitT -> BLit <$> getBLit
   where
     assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
     assertEmptyUnboxed [] = pure ()
@@ -950,54 +1063,58 @@ putCont v (Push f n gr k) =
     *> putGroupRef gr
     *> putCont v k
 
-getCont :: (MonadGet m) => Version -> m Cont
-getCont v =
-  getTag >>= \case
-    KET -> pure KE
-    MarkT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          getWord64be >>= assert0 "unboxed arg size"
-          ba <- getWord64be
-          refs <- getList getReference
-          vals <- getMap getReference (getValue v)
-          cont <- getCont v
-          pure $ Mark ba refs vals cont
-      | otherwise ->
-          Mark
-            <$> getWord64be
-            <*> getList getReference
-            <*> getMap getReference (getValue v)
-            <*> getCont v
-    PushT
-      | Transfer vn <- v,
-        vn < 4 -> do
-          getWord64be >>= assert0 "unboxed frame size"
-          bf <- getWord64be
-          getWord64be >>= assert0 "unboxed arg size"
-          ba <- getWord64be
-          gr <- getGroupRef
-          cont <- getCont v
-          pure $ Push bf ba gr cont
-      | otherwise ->
-          Push
-            <$> getWord64be
-            <*> getWord64be
-            <*> getGroupRef
-            <*> getCont v
+getCont :: (MonadGet m, SerialConfig m) => m Cont
+getCont =
+  askVersion >>= \v ->
+    getTag >>= \case
+      KET -> pure KE
+      MarkT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            getWord64be >>= assert0 "unboxed arg size"
+            ba <- getWord64be
+            refs <- getList getReference
+            vals <- getMap getReference getValue
+            cont <- getCont
+            pure $ Mark ba refs vals cont
+        | otherwise ->
+            Mark
+              <$> getWord64be
+              <*> getList getReference
+              <*> getMap getReference getValue
+              <*> getCont
+      PushT
+        | Transfer vn <- v,
+          vn < 4 -> do
+            getWord64be >>= assert0 "unboxed frame size"
+            bf <- getWord64be
+            getWord64be >>= assert0 "unboxed arg size"
+            ba <- getWord64be
+            gr <- getGroupRef
+            cont <- getCont
+            pure $ Push bf ba gr cont
+        | otherwise ->
+            Push
+              <$> getWord64be
+              <*> getWord64be
+              <*> getGroupRef
+              <*> getCont
   where
     assert0 _name 0 = pure ()
     assert0 name n = exn [] $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
 
 deserializeCode :: ByteString -> Either String Code
-deserializeCode bs = runGetS (getVersion >>= getCode) bs
+deserializeCode bs =
+  runGetS (getVersion >>= runReaderT getCode . (,False)) bs
   where
     getVersion =
       getWord32be >>= \case
-        n | 1 <= n && n <= 3 -> pure n
+        n | 1 <= n && n <= 4 -> pure $ Transfer n
         n -> fail $ "deserializeGroup: unknown version: " ++ show n
 
-serializeCode :: Map ForeignFunc Text -> Code -> ByteString
+-- Boolean argument determines whether ForeignFunc occurrences are
+-- allowed to be serialized. For interchange, this should be False.
+serializeCode :: Bool -> Code -> ByteString
 serializeCode fops co = runPutS (putVersion *> putCode fops co)
   where
     putVersion = putWord32be codeVersion
@@ -1023,28 +1140,28 @@ serializeCode fops co = runPutS (putVersion *> putCode fops co)
 -- shouldn't be subject to rehashing.
 serializeGroupForRehash ::
   (Var v) =>
-  Map ForeignFunc Text ->
   Reference ->
   SuperGroup v ->
   L.ByteString
-serializeGroupForRehash _ (Builtin _) _ =
+serializeGroupForRehash (Builtin _) _ =
   error "serializeForRehash: builtin reference"
-serializeGroupForRehash fops (Derived h _) sg =
-  runPutLazy $ putGroup refrep fops sg
+serializeGroupForRehash (Derived h _) sg =
+  runPutLazy $ putGroup refrep False sg
   where
     f r@(Derived h' i) | h == h' = Just (r, i)
     f _ = Nothing
     refrep = Map.fromList . mapMaybe f $ groupTermLinks sg
 
 getVersionedValue :: (MonadGet m) => m Value
-getVersionedValue = getVersion >>= getValue . Transfer
+getVersionedValue =
+  getVersion >>= runReaderT getValue . (,False) . Transfer
   where
     getVersion =
       getWord32be >>= \case
         n
           | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
           | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
-          | n <= 4 -> pure n
+          | n <= 5 -> pure n
           | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
 
 deserializeValue :: ByteString -> Either String Value
@@ -1073,6 +1190,32 @@ serializeValueForHash :: Value -> L.ByteString
 serializeValueForHash v = runPutLazy (putPrefix *> putValue (Hash 4) v)
   where
     putPrefix = putWord32be 4
+
+-- Gets a SuperGroup with the current code version. Used for
+-- interpreter state serialization in U.R.Interface.
+getGroupCurrent :: (MonadGet m, Var v) => m (SuperGroup v)
+getGroupCurrent = runReaderT getGroup (Transfer codeVersion, False)
+
+askVersion :: (SerialConfig m) => m Version
+askVersion = asks fst
+
+askFOp :: (SerialConfig m) => m Bool
+askFOp = asks snd
+
+type SerialConfig m = MonadReader (Version, Bool) m
+
+-- Convert value version numbers to code version numbers
+valueToCode :: Version -> Version
+valueToCode v
+  | Hash n <- v = Hash $ tweak n
+  | Transfer n <- v = Transfer $ tweak n
+  where
+    tweak n
+      | n > 2 = n - 1
+      | otherwise = n
+
+withCodeVersion :: (SerialConfig m) => m r -> m r
+withCodeVersion = local (first valueToCode)
 
 valueVersion :: Word32
 valueVersion = 4

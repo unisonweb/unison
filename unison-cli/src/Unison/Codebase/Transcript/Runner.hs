@@ -48,6 +48,7 @@ import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
+import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
@@ -65,6 +66,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.TQueue qualified as Q
 import UnliftIO qualified
+import UnliftIO.Environment (setEnv)
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
@@ -95,10 +97,16 @@ withRunner ::
   FilePath ->
   (Runner -> m r) ->
   m r
-withRunner isTest verbosity ucmVersion nrtp action =
+withRunner isTest verbosity ucmVersion nrtp action = do
+  -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
+  -- so that errors are consistent.
+  -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
+  when isTest $ do
+    liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
   withRuntimes nrtp \runtime sbRuntime nRuntime ->
     action \transcriptName transcriptSrc (codebaseDir, codebase) ->
       Server.startServer
+        isTest
         Backend.BackendEnv {Backend.useNamesIndex = False}
         Server.defaultCodebaseServerOpts
         runtime

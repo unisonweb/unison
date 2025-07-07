@@ -250,7 +250,7 @@ scratch/alice> view foo bar
 
 scratch/alice> display bar
 
-  "old foo - old foo"
+  "new foo - new foo"
 ```
 
 ``` ucm :hide
@@ -719,9 +719,10 @@ foo = "foo"
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo : Text
+  Done.
 
 scratch/alice> merge /bob
 
@@ -768,9 +769,10 @@ foo = "foo"
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo : Text
+  Done.
 
 scratch/alice> merge /bob
 
@@ -849,9 +851,10 @@ bar = foo ++ " - " ++ foo
 ``` ucm :error
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Text
+  Done.
 
 scratch/alice> merge /bob
 
@@ -1587,6 +1590,17 @@ scratch/alice> delete.term Foo.Bar.Baz
 scratch/alice> delete.term Foo.Bar.Qux
 ```
 
+``` unison :hide
+Foo.Bar.Baz : Nat
+Foo.Bar.Baz = 100
+
+Foo.Bar.Qux : Nat
+Foo.Bar.Qux = 200
+
+Foo.Bar.Hello : Nat
+Foo.Bar.Hello = 18
+```
+
 ``` ucm :hide
 scratch/alice> update
 ```
@@ -1878,11 +1892,9 @@ foo = "alice and bobs foo"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
+    ⍟ New definitions:
     
       foo : Text
 ```
@@ -2304,12 +2316,17 @@ Alice's branch:
 scratch/main> branch alice
 ```
 
+``` unison :hide
+unique type Foo = Bar
+```
+
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/alice> alias.term Foo.Bar AliasOutsideFooNamespace
 
@@ -2322,12 +2339,18 @@ Bob's branch:
 scratch/main> branch bob
 ```
 
+``` unison :hide
+bob : Nat
+bob = 101
+```
+
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bob : Nat
+  Done.
 ```
 
 ``` ucm :error
@@ -2428,10 +2451,9 @@ structural type Foo = Bar Nat | Baz Nat Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural type Foo
 ```
@@ -2439,9 +2461,10 @@ structural type Foo = Bar Nat | Baz Nat Nat
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
+  Done.
 
 scratch/main> delete.term Foo.Baz
 
@@ -2476,10 +2499,9 @@ alice = 100
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       alice : Nat
 ```
@@ -2487,9 +2509,10 @@ alice = 100
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    alice : Nat
+  Done.
 ```
 
 Bob's branch:
@@ -2520,10 +2543,9 @@ bob = 101
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bob : Nat
 ```
@@ -2531,9 +2553,10 @@ bob = 101
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bob : Nat
+  Done.
 ```
 
 Now we merge:
@@ -2579,10 +2602,9 @@ bar = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bar : Nat
       foo : Nat
@@ -2591,10 +2613,10 @@ bar = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    foo : Nat
+  Done.
 
 scratch/main> branch alice
 
@@ -2616,8 +2638,7 @@ foo = 18
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2649,10 +2670,9 @@ bob = 101
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bob : Nat
 ```
@@ -2660,9 +2680,10 @@ bob = 101
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bob : Nat
+  Done.
 ```
 
 ``` ucm
@@ -2703,10 +2724,9 @@ type Foo = Bar | Baz
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Foo
 ```
@@ -2714,9 +2734,10 @@ type Foo = Bar | Baz
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  Done.
 
 scratch/main> branch topic
 
@@ -2734,10 +2755,9 @@ boop = "boop"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       boop : Text
 ```
@@ -2745,9 +2765,10 @@ boop = "boop"
 ``` ucm
 scratch/topic> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    boop : Text
+  Done.
 ```
 
 ``` unison
@@ -2758,8 +2779,7 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2829,10 +2849,9 @@ baz = "lca"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bar : Nat
       baz : Text
@@ -2842,11 +2861,10 @@ baz = "lca"
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    baz : Text
-    foo : Nat
+  Done.
 
 scratch/alice> branch bob
 
@@ -2867,8 +2885,7 @@ baz = "bob"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2899,8 +2916,7 @@ baz = "alice"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -2997,10 +3013,9 @@ a = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       a : ##Nat
 ```
@@ -3008,9 +3023,10 @@ a = 1
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3021,10 +3037,9 @@ b = 2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       b : ##Nat
 ```
@@ -3032,9 +3047,10 @@ b = 2
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    b : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3051,9 +3067,10 @@ b = 2
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    b : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3064,10 +3081,9 @@ a = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       a : ##Nat
 ```
@@ -3075,9 +3091,10 @@ a = 1
 ``` ucm
 scratch/bob> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -3095,10 +3112,10 @@ b = 2
 ``` ucm
 scratch/carol> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    a : ##Nat
-    b : ##Nat
+  Done.
 
 scratch/bob> merge /alice
 
@@ -3183,10 +3200,9 @@ bar =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bar    : Nat
       foo    : Nat
@@ -3196,11 +3212,10 @@ bar =
 ``` ucm
 scratch/alice> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar    : Nat
-    foo    : Nat
-    ignore : a -> ()
+  Done.
 
 scratch/alice> branch bob
 
@@ -3221,8 +3236,7 @@ bar =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -3251,8 +3265,7 @@ foo = 19
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -3315,10 +3328,9 @@ type Bar = MkBar Foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Bar
       type Foo
@@ -3327,10 +3339,10 @@ type Bar = MkBar Foo
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Bar
-    type Foo
+  Done.
 
 scratch/main> branch alice
 
@@ -3415,8 +3427,13 @@ type Bar = MkBar Foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Bar
+      type Foo
 ```
 
 ``` ucm
@@ -3444,6 +3461,376 @@ scratch/alice> names Bar
 scratch/main> project.delete scratch
 ```
 
+### Unique type GUID reuse – parent branch
+
+When on a merge branch, if the parser has to pick between two different GUIDs, and the two merge parents themselves have
+a branch parent-child relationship, it will prefer the parent's GUID. If they don't the parser will make a new GUID.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Foo
+```
+
+``` ucm
+scratch/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+scratch/main> branch topic2
+
+  Done. I've created the topic2 branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic2`.
+
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> switch /topic
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Foo
+```
+
+``` ucm
+scratch/topic> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/topic> switch /topic2
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Foo
+```
+
+``` ucm
+scratch/topic2> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> switch /main
+```
+
+Case 1: Merging child `/topic` into parent `/main` uses parent `/main`'s GUID
+
+``` ucm :error
+scratch/main> merge /topic
+
+  Loading branches...
+
+  Loading definitions...
+
+  Computing diffs...
+
+  Loading dependents of changes...
+
+  Loading and merging library dependencies...
+
+  Rendering Unison file...
+
+  I couldn't automatically merge scratch/topic into
+  scratch/main. However, I've added the definitions that need
+  attention to the top of scratch.u.
+
+  When you're done, you can run
+
+    merge.commit
+
+  to merge your changes back into main and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+
+    delete.branch /merge-topic-into-main
+
+  to delete the temporary branch and switch back to main.
+```
+
+``` unison :added-by-ucm scratch.u
+-- scratch/main
+unique[qg9i3saca6l177670mmf60tc2lkc6fs0] type Foo = Bar
+
+-- scratch/topic
+unique[sfr163dp38r14s2j75i08e7eejljege9] type Foo = Bar
+
+```
+
+``` ucm
+scratch/main> switch /merge-topic-into-main
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Foo
+```
+
+``` ucm
+scratch/merge-topic-into-main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j2e5n5ucie   Type   Foo
+
+scratch/topic> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j49bpadp1q   Type   Foo
+
+scratch/merge-topic-into-main> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j2e5n5ucie   Type   Foo
+```
+
+Case 2: Merging parent `/main` into child `/topic` also uses parent `/main`'s GUID
+
+``` ucm :error
+scratch/topic> merge /main
+
+  Loading branches...
+
+  Loading definitions...
+
+  Computing diffs...
+
+  Loading dependents of changes...
+
+  Loading and merging library dependencies...
+
+  Rendering Unison file...
+
+  I couldn't automatically merge scratch/main into
+  scratch/topic. However, I've added the definitions that need
+  attention to the top of scratch.u.
+
+  When you're done, you can run
+
+    merge.commit
+
+  to merge your changes back into topic and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+
+    delete.branch /merge-main-into-topic
+
+  to delete the temporary branch and switch back to topic.
+```
+
+``` unison :added-by-ucm scratch.u
+-- scratch/topic
+unique[sfr163dp38r14s2j75i08e7eejljege9] type Foo = Bar
+
+-- scratch/main
+unique[qg9i3saca6l177670mmf60tc2lkc6fs0] type Foo = Bar
+
+```
+
+``` ucm
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Foo
+```
+
+``` ucm
+scratch/merge-main-into-topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j2e5n5ucie   Type   Foo
+
+scratch/topic> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j49bpadp1q   Type   Foo
+
+scratch/merge-main-into-topic> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j2e5n5ucie   Type   Foo
+```
+
+Case 3: Merging `/topic` into `/topic2` (neither of which is a parent of the other) uses a new third GUID
+
+``` ucm :error
+scratch/topic> merge /topic2
+
+  Loading branches...
+
+  Loading definitions...
+
+  Computing diffs...
+
+  Loading dependents of changes...
+
+  Loading and merging library dependencies...
+
+  Rendering Unison file...
+
+  I couldn't automatically merge scratch/topic2 into
+  scratch/topic. However, I've added the definitions that need
+  attention to the top of scratch.u.
+
+  When you're done, you can run
+
+    merge.commit
+
+  to merge your changes back into topic and delete the temporary
+  branch. Or, if you decide to cancel the merge instead, you can
+  run
+
+    delete.branch /merge-topic2-into-topic
+
+  to delete the temporary branch and switch back to topic.
+```
+
+``` unison :added-by-ucm scratch.u
+-- scratch/topic
+unique[sfr163dp38r14s2j75i08e7eejljege9] type Foo = Bar
+
+-- scratch/topic2
+unique[jhn3rdj2mr8k4g6domoj1qd1kdsshaa9] type Foo = Bar
+
+```
+
+``` ucm
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      type Foo
+```
+
+``` ucm
+scratch/merge-topic2-into-topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/topic> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #j49bpadp1q   Type   Foo
+
+scratch/topic2> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #c0h5g2udvs   Type   Foo
+
+scratch/merge-topic2-into-topic> names Foo
+
+  'Foo':
+  Hash          Kind   Names
+  #5td3ht8h1s   Type   Foo
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
 ### Using Alice's names for Bob's things
 
 Previously, we'd render Alice's stuff with her names and Bob's stuff with his. But because Alice is doing the merge,
@@ -3462,10 +3849,9 @@ hello = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       hello : Nat
 ```
@@ -3473,9 +3859,10 @@ hello = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    hello : Nat
+  Done.
 
 scratch/main> branch alice
 
@@ -3494,10 +3881,9 @@ foo = 100
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       foo : Nat
     
@@ -3532,10 +3918,9 @@ bar = 100
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bar : Nat
     

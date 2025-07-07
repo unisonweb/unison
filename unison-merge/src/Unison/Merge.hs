@@ -13,14 +13,6 @@ module Unison.Merge
     Mergeblob5 (..),
     makeMergeblob5,
 
-    -- * Decl coherency checks
-    PartialDeclNameLookup (..),
-    IncoherentDeclReason (..),
-    checkDeclCoherency,
-    lenientCheckDeclCoherency,
-    IncoherentDeclReasons (..),
-    checkAllDeclCoherency,
-
     -- * Types
     CombinedDiffOp (..),
     DiffOp (..),
@@ -28,6 +20,8 @@ module Unison.Merge
     EitherWayI (..),
     HumanDiffOp (..),
     LibdepDiffOp (..),
+    Rename (..),
+    SimpleRenames (..),
     Synhashed (..),
     ThreeWay (..),
     TwoOrThreeWay (..),
@@ -39,13 +33,6 @@ module Unison.Merge
 where
 
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..))
-import Unison.Merge.DeclCoherencyCheck
-  ( IncoherentDeclReason (..),
-    IncoherentDeclReasons (..),
-    checkAllDeclCoherency,
-    checkDeclCoherency,
-    lenientCheckDeclCoherency,
-  )
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
@@ -57,7 +44,7 @@ import Unison.Merge.Mergeblob2 (Mergeblob2 (..), Mergeblob2Error (..), makeMerge
 import Unison.Merge.Mergeblob3 (Mergeblob3 (..), makeMergeblob3)
 import Unison.Merge.Mergeblob4 (Mergeblob4 (..), makeMergeblob4)
 import Unison.Merge.Mergeblob5 (Mergeblob5 (..), makeMergeblob5)
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
+import Unison.Merge.Rename (Rename (..), SimpleRenames (..))
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))

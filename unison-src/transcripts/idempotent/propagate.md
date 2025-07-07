@@ -17,10 +17,9 @@ fooToInt _ = +42
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Foo
       fooToInt : Foo -> Int
@@ -31,10 +30,10 @@ And then we add it.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    fooToInt : Foo -> Int
+  Done.
 
 scratch/main> find.verbose
 
@@ -64,8 +63,7 @@ unique type Foo = Foo | Bar
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -76,11 +74,16 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ``` ucm
-scratch/main> update.old
+scratch/main> update
 
-  ⍟ I've updated these names to your new definition:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 ```
 
 ... it should automatically propagate the type to `fooToInt`.
@@ -109,10 +112,9 @@ preserve.otherTerm y = someTerm y
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       preserve.otherTerm : Optional baz -> Optional baz
       preserve.someTerm  : Optional foo -> Optional foo
@@ -123,10 +125,10 @@ Add that to the codebase:
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    preserve.otherTerm : Optional baz -> Optional baz
-    preserve.someTerm  : Optional foo -> Optional foo
+  Done.
 ```
 
 Let's now edit the dependency:
@@ -140,8 +142,7 @@ preserve.someTerm _ = None
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -152,11 +153,16 @@ preserve.someTerm _ = None
 Update...
 
 ``` ucm
-scratch/main> update.old
+scratch/main> update
 
-  ⍟ I've updated these names to your new definition:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    preserve.someTerm : Optional x -> Optional x
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
 ```
 
 Now the type of `someTerm` should be `Optional x -> Optional x` and the

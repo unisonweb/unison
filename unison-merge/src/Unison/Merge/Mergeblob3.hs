@@ -20,11 +20,9 @@ import Data.Zip (unzip)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup (..), expectConstructorNames)
-import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Merge.EitherWay (EitherWay)
 import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Merge.ThreeWay (ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
@@ -35,6 +33,7 @@ import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
@@ -56,7 +55,6 @@ import Prelude hiding (unzip)
 data Mergeblob3 = Mergeblob3
   { libdeps :: Names,
     stageOne :: DefnsF (Map Name) Referent TypeReference,
-    stageTwo :: DefnsF (Map Name) Referent TypeReference,
     uniqueTypeGuids :: Map Name Text,
     -- `unparsedFile` (no mergetool) xor `unparsedSoloFiles` (yes mergetool) are ultimately given to the user
     unparsedFile :: Pretty ColorText,
@@ -136,7 +134,6 @@ makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
    in Mergeblob3
         { libdeps,
           stageOne = makeStageOne blob.declNameLookups conflictsNames blob.unconflicts dependents defnsByName.lca,
-          stageTwo = makeStageTwo blob.declNameLookups conflictsNames blob.unconflicts dependents defnsByName,
           uniqueTypeGuids = makeUniqueTypeGuids (ThreeWay.forgetLca blob.hydratedDefns),
           unparsedFile = makePrettyUnisonFile authors renderedConflicts renderedDependents,
           unparsedSoloFiles =
@@ -235,43 +232,6 @@ makeStageOne declNameLookups conflicts unconflicts dependents =
 makeStageOneV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
 makeStageOneV unconflicts namesToDelete =
   (`Map.withoutKeys` namesToDelete) . Unconflicts.apply unconflicts
-
-makeStageTwo ::
-  forall term typ.
-  TwoWay DeclNameLookup ->
-  TwoWay (DefnsF Set Name Name) ->
-  DefnsF Unconflicts term typ ->
-  TwoWay (DefnsF Set Name Name) ->
-  ThreeWay (DefnsF (Map Name) term typ) ->
-  DefnsF (Map Name) term typ
-makeStageTwo declNameLookups conflicts unconflicts dependents defns =
-  zipDefnsWith4 makeStageTwoV makeStageTwoV defns.lca aliceBiasedDependents unconflicts aliceConflicts
-  where
-    aliceConflicts :: DefnsF (Map Name) term typ
-    aliceConflicts =
-      zipDefnsWith
-        (\defns conflicts -> Map.restrictKeys defns (conflicts <> aliceConstructorsOfTypeConflicts))
-        Map.restrictKeys
-        defns.alice
-        conflicts.alice
-
-    aliceConstructorsOfTypeConflicts :: Set Name
-    aliceConstructorsOfTypeConflicts =
-      foldMap
-        (Set.fromList . DeclNameLookup.expectConstructorNames declNameLookups.alice)
-        conflicts.alice.types
-
-    aliceBiasedDependents :: DefnsF (Map Name) term typ
-    aliceBiasedDependents =
-      TwoWay.twoWay
-        (zipDefnsWith (Map.unionWith const) (Map.unionWith const))
-        (zipDefnsWith Map.restrictKeys Map.restrictKeys <$> ThreeWay.forgetLca defns <*> dependents)
-
-makeStageTwoV :: Map Name v -> Map Name v -> Unconflicts v -> Map Name v -> Map Name v
-makeStageTwoV lcaDefns dependents unconflicts conflicts =
-  Map.unionWith const dependents lcaDefns
-    & Unconflicts.apply unconflicts
-    & Map.unionWith const conflicts
 
 -- Given just named term/type reference ids, fill out all names that occupy the term and type namespaces. This is simply
 -- the given names plus all of the types' constructors.

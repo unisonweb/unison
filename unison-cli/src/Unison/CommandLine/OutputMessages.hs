@@ -69,7 +69,6 @@ import Unison.Codebase.Editor.StructuredArgument (StructuredArgument)
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Init.OpenCodebaseError qualified as CodebaseInit
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), prettyPrintIntegrityErrors)
-import Unison.Codebase.Patch qualified as Patch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
@@ -83,13 +82,14 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
+import Unison.DeclCoherencyCheck (IncoherentDeclReason (..))
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency as LD
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -108,6 +108,7 @@ import Unison.PrintError
     prettyVar,
     printNoteWithSource,
     renderCompilerBug,
+    renderTypeWarnings,
   )
 import Unison.Project (ProjectAndBranch (..))
 import Unison.Reference (Reference)
@@ -121,6 +122,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -144,9 +146,10 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), defnsAreEmpty)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -210,70 +213,6 @@ notifyNumbered = \case
             ]
       )
       (showDiffNamespace ShowNumbers ppe (absPathToBranchId bAbs) (absPathToBranchId bAbs) diff)
-  ShowDiffAfterMerge _ _ _ (OBD.isEmpty -> True) ->
-    (P.wrap $ "Nothing changed as a result of the merge.", mempty)
-  ShowDiffAfterMerge dest' destAbs ppe diffOutput ->
-    first
-      ( \p ->
-          P.lines
-            [ P.wrap $ "Here's what's changed in " <> prettyNamespaceKey dest' <> "after the merge:",
-              "",
-              p,
-              "",
-              tip $
-                "You can use "
-                  <> IP.makeExample' IP.todo
-                  <> "to see if this generated any work to do in this namespace"
-                  <> "and "
-                  <> IP.makeExample' IP.test
-                  <> "to run the tests."
-                  <> "Or you can use"
-                  <> IP.makeExample' IP.undo
-                  <> " or use a hash from "
-                  <> IP.makeExample' IP.branchReflog
-                  <> " with "
-                  <> IP.makeExample' IP.reset
-                  <> " to reset to a previous state."
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
-  ShowDiffAfterMergePropagate dest' destAbs patchPath' ppe diffOutput ->
-    first
-      ( \p ->
-          P.lines
-            [ P.wrap $
-                "Here's what's changed in "
-                  <> prettyNamespaceKey dest'
-                  <> "after applying the patch at "
-                  <> P.group (prettyPath patchPath' <> ":"),
-              "",
-              p,
-              "",
-              tip $
-                "You can use "
-                  <> IP.makeExample IP.todo [prettyPath patchPath', prettyNamespaceKey dest']
-                  <> "to see if this generated any work to do in this namespace"
-                  <> "and "
-                  <> IP.makeExample' IP.test
-                  <> "to run the tests."
-                  <> "Or you can use"
-                  <> IP.makeExample' IP.undo
-                  <> " or use a hash from "
-                  <> IP.makeExample' IP.branchReflog
-                  <> " to undo the results of this merge."
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
-  ShowDiffAfterMergePreview dest' destAbs ppe diffOutput ->
-    first
-      ( \p ->
-          P.lines
-            [ P.wrap $ "Here's what would change in " <> prettyNamespaceKey dest' <> "after the merge:",
-              "",
-              p
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (BranchAtProjectPath destAbs) (BranchAtProjectPath destAbs) diffOutput)
   ShowDiffAfterUndo ppe diffOutput ->
     first
       (\p -> P.lines ["Here are the changes I undid", "", p])
@@ -616,43 +555,6 @@ notifyUser dir = \case
           $ "The namespaces "
             <> P.commas (either prettySCH prettyProjectPath <$> ps)
             <> " are empty. Was there a typo?"
-  LoadPullRequest baseNS headNS basePath headPath mergedPath squashedPath ->
-    pure $
-      P.lines
-        [ P.wrap $ "I checked out" <> prettyReadRemoteNamespaceWith absurd baseNS <> "to" <> P.group (prettyPath basePath <> "."),
-          P.wrap $ "I checked out" <> prettyReadRemoteNamespaceWith absurd headNS <> "to" <> P.group (prettyPath headPath <> "."),
-          "",
-          P.wrap $ "The merged result is in" <> P.group (prettyPath mergedPath <> "."),
-          P.wrap $ "The (squashed) merged result is in" <> P.group (prettyPath squashedPath <> "."),
-          P.wrap $
-            "Use"
-              <> IP.makeExample
-                IP.diffNamespace
-                [prettyPath basePath, prettyPath mergedPath]
-              <> "or"
-              <> IP.makeExample
-                IP.diffNamespace
-                [prettyPath basePath, prettyPath squashedPath]
-              <> "to see what's been updated.",
-          P.wrap $
-            "Use"
-              <> IP.makeExample
-                IP.todo
-                [ prettyPath (Path.descend mergedPath NameSegment.defaultPatchSegment),
-                  prettyPath mergedPath
-                ]
-              <> "to see what work is remaining for the merge.",
-          P.wrap $
-            "Use"
-              <> IP.makeExample
-                IP.push
-                [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath mergedPath]
-              <> "or"
-              <> IP.makeExample
-                IP.push
-                [prettyReadRemoteNamespaceWith absurd baseNS, prettyPath squashedPath]
-              <> "to push the changes."
-        ]
   LoadedDefinitionsToSourceFile fp numDefinitions ->
     pure $
       P.callout "☝️" $
@@ -774,10 +676,8 @@ notifyUser dir = \case
           "I'm currently watching for definitions in .u files under the"
             <> dir
             <> "directory. Make sure you've updated something there before using the"
-            <> makeExample' IP.add
-            <> "or"
             <> makeExample' IP.update
-            <> "commands, or use"
+            <> "command, or use"
             <> makeExample' IP.load
             <> "to load a file explicitly."
   InvalidSourceName name ->
@@ -928,8 +828,7 @@ notifyUser dir = \case
         Reference.DerivedId {} -> P.lit "(type)"
   SlurpOutput input ppe s ->
     let isPast = case input of
-          Input.AddI {} -> True
-          Input.UpdateI {} -> True
+          Input.Update2I {} -> True
           Input.SaveExecuteResultI {} -> True
           _ -> False
      in pure $ SlurpResult.pretty isPast ppe s
@@ -960,6 +859,8 @@ notifyUser dir = \case
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
     pure $ showNote notes
+  TypeWarns _curPath src ppenv warns ->
+    pure $ renderTypeWarnings ppenv (Text.unpack src) warns
   CompilerBugs src env bugs -> pure $ intercalateMap "\n\n" bug bugs
     where
       bug = renderCompilerBug env (Text.unpack src)
@@ -1043,8 +944,6 @@ notifyUser dir = \case
                                 <> "these definitions in "
                                 <> P.group (fileName <> ".")
                                 <> "If you do an "
-                                <> IP.makeExample' IP.add
-                                <> " or "
                                 <> P.group (IP.makeExample' IP.update <> ",")
                                 <> "here's how your codebase would change:",
                             P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
@@ -1066,6 +965,130 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
+  Typechecked2 oldPpe newPpe slurpEntries -> do
+    let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
+        updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
+        deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
+        numUnchangedTypes :: Int
+        (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
+          Map.foldlWithKey'
+            ( \acc name -> \case
+                SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
+                SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+            )
+            ([], [], [], 0)
+            slurpEntries.types
+
+    let newTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
+        newTypes = sortAlphabeticallyOn (view _1) newTypes0
+        updatedTypes :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
+        updatedTypes = sortAlphabeticallyOn (view _1) updatedTypes0
+        deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
+        deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
+
+    let newTerms0 :: [(Name, Type Symbol Ann)]
+        updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        deletedTerms0 :: [(Name, Type Symbol Ann)]
+        numUnchangedTerms :: Int
+        (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
+          Map.foldlWithKey'
+            ( \acc name -> \case
+                SlurpResult.SlurpEntry'Add ty -> over _1 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
+                SlurpResult.SlurpEntry'Delete ty -> over _3 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+            )
+            ([], [], [], 0)
+            slurpEntries.terms
+
+    let newTerms :: [(Name, Type Symbol Ann)]
+        newTerms = sortAlphabeticallyOn (view _1) newTerms0
+        updatedTerms :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
+        deletedTerms :: [(Name, Type Symbol Ann)]
+        deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
+
+    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+        renderType name decl =
+          P.syntaxToColor
+            (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+
+    let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+        renderTerm ppe colored name ty =
+          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+
+    let renderedNewTypes :: Pretty
+        renderedNewTypes =
+          P.lines (map (\(name, decl) -> P.green ("+ " <> renderType name decl)) newTypes)
+
+    let renderedUpdatedTypes :: Pretty
+        renderedUpdatedTypes =
+          P.lines (map (\(name, _oldDecl, newDecl) -> P.yellow ("~ " <> renderType name newDecl)) updatedTypes)
+
+    let renderedDeletedTypes :: Pretty
+        renderedDeletedTypes =
+          P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
+
+    let renderedNewTerms :: Pretty
+        renderedNewTerms =
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green . ("+ " <>)) name ty) newTerms)
+
+    let renderedUpdatedTerms :: Pretty
+        renderedUpdatedTerms =
+          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy) updatedTerms)
+
+    let renderedDeletedTerms :: Pretty
+        renderedDeletedTerms =
+          P.column2 (map (\(name, ty) -> renderTerm oldPpe (P.red . ("- " <>)) name ty) deletedTerms)
+
+    pure $
+      P.sepNonEmpty
+        "\n\n"
+        [ P.linesNonEmpty
+            [ renderedNewTypes,
+              renderedUpdatedTypes,
+              renderedDeletedTypes
+            ],
+          P.linesNonEmpty
+            [ renderedNewTerms,
+              renderedUpdatedTerms,
+              renderedDeletedTerms
+            ],
+          if defnsAreEmpty slurpEntries then "No changes found." else mempty,
+          P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
+            (0, 0) -> mempty
+            (0, _) ->
+              "(and "
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> if numUnchangedTerms == 1 then ")" else "s)"
+            (_, 0) ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> if numUnchangedTypes == 1 then ")" else "s)"
+            _ ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> (if numUnchangedTypes == 1 then " and " else "s and ")
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> (if numUnchangedTerms == 1 then ")" else "s)"),
+          if defnsAreEmpty slurpEntries
+            then mempty
+            else
+              P.lines
+                [ P.green "+" <> " (added), " <> P.yellow "~" <> " (modified), " <> P.red "-" <> " (deleted)",
+                  "",
+                  P.wrap $
+                    "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
+                ]
+        ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -1227,11 +1250,6 @@ notifyUser dir = \case
     pure $
       "I could't find a type with hash "
         <> (prettyShortHash sh)
-  AboutToPropagatePatch -> pure "Applying changes from patch..."
-  PatchNeedsToBeConflictFree ->
-    pure . P.wrap $
-      "I tried to auto-apply the patch, but couldn't because it contained"
-        <> "contradictory entries."
   PatchInvolvesExternalDependents _ _ ->
     pure "That patch involves external dependents."
   ShowReflog [] -> pure . P.warnCallout $ "The reflog is empty"
@@ -1295,7 +1313,6 @@ notifyUser dir = \case
           <> prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
           <> "from"
           <> P.group (prettyReadRemoteNamespace ns <> ".")
-  AboutToMerge -> pure "Merging..."
   MergeOverEmpty dest ->
     pure . P.okCallout $
       P.wrap $
@@ -1304,12 +1321,6 @@ notifyUser dir = \case
             ( prettyProjectAndBranchName (ProjectAndBranch dest.project.name dest.branch.name)
                 <> ", which was empty."
             )
-  MergeAlreadyUpToDate src dest ->
-    pure . P.callout "😶" $
-      P.wrap $
-        prettyBranchRelativePath dest
-          <> "was already up-to-date with"
-          <> P.group (prettyBranchRelativePath src <> ".")
   MergeAlreadyUpToDate2 aliceAndBob ->
     pure . P.callout "😶" $
       P.wrap $
@@ -1398,12 +1409,6 @@ notifyUser dir = \case
         "",
         P.wrap "Please move or remove it and then try merging again."
       ]
-  PreviewMergeAlreadyUpToDate src dest ->
-    pure . P.callout "😶" $
-      P.wrap $
-        prettyProjectPath dest
-          <> "is already up-to-date with"
-          <> P.group (prettyProjectPath src)
   DumpNumberedArgs schLength args ->
     pure . P.numberedList $ fmap (P.text . IP.formatStructuredArgument (pure schLength)) args
   HelpMessage pat -> pure $ IP.showPatternHelp pat
@@ -1596,7 +1601,7 @@ notifyUser dir = \case
   DebugDisplayFuzzyOptions argDesc fuzzyOptions ->
     pure $
       P.lines
-        [P.text (FZFResolvers.fuzzySelectHeader argDesc), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
+        [(FZFResolvers.fuzzySelectHeader argDesc), P.indentN 2 $ P.bulleted (P.string <$> fuzzyOptions)]
   DebugFuzzyOptionsIncorrectArgs _ -> pure $ P.string "Too many arguments were provided."
   DebugFuzzyOptionsNoCommand command -> pure $ "The command “" <> P.string command <> "” doesn’t exist."
   DebugFuzzyOptionsNoResolver -> pure "No resolver found for fuzzy options in this slot."
@@ -1856,7 +1861,6 @@ notifyUser dir = \case
         <> P.newline
         <> tip ("to draft a new release, try " <> IP.makeExample IP.releaseDraft [prettySemver ver])
         <> "."
-  CalculatingDiff -> pure (P.wrap "Calculating diff...")
   AmbiguousCloneLocal project branch -> do
     pure $
       P.wrap
@@ -1944,7 +1948,7 @@ notifyUser dir = \case
               <> P.newline
               <> P.wrap "2. Write some Unison code and save the file."
               <> P.newline
-              <> P.wrap "3. In UCM, type `add` to save it to your new project."
+              <> P.wrap "3. In UCM, type `update` to save it to your new project."
           )
         <> P.newline
         <> P.newline
@@ -1959,6 +1963,26 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
+  UpdateTypecheckingFailure2 scratchFile0 baseBranch updateBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap
+        ( "Some definitions don't typecheck with your changes. I've update the file"
+            <> scratchFile
+            <> "with the definitions that need fixing. Once the file is compiling, try"
+            <> makeExample' IP.update
+            <> "again."
+        )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "I've also switched you to a new branch"
+              <> prettyProjectBranchName updateBranch
+              <> "for this work. On"
+              <> P.group (makeExample' IP.update <> ",")
+              <> "it will be merged back into"
+              <> P.group (prettyProjectBranchName baseBranch <> ".")
+          )
   UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
     let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
      in pure $
@@ -2006,14 +2030,26 @@ notifyUser dir = \case
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName main <> ".")
         ]
-  UpgradeSuccess old new ->
-    pure . P.wrap $
-      "I upgraded"
-        <> P.text (NameSegment.toEscapedText old)
-        <> "to"
-        <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
-        <> "and removed"
-        <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
+  UpgradeSuccess old new maybeFinal ->
+    let prettyLib = P.blue . P.text . NameSegment.toEscapedText
+        prettyOld = prettyLib old
+        prettyNew = prettyLib new
+     in pure . P.wrap $
+          "I upgraded"
+            <> prettyOld
+            <> "to"
+            <> P.group (prettyNew <> ",")
+            <> case maybeFinal of
+              Nothing ->
+                "and removed"
+                  <> P.group (prettyOld <> ".")
+              Just final ->
+                "removed"
+                  <> P.group (prettyOld <> ",")
+                  <> "and renamed"
+                  <> prettyNew
+                  <> "to"
+                  <> P.group (prettyLib final <> ".")
   MergeFailure path aliceAndBob temp ->
     pure $
       P.lines $
@@ -2303,6 +2339,16 @@ notifyUser dir = \case
           "Please open the other codebase with UCM directly to upgrade it to the latest version, then try again."
         ]
   UCMServerNotRunning -> pure (P.wrap "The UCM server is not running.")
+  BranchSquashSuccess srcPAB destPAB -> do
+    let sourceName = prettyProjectAndBranchName (ProjectAndBranch srcPAB.project.name srcPAB.branch.name)
+    let destName = prettyProjectAndBranchName (ProjectAndBranch destPAB.project.name destPAB.branch.name)
+    pure $
+      P.lines
+        [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName
+        ]
+  BranchUpdate'BranchChanged -> do
+    pure $
+      P.wrap "Another process updated the codebase while your command was running, so I didn't apply the update. Please run the command again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -2891,8 +2937,8 @@ handleTodoOutput todo
               foldr
                 (\(short, long) acc -> typeName /= short && typeName /= long && acc)
                 True
-                todo.incoherentDeclReasons.nestedDeclAliases
-         in case filter notNestedDeclAlias todo.incoherentDeclReasons.constructorAliases of
+                (maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons)
+         in case filter notNestedDeclAlias (maybe [] (view #constructorAliases) todo.incoherentDeclReasons) of
               [] -> pure mempty
               aliases -> do
                 things <-
@@ -2916,7 +2962,7 @@ handleTodoOutput todo
                     & P.sep "\n\n"
 
       prettyMissingConstructorNames <-
-        case NEList.nonEmpty todo.incoherentDeclReasons.missingConstructorNames of
+        case NEList.nonEmpty (maybe [] (view #missingConstructorNames) todo.incoherentDeclReasons) of
           Nothing -> pure mempty
           Just types0 -> do
             stuff <-
@@ -2948,7 +2994,7 @@ handleTodoOutput todo
                   )
 
       prettyNestedDeclAliases <-
-        case todo.incoherentDeclReasons.nestedDeclAliases of
+        case maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons of
           [] -> pure mempty
           aliases0 -> do
             aliases1 <-
@@ -2972,7 +3018,7 @@ handleTodoOutput todo
                 & P.sep "\n\n"
 
       prettyStrayConstructors <-
-        case todo.incoherentDeclReasons.strayConstructors of
+        case maybe [] (view #strayConstructors) todo.incoherentDeclReasons of
           [] -> pure mempty
           constructors -> do
             nums <-
@@ -3126,41 +3172,33 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
               else pure mempty,
             if (not . null) updatedTypes
               || (not . null) updatedTerms
-              || (not . null) updatedPatches
               then do
                 prettyUpdatedTypes :: [Pretty] <- traverse prettyUpdateType updatedTypes
                 prettyUpdatedTerms :: [Pretty] <- traverse prettyUpdateTerm updatedTerms
-                prettyUpdatedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) updatedPatches
                 pure $
                   P.sepNonEmpty
                     "\n\n"
                     [ P.bold "Updates:",
-                      P.indentNonEmptyN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms,
-                      P.indentNonEmptyN 2 . P.linesNonEmpty $ prettyUpdatedPatches
+                      P.indentNonEmptyN 2 . P.sepNonEmpty "\n\n" $ prettyUpdatedTypes <> prettyUpdatedTerms
                     ]
               else pure mempty,
             if (not . null) addedTypes
               || (not . null) addedTerms
-              || (not . null) addedPatches
               then do
                 prettyAddedTypes :: Pretty <- prettyAddTypes addedTypes
                 prettyAddedTerms :: Pretty <- prettyAddTerms addedTerms
-                prettyAddedPatches :: [Pretty] <- traverse (prettySummarizePatch newPath) addedPatches
                 pure $
                   P.sepNonEmpty
                     "\n\n"
                     [ P.bold "Added definitions:",
-                      P.indentNonEmptyN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms],
-                      P.indentNonEmptyN 2 $ P.lines prettyAddedPatches
+                      P.indentNonEmptyN 2 $ P.linesNonEmpty [prettyAddedTypes, prettyAddedTerms]
                     ]
               else pure mempty,
             if (not . null) removedTypes
               || (not . null) removedTerms
-              || (not . null) removedPatches
               then do
                 prettyRemovedTypes :: Pretty <- prettyRemoveTypes removedTypes
                 prettyRemovedTerms :: Pretty <- prettyRemoveTerms removedTerms
-                prettyRemovedPatches :: [Pretty] <- traverse (prettyNamePatch oldPath) removedPatches
                 pure $
                   P.sepNonEmpty
                     "\n\n"
@@ -3168,8 +3206,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
                       P.indentN 2 $
                         P.linesNonEmpty
                           [ prettyRemovedTypes,
-                            prettyRemovedTerms,
-                            P.linesNonEmpty prettyRemovedPatches
+                            prettyRemovedTerms
                           ]
                     ]
               else pure mempty,
@@ -3332,28 +3369,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
           n <- numHQ' newPath hq r
           pure . (n,phq' hq,) $ ": " <> prettyType otype
 
-    prettySummarizePatch, prettyNamePatch :: Input.AbsBranchId -> OBD.PatchDisplay -> Numbered Pretty
-    --  12. patch p (added 3 updates, deleted 1)
-    prettySummarizePatch prefix (name, patchDiff) = do
-      n <- numPatch prefix name
-      let addCount =
-            (R.size . view Patch.addedTermEdits) patchDiff
-              + (R.size . view Patch.addedTypeEdits) patchDiff
-          delCount =
-            (R.size . view Patch.removedTermEdits) patchDiff
-              + (R.size . view Patch.removedTypeEdits) patchDiff
-          messages =
-            (if addCount > 0 then ["added " <> P.shown addCount] else [])
-              ++ (if delCount > 0 then ["deleted " <> P.shown addCount] else [])
-          message = case messages of
-            [] -> mempty
-            x : ys -> " (" <> P.commas (x <> " updates" : ys) <> ")"
-      pure $ n <> P.bold " patch " <> prettyName name <> message
-    --          18. patch q
-    prettyNamePatch prefix (name, _patchDiff) = do
-      n <- numPatch prefix name
-      pure $ n <> P.bold " patch " <> prettyName name
-
     {-
      Removes:
 
@@ -3450,11 +3465,6 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
         (P.red "type not found")
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ'.toHQ hq))
     phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
-
-    -- DeclPrinter.prettyDeclHeader : HQ -> Either
-    numPatch :: Input.AbsBranchId -> Name -> Numbered Pretty
-    numPatch prefix name =
-      addNumberedArg' $ SA.NameWithBranchPrefix prefix name
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =

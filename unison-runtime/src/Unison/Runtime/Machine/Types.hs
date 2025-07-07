@@ -2,7 +2,7 @@ module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
-import Control.Exception
+import Control.Exception hiding (Handler)
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -19,6 +19,7 @@ import Unison.Runtime.ANF
     foldGroupLinks,
     valueLinks,
   )
+import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.Foreign (Failure (..))
@@ -39,9 +40,6 @@ import Unison.Util.Text as UText
 type ActiveThreads = Maybe (IORef (Set ThreadId))
 
 type Tag = Word64
-
--- dynamic environment
-type DEnv = EnumMap Word64 Val
 
 type MCombs = RCombs Val
 
@@ -78,6 +76,7 @@ data CCache = CCache
     combRefs :: TVar (EnumMap Word64 Reference),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
+    optInfos :: TVar (OptInfos Symbol),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
@@ -106,6 +105,7 @@ baseCCache sandboxed = do
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
     <*> newTVarIO cacheableCombs
+    <*> newTVarIO builtinOptInfo
     <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
     <*> newTVarIO fty

@@ -48,6 +48,10 @@ replicate n t =
 toLazyText :: Text -> TL.Text
 toLazyText (Text t) = TL.fromChunks (chunkToText <$> toList t)
 
+fromLazyText :: TL.Text -> Text
+fromLazyText =
+  Text . foldl' (\t -> R.snoc t . chunk) mempty . TL.toChunks
+
 chunkToText :: Chunk -> T.Text
 chunkToText (Chunk _ t) = t
 

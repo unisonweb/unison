@@ -130,8 +130,8 @@ hoverInfo uri pos =
           (Term.Var' v) -> pure v
           (ABT.Abs'' v _body) -> pure v
           _ -> empty
-      FileAnalysis {localBindingTypes} <- FileAnalysis.getFileAnalysis uri
-      (_range, typ) <- hoistMaybe $ IM.lookupMin $ IM.intersecting localBindingTypes (IM.ClosedInterval pos pos)
+      FileAnalysis {localBindingInfo} <- FileAnalysis.getFileAnalysis uri
+      (_range, (typ, _definitionSite)) <- hoistMaybe $ IM.lookupMin $ IM.intersecting localBindingInfo (IM.ClosedInterval pos pos)
 
       pped <- lift $ ppedForFile uri
       let varName = case localVar of

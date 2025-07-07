@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -21,6 +21,10 @@ flag arraychecks
   manual: True
   default: False
 
+flag codeserialchecks
+  manual: True
+  default: False
+
 flag dumpcore
   manual: True
   default: False
@@ -37,6 +41,7 @@ library
   exposed-modules:
       Unison.Codebase.Execute
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.Array
@@ -162,6 +167,8 @@ library
     cpp-options: -DOPT_CHECK
     build-depends:
         inspection-testing
+  if flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
 
@@ -248,5 +255,7 @@ test-suite runtime-tests
     cpp-options: -DOPT_CHECK
     build-depends:
         inspection-testing
+  if flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats

@@ -57,10 +57,9 @@ testABunchOfNats _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type EncDec
       BE16             : EncDec
@@ -77,18 +76,10 @@ testABunchOfNats _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type EncDec
-    BE16             : EncDec
-    BE32             : EncDec
-    BE64             : EncDec
-    LE16             : EncDec
-    LE32             : EncDec
-    LE64             : EncDec
-    testABunchOfNats : ∀ _. _ ->{IO} [Result]
-    testNat          : Nat -> '{IO, Stream Result} ()
-    testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
+  Done.
 
 scratch/main> io.test testABunchOfNats
 

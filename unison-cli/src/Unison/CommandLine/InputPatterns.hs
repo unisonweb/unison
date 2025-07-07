@@ -1,7 +1,6 @@
 -- | This module defines 'InputPattern' values for every supported input command.
 module Unison.CommandLine.InputPatterns
   ( -- * Input commands
-    add,
     aliasMany,
     aliasTerm,
     aliasType,
@@ -77,14 +76,9 @@ module Unison.CommandLine.InputPatterns
     mergeCommitInputPattern,
     mergeIOBuiltins,
     mergeInputPattern,
-    mergeOldInputPattern,
-    mergeOldPreviewInputPattern,
-    mergeOldSquashInputPattern,
     moveAll,
     names,
     namespaceDependencies,
-    previewAdd,
-    previewUpdate,
     printVersion,
     projectCreate,
     projectCreateEmptyInputPattern,
@@ -121,8 +115,6 @@ module Unison.CommandLine.InputPatterns
     up,
     update,
     updateBuiltins,
-    updateOld,
-    updateOldNoPatch,
     upgrade,
     upgradeCommitInputPattern,
     view,
@@ -155,7 +147,6 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Network.URI qualified as URI
@@ -181,7 +172,6 @@ import Unison.Cli.Pretty
   )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch.Merge qualified as Branch
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
@@ -863,37 +853,11 @@ clear =
     . const
     $ pure Input.ClearI
 
-add :: InputPattern
-add =
-  InputPattern
-    "add"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`add` adds to the codebase all the definitions from the most recently "
-        <> "typechecked file."
-    )
-    $ fmap (Input.AddI . Set.fromList) . traverse handleNameArg
-
-previewAdd :: InputPattern
-previewAdd =
-  InputPattern
-    "add.preview"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`add.preview` previews additions to the codebase from the most recently "
-        <> "typechecked file. This command only displays cached typechecking "
-        <> "results. Use `load` to reparse & typecheck the file if the context "
-        <> "has changed."
-    )
-    $ fmap (Input.PreviewAddI . Set.fromList) . traverse handleNameArg
-
 update :: InputPattern
 update =
   InputPattern
     { patternName = "update",
-      aliases = [],
+      aliases = ["add"],
       visibility = I.Visible,
       params = noParams,
       help =
@@ -904,85 +868,6 @@ update =
             <> "for your review.",
       parse = const $ pure Input.Update2I
     }
-
-updateOldNoPatch :: InputPattern
-updateOldNoPatch =
-  InputPattern
-    "update.old.nopatch"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( P.wrap
-        ( makeExample' updateOldNoPatch
-            <> "works like"
-            <> P.group (makeExample' updateOld <> ",")
-            <> "except it doesn't add a patch entry for any updates. "
-            <> "Use this when you want to make changes to definitions without "
-            <> "pushing those changes to dependents beyond your codebase. "
-            <> "An example is when updating docs, or when updating a term you "
-            <> "just added."
-        )
-        <> P.wrapColumn2
-          [ ( makeExample' updateOldNoPatch,
-              "updates all definitions in the .u file."
-            ),
-            ( makeExample updateOldNoPatch ["foo", "bar"],
-              "updates `foo`, `bar`, and their dependents from the .u file."
-            )
-          ]
-    )
-    $ fmap (Input.UpdateI Input.NoPatch . Set.fromList) . traverse handleNameArg
-
-updateOld :: InputPattern
-updateOld =
-  InputPattern
-    "update.old"
-    []
-    I.Visible
-    (Parameters [] . Optional [("patch", patchArg)] $ Just ("definition", exactDefinitionArg))
-    ( P.wrap
-        ( makeExample' updateOld
-            <> "works like"
-            <> P.group (makeExample' add <> ",")
-            <> "except that if a definition in the file has the same name as an"
-            <> "existing definition, the name gets updated to point to the new"
-            <> "definition. If the old definition has any dependents, `update` will"
-            <> "add those dependents to a refactoring session, specified by an"
-            <> "optional patch."
-        )
-        <> P.wrapColumn2
-          [ ( makeExample' updateOld,
-              "adds all definitions in the .u file, noting replacements in the"
-                <> "default patch for the current namespace."
-            ),
-            ( makeExample updateOld ["<patch>"],
-              "adds all definitions in the .u file, noting replacements in the"
-                <> "specified patch."
-            ),
-            ( makeExample updateOld ["<patch>", "foo", "bar"],
-              "adds `foo`, `bar`, and their dependents from the .u file, noting"
-                <> "any replacements into the specified patch."
-            )
-          ]
-    )
-    \case
-      patchStr : ws ->
-        Input.UpdateI . Input.UsePatch <$> handleSplit'Arg patchStr <*> fmap Set.fromList (traverse handleNameArg ws)
-      [] -> Right $ Input.UpdateI Input.DefaultPatch mempty
-
-previewUpdate :: InputPattern
-previewUpdate =
-  InputPattern
-    "update.old.preview"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`update.old.preview` previews updates to the codebase from the most "
-        <> "recently typechecked file. This command only displays cached "
-        <> "typechecking results. Use `load` to reparse & typecheck the file if "
-        <> "the context has changed."
-    )
-    $ fmap (Input.PreviewUpdateI . Set.fromList) . traverse handleNameArg
 
 view :: InputPattern
 view =
@@ -1306,10 +1191,27 @@ findShallow =
     I.Visible
     (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces at the current level of the current namespace."),
-          ("`list foo`", "lists the 'foo' namespace."),
-          ("`list .foo`", "lists the '.foo' namespace.")
+        [ (makeExample findShallow [], "lists definitions and namespaces in the current namespace."),
+          (makeExample findShallow ["foo"], "lists the 'foo' namespace."),
+          (makeExample findShallow [".foo"], "lists the '.foo' namespace.")
         ]
+    )
+    ( fmap Input.FindShallowI . \case
+        [] -> pure Path.Current'
+        path : _ -> handlePath'Arg path
+    )
+
+findFuzzy :: InputPattern
+findFuzzy =
+  InputPattern
+    "list-fuzzy"
+    ["lsf"]
+    I.Visible
+    (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
+    ( P.wrapColumn2
+        [(makeExample' findFuzzy, "lists definitions and namespaces in a namespace you select (requires fzf).")]
+        <> P.newline
+        <> P.wrap ("If you pass arguments to" <> makeExample' findFuzzy <> "it will behave the same as as" <> makeExample' findShallow)
     )
     ( fmap Input.FindShallowI . \case
         [] -> pure Path.Current'
@@ -1929,7 +1831,7 @@ debugFormat =
     "debug.format"
     []
     I.Hidden
-    (Parameters [] $ Optional [("source-file", filePathArg)] Nothing)
+    (Parameters [] $ Optional [("source file", filePathArg)] Nothing)
     ( P.lines
         [ P.wrap $ "This command can be used to test ucm's file formatter on the latest typechecked file.",
           makeExample' debugFormat
@@ -2130,7 +2032,7 @@ syncToFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg)] $
+        Parameters [("destination sync file", filePathArg)] $
           Optional [("branch", projectAndBranchNamesArg suggestionsConfig)] Nothing,
       help =
         ( P.wrapColumn2
@@ -2162,7 +2064,7 @@ syncFromFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
+        Parameters [("file to sync from", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
           Optional [] Nothing,
       help =
         ( P.wrapColumn2
@@ -2191,9 +2093,9 @@ syncFromCodebase =
       visibility = I.Visible,
       params =
         Parameters
-          [ ("codebase-location", filePathArg),
-            ("branch-to-sync", projectAndBranchNamesArg suggestionsConfig),
-            ("destination-branch", projectAndBranchNamesArg suggestionsConfig)
+          [ ("codebase location", directoryPathArg),
+            ("branch to sync", projectAndBranchNamesArg suggestionsConfig),
+            ("destination branch", projectAndBranchNamesArg suggestionsConfig)
           ]
           $ Optional [] Nothing,
       help =
@@ -2211,91 +2113,6 @@ syncFromCodebase =
     suggestionsConfig =
       ProjectBranchSuggestionsConfig
         { showProjectCompletions = True,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldSquashInputPattern :: InputPattern
-mergeOldSquashInputPattern =
-  InputPattern
-    { patternName = "merge.old.squash",
-      aliases = ["squash.old"],
-      visibility = I.Hidden,
-      params =
-        Parameters
-          [ ("namespace or branch to be squashed", namespaceOrProjectBranchArg suggestionsConfig),
-            ("merge destination", namespaceOrProjectBranchArg suggestionsConfig)
-          ]
-          $ Optional [] Nothing,
-      help =
-        P.wrap $
-          makeExample mergeOldSquashInputPattern ["src", "dest"]
-            <> "merges `src` namespace or branch into the `dest` namespace or branch,"
-            <> "discarding the history of `src` in the process."
-            <> "The resulting `dest` will have (at most) 1"
-            <> "additional history entry.",
-      parse = \case
-        [src] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> pure Nothing
-            <*> pure Branch.SquashMerge
-        [src, dest] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> (Just <$> handleBranchRelativePathArg dest)
-            <*> pure Branch.SquashMerge
-        args -> wrongArgsLength "exactly two arguments" args
-    }
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldInputPattern :: InputPattern
-mergeOldInputPattern =
-  InputPattern
-    "merge.old"
-    []
-    I.Hidden
-    ( Parameters [("branch or namespace to merge", namespaceOrProjectBranchArg config)] $
-        Optional [("merge destination", namespaceOrProjectBranchArg config)] Nothing
-    )
-    ( P.column2
-        [ ( makeExample mergeOldInputPattern ["foo/bar", "baz/qux"],
-            "merges the `foo/bar` branch into the `baz/qux` branch"
-          ),
-          ( makeExample mergeOldInputPattern ["/topic", "/main"],
-            "merges the branch `topic` of the current project into the `main` branch of the current project"
-          ),
-          ( makeExample mergeOldInputPattern ["foo/topic", "/main"],
-            "merges the branch `topic` of the project `foo` into the `main` branch of the current project"
-          ),
-          ( makeExample mergeOldInputPattern ["/topic", "foo/main"],
-            "merges the branch `topic` of the current project into the `main` branch of the project 'foo`"
-          )
-        ]
-    )
-    ( \case
-        [src] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> pure Nothing
-            <*> pure Branch.RegularMerge
-        [src, dest] ->
-          Input.MergeLocalBranchI
-            <$> handleBranchRelativePathArg src
-            <*> (Just <$> handleBranchRelativePathArg dest)
-            <*> pure Branch.RegularMerge
-        args -> wrongArgsLength "one or two arguments" args
-    )
-  where
-    config =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
           projectInclusion = AllProjects,
           branchInclusion = AllBranches
         }
@@ -2386,37 +2203,6 @@ diffNamespace =
     \case
       [before, after] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> handleBranchId2Arg after
       [before] -> Input.DiffNamespaceI <$> handleBranchId2Arg before <*> pure (Right . UnqualifiedPath $ Path.Current')
-      args -> wrongArgsLength "one or two arguments" args
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = False,
-          projectInclusion = AllProjects,
-          branchInclusion = AllBranches
-        }
-
-mergeOldPreviewInputPattern :: InputPattern
-mergeOldPreviewInputPattern =
-  InputPattern
-    "merge.old.preview"
-    []
-    I.Hidden
-    ( Parameters [("branch or namespace to merge", namespaceOrProjectBranchArg suggestionsConfig)] $
-        Optional [("merge destination", namespaceOrProjectBranchArg suggestionsConfig)] Nothing
-    )
-    ( P.column2
-        [ ( makeExample mergeOldPreviewInputPattern ["src"],
-            "shows how the current namespace will change after a " <> makeExample mergeOldInputPattern ["src"]
-          ),
-          ( makeExample mergeOldPreviewInputPattern ["src", "dest"],
-            "shows how `dest` namespace will change after a " <> makeExample mergeOldInputPattern ["src", "dest"]
-          )
-        ]
-    )
-    \case
-      [src] -> Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> pure Nothing
-      [src, dest] ->
-        Input.PreviewMergeLocalBranchI <$> handleBranchRelativePathArg src <*> (Just <$> handleBranchRelativePathArg dest)
       args -> wrongArgsLength "one or two arguments" args
   where
     suggestionsConfig =
@@ -2544,13 +2330,14 @@ editNamespace =
     { patternName = "edit.namespace",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [] . Optional [] $ Just ("namespace to load definitions from", namespaceArg),
+      params = Parameters [] $ OnePlus ("namespace to load definitions from", namespaceArg),
       help =
         P.lines
-          [ "`edit.namespace` will load all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
+          [ "`edit.namespace` loads all terms and types contained within the namespace you select into your scratch file. This includes definitions in namespaces, but excludes libraries (requires fzf).",
+            "`edit.namespace .` loads all terms and types contained within the current namespace into your scratch file. This includes definitions in namespaces, but excludes libraries.",
             "`edit.namespace ns1 ns2 ...` loads the terms and types contained within the provided namespaces."
           ],
-      parse = fmap Input.EditNamespaceI . traverse handlePathArg
+      parse = fmap Input.EditNamespaceI . traverse handlePath'Arg
     }
 
 newBranchNameArg :: ParameterType
@@ -2618,21 +2405,20 @@ helpTopicsMap =
           "",
           P.wrapColumn2
             [ ( P.bold $ SR.prettyStatus SR.Collision,
-                "A definition with the same name as an existing definition. Doing"
-                  <> "`update` instead of `add` will turn this failure into a successful"
-                  <> "update."
+                "A definition with the same name as an existing definition."
+                  <> "Rename or delete the existing definition and then try again."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
                 "A definition with the same name as an existing constructor for "
                   <> "some data type. Rename your definition or the data type before"
-                  <> "trying again to `add` or `update`."
+                  <> "trying again to `update`."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.ConstructorExistingTermCollision,
                 "A type defined in the file has a constructor that's named the"
                   <> "same as an existing term. Rename that term or your constructor"
-                  <> "before trying again to `add` or `update`."
+                  <> "before trying again to `update`."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.BlockedDependency,
@@ -3097,7 +2883,7 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    (Parameters [("namespace", branchRelativePathArg), ("output directory", filePathArg)] $ Optional [] Nothing)
+    (Parameters [("namespace", branchRelativePathArg), ("output directory", directoryPathArg)] $ Optional [] Nothing)
     ( P.wrapColumn2
         [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
             "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
@@ -3547,6 +3333,32 @@ branchRenameInputPattern =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+squashProjectBranch :: InputPattern
+squashProjectBranch =
+  InputPattern
+    { patternName = "branch.squash",
+      aliases = ["squash.branch"],
+      visibility = I.Visible,
+      params = Parameters [("branch-to-squash", projectBranchNameArg suggestionsConfig), ("destination-branch", newBranchNameArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ("`branch.squash /foo /bar`", "creates (or updates) the branch `/bar` with a snapshot of the code at branch `/foo` without any of its history.")
+          ],
+      parse = \case
+        [branchToSquash, newNameString] ->
+          Input.BranchSquashI
+            <$> handleMaybeProjectBranchArg branchToSquash
+            <*> handleMaybeProjectBranchArg newNameString
+        args -> wrongArgsLength "two arguments" args
+    }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = OnlyWithinCurrentProject,
+          branchInclusion = AllBranches
+        }
+
 clone :: InputPattern
 clone =
   InputPattern
@@ -3686,8 +3498,7 @@ validInputs :: [InputPattern]
 validInputs =
   sortOn
     I.patternName
-    [ add,
-      aliasMany,
+    [ aliasMany,
       aliasTerm,
       aliasType,
       api,
@@ -3747,6 +3558,7 @@ validInputs =
       findIn,
       findAll,
       findInAll,
+      findFuzzy,
       findGlobal,
       findShallow,
       findVerbose,
@@ -3768,16 +3580,11 @@ validInputs =
       makeStandalone,
       mergeBuiltins,
       mergeIOBuiltins,
-      mergeOldInputPattern,
-      mergeOldPreviewInputPattern,
-      mergeOldSquashInputPattern,
       mergeInputPattern,
       mergeCommitInputPattern,
       names False, -- names
       names True, -- debug.names.global
       namespaceDependencies,
-      previewAdd,
-      previewUpdate,
       printVersion,
       projectCreate,
       projectCreateEmptyInputPattern,
@@ -3790,6 +3597,7 @@ validInputs =
       pushCreate,
       pushExhaustive,
       pushForce,
+      squashProjectBranch,
       syncToFile,
       syncFromFile,
       syncFromCodebase,
@@ -3812,8 +3620,6 @@ validInputs =
       up,
       update,
       updateBuiltins,
-      updateOld,
-      updateOldNoPatch,
       upgrade,
       upgradeCommitInputPattern,
       view,
@@ -3883,15 +3689,6 @@ exactDefinitionTermQueryArg =
     { typeName = "term definition query",
       suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompleteTerm q p),
       fzfResolver = Just Resolvers.termDefinitionResolver,
-      isStructured = True
-    }
-
-patchArg :: ParameterType
-patchArg =
-  ParameterType
-    { typeName = "patch",
-      suggestions = \q cb _http p -> Codebase.runTransaction cb (prefixCompletePatch q p),
-      fzfResolver = Nothing,
       isStructured = True
     }
 
@@ -3966,7 +3763,16 @@ filePathArg :: ParameterType
 filePathArg =
   ParameterType
     { typeName = "file-path",
-      suggestions = noCompletions,
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Just I.DefaultFZFFileSearch,
+      isStructured = False
+    }
+
+directoryPathArg :: ParameterType
+directoryPathArg =
+  ParameterType
+    { typeName = "directory-path",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
       fzfResolver = Nothing,
       isStructured = False
     }

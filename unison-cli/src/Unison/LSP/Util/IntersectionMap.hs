@@ -59,7 +59,7 @@ instance (Ord pos) => Monoid (IntersectionMap pos a) where
   mempty = IntersectionMap mempty
 
 -- | Class for types that can be used as ranges for intersection maps.
-class Ord pos => IntersectionRange pos where
+class (Ord pos) => IntersectionRange pos where
   intersects :: pos -> (pos, pos) -> Bool
 
   -- Returns true if the first bound is tighter than the second.
@@ -69,10 +69,10 @@ instance IntersectionRange LSP.Position where
   intersects (LSP.Position l c) ((LSP.Position lStart cStart), (LSP.Position lEnd cEnd)) =
     (l >= lStart && l <= lEnd)
       && if
-          | l == lStart && l == lEnd -> c >= cStart && c <= cEnd
-          | l == lStart -> c >= cStart
-          | l == lEnd -> c <= cEnd
-          | otherwise -> True
+        | l == lStart && l == lEnd -> c >= cStart && c <= cEnd
+        | l == lStart -> c >= cStart
+        | l == lEnd -> c <= cEnd
+        | otherwise -> True
 
   ((LSP.Position lStartA cStartA), (LSP.Position lEndA cEndA)) `isTighterThan` ((LSP.Position lStartB cStartB), (LSP.Position lEndB cEndB)) =
     if lStartA == lStartB && lEndA == lEndB
@@ -97,7 +97,7 @@ intersectionsSingleton range a = IntersectionMap $ Map.singleton range a
 -- Just ((Position {_line = 4, _character = 1},Position {_line = 6, _character = 1}),"c")
 -- >>> smallestIntersection (LSP.Position 5 3) (intersectionsFromList [((LSP.Position 1 1, LSP.Position 3 1), "a"), ((LSP.Position 4 2, LSP.Position 6 5), "b"), ((LSP.Position 4 1, LSP.Position 6 6), "c"), ((LSP.Position 7 1, LSP.Position 9 1), "d")])
 -- Just ((Position {_line = 4, _character = 2},Position {_line = 6, _character = 5}),"b")
-smallestIntersection :: IntersectionRange pos => pos -> IntersectionMap pos a -> Maybe ((pos, pos), a)
+smallestIntersection :: (IntersectionRange pos) => pos -> IntersectionMap pos a -> Maybe ((pos, pos), a)
 smallestIntersection p (IntersectionMap bounds) =
   bounds
     & Map.filterWithKey (\b _ -> p `intersects` b)

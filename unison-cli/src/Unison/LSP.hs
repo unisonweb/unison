@@ -40,6 +40,7 @@ import Unison.LSP.Configuration qualified as Config
 import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import Unison.LSP.Formatting (formatDocRequest, formatRangeRequest)
+import Unison.LSP.GoToDefinition (goToDeclarationHandler, goToDefinitionHandler, goToImplementationHandler)
 import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
@@ -94,7 +95,7 @@ spawnLsp lspFormattingConfig codebase runtime signal =
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-              Text.hPutStrLn UnliftIO.stderr $ "Note: Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              Text.hPutStrLn UnliftIO.stderr $ "⚠️  Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
           Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
     -- Where to send logs that occur before a client connects
@@ -181,6 +182,9 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentFoldingRange (mkHandler foldingRangeRequest)
     & SMM.insert Msg.SMethod_TextDocumentCompletion (mkHandler completionHandler)
     & SMM.insert Msg.SMethod_CompletionItemResolve (mkHandler completionItemResolveHandler)
+    & SMM.insert Msg.SMethod_TextDocumentDeclaration (mkHandler goToDeclarationHandler)
+    & SMM.insert Msg.SMethod_TextDocumentDefinition (mkHandler goToDefinitionHandler)
+    & SMM.insert Msg.SMethod_TextDocumentImplementation (mkHandler goToImplementationHandler)
     & addFormattingHandlers
   where
     addFormattingHandlers handlers =

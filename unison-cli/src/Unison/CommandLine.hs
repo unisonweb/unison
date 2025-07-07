@@ -20,7 +20,6 @@ import Data.List (isPrefixOf, isSuffixOf)
 import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
 import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Numeral (defaultInflection)
@@ -41,6 +40,7 @@ import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyTerminal qualified as PrettyTerm
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
 import Prelude hiding (readFile, writeFile)
@@ -166,18 +166,31 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns segments =
 
   case segments of
     [] -> throwE NoCommand
-    command : args -> case Map.lookup command patterns of
-      Just pat@(InputPattern {params, parse}) -> do
-        (expandedArgs, remainingParams) <-
-          except . first (ExpansionFailure command pat) $ expandArguments numberedArgs params args
-        lift (fzfResolve codebase projPath getCurrentBranch0 remainingParams)
-          >>= either
-            (throwE . FZFResolveFailure pat)
-            ( traverse \resolvedArgs ->
-                let allArgs = expandedArgs <> resolvedArgs
-                 in except . bimap (SubParseFailure command pat) (Left command : allArgs,) $ parse allArgs
-            )
-      Nothing -> throwE $ UnknownCommand command
+    command : args -> do
+      pat@(InputPattern {params, parse}) <- case Map.lookup command patterns of
+        Just pat -> pure pat
+        Nothing -> throwE $ UnknownCommand command
+      let mkResult finalArgs = except . bimap (SubParseFailure command pat) (Left command : finalArgs,) $ parse finalArgs
+      (expandedArgs, remainingParams) <-
+        except . first (ExpansionFailure command pat) $ expandArguments numberedArgs params args
+
+      if Fuzzy.isFZFInstalled
+        then do
+          argResult <- lift (fzfResolve codebase projPath getCurrentBranch0 remainingParams)
+          case argResult of
+            -- If there are no completion options, indicate that with an error.
+            Left err@(NoFZFOptions {}) -> throwError $ FZFResolveFailure pat err
+            -- If there's no resolver, just parse the args we have.
+            Left (NoFZFResolverForArgumentType {}) ->
+              Just <$> mkResult expandedArgs
+            Right mayResolvedArgs -> case mayResolvedArgs of
+              -- If fzf was cancelled, indicate that
+              Nothing -> pure $ Nothing
+              -- otherwise, parse the args we resolved
+              Just resolvedArgs -> Just <$> mkResult (expandedArgs <> resolvedArgs)
+        else do
+          -- fzf isn't installed, just try to parse the args we have and probably get an error from the parser
+          Just <$> mkResult expandedArgs
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: NumberedArgs -> String -> Maybe NumberedArgs
@@ -226,12 +239,19 @@ fzfResolve codebase ppCtx getCurrentBranch InputPattern.Parameters {requiredPara
         fzfResolver
     fuzzyFillArg ::
       Bool -> Text -> InputPattern.FZFResolver -> MaybeT (ExceptT FZFResolveFailure IO) (NonEmpty InputPattern.Argument)
-    fuzzyFillArg allowMulti argDesc InputPattern.FZFResolver {getOptions} = MaybeT do
+    fuzzyFillArg allowMulti argDesc fzfResolver = MaybeT do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
-      options <- liftIO $ getOptions codebase ppCtx currentBranch
-      when (null options) . throwError $ NoFZFOptions argDesc
-      liftIO $ Text.putStrLn (FZFResolvers.fuzzySelectHeader argDesc)
-      results <- liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} id options)
+      results <- case fzfResolver of
+        InputPattern.FetchOptions getOptions -> do
+          options <- liftIO $ getOptions codebase ppCtx currentBranch
+          when (null options) . throwError $ NoFZFOptions argDesc
+          liftIO $ PrettyTerm.putPrettyLn' (FZFResolvers.fuzzySelectHeader argDesc)
+          let selections = Fuzzy.SelectFromChoices id options
+          liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} selections)
+        InputPattern.DefaultFZFFileSearch -> do
+          liftIO $ PrettyTerm.putPrettyLn' (FZFResolvers.fuzzySelectHeader argDesc)
+          let selections = Fuzzy.SelectFiles
+          liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} selections)
       -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing
       -- execution with no arguments.
       pure $ fmap (Left . Text.unpack <$>) . nonEmpty =<< results

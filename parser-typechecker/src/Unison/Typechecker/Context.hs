@@ -11,6 +11,7 @@ module Unison.Typechecker.Context
     InfoNote (..),
     Cause (..),
     Context (..),
+    Warn (..),
     ActualArgCount,
     ExpectedArgCount,
     ConstructorId,
@@ -198,6 +199,9 @@ instance MonadFix (Result v loc) where
 btw' :: InfoNote v loc -> Result v loc ()
 btw' note = Success (Seq.singleton note) ()
 
+warn' :: Warn v loc -> Result v loc ()
+warn' w = Success (Seq.singleton $ Warning w) ()
+
 typeError :: Cause v loc -> Result v loc a
 typeError cause = TypeError (pure $ ErrorNote cause mempty) mempty
 
@@ -244,6 +248,8 @@ newtype MT v loc f a = MT
       DataDeclarations v loc ->
       -- Effect declarations in scope
       EffectDeclarations v loc ->
+      -- Stack of definitions being checked
+      [v] ->
       Env v loc ->
       f (a, Env v loc)
   }
@@ -257,19 +263,20 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\_ _ _ _ env -> (,env) <$> r)
+liftResult r = MT (\_ _ _ _ _ env -> (,env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \ppe pmcSwitch datas effects env -> case m ppe pmcSwitch datas effects env of
-  Left bug -> CompilerBug bug mempty mempty
-  Right a -> Success mempty a
+liftTotalM (MT m) = MT $ \ppe pmcSwitch datas effects defs env ->
+  case m ppe pmcSwitch datas effects defs env of
+    Left bug -> CompilerBug bug mempty mempty
+    Right a -> Success mempty a
 
 -- Allows modifying the stored notes in a scoped way.
 -- This is based on the `pass` function in e.g. Control.Monad.Writer
 adjustNotes ::
   M v loc (a, InfoNote v loc -> InfoNote v loc) -> M v loc a
-adjustNotes (MT m) = MT $ \ppe pmcSwitch datas effects env ->
-  adjustResultNotes (twiddle <$> m ppe pmcSwitch datas effects env)
+adjustNotes (MT m) = MT $ \ppe pmcSwitch datas effects defs env ->
+  adjustResultNotes (twiddle <$> m ppe pmcSwitch datas effects defs env)
   where
     twiddle ((a, c), b) = ((a, b), c)
 
@@ -279,11 +286,14 @@ adjustNotes (MT m) = MT $ \ppe pmcSwitch datas effects env ->
 btw :: InfoNote v loc -> M v loc ()
 btw = liftResult . btw'
 
+warn :: Warn v loc -> M v loc ()
+warn = liftResult . warn'
+
 modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\_ _ _ _ env -> pure . f $ env)
+modEnv' f = MT (\_ _ _ _ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving (Show)
 
@@ -329,7 +339,12 @@ type ExpectedArgCount = Int
 
 type ActualArgCount = Int
 
-data SuggestionMatch = Exact | WrongType | WrongName
+data SuggestionMatch
+  = Exact
+  | RightNameWrongType
+  | WrongNameRightType
+  | SimilarNameRightType
+  | SimilarNameWrongType
   deriving (Ord, Eq, Show)
 
 data Suggestion v loc = Suggestion
@@ -360,6 +375,7 @@ data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
   | Decision v loc (Term.Term v loc)
   | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
+  | Warning (Warn v loc)
   | -- The inferred type of a let or argument binding, and the scope of that binding as a loc.
     -- Note that if interpreting the type of a 'v' at a given usage site, it is the caller's
     -- job to use the binding with the smallest containing scope so as to respect variable
@@ -438,6 +454,10 @@ removeSyntheticTypeVars typ =
         pick [] = error "impossible"
         defaultName = "x"
 
+data Warn v loc
+  = AbilityConcreteSubset [Type v loc] [Type v loc] (Term v loc) (Context v loc)
+  deriving (Show)
+
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
@@ -482,7 +502,7 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT \ppe pmcSwitch datas effects env -> mapErrors (scope' p) (m ppe pmcSwitch datas effects env)
+scope p (MT m) = MT \ppe pmcSwitch datas effects defs env -> mapErrors (scope' p) (m ppe pmcSwitch datas effects defs env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -825,7 +845,9 @@ extendN ctx es = foldM (flip extend) ctx es
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go
   where
-    go ppe pmcSwitch datas effects env = runM m1 ppe pmcSwitch datas effects env <|> runM m2 ppe pmcSwitch datas effects env
+    go ppe pmcSwitch datas effects defs env =
+      runM m1 ppe pmcSwitch datas effects defs env
+        <|> runM m2 ppe pmcSwitch datas effects defs env
     s@(Success _ _) <|> _ = s
     TypeError _ _ <|> r = r
     CompilerBug _ _ _ <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -839,16 +861,23 @@ orElse m1 m2 = MT go
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
 getPrettyPrintEnv :: M v loc PrettyPrintEnv
-getPrettyPrintEnv = MT \ppe _ _ _ env -> pure (ppe, env)
+getPrettyPrintEnv = MT \ppe _ _ _ _ env -> pure (ppe, env)
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = MT \_ _ datas _ env -> pure (datas, env)
+getDataDeclarations = MT \_ _ datas _ _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = MT \_ _ _ effects env -> pure (effects, env)
+getEffectDeclarations = MT \_ _ _ effects _ env -> pure (effects, env)
+
+getCurrentDefs :: M v loc [v]
+getCurrentDefs = MT \_ _ _ _ defs env -> pure (defs, env)
+
+insideDef :: v -> M v loc r -> M v loc r
+insideDef v (MT m) =
+  MT $ \ppe pmc datas effs defs env -> m ppe pmc datas effs (v : defs) env
 
 getPatternMatchCoverageCheckAndKindInferenceSwitch :: M v loc PatternMatchCoverageCheckAndKindInferenceSwitch
-getPatternMatchCoverageCheckAndKindInferenceSwitch = MT \_ pmcSwitch _ _ env -> pure (pmcSwitch, env)
+getPatternMatchCoverageCheckAndKindInferenceSwitch = MT \_ pmcSwitch _ _ _ env -> pure (pmcSwitch, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -1025,8 +1054,8 @@ synthesizeApp ::
   Type v loc ->
   (Term v loc, Int) ->
   M v loc (Type v loc, Wanted v loc)
-synthesizeApp _ ft arg
-  | debugEnabled && traceShow ("synthesizeApp" :: String, ft, arg) False =
+synthesizeApp tm ft arg
+  | debugEnabled && traceShow ("synthesizeApp" :: String, tm, ft, arg) False =
       undefined
 synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ do
@@ -1041,8 +1070,16 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
       synthesizeApp fun ft2 argp
     go (Type.Arrow' i o0) = do
       -- ->App
+      defs <- getCurrentDefs
       let (es, o) = Type.stripEffect o0
-      (o,) <$> checkWantedScoped ((Just fun,) <$> es) arg i
+          -- If we're type checking a recursive call to a definition
+          -- currently being checked, require that the concrete
+          -- abilities are not a subset for arguments, to try to rule
+          -- out quadratic handler behavior
+          exact
+            | Term.Apps' (Term.Var' f) _ <- fun = any (== f) defs
+            | otherwise = False
+      (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg i
     go (Type.Var' (TypeVar.Existential b a)) = do
       -- a^App
       [i, e, o] <- traverse freshenVar [Var.named "i", Var.inferAbility, Var.named "o"]
@@ -1267,7 +1304,7 @@ synthesizeWanted (Term.Handle' h body) = do
     -- `Remote` into ambient when checking `body`
     Type.Arrow' (Type.Apps' (Type.Ref' ref) [et, i]) o | ref == Type.effectRef -> do
       let es = Type.flattenEffects et
-      bwant <- withEffects es $ checkWanted [] body i
+      bwant <- withEffects es $ checkWanted Nothing [] body i
       o <- applyM o
       let (oes, o') = Type.stripEffect o
       want <- coalesceWanted (fmap (Just h,) oes ++ bwant) hwant
@@ -1285,7 +1322,7 @@ synthesizeWanted (Term.Handle' h body) = do
       subtype i e0
       o <- applyM o
       let (oes, o') = Type.stripEffect o
-      want <- checkWanted (fmap (Just h,) oes) body rt
+      want <- checkWanted Nothing (fmap (Just h,) oes) body rt
       pure (o', want)
     _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
 synthesizeWanted (Term.Ann' e t) = checkScoped e t
@@ -1350,8 +1387,8 @@ synthesizeWanted e
         subtype it (DDB.thunkArgType l)
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var () arg)
       if Term.isLam body'
-        then checkWithAbilities [] body' ot
-        else checkWithAbilities [et] body' ot
+        then checkWithAbilities Nothing [] body' ot
+        else checkWithAbilities Nothing [et] body' ot
       ctx <- getContext
       let t = apply ctx $ Type.arrow l it (Type.effect l [et] ot)
 
@@ -1646,10 +1683,10 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
         guard' = subst <$> mayGuard
     gwant <- for guard' $ \g ->
       scope InMatchGuard $
-        checkWantedScoped [] g (Type.boolean (loc g))
+        checkWantedScoped False [] g (Type.boolean (loc g))
     outputType <- applyM outputType
     scope InMatchBody $
-      checkWantedScoped (fromMaybe [] gwant) rhs' outputType
+      checkWantedScoped False (fromMaybe [] gwant) rhs' outputType
 
 -- For example:
 --   match scrute with
@@ -1915,7 +1952,7 @@ annotateLetRecBindings isTop letrec =
           -- is unclear and chaos ensues
           -- ensure actions in blocks have type ()
           when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
-          checkScopedWith b t []
+          insideDef v $ checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes, vlocs)
       -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
@@ -2175,7 +2212,7 @@ checkScopedWith ::
   Term v loc ->
   Type v loc ->
   [Type v loc] ->
-  M v loc ()
+  M v loc Bool
 checkScopedWith tm ty ab = do
   (_, want) <- checkScoped tm ty
   subAbilities want ab
@@ -2431,40 +2468,83 @@ relax' nonArrow v t
     loc = ABT.annotation t
     tv = Type.var loc (TypeVar.Existential B.Blank v)
 
+-- Adds a mark to the checker context before calling `checkWanted`.
+-- The boolean argument is for exact ability match cases explained in
+-- the documentation for `checkWanted`.
 checkWantedScoped ::
   (Var v, Semigroup loc) =>
   (Ord loc) =>
+  Bool ->
   Wanted v loc ->
   Term v loc ->
   Type v loc ->
   M v loc (Wanted v loc)
-checkWantedScoped want m ty =
-  scope (InCheck m ty) $ checkWanted want m ty
+checkWantedScoped exact want m ty =
+  scope (InCheck m ty) $ checkWanted mexact want m ty
+  where
+    mexact | exact = Just m | otherwise = Nothing
 
+-- Checks if the term has the given type. Accumulates a wanted
+-- abilities set, both accepting an incoming set and producing an
+-- updated set.
+--
+-- The Maybe argument determines whether an exact ability match is
+-- required for function maches. This is to check for suspicious
+-- ability handler situations like:
+--
+--   foo : '{X, Y} r -> r
+--   foo t = handle handlerX t with cases
+--     { Y -> k } -> foo k
+--
+-- this has bad performance because it installs an additional
+-- `handlerX` every time a Y effect happens, so stack capture ends up
+-- having linear cost in the number of Y effects. The idea is to
+-- detect this case by `k` having a subset of the abilities in the
+-- type of `foo`.
+--
+-- If the Maybe is a Just, the suspicious condition emits a warning,
+-- with the given term as the problem location.
 checkWanted ::
   (Var v, Semigroup loc) =>
   (Ord loc) =>
+  Maybe (Term v loc) ->
   Wanted v loc ->
   Term v loc ->
   Type v loc ->
   M v loc (Wanted v loc)
 -- ForallI
-checkWanted want m (Type.Forall' body) = do
+checkWanted exact want m (Type.Forall' body) = do
   v <- ABT.freshen body freshenTypeVar
   markThenRetractWanted v $ do
     x <- extendUniversal v
-    checkWanted want m $
+    checkWanted exact want m $
       ABT.bindInheritAnnotation body (universal' () x)
 -- =>I
 -- Lambdas are pure, so they add nothing to the wanted set
-checkWanted want (Term.Lam' boundVarAnn body) (Type.Arrow'' i es o) = do
+checkWanted exact want (Term.Lam' boundVarAnn body) (Type.Arrow'' i es o) = do
   x <- ABT.freshen body freshenVar
   markThenRetract0 x $ do
     extendContext (Ann x boundVarAnn i)
     body <- pure $ ABT.bindInheritAnnotation body (Term.var () x)
-    checkWithAbilities es body o
+    checkWithAbilities exact es body o
   pure want
-checkWanted want (Term.Let1Top' top binding boundVarAnn m) t = do
+checkWanted exact want tm@(Term.Var' _) ty@(Type.Arrow'' i es o) =
+  synthesize tm >>= \case
+    -- special case to detect quadratic abilities
+    (Type.Arrow'' j fs p, wnew) -> do
+      ctx <- getContext
+      subtype (apply ctx i) (apply ctx j)
+      ctx <- getContext
+      sub <- subAbilities ((Nothing,) . apply ctx <$> fs) (apply ctx <$> es)
+      ctx <- getContext
+      subtype (apply ctx p) (apply ctx o)
+      exactAbilitiesWarning fs es exact sub
+      coalesceWanted wnew want
+    (u, wnew) -> do
+      ctx <- getContext
+      subtype (apply ctx u) (apply ctx ty)
+      coalesceWanted wnew want
+checkWanted exact want (Term.Let1Top' top binding boundVarAnn m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
@@ -2473,15 +2553,15 @@ checkWanted want (Term.Let1Top' top binding boundVarAnn m) t = do
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v boundVarAnn tbinding)
-    checkWanted want (ABT.bindInheritAnnotation m (Term.var () v)) t
-checkWanted want (Term.LetRecNamed' [] m) t =
-  checkWanted want m t
+    checkWanted exact want (ABT.bindInheritAnnotation m (Term.var () v)) t
+checkWanted exact want (Term.LetRecNamed' [] m) t =
+  checkWanted exact want m t
 -- letrec can't have effects, so it doesn't extend the wanted set
-checkWanted want (Term.LetRecAnnotatedTop' isTop lr) t =
+checkWanted exact want (Term.LetRecAnnotatedTop' isTop lr) t =
   markThenRetractWanted (Var.named "let-rec-marker") $ do
     e <- annotateLetRecBindings isTop lr
-    checkWanted want e t
-checkWanted want e@(Term.Match' scrut cases) t = do
+    checkWanted exact want e t
+checkWanted _ want e@(Term.Match' scrut cases) t = do
   (scrutType, swant) <- synthesize scrut
   want <- coalesceWanted swant want
   cwant <- checkCases scrutType t cases
@@ -2494,7 +2574,7 @@ checkWanted want e@(Term.Match' scrut cases) t = do
     PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled ->
       pure ()
   pure want
-checkWanted want e t = do
+checkWanted _ want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
   subtype (apply ctx u) (apply ctx t)
@@ -2503,16 +2583,36 @@ checkWanted want e t = do
 -- | Check that under the current context:
 --     `m` has type `t` with abilities `es`,
 -- updating the context in the process.
+--
+-- The result specifies whether the wanted abilities are a proper
+-- subset of the specified available abilities.
 checkWithAbilities ::
   (Var v, Semigroup loc) =>
   (Ord loc) =>
+  Maybe (Term v loc) ->
   [Type v loc] ->
   Term v loc ->
   Type v loc ->
   M v loc ()
-checkWithAbilities es m t = do
+checkWithAbilities exact es m t = do
   want <- check m t
-  subAbilities want es
+  sub <- subAbilities want es
+  exactAbilitiesWarning (map snd want) es exact sub
+
+exactAbilitiesWarning ::
+  (Var v) =>
+  (Ord loc) =>
+  [Type v loc] ->
+  [Type v loc] ->
+  Maybe (Term v loc) ->
+  Bool ->
+  M v loc ()
+exactAbilitiesWarning want es (Just tm) True = do
+  want <- expandAbilities want
+  es <- expandAbilities es
+  cx <- getContext
+  warn $ AbilityConcreteSubset want es tm cx
+exactAbilitiesWarning _ _ _ _ = pure ()
 
 -- traverse_ defaultAbility es
 
@@ -2534,9 +2634,9 @@ check m0 t0 = scope (InCheck m0 t0) $ do
       | not (wellformedType ctx t0) ->
           failWith $ IllFormedType ctx
       | Type.Var' TypeVar.Existential {} <- t0 ->
-          applyM t0 >>= checkWanted [] m
+          applyM t0 >>= checkWanted Nothing [] m
       | otherwise ->
-          checkWanted [] m (Type.stripIntroOuters t0)
+          checkWanted Nothing [] m (Type.stripIntroOuters t0)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -2600,7 +2700,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           e <- extendExistential Var.inferAbility
           instantiateR (relax' False e t) b v
     go _ (Type.Effects' es1) (Type.Effects' es2) =
-      subAbilities ((,) Nothing <$> es1) es2
+      void $ subAbilities ((,) Nothing <$> es1) es2
     go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2
     go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
     go ctx _ _ = failWith $ TypeMismatch ctx
@@ -2947,22 +3047,51 @@ matchConcrete common acc (l : ls) rs
       matchConcrete (l : common) acc ls rs
   | otherwise = matchConcrete common (l : acc) ls rs
 
+-- Matches a concrete sequence of wanted abilities against a similar
+-- sequence of available abilities. Since abilities cannot occur in a
+-- set multiple times, every occurrence in the wanted and available
+-- abilities must unify, so we unify them here. This can cause variables
+-- in both the wanted and available abilities to become solved.
+--
+-- The result is the wanted abilities that do not occur directly in the
+-- available abilities.
 pruneConcrete ::
   (Var v) =>
   (Ord loc) =>
   (Maybe (Term v loc) -> Type v loc -> M v loc ()) ->
   Wanted v loc ->
-  Wanted v loc ->
   [Type v loc] ->
   M v loc (Wanted v loc)
-pruneConcrete _ acc [] _ = pure (reverse acc)
-pruneConcrete missing acc ((loc, w) : ws) have
-  | Just v <- find (headMatch w) have = do
-      subtype v w `orElse` missing loc w
-      ws <- expandWanted ws
-      have <- expandAbilities have
-      pruneConcrete missing acc ws have
-  | otherwise = pruneConcrete missing ((loc, w) : acc) ws have
+pruneConcrete missing = go []
+  where
+    go wacc [] _ = pure (reverse wacc)
+    go wacc ((loc, w) : ws) have
+      | Just v <- find (headMatch w) have = do
+          subtype v w `orElse` missing loc w
+          ws <- expandWanted ws
+          have <- expandAbilities have
+          go wacc ws have
+      | otherwise = go ((loc, w) : wacc) ws have
+
+-- Checks whether any of the abilities available in `have` are not
+-- necessary for a list of wanted abilities. If so, this may indicate
+-- that a handler will result in quadratic behavior.
+checkConcreteAbilitySubset ::
+  (Var v) =>
+  (Ord loc) =>
+  Wanted v loc ->
+  [Type v loc] ->
+  Bool
+checkConcreteAbilitySubset [] have = any (not . abstract) have
+  where
+    abstract (Type.Var' _) = True
+    abstract _ = False
+checkConcreteAbilitySubset ((_loc, w) : want) have =
+  checkConcreteAbilitySubset want have'
+  where
+    have'
+      | (hpre, _ : hpost) <- break (headMatch w) have = hpre ++ hpost
+      | otherwise = have
 
 matchVariables ::
   (Var v) =>
@@ -3000,22 +3129,27 @@ pruneAbilities ::
   (Ord loc) =>
   Wanted v loc ->
   [Type v loc] ->
-  M v loc (Wanted v loc)
+  M v loc (Bool, Wanted v loc)
 pruneAbilities want0 have0
   | debugShow ("pruneAbilities" :: Text, want0, have0) = undefined
 pruneAbilities want0 have0 = do
-  pwant <- pruneConcrete missing [] want0 have0
-  if pwant /= want0
-    then do
-      want <- expandWanted pwant
-      have <- expandAbilities have0
-      pruneAbilities want have
-    else -- fixed point
-
-      if dflt
-        then expandWanted =<< pruneVariables [] pwant
-        else pure pwant
+  pwant <- fixpoint want0 have0
+  want <- expandWanted want0
+  have <- expandAbilities have0
+  pure (checkConcreteAbilitySubset want have, pwant)
   where
+    fixpoint want have = do
+      pwant <- pruneConcrete missing want have
+      if pwant /= want
+        then do
+          want <- expandWanted pwant
+          have <- expandAbilities have
+          fixpoint want have
+        else
+          if dflt
+            then expandWanted =<< pruneVariables [] pwant
+            else pure pwant
+
     missing loc w = maybe id (scope . InSynthesize) loc $ do
       ctx <- getContext
       failWith $
@@ -3106,23 +3240,27 @@ equateAbilities ls rs =
           | otherwise = GT
         cn | common = [Var.inferAbility] | otherwise = []
 
+-- Does a subtyping check between the wanted abilities and the abilities
+-- we have available. The boolean result indicates whether the concrete
+-- wanted abilities were a _proper_ subset of the concrete abilities we
+-- have, which could be suspicious in some situations.
 subAbilities ::
   (Var v) =>
   (Ord loc) =>
   Wanted v loc ->
   [Type v loc] ->
-  M v loc ()
+  M v loc Bool
 subAbilities want have
   | debugShow ("subAbilities" :: Text, want, have) = undefined
 subAbilities want have = do
   want <- expandWanted want
   have <- expandAbilities have
-  want <- expandWanted =<< pruneAbilities want have
+  (extra, want) <- traverse expandWanted =<< pruneAbilities want have
   have <- expandAbilities have
   case (want, mapMaybe ex have) of
-    ([], _) -> pure ()
+    ([], _) -> pure extra
     (want@((_, w) : _), [(b, ve, tv)]) ->
-      refineEffectVar (loc w) (snd <$> want) b ve tv -- `orElse` die src w
+      extra <$ refineEffectVar (loc w) (snd <$> want) b ve tv -- `orElse` die src w
     ((src, w) : _, _) -> die src w
   where
     ex t@(Type.Var' (TypeVar.Existential b v)) = Just (b, v, t)
@@ -3311,7 +3449,7 @@ run ::
   f a
 run ppe pmcSwitch datas effects m =
   fmap fst
-    . runM m ppe pmcSwitch datas effects
+    . runM m ppe pmcSwitch datas effects []
     $ Env 1 context0
 
 synthesizeClosed' ::
@@ -3335,8 +3473,8 @@ synthesizeClosed' abilities term = do
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m =
-  MT \ppe pmccSwitch datas effects env ->
-    case runM m ppe pmccSwitch datas effects env of
+  MT \ppe pmccSwitch datas effects defs env ->
+    case runM m ppe pmccSwitch datas effects defs env of
       Success _ _ -> Right (True, env)
       TypeError _ _ -> Right (False, env)
       CompilerBug bug _ _ -> Left bug
@@ -3422,22 +3560,22 @@ instance (Ord loc, Var v) => Show (Context v loc) where
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
-  m >>= f = MT \ppe pmccSwitch datas effects env0 -> do
-    (a, env1) <- runM m ppe pmccSwitch datas effects env0
-    runM (f a) ppe pmccSwitch datas effects $! env1
+  m >>= f = MT \ppe pmccSwitch datas effects defs env0 -> do
+    (a, env1) <- runM m ppe pmccSwitch datas effects defs env0
+    runM (f a) ppe pmccSwitch datas effects defs $! env1
 
 instance (Monad f) => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance (Monad f) => Applicative (MT v loc f) where
-  pure a = MT (\_ _ _ _ env -> pure (a, env))
+  pure a = MT (\_ _ _ _ _ env -> pure (a, env))
   (<*>) = ap
 
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
-  get = MT \_ _ _ _ env -> pure (env, env)
-  put env = MT \_ _ _ _ _ -> pure ((), env)
+  get = MT \_ _ _ _ _ env -> pure (env, env)
+  put env = MT \_ _ _ _ _ _ -> pure ((), env)
 
 instance (MonadFix f) => MonadFix (MT v loc f) where
-  mfix f = MT \ppe pmccSwitch a b c ->
-    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch a b c)
+  mfix f = MT \ppe pmccSwitch a b c d ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch a b c d)
      in res

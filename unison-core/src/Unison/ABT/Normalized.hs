@@ -14,7 +14,19 @@ module Unison.ABT.Normalized
     Term (.., TAbs, TTm, TAbss),
     Align (..),
     alpha,
+    freshen,
+    Renaming (..),
+    isEmptyRenaming,
+    freshenBinder,
+    freshenBinders,
+    pruneRenaming,
+    renameVar,
+    mapping,
+    avoiding,
+    mappingAndAvoiding,
     renames,
+    renamesAvoiding,
+    renamesAndFreshen0,
     rename,
     transform,
     visit,
@@ -24,13 +36,13 @@ where
 
 import Data.Bifoldable
 import Data.Bifunctor
-import Data.Foldable (toList)
 import Data.Functor.Identity (Identity (..))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Traversable (mapAccumL)
 import Unison.ABT (Var (..))
 
 -- ABTs with support for 'normalized' structure where only variables
@@ -105,9 +117,9 @@ class (Bifoldable f, Bifunctor f) => Align f where
 
 alphaErr ::
   (Align f) => (Var v) => Map v v -> Term f v -> Term f v -> Either (Term f v, Term f v) a
-alphaErr un tml tmr = Left (tml, renames0 count un tmr)
+alphaErr un tml tmr = Left (tml, renamesAndFreshen0 rn tmr)
   where
-    count = Map.fromListWith (+) . flip zip [1, 1 ..] $ toList un
+    rn = mapping un
 
 -- Checks if two terms are equal up to a given variable renaming. The
 -- renaming should map variables in the right hand term to the
@@ -135,61 +147,160 @@ pattern TAbss vs bd <-
 
 {-# COMPLETE TAbss #-}
 
--- Simultaneous variable renaming implementation.
+-- Renaming data.
 --
--- subvs0 counts the number of variables being renamed to a particular
--- variable
+-- `renames` contains an actual mapping from old variables to new
+-- variables, which is used for the actual substitution.
 --
--- rnv0 is the variable renaming map.
-renames0 ::
-  (Var v, Ord v, Bifunctor f, Bifoldable f) =>
-  Map v Int ->
-  Map v v ->
-  Term f v ->
-  Term f v
-renames0 subvs0 rnv0 tm = case tm of
-  TAbs u body
-    | not $ Map.null rnv' -> TAbs u' (renames0 subvs' rnv' body)
-    where
-      rnv' = Map.alter (const $ adjustment) u rnv
-      -- if u is in the set of variables we're substituting in, it
-      -- needs to be renamed to avoid capturing things.
-      u'
-        | u `Map.member` subvs = freshIn (fvs `Set.union` Map.keysSet subvs) u
-        | otherwise = u
+-- `conflicts` stores information about which variables should be
+-- avoided. The value at a variable `u` should _at least_ be the
+-- number of variables in `renames` that are being substituted _to_
+-- `u`, because substituting under a binder for `u` will capture those
+-- substitutions. However, `conflicts` can be bootstrapped with extra
+-- counts to avoid ambient variables as well, so that it is possible
+-- to substitute/rewrite expressions without introducing variable
+-- captures.
+data Renaming v = RN
+  { conflicts :: Map v Int,
+    renamings :: Map v v
+  }
 
-      -- if u needs to be renamed to avoid capturing subvs
-      -- and u actually occurs in the body, then add it to
-      -- the substitutions
-      (adjustment, subvs')
-        | u /= u' && u `Set.member` fvs = (Just u', Map.insertWith (+) u' 1 subvs)
-        | otherwise = (Nothing, subvs)
-  TTm body
-    | not $ Map.null rnv ->
-        TTm $ bimap (\u -> Map.findWithDefault u u rnv) (renames0 subvs rnv) body
-  _ -> tm
+-- Creates a Renaming that will avoid the given set of variables.
+avoiding :: Set v -> Renaming v
+avoiding avoid = RN (Map.fromSet (const 1) avoid) Map.empty
+
+mapping :: (Var v) => Map v v -> Renaming v
+mapping rn = RN cf rn
   where
-    fvs = freeVars tm
+    cf = Map.fromListWith (+) . fmap (,1) $ Map.elems rn
 
-    -- throw out irrelevant renamings
-    rnv = Map.restrictKeys rnv0 fvs
+mappingAndAvoiding :: (Var v) => Map v v -> Set v -> Renaming v
+mappingAndAvoiding rn avoid = RN cf rn
+  where
+    cf =
+      Map.unionWith
+        (+)
+        (Map.fromSet (const 1) avoid)
+        (Map.fromListWith (+) . fmap (,1) $ Map.elems rn)
 
-    -- decrement the variable usage counts for the renamings we threw away
-    subvs = Map.foldl' decrement subvs0 $ Map.withoutKeys rnv0 fvs
+-- Adjusts a renaming with respect to a remaining set of free
+-- variables. Unnecessary renamings are discarded.
+pruneRenaming :: (Var v) => Set v -> Renaming v -> Renaming v
+pruneRenaming fvs (RN cf rn) =
+  RN
+    { renamings = Map.restrictKeys rn fvs,
+      conflicts = Map.foldl' decrement cf $ Map.withoutKeys rn fvs
+    }
+  where
     decrement sv v = Map.update drop v sv
     drop n
       | n <= 1 = Nothing
       | otherwise = Just (n - 1)
 
--- Simultaneous variable renaming.
-renames ::
-  (Var v, Ord v, Bifunctor f, Bifoldable f) =>
+renameVar :: (Var v) => Renaming v -> v -> v
+renameVar (RN _ rn) u = Map.findWithDefault u u rn
+
+-- Tests if the renaming is empty in the sense that it will never
+-- cause bound variables to be renamed. This is _not_ just a test of
+-- whether the substitutions are empty, because the conflicts can
+-- cause variables to need freshening even without variable
+-- substitutions.
+isEmptyRenaming :: Renaming v -> Bool
+isEmptyRenaming = null . conflicts
+
+-- Freshens a bound variable with regard to a renaming, yielding the
+-- fresh variable and a renaming appropriate for the term within the
+-- binder. The `Set` should be the free variables of the expression
+-- within the binder, for proper freshening.
+freshenBinder :: (Var v) => Set v -> Renaming v -> v -> (Renaming v, v)
+freshenBinder fvs rn0@(RN cf rn) u = (rn', u')
+  where
+    -- if u conflicts with the renaming, freshen it
+    u'
+      | u `Map.member` cf = freshIn (fvs `Set.union` Map.keysSet cf) u
+      | otherwise = u
+
+    -- if u needs to be renamed, and it actually occurs in the body,
+    -- add it to the Renaming.
+    rn'
+      | u /= u' && u `Set.member` fvs =
+          RN
+            { conflicts = Map.insertWith (+) u' 1 cf,
+              renamings = Map.alter (const $ Just u') u rn
+            }
+      | otherwise = rn0
+
+-- Simultaneously freshens some binders. This ensures not just that
+-- they're fresh with respect to the given set of variables, but
+-- mutually distinct.
+freshenBinders ::
+  (Var v) => Set v -> Renaming v -> [v] -> (Renaming v, [v])
+freshenBinders fvs rn0 = first snd . mapAccumL f (Set.empty, rn0)
+  where
+    f (avoid, rn) u
+      | (rn, v) <- freshenBinder (Set.union avoid fvs) rn u =
+          ((Set.insert v avoid, rn), v)
+
+-- Simultaneous variable renaming and freshening implementation.
+--
+-- subvs0 is a count of the number of conflicts associated with a
+-- variable. There are two sources of conflicts.
+--
+--   1. A variable is being renamed _to_ the given variable
+--   2. We want to avoid capturing the variable for other reasons
+--
+-- So, if you initially call `renamesAndFreshen0` with a higher count
+-- for `v` then there are variables being renamed to `v`, all bound
+-- occurrences of `v` will be freshened regardless of whether any
+-- actual renamings are left.
+--
+-- rnv0 is the variable renaming map.
+renamesAndFreshen0 ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Renaming v ->
+  Term f v ->
+  Term f v
+renamesAndFreshen0 rn0 tm = case tm of
+  TAbs u (TAbss us body)
+    | (rn, vs) <- freshenBinders (freeVars body) rn (u : us),
+      u : us /= vs || not (isEmptyRenaming rn) ->
+        TAbss vs (renamesAndFreshen0 rn body)
+  TTm body
+    | not $ isEmptyRenaming rn ->
+        TTm $ bimap (renameVar rn) (renamesAndFreshen0 rn) body
+  _ -> tm
+  where
+    fvs = freeVars tm
+
+    rn = pruneRenaming fvs rn0
+
+-- Freshens the bound variables in a term to avoid capturing variables
+-- in the set.
+freshen ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Set v ->
+  Term f v ->
+  Term f v
+freshen avoid = renamesAndFreshen0 (avoiding avoid)
+
+-- Renames some variables while also avoiding a given set of variables
+-- for any bindings in the term.
+renamesAvoiding ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Set v ->
   Map v v ->
   Term f v ->
   Term f v
-renames rnv tm = renames0 subvs rnv tm
-  where
-    subvs = Map.fromListWith (+) . fmap (,1) $ Map.elems rnv
+renamesAvoiding avoid rnv =
+  renamesAndFreshen0 (mappingAndAvoiding rnv avoid)
+
+-- Simultaneous variable renaming.
+renames ::
+  (Var v, Bifunctor f, Bifoldable f) =>
+  Map v v ->
+  Term f v ->
+  Term f v
+renames rnv tm = renamesAndFreshen0 (mapping rnv) tm
 
 rename ::
   (Var v, Ord v, Bifunctor f, Bifoldable f) =>
@@ -197,7 +308,7 @@ rename ::
   v ->
   Term f v ->
   Term f v
-rename old new = renames0 (Map.singleton new 1) (Map.singleton old new)
+rename old new = renamesAndFreshen0 (mapping $ Map.singleton old new)
 
 transform ::
   (Var v, Bifunctor g, Bifoldable f, Bifoldable g) =>

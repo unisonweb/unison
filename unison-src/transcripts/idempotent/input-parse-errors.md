@@ -1,53 +1,6 @@
 # demonstrating our new input parsing errors
 
-``` ucm :hide
-scratch/main> builtins.merge lib.builtin
-```
-
-``` unison :hide
-x = 55
-```
-
-``` ucm :hide
-scratch/main> add
-```
-
-`handleNameArg` parse error in `add`
-
-``` ucm :error
-scratch/main> add .
-
-  ⚠️
-
-  Sorry, I wasn’t sure how to process your request:
-
-    1:2:
-      |
-    1 | .
-      |  ^
-    unexpected end of input
-    expecting '`' or operator (valid characters: !$%&*+-/:<=>\^|~)
-    
-
-  You can run `help add` for more information on using `add`.
-
-scratch/main> ls
-
-  1. lib/ (476 terms, 76 types)
-  2. x    (Nat)
-
-scratch/main> add 1
-
-
-scratch/main> ls
-
-  1. lib/ (476 terms, 76 types)
-  2. x    (Nat)
-
-scratch/main> add 2
-
-  ⊡ Ignored previously added definitions: x
-```
+The example we'd had here was demonstrating the improved parsing error messages for `add`, but that command has been superseded by `update`.
 
 todo:
 
@@ -64,21 +17,6 @@ todo:
   SA.SearchResult mpath result ->
     maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
   otherNumArg -> Left . I.Formatted $ wrongStructuredArgument "a name" otherNumArg
-```
-
-aliasMany: skipped -- similar to `add`
-
-``` ucm :error
-scratch/main> update arg
-
-  ⚠️
-
-  Sorry, I wasn’t sure how to process your request:
-
-    I expected no arguments, but received one.
-
-  You can run `help update` for more information on using
-  `update`.
 ```
 
 aliasTerm

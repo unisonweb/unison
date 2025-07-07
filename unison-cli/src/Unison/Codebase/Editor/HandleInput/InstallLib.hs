@@ -74,9 +74,9 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
     pure $
       fresh
         (\i -> NameSegment.unsafeParseText . (<> "__" <> tShow i) . NameSegment.toUnescapedText)
-        ( case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children) of
+        ( case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children_) of
             Nothing -> Set.empty
-            Just libdeps -> Map.keysSet ((Branch.head libdeps) ^. Branch.children)
+            Just libdeps -> Map.keysSet (Branch.head libdeps ^. Branch.children_)
         )
         (makeDependencyName libdepProjectName libdepBranchName)
 

@@ -7,10 +7,9 @@ foo.bar = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       foo     : ##Nat
       foo.bar : ##Nat
@@ -19,10 +18,10 @@ foo.bar = 1
 ``` ucm
 p0/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo     : ##Nat
-    foo.bar : ##Nat
+  Done.
 ```
 
 ``` unison
@@ -34,10 +33,9 @@ donk.bonk = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bonk      : ##Nat
         (also named foo)
@@ -48,10 +46,10 @@ donk.bonk = 1
 ``` ucm
 p1/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bonk      : ##Nat
-    donk.bonk : ##Nat
+  Done.
 
 p1/main> fork p0/main: zzz
 

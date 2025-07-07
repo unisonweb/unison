@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.UnisonFile
   ( -- * UnisonFile
@@ -26,6 +23,7 @@ module Unison.UnisonFile
     discardTypes,
     effectDeclarations',
     hashConstructors,
+    constructorsId,
     constructorsForDecls,
     hashTerms,
     indexByReference,
@@ -44,22 +42,24 @@ module Unison.UnisonFile
 where
 
 import Control.Lens
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Vector qualified as Vector
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
-import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
-import Unison.DataDeclaration (DataDeclaration, EffectDeclaration (..))
+import Unison.DataDeclaration (DataDeclaration, Decl, EffectDeclaration (..))
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference (Reference, TermReference, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Term (Term)
@@ -140,7 +140,7 @@ definitionLocation v uf =
     <|> dataDeclarations uf ^? ix v . _2 . to DD.annotation
     <|> effectDeclarations uf ^? ix v . _2 . to (DD.annotation . DD.toDataDecl)
 
--- Converts a file to a single let rec with a body of `()`, for
+-- | Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
 typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> Term v a
 typecheckingTerm uf =
@@ -335,7 +335,7 @@ termSignatureExternalLabeledDependencies
       -- exclude any references that are defined in this file
       (Set.map LD.typeRef $ localDeclRefs tuf)
 
-typeReferences :: Ord v => TypecheckedUnisonFile v a -> Set Reference
+typeReferences :: (Ord v) => TypecheckedUnisonFile v a -> Set Reference
 typeReferences (TypecheckedUnisonFile datas effs _ _ hterms) =
   Set.unions
     [ foldMap Type.dependencies
@@ -408,13 +408,41 @@ nonEmpty uf =
 hashConstructors ::
   forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
-  let ctors1 =
-        Map.elems (dataDeclarationsId' file) >>= \(ref, dd) ->
-          [(v, Referent.ConId (ConstructorReference ref i) CT.Data) | (v, i) <- DD.constructorVars dd `zip` [0 ..]]
-      ctors2 =
-        Map.elems (effectDeclarationsId' file) >>= \(ref, dd) ->
-          [(v, Referent.ConId (ConstructorReference ref i) CT.Effect) | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..]]
-   in Map.fromList (ctors1 ++ ctors2)
+  Map.union
+    (Map.map (\(ref, _) -> Referent.ConId ref CT.Data) (hashDataConstructors file))
+    (Map.map (\(ref, _) -> Referent.ConId ref CT.Effect) (hashEffectConstructors file))
+
+constructorsId :: (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, Decl v a)
+constructorsId file =
+  Map.union
+    (Map.map (\(ref, decl) -> (ref, Right decl)) (hashDataConstructors file))
+    (Map.map (\(ref, decl) -> (ref, Right decl)) (hashEffectConstructors file))
+
+hashDataConstructors ::
+  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, DataDeclaration v a)
+hashDataConstructors =
+  Map.foldl' stepHashConstructors Map.empty . dataDeclarationsId'
+
+hashEffectConstructors ::
+  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, DataDeclaration v a)
+hashEffectConstructors =
+  List.foldl' stepHashConstructors Map.empty . over (mapped . _2) DD.toDataDecl . Map.elems . effectDeclarationsId'
+
+stepHashConstructors ::
+  forall a v.
+  (Ord v) =>
+  Map v (ConstructorReferenceId, DataDeclaration v a) ->
+  (TypeReferenceId, DataDeclaration v a) ->
+  Map v (ConstructorReferenceId, DataDeclaration v a)
+stepHashConstructors acc (ref, dd) =
+  List.foldl' f acc (DD.constructorVars dd `zip` [0 ..])
+  where
+    f ::
+      Map v (ConstructorReferenceId, DataDeclaration v a) ->
+      (v, ConstructorId) ->
+      Map v (ConstructorReferenceId, DataDeclaration v a)
+    f acc (v, i) =
+      Map.insert v (ConstructorReference ref i, dd) acc
 
 -- | Returns the set of constructor names for decls whose names in the given Set.
 constructorsForDecls :: (Ord v) => Set v -> TypecheckedUnisonFile v a -> Set v

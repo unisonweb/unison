@@ -31,10 +31,9 @@ mytest _ = [Ok "Great"]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       main   : '{IO, Exception} ()
       mytest : '{IO, Exception} [Result]
@@ -47,10 +46,10 @@ scratch/main> run main
 
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    main   : '{IO, Exception} ()
-    mytest : '{IO, Exception} [Result]
+  Done.
 
 scratch/main> io.test mytest
 
@@ -79,10 +78,9 @@ unique type RuntimeError =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type RuntimeError
       error : Text -> a ->{Exception} x

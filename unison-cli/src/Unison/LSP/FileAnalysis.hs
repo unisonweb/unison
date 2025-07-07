@@ -114,7 +114,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
           }
-  (localBindingTypes, notes, parsedFile, typecheckedFile) <- do
+  (localBindingInfo, notes, parsedFile, typecheckedFile) <- do
     liftIO do
       Codebase.runTransaction cb do
         parseResult <- Parsers.parseFile (Text.unpack sourceName) (Text.unpack srcText) parsingEnv
@@ -124,29 +124,33 @@ checkFileContents fileUri sourceName fileVersion contents = do
             typecheckingEnv <- computeTypecheckingEnvironment (ShouldUseTndr'Yes parsingEnv) cb ambientAbilities parsedFile
             let Result.Result typecheckingNotes maybeTypecheckedFile = FileParsers.synthesizeFile typecheckingEnv parsedFile
 
-            symbolTypes <-
+            symbolInfo <-
               typecheckingNotes
                 & Foldable.toList
                 & reverse -- Type notes that come later in typechecking have more information filled in.
                 & foldMap \case
-                  Result.TypeInfo (Context.VarBinding v _loc typ) -> Map.singleton v typ
+                  Result.TypeInfo (Context.VarBinding v loc typ) ->
+                    annToRange loc
+                      & foldMap \definitionSite -> Map.singleton v (typ, definitionSite)
                   _ -> mempty
                 & pure
 
-            let localBindings :: (IntervalMap Position (Context.Type Symbol Ann)) =
+            let localBindingInfo :: (IntervalMap Position (Context.Type Symbol Ann, Range)) =
                   typecheckingNotes
                     & Foldable.toList
                     & reverse -- Type notes that come later in typechecking have more information filled in.
                     & foldMap \case
                       Result.TypeInfo (Context.VarBinding _v loc typ) -> do
-                        ((annToInterval loc) & foldMap \interval -> (IM.singleton interval typ))
+                        ( (liftA2 (,) (annToInterval loc) (annToRange loc))
+                            & foldMap \(interval, definitionSite) -> (IM.singleton interval (typ, definitionSite))
+                          )
                       Result.TypeInfo (Context.VarMention v loc) -> do
-                        case Map.lookup v symbolTypes of
-                          Just typ ->
-                            ((annToInterval loc) & foldMap \interval -> (IM.singleton interval typ))
+                        case Map.lookup v symbolInfo of
+                          Just (typ, definitionSite) ->
+                            ((annToInterval loc) & foldMap \interval -> (IM.singleton interval (typ, definitionSite)))
                           _ -> mempty
                       _ -> mempty
-            pure (localBindings, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
+            pure (localBindingInfo, typecheckingNotes, Just parsedFile, maybeTypecheckedFile)
 
   filePPED <- ppedForFileHelper parsedFile typecheckedFile
   (errDiagnostics, codeActions) <- analyseFile fileUri srcText filePPED notes
@@ -178,7 +182,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
             parsedFile,
             typecheckedFile,
             notes,
-            localBindingTypes
+            localBindingInfo
           }
   pure fileAnalysis
 
@@ -411,8 +415,10 @@ analyseNotes fileUri ppe src notes = do
 
     nameResolutionSuggestionPriority (Context.Suggestion {suggestionMatch, suggestionName}) = case suggestionMatch of
       Context.Exact -> (0 :: Int, suggestionName)
-      Context.WrongType -> (1, suggestionName)
-      Context.WrongName -> (2, suggestionName)
+      Context.RightNameWrongType -> (1, suggestionName)
+      Context.SimilarNameRightType -> (2, suggestionName)
+      Context.SimilarNameWrongType -> (3, suggestionName)
+      Context.WrongNameRightType -> (4, suggestionName)
 
     -- typeHoleReplacementCodeActions :: Symbol -> _ -> Lsp [a]
     typeHoleReplacementCodeActions diags v typ

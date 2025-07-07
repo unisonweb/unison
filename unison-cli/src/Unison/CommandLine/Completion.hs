@@ -9,7 +9,6 @@ module Unison.CommandLine.Completion
     prefixCompleteTermOrType,
     prefixCompleteTerm,
     prefixCompleteType,
-    prefixCompletePatch,
     noCompletions,
     prefixCompleteNamespace,
     -- Unused for now, but may be useful later
@@ -17,6 +16,7 @@ module Unison.CommandLine.Completion
     fixupCompletion,
     haskelineTabComplete,
     sharePathCompletion,
+    filenameCompletion,
   )
 where
 
@@ -91,7 +91,6 @@ data CompletionType
   = NamespaceCompletion
   | TermCompletion
   | TypeCompletion
-  | PatchCompletion
   deriving (Show, Eq, Ord)
 
 -- | The empty completor.
@@ -203,10 +202,7 @@ completeWithinNamespace compTypes query ppCtx = do
               (map (\(x, y) -> (TermCompletion, x, y)) (textifyHQ (hqFromNamedV2Referent hashLen) $ V2Branch.terms b)),
             Monoid.whenM
               (NESet.member TypeCompletion compTypes)
-              (map (\(x, y) -> (TypeCompletion, x, y)) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b)),
-            Monoid.whenM
-              (NESet.member PatchCompletion compTypes)
-              (fmap ((PatchCompletion,True,) . NameSegment.toEscapedText) . Map.keys $ V2Branch.patches b)
+              (map (\(x, y) -> (TypeCompletion, x, y)) (textifyHQ (hqFromNamedV2Reference hashLen) $ V2Branch.types b))
           ]
 
     textifyHQ :: (NameSegment -> r -> HQ'.HashQualified NameSegment) -> Map NameSegment (Map r metadata) -> [(Bool, Text)]
@@ -297,13 +293,6 @@ prefixCompleteType ::
   PP.ProjectPath ->
   Sqlite.Transaction [Line.Completion]
 prefixCompleteType = completeWithinNamespace (NESet.singleton TypeCompletion)
-
--- | Completes a patch argument by prefix-matching against the query.
-prefixCompletePatch ::
-  String ->
-  PP.ProjectPath ->
-  Sqlite.Transaction [Line.Completion]
-prefixCompletePatch = completeWithinNamespace (NESet.singleton PatchCompletion)
 
 -- | Renders a completion option with the prefix matching the query greyed out.
 prettyCompletionWithQueryPrefix ::
@@ -451,3 +440,13 @@ instance Aeson.FromJSON SearchResult where
     handle <- obj Aeson..: "handle"
     tag <- obj Aeson..: "tag"
     pure $ SearchResult {..}
+
+filenameCompletion ::
+  (MonadIO m) =>
+  String ->
+  m [Completion]
+filenameCompletion query = do
+  -- Haskeline uses a zipper-style cursor format, so it expects the prefix to be reversed.
+  let prefix = reverse query
+  (_leftovers, results) <- Line.completeFilename (prefix, "")
+  pure results

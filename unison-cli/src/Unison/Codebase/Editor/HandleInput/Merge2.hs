@@ -25,7 +25,6 @@ import Data.Semialign (zipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import Data.These (These (..))
 import System.Directory (canonicalizePath, getTemporaryDirectory, removeFile)
 import System.Environment (lookupEnv)
 import System.FilePath ((</>))
@@ -49,12 +48,12 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UpdateUtils
   ( getNamespaceDependentsOf3,
     hydrateDefns,
     loadNamespaceDefinitions,
   )
-import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -88,10 +87,8 @@ import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
     ProjectBranchName,
-    ProjectBranchNameKind (..),
     ProjectName,
-    Semver (..),
-    classifyProjectBranchName,
+    projectBranchNameToValidProjectBranchNameText,
   )
 import Unison.Reference (TermReference)
 import Unison.Reference qualified as Reference
@@ -111,14 +108,10 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, alignDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree (..), unflattenNametree)
+import Unison.Util.Nametree (Nametree (..))
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
-import Unison.Util.Star2 (Star2)
-import Unison.Util.Star2 qualified as Star2
 import Unison.WatchKind qualified as WatchKind
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
@@ -298,11 +291,12 @@ doMerge info = do
             Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
             Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
 
-        liftIO (debugFunctions.debugDiffs blob1.diffsFromLCA)
-
-        liftIO (debugFunctions.debugCombinedDiff blob1.diff)
-
-        liftIO (debugFunctions.debugHumanDiffs blob1.humanDiffsFromLCA)
+        liftIO do
+          debugFunctions.debugDiffs blob1.diffsFromLCA
+          debugFunctions.debugRenames blob1.renames
+          debugFunctions.debugSimpleRenames blob1.simpleRenames
+          debugFunctions.debugCombinedDiff blob1.diff
+          debugFunctions.debugHumanDiffs blob1.humanDiffsFromLCA
 
         blob2 <-
           Merge.makeMergeblob2 blob1 & onLeft \err ->
@@ -359,10 +353,13 @@ doMerge info = do
                   { alice = into @Text aliceBranchNames,
                     bob =
                       case info.bob.source of
-                        MergeSource'LocalProjectBranch bobBranchNames -> into @Text bobBranchNames
-                        MergeSource'RemoteProjectBranch bobBranchNames
+                        MergeSource'LocalProjectBranch bobBranch -> into @Text (ProjectUtils.justTheNames bobBranch)
+                        MergeSource'RemoteProjectBranch bobBranch
                           | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
                           | otherwise -> into @Text bobBranchNames
+                          where
+                            bobBranchNames =
+                              ProjectAndBranch bobBranch.projectName bobBranch.branchName
                         MergeSource'RemoteLooseCode info ->
                           case Path.toName info.path of
                             Nothing -> "<root>"
@@ -382,10 +379,10 @@ doMerge info = do
                   Right blob5 -> Just blob5
 
         let stageOneBranch =
-              defnsAndLibdepsToBranch0 env.codebase blob3.stageOne mergedLibdeps
-
-        let stageTwoBranch =
-              defnsAndLibdepsToBranch0 env.codebase blob3.stageTwo mergedLibdeps
+              Branch.fromUnconflictedDefns blob3.stageOne
+                & Branch.setLibdeps mergedLibdeps
+                -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
+                & Branch.transform0 (Codebase.runTransaction env.codebase)
 
         let parents =
               causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
@@ -396,9 +393,30 @@ doMerge info = do
             (_temporaryBranchId, temporaryBranchName) <-
               HandleInput.Branch.createBranch
                 info.description
-                ( HandleInput.Branch.CreateFrom'NamespaceWithParent
-                    info.alice.projectAndBranch.branch
-                    (Branch.mergeNode stageTwoBranch parents.alice parents.bob)
+                ( let makeUniqueTypeGuids :: Map Name (TypeReferenceId, Decl Symbol Ann) -> Map Name Text
+                      makeUniqueTypeGuids =
+                        Map.mapMaybe \case
+                          (_, decl) ->
+                            case (DataDeclaration.asDataDecl decl).modifier of
+                              DataDeclaration.Unique guid -> Just guid
+                              DataDeclaration.Structural -> Nothing
+                      sourceStuff =
+                        ( case info.bob.source of
+                            MergeSource'LocalProjectBranch bobBranch ->
+                              HandleInput.Branch.CreateFromMergeSource'Local bobBranch.branch
+                            MergeSource'RemoteProjectBranch bobBranch ->
+                              HandleInput.Branch.CreateFromMergeSource'Remote bobBranch Share.hardCodedUri
+                            MergeSource'RemoteLooseCode _ -> HandleInput.Branch.CreateFromMergeSource'LooseCode,
+                          info.bob.causalHash,
+                          makeUniqueTypeGuids hydratedDefns.bob.types
+                        )
+                      targetStuff =
+                        ( info.alice.projectAndBranch.branch,
+                          info.alice.causalHash,
+                          makeUniqueTypeGuids hydratedDefns.alice.types
+                        )
+                      mergeStuff = Branch.mergeNode stageOneBranch parents.alice parents.bob
+                   in HandleInput.Branch.CreateFrom'MergeParents sourceStuff targetStuff mergeStuff
                 )
                 info.alice.projectAndBranch.project
                 (findTemporaryBranchName info.alice.projectAndBranch.project.projectId mergeSourceAndTarget)
@@ -424,7 +442,7 @@ doMerge info = do
                 liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 blob3.unparsedFile) True
                 done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
               Just mergetool0 -> do
-                let aliceFilenameSlug = mangleBranchName mergeSourceAndTarget.alice.branch
+                let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
                 makeTempFilename <-
                   liftIO do
@@ -498,7 +516,7 @@ doMergeLocalBranch branches = do
         bob =
           BobMergeInfo
             { causalHash = bobCausalHash,
-              source = MergeSource'LocalProjectBranch (ProjectUtils.justTheNames branches.bob)
+              source = MergeSource'LocalProjectBranch branches.bob
             },
         lca =
           LcaMergeInfo
@@ -544,51 +562,6 @@ hasDefnsInLib branch = do
 ------------------------------------------------------------------------------------------------------------------------
 --
 
-defnsAndLibdepsToBranch0 ::
-  Codebase IO v a ->
-  DefnsF (Map Name) Referent TypeReference ->
-  Branch0 Transaction ->
-  Branch0 IO
-defnsAndLibdepsToBranch0 codebase defns libdeps =
-  let -- Unflatten the collection of terms into tree, ditto for types
-      nametrees :: DefnsF2 Nametree (Map NameSegment) Referent TypeReference
-      nametrees =
-        bimap unflattenNametree unflattenNametree defns
-
-      -- Align the tree of terms and tree of types into one tree
-      nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference)
-      nametree =
-        nametrees & alignDefnsWith \case
-          This terms -> Defns {terms, types = Map.empty}
-          That types -> Defns {terms = Map.empty, types}
-          These terms types -> Defns terms types
-
-      -- Convert the tree to a branch0
-      branch0 = nametreeToBranch0 nametree
-
-      -- Add back the libdeps branch at path "lib"
-      branch1 = Branch.setChildBranch NameSegment.libSegment (Branch.one libdeps) branch0
-
-      -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
-      branch2 = Branch.transform0 (Codebase.runTransaction codebase) branch1
-   in branch2
-
-nametreeToBranch0 :: Nametree (DefnsF (Map NameSegment) Referent TypeReference) -> Branch0 m
-nametreeToBranch0 nametree =
-  Branch.branch0
-    (rel2star defns.terms)
-    (rel2star defns.types)
-    (Branch.one . nametreeToBranch0 <$> nametree.children)
-    Map.empty
-  where
-    defns :: Defns (Relation Referent NameSegment) (Relation TypeReference NameSegment)
-    defns =
-      bimap (Relation.swap . Relation.fromMap) (Relation.swap . Relation.fromMap) nametree.value
-
-    rel2star :: Relation ref name -> Star2 ref name metadata
-    rel2star rel =
-      Star2.Star2 {fact = Relation.dom rel, d1 = rel, d2 = Relation.empty}
-
 findTemporaryBranchName :: ProjectId -> MergeSourceAndTarget -> Transaction ProjectBranchName
 findTemporaryBranchName projectId mergeSourceAndTarget = do
   ProjectUtils.findTemporaryBranchName projectId preferred
@@ -600,36 +573,17 @@ findTemporaryBranchName projectId mergeSourceAndTarget = do
           "merge-"
             <> mangleMergeSource mergeSourceAndTarget.bob
             <> "-into-"
-            <> mangleBranchName mergeSourceAndTarget.alice.branch
+            <> projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
 
 mangleMergeSource :: MergeSource -> Text.Builder
 mangleMergeSource = \case
-  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> mangleBranchName branch
-  MergeSource'RemoteProjectBranch (ProjectAndBranch _project branch) -> "remote-" <> mangleBranchName branch
+  MergeSource'LocalProjectBranch (ProjectAndBranch _project branch) -> projectBranchNameToValidProjectBranchNameText branch.name
+  MergeSource'RemoteProjectBranch remoteBranch -> "remote-" <> projectBranchNameToValidProjectBranchNameText remoteBranch.branchName
   MergeSource'RemoteLooseCode info -> manglePath info.path
   where
     manglePath :: Path -> Text.Builder
     manglePath =
       Monoid.intercalateMap "-" (Text.Builder.text . NameSegment.toUnescapedText) . Path.toList
-
-mangleBranchName :: ProjectBranchName -> Text.Builder
-mangleBranchName name =
-  case classifyProjectBranchName name of
-    ProjectBranchNameKind'Contributor user name1 ->
-      Text.Builder.text user
-        <> Text.Builder.char '-'
-        <> mangleBranchName name1
-    ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
-    ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
-    ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
-  where
-    mangleSemver :: Semver -> Text.Builder
-    mangleSemver (Semver x y z) =
-      Text.Builder.decimal x
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal y
-        <> Text.Builder.char '.'
-        <> Text.Builder.decimal z
 
 typecheckedUnisonFileToBranchAdds :: TypecheckedUnisonFile Symbol Ann -> [(Path, Branch0 m -> Branch0 m)]
 typecheckedUnisonFileToBranchAdds tuf = do
@@ -703,9 +657,9 @@ makeMergedFileContents sourceAndTarget aliceContents bobContents =
       ">>>>>>> "
         <> ( case sourceAndTarget.bob of
                MergeSource'LocalProjectBranch bobProjectAndBranch ->
-                 Text.Builder.text (into @Text bobProjectAndBranch.branch)
-               MergeSource'RemoteProjectBranch bobProjectAndBranch ->
-                 "remote " <> Text.Builder.text (into @Text bobProjectAndBranch.branch)
+                 Text.Builder.text (into @Text bobProjectAndBranch.branch.name)
+               MergeSource'RemoteProjectBranch bobRemoteBranch ->
+                 "remote " <> Text.Builder.text (into @Text bobRemoteBranch.branchName)
                MergeSource'RemoteLooseCode info ->
                  case Path.toName info.path of
                    Nothing -> "<root>"
@@ -735,7 +689,9 @@ data DebugFunctions = DebugFunctions
     debugPartitionedDiff ::
       Merge.TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId) ->
       DefnsF Merge.Unconflicts Referent TypeReference ->
-      IO ()
+      IO (),
+    debugRenames :: Merge.TwoWay (DefnsF [] Merge.Rename Merge.Rename) -> IO (),
+    debugSimpleRenames :: Merge.TwoWay (Defns Merge.SimpleRenames Merge.SimpleRenames) -> IO ()
   }
 
 realDebugFunctions :: DebugFunctions
@@ -747,12 +703,14 @@ realDebugFunctions =
       debugCombinedDiff = realDebugCombinedDiff,
       debugHumanDiffs = realDebugHumanDiffs,
       debugInitialDependents = realDebugInitialDependents,
-      debugPartitionedDiff = realDebugPartitionedDiff
+      debugPartitionedDiff = realDebugPartitionedDiff,
+      debugRenames = realDebugRenames,
+      debugSimpleRenames = realDebugSimpleRenames
     }
 
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
-  DebugFunctions mempty mempty mempty mempty mempty mempty mempty
+  DebugFunctions mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 realDebugCausals :: Merge.TwoOrThreeWay (V2.CausalBranch Transaction) -> IO ()
 realDebugCausals causals = do
@@ -1105,6 +1063,55 @@ realDebugPartitionedDiff conflicts unconflicts = do
                 <> name
                 <> " "
                 <> renderRef ref
+
+realDebugRenames :: Merge.TwoWay (DefnsF [] Merge.Rename Merge.Rename) -> IO ()
+realDebugRenames renames = do
+  Text.putStrLn (Text.bold "\n=== Alice renames ===")
+  renderRenames renames.alice
+  Text.putStrLn (Text.bold "\n=== Bob renames ===")
+  renderRenames renames.bob
+  where
+    renderRenames :: DefnsF [] Merge.Rename Merge.Rename -> IO ()
+    renderRenames renames = do
+      for_ renames.terms \rename ->
+        Text.putStrLn (Text.italic "term" <> " " <> renderRename rename)
+      for_ renames.types \rename ->
+        Text.putStrLn (Text.italic "type" <> " " <> renderRename rename)
+
+    renderRename :: Merge.Rename -> Text
+    renderRename rename =
+      Text.unwords $
+        catMaybes
+          [ case Set.toList rename.unchanged of
+              [] -> Nothing
+              unchanged -> Just (Text.unwords (map Name.toText unchanged)),
+            case Set.toList rename.deletes of
+              [] -> Nothing
+              deletes -> Just (Text.unwords (map (\name -> Text.red ("-" <> Name.toText name)) deletes)),
+            case Set.toList rename.adds of
+              [] -> Nothing
+              adds -> Just (Text.unwords (map (\name -> Text.green ("+" <> Name.toText name)) adds))
+          ]
+
+realDebugSimpleRenames :: Merge.TwoWay (Defns Merge.SimpleRenames Merge.SimpleRenames) -> IO ()
+realDebugSimpleRenames renames = do
+  Text.putStrLn (Text.bold "\n=== Alice simple renames ===")
+  renderRenames renames.alice
+  Text.putStrLn (Text.bold "\n=== Bob simple renames ===")
+  renderRenames renames.bob
+  where
+    renderRenames :: Defns Merge.SimpleRenames Merge.SimpleRenames -> IO ()
+    renderRenames renames = do
+      renames.terms.forwards
+        & Map.toList
+        & map (\(old, new) -> Text.italic "term" <> " " <> Name.toText old <> " → " <> Name.toText new)
+        & Text.unlines
+        & Text.putStr
+      renames.types.forwards
+        & Map.toList
+        & map (\(old, new) -> Text.italic "type" <> " " <> Name.toText old <> " → " <> Name.toText new)
+        & Text.unlines
+        & Text.putStr
 
 referentLabel :: Referent -> Text
 referentLabel ref

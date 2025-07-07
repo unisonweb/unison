@@ -11,6 +11,7 @@ module Unison.Project
     prependUserSlugToProjectName,
     ProjectBranchName,
     projectBranchNameUserSlug,
+    projectBranchNameToValidProjectBranchNameText,
     ProjectBranchNameKind (..),
     classifyProjectBranchName,
     ProjectBranchNameOrLatestRelease (..),
@@ -294,6 +295,38 @@ projectBranchNameUserSlug (UnsafeProjectBranchName branchName) =
   if Text.head branchName == '@'
     then Just (Text.takeWhile (/= '/') (Text.drop 1 branchName))
     else Nothing
+
+-- | Mangle a project branch name into a text fragment that is itself a valid project branch name.
+--
+-- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "@arya/topic"))
+-- "arya-topic"
+--
+-- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "releases/drafts/1.2.3"))
+-- "releases-drafts-1-2-3"
+--
+-- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "releases/1.2.3"))
+-- "releases-1-2-3"
+--
+-- >>> Text.Builder.run (projectBranchNameToValidProjectBranchNameText (UnsafeProjectBranchName "topic"))
+-- "topic"
+projectBranchNameToValidProjectBranchNameText :: ProjectBranchName -> Text.Builder
+projectBranchNameToValidProjectBranchNameText name =
+  case classifyProjectBranchName name of
+    ProjectBranchNameKind'Contributor user name1 ->
+      Text.Builder.text user
+        <> Text.Builder.char '-'
+        <> projectBranchNameToValidProjectBranchNameText name1
+    ProjectBranchNameKind'DraftRelease semver -> "releases-drafts-" <> mangleSemver semver
+    ProjectBranchNameKind'Release semver -> "releases-" <> mangleSemver semver
+    ProjectBranchNameKind'NothingSpecial -> Text.Builder.text (into @Text name)
+  where
+    mangleSemver :: Semver -> Text.Builder
+    mangleSemver (Semver x y z) =
+      Text.Builder.decimal x
+        <> Text.Builder.char '-'
+        <> Text.Builder.decimal y
+        <> Text.Builder.char '-'
+        <> Text.Builder.decimal z
 
 -- | A project branch name, or the latest release of its project.
 data ProjectBranchNameOrLatestRelease
