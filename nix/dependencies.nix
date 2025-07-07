@@ -1,8 +1,4 @@
-{nixpkgs-release}: final: prev: let
-  pinned-pkgs = import nixpkgs-release {inherit (final) system;};
-in {
-  stack = pinned-pkgs.stack;
-
+final: prev: {
   ## See https://docs.haskellstack.org/en/stable/topics/nix_integration/#supporting-both-nix-and-non-nix-developers for
   ## an explanation of this package.
   stack-wrapped = final.symlinkJoin {

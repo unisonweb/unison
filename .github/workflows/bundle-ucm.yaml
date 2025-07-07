@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: 
+        os:
           - ubuntu-24.04
           - ubuntu-24.04-arm
           - macos-13 # intel
@@ -46,7 +46,7 @@ jobs:
       - name: install stack
         uses: unisonweb/actions/stack/install@main
         with:
-          stack-version: 2.15.5
+          stack-version: 3.5.1
 
       - name: build
         run: |
@@ -212,7 +212,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: 
+        os:
           - ubuntu-24.04
           - ubuntu-24.04-arm
           - macos-13
