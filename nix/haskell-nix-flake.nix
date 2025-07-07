@@ -55,8 +55,7 @@
             ];
             # specify flags via project file rather than a module override
             # https://github.com/input-output-hk/haskell.nix/issues/1509
-            cabalProject = ''
-              packages: .
+            cabalProjectLocal = ''
               package haskell-language-server
                 flags: -brittany -fourmolu -stylishhaskell -hlint
               constraints: ormolu == ${versions.ormolu}
