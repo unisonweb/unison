@@ -97,11 +97,12 @@ restOfLine = P.takeWhileP Nothing (/= '\n') <* P.single '\n'
 
 apiRequest :: P APIRequest
 apiRequest =
-  (getRequest
-    <|> postRequest
-    <|> apiComment
-    <|> apiResponse
-  ) <* spaces
+  ( getRequest
+      <|> postRequest
+      <|> apiComment
+      <|> apiResponse
+  )
+    <* spaces
   where
     getRequest = do
       _ <- word "GET"
