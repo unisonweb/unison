@@ -5,6 +5,8 @@
     allow-import-from-derivation = true;
     extra-substituters = ["https://unison.cachix.org"];
     extra-trusted-public-keys = ["unison.cachix.org-1:i1DUFkisRPVOyLp/vblDsbsObmyCviq/zs6eRuzth3k="];
+    ## This allows derivations with `__noChroot` set to run outside the sandbox.
+    sandbox = "relaxed";
   };
 
   inputs = {
