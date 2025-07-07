@@ -34,7 +34,7 @@ scratch/main> view foo
   foo : Nat -> Nat
   foo n =
     use Nat +
-    _ = [: do the thing :]
+    _ = {{ do the thing }}
     n + 1
 ```
 
@@ -63,7 +63,7 @@ scratch/main> add
 scratch/main> view escaping
 
   escaping : Doc
-  escaping = [: Docs look [: like \@this \:] :]
+  escaping = {{ Docs look [: like @this :] }}
 ```
 
 (Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
@@ -98,10 +98,10 @@ scratch/main> view commented
 
   commented : Doc
   commented =
-    [: example:
+    {{ example:
     
     -- a comment f x = x + 1
-     :]
+     }}
 ```
 
 ### Indenting, and paragraph reflow
@@ -134,7 +134,7 @@ scratch/main> add
 scratch/main> view doc1
 
   doc1 : Doc
-  doc1 = [: hi :]
+  doc1 = {{ hi }}
 ```
 
 ``` unison
@@ -169,10 +169,10 @@ scratch/main> view doc2
 
   doc2 : Doc
   doc2 =
-    [: hello
+    {{ hello
       - foo
       - bar
-    and the rest. :]
+    and the rest. }}
 ```
 
 ``` unison
@@ -210,7 +210,7 @@ scratch/main> view doc3
 
   doc3 : Doc
   doc3 =
-    [: When Unison identifies a paragraph, it removes any 
+    {{ When Unison identifies a paragraph, it removes any 
     newlines from it before storing it, and then reflows the 
     paragraph text to fit the display window on 
     display/view/edit.
@@ -228,7 +228,7 @@ scratch/main> view doc3
     Note that because of the special treatment of the first line
     mentioned above, where its leading space is removed, it is 
     always treated as a paragraph.
-    :]
+    }}
 ```
 
 ``` unison
@@ -259,11 +259,11 @@ scratch/main> view doc4
 
   doc4 : Doc
   doc4 =
-    [: Here's another example of some paragraphs.
+    {{ Here's another example of some paragraphs.
     
     All these lines have zero indent.
     
-      - Apart from this one. :]
+      - Apart from this one. }}
 ```
 
 ``` unison
@@ -296,9 +296,9 @@ scratch/main> view doc5
 
   doc5 : Doc
   doc5 =
-    [: - foo
+    {{ - foo
       - bar
-    and the rest. :]
+    and the rest. }}
 ```
 
 ``` unison
@@ -330,10 +330,10 @@ scratch/main> view doc6
 
   doc6 : Doc
   doc6 =
-    [: - foo
+    {{ - foo
       - bar
     and the rest.
-     :]
+     }}
 ```
 
 ### More testing
@@ -365,7 +365,7 @@ scratch/main> add
 scratch/main> view empty
 
   empty : Doc
-  empty = [:  :]
+  empty = {{  }}
 ```
 
 ``` unison
@@ -428,62 +428,62 @@ scratch/main> view test1
 
   test1 : Doc
   test1 =
-    [: The internal logic starts to get hairy when you use the 
-    \@ features, for example referencing a name like @List.take.
+    {{ The internal logic starts to get hairy when you use the @
+    features, for example referencing a name like {List.take}.  
     Internally, the text between each such usage is its own blob
-    (blob ends here --> @List.take), so paragraph reflow has to 
+    (blob ends here --> {List.take}), so paragraph reflow has to
     be aware of multiple blobs to do paragraph reflow (or, more 
     accurately, to do the normalization step where newlines with
     a paragraph are removed.)
     
     Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem 
     ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum 
-    dolor lorem ipsum dolor ending in ref @List.take
+    dolor lorem ipsum dolor ending in ref {List.take}
     
-    @List.take starting para lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem 
-    ipsum dolor lorem ipsum dolor.
-    
-    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem 
-    ipsum dolor @List.take lorem ipsum dolor lorem ipsum dolor 
+    {List.take} starting para lorem ipsum dolor lorem ipsum 
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
     lorem ipsum dolor lorem ipsum dolor.
     
-      - non-para line (@List.take) with ref @List.take
-      Another non-para line
-      @List.take starting non-para line
+    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem 
+    ipsum dolor {List.take} lorem ipsum dolor lorem ipsum dolor 
+    lorem ipsum dolor lorem ipsum dolor.
     
-      - non-para line with ref @List.take
+      - non-para line ({List.take}) with ref {List.take}
+      Another non-para line
+      {List.take} starting non-para line
+    
+      - non-para line with ref {List.take}
     before a para-line lorem ipsum dolor lorem ipsum dolor lorem
     ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum 
     dolor lorem ipsum dolor lorem ipsum dolor.
     
       - non-para line followed by a para line starting with ref
-    @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum 
+    {List.take} lorem ipsum dolor lorem ipsum dolor lorem ipsum 
     dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
     lorem ipsum dolor lorem ipsum dolor.
     
     a para-line ending with ref lorem ipsum dolor lorem ipsum 
     dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor {List.take}
       - non-para line
     
     para line lorem ipsum dolor lorem ipsum dolor lorem ipsum 
     dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
     lorem ipsum dolor lorem ipsum dolor
-      @List.take followed by non-para line starting with ref.
+      {List.take} followed by non-para line starting with ref.
     
-    @[signature] List.take
+    @signature{List.take}
     
-    @[source] foo
+    @source{foo}
     
-    @[evaluate] expr
+    @eval{expr}
     
-    @[include] doc1
+    {{doc1}}
     
     -- note the leading space below
-      @[signature] List.take
+      @signature{List.take}
     
-    :]
+    }}
 ```
 
 ``` unison
@@ -511,7 +511,7 @@ scratch/main> add
 scratch/main> view reg1363
 
   reg1363 : Doc
-  reg1363 = [: `@List.take foo` bar baz :]
+  reg1363 = {{ `{List.take} foo` bar baz }}
 ```
 
 ``` unison
@@ -546,9 +546,9 @@ scratch/main> view test2
 
   test2 : Doc
   test2 =
-    [: Take a look at this:
-    @[source] foo    ▶    bar
-     :]
+    {{ Take a look at this:
+    @source{foo}    ▶    bar
+     }}
 ```
 
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
@@ -560,6 +560,6 @@ scratch/main> display test2
   foo : Nat -> Nat
   foo n =
     use Nat +
-    _ = [: do the thing :]
+    _ = {{ do the thing }}
     n + 1    ▶    bar
 ```
