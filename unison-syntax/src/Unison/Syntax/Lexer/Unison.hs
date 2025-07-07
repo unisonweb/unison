@@ -355,7 +355,7 @@ displayLexeme = \case
   Doc _ -> "doc structure"
 
 -- | The `Doc` lexer as documented on unison-lang.org
-doc2 :: P [Token Lexeme]
+doc2 :: (HasCallStack) => P [Token Lexeme]
 doc2 = do
   -- Ensure we're at a doc before we start consuming tokens
   P.lookAhead (lit "{{")

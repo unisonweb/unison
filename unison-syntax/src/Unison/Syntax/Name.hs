@@ -67,7 +67,7 @@ unsafeParseText =
   either (error . Text.unpack) id . parseTextEither
 
 -- | Convert a name to a string representation.
-toText :: Name -> Text
+toText :: (HasCallStack) => Name -> Text
 toText (Name pos (x0 :| xs)) =
   build (buildPos pos <> foldr step mempty xs <> NameSegment.toEscapedTextBuilder x0)
   where
@@ -97,7 +97,7 @@ unsafeParseVar =
   unsafeParseText . Var.name
 
 -- | Convert a name to a string representation, then parse that as a var.
-toVar :: (Var v) => Name -> v
+toVar :: (HasCallStack, Var v) => Name -> v
 toVar =
   Var.named . toText
 

@@ -39,7 +39,7 @@ unsafeParseText txt = fromMaybe msg (parseText txt)
   where
     msg = error ("HashQualified.unsafeFromText " <> show txt)
 
-toText :: HQ'.HashQualified Name -> Text
+toText :: (HasCallStack) => HQ'.HashQualified Name -> Text
 toText =
   HQ'.toTextWith Name.toText
 
