@@ -7,5 +7,5 @@ in
   ## There are some things we want to pin that the VS Code Haskell extension doesn’t let us control.
   // {
     hpack = "0.38.0"; # This needs to match the version returned by `nix develop --command stack --version`.
-    ormolu = "0.7.2.0";
+    ormolu = "0.7.4.0";
   }

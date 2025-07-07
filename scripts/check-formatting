@@ -5,7 +5,7 @@ mode=${1:-check}
 
 ## This would ideally be read from ./nix/versions.nix, but we can’t assume the user has Nix, so we hardcode this, then
 ## at the end of the script, if the user _does_ have Nix, we check if this hardcoded version is the one we want.
-ormolu_version="0.7.2.0"
+ormolu_version="0.7.4.0"
 
 if command -v ormolu >/dev/null; then
     if ormolu --version | grep -q "${ormolu_version}"; then

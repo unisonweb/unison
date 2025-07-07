@@ -54,6 +54,7 @@
       ## a reason to use a different version.
       assert pkgs.cabal-install.version == versions.cabal;
       assert pkgs.haskell-language-server.version == versions.hls;
+      assert pkgs.ormolu.version == versions.ormolu;
       ## This one is required. Otherwise Nix may build with a different Stack than is exposed in the shell.
       assert pkgs.stack.version == versions.stack; {
         packages =
