@@ -1300,6 +1300,7 @@ declareForeigns = do
   declareForeign Untracked 1 Json_toText
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
+  declareForeign Untracked 3 Avro_decodeBinary
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =

@@ -1680,7 +1680,7 @@ avroDecodeReadSchema = \case
     | TT.avroReadSchemaNullTag == t -> pure ReadSchema.Null
     | TT.avroReadSchemaBooleanTag == t -> pure ReadSchema.Boolean
   Data1 _ t v@(BoxedVal c)
-    | TT.avroReadSchemaIntTag == t -> ReadSchema.Int <$> decodeMaybe' (avroDecodeLogicalInt) c
+    | TT.avroReadSchemaIntTag == t -> ReadSchema.Int <$> decodeMaybe' avroDecodeLogicalInt c
     | TT.avroReadSchemaFloatTag == t -> ReadSchema.Float <$> avroDecodeReadFloat c
     | TT.avroReadSchemaDoubleTag == t -> ReadSchema.Double <$> avroDecodeReadDouble c
     | TT.avroReadSchemaBytesTag == t -> ReadSchema.Bytes <$> decodeMaybe' avroDecodeLogicalBytes c
@@ -1694,6 +1694,9 @@ avroDecodeReadSchema = \case
     | TT.avroReadSchemaFixedTag == t -> do
         (name, aliases, size, logicalType) <- avroDecodeFixed c
         pure $ ReadSchema.Fixed name aliases size logicalType
+    | TT.avroReadSchemaNullTag == t || TT.avroReadSchemaBooleanTag == t || TT.avroReadSchemaStringTag == t || TT.avroReadSchemaFloatTag == t || TT.avroReadSchemaFixedTag == t || TT.avroReadSchemaDoubleTag == t || TT.avroReadSchemaBytesTag == t || TT.avroReadSchemaNamedTypeTag == t || TT.avroReadSchemaArrayTag == t || TT.avroReadSchemaMapTag == t || TT.avroReadSchemaLongTag == t || TT.avroReadSchemaFreeUnionTag == t || TT.avroReadSchemaEnumTag == t || TT.avroReadSchemaUnionTag == t || TT.avroReadSchemaArrayTag == t ->
+        die $ "avroDecodeReadSchema: type error: mismatched data1 tag " ++ show t ++ " " ++ show v
+    | otherwise -> die $ "avroDecodeReadSchema: type error: unknown data1 tag " ++ show t ++ " " ++ show v ++ " " ++ show (TT.unpackTags t)
   Data2 _ t (BoxedVal c1) (BoxedVal c2)
     | TT.avroReadSchemaArrayTag == t -> ReadSchema.Array <$> avroDecodeReadSchema c1
     | TT.avroReadSchemaMapTag == t -> ReadSchema.Map <$> avroDecodeReadSchema c1
@@ -1740,39 +1743,45 @@ avroDecodeLogicalTypeLong = \case
 
 avroDecodeReadRecord :: Closure -> IO ReadSchema.ReadSchema
 avroDecodeReadRecord = \case
-  DataGBoxed _ _ [name, aliases, doc, fields] -> ReadSchema.Record <$> avroDecodeTypeName name <*> (traverse avroDecodeTypeName =<< decodeVal (BoxedVal aliases)) <*> (fmap Util.Text.toText <$> decodeVal (BoxedVal doc)) <*> (traverse avroDecodeReadField =<< (decodeVal (BoxedVal fields)))
+  DataC _ _ [BoxedVal name, aliases, doc, fields] -> do
+    name' <- avroDecodeTypeName name
+    aliases' <- traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])
+    doc' <- fmap Util.Text.toText <$> decodeVal doc
+    fields' <- traverse avroDecodeReadField =<< (decodeVal fields :: IO [Closure])
+    pure $ ReadSchema.Record name' aliases' doc' fields'
   d -> die $ "avroDecodeReadRecord: type error: " ++ show d
 
 avroDecodeRecord :: Closure -> IO AvroSchema.Schema
 avroDecodeRecord = \case
-  DataGBoxed _ _ [name, aliases, doc, fields] -> AvroSchema.Record <$> avroDecodeTypeName name <*> (traverse avroDecodeTypeName =<< decodeVal (BoxedVal aliases)) <*> (fmap Util.Text.toText <$> decodeVal (BoxedVal doc)) <*> (traverse avroDecodeField =<< (decodeVal (BoxedVal fields)))
+  DataC _ _ [BoxedVal name, aliases, doc, fields] -> AvroSchema.Record <$> avroDecodeTypeName name <*> (traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> (traverse avroDecodeField =<< (decodeVal fields :: IO [Closure]))
   d -> die $ "avroDecodeReadRecord: type error: " ++ show d
 
 avroDecodeReadField :: Closure -> IO ReadSchema.ReadField
 avroDecodeReadField = \case
-  DataGBoxed _ _ [name, aliases, doc, typ, status, order, def] -> ReadSchema.ReadField <$> (Util.Text.toText <$> decodeVal (BoxedVal name)) <*> (map Util.Text.toText <$> decodeVal (BoxedVal aliases)) <*> (fmap Util.Text.toText <$> decodeVal (BoxedVal doc)) <*> decodeMaybe' avroDecodeOrder order <*> avroDecodeFieldStatus status <*> avroDecodeReadSchema typ <*> decodeMaybe' avroDecodeDefaultValue def
+  DataC _ _ [name, aliases, doc, BoxedVal typ, BoxedVal status, BoxedVal order, BoxedVal def] -> (ReadSchema.ReadField . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe' avroDecodeOrder order <*> avroDecodeFieldStatus status <*> avroDecodeReadSchema typ <*> decodeMaybe' avroDecodeDefaultValue def
   d -> die $ "avroDecodeReadField: type error: " ++ show d
 
 avroDecodeField :: Closure -> IO AvroSchema.Field
 avroDecodeField = \case
-  DataGBoxed _ _ [name, doc, typ, aliases, order, def] -> AvroSchema.Field <$> (Util.Text.toText <$> decodeVal (BoxedVal name)) <*> (map Util.Text.toText <$> decodeVal (BoxedVal aliases)) <*> (fmap Util.Text.toText <$> decodeVal (BoxedVal doc)) <*> decodeMaybe' avroDecodeOrder order <*> avroDecodeSchema typ <*> decodeMaybe' avroDecodeDefaultValue def
+  DataC _ _ [name, doc, BoxedVal typ, aliases, BoxedVal order, BoxedVal def] -> AvroSchema.Field <$> (Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe' avroDecodeOrder order <*> avroDecodeSchema typ <*> decodeMaybe' avroDecodeDefaultValue def
   d -> die $ "avroDecodeField: type error: " ++ show d
 
+avroDecodeEnum :: Closure -> IO (AvroSchema.TypeName, [AvroSchema.TypeName], Maybe Data.Text.Text, Vector.Vector Data.Text.Text)
 avroDecodeEnum = \case
-  DataGBoxed _ _ [name, doc, aliases, symbols, _] -> do
+  DataC _ _ [BoxedVal name, doc, aliases, symbols, _] -> do
     name' <- avroDecodeTypeName name
-    aliases' <- traverse avroDecodeTypeName =<< decodeVal (BoxedVal aliases)
-    doc' <- fmap Util.Text.toText <$> decodeVal (BoxedVal doc)
-    symbols' <- (Vector.fromList . map Util.Text.toText) <$> decodeVal (BoxedVal symbols)
+    aliases' <- traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])
+    doc' <- fmap Util.Text.toText <$> decodeVal doc
+    symbols' <- (Vector.fromList . map Util.Text.toText) <$> (decodeVal symbols)
     pure (name', aliases', doc', symbols')
   d -> die $ "avroDecodeEnum: type error: " ++ show d
 
 avroDecodeFixed :: Closure -> IO (Avro.TypeName, [Avro.TypeName], Int, Maybe ReadSchema.LogicalTypeFixed)
 avroDecodeFixed = \case
-  DataGBoxed _ _ [name, _, aliases, size, logicalType] -> do
+  DataC _ _ [BoxedVal name, _, aliases, size, BoxedVal logicalType] -> do
     name' <- avroDecodeTypeName name
-    aliases' <- traverse avroDecodeTypeName =<< decodeVal (BoxedVal aliases)
-    size' <- decodeVal (BoxedVal size)
+    aliases' <- traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])
+    size' <- decodeVal size
     logicalType' <- decodeMaybe' avroDecodeLogicalFixed logicalType
     pure (name', aliases', size', logicalType')
   d -> die $ "avroDecodeFixed: type error: " ++ show d
@@ -1811,7 +1820,7 @@ avroDecodeLogicalString = \case
 
 avroDecodeTypeName :: Closure -> IO Avro.TypeName
 avroDecodeTypeName = \case
-  Data2 _ _ name namespace -> Avro.TN <$> (Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal namespace)
+  Data2 _ _ name namespace -> (Avro.TN . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal namespace)
   d -> die $ "avroDecodeTypeName: type error: " ++ show d
 
 avroDecodeReadFloat :: Closure -> IO ReadSchema.ReadFloat
@@ -1840,7 +1849,7 @@ avroDecodeFieldStatus :: Closure -> IO ReadSchema.FieldStatus
 avroDecodeFieldStatus = \case
   Enum _ t
     | TT.avroFieldStatusIgnoredTag == t -> pure ReadSchema.Ignored
-  Data1 _ _ v -> ReadSchema.AsIs <$> decodeVal v
+  Data1 _ _ v -> ReadSchema.AsIs . fromIntegral <$> (decodeVal v :: IO Word64)
   Data2 _ _ v1 (BoxedVal v2) -> ReadSchema.Defaulted <$> decodeVal v1 <*> avroDecodeDefaultValue v2
   d -> die $ "avroDecodeFieldStatus: type error: " ++ show d
 
@@ -1869,8 +1878,8 @@ avroDecodeDefaultValue = \case
     | TT.avroDefaultValueStringTag == t -> AvroSchema.DString <$> avroDecodeSchema c1 <*> (Util.Text.toText <$> decodeVal v2)
     | TT.avroDefaultValueRecordTag == t -> AvroSchema.DRecord <$> avroDecodeSchema c1 <*> fmap HashMap.fromList (traverse (bimapM (pure . Util.Text.toText) avroDecodeDefaultValue) =<< decodeVal v2)
     | TT.avroDefaultValueFixedTag == t -> AvroSchema.DFixed <$> avroDecodeSchema c1 <*> (Bytes.toByteString <$> decodeVal v2)
-  DataGBoxed _ t [schemas, schema, defaultVal] | TT.avroDefaultValueUnionTag == t -> AvroSchema.DUnion <$> fmap Vector.fromList (traverse avroDecodeSchema =<< decodeVal (BoxedVal schemas)) <*> avroDecodeSchema schema <*> (avroDecodeDefaultValue defaultVal)
-  DataGBoxed _ t [schema, ix, symbol] | TT.avroDefaultValueEnumTag == t -> AvroSchema.DEnum <$> avroDecodeSchema schema <*> decodeVal (BoxedVal ix) <*> (Util.Text.toText <$> decodeVal (BoxedVal symbol))
+  DataC _ t [schemas, BoxedVal schema, BoxedVal defaultVal] | TT.avroDefaultValueUnionTag == t -> AvroSchema.DUnion <$> fmap Vector.fromList (traverse avroDecodeSchema =<< decodeVal schemas) <*> avroDecodeSchema schema <*> (avroDecodeDefaultValue defaultVal)
+  DataC _ t [BoxedVal schema, ix, symbol] | TT.avroDefaultValueEnumTag == t -> AvroSchema.DEnum <$> avroDecodeSchema schema <*> decodeVal ix <*> (Util.Text.toText <$> decodeVal symbol)
   d -> die $ "avroDecodeDefaultValue: type error: " ++ show d
 
 avroEncodeLogicalTypeInt :: ReadSchema.LogicalTypeInt -> Val
@@ -2172,6 +2181,7 @@ someVal v = BoxedVal (someClo v)
 
 instance ForeignConvention Int where
   decodeVal (IntVal v) = pure v
+  decodeVal (NatVal v) = pure $ fromIntegral v
   decodeVal v = foreignConventionError "Int" v
   encodeVal = IntVal
 

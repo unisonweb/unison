@@ -551,4 +551,4 @@ foreignFuncBuiltinName = \case
   Json_toText -> "Json.toText"
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
-  Avro_decodeBinary -> "Avro.decodeBinary"
+  Avro_decodeBinary -> "avro.Value.tryDecodeBytes"

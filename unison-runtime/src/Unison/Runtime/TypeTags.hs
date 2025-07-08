@@ -450,14 +450,14 @@ avroDefaultValueIntTag, avroDefaultValueLongTag, avroDefaultValueFloatTag, avroD
       (it, lt, ft, dt, bct, st, art, mct, rct, ut, fct, ent, nct, bot)
   | otherwise = error "internal error: avro default value tags"
 
-avroReadSchemaNullTag, avroReadSchemaBooleanTag, avroReadSchemaIntTag, avroReadSchemaLongTag, avroReadSchemaFloatTag, avroReadSchemaDoubleTag, avroReadSchemaBytesTag, avroReadSchemaStringTag, avroReadSchemaArrayTag, avroReadSchemaMapTag, avroReadSchemaRecordTag, avroReadSchemaEnumTag, avroReadSchemaUnionTag, avroReadSchemaFixedTag, avroReadSchemaFreeUnionTag, avroReadSchemaNamedTypeTag :: PackedTag
-(avroReadSchemaNullTag, avroReadSchemaBooleanTag, avroReadSchemaIntTag, avroReadSchemaLongTag, avroReadSchemaFloatTag, avroReadSchemaDoubleTag, avroReadSchemaBytesTag, avroReadSchemaStringTag, avroReadSchemaArrayTag, avroReadSchemaMapTag, avroReadSchemaRecordTag, avroReadSchemaEnumTag, avroReadSchemaUnionTag, avroReadSchemaFixedTag, avroReadSchemaFreeUnionTag, avroReadSchemaNamedTypeTag)
-  | [nlt, bot, it, lt, ft, dt, bst, st, at, mt, rct, ent, ut, fxt, fut, ntt] <-
+avroReadSchemaNullTag, avroReadSchemaBooleanTag, avroReadSchemaStringTag, avroReadSchemaFloatTag, avroReadSchemaFixedTag, avroReadSchemaDoubleTag, avroReadSchemaBytesTag, avroReadSchemaNamedTypeTag, avroReadSchemaIntTag, avroReadSchemaLongTag, avroReadSchemaMapTag, avroReadSchemaRecordTag, avroReadSchemaFreeUnionTag, avroReadSchemaEnumTag, avroReadSchemaUnionTag, avroReadSchemaArrayTag :: PackedTag
+(avroReadSchemaNullTag, avroReadSchemaBooleanTag, avroReadSchemaStringTag, avroReadSchemaFloatTag, avroReadSchemaFixedTag, avroReadSchemaDoubleTag, avroReadSchemaBytesTag, avroReadSchemaNamedTypeTag, avroReadSchemaIntTag, avroReadSchemaLongTag, avroReadSchemaMapTag, avroReadSchemaRecordTag, avroReadSchemaFreeUnionTag, avroReadSchemaEnumTag, avroReadSchemaUnionTag, avroReadSchemaArrayTag)
+  | [nullTag, booleanTag, stringTag, floatTag, fixedTag, doubleTag, bytesTag, namedTypeTag, intTag, longTag, mapTag, recordTag, freeUnionTag, enumTag, unionTag, arrayTag] <-
       mkTags
         "avro read schema tags"
         Ty.avroReadSchemaRef
-        [Ty.avroReadSchemaNull, Ty.avroReadSchemaBoolean, Ty.avroReadSchemaInt, Ty.avroReadSchemaLong, Ty.avroReadSchemaFloat, Ty.avroReadSchemaDouble, Ty.avroReadSchemaBytes, Ty.avroReadSchemaString, Ty.avroReadSchemaArray, Ty.avroReadSchemaMap, Ty.avroReadSchemaRecord, Ty.avroReadSchemaEnum, Ty.avroReadSchemaUnion, Ty.avroReadSchemaFixed, Ty.avroReadSchemaFreeUnion, Ty.avroReadSchemaNamedType] =
-      (nlt, bot, it, lt, ft, dt, bst, st, at, mt, rct, ent, ut, fxt, fut, ntt)
+        [Ty.avroReadSchemaNull, Ty.avroReadSchemaBoolean, Ty.avroReadSchemaString, Ty.avroReadSchemaFloat, Ty.avroReadSchemaFixed, Ty.avroReadSchemaDouble, Ty.avroReadSchemaBytes, Ty.avroReadSchemaNamedType, Ty.avroReadSchemaInt, Ty.avroReadSchemaLong, Ty.avroReadSchemaMap, Ty.avroReadSchemaRecord, Ty.avroReadSchemaFreeUnion, Ty.avroReadSchemaEnum, Ty.avroReadSchemaUnion, Ty.avroReadSchemaArray] =
+      (nullTag, booleanTag, stringTag, floatTag, fixedTag, doubleTag, bytesTag, namedTypeTag, intTag, longTag, mapTag, recordTag, freeUnionTag, enumTag, unionTag, arrayTag)
   | otherwise = error "internal error: avro readschema tags"
 
 avroSchemaNullTag, avroSchemaBooleanTag, avroSchemaIntTag, avroSchemaLongTag, avroSchemaFloatTag, avroSchemaDoubleTag, avroSchemaBytesTag, avroSchemaStringTag, avroSchemaArrayTag, avroSchemaMapTag, avroSchemaNamedTypeTag, avroSchemaRecordTag, avroSchemaEnumTag, avroSchemaUnionTag, avroSchemaFixedTag :: PackedTag
