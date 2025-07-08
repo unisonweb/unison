@@ -59,6 +59,7 @@ categorize ::
   a ->
   IO (Bool, a, Canonicalizer a)
 categorize cn !x = makeStableName x >>= categorize0 cn x
+{-# INLINE categorize #-}
 
 -- Produces a canonical value and an updated canonicalizer under
 -- the assumption that the given stable name is the one for the
@@ -94,9 +95,11 @@ newtype CanonMap k v = CanonM (HashMap (StableName k) v)
 
 lookup :: k -> CanonMap k v -> IO (Maybe v)
 lookup !k (CanonM m) = flip HM.lookup m <$> makeStableName k
+{-# INLINE lookup #-}
 
 unsafeLookup :: k -> CanonMap k v -> Maybe v
 unsafeLookup k m = unsafePerformIO $ lookup k m
+{-# INLINE unsafeLookup #-}
 
 fromListByIndex :: [k] -> CanonMap k Int
 fromListByIndex l = unsafePerformIO do
