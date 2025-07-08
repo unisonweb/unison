@@ -52,6 +52,7 @@ putReference ::
 putReference cm r
   | Just i <- unsafeLookup r cm = putVarInt i
   | otherwise = exn $ "could not serialize reference: " ++ show r
+{-# INLINE putReference #-}
 
 getReference :: (MonadGet m) => Array Reference -> m Reference
 getReference refm = getVarInt >>= lookupRef refm
@@ -88,10 +89,11 @@ getConstructorReference tys =
 
 putGroupRef :: (MonadPut m) => CanonMap Reference Int -> GroupRef -> m ()
 putGroupRef tms (GR r i) =
-  putReference tms r *> putWord64be i
+  putReference tms r *> putVarInt i
+{-# INLINE putGroupRef #-}
 
 getGroupRef :: (MonadGet m) => Array Reference -> m GroupRef
-getGroupRef tms = GR <$> getReference tms <*> getWord64be
+getGroupRef tms = GR <$> getReference tms <*> getVarInt
 
 -- Notes
 --
