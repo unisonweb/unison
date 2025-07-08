@@ -33,6 +33,7 @@
         ++ [
           pkgs.cachix
           pkgs.gettext # for envsubst, used by unison-src/builtin-tests/interpreter-tests.sh
+          pkgs.jq # helpful when pushing to Cachix
           pkgs.pkg-config
           pkgs.stack-wrapped
         ];

@@ -2345,6 +2345,9 @@ notifyUser dir = \case
       P.lines
         [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName
         ]
+  BranchUpdate'BranchChanged -> do
+    pure $
+      P.wrap "Another process updated the codebase while your command was running, so I didn't apply the update. Please run the command again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
