@@ -161,7 +161,10 @@ jobs:
 
       - name: cli-integration-tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        run: stack exec cli-integration-tests
+        run: |
+          stack exec cli-integration-tests
+          # Fail if any transcripts cause git diffs.
+          git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
 
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
