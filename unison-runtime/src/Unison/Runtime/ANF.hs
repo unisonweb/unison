@@ -64,6 +64,8 @@ module Unison.Runtime.ANF
     Code (..),
     ValList,
     Value (..),
+    Referenced (..),
+    dereference,
     Cont (..),
     BLit (..),
     packTags,
@@ -1603,6 +1605,22 @@ type ANFD v = Compose (ANFM v) (Directed ())
 
 data GroupRef = GR Reference Word64
   deriving (Show, Eq)
+
+-- A value with optional optimization information for serialization.
+-- The references are required for serialization V5, and are assumed
+-- to be the only references used in the value _up to in-memory
+-- uniqueness_.
+--
+-- This is parameterized so that it can be used with both Value and
+-- Code.
+data Referenced a
+  = WithRefs [Reference] a
+  | Plain a
+  deriving (Show, Eq)
+
+dereference :: Referenced a -> a
+dereference (WithRefs _ x) = x
+dereference (Plain x) = x
 
 -- | A list of either unboxed or boxed values.
 -- Each slot is one of unboxed or boxed but not both.
