@@ -30,10 +30,11 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List qualified as List
+import Data.HashMap.Lazy qualified as HM
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -320,10 +321,11 @@ exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
           pokeTag stk 1
       pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
-  m <- readTVarIO (tagRefs env)
+  tyr <- readTVarIO (tagRefs env)
+  tmr <- readTVarIO (combRefs env)
   c <- peekOff stk i
   stk <- bump stk
-  pokeBi stk =<< reflectValue env m c
+  pokeBi stk =<< reflectValue env tyr tmr c
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
@@ -1403,14 +1405,17 @@ cacheAdd l cc = do
     else pure $ S.toList missing
 
 type Reflect =
-  StateT (C.Canonicalizer Reference, [Reference], [Reference]) IO
+  StateT
+    (HM.HashMap Word64 Reference, HM.HashMap Word64 Reference, [Reference], [Reference])
+    IO
 
 reflectValue ::
   CCache ->
   EnumMap Word64 Reference ->
+  EnumMap Word64 Reference ->
   Val ->
   IO (ANF.Referenced ANF.Value)
-reflectValue env rty = goV0
+reflectValue env rty rtm = goV0
   where
     err s v =
       "reflectValue: cannot prepare value for serialization: "
@@ -1418,19 +1423,30 @@ reflectValue env rty = goV0
         ++ "\n\nSerialized value:\n\n"
         ++ v
 
-    refTy w
-      | Just r <- EC.lookup w rty = canonTyRef r
-      | otherwise = reflExn "unknown type reference"
+    refTy w = get >>= \(seenty, seentm, tys, tms) ->
+      case HM.lookup w seenty of
+        Just r -> pure r
+        Nothing
+          | Just r <- EC.lookup w rty ->
+              r <$ put (HM.insert w r seenty, seentm, r:tys, tms)
+          | otherwise -> reflExn "unknown type reference"
 
-    goIx (CIx r0 _ i) = flip ANF.GR i <$> canonTmRef r
-      where
-        r = M.findWithDefault r0 r0 functionUnreplacements
+    refTm w = get >>= \(seenty, seentm, tys, tms) ->
+      case HM.lookup w seentm of
+        Just r -> pure r
+        Nothing
+          | Just r <- EC.lookup w rtm,
+            r <- M.findWithDefault r r functionUnreplacements ->
+              r <$ put (seenty, HM.insert w r seentm, tys, r:tms)
+          | otherwise -> reflExn "unknown term reference"
 
-    finish (val, (_, tys, tms)) = ANF.WithRefs tys tms val
+    goIx (CIx _ top i) = flip ANF.GR i <$> refTm top
+
+    finish (val, (_, _, tys, tms)) = ANF.WithRefs tys tms val
 
     goV0 :: Val -> IO (ANF.Referenced ANF.Value)
     goV0 v =
-      fmap finish (runStateT (goV v) (C.empty, [], []))
+      fmap finish (runStateT (goV v) (mempty, mempty, [], []))
         `catch` \(ReflectExn problem) ->
           die $ err problem rendered
       where
@@ -1438,20 +1454,6 @@ reflectValue env rty = goV0
           NoTrace -> show v
           MsgTrace _ _ pre -> pre
           SimpleTrace ugl -> ugl
-
-    canonTyRef :: Reference -> Reflect Reference
-    canonTyRef r = do
-      (cn, tys, tms) <- get
-      (seen, r, cn) <- lift $ C.categorize cn r
-      put (cn, if seen then tys else r:tys, tms)
-      pure r
-
-    canonTmRef :: Reference -> Reflect Reference
-    canonTmRef r = do
-      (cn, tys, tms) <- get
-      (seen, r, cn) <- lift $ C.categorize cn r
-      put (cn, tys, if seen then tms else r:tms)
-      pure r
 
     reflExn msg = lift . throwIO $ ReflectExn msg
 
@@ -1470,8 +1472,8 @@ reflectValue env rty = goV0
         case clos of
           (PApV cix _rComb args) ->
             ANF.Partial <$> goIx cix <*> traverse goV args
-          (DataC r t segs) -> do
-            r <- canonTyRef r
+          (DataC _ t segs) -> do
+            r <- refTy $ TT.typeTag t
             ANF.Data r (maskTags t) <$> traverse goV segs
           (CapV k _ segs) ->
             ANF.Cont <$> traverse goV segs <*> goK k
