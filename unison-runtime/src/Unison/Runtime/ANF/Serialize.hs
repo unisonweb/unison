@@ -9,6 +9,8 @@ import Control.Monad
 import Control.Monad.Reader
 import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
+import Data.Binary.Get qualified as BGet
+import Data.Binary.Put qualified as BPut
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
@@ -19,7 +21,9 @@ import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
 import Data.Maybe (mapMaybe)
+import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put (runPutLazy)
+import Data.Serialize.Put qualified as SPut
 import Data.Word (Word16, Word32, Word64)
 import GHC.IsList qualified (fromList)
 import GHC.Stack
@@ -622,6 +626,8 @@ putBLit _ (Neg n) = putTag NegT *> putPositive n
 putBLit _ (Char c) = putTag CharT *> putChar c
 putBLit _ (Float d) = putTag FloatT *> putFloat d
 putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
+{-# SPECIALIZE putBLit :: Version -> BLit -> BPut.Put #-}
+{-# SPECIALIZE putBLit :: Version -> BLit -> SPut.Put #-}
 
 getBLit :: (MonadGet m, SerialConfig m) => m BLit
 getBLit =
@@ -641,6 +647,8 @@ getBLit =
     FloatT -> Float <$> getFloat
     ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
+{-# SPECIALIZE getBLit :: BDeserial BLit #-}
+{-# SPECIALIZE getBLit :: SDeserial BLit #-}
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -796,6 +804,8 @@ putValue v (Cont bs k) =
     *> putCont v k
 putValue v (BLit l) =
   putTag BLitT *> putBLit v l
+{-# SPECIALIZE putValue :: Version -> Value -> BPut.Put #-}
+{-# SPECIALIZE putValue :: Version -> Value -> SPut.Put #-}
 
 getValue :: (MonadGet m, SerialConfig m) => m Value
 getValue =
@@ -841,6 +851,8 @@ getValue =
     assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
     assertEmptyUnboxed [] = pure ()
     assertEmptyUnboxed _ = exn "getValue: unboxed values no longer supported"
+{-# SPECIALIZE getValue :: BDeserial Value #-}
+{-# SPECIALIZE getValue :: SDeserial Value #-}
 
 putCont :: (MonadPut m) => Version -> Cont -> m ()
 putCont _ KE = putTag KET
@@ -856,6 +868,8 @@ putCont v (Push f n gr k) =
     *> putWord64be n
     *> putGroupRef gr
     *> putCont v k
+{-# SPECIALIZE putCont :: Version -> Cont -> BPut.Put #-}
+{-# SPECIALIZE putCont :: Version -> Cont -> SPut.Put #-}
 
 getCont :: (MonadGet m, SerialConfig m) => m Cont
 getCont =
@@ -896,6 +910,8 @@ getCont =
   where
     assert0 _name 0 = pure ()
     assert0 name n = exn $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
+{-# SPECIALIZE getCont :: BDeserial Cont #-}
+{-# SPECIALIZE getCont :: SDeserial Cont #-}
 
 deserializeCode :: ByteString -> Either String Code
 deserializeCode bs =
@@ -1005,6 +1021,9 @@ askFOp :: (SerialConfig m) => m Bool
 askFOp = asks snd
 
 type SerialConfig m = MonadReader (Version, Bool) m
+
+type BDeserial = ReaderT (Version, Bool) BGet.Get
+type SDeserial = ReaderT (Version, Bool) SGet.Get
 
 -- Convert value version numbers to code version numbers
 valueToCode :: Version -> Version
