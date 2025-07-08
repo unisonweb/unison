@@ -2462,15 +2462,13 @@ functionReplacementList =
     )
   ]
 
-functionReplacements :: Map Reference Reference
-functionReplacements =
-  Map.fromList $ fmap process functionReplacementList
-
-functionUnreplacements :: Map Reference Reference
-functionUnreplacements =
-  Map.fromList . fmap (swap . process) $ functionReplacementList
+-- Built at the same time to attempt to share references.
+functionReplacements, functionUnreplacements :: Map Reference Reference
+(functionReplacements, functionUnreplacements) =
+  (Map.fromList processed, Map.fromList $ swap <$> processed)
   where
     swap (x, y) = (y, x)
+    processed = process <$> functionReplacementList
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.
