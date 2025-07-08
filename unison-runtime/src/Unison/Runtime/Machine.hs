@@ -1402,7 +1402,8 @@ cacheAdd l cc = do
     then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
-type Reflect = StateT (C.Canonicalizer Reference, [Reference]) IO
+type Reflect =
+  StateT (C.Canonicalizer Reference, [Reference], [Reference]) IO
 
 reflectValue ::
   CCache ->
@@ -1418,18 +1419,18 @@ reflectValue env rty = goV0
         ++ v
 
     refTy w
-      | Just r <- EC.lookup w rty = canonRef r
-      | otherwise = lift . throwIO $ ReflectExn "unknown type reference"
+      | Just r <- EC.lookup w rty = canonTyRef r
+      | otherwise = reflExn "unknown type reference"
 
-    goIx (CIx r0 _ i) = flip ANF.GR i <$> canonRef r
+    goIx (CIx r0 _ i) = flip ANF.GR i <$> canonTmRef r
       where
         r = M.findWithDefault r0 r0 functionUnreplacements
 
-    finish (val, (_, rs)) = ANF.WithRefs rs val
+    finish (val, (_, tys, tms)) = ANF.WithRefs tys tms val
 
     goV0 :: Val -> IO (ANF.Referenced ANF.Value)
     goV0 v =
-      fmap finish (runStateT (goV v) (C.empty, []))
+      fmap finish (runStateT (goV v) (C.empty, [], []))
         `catch` \(ReflectExn problem) ->
           die $ err problem rendered
       where
@@ -1438,10 +1439,18 @@ reflectValue env rty = goV0
           MsgTrace _ _ pre -> pre
           SimpleTrace ugl -> ugl
 
-    canonRef r = do
-      (cn, rs) <- get
+    canonTyRef :: Reference -> Reflect Reference
+    canonTyRef r = do
+      (cn, tys, tms) <- get
       (seen, r, cn) <- lift $ C.categorize cn r
-      put (cn, if seen then rs else r:rs)
+      put (cn, if seen then tys else r:tys, tms)
+      pure r
+
+    canonTmRef :: Reference -> Reflect Reference
+    canonTmRef r = do
+      (cn, tys, tms) <- get
+      (seen, r, cn) <- lift $ C.categorize cn r
+      put (cn, tys, if seen then tms else r:tms)
       pure r
 
     reflExn msg = lift . throwIO $ ReflectExn msg
@@ -1462,7 +1471,7 @@ reflectValue env rty = goV0
           (PApV cix _rComb args) ->
             ANF.Partial <$> goIx cix <*> traverse goV args
           (DataC r t segs) -> do
-            r <- canonRef r
+            r <- canonTyRef r
             ANF.Data r (maskTags t) <$> traverse goV segs
           (CapV k _ segs) ->
             ANF.Cont <$> traverse goV segs <*> goK k
@@ -1530,21 +1539,23 @@ reifyValue cc val = do
   where
     f False r = (mempty, S.singleton r)
     f True r = (S.singleton r, mempty)
-    (tyLinks, tmLinks) = valueLinks f $ ANF.dereference val
+    (tyLinks, tmLinks) = case val of
+      ANF.WithRefs tys tms _ -> (Set.fromList tys, Set.fromList tms)
+      ANF.Plain val -> valueLinks f val
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
   ANF.Referenced ANF.Value ->
   IO Val
 reifyValue1 tup (ANF.Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0) (ANF.WithRefs rs v) = do
-  rty <- C.fromList $ mapMaybe (\r -> (r,) <$> M.lookup r rty0) rs
-  rtm <- C.fromList $ mapMaybe procTermRefs rs
+reifyValue1 (combs, rty0, rtm0) (ANF.WithRefs tys tms v) = do
+  rty <- C.fromList $ mapMaybe (\r -> (r,) <$> M.lookup r rty0) tys
+  rtm <- C.fromList $ mapMaybe procTermRefs tms
   reifyValue0Canon combs rty rtm v
   where
-    procTermRefs r0 =
-      (r0,) <$>
-        M.lookup (M.findWithDefault r0 r0 functionReplacements) rtm0
+    procTermRefs r =
+      (r,) <$>
+        M.lookup (M.findWithDefault r r functionReplacements) rtm0
 
 reifyValue0Canon ::
   EnumMap Word64 MCombs ->

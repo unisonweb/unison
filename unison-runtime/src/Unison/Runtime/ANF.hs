@@ -1614,12 +1614,13 @@ data GroupRef = GR Reference Word64
 -- This is parameterized so that it can be used with both Value and
 -- Code.
 data Referenced a
-  = WithRefs [Reference] a
+  -- types, terms
+  = WithRefs [Reference] [Reference] a
   | Plain a
   deriving (Show, Eq)
 
 dereference :: Referenced a -> a
-dereference (WithRefs _ x) = x
+dereference (WithRefs _ _ x) = x
 dereference (Plain x) = x
 
 -- | A list of either unboxed or boxed values.

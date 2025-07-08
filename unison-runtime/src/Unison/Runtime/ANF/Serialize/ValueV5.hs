@@ -38,62 +38,60 @@ import Data.Serialize.Put qualified as SPut
 
 import Unison.Runtime.ANF.Serialize.CodeV4
 
-type GetRefLookup = Array Reference
-type PutRefLookup = CanonMap Reference Int
+-- types, terms
+type GetRefLookup = (Array Reference, Array Reference)
+type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
 
-lookupRef :: Monad m => GetRefLookup -> Int -> m Reference
+lookupRef :: Monad m => Array Reference -> Int -> m Reference
 lookupRef arr i
   | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
   | otherwise = exn $ "lookupRef: index out of bounds: " ++ show i
 
 putReference ::
-  (MonadPut m) => PutRefLookup -> Reference -> m ()
+  (MonadPut m) => CanonMap Reference Int -> Reference -> m ()
 putReference cm r
   | Just i <- unsafeLookup r cm = putVarInt i
   | otherwise = exn $ "could not serialize reference: " ++ show r
 
-getReference :: (MonadGet m) => GetRefLookup -> m Reference
+getReference :: (MonadGet m) => Array Reference -> m Reference
 getReference refm = getVarInt >>= lookupRef refm
 
 putReferent ::
   (MonadPut m) => PutRefLookup -> Referent -> m ()
-putReferent refm = \case
+putReferent (tys, tms) = \case
   Ref r -> do
     putWord8 0
-    putReference refm r
+    putReference tms r
   Con r ct -> do
     putWord8 1
-    putConstructorReference refm r
+    putConstructorReference tys r
     putConstructorType ct
 
 getReferent :: (MonadGet m) => GetRefLookup -> m Referent
-getReferent refm = do
+getReferent (tys, tms) = do
   tag <- getWord8
   case tag of
-    0 -> Ref <$> getReference refm
-    1 -> Con <$> getConstructorReference refm <*> getConstructorType
+    0 -> Ref <$> getReference tms
+    1 -> Con <$> getConstructorReference tys <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
-putHeader :: (MonadPut m) => [Reference] -> m ()
-putHeader = putFoldable SER.putReference
-
 putConstructorReference ::
-  (MonadPut m) => PutRefLookup -> ConstructorReference -> m ()
-putConstructorReference refm (ConstructorReference r i) = do
-  putReference refm r
+  (MonadPut m) => CanonMap Reference Int -> ConstructorReference -> m ()
+putConstructorReference tys (ConstructorReference r i) = do
+  putReference tys r
   putLength i
 
 getConstructorReference ::
-  (MonadGet m) => GetRefLookup -> m ConstructorReference
-getConstructorReference refm =
-  ConstructorReference <$> getReference refm <*> getLength
+  (MonadGet m) => Array Reference -> m ConstructorReference
+getConstructorReference tys =
+  ConstructorReference <$> getReference tys <*> getLength
 
-putGroupRef :: (MonadPut m) => PutRefLookup -> GroupRef -> m ()
-putGroupRef refm (GR r i) =
-  putReference refm r *> putWord64be i
+putGroupRef :: (MonadPut m) => CanonMap Reference Int -> GroupRef -> m ()
+putGroupRef tms (GR r i) =
+  putReference tms r *> putWord64be i
 
-getGroupRef :: (MonadGet m) => GetRefLookup -> m GroupRef
-getGroupRef refm = GR <$> getReference refm <*> getWord64be
+getGroupRef :: (MonadGet m) => Array Reference -> m GroupRef
+getGroupRef tms = GR <$> getReference tms <*> getWord64be
 
 -- Notes
 --
@@ -137,111 +135,113 @@ getGroupRef refm = GR <$> getReference refm <*> getWord64be
 -- to avoid a significant refactoring effort, but should be able to be
 -- reworked in the future.
 putValue :: (MonadPut m) => PutRefLookup -> Value -> m ()
-putValue refm (Partial gr vs) =
-  putTag PartialT
-    *> putGroupRef refm gr
-    *> putFoldable (putValue refm) vs
-putValue refm (Data r t vs) =
-  putTag DataT
-    *> putReference refm r
-    *> putVarInt t
-    *> putFoldable (putValue refm) vs
-putValue refm (Cont bs k) =
-  putTag ContT
-    *> putFoldable (putValue refm) bs
-    *> putCont refm k
-putValue refm (BLit l) =
-  putTag BLitT *> putBLit refm l
+putValue pref@(tys, tms) = \case
+  Partial gr vs ->
+    putTag PartialT
+      *> putGroupRef tms gr
+      *> putFoldable (putValue pref) vs
+  Data r t vs ->
+    putTag DataT
+      *> putReference tys r
+      *> putVarInt t
+      *> putFoldable (putValue pref) vs
+  Cont bs k ->
+    putTag ContT
+      *> putFoldable (putValue pref) bs
+      *> putCont pref k
+  BLit l -> putTag BLitT *> putBLit pref l
 {-# SPECIALIZE putValue :: PutRefLookup -> Value -> BPut.Put #-}
 {-# SPECIALIZE putValue :: PutRefLookup -> Value -> SPut.Put #-}
 
 getValue :: (MonadGet m) => GetRefLookup -> m Value
-getValue refm =
+getValue gref@(tys, tms) =
   getTag >>= \case
     PartialT -> do
-      gr <- getGroupRef refm
-      vs <- getList (getValue refm)
+      gr <- getGroupRef tms
+      vs <- getList (getValue gref)
       pure $ Partial gr vs
     DataT -> do
-      r <- getReference refm
+      r <- getReference tys
       w <- getVarInt
-      vs <- getList (getValue refm)
+      vs <- getList (getValue gref)
       pure $ Data r w vs
     ContT -> do
-      bs <- getList (getValue refm)
-      k <- getCont refm
+      bs <- getList (getValue gref)
+      k <- getCont gref
       pure $ Cont bs k
-    BLitT -> BLit <$> getBLit refm
+    BLitT -> BLit <$> getBLit gref
 {-# SPECIALIZE getValue :: GetRefLookup -> BGet.Get Value #-}
 {-# SPECIALIZE getValue :: GetRefLookup -> SGet.Get Value #-}
 
 putCont :: (MonadPut m) => PutRefLookup -> Cont -> m ()
-putCont _ KE = putTag KET
-putCont refm (Mark a rs ds k) =
-  putTag MarkT
-    *> putVarInt a
-    *> putFoldable (putReference refm) rs
-    *> putMap (putReference refm) (putValue refm) ds
-    *> putCont refm k
-putCont refm (Push f n gr k) =
-  putTag PushT
-    *> putVarInt f
-    *> putVarInt n
-    *> putGroupRef refm gr
-    *> putCont refm k
+putCont pref@(tys, tms) = \case
+  KE -> putTag KET
+  Mark a rs ds k ->
+    putTag MarkT
+      *> putVarInt a
+      *> putFoldable (putReference tys) rs
+      *> putMap (putReference tys) (putValue pref) ds
+      *> putCont pref k
+  Push f n gr k ->
+    putTag PushT
+      *> putVarInt f
+      *> putVarInt n
+      *> putGroupRef tms gr
+      *> putCont pref k
 {-# SPECIALIZE putCont :: PutRefLookup -> Cont -> BPut.Put #-}
 {-# SPECIALIZE putCont :: PutRefLookup -> Cont -> SPut.Put #-}
 
 getCont :: (MonadGet m) => GetRefLookup -> m Cont
-getCont refm =
+getCont gref@(tys, tms) =
   getTag >>= \case
     KET -> pure KE
     MarkT ->
       Mark
         <$> getVarInt
-        <*> getList (getReference refm)
-        <*> getMap (getReference refm) (getValue refm)
-        <*> getCont refm
+        <*> getList (getReference tys)
+        <*> getMap (getReference tys) (getValue gref)
+        <*> getCont gref
     PushT ->
       Push
         <$> getVarInt
         <*> getVarInt
-        <*> getGroupRef refm
-        <*> getCont refm
+        <*> getGroupRef tms
+        <*> getCont gref
 {-# SPECIALIZE getCont :: GetRefLookup -> BGet.Get Cont #-}
 {-# SPECIALIZE getCont :: GetRefLookup -> SGet.Get Cont #-}
 
 putBLit :: (MonadPut m) => PutRefLookup -> BLit -> m ()
-putBLit _ (Text t) = putTag TextT *> putText (Util.Text.toText t)
-putBLit refm (List s) = putTag ListT *> putFoldable (putValue refm) s
-putBLit refm (TmLink r) = putTag TmLinkT *> putReferent refm r
-putBLit refm (TyLink r) = putTag TyLinkT *> putReference refm r
-putBLit _ (Bytes b) = putTag BytesT *> putBytes b
-putBLit refm (Quote vl) = putTag QuoteT *> putValue refm vl
-putBLit _ (Code (CodeRep sg ch)) =
-  putTag tag *> putGroup mempty False sg
-  where
-    tag
-      | Cacheable <- ch = CachedCodeT
-      | otherwise = CodeT
-putBLit _ (BArr a) = putTag BArrT *> putByteArray a
-putBLit _ (Pos n) = putTag PosT *> putPositive n
-putBLit _ (Neg n) = putTag NegT *> putPositive n
-putBLit _ (Char c) = putTag CharT *> putChar c
-putBLit _ (Float d) = putTag FloatT *> putFloat d
-putBLit refm (Arr a) = putTag ArrT *> putFoldable (putValue refm) a
+putBLit pref@(tys, _) = \case
+  Text t -> putTag TextT *> putText (Util.Text.toText t)
+  List s -> putTag ListT *> putFoldable (putValue pref) s
+  TmLink r -> putTag TmLinkT *> putReferent pref r
+  TyLink r -> putTag TyLinkT *> putReference tys r
+  Bytes b -> putTag BytesT *> putBytes b
+  Quote vl -> putTag QuoteT *> putValue pref vl
+  Code (CodeRep sg ch) ->
+    putTag tag *> putGroup mempty False sg
+    where
+      tag
+        | Cacheable <- ch = CachedCodeT
+        | otherwise = CodeT
+  BArr a -> putTag BArrT *> putByteArray a
+  Pos n -> putTag PosT *> putPositive n
+  Neg n -> putTag NegT *> putPositive n
+  Char c -> putTag CharT *> putChar c
+  Float d -> putTag FloatT *> putFloat d
+  Arr a -> putTag ArrT *> putFoldable (putValue pref) a
 {-# SPECIALIZE putBLit :: PutRefLookup -> BLit -> BPut.Put #-}
 {-# SPECIALIZE putBLit :: PutRefLookup -> BLit -> SPut.Put #-}
 
 getBLit :: (MonadGet m) => GetRefLookup -> m BLit
-getBLit refm =
+getBLit gref@(tys, _) =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
-    ListT -> List <$> getSeq (getValue refm)
-    TmLinkT -> TmLink <$> getReferent refm
-    TyLinkT -> TyLink <$> getReference refm
+    ListT -> List <$> getSeq (getValue gref)
+    TmLinkT -> TmLink <$> getReferent gref
+    TyLinkT -> TyLink <$> getReference tys
     BytesT -> Bytes <$> getBytes
-    QuoteT -> Quote <$> getValue refm
+    QuoteT -> Quote <$> getValue gref
     CodeT ->
       Code . flip CodeRep Uncacheable <$> getGroup
     BArrT -> BArr <$> getByteArray
@@ -249,22 +249,30 @@ getBLit refm =
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
-    ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue refm)
+    ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue gref)
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
 {-# SPECIALIZE getBLit :: GetRefLookup -> BGet.Get BLit #-}
 {-# SPECIALIZE getBLit :: GetRefLookup -> SGet.Get BLit #-}
 
-putValueWithHeader :: (MonadPut m) => [Reference] -> Value -> m ()
-putValueWithHeader rs v = putHeader rs *> putValue (fromListByIndex rs) v
-{-# SPECIALIZE putValueWithHeader :: [Reference] -> Value -> BPut.Put #-}
-{-# SPECIALIZE putValueWithHeader :: [Reference] -> Value -> SPut.Put #-}
+putValueWithHeader ::
+  (MonadPut m) => [Reference] -> [Reference] -> Value -> m ()
+putValueWithHeader tyrs tmrs v =
+  putFoldable SER.putReference tyrs *>
+  putFoldable SER.putReference tmrs *>
+    putValue (fromListByIndex tyrs, fromListByIndex tmrs) v
+{-# SPECIALIZE putValueWithHeader ::
+      [Reference] -> [Reference] -> Value -> BPut.Put #-}
+{-# SPECIALIZE putValueWithHeader ::
+      [Reference] -> [Reference] -> Value -> SPut.Put #-}
 
 getValueWithHeader :: (MonadGet m) => m (Referenced Value)
 getValueWithHeader = do
-  l <- getLength
-  h <- replicateM l SER.getReference
-  v <- getValue (arrayFromListN l h)
-  pure (WithRefs h v)
+  tyl <- getLength
+  tys <- replicateM tyl SER.getReference
+  tml <- getLength
+  tms <- replicateM tml SER.getReference
+  v <- getValue (arrayFromListN tyl tys, arrayFromListN tml tms)
+  pure (WithRefs tys tms v)
 {-# SPECIALIZE getValueWithHeader :: BGet.Get (Referenced Value) #-}
 {-# SPECIALIZE getValueWithHeader :: SGet.Get (Referenced Value) #-}
 
