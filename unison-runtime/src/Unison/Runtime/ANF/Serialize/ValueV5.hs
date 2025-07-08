@@ -7,14 +7,12 @@ module Unison.Runtime.ANF.Serialize.ValueV5
 import Control.Monad (replicateM)
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
-import Data.Primitive.Array
-  (Array, arrayFromListN, sizeofArray, indexArray)
+import Data.Primitive.Array (Array, arrayFromListN)
 import GHC.IsList qualified (fromList)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.Canonicalizer
-import Unison.Runtime.Exception
 import Unison.Runtime.Serialize
   hiding
     ( getConstructorReference
@@ -28,9 +26,6 @@ import Unison.Runtime.Serialize qualified as SER
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
 
-import Unison.ConstructorReference
-import Unison.Referent (Referent, pattern Con, pattern Ref)
-
 import Data.Binary.Get qualified as BGet
 import Data.Binary.Put qualified as BPut
 import Data.Serialize.Get qualified as SGet
@@ -38,62 +33,13 @@ import Data.Serialize.Put qualified as SPut
 
 import Unison.Runtime.ANF.Serialize.CodeV4
 
--- types, terms
-type GetRefLookup = (Array Reference, Array Reference)
-type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
-
-lookupRef :: Monad m => Array Reference -> Int -> m Reference
-lookupRef arr i
-  | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
-  | otherwise = exn $ "lookupRef: index out of bounds: " ++ show i
-
-putReference ::
-  (MonadPut m) => CanonMap Reference Int -> Reference -> m ()
-putReference cm r
-  | Just i <- unsafeLookup r cm = putVarInt i
-  | otherwise = exn $ "could not serialize reference: " ++ show r
-{-# INLINE putReference #-}
-
-getReference :: (MonadGet m) => Array Reference -> m Reference
-getReference refm = getVarInt >>= lookupRef refm
-
-putReferent ::
-  (MonadPut m) => PutRefLookup -> Referent -> m ()
-putReferent (tys, tms) = \case
-  Ref r -> do
-    putWord8 0
-    putReference tms r
-  Con r ct -> do
-    putWord8 1
-    putConstructorReference tys r
-    putConstructorType ct
-
-getReferent :: (MonadGet m) => GetRefLookup -> m Referent
-getReferent (tys, tms) = do
-  tag <- getWord8
-  case tag of
-    0 -> Ref <$> getReference tms
-    1 -> Con <$> getConstructorReference tys <*> getConstructorType
-    _ -> unknownTag "getReferent" tag
-
-putConstructorReference ::
-  (MonadPut m) => CanonMap Reference Int -> ConstructorReference -> m ()
-putConstructorReference tys (ConstructorReference r i) = do
-  putReference tys r
-  putLength i
-
-getConstructorReference ::
-  (MonadGet m) => Array Reference -> m ConstructorReference
-getConstructorReference tys =
-  ConstructorReference <$> getReference tys <*> getLength
-
 putGroupRef :: (MonadPut m) => CanonMap Reference Int -> GroupRef -> m ()
 putGroupRef tms (GR r i) =
-  putReference tms r *> putVarInt i
+  putReferenceByNumber tms r *> putVarInt i
 {-# INLINE putGroupRef #-}
 
 getGroupRef :: (MonadGet m) => Array Reference -> m GroupRef
-getGroupRef tms = GR <$> getReference tms <*> getVarInt
+getGroupRef tms = GR <$> getReferenceByNumber tms <*> getVarInt
 
 -- Notes
 --
@@ -144,7 +90,7 @@ putValue pref@(tys, tms) = \case
       *> putFoldable (putValue pref) vs
   Data r t vs ->
     putTag DataT
-      *> putReference tys r
+      *> putReferenceByNumber tys r
       *> putVarInt t
       *> putFoldable (putValue pref) vs
   Cont bs k ->
@@ -163,7 +109,7 @@ getValue gref@(tys, tms) =
       vs <- getList (getValue gref)
       pure $ Partial gr vs
     DataT -> do
-      r <- getReference tys
+      r <- getReferenceByNumber tys
       w <- getVarInt
       vs <- getList (getValue gref)
       pure $ Data r w vs
@@ -181,8 +127,8 @@ putCont pref@(tys, tms) = \case
   Mark a rs ds k ->
     putTag MarkT
       *> putVarInt a
-      *> putFoldable (putReference tys) rs
-      *> putMap (putReference tys) (putValue pref) ds
+      *> putFoldable (putReferenceByNumber tys) rs
+      *> putMap (putReferenceByNumber tys) (putValue pref) ds
       *> putCont pref k
   Push f n gr k ->
     putTag PushT
@@ -200,8 +146,8 @@ getCont gref@(tys, tms) =
     MarkT ->
       Mark
         <$> getVarInt
-        <*> getList (getReference tys)
-        <*> getMap (getReference tys) (getValue gref)
+        <*> getList (getReferenceByNumber tys)
+        <*> getMap (getReferenceByNumber tys) (getValue gref)
         <*> getCont gref
     PushT ->
       Push
@@ -216,8 +162,8 @@ putBLit :: (MonadPut m) => PutRefLookup -> BLit -> m ()
 putBLit pref@(tys, _) = \case
   Text t -> putTag TextT *> putText (Util.Text.toText t)
   List s -> putTag ListT *> putFoldable (putValue pref) s
-  TmLink r -> putTag TmLinkT *> putReferent pref r
-  TyLink r -> putTag TyLinkT *> putReference tys r
+  TmLink r -> putTag TmLinkT *> putReferentByNumber pref r
+  TyLink r -> putTag TyLinkT *> putReferenceByNumber tys r
   Bytes b -> putTag BytesT *> putBytes b
   Quote vl -> putTag QuoteT *> putValue pref vl
   Code (CodeRep sg ch) ->
@@ -240,8 +186,8 @@ getBLit gref@(tys, _) =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
     ListT -> List <$> getSeq (getValue gref)
-    TmLinkT -> TmLink <$> getReferent gref
-    TyLinkT -> TyLink <$> getReference tys
+    TmLinkT -> TmLink <$> getReferentByNumber gref
+    TyLinkT -> TyLink <$> getReferenceByNumber tys
     BytesT -> Bytes <$> getBytes
     QuoteT -> Quote <$> getValue gref
     CodeT ->

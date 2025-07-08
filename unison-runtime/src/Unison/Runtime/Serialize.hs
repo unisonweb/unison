@@ -8,6 +8,8 @@ import Data.ByteString qualified as B
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Get qualified as Ser
 import Data.Bytes.Put
+import Data.Primitive.Array
+  (Array, sizeofArray, indexArray)
 import Data.Bytes.Serial
 import Data.Bytes.Signed (Unsigned, unsigned)
 import Data.Foldable (traverse_)
@@ -19,6 +21,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Primitive qualified as BA
 import Data.Word (Word64, Word8)
 import GHC.Exts as IL (IsList (..))
+import Unison.Runtime.Canonicalizer
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
@@ -279,6 +282,33 @@ getReferent = do
     1 -> Con <$> getConstructorReference <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
+-- Arguments for getting/putting references by numbering rather than
+-- inline. For getting, the format is numbered, so we just need an
+-- array of references. For putting, the assumption is that every
+-- `Reference` has been resolved to a unique object in memory, so that
+-- we can look them up by stable name.
+type GetRefLookup = (Array Reference, Array Reference)
+type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
+
+putReferentByNumber ::
+  (MonadPut m) => PutRefLookup -> Referent -> m ()
+putReferentByNumber (tys, tms) = \case
+  Ref r -> do
+    putWord8 0
+    putReferenceByNumber tms r
+  Con r ct -> do
+    putWord8 1
+    putConstructorReferenceByNumber tys r
+    putConstructorType ct
+
+getReferentByNumber :: (MonadGet m) => GetRefLookup -> m Referent
+getReferentByNumber (tys, tms) = do
+  tag <- getWord8
+  case tag of
+    0 -> Ref <$> getReferenceByNumber tms
+    1 -> Con <$> getConstructorReferenceByNumber tys <*> getConstructorType
+    _ -> unknownTag "getReferent" tag
+
 getConstructorType :: (MonadGet m) => m CT.ConstructorType
 getConstructorType =
   getWord8 >>= \case
@@ -290,6 +320,17 @@ putConstructorType :: (MonadPut m) => CT.ConstructorType -> m ()
 putConstructorType = \case
   CT.Data -> putWord8 0
   CT.Effect -> putWord8 1
+
+putConstructorReferenceByNumber ::
+  (MonadPut m) => CanonMap Reference Int -> ConstructorReference -> m ()
+putConstructorReferenceByNumber tys (ConstructorReference r i) = do
+  putReferenceByNumber tys r
+  putLength i
+
+getConstructorReferenceByNumber ::
+  (MonadGet m) => Array Reference -> m ConstructorReference
+getConstructorReferenceByNumber tys =
+  ConstructorReference <$> getReferenceByNumber tys <*> getLength
 
 putText :: (MonadPut m) => Text -> m ()
 putText text = do
@@ -314,6 +355,13 @@ putReference r = case r of
     putLength i
 {-# INLINE putReference #-}
 
+putReferenceByNumber ::
+  (MonadPut m) => CanonMap Reference Int -> Reference -> m ()
+putReferenceByNumber cm r
+  | Just i <- unsafeLookup r cm = putVarInt i
+  | otherwise = exn $ "could not serialize reference: " ++ show r
+{-# INLINE putReferenceByNumber #-}
+
 getReference :: (MonadGet m) => m Reference
 getReference = do
   tag <- getWord8
@@ -322,6 +370,16 @@ getReference = do
     1 -> DerivedId <$> (Id <$> getHash <*> getLength)
     _ -> unknownTag "Reference" tag
 {-# INLINE getReference #-}
+
+getReferenceByNumber :: (MonadGet m) => Array Reference -> m Reference
+getReferenceByNumber refm = getVarInt >>= lookupRef refm
+{-# INLINE getReferenceByNumber #-}
+
+lookupRef :: Monad m => Array Reference -> Int -> m Reference
+lookupRef arr i
+  | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
+  | otherwise = exn $ "lookupRef: index out of bounds: " ++ show i
+{-# INLINE lookupRef #-}
 
 putConstructorReference :: (MonadPut m) => ConstructorReference -> m ()
 putConstructorReference (ConstructorReference r i) = do
