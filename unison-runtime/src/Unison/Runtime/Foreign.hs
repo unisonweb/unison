@@ -35,7 +35,7 @@ import System.Mem.StableName
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, Value)
+import Unison.Runtime.ANF (Code, Referenced, Value)
 import Unison.Runtime.Array
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
@@ -317,7 +317,7 @@ instance BuiltinForeign Code where
   foreignName = Tagged "Code"
   foreignRef = Tagged Ty.codeRef
 
-instance BuiltinForeign Value where
+instance BuiltinForeign (Referenced Value) where
   foreignName = Tagged "Value"
   foreignRef = Tagged Ty.valueRef
 

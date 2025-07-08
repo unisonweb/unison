@@ -513,7 +513,7 @@ foreignCallHelper = \case
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $
-      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks
+      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . ANF.dereference
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
@@ -547,7 +547,7 @@ foreignCallHelper = \case
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg $ ANF.serializeValueForHash x
+       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ ANF.dereference x
   Crypto_hmac -> mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
       let hmac ::
@@ -557,7 +557,7 @@ foreignCallHelper = \case
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg $ ANF.serializeValueForHash x
+       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ ANF.dereference x
   Crypto_Ed25519_sign_impl ->
     mkForeign $
       pure . signEd25519Wrapper
@@ -572,7 +572,7 @@ foreignCallHelper = \case
       pure . verifyRsaWrapper
   Universal_murmurHash ->
     mkForeign $
-      pure . asWord64 . hash64 . ANF.serializeValueForHash
+      pure . asWord64 . hash64 . ANF.serializeValueForHash . ANF.dereference
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress

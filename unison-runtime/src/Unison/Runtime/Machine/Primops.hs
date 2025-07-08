@@ -14,7 +14,8 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
-import Unison.Runtime.ANF (Code, Value, codeGroup)
+import Unison.Runtime.ANF
+  (Code, Referenced, Value, codeGroup, dereference)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
@@ -874,8 +875,8 @@ iorb :: Stack -> Bool -> Bool -> IO ()
 iorb stk x y = pokeBool stk $ x || y
 {-# INLINE iorb #-}
 
-sdbv :: CCache -> Stack -> [Referent] -> Value -> IO ()
-sdbv env stk allowed0 v
+sdbv :: CCache -> Stack -> [Referent] -> Referenced Value -> IO ()
+sdbv env stk allowed0 (dereference -> v)
   | sandboxed env =
       die "attempted to use sandboxed operation: Value.validateSandboxed"
   | otherwise = checkValueSandboxing env allowed v >>= writeBack stk
