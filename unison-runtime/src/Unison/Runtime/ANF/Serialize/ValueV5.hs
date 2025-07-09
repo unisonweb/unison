@@ -178,6 +178,9 @@ putBLit pref@(tys, _) = \case
   Char c -> putTag CharT *> putChar c
   Float d -> putTag FloatT *> putFloat d
   Arr a -> putTag ArrT *> putFoldable (putValue pref) a
+  Map m ->
+    putTag MapT *>
+      putFoldable (putPair (putValue pref) (putValue pref)) m
 {-# SPECIALIZE putBLit :: PutRefLookup -> BLit -> BPut.Put #-}
 {-# SPECIALIZE putBLit :: PutRefLookup -> BLit -> SPut.Put #-}
 
@@ -199,6 +202,7 @@ getBLit gref@(tys, _) =
     FloatT -> Float <$> getFloat
     ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue gref)
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
+    MapT -> Map <$> getList (getPair (getValue gref) (getValue gref))
 {-# SPECIALIZE getBLit :: GetRefLookup -> BGet.Get BLit #-}
 {-# SPECIALIZE getBLit :: GetRefLookup -> SGet.Get BLit #-}
 

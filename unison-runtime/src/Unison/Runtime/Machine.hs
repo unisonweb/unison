@@ -1470,17 +1470,14 @@ reflectValue env rty rtm = goV0
       CharVal c -> pure . ANF.BLit $ ANF.Char c
       Val _ clos ->
         case clos of
-          (PApV cix _rComb args) ->
+          PApV cix _rComb args ->
             ANF.Partial <$> goIx cix <*> traverse goV args
-          (DataC _ t segs) -> do
+          DataC _ t segs -> do
             r <- refTy $ TT.typeTag t
             ANF.Data r (maskTags t) <$> traverse goV segs
-          (CapV k _ segs) ->
+          CapV k _ segs ->
             ANF.Cont <$> traverse goV segs <*> goK k
-          (Foreign f)
-            | Just m <- maybeUnwrapForeign Rf.hmapRef f ->
-                goV . BoxedVal $ inflateMap m
-            | otherwise -> ANF.BLit <$> goF f
+          Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
             reflExn "unknown unboxed value"
@@ -1520,6 +1517,9 @@ reflectValue env rty rtm = goV0
           pure (ANF.BArr a)
       | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
           ANF.Arr <$> traverse goV a
+      | Just m <- maybeUnwrapForeign Rf.hmapRef f =
+          ANF.Map <$>
+            traverse (\(k,v) -> (,) <$> goV k <*> goV v) (M.toList m)
       | otherwise = reflExn "foreign value"
 
 data ReflectExn = ReflectExn String deriving (Show)
@@ -1648,6 +1648,9 @@ reifyValue0Canon combs rty rtm = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+    goL (ANF.Map l) = boxedVal . Foreign . Wrap Rf.hmapRef . M.fromList <$> traverse goP l
+      where
+        goP (x, y) = (,) <$> goV x <*> goV y
 
 reifyValue0 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
@@ -1733,6 +1736,9 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+    goL (ANF.Map l) = boxedVal . Foreign . Wrap Rf.hmapRef . M.fromList <$> traverse goP l
+      where
+        goP (x, y) = (,) <$> goV x <*> goV y
 
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always

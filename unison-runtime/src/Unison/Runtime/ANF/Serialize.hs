@@ -19,7 +19,7 @@ import Data.Bytes.Serial
 import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
-import Data.Map as Map (Map, fromList, lookup)
+import Data.Map as Map (Map, fromList, lookup, fromDistinctAscList)
 import Data.Maybe (mapMaybe)
 import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put (runPutLazy)
@@ -38,6 +38,10 @@ import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
+
+-- machinery for special casing maps
+import Data.Map.Strict.Internal (Map (..))
+import Unison.Builtin.Decls (mapRef, mapTip, mapBin)
 
 import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
 
@@ -626,8 +630,39 @@ putBLit _ (Neg n) = putTag NegT *> putPositive n
 putBLit _ (Char c) = putTag CharT *> putChar c
 putBLit _ (Float d) = putTag FloatT *> putFloat d
 putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
+putBLit _ (Map _) = exn "putBLit: impossible Map"
 {-# SPECIALIZE putBLit :: Version -> BLit -> BPut.Put #-}
 {-# SPECIALIZE putBLit :: Version -> BLit -> SPut.Put #-}
+
+-- special function for serializing a list of pairs as a Unison map.
+-- This allows us to avoid inflating the map to a unison value during
+-- the interpreter->interchange step, which is expensive.
+--
+-- It is assumed that the list is in ascending order. We always
+-- produce an ascending map during reflection, but if you deserialize
+-- a non-ascending list and re-serialize using an old version, you
+-- will get an invalid map. However, you might also just receive an
+-- invalid serialized map.
+putAsMap :: (MonadPut m) => Version -> [(Value, Value)] -> m ()
+putAsMap v = putter . fromDistinctAscList
+  where
+    putter Tip =
+      putTag DataT
+        *> putReference mapRef
+        *> putWord64be mapTip
+        *> putLength (0 :: Int) -- subfields
+    putter (Bin sz k e l r) =
+      putTag DataT
+        *> putReference mapRef
+        *> putWord64be mapBin
+        *> putLength (5 :: Int)
+        *> putValue v (BLit . Pos $ fromIntegral sz)
+        *> putValue v k
+        *> putValue v e
+        *> putter l
+        *> putter r
+{-# SPECIALIZE putAsMap :: Version -> [(Value, Value)] -> BPut.Put #-}
+{-# SPECIALIZE putAsMap :: Version -> [(Value, Value)] -> SPut.Put #-}
 
 getBLit :: (MonadGet m, SerialConfig m) => m BLit
 getBLit =
@@ -647,6 +682,7 @@ getBLit =
     FloatT -> Float <$> getFloat
     ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
+    MapT -> exn "getBLit: unsupported literal map"
 {-# SPECIALIZE getBLit :: BDeserial BLit #-}
 {-# SPECIALIZE getBLit :: SDeserial BLit #-}
 
@@ -802,6 +838,7 @@ putValue v (Cont bs k) =
   putTag ContT
     *> putFoldable (putValue v) bs
     *> putCont v k
+putValue v (BLit (Map l)) = putAsMap v l
 putValue v (BLit l) =
   putTag BLitT *> putBLit v l
 {-# SPECIALIZE putValue :: Version -> Value -> BPut.Put #-}

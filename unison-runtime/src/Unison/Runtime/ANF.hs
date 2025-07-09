@@ -1689,6 +1689,8 @@ data BLit
   | Neg Word64
   | Char Char
   | Float Double
+  -- special cases for newer formats
+  | Map [(Value, Value)]
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
