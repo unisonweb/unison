@@ -33,13 +33,6 @@ jobs:
         sudo mkdir /nix /mnt/nix
         sudo mount --bind /mnt/nix /nix
     - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
-      if: runner.os == 'Linux'
-      with:
-        extra_nix_config: |
-          extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
-          extra-substituters = https://cache.iog.io
-    - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
-      if: runner.os != 'Linux'
     - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
       with:
         name: unison
