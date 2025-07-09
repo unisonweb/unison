@@ -962,6 +962,7 @@ codeBuiltins =
     ),
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
+    ("Value.serialize.versioned", nat --> value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
     ("Value.value", forall1 "a" $ \a -> a --> value),
     ( "Value.load",

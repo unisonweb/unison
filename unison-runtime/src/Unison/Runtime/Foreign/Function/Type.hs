@@ -129,6 +129,7 @@ data ForeignFunc
   | Code_display
   | Value_dependencies
   | Value_serialize
+  | Value_serialize_versioned
   | Value_deserialize
   | Crypto_HashAlgorithm_Sha3_512
   | Crypto_HashAlgorithm_Sha3_256
@@ -402,6 +403,7 @@ foreignFuncBuiltinName = \case
   Code_display -> "Code.display"
   Value_dependencies -> "Value.dependencies"
   Value_serialize -> "Value.serialize"
+  Value_serialize_versioned -> "Value.serialize.versioned"
   Value_deserialize -> "Value.deserialize"
   Crypto_HashAlgorithm_Sha3_512 -> "crypto.HashAlgorithm.Sha3_512"
   Crypto_HashAlgorithm_Sha3_256 -> "crypto.HashAlgorithm.Sha3_256"

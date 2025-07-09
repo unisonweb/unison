@@ -1017,17 +1017,17 @@ deserializeValue bs = bimap thd thd $ runGetOrFail getVersionedValue bs
     thd (_, _, x) = x
 
 serializeValue :: Referenced Value -> ByteString
-serializeValue (WithRefs tys tms v) =
-  serializeValueWithHeader tys tms v
-serializeValue (Plain v) =
+serializeValue (dereference -> v) =
   runPutS (putVersion *> putValue (Transfer valueVersion) v)
   where
     putVersion = putWord32be valueVersion
 
-serializeValueWithHeader ::
-  [Reference] -> [Reference] -> Value -> ByteString
-serializeValueWithHeader tys tms v =
-  runPutS (putWord32be 5 *> ValueV5.putValueWithHeader tys tms v)
+serializeValueWithVersion :: Word64 -> Referenced Value -> L.ByteString
+serializeValueWithVersion v = \case
+  WithRefs tys tms x | v == 5 ->
+    runPutL $ putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
+  rval | n <- fromIntegral v ->
+    runPutL $ putWord32be n *> putValue (Transfer n) (dereference rval)
 
 -- This serializer is used exclusively for hashing unison values.
 -- For this reason, it doesn't prefix the string with the current
