@@ -715,12 +715,12 @@ interpCompile ::
   Text ->
   IORef EvalCtx ->
   CompileOpts ->
-  CodeLookup Symbol IO () ->
+  CodeLookup Symbol m () ->
   PrettyPrintEnv ->
   Reference ->
   FilePath ->
-  IO (Maybe Error)
-interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
+  m (Maybe Error)
+interpCompile version ctxVar _copts cl ppe rf path = liftIO $ tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl rf
   (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
@@ -1227,7 +1227,7 @@ data RuntimeHost
   = OneOff
   | Persistent
 
-startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime :: (MonadIO m) => Bool -> RuntimeHost -> Text -> IO (RuntimeM Symbol m)
 startRuntime sandboxed runtimeHost version = do
   ctxVar <- newIORef =<< baseContext sandboxed
   (activeThreads, cleanupThreads) <- case runtimeHost of
@@ -1245,8 +1245,8 @@ startRuntime sandboxed runtimeHost version = do
   pure $
     Runtime
       { terminate = pure (),
-        evaluate = interpEval activeThreads cleanupThreads ctxVar,
-        compileTo = interpCompile version ctxVar,
+        evaluate = liftIO $ interpEval activeThreads cleanupThreads ctxVar,
+        compileTo = liftIO $ interpCompile version ctxVar,
         mainType = builtinMain External,
         ioTestTypes = builtinIOTestTypes External
       }
