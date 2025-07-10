@@ -97,7 +97,18 @@ kindNameMapping =
     ]
 
 newtype ProjectContextArgument = ProjectContextArgument ProjectContext
-  deriving newtype (Eq, Show, HasInputSchema)
+  deriving newtype (Eq, Show)
+
+instance HasInputSchema ProjectContextArgument where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext)
+            ],
+        "required" .= ["projectContext" :: Text]
+      ]
 
 instance FromJSON ProjectContextArgument where
   parseJSON = withObject "ProjectContextArgument" $ \o -> do
