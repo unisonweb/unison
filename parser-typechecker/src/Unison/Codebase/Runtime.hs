@@ -36,23 +36,28 @@ data CompileOpts = COpts
 defaultCompileOpts :: CompileOpts
 defaultCompileOpts = COpts {profile = False}
 
-data Runtime v = Runtime
-  { terminate :: IO (),
+-- | The runtime is generalized over some Monad `m` so that
+-- we can specialize it to run in different transaction types as necessary.
+-- Especially useful within Unison Share.
+data RuntimeM v m = Runtime
+  { terminate :: m (),
     evaluate ::
-      CL.CodeLookup v IO () ->
+      CL.CodeLookup v m () ->
       PPE.PrettyPrintEnv ->
       Term v ->
-      IO (Either Error ([Error], Term v)),
+      m (Either Error ([Error], Term v)),
     compileTo ::
       CompileOpts ->
-      CL.CodeLookup v IO () ->
+      CL.CodeLookup v m () ->
       PPE.PrettyPrintEnv ->
       Reference ->
       FilePath ->
-      IO (Maybe Error),
+      m (Maybe Error),
     mainType :: Type v Ann,
     ioTestTypes :: NESet (Type v Ann)
   }
+
+type Runtime v = RuntimeM v IO
 
 type IsCacheHit = Bool
 
@@ -79,14 +84,14 @@ type WatchResults v a =
 -- `evaluationCache`. If that returns a result, evaluation of that definition
 -- can be skipped.
 evaluateWatches ::
-  forall v a.
-  (Var v) =>
-  CL.CodeLookup v IO a ->
+  forall v a m.
+  (Var v, MonadIO m) =>
+  CL.CodeLookup v m a ->
   PPE.PrettyPrintEnv ->
-  (Reference.Id -> IO (Maybe (Term v))) ->
-  Runtime v ->
+  (Reference.Id -> m (Maybe (Term v))) ->
+  RuntimeM v m ->
   TypecheckedUnisonFile v a ->
-  IO (WatchResults v a)
+  m (WatchResults v a)
 evaluateWatches code ppe evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
@@ -146,13 +151,13 @@ evaluateWatches code ppe evaluationCache rt tuf = do
         go _ = Nothing
 
 evaluateTerm' ::
-  (Var v, Monoid a) =>
-  CL.CodeLookup v IO a ->
-  (Reference.Id -> IO (Maybe (Term v))) ->
+  (Var v, Monoid a, MonadIO m) =>
+  CL.CodeLookup v m a ->
+  (Reference.Id -> m (Maybe (Term v))) ->
   PPE.PrettyPrintEnv ->
-  Runtime v ->
+  RuntimeM v m ->
   Term.Term v a ->
-  IO (Either Error ([Error], Term v))
+  m (Either Error ([Error], Term v))
 evaluateTerm' codeLookup cache ppe rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
   case result of
