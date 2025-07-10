@@ -25,6 +25,10 @@ module Unison.Name
     suffixes,
     lastSegment,
 
+    -- * Location Queries
+    classifyNameLocation,
+    NameLocation (..),
+
     -- * Basic manipulation
     makeAbsolute,
     makeRelative,

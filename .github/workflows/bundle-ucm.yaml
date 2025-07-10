@@ -13,7 +13,7 @@ on:
         required: true
 
 env:
-  racket_version: "8.14"
+  racket_version: "8.17"
 
 defaults:
   run:
@@ -25,7 +25,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: 
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-13 # intel
+          - macos-14 # apple silicon
+          - windows-2025
+          # - windows-11-arm # 2025-06-17 apparently there's no stack or ghc builds for arm64 windows
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -104,14 +110,6 @@ jobs:
       - name: set up environment
         run: |
           echo "ucm=${{ runner.temp }}/unison" >> $GITHUB_ENV
-          case "$RUNNER_ARCH" in
-            X86) racket_arch=x86 ;;
-            X64) racket_arch=x64 ;;
-            ARM) racket_arch=arm32 ;;
-            ARM64) racket_arch=arm64 ;;
-            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
-          esac
-          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
       - name: download racket `unison` source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -125,11 +123,9 @@ jobs:
         run: |
           chmod +x ${{ env.ucm }}
           ${{ env.ucm }} transcript unison-src/transcripts-manual/gen-racket-libs.md
-      - uses: Bogdanp/setup-racket@0094a9d8bd157633293a2210f373bb542687fa6d # v1.11
+      - name: install racket
+        uses: unisonweb/actions/racket/install@main
         with:
-          architecture: ${{ env.racket_arch }}
-          distribution: "full"
-          variant: "CS"
           version: ${{env.racket_version}}
       - name: create racket lib
         run: |
@@ -160,9 +156,11 @@ jobs:
       matrix:
         os:
           - ubuntu-24.04
-          - macos-13
-          - macos-14
-          - windows-2022
+          # - ubuntu-24.04-arm # no racket for arm linux
+          - macos-13 # intel
+          - macos-14 # apple silicon
+          - windows-2025
+          # - windows-11-arm
     runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -184,31 +182,15 @@ jobs:
           # This isn't right because unison.zip is going to include different dates each time.
           # Maybe we can unpack it and hash the contents.
           key: ${{matrix.os}}-racket-${{env.racket_version}}-${{hashFiles('scheme-libs/racket/unison.zip')}}
-      - name: set up environment
-        run: |
-          case "$RUNNER_ARCH" in
-            X86) racket_arch=x86 ;;
-            X64) racket_arch=x64 ;;
-            ARM) racket_arch=arm32 ;;
-            ARM64) racket_arch=arm64 ;;
-            *) echo "Unsupported architecture: ${{runner.arch}}"; exit 1 ;;
-          esac
-          echo "racket_arch=$racket_arch" >> $GITHUB_ENV
-      - uses: Bogdanp/setup-racket@0094a9d8bd157633293a2210f373bb542687fa6d # v1.11
+      - name: install racket
+        uses: unisonweb/actions/racket/install@main
         with:
-          architecture: ${{ env.racket_arch }}
-          distribution: "full"
-          variant: "CS"
           version: ${{env.racket_version}}
       - name: install unison racket lib
         if: steps.cache-racket-deps.outputs.cache-hit != 'true'
-        run: raco pkg install --auto scheme-libs/racket/unison.zip
-      - name: install libb2 (macos)
-        if: runner.os == 'macOS'
         run: |
-          brew install libb2
-          ln -s "$(brew --prefix)"/lib/libb2.*.dylib \
-                "$(dirname "$(readlink -f "$(which raco)")")"/../lib/
+          raco pkg install --auto --skip-installed scheme-libs/racket/unison.zip && \
+            raco pkg update --auto scheme-libs/racket/unison.zip
       - name: build unison-runtime
         run: |
           raco exe --embed-dlls --orig-exe scheme-libs/racket/unison-runtime.rkt
@@ -230,7 +212,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: 
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-13
+          - macos-14
+          - windows-2025
+          # - windows-11-arm
+        include:
+          - os: ubuntu-24.04-arm
+            nojit: true
     steps:
       - name: set up environment
         run: |
@@ -246,11 +237,13 @@ jobs:
       - name: restore permissions on ucm
         run: chmod +x ${{env.staging_dir}}/unison/unison
       - name: download racket lib
+        if: (!matrix.nojit)
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: racket-lib
           path: ${{env.staging_dir}}/racket/
       - name: download unison-runtime
+        if: (!matrix.nojit)
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         with:
           name: unison-runtime-${{matrix.os}}
@@ -259,7 +252,7 @@ jobs:
         # here we have the `if:` not because of the missing .exe on Windows,
         # nor the lack of need to chmod, but because /runtime/bin/ probably doesn't exist
         # due to differences in `raco distribute` on Windows vs macOS and Linux.
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && !matrix.nojit
         run: chmod +x ${{env.staging_dir}}/runtime/bin/unison-runtime
       - name: download latest unison-local-ui
         run: |

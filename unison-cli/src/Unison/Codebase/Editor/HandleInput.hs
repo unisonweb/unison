@@ -578,7 +578,6 @@ loop e = do
             Codebase.addDefsToCodebase codebase uf
             -- these have not necessarily been added yet
             Codebase.addDefsToCodebase codebase IOSource.typecheckedFile'
-
           -- add the names; note, there are more names than definitions
           -- due to builtin terms; so we don't just reuse `uf` above.
           let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
@@ -633,7 +632,9 @@ loop e = do
                   ( \_ (paramName, IP.ParameterType {fzfResolver}) arg ->
                       if arg == "_"
                         then case fzfResolver of
-                          Just IP.FZFResolver {getOptions} -> do
+                          Just IP.DefaultFZFFileSearch -> do
+                            (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName ["<files>"])
+                          Just (IP.FetchOptions getOptions) -> do
                             pp <- Cli.getCurrentProjectPath
                             results <- liftIO $ getOptions codebase pp currentBranch
                             (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName (Text.unpack <$> results))
@@ -681,16 +682,16 @@ loop e = do
                 let ignoreMetadata :: (Ord r, Ord n) => Metadata.Star r n -> r -> (r, Set n)
                     ignoreMetadata s r =
                       (r, R.lookupDom r $ Star2.d1 s)
-                    terms = Map.fromList . map (ignoreMetadata (b ^. Branch.terms)) . Foldable.toList $ Star2.fact (b ^. Branch.terms)
-                    types = Map.fromList . map (ignoreMetadata (b ^. Branch.types)) . Foldable.toList $ Star2.fact (b ^. Branch.types)
-                    patches = fmap fst (b ^. Branch.edits)
-                    children = fmap Branch.headHash (b ^. Branch.children)
+                    terms = Map.fromList . map (ignoreMetadata (b ^. Branch.terms_)) . Foldable.toList $ Star2.fact (b ^. Branch.terms_)
+                    types = Map.fromList . map (ignoreMetadata (b ^. Branch.types_)) . Foldable.toList $ Star2.fact (b ^. Branch.types_)
+                    patches = fmap fst (b ^. Branch.edits_)
+                    children = fmap Branch.headHash (b ^. Branch.children_)
                  in do
                       let d = Output.DN.DumpNamespace terms types patches children causalParents
                       -- the alternate implementation that doesn't rely on `traceM` blows up
                       traceM $ P.toPlain 200 (prettyDump (h, d))
                       set h
-                      goCausal (map getCausal (Foldable.toList (b ^. Branch.children)) ++ queue)
+                      goCausal (map getCausal (Foldable.toList (b ^. Branch.children_)) ++ queue)
               prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
                 P.lit "Namespace "
                   <> P.shown h
@@ -990,7 +991,7 @@ handleFindI isVerbose fscope ws input = do
           Cli.respond FindNoLocalMatches
           -- We've already searched everything else, so now we search JUST the
           -- names in lib.
-          let mayOnlyLibBranch = branch0 & Branch.children %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
+          let mayOnlyLibBranch = branch0 & Branch.children_ %%~ \cs -> Map.singleton NameSegment.libSegment <$> Map.lookup NameSegment.libSegment cs
           case mayOnlyLibBranch of
             Nothing -> respondResults codebase suffixifiedPPE (Just p) []
             Just onlyLibBranch -> do
@@ -1125,7 +1126,7 @@ _searchBranchPrefix b n = case Path.split (Path.fromName n) of
         rootnames =
           Names.filter (== lastName)
             . Branch.toNames
-            . set Branch.children mempty
+            . set Branch.children_ mempty
             $ Branch.head b
         names0 = rootnames <> Names.prefix0 lastName subnames
 

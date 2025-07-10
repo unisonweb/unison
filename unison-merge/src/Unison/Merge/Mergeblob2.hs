@@ -14,7 +14,6 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.Mergeblob1 (Mergeblob1 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins)
 import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
@@ -25,6 +24,7 @@ import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference

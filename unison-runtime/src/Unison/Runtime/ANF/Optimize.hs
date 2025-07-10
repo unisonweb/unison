@@ -23,7 +23,7 @@ import Control.Monad.State (get, modify, runState)
 import Control.Monad.Writer (MonadWriter (..), Writer, WriterT (..), runWriter, tell)
 import Data.Graph (SCC (..), stronglyConnComp)
 import Data.Map qualified as Map
-import Data.Monoid (Any (..))
+import Data.Monoid (All (..), Any (..))
 import Data.Set qualified as Set
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Prelude
@@ -165,46 +165,52 @@ whenChanged f act = do
 
 descend ::
   (Memo m, Var v) =>
-  (Bool -> ANormal v -> m (ANormal v)) ->
+  (Bool -> Set v -> ANormal v -> m (ANormal v)) ->
   Bool ->
+  Set v ->
   ANormal v ->
   m (ANormal v)
-descend rec tail tm = memo tm $ case tm of
+descend rec tail bound tm = memo tm $ case tm of
   TLets d vs ccs bn bd ->
-    TLets d vs ccs <$> rec False bn <*> rec tail bd
+    TLets d vs ccs <$> rec False bound bn <*> rec tail bnd bd
+    where
+      bnd = Set.union (Set.fromList vs) bound
   TName v f vs bd ->
-    TName v f vs <$> rec tail bd
+    TName v f vs <$> rec tail (Set.insert v bound) bd
   TMatch v bs ->
-    TMatch v <$> traverse (rec tail) bs
+    TMatch v <$> traverse (rec tail bound) bs
   TShift r v bd ->
-    TShift r v <$> rec tail bd
+    TShift r v <$> rec tail (Set.insert v bound) bd
   THnd rs hn ha bd ->
-    THnd rs hn ha <$> rec tail bd
+    THnd rs hn ha <$> rec tail bound bd
   TLocal v bd ->
-    TLocal v <$> rec tail bd
+    TLocal v <$> rec tail bound bd
   ABTN.TAbs v (ABTN.TAbss vs bd) ->
-    ABTN.TAbss (v : vs) <$> rec tail bd
+    ABTN.TAbss (v : vs) <$> rec tail bnd bd
+    where
+      bnd = Set.union (Set.fromList $ v : vs) bound
   _ -> pure tm
 
 -- Rewrites a term from the top down, first applying the step
 -- transform given, then descending to children.
 rewriteDown ::
   (Memo m, Var v) =>
-  (Bool -> ANormal v -> m (ANormal v)) ->
+  (Bool -> Set v -> ANormal v -> m (ANormal v)) ->
   ANormal v ->
   m (ANormal v)
-rewriteDown step = go True
+rewriteDown step = go True Set.empty
   where
-    go tail tm = step tail tm >>= descend go tail
+    go tail bound tm = step tail bound tm >>= descend go tail bound
 
 rewriteUp ::
   (Memo m, Var v) =>
-  (Bool -> ANormal v -> m (ANormal v)) ->
+  (Bool -> Set v -> ANormal v -> m (ANormal v)) ->
   ANormal v ->
   m (ANormal v)
-rewriteUp step = go True
+rewriteUp step = go True Set.empty
   where
-    go tail tm = memo tm (descend go tail tm) >>= step tail
+    go tail bound tm =
+      memo tm (descend go tail bound tm) >>= step tail bound
 
 -- Performs inlining on a `SuperGroup` using the inlining information
 -- in the map. The map can be created from typical `SuperGroup` data
@@ -215,33 +221,25 @@ rewriteUp step = go True
 -- `builtInlineMap`.
 inline ::
   (Memo m, Var v) =>
-  Reference ->
+  Set v ->
   OptInfos v ->
-  SuperGroup v ->
-  m (SuperGroup v)
-inline self (arities, inls0) grp@(Rec bs entry) =
-  memo grp $ Rec <$> (traverse . traverse) go0 bs <*> go0 entry
+  ANormal v ->
+  m (ANormal v)
+inline avoid (arities, inls) n0 = memo n0 $ go (30 :: Int) n0
   where
-    inls = maybe id (Map.insert self) (entryInfo grp) inls0
-
-    avoid = Set.fromList $ fst <$> bs
-
-    go0 nrm@(Lambda ccs body) =
-      memo nrm $ Lambda ccs <$> go (30 :: Int) body
-
     go n tm
       | n <= 0 = pure tm
       | otherwise = rewriteUp (step n) tm
 
-    step n tail (TApp (FComb r) args)
-      | Just new <- findInline tail r args =
+    step n tail bound (TApp (FComb r) args)
+      | Just new <- findInline tail bound r args =
           dirty *> go (n - 1) new
-    step _ _tail tm = pure tm
+    step _ _tail _bound tm = pure tm
 
-    findInline tail r args = do
+    findInline tail bound r args = do
       info <- Map.lookup r inls
       arity <- Map.lookup r arities
-      tweak tail args arity info
+      tweak tail bound args arity info
 
     don'tInline Don'tInl _ = True
     don'tInline TailInl isTail = not isTail
@@ -253,17 +251,17 @@ inline self (arities, inls0) grp@(Rec bs entry) =
     -- multiple inlining steps, so we freshen anything else we inline
     -- to not be capable of capturing the variables from the entry
     -- code.
-    tweak isTail args arity (InlInfo clazz (ABTN.TAbss vs body))
+    tweak isTail bound args arity (InlInfo clazz (ABTN.TAbss vs body))
       | don'tInline clazz isTail = Nothing
       -- exactly saturated
       | length args == arity,
         rn <- Map.fromList (zip vs args) =
-          Just $ ABTN.renamesAvoiding avoid rn body
+          Just $ ABTN.renamesAvoiding (avoid `Set.union` bound) rn body
       -- oversaturated, only makes sense if body is a call
       | length args > arity,
         (pre, post) <- splitAt arity args,
         rn <- Map.fromList (zip vs pre),
-        TApp f pre <- ABTN.renamesAvoiding avoid rn body =
+        TApp f pre <- ABTN.renamesAvoiding (avoid `Set.union` bound) rn body =
           Just $ TApp f (pre ++ post)
       | otherwise = Nothing
 
@@ -273,54 +271,102 @@ inline self (arities, inls0) grp@(Rec bs entry) =
 -- already happened to work, so the former should be called first, and
 -- it may be beneficial to repeat the process after peephole
 -- optimization runs in case more inlining became available.
+--
+-- The `affine` flag specifies whether the optimizations are for code
+-- that will be used in an affine handler context. Such code will
+-- never have its stack captured, so more radical optimizations can be
+-- performed.
 peephole ::
-  (Memo m, Var v) =>
-  Arities ->
-  SuperGroup v ->
-  m (SuperGroup v)
-peephole arities grp@(Rec bs entry) =
-  memo grp $ Rec <$> (traverse . traverse) go0 bs <*> go0 entry
+  (Memo m, Var v) => Arities -> Bool -> ANormal v -> m (ANormal v)
+peephole arities affine n0 = memo n0 $ go (30 :: Int) n0
   where
-    go0 nrm@(Lambda ccs body) =
-      memo nrm $ Lambda ccs <$> go (30 :: Int) body
-
     go 0 = pure
     go n =
-      whenChanged (go $ n - 1) . rewriteDown \_tail -> \case
+      whenChanged (go $ n - 1) . rewriteDown \tail _bound -> \case
+        -- eliminate `v = u` bindings in affine contexts
+        TLet _ v _ (TVar u) bd
+          | affine -> ABTN.rename v u bd <$ dirty
+        -- turn `let v = ex in v` into just `ex` when in tail position
+        TLet _ v _ bn (TVar u)
+          | v == u, tail -> bn <$ dirty
+        -- promote 'indirect' bindings to 'direct' bindings if possible
         TLets (Indirect _) vs ccs bn bd
           | directAllowed bn ->
               TLets Direct vs ccs bn bd <$ dirty
+        -- elminate unused bindings if they have no effects and no one
+        -- will be able to see the stack differences.
+        TLets _ vs _ bn bd
+          | all (`Set.notMember` ABTN.freeVars bd) vs,
+            effectless bn,
+            affine || stackInsensitive bd ->
+              bd <$ dirty
+        -- turn the code generated by handler applications into
+        -- a slightly nicer form. This is always in the tail position.
         HandlerApp rw -> rw <$ dirty
+        -- Rewrite a handler resumption into a more direct form that
+        -- avoids allocating and immediately forcing a lazy value.
+        -- This is always a tail occurrence.
         HandlerResume lz f as lh h bs rs
           | all (/= lz) h,
             all (/= lz) bs -> do
               dirty
               pure . TName lh h bs . THnd rs lh Nothing $ TApp (Nameable f) as
-        HandledThunk r n expr
-          | Just arity <- Map.lookup r arities,
+        -- Eliminate the allocation of a delayed thunk if it is
+        -- subsequently forced exactly once in a handler, and no one
+        -- will be able to see the stack differences.
+        HandledThunk r n safe expr
+          | safe || affine,
+            Just arity <- Map.lookup r arities,
             n < arity ->
               expr <$ dirty
         tm -> pure tm
 
+-- Alternates inlining and peephole optimizations until neither makes
+-- any changes to the term.
+optNormal ::
+  (Memo m, Var v) =>
+  OptInfos v ->
+  Set v ->
+  Bool ->
+  ANormal v ->
+  m (ANormal v)
+optNormal opts@(arities, _) avoid affine n0 =
+  peep =<< inline avoid opts n0
+  where
+    inl n = whenChanged peep $ inline avoid opts n
+    peep n = whenChanged inl $ peephole arities affine n
+
+-- Optimizes a single definition
+optSuper ::
+  (Memo m, Var v) =>
+  OptInfos v ->
+  Set v ->
+  Bool ->
+  SuperNormal v ->
+  m (SuperNormal v)
+optSuper opts avoid0 affine sn@(Lambda ccs (ABTN.TAbss vs bd)) =
+  memo sn $
+    Lambda ccs . ABTN.TAbss vs <$> optNormal opts avoid affine bd
+  where
+    avoid = Set.union (Set.fromList vs) avoid0
+
 -- Optimizes a single group
-optSingle ::
+optGroup ::
   (Var v) =>
   OptInfos v ->
   Reference ->
   SuperGroup v ->
   SuperGroup v
-optSingle opts@(arities, _) self g0 =
-  peep . runMemo $ inline self opts g0
+optGroup (arities, inls0) self grp@(Rec bs en) =
+  runMemo . memo grp $
+    Rec
+      <$> (traverse . traverse) (optSuper opts avoid False) bs
+      <*> optSuper opts avoid False en
   where
-    inl g = case runWriter $ inline self opts g of
-      (g, Any changed)
-        | changed -> peep g
-        | otherwise -> g
+    avoid = Set.fromList $ fst <$> bs
 
-    peep g = case runWriter $ peephole arities g of
-      (g, Any changed)
-        | changed -> inl g
-        | otherwise -> g
+    opts = (arities, inls)
+    inls = maybe id (Map.insert self) (entryInfo grp) inls0
 
 optimize ::
   forall v.
@@ -331,7 +377,7 @@ optimize ::
 optimize gs = runState do
   -- add new arities
   modify $ first (Map.union $ arityInfo <$> gs)
-  let doOpt opts (r, sg) = (r, optSingle opts r sg)
+  let doOpt opts (r, sg) = (r, optGroup opts r sg)
   -- Note: inlining info is never available to self-inline
   ngs <- for sccs \case
     AcyclicSCC p -> do
@@ -356,28 +402,65 @@ optimize gs = runState do
     augment rgs (ars, inls) =
       (ars, recInlineInfo (Map.fromList rgs) `Map.union` inls)
 
--- Optimizes a generated affine handler based on knowledge about
--- contexts it will be used in.
---
--- For instance, affine handlers never capture stacks, and are never
--- used in a context where their stacks may be captured. So, we may
--- freely drop unused values without causing problems.
-affineOptimize :: (Var v) => ANormal v -> ANormal v
-affineOptimize =
-  runMemo . rewriteUp \_tail -> \case
-    TLet _ v _ bn bd
-      | v `Set.notMember` ABTN.freeVars bd,
-        effectless bn ->
-          bd <$ dirty
-    -- eliminate `v = u` bindings
-    TLet _ v _ (TVar u) bd -> ABTN.rename u v bd <$ dirty
-    tm -> pure tm
+-- Does further optimizations on the matching portion of a handler in
+-- preparation for recognizing affine handlers. Some optimizations are
+-- not safe to do in general, but are in an affine context, and make
+-- it possible to recognize more affine handlers (as well as making
+-- them perform better). So, we apply these optimizations before doing
+-- the affine translation.
+affinePreOptimize ::
+  (Var v) =>
+  OptInfos v ->
+  Set v ->
+  SuperNormal v ->
+  SuperNormal v
+affinePreOptimize opts avoid =
+  runMemo . optSuper ((fmap . fmap) reclassify opts) avoid True
   where
-    effectless (TCon {}) = True
-    effectless (TLit {}) = True
-    effectless (TBLit {}) = True
-    effectless (TVar {}) = True
-    effectless _ = False
+    -- reclassifies certain inlinings that would be unsafe in general,
+    -- but are fine in an affine context.
+    reclassify (InlInfo Don'tInl bd)
+      | isExtendedHandlerApp bd = InlInfo TailInl bd
+    reclassify info = info
+
+-- Applies optimizations one more time to the rewritten affine
+-- handler, since some of the transformations may introduce some new
+-- opportunities.
+affinePostOptimize ::
+  (Var v) =>
+  OptInfos v ->
+  Set v ->
+  SuperNormal v ->
+  SuperNormal v
+affinePostOptimize opts avoid = runMemo . optSuper opts avoid True
+
+effectless :: (Var v) => ANormal v -> Bool
+effectless (TCon {}) = True
+effectless (TLit {}) = True
+effectless (TBLit {}) = True
+effectless (TVar {}) = True
+effectless _ = False
+
+-- Determines whether a term cannot possibly depend on the stack
+-- contents. Useful if you want to decide whether you can eliminate an
+-- unused binding, for example (because if you can only do so if it
+-- not being on the stack is okay).
+stackInsensitive :: (Var v) => ANormal v -> Bool
+stackInsensitive = go True
+  where
+    go tail = \case
+      TCon {} -> True
+      TLit {} -> True
+      TBLit {} -> True
+      TVar {} -> True
+      TPrm {} -> True
+      TName _ _ _ bd -> go tail bd
+      TLets _ _ _ bn bd -> go False bn && go tail bd
+      TApv {} -> tail
+      TCom {} -> tail
+      TMatch _ bs -> all (go tail) bs
+      ABTN.TAbs _ (ABTN.TAbss _ bd) -> go tail bd
+      _ -> False
 
 -- Recognize Func that can be used in a `TName`
 nameable :: Func v -> Maybe (Either Reference v)
@@ -408,41 +491,67 @@ pattern HandlerResume lz f as lh h bs rs <-
 -- Recognize a possibly underapplied combinator that is used at the
 -- end of a handler block. The result is the combinator reference, the
 -- length of the variables it's applied to, and a rewritten expression
--- that inlines the application to the single use site.
+-- that inlines the application to the single use site, with in
+-- indication of whether it's safe to use the rewritten expression in
+-- non-affine contexts.
 matchHandledThunk ::
-  (Var v) => ANormal v -> Maybe (Reference, Int, ANormal v)
+  (Var v) => ANormal v -> Maybe (Reference, Int, Bool, ANormal v)
 matchHandledThunk (TLet _ th _ (TCom r vs) bd) =
-  (r,length vs,) <$> prefix bd
+  final <$> runWriterT (prefix (ABTN.avoiding . Set.fromList $ th : vs) bd)
   where
-    -- Some by-name values may be defined before the handle
-    prefix (TName v g bs bd)
+    none = WriterT Nothing
+
+    final (bd, All lazy) = (r, length vs, lazy, bd)
+
+    prefix rn (TName v g bs bd)
       | v /= th,
         all (/= th) g,
-        all (/= th) bs =
-          TName v g bs <$> prefix bd
-    prefix (THnd rs nh ah bd)
+        all (/= th) bs,
+        g <- ABTN.renameVar rn <$> g,
+        bs <- ABTN.renameVar rn <$> bs,
+        (rn, v) <- ABTN.freshenBinder (ABTN.freeVars bd) rn v =
+          TName v g bs <$> prefix rn bd
+    prefix rn (TLets d vs ccs bn bd)
+      | all (/= th) vs,
+        th `Set.notMember` ABTN.freeVars bn,
+        bn <- ABTN.renamesAndFreshen0 rn bn,
+        (rn, vs) <- ABTN.freshenBinders (ABTN.freeVars bd) rn vs =
+          TLets d vs ccs bn <$> prefix rn bd <* tell (All False)
+    prefix rn (TMatch sc bs) =
+      TMatch (ABTN.renameVar rn sc) <$> traverse under bs
+      where
+        under (ABTN.TAbss vs bd)
+          | all (/= th) vs,
+            (rn, vs) <- ABTN.freshenBinders (ABTN.freeVars bd) rn vs =
+              ABTN.TAbss vs <$> prefix rn bd
+        under _ = none
+    prefix rn (THnd rs nh ah bd)
       | nh /= th,
-        all (/= th) ah =
-          THnd rs nh ah <$> suffix bd
-    prefix _ = Nothing
+        all (/= th) ah,
+        ah <- ABTN.renameVar rn <$> ah,
+        nh <- ABTN.renameVar rn nh =
+          THnd rs nh ah <$> suffix rn bd
+    prefix _ _ = none
 
     -- Some values may be bound before the thunk call as long as
     -- they're 'direct' calls that can't capture stacks and reveal
     -- that we've changed the convention.
-    suffix (TLetD v cc bn bd)
-      | v /= th,
-        th `Set.notMember` ABTN.freeVars bn =
-          TLetD v cc bn <$> suffix bd
+    suffix rn (TLets d vs ccs bn bd)
+      | all (/= th) vs,
+        th `Set.notMember` ABTN.freeVars bn,
+        bn <- ABTN.renamesAndFreshen0 rn bn,
+        (rn, vs) <- ABTN.freshenBinders (ABTN.freeVars bd) rn vs =
+          TLets d vs ccs bn <$> suffix rn bd <* tell (All $ d == Direct)
     -- final expression in handle body is a call to the thunk.
-    suffix (TApv h us)
+    suffix rn (TApv h us)
       | h == th,
         all (/= th) us =
-          Just . TCom r $ vs ++ us
-    suffix _ = Nothing
+          pure . TCom r $ vs ++ fmap (ABTN.renameVar rn) us
+    suffix _ _ = none
 matchHandledThunk _ = Nothing
 
 --  th = f <vs> -- undersaturated
---  lazy v := ...
+--  v = ...
 --  ...
 --  handle
 --    w = Con ...
@@ -453,14 +562,18 @@ matchHandledThunk _ = Nothing
 --
 --  ==>
 --
---  lazy v := ...
+--  v = ...
 --  ...
 --  handle
 --    ...
 --    f <vs> w x ...
 --  with ...
-pattern HandledThunk ref ar expr <-
-  (matchHandledThunk -> Just (ref, ar, expr))
+--
+-- `safe` indicates whether the rewritten expression is safe to use in
+-- arbitrary contexts, or whether it should only be applied in affine
+-- contexts where nothing in it might observe odd stack behavior.
+pattern HandledThunk ref ar safe expr <-
+  (matchHandledThunk -> Just (ref, ar, safe, expr))
 
 -- Builds a basic optimization map. Assumes the code in question is
 -- not recursive, and makes no effort to optimize the code, so it
@@ -535,6 +648,23 @@ matchHandlerApp tm
 
 pattern HandlerApp rw <- (matchHandlerApp -> Just rw)
 
+-- Recognizes a rewritten handler app preceded by some additional
+-- miscellaneous code. Some forms of recursive handlers do not just
+-- have the handler app as the entire body of a function. In affine
+-- scenarios, it is acceptable to inline these, and is essential to
+-- optimizing them.
+isExtendedHandlerApp :: (Var v) => ANormal v -> Bool
+isExtendedHandlerApp = \case
+  -- the actual handler application
+  TName lz0 _ _ (TCom _ as)
+    | lz1 : us <- shiftArgs as ->
+        lz0 == lz1 && all (/= lz0) us
+  TLets _ _ _ _ bd -> isExtendedHandlerApp bd
+  TName _ _ _ bd -> isExtendedHandlerApp bd
+  TMatch _ bs -> all isExtendedHandlerApp bs
+  ABTN.TAbs _ (ABTN.TAbss _ bd) -> isExtendedHandlerApp bd
+  _ -> False
+
 directAllowed :: (Var v) => ANormal v -> Bool
 directAllowed TLit {} = True
 directAllowed TBLit {} = True
@@ -569,12 +699,15 @@ shiftArgs vs = case reverse vs of
 -- optimized affine code.
 augmentHandler ::
   (Var v) => OptInfos v -> Reference -> SuperGroup v -> Maybe (SuperGroup v)
-augmentHandler opts _self group
+augmentHandler (arities, inls0) self group
   | Rec [(mv0, matcher)] entry <- group,
     Lambda ccs (ABTN.TAbss args body) <- entry,
-    thunk : vs <- shiftArgs args,
-    Just body <- augmentHandlerEntry vs thunk mv0 ah body,
-    Just amatcher <- translateHandlerMatch opts mv0 ah matcher =
+    thunk : _ <- shiftArgs args,
+    Just body <- augmentHandlerEntry thunk mv0 ah body,
+    omatcher <- affinePreOptimize opts (Set.singleton mv0) matcher,
+    Just amatcher <- translateHandlerMatch opts mv0 ah omatcher,
+    amatcher <-
+      affinePostOptimize opts (Set.fromList [mv0, ah]) amatcher =
       Just
         . Rec [(mv0, matcher), (ah, amatcher)]
         . Lambda ccs
@@ -582,6 +715,8 @@ augmentHandler opts _self group
   | otherwise = Nothing
   where
     ah = freshAff 0
+    opts = (arities, inls)
+    inls = maybe id (Map.insert self) (entryInfo group) inls0
 
 -- Recognizes the matching portion of a handler, and produces an
 -- optimized affine version if possible.
@@ -589,6 +724,7 @@ translateHandlerMatch ::
   (Var v) => OptInfos v -> v -> v -> SuperNormal v -> Maybe (SuperNormal v)
 translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
   | v : vs <- shiftArgs args,
+    bound <- Set.fromList (self : args),
     TMatch u branches <- body,
     u == v,
     MatchRequest cs df <- branches,
@@ -596,10 +732,9 @@ translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
     ccs <- ccs ++ [BX] =
       Lambda ccs
         . ABTN.TAbss args
-        . affineOptimize
         . TMatch u
         . flip MatchRequest df
-        <$> traverse3 (affineHandlerCase opts self vs ah) cs
+        <$> traverse3 (affineHandlerCase opts self bound vs ah) cs
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -609,14 +744,13 @@ translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
 -- one, then the result is a modified version with an affine handler
 -- filled in.
 augmentHandlerEntry ::
-  (Var v) => [v] -> v -> v -> v -> ANormal v -> Maybe (ANormal v)
-augmentHandlerEntry vs thunk0 mv0 ah body
+  (Var v) => v -> v -> v -> ANormal v -> Maybe (ANormal v)
+augmentHandlerEntry thunk0 mv0 ah body
   | TName hv (Right mv1) us body <- body,
     THnd rs nh Nothing (TFrc thunk1) <- body,
     mv0 == mv1,
     nh == hv,
-    thunk0 == thunk1,
-    Prelude.and (zipWith (==) us vs) =
+    thunk0 == thunk1 =
       Just
         . TName hv (Right mv1) us
         . TName ahp (Right ah) us
@@ -628,14 +762,15 @@ augmentHandlerEntry vs thunk0 mv0 ah body
 -- Recognizes an affine handler case, yielding a translated efficient
 -- version if it is one.
 affineHandlerCase ::
-  (Var v) => OptInfos v -> v -> [v] -> v -> ANormal v -> Maybe (ANormal v)
-affineHandlerCase opts self vs rec br
+  (Var v) => OptInfos v -> v -> Set v -> [v] -> v -> ANormal v -> Maybe (ANormal v)
+affineHandlerCase opts self bound vs rec br
   | ABTN.TAbss us body <- br,
     TShift _ kf0 body <- body,
     TName kf (Left (Builtin "jumpCont")) [kf1] body <- body,
+    bound <- Set.union bound (Set.fromList (kf0 : kf : us)),
     kf0 == kf1 =
       ABTN.TAbss us
-        <$> affinePreBranch opts self Set.empty vs rec ar kf body
+        <$> affinePreBranch opts self bound vs rec ar kf body
   | otherwise = Nothing
   where
     ar = freshAff 2
@@ -735,7 +870,8 @@ linearTail opts self vs bound rec ar kf0 tm
     rh /= kf0, -- no shadowing or non-linearity
     THnd _rs hh Nothing bd <- tm,
     rh == hh, -- handle recursively
-    bd <- replaceLinearBody opts bd,
+    avoid <- Set.insert rh bound,
+    bd <- replaceLinearBody opts avoid bd,
     SimpleBody pre ind shad free kf1 result <- bd, -- simple enough body
     kf0 `Set.notMember` shad, -- kf is not shadowed in body
     kf0 `Set.notMember` free, -- kf is not free in `pre`
@@ -773,15 +909,18 @@ linearTail opts self vs bound rec ar kf0 tm
 -- continuations aren't captured, so we don't actually need a correct
 -- numbering. If this is ever changed, then the numbering here must be
 -- adjusted.
-replaceLinearBody :: (Var v) => OptInfos v -> ANormal v -> ANormal v
-replaceLinearBody (arities, inls) bd
+replaceLinearBody ::
+  (Var v) => OptInfos v -> Set v -> ANormal v -> ANormal v
+replaceLinearBody opts@(arities, inls) avoid bd
+  | TLetD v cc bn bd <- bd =
+      TLetD v cc bn $ replaceLinearBody opts (Set.insert v avoid) bd
   | TCom r vs <- bd,
     Just n <- Map.lookup r arities,
     length vs == n,
     Just (InlInfo _ (ABTN.TAbss us expr)) <- Map.lookup r inls,
     rn <- Map.fromList (zip us vs) =
-      ABTN.renames rn expr
-replaceLinearBody _ bd = bd
+      ABTN.renamesAvoiding avoid rn expr
+replaceLinearBody _ _ bd = bd
 
 parseSimpleHandlerBody ::
   (Var v) =>

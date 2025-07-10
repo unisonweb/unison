@@ -21,7 +21,7 @@ unique type Foo.T = T
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type Foo
       type Foo.T
@@ -117,7 +117,7 @@ bonk = 5
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bonk : Nat
 ```
@@ -156,7 +156,7 @@ bonk.zonk = 5
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bonk.zonk : Nat
         (also named zonk)

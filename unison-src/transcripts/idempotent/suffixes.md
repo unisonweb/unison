@@ -76,7 +76,7 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       cool.abra.cadabra            : Text
       lib.distributed.abra.cadabra : Text
@@ -108,7 +108,7 @@ scratch/main> add
   by type, as any type would work here.
 
   I found some terms in scope that have matching names and
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   cool.abra.cadabra : Text
   distributed.abra.cadabra : Text

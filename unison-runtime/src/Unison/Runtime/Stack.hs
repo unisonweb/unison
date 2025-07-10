@@ -432,13 +432,13 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, DataG, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag #-}
+{-# COMPLETE DataC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag #-}
+{-# COMPLETE DataC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag #-}
+{-# COMPLETE DataC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
@@ -1034,7 +1034,7 @@ pokeBool stk b =
 -- We don't bother nulling out the unboxed stack,
 -- it's extra work and there's nothing to garbage collect.
 bpoke :: (DebugCallStack) => Stack -> BVal -> IO ()
-bpoke _stk@(Stack _ _ sp _ bstk) b = do
+bpoke _stk@(Stack _ _ sp _ bstk) !b = do
 #ifdef STACK_CHECK
   assertBumped _stk 0
 #endif
@@ -1054,7 +1054,7 @@ upokeOffT stk i u t = do
 {-# INLINE upokeOffT #-}
 
 bpokeOff :: (DebugCallStack) => Stack -> Off -> BVal -> IO ()
-bpokeOff _stk@(Stack _ _ sp _ bstk) i b = do
+bpokeOff _stk@(Stack _ _ sp _ bstk) i !b = do
 #ifdef STACK_CHECK
   assertBumped _stk i
 #endif
@@ -1504,6 +1504,7 @@ closureNum Captured {} = 2
 closureNum Foreign {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
+closureNum Affine {} = 6
 
 universalEq ::
   (Foreign -> Foreign -> Bool) ->

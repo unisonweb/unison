@@ -2504,7 +2504,7 @@ prettyRefs [] = showString "{}"
 prettyRefs (r : rs) =
   showString "{"
     . showsShort r
-    . foldr (\t r -> shows t . showString "," . r) id rs
+    . foldr (\t r -> showString "," . showsShort t . r) id rs
     . showString "}"
 
 prettyFunc :: (Var v) => Func v -> ShowS
@@ -2538,10 +2538,10 @@ prettyBranches ind bs = case bs of
   MatchText bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr (uncurry $ prettyCase ind . shows) id (Map.toList bs)
-  MatchData _ bs df ->
+  MatchData r bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr
-        (uncurry $ prettyCase ind . shows)
+        (uncurry $ prettyCase ind . prettyTag r)
         id
         (mapToList $ snd <$> bs)
   MatchRequest bs df ->
@@ -2567,6 +2567,13 @@ prettyBranches ind bs = case bs of
     -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("
+        . showsShort r
+        . showString ","
+        . shows c
+        . showString ")"
+
+    prettyTag r c =
+      showString "CON("
         . showsShort r
         . showString ","
         . shows c

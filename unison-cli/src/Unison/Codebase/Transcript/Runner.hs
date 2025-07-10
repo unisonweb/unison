@@ -106,6 +106,7 @@ withRunner isTest verbosity ucmVersion nrtp action = do
   withRuntimes nrtp \runtime sbRuntime nRuntime ->
     action \transcriptName transcriptSrc (codebaseDir, codebase) ->
       Server.startServer
+        isTest
         Backend.BackendEnv {Backend.useNamesIndex = False}
         Server.defaultCodebaseServerOpts
         runtime

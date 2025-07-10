@@ -18,6 +18,9 @@ module Unison.Codebase.Editor.SlurpResult
     -- * Definion status
     Status (..),
     prettyStatus,
+
+    -- * Slurp entry
+    SlurpEntry (..),
   )
 where
 
@@ -204,7 +207,7 @@ pretty isPast ppe sr =
       okToAdd =
         ok
           (P.green "I've added these definitions:")
-          (P.green "These new definitions are ok to `update`:")
+          (P.green "New definitions:")
       notOks _past _present sr | isOk sr = mempty
       notOks past present sr =
         let header =
@@ -333,3 +336,9 @@ filterUnisonFile
       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
       filterTLC (v, _, _, _) = Set.member v keepTerms
+
+data SlurpEntry a
+  = SlurpEntry'Add a
+  | SlurpEntry'Delete a
+  | SlurpEntry'Update a a
+  | SlurpEntry'Unchanged

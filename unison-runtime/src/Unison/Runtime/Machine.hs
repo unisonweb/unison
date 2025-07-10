@@ -65,6 +65,9 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+#ifdef CODE_SERIAL_CHECK
+import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
+#endif
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception hiding (die)
@@ -318,7 +321,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   m <- readTVarIO (tagRefs env)
   c <- peekOff stk i
   stk <- bump stk
-  pokeBi stk =<< reflectValue m c
+  pokeBi stk =<< reflectValue env m c
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
@@ -469,6 +472,9 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp be, unitValue)
           | Just (ie :: AsyncException) <- fromException exn =
               (Rf.threadKilledFailureRef, disp ie, unitValue)
+          | Just (Panic msg v) <- fromException exn,
+            msg <- Util.Text.pack $ "panic: " ++ msg =
+              (Rf.miscFailureRef, msg, fromMaybe unitValue v)
           | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 -- | Evaluate a section
@@ -1230,13 +1236,35 @@ addRefs vfrsh vfrom vto rs = do
 evaluateSTM :: a -> STM a
 evaluateSTM x = unsafeIOToSTM (evaluate x)
 
+-- If this flag is set, all code is run through serialization before
+-- loading. This renames variables, and it's possible a problem would
+-- only be visible with the renamed variables. This allows testing
+-- these cases just by rebuilding ucm, rather than actually concocting
+-- a test that involves remote code loading.
+#if defined(CODE_SERIAL_CHECK)
+
+normalizeCode :: Code -> Code
+normalizeCode co = case deserializeCode (serializeCode False co) of
+  Left _ -> error "normalizeCode: impossible"
+  Right co -> co
+
+normalizeCodes :: [(Reference, Code)] -> [(Reference, Code)]
+normalizeCodes = fmap $ second normalizeCode
+
+#else
+
+normalizeCodes :: [(Reference, Code)] -> [(Reference, Code)]
+normalizeCodes = id
+
+#endif
+
 cacheAdd0 ::
   S.Set Reference ->
   [(Reference, Code)] ->
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
-cacheAdd0 ntys0 termSuperGroups sands cc = do
+cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
@@ -1372,20 +1400,35 @@ cacheAdd l cc = do
     then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
-reflectValue :: EnumMap Word64 Reference -> Val -> IO ANF.Value
-reflectValue rty = goV
+reflectValue ::
+  CCache -> EnumMap Word64 Reference -> Val -> IO ANF.Value
+reflectValue env rty = goV0
   where
-    err s = "reflectValue: cannot prepare value for serialization: " ++ s
+    err s v =
+      "reflectValue: cannot prepare value for serialization: "
+        ++ s
+        ++ "\n\nSerialized value:\n\n"
+        ++ v
+
     refTy w
-      | Just r <- EC.lookup w rty = pure r
-      | otherwise =
-          die $ err "unknown type reference"
+      | Just r <- EC.lookup w rty = Right r
+      | otherwise = Left "unknown type reference"
 
     goIx (CIx r0 _ i) = ANF.GR r i
       where
         r = M.findWithDefault r0 r0 functionUnreplacements
 
-    goV :: Val -> IO ANF.Value
+    goV0 :: Val -> IO ANF.Value
+    goV0 v = case goV v of
+      Right rv -> pure rv
+      Left problem -> die $ err problem rendered
+      where
+        rendered = case tracer env False v of
+          NoTrace -> show v
+          MsgTrace _ _ pre -> pre
+          SimpleTrace ugl -> ugl
+
+    goV :: Val -> Either String ANF.Value
     goV = \case
       -- For back-compatibility we reflect all Unboxed values into boxed literals, we could change this in the future,
       -- but there's not much of a big reason to.
@@ -1396,7 +1439,7 @@ reflectValue rty = goV
         | otherwise -> pure . ANF.BLit $ ANF.Neg (fromIntegral (abs n))
       DoubleVal f -> pure . ANF.BLit $ ANF.Float f
       CharVal c -> pure . ANF.BLit $ ANF.Char c
-      val@(Val _ clos) ->
+      Val _ clos ->
         case clos of
           (PApV cix _rComb args) ->
             ANF.Partial (goIx cix) <$> traverse goV args
@@ -1408,12 +1451,13 @@ reflectValue rty = goV
             | Just m <- maybeUnwrapForeign Rf.hmapRef f ->
                 goV . BoxedVal $ inflateMap m
             | otherwise -> ANF.BLit <$> goF f
-          BlackHole -> die $ err "black hole"
-          UnboxedTypeTag {} -> die $ err $ "unknown unboxed value" <> show val
+          BlackHole -> Left "black hole"
+          UnboxedTypeTag {} -> Left "unknown unboxed value"
+          Affine {} -> Left "affine info"
 
-    goK (CB _) = die $ err "callback continuation"
-    goK (Local {}) = die $ err "reflectValue: captured Local frame"
-    goK (AMark {}) = die $ err "reflectValue: captured AMark frame"
+    goK (CB _) = Left "callback continuation"
+    goK (Local {}) = Left "captured Local frame"
+    goK (AMark {}) = Left "captured AMark frame"
     goK KE = pure ANF.KE
     goK (Mark a ps de k) = do
       ps <- traverse refTy (EC.setToList ps)
@@ -1445,7 +1489,7 @@ reflectValue rty = goV
           pure (ANF.BArr a)
       | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
           ANF.Arr <$> traverse goV a
-      | otherwise = die $ err $ "foreign value: " <> (show f)
+      | otherwise = Left "foreign value"
 
 reifyValue :: CCache -> ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do

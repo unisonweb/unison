@@ -33,7 +33,7 @@ mytest _ = [Ok "Great"]
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       main   : '{IO, Exception} ()
       mytest : '{IO, Exception} [Result]
@@ -80,7 +80,7 @@ unique type RuntimeError =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type RuntimeError
       error : Text -> a ->{Exception} x

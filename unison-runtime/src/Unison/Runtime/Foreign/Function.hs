@@ -467,19 +467,19 @@ foreignCallHelper = \case
     mkForeignTls $
       \( config :: TLS.ClientParams,
          socket :: SYS.Socket
-         ) -> TLS.contextNew socket config
+         ) -> Tls socket <$> TLS.contextNew socket config
   Tls_newServer_impl_v3 ->
     mkForeignTls $
       \( config :: TLS.ServerParams,
          socket :: SYS.Socket
-         ) -> TLS.contextNew socket config
+         ) -> Tls socket <$> TLS.contextNew socket config
   Tls_handshake_impl_v3 -> mkForeignTls $
-    \(tls :: TLS.Context) -> TLS.handshake tls
+    \(tls :: Tls) -> TLS.handshake tls.context
   Tls_send_impl_v3 ->
     mkForeignTls $
-      \( tls :: TLS.Context,
+      \( tls :: Tls,
          bytes :: Bytes.Bytes
-         ) -> TLS.sendData tls (Bytes.toLazyByteString bytes)
+         ) -> TLS.sendData tls.context (Bytes.toLazyByteString bytes)
   Tls_decodeCert_impl_v3 ->
     let wrapFailure t = F.Failure Ty.tlsFailureRef (Util.Text.pack t) unitValue
         decoded :: Bytes.Bytes -> Either String PEM
@@ -498,11 +498,11 @@ foreignCallHelper = \case
   Tls_encodePrivateKey -> mkForeign $
     \(privateKey :: X.PrivKey) -> pure $ Util.Text.toUtf8 $ Util.Text.pack $ show privateKey
   Tls_receive_impl_v3 -> mkForeignTls $
-    \(tls :: TLS.Context) -> do
-      bs <- TLS.recvData tls
+    \(tls :: Tls) -> do
+      bs <- TLS.recvData tls.context
       pure $ Bytes.fromArray bs
   Tls_terminate_impl_v3 -> mkForeignTls $
-    \(tls :: TLS.Context) -> TLS.bye tls
+    \(tls :: Tls) -> TLS.bye tls.context
   Code_validateLinks -> mkForeignExn $
     \(lsgs0 :: [(Referent, ANF.Code)]) -> do
       let f (msg, rs) =

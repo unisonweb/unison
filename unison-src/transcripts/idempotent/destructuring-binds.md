@@ -24,7 +24,7 @@ ex1 tup =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ex0 : Nat -> Nat
       ex1 : (a, b, (Nat, Nat)) -> Nat
@@ -66,7 +66,7 @@ ex2 tup = match tup with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ex2 : (a, b, (Nat, Nat)) -> Nat
         (also named ex1)
@@ -89,16 +89,12 @@ ex4 =
 
       2 |   (a,b) = (a Nat.+ b, 19)
 
-  I think its type should be:
+  I found some terms in scope with similar names but different 
+  types. Was any of these what you wanted?
 
-      Nat
-
-  Some common causes of this error include:
-    * Your current namespace is too deep to contain the
-      definition in its subtree
-    * The definition is part of a library which hasn't been
-      added to this project
-    * You have a typo in the name
+  (Float.*) : Float -> Float -> Float
+  (Int.*) : Int -> Int -> Int
+  (Nat.*) : Nat -> Nat -> Nat
 ```
 
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
@@ -121,7 +117,7 @@ ex5a _ = match (99 + 1, "hi") with
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ex5  : 'Text
       ex5a : 'Text

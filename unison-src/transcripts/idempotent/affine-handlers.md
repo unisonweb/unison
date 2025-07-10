@@ -37,7 +37,7 @@ repeated = cases
     handle looped k n with repeated
 
 now : '{IO, Exception} TimeSpec
-now _ = match monotonic () with
+now _ = match threadCPUTime () with
   Left e -> raise e
   Right t -> t
 
@@ -129,7 +129,7 @@ count'test = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability Count
       ability Env e
@@ -204,7 +204,7 @@ fail'count'test = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       ability CountOrFail
       fail'count'loop : Nat ->{CountOrFail} ()
@@ -228,6 +228,152 @@ scratch/main> io.test fail'count'test
     1. fail'count'test   ◉ performance improved
 
   ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
+This tests a case where affine handlers were not being optimized due
+to overly restrictive criteria for recognizing them. In this case,
+because n \< o, parts of the handler will end up with the n and o
+variables in different orders. I.E. an 'entry point' will end up with
+`o n -> ...` because the `o` gets prepended, but the matching cases
+will end up with `n o -> ...` because its argument list is generated
+based completely on the order in which free variables are sorted by
+name.
+
+This has nothing to do with the handler being affine, and was just an
+overly restrictive assumption about the exact form that handlers end
+up in in the intermediate code. It shouldn't even matter if some
+variables in the entry are unused in the matcher, although I'm
+uncertain if that can happen. So, checking the relationship between
+the argument list of the matcher and the entry point has just been
+removed.
+
+``` unison
+local'counter : Nat -> '{Count} r -> r
+local'counter o th =
+  h n = cases
+    { tick -> k } ->
+      handle k (n + o) with h (n+1)
+    { r } -> r
+  handle !th with h 0
+
+local'count'test = do
+  [ testPerf do local'counter 5 do count'wrap 1000 100 ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      local'count'test : '{IO, Exception} [Result]
+      local'counter    : Nat -> '{Count} r -> r
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> io.test local'count'test
+
+    New test results:
+
+    1. local'count'test   ◉ performance improved
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
+This tests some more elaborate handlers
+
+``` unison
+ability Rec where
+  rec : {Rec} ('{Rec} r -> r)
+
+recurse : '{Rec} r -> r
+recurse th = handle !th with cases
+  { rec -> k } ->
+    recurse do k recurse
+  { r } -> r
+
+rec'loop : Nat ->{Rec} ()
+rec'loop = cases
+  0 -> ()
+  n ->
+    _ = rec
+    rec'loop (Nat.drop n 1)
+
+rec'wrap : Nat -> Nat ->{Rec} ()
+rec'wrap k = cases
+  0 -> rec'loop k
+  n -> handle rec'wrap k (Nat.drop n 1) with provide 0
+
+f m = cases
+  0 -> m + 1
+  n -> g m (drop n 1)
+
+g m = cases
+  0 -> m + 1
+  n -> f m (drop n 1)
+
+count'extra : Nat -> '{Count} r -> r
+count'extra n th =
+  m = f n 3
+  handle !th
+  with cases
+    { tick -> k } ->
+      count'extra m do k (f m 2)
+    { r } -> r
+
+elaborate'test = do
+  [ testPerf do recurse do rec'wrap 1000 100
+  , testPerf do count'extra 0 do count'wrap 1000 100
+  ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found and typechecked these definitions in scratch.u. If you
+  do an `update`, here's how your codebase would change:
+
+    ⍟ New definitions:
+    
+      ability Rec
+      count'extra    : Nat -> '{Count} r -> r
+      elaborate'test : '{IO, Exception} [Result]
+      f              : Nat -> Nat -> Nat
+      g              : Nat -> Nat -> Nat
+      rec'loop       : Nat ->{Rec} ()
+      rec'wrap       : Nat -> Nat ->{Rec} ()
+      recurse        : '{Rec} r -> r
+```
+
+``` ucm
+scratch/main> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> io.test elaborate'test
+
+    New test results:
+
+    1. elaborate'test   ◉ performance improved
+                        ◉ performance improved
+
+  ✅ 2 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

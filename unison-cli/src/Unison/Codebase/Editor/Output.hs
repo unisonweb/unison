@@ -55,11 +55,11 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.InputPattern qualified as Input
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (..))
 import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -155,7 +155,7 @@ data TodoOutput = TodoOutput
     dependentsOfTodo :: !(Set TermReferenceId),
     directDependenciesWithoutNames :: !(DefnsF Set TermReference TypeReference),
     hashLen :: !Int,
-    incoherentDeclReasons :: !IncoherentDeclReasons,
+    incoherentDeclReasons :: !(Maybe IncoherentDeclReasons),
     nameConflicts :: !Names,
     ppe :: !PrettyPrintEnvDecl
   }
@@ -166,7 +166,7 @@ todoOutputIsEmpty todo =
     && defnsAreEmpty todo.directDependenciesWithoutNames
     && Names.isEmpty todo.nameConflicts
     && not todo.defnsInLib
-    && todo.incoherentDeclReasons == IncoherentDeclReasons [] [] [] []
+    && isNothing todo.incoherentDeclReasons
 
 data AmbiguousReset'Argument
   = AmbiguousReset'Hash
@@ -283,6 +283,14 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
   | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
+  | Typechecked2
+      PPE.PrettyPrintEnv
+      PPE.PrettyPrintEnv
+      ( DefnsF
+          (Map Name)
+          (SR.SlurpEntry (Type Symbol Ann))
+          (SR.SlurpEntry (DD.DeclOrBuiltin Symbol Ann))
+      )
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -416,9 +424,10 @@ data Output
   | HappyCoding
   | ProjectHasNoReleases ProjectName
   | UpdateTypecheckingFailure
+  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
   | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
-  | UpgradeSuccess !NameSegment !NameSegment
+  | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
   | MergeFailureWithMergetool !MergeSourceAndTarget !ProjectBranchName !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
@@ -443,6 +452,7 @@ data Output
   | OpenCodebaseError CodebasePath OpenCodebaseError
   | UCMServerNotRunning
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
+  | BranchUpdate'BranchChanged
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -501,6 +511,7 @@ type SourceFileContents = Text
 isFailure :: Output -> Bool
 isFailure o = case o of
   UpdateTypecheckingFailure {} -> True
+  UpdateTypecheckingFailure2 {} -> True
   UpdateIncompleteConstructorSet {} -> True
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
@@ -567,6 +578,7 @@ isFailure o = case o of
   Evaluated {} -> False
   LoadingFile {} -> False
   Typechecked {} -> False
+  Typechecked2 {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
   DisplayRendered {} -> False
@@ -683,6 +695,7 @@ isFailure o = case o of
   OpenCodebaseError {} -> True
   UCMServerNotRunning -> True
   BranchSquashSuccess {} -> False
+  BranchUpdate'BranchChanged {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

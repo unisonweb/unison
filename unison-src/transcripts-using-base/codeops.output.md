@@ -157,7 +157,7 @@ swapped name link =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural type Three a b c
       Code.get       : Link.Term ->{IO, Throw Text} Code
@@ -286,7 +286,7 @@ badLoad _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Zap
       badLoad : '{IO} [Result]
@@ -388,7 +388,7 @@ codeTests =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       codeTests : '{IO} [Result]
 ```
@@ -473,7 +473,7 @@ vtests _ =
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       validateTest : Link.Term ->{IO} Result
       vtests       : '{IO} [Result]
