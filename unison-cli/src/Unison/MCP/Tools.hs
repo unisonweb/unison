@@ -53,7 +53,9 @@ tools =
     listProjectBranchesTool,
     getCurrentProjectContextTool,
     searchDefinitionsTool,
-    searchByTypeTool
+    searchByTypeTool,
+    dependenciesTool,
+    dependentsTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -388,6 +390,46 @@ searchByTypeTool =
       toolHandler = \(SearchByTypeToolArguments {projectContext, query}) -> handleToolError $ do
         definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [":", Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+        pure $ textToolResult outputJSON
+    }
+
+dependenciesTool :: Tool MCP
+dependenciesTool =
+  Tool
+    { toolName = toToolName DependenciesTool,
+      toolDescription = "List the dependencies of a definition.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "List all definitions a given term or type depends on.",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
+        output <- handleInputMCP projectContext [Right $ Input.ListDependenciesI (HQ.NameOnly definitionName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+dependentsTool :: Tool MCP
+dependentsTool =
+  Tool
+    { toolName = toToolName DependentsTool,
+      toolDescription = "List the dependents of a definition.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "List all definitions that depend on a given term or type.",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
+        output <- handleInputMCP projectContext [Right $ Input.ListDependentsI (HQ.NameOnly definitionName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
 

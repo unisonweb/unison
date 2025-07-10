@@ -18,6 +18,7 @@ module Unison.MCP.Types
     ProjectContext (..),
     ProjectContextArgument (..),
     ProjectNameArgument (..),
+    ProjectDefinitionNameArgument (..),
     toToolName,
     fromToolName,
   )
@@ -74,6 +75,8 @@ data ToolKind
   | ListLocalProjectsTool
   | ListProjectBranchesTool
   | GetCurrentProjectContextTool
+  | DependenciesTool
+  | DependentsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -93,8 +96,41 @@ kindNameMapping =
       (SearchByTypeTool, "search-by-type"),
       (ListLocalProjectsTool, "list-local-projects"),
       (ListProjectBranchesTool, "list-project-branches"),
-      (GetCurrentProjectContextTool, "get-current-project-context")
+      (GetCurrentProjectContextTool, "get-current-project-context"),
+      (DependenciesTool, "list-definition-dependencies"),
+      (DependentsTool, "list-definition-dependents")
     ]
+
+data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
+  { definitionName :: Name,
+    projectContext :: ProjectContext
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema ProjectDefinitionNameArgument where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "definitionName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the definition to work with, e.g. `mynamespace.foo` or `lib.unison_base_1_0_0.data.List`." :: Text)
+                  ],
+              "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext)
+            ],
+        "required" .= ["definitionName", "projectContext" :: Text]
+      ]
+
+instance FromJSON ProjectDefinitionNameArgument where
+  parseJSON = withObject "ProjectDefinitionNameArgument" $ \o -> do
+    definitionNameText <- o .: "definitionName"
+    definitionName <- case Name.parseTextEither definitionNameText of
+      Left err -> fail $ "Invalid definition name: " ++ show err
+      Right definitionName -> pure definitionName
+    projectContext <- o .: "projectContext"
+    pure $ ProjectDefinitionNameArgument {definitionName, projectContext}
 
 newtype ProjectContextArgument = ProjectContextArgument ProjectContext
   deriving newtype (Eq, Show)
