@@ -41,7 +41,7 @@ main = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ New definitions:
+    ⍟ These new definitions are ok to `update`:
     
       structural ability Break
       type MyBool
