@@ -76,7 +76,8 @@ import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
-  ( encodeVal,
+  ( decodeVal,
+    encodeVal,
     foreignCall,
     functionReplacements,
     functionUnreplacements,
@@ -304,7 +305,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
       stk <- bump stk
       pokeS
         stk
-        (Sq.fromList $ boxedVal . Foreign . Wrap Rf.termLinkRef . Ref <$> unknown)
+        (Sq.fromList $ encodeVal . Ref <$> unknown)
       pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
   | sandboxed env = die "attempted to use sandboxed operation: load"
@@ -314,8 +315,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
       reifyValue env v >>= \case
         Left miss -> do
           pokeOffS stk 1 $
-            Sq.fromList $
-              boxedVal . Foreign . Wrap Rf.termLinkRef . Ref <$> miss
+            Sq.fromList $ encodeVal . Ref <$> miss
           pokeTag stk 0
         Right x -> do
           pokeOff stk 1 x
@@ -1207,14 +1207,11 @@ updateMap new0 r = do
   stateTVar r $ \old ->
     let total = new <> old in (total, total)
 
-decodeCacheArgument ::
-  USeq -> IO [(Reference, Code)]
-decodeCacheArgument s = for (toList s) $ \case
-  (Val _unboxed (Data2 _ _ (BoxedVal (Foreign x)) (BoxedVal (Data2 _ _ (BoxedVal (Foreign y)) _)))) ->
-    case unwrapForeign x of
-      Ref r -> pure (r, unwrapForeign y)
-      _ -> die "decodeCacheArgument: Con reference"
-  _ -> die "decodeCacheArgument: unrecognized value"
+decodeCacheArgument :: USeq -> IO [(Reference, Code)]
+decodeCacheArgument s = traverse (f <=< decodeVal) $ toList s
+  where
+    f (Ref r, rco) = pure (r, ANF.dereference rco)
+    f _ = die "decodeCacheArgument: Con reference"
 
 addRefs ::
   TVar Word64 ->
