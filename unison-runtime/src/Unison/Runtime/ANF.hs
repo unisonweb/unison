@@ -2476,8 +2476,8 @@ branchLinks _ g (MatchText m e) =
   MatchText <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchIntegral m e) =
   MatchIntegral <$> traverse g m <*> traverse g e
-branchLinks _ g (MatchNumeric r m e) =
-  MatchNumeric r <$> traverse g m <*> traverse g e
+branchLinks f g (MatchNumeric r m e) =
+  MatchNumeric <$> f r <*> traverse g m <*> traverse g e
 branchLinks _ g (MatchSum m) =
   MatchSum <$> (traverse . traverse) g m
 branchLinks _ _ MatchEmpty = pure MatchEmpty
