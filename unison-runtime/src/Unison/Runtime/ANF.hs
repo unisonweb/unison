@@ -1616,6 +1616,11 @@ data GroupRef = GR Reference Word64
 --
 -- This is parameterized so that it can be used with both Value and
 -- Code.
+--
+-- Also note, the stored referenced might not be 'tight' in the sense
+-- that they all actually occur in the value. Maintaining this
+-- invariant together with actual canonicalization would be onerous
+-- and isn't done at this time.
 data Referenced a
   -- types, terms
   = WithRefs [Reference] [Reference] a
