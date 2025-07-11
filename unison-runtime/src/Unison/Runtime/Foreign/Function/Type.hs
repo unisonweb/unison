@@ -125,6 +125,7 @@ data ForeignFunc
   | Code_validateLinks
   | Code_dependencies
   | Code_serialize
+  | Code_serialize_versioned
   | Code_deserialize
   | Code_display
   | Value_dependencies
@@ -399,6 +400,7 @@ foreignFuncBuiltinName = \case
   Code_validateLinks -> "Code.validateLinks"
   Code_dependencies -> "Code.dependencies"
   Code_serialize -> "Code.serialize"
+  Code_serialize_versioned -> "Code.serialize.versioned"
   Code_deserialize -> "Code.deserialize"
   Code_display -> "Code.display"
   Value_dependencies -> "Value.dependencies"

@@ -1119,6 +1119,7 @@ declareForeigns = do
   declareForeign Untracked 1 Code_validateLinks
   declareForeign Untracked 1 Code_dependencies
   declareForeign Untracked 1 Code_serialize
+  declareForeign Untracked 2 Code_serialize_versioned
   declareForeign Untracked 1 Code_deserialize
   declareForeign Untracked 2 Code_display
   declareForeign Untracked 1 Value_dependencies

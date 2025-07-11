@@ -508,6 +508,11 @@ foreignCallHelper = \case
   Code_serialize -> mkForeign $
     \(co :: ANF.Referenced ANF.Code) ->
       pure . Bytes.fromArray $ ANF.serializeCode False co
+  Code_serialize_versioned -> mkForeign $
+    \(ver :: Word64, co :: ANF.Referenced ANF.Code) ->
+      case ANF.serializeCodeWithVersion ver False co of
+        Left err -> die err
+        Right bs -> pure $ Bytes.fromLazyByteString bs
   Code_deserialize ->
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray

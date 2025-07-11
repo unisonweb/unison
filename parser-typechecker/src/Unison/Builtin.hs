@@ -948,6 +948,7 @@ codeBuiltins =
   [ ("Code.dependencies", code --> list termLink),
     ("Code.isMissing", termLink --> io boolean),
     ("Code.serialize", code --> bytes),
+    ("Code.serialize.versioned", nat --> code --> bytes),
     ("Code.deserialize", bytes --> eithert text code),
     ("Code.cache_", list (tuple [termLink, code]) --> io (list termLink)),
     ("Code.validate", list (tuple [termLink, code]) --> io (optionalt failure)),
