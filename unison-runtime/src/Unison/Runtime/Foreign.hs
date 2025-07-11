@@ -313,7 +313,7 @@ instance BuiltinForeign Tls where
   foreignName = Tagged "Tls"
   foreignRef = Tagged Ty.tlsRef
 
-instance BuiltinForeign Code where
+instance BuiltinForeign (Referenced Code) where
   foreignName = Tagged "Code"
   foreignRef = Tagged Ty.codeRef
 

@@ -43,6 +43,7 @@ import Prelude hiding (getChar, putChar)
 import Data.Map.Strict.Internal (Map (..))
 import Unison.Builtin.Decls (mapRef, mapTip, mapBin)
 
+import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
 import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
 
 -- Version information is threaded through to allow handling
@@ -950,21 +951,40 @@ getCont =
 {-# SPECIALIZE getCont :: BDeserial Cont #-}
 {-# SPECIALIZE getCont :: SDeserial Cont #-}
 
-deserializeCode :: ByteString -> Either String Code
-deserializeCode bs =
-  runGetS (getVersion >>= runReaderT getCode . (,False)) bs
+deserializeCode :: ByteString -> Either String (Referenced Code)
+deserializeCode bs = runGetS go bs
   where
-    getVersion =
-      getWord32be >>= \case
-        n | 1 <= n && n <= 4 -> pure $ Transfer n
-        n -> fail $ "deserializeGroup: unknown version: " ++ show n
+    go = getWord32be >>= \case
+      n | n == 4 -> CodeV4.getCodeWithHeader
+        | 1 <= n && n < 4 ->
+          Plain <$> runReaderT getCode (Transfer n, False)
+        | otherwise ->
+            fail $ "deserializeGroup: unknown version: " ++ show n
 
 -- Boolean argument determines whether ForeignFunc occurrences are
 -- allowed to be serialized. For interchange, this should be False.
-serializeCode :: Bool -> Code -> ByteString
-serializeCode fops co = runPutS (putVersion *> putCode fops co)
+serializeCode :: Bool -> Referenced Code -> ByteString
+serializeCode fops (WithRefs tys tms co) =
+  runPutS (putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co)
+serializeCode fops (Plain co) = runPutS (putVersion *> putCode fops co)
   where
     putVersion = putWord32be codeVersion
+
+serializeCodeWithVersion ::
+  Word64 -> Bool -> Referenced Code -> Either String L.ByteString
+serializeCodeWithVersion v fops = \case
+  WithRefs tys tms co
+    | v == 4 ->
+        Right . runPutL $
+          putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
+  rco
+    | v == 3 ->
+        Right . runPutL $
+          putWord32be 3 *> putCode fops (dereference rco)
+    | v == 4 ->
+        Left "could not serialize plain code at v4"
+    | otherwise ->
+        Left $ "unsupported code serialization version: " ++ show v
 
 -- | Serializes a `SuperGroup` for rehashing.
 --

@@ -485,13 +485,13 @@ lkup env stk tl
   | otherwise = writeBack stk =<< lookupCode env tl
 {-# INLINE lkup #-}
 
-cvld :: CCache -> Stack -> [(Referent, Code)] -> IO ()
+cvld :: CCache -> Stack -> [(Referent, Referenced Code)] -> IO ()
 cvld env stk news
   | sandboxed env = die "attempted to use sandboxed operation: validate"
   | otherwise =
       traverse extract news >>= codeValidate env >>= writeBack stk
   where
-    extract (Ref r, code) = pure (r, codeGroup code)
+    extract (Ref r, dereference -> code) = pure (r, codeGroup code)
     extract _ = die "Prim1:CVLD: Con reference"
 {-# INLINE cvld #-}
 

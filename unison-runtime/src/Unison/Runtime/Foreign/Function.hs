@@ -495,21 +495,24 @@ foreignCallHelper = \case
   Tls_terminate_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.bye tls.context
   Code_validateLinks -> mkForeignExn $
-    \(lsgs0 :: [(Referent, ANF.Code)]) -> do
+    \(lsgs0 :: [(Referent, ANF.Referenced ANF.Code)]) -> do
       let f (msg, rs) =
             F.Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
-      pure . first f $ checkGroupHashes lsgs0
+      pure . first f . checkGroupHashes $ second ANF.dereference <$> lsgs0
   Code_dependencies -> mkForeign $
-    \(ANF.CodeRep sg _) ->
-      pure $ Wrap Ty.termLinkRef . Ref <$> ANF.groupTermLinks sg
+    \(ANF.dereference -> ANF.CodeRep sg _) ->
+      -- note: it's not correct to use the stored references of a
+      -- `Referenced Code` because they may over-estimate the actual
+      -- occurrences.
+      pure $ Ref <$> ANF.groupTermLinks sg
   Code_serialize -> mkForeign $
-    \(co :: ANF.Code) ->
+    \(co :: ANF.Referenced ANF.Code) ->
       pure . Bytes.fromArray $ ANF.serializeCode False co
   Code_deserialize ->
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
-    \(nm, (ANF.CodeRep sg _)) ->
+    \(nm, (ANF.dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $

@@ -167,7 +167,7 @@ putBLit pref@(tys, _) = \case
   Bytes b -> putTag BytesT *> putBytes b
   Quote vl -> putTag QuoteT *> putValue pref vl
   Code (CodeRep sg ch) ->
-    putTag tag *> putGroup mempty False sg
+    putTag tag *> putGroup pref False sg
     where
       tag
         | Cacheable <- ch = CachedCodeT
@@ -193,14 +193,14 @@ getBLit gref@(tys, _) =
     BytesT -> Bytes <$> getBytes
     QuoteT -> Quote <$> getValue gref
     CodeT ->
-      Code . flip CodeRep Uncacheable <$> getGroup
+      Code . flip CodeRep Uncacheable <$> getGroup gref
     BArrT -> BArr <$> getByteArray
     PosT -> Pos <$> getPositive
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
     ArrT -> Arr . GHC.IsList.fromList <$> getList (getValue gref)
-    CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
+    CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup gref
     MapT -> Map <$> getMapping (getValue gref) (getValue gref)
 {-# SPECIALIZE getBLit :: GetRefLookup -> BGet.Get BLit #-}
 {-# SPECIALIZE getBLit :: GetRefLookup -> SGet.Get BLit #-}

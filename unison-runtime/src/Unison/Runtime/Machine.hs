@@ -76,7 +76,8 @@ import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
-  ( foreignCall,
+  ( encodeVal,
+    foreignCall,
     functionReplacements,
     functionUnreplacements,
     pseudoConstructors,
@@ -321,11 +322,9 @@ exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
           pokeTag stk 1
       pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
-  tyr <- readTVarIO (tagRefs env)
-  tmr <- readTVarIO (combRefs env)
   c <- peekOff stk i
   stk <- bump stk
-  pokeBi stk =<< reflectValue env tyr tmr c
+  pokeBi stk =<< reflectValue env c
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
@@ -1404,18 +1403,85 @@ cacheAdd l cc = do
     then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
-type Reflect =
-  StateT
-    (HM.HashMap Word64 Reference, HM.HashMap Word64 Reference, [Reference], [Reference])
-    IO
+data ReflectionState
+  = RS
+  { _tyNums :: HM.HashMap Word64 Reference
+  , _tmNums :: HM.HashMap Word64 Reference
+  , _canon :: C.Canonicalizer Reference
+  , _tys :: [Reference]
+  , _tms :: [Reference]
+  }
+type Reflect = StateT ReflectionState IO
 
-reflectValue ::
-  CCache ->
-  EnumMap Word64 Reference ->
-  EnumMap Word64 Reference ->
-  Val ->
-  IO (ANF.Referenced ANF.Value)
-reflectValue env rty rtm = goV0
+emptyRS :: ReflectionState
+emptyRS = RS HM.empty HM.empty C.empty [] []
+
+type RTrav a =
+  forall f. Applicative f =>
+    (Bool -> Reference -> f Reference) ->
+    (a -> f a)
+
+canonicalizeReferenced :: RTrav a -> ANF.Referenced a -> Reflect a
+canonicalizeReferenced trav = \case
+  -- no stored refs, have to traverse
+  ANF.Plain v -> trav h v
+
+  ANF.WithRefs tys tms v -> do
+    typs <- mapMaybe id <$> traverse (g True) tys
+    tmps <- mapMaybe id <$> traverse (g False) tms
+
+    ctys <- lift $ C.fromList typs
+    ctms <- lift $ C.fromList tmps
+
+    let f False r = C.findWithDefault r r ctms
+        f True r = C.findWithDefault r r ctys
+
+    if null typs && null tmps
+    -- all references are already canonical
+    then pure v
+    else lift $ trav f v
+
+  where
+    -- traversal function for plain values
+    g isTy r = StateT \st@(RS _ _ canon tys tms) ->
+      C.categorize canon r >>= \case
+        C.Canonical -> pure (Nothing, st)
+        C.Novel canon ->
+          (Nothing,) <$>
+            evaluate
+              st { _canon = canon
+                 , _tys = if isTy then r:tys else tys
+                 , _tms = if isTy then tms else r:tms
+                 }
+        C.Equivalent s canon ->
+          (Just (r,s),) <$> evaluate (st { _canon = canon })
+
+    -- traversal function for remapping WithRefs values
+    h isTy r = StateT \st@(RS _ _ canon tys tms) ->
+      C.categorize canon r >>= \case
+        C.Canonical ->
+          (r,) <$> evaluate (st { _canon = canon })
+        C.Novel canon ->
+          (r,) <$>
+            evaluate
+              if isTy
+              then st { _canon = canon
+                      , _tys = r:tys
+                      }
+              else st { _canon = canon
+                      , _tms = r:tms
+                      }
+        C.Equivalent r canon ->
+          (r,) <$> evaluate (st { _canon = canon })
+{-# INLINE canonicalizeReferenced #-}
+
+reflectValue :: CCache -> Val -> IO (ANF.Referenced ANF.Value)
+reflectValue env val = do
+  tyr <- readTVarIO (tagRefs env)
+  tmr <- readTVarIO (combRefs env)
+  reflectValue0 tyr tmr val
+    `catch` \(ReflectExn problem) ->
+      die $ err problem rendered
   where
     err s v =
       "reflectValue: cannot prepare value for serialization: "
@@ -1423,39 +1489,67 @@ reflectValue env rty rtm = goV0
         ++ "\n\nSerialized value:\n\n"
         ++ v
 
-    refTy w = get >>= \(seenty, seentm, tys, tms) ->
+    rendered = case tracer env False val of
+      NoTrace -> show val
+      MsgTrace _ _ pre -> pre
+      SimpleTrace ugl -> ugl
+
+-- Reflects a runtime value into an interchange value, given a mapping
+-- from numberings to references.
+--
+-- Note
+-- ----
+--
+-- There is some difficulty with reflecting a value that has already
+-- had its references resolved. It is possible to reflect a value that
+-- contains a reflected value, and the latter _might_ not have been
+-- produced with the same in-memory references as the numbering. This
+-- would be the case if the value has been produced by
+-- deserialization.
+--
+-- So, there is an extra canonicalization step that takes place to
+-- choose unique `Reference` values over the entire value. Cost for
+-- numberings is avoided because we locally remember (in a hash map)
+-- the canonical value the first time we see each number. Making the
+-- value overall canonical might require some substitution in the
+-- embedded values (or code), which could be costly. To avoid that
+-- cost, avoid having lots of nested reflected values.
+reflectValue0 ::
+  EnumMap Word64 Reference ->
+  EnumMap Word64 Reference ->
+  Val ->
+  IO (ANF.Referenced ANF.Value)
+reflectValue0 rty rtm = goV0
+  where
+    refTy w = get >>= \(RS seenty seentm canon tys tms) ->
       case HM.lookup w seenty of
         Just r -> pure r
         Nothing
-          | Just r <- EC.lookup w rty ->
-              r <$ put (HM.insert w r seenty, seentm, r:tys, tms)
+          | Just r <- EC.lookup w rty,
+            (r, canon) <- C.canonicalize canon r,
+            upd <- RS (HM.insert w r seenty) seentm canon (r:tys) tms ->
+              r <$ put upd
           | otherwise -> reflExn "unknown type reference"
 
-    refTm w = get >>= \(seenty, seentm, tys, tms) ->
+    refTm w = get >>= \(RS seenty seentm canon tys tms) ->
       case HM.lookup w seentm of
         Just r -> pure r
         Nothing
           | Just r <- EC.lookup w rtm,
-            r <- M.findWithDefault r r functionUnreplacements ->
-              r <$ put (seenty, HM.insert w r seentm, tys, r:tms)
+            r <- M.findWithDefault r r functionUnreplacements,
+            (r, canon) <- C.canonicalize canon r,
+            upd <- RS seenty (HM.insert w r seentm) canon tys (r:tms) ->
+              r <$ put upd
           | otherwise -> reflExn "unknown term reference"
 
     goIx (CIx _ top i) = flip ANF.GR i <$> refTm top
 
-    finish (val, (_, _, tys, tms)) = ANF.WithRefs tys tms val
+    reflExn msg = lift . throwIO $ ReflectExn msg
+
+    finish (val, RS _ _ _ tys tms) = ANF.WithRefs tys tms val
 
     goV0 :: Val -> IO (ANF.Referenced ANF.Value)
-    goV0 v =
-      fmap finish (runStateT (goV v) (mempty, mempty, [], []))
-        `catch` \(ReflectExn problem) ->
-          die $ err problem rendered
-      where
-        rendered = case tracer env False v of
-          NoTrace -> show v
-          MsgTrace _ _ pre -> pre
-          SimpleTrace ugl -> ugl
-
-    reflExn msg = lift . throwIO $ ReflectExn msg
+    goV0 v = finish <$> runStateT (goV v) emptyRS
 
     goV :: Val -> Reflect ANF.Value
     goV = \case
@@ -1490,7 +1584,7 @@ reflectValue env rty rtm = goV0
     goK (Mark a ps de k) = do
       ps <- traverse refTy (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
-      ANF.Mark (fromIntegral a) ps (M.fromList de) <$> goK k
+      ANF.Mark (fromIntegral a) ps de <$> goK k
     goK (Push f a cix _ _rsect k) =
       ANF.Push
         (fromIntegral f)
@@ -1505,19 +1599,21 @@ reflectValue env rty rtm = goV0
           pure (ANF.Bytes b)
       | Just s <- maybeUnwrapForeign Rf.listRef f =
           ANF.List <$> traverse goV s
-      | Just l <- maybeUnwrapForeign Rf.termLinkRef f =
+      | Just l <- maybeUnwrapBuiltin f =
           pure (ANF.TmLink l)
-      | Just l <- maybeUnwrapForeign Rf.typeLinkRef f =
+      | Just l <- maybeUnwrapBuiltin f =
           pure (ANF.TyLink l)
-      | Just v <- maybeUnwrapForeign Rf.valueRef f =
-          pure (ANF.Quote v)
-      | Just g <- maybeUnwrapForeign Rf.codeRef f =
-          pure (ANF.Code g)
+      | Just v <- maybeUnwrapBuiltin f =
+          ANF.Quote <$>
+            canonicalizeReferenced ANF.traverseValueRefs v
+      | Just g <- maybeUnwrapBuiltin f =
+          ANF.Code <$>
+            canonicalizeReferenced ANF.traverseCodeRefs g
       | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
           pure (ANF.BArr a)
       | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
           ANF.Arr <$> traverse goV a
-      | Just m <- maybeUnwrapForeign Rf.hmapRef f =
+      | Just m <- maybeUnwrapBuiltin f =
           ANF.Map <$>
             traverse (\(k,v) -> (,) <$> goV k <*> goV v) (M.toList m)
       | otherwise = reflExn "foreign value"
@@ -1553,7 +1649,7 @@ reifyValue1 tup (ANF.Plain v) = reifyValue0 tup v
 reifyValue1 (combs, rty0, rtm0) (ANF.WithRefs tys tms v) = do
   rty <- C.fromList $ mapMaybe (\r -> (r,) <$> M.lookup r rty0) tys
   rtm <- C.fromList $ mapMaybe procTermRefs tms
-  reifyValue0Canon combs rty rtm v
+  reifyValue0Canon combs tys tms rty rtm v
   where
     procTermRefs r =
       (r,) <$>
@@ -1561,11 +1657,13 @@ reifyValue1 (combs, rty0, rtm0) (ANF.WithRefs tys tms v) = do
 
 reifyValue0Canon ::
   EnumMap Word64 MCombs ->
+  [Reference] ->
+  [Reference] ->
   C.CanonMap Reference Word64 ->
   C.CanonMap Reference Word64 ->
   ANF.Value ->
   IO Val
-reifyValue0Canon combs rty rtm = goV
+reifyValue0Canon combs tys tms rty rtm = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -1612,7 +1710,7 @@ reifyValue0Canon combs rty rtm = goV
     goK (ANF.Mark a ps de k) =
       mrk
         <$> traverse refTy ps
-        <*> traverse (\(k, v) -> (,) <$> refTy k <*> (goV v)) (M.toList de)
+        <*> traverse (\(k, v) -> (,) <$> refTy k <*> (goV v)) de
         <*> goK k
       where
         mrk ps de k =
@@ -1633,14 +1731,14 @@ reifyValue0Canon combs rty rtm = goV
               ++ show r
 
     goL :: ANF.BLit -> IO Val
-    goL (ANF.Text t) = pure . boxedVal . Foreign $ Wrap Rf.textRef t
+    goL (ANF.Text t) = pure $ encodeVal t
     goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
-    goL (ANF.TmLink r) = pure . boxedVal . Foreign $ Wrap Rf.termLinkRef r
-    goL (ANF.TyLink r) = pure . boxedVal . Foreign $ Wrap Rf.typeLinkRef r
-    goL (ANF.Bytes b) = pure . boxedVal . Foreign $ Wrap Rf.bytesRef b
-    goL (ANF.Quote v) = pure . boxedVal . Foreign $ Wrap Rf.valueRef v
-    goL (ANF.Code g) = pure . boxedVal . Foreign $ Wrap Rf.codeRef g
-    goL (ANF.BArr a) = pure . boxedVal . Foreign $ Wrap Rf.ibytearrayRef a
+    goL (ANF.TmLink r) = pure $ encodeVal r
+    goL (ANF.TyLink r) = pure $ encodeVal r
+    goL (ANF.Bytes b) = pure $ encodeVal b
+    goL (ANF.Quote v) = pure $ encodeVal (ANF.WithRefs tys tms v)
+    goL (ANF.Code g) = pure $ encodeVal (ANF.WithRefs tys tms g)
+    goL (ANF.BArr a) = pure $ encodeVal a
     goL (ANF.Char c) = pure $ CharVal c
     goL (ANF.Pos w) =
       -- TODO: Should this be a Nat or an Int?
@@ -1648,7 +1746,7 @@ reifyValue0Canon combs rty rtm = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-    goL (ANF.Map l) = boxedVal . Foreign . Wrap Rf.hmapRef . M.fromList <$> traverse goP l
+    goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
 
@@ -1700,7 +1798,7 @@ reifyValue0 (combs, rty, rtm) = goV
     goK (ANF.Mark a ps de k) =
       mrk
         <$> traverse refTy ps
-        <*> traverse (\(k, v) -> (,) <$> refTy k <*> (goV v)) (M.toList de)
+        <*> traverse (\(k, v) -> (,) <$> refTy k <*> (goV v)) de
         <*> goK k
       where
         mrk ps de k =
@@ -1721,22 +1819,22 @@ reifyValue0 (combs, rty, rtm) = goV
               ++ show r
 
     goL :: ANF.BLit -> IO Val
-    goL (ANF.Text t) = pure . boxedVal . Foreign $ Wrap Rf.textRef t
+    goL (ANF.Text t) = pure $ encodeVal t
     goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
-    goL (ANF.TmLink r) = pure . boxedVal . Foreign $ Wrap Rf.termLinkRef r
-    goL (ANF.TyLink r) = pure . boxedVal . Foreign $ Wrap Rf.typeLinkRef r
-    goL (ANF.Bytes b) = pure . boxedVal . Foreign $ Wrap Rf.bytesRef b
-    goL (ANF.Quote v) = pure . boxedVal . Foreign $ Wrap Rf.valueRef v
-    goL (ANF.Code g) = pure . boxedVal . Foreign $ Wrap Rf.codeRef g
-    goL (ANF.BArr a) = pure . boxedVal . Foreign $ Wrap Rf.ibytearrayRef a
+    goL (ANF.TmLink r) = pure $ encodeVal r
+    goL (ANF.TyLink r) = pure $ encodeVal r
+    goL (ANF.Bytes b) = pure $ encodeVal b
+    goL (ANF.Quote v) = pure $ encodeVal (ANF.Plain v)
+    goL (ANF.Code g) = pure $ encodeVal (ANF.Plain g)
+    goL (ANF.BArr a) = pure $ encodeVal a
     goL (ANF.Char c) = pure $ CharVal c
     goL (ANF.Pos w) =
       -- TODO: Should this be a Nat or an Int?
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
-    goL (ANF.Map l) = boxedVal . Foreign . Wrap Rf.hmapRef . M.fromList <$> traverse goP l
+    goL (ANF.Arr a) = encodeVal <$> traverse goV a
+    goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
 
