@@ -35,7 +35,7 @@ import System.Mem.StableName
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, Referenced, Value)
+import Unison.Runtime.ANF (Code, Referenced, Value, dereference)
 import Unison.Runtime.Array
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
@@ -135,8 +135,8 @@ charClassCmp :: CharPattern -> CharPattern -> Ordering
 charClassCmp = compare
 {-# NOINLINE charClassCmp #-}
 
-codeEq :: Code -> Code -> Bool
-codeEq co1 co2 = co1 == co2
+codeEq :: Referenced Code -> Referenced Code -> Bool
+codeEq co1 co2 = dereference co1 == dereference co2
 {-# NOINLINE codeEq #-}
 
 tylEq :: Reference -> Reference -> Bool
