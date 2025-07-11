@@ -47,12 +47,13 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
+import Unison.ConstructorReference (pattern ConstructorReference)
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
   )
-import Unison.Referent (pattern Ref)
+import Unison.Referent (Referent, pattern Ref, pattern Con)
 import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
     Code (..),
@@ -1420,6 +1421,24 @@ type RTrav a =
   (Bool -> Reference -> f Reference) ->
   (a -> f a)
 
+canonicalizeReference :: Bool -> Reference -> Reflect Reference
+canonicalizeReference isTy r = StateT \st@(RS _ _ canon tys tms) ->
+  C.categorize canon r >>= \case
+    C.Canonical -> pure (r, st)
+    C.Equivalent s canon -> (s,) <$> evaluate (st {_canon = canon})
+    C.Novel canon ->
+      (r,)
+        <$> evaluate
+          st { _canon = canon,
+               _tys = if isTy then r : tys else tys,
+               _tms = if isTy then tms else r : tms
+             }
+
+canonicalizeReferent :: Referent -> Reflect Referent
+canonicalizeReferent (Ref r) = Ref <$> canonicalizeReference False r
+canonicalizeReferent (Con (ConstructorReference r i) j) =
+  flip Con j . flip ConstructorReference i <$> canonicalizeReference True r
+
 canonicalizeReferenced :: RTrav a -> ANF.Referenced a -> Reflect a
 canonicalizeReferenced trav = \case
   -- no stored refs, have to traverse
@@ -1457,8 +1476,7 @@ canonicalizeReferenced trav = \case
     -- traversal function for remapping WithRefs values
     h isTy r = StateT \st@(RS _ _ canon tys tms) ->
       C.categorize canon r >>= \case
-        C.Canonical ->
-          (r,) <$> evaluate (st {_canon = canon})
+        C.Canonical -> pure (r, st)
         C.Novel canon ->
           (r,)
             <$> evaluate
@@ -1604,9 +1622,9 @@ reflectValue0 rty rtm = goV0
       | Just s <- maybeUnwrapForeign Rf.listRef f =
           ANF.List <$> traverse goV s
       | Just l <- maybeUnwrapBuiltin f =
-          pure (ANF.TmLink l)
+          ANF.TmLink <$> canonicalizeReferent l
       | Just l <- maybeUnwrapBuiltin f =
-          pure (ANF.TyLink l)
+          ANF.TyLink <$> canonicalizeReference True l
       | Just v <- maybeUnwrapBuiltin f =
           ANF.Quote
             <$> canonicalizeReferenced ANF.traverseValueRefs v
