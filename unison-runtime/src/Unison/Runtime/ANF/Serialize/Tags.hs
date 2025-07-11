@@ -1,4 +1,3 @@
-
 module Unison.Runtime.ANF.Serialize.Tags where
 
 import Unison.Runtime.Serialize (Tag (..), unknownTag)
@@ -218,4 +217,3 @@ instance Tag CoTag where
     1 -> pure MarkT
     2 -> pure PushT
     t -> unknownTag "CoTag" t
-

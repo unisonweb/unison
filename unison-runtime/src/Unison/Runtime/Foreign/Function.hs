@@ -525,8 +525,9 @@ foreignCallHelper = \case
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
-  Value_serialize_versioned -> mkForeign $
-    pure . Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
+  Value_serialize_versioned ->
+    mkForeign $
+      pure . Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
   Value_deserialize ->
     mkForeign $
       pure . ANF.deserializeValue . Bytes.toLazyByteString

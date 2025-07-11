@@ -15,7 +15,12 @@ import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF
-  (Code, Referenced, Value, codeGroup, dereference)
+  ( Code,
+    Referenced,
+    Value,
+    codeGroup,
+    dereference,
+  )
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode

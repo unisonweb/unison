@@ -1,19 +1,18 @@
-
 module Unison.Runtime.Canonicalizer
-  ( Canonicalizer
-  , canonicalize
-  , categorize
-  , unsafeCategorize
-  , Canonicity (..)
-  , CanonMap (..)
-  , empty
-  , lookup
-  , unsafeLookup
-  , findWithDefault
-  , fromListByIndex
-  , fromList
+  ( Canonicalizer,
+    canonicalize,
+    categorize,
+    unsafeCategorize,
+    Canonicity (..),
+    CanonMap (..),
+    empty,
+    lookup,
+    unsafeLookup,
+    findWithDefault,
+    fromListByIndex,
+    fromList,
   )
-  where
+where
 
 import Control.Exception (evaluate)
 import Data.HashMap.Lazy (HashMap)
@@ -29,8 +28,8 @@ import Prelude hiding (lookup)
 -- fast if we've seen the exact in-memory value before. A second
 -- is just a normal hash map, which will canonicalize values by
 -- hash code/equality, which allows us to add to the fast lookup.
-data Canonicalizer a = Canon {
-    stableMap :: !(HashMap (StableName a) a),
+data Canonicalizer a = Canon
+  { stableMap :: !(HashMap (StableName a) a),
     _slowMap :: !(M.Map a a)
   }
 
@@ -39,14 +38,14 @@ empty = Canon HM.empty M.empty
 
 -- Result for categorizing a value with regard to a Canonicalizer
 data Canonicity a
-  -- the provided value is the known canonical one
-  = Canonical
-  -- the provided value is equivalent to this canonical one; updated
-  -- canonicalizer
-  | Equivalent a (Canonicalizer a)
-  -- the provided value was not previously known, and added to the
-  -- canonicalizer
-  | Novel (Canonicalizer a)
+  = -- the provided value is the known canonical one
+    Canonical
+  | -- the provided value is equivalent to this canonical one; updated
+    -- canonicalizer
+    Equivalent a (Canonicalizer a)
+  | -- the provided value was not previously known, and added to the
+    -- canonicalizer
+    Novel (Canonicalizer a)
 
 categorize0 ::
   (Ord a) =>
@@ -56,12 +55,12 @@ categorize0 ::
   IO (Canonicity a)
 categorize0 cn@(Canon fast slow) x xname
   | Just !y <- HM.lookup xname fast = do
-    yname <- makeStableName y
-    if xname == yname
-    then pure Canonical
-    else pure (Equivalent y cn)
+      yname <- makeStableName y
+      if xname == yname
+        then pure Canonical
+        else pure (Equivalent y cn)
   | Just x <- M.lookup x slow = do
-      cn <- evaluate cn { stableMap = HM.insert xname x fast }
+      cn <- evaluate cn {stableMap = HM.insert xname x fast}
       pure (Equivalent x cn)
   | otherwise = do
       cn <- evaluate (Canon (HM.insert xname x fast) (M.insert x x slow))
@@ -95,11 +94,11 @@ canonicalize0 ::
 canonicalize0 cn@(Canon fast slow) x name
   | Just x <- HM.lookup name fast = pure (x, cn)
   | Just x <- M.lookup x slow = do
-      cn <- evaluate cn { stableMap = HM.insert name x fast }
+      cn <- evaluate cn {stableMap = HM.insert name x fast}
       pure (x, cn)
   | otherwise = do
-    cn <- evaluate (Canon (HM.insert name x fast) (M.insert x x slow))
-    pure (x, cn)
+      cn <- evaluate (Canon (HM.insert name x fast) (M.insert x x slow))
+      pure (x, cn)
 {-# INLINE canonicalize0 #-}
 
 -- Canonicalizes a value, giving an updated canonicalizer.
@@ -115,7 +114,7 @@ canonicalize0 cn@(Canon fast slow) x name
 canonicalize :: (Ord a) => Canonicalizer a -> a -> (a, Canonicalizer a)
 canonicalize cn !x =
   unsafePerformIO $ makeStableName x >>= canonicalize0 cn x
-{-# INLINABLE canonicalize #-}
+{-# INLINEABLE canonicalize #-}
 
 newtype CanonMap k v = CanonM (HashMap (StableName k) v)
   deriving (Functor)
@@ -136,7 +135,7 @@ unsafeLookup k m = unsafePerformIO $ lookup k m
 fromListByIndex :: [k] -> CanonMap k Int
 fromListByIndex l = unsafePerformIO do
   l <- traverse (\k -> makeStableName =<< evaluate k) l
-  pure . CanonM $ HM.fromList (zip l [0..])
+  pure . CanonM $ HM.fromList (zip l [0 ..])
 
 fromList :: [(k, v)] -> IO (CanonMap k v)
 fromList = fmap (CanonM . HM.fromList) . traverse f

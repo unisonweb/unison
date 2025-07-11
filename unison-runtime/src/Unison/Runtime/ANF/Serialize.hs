@@ -19,7 +19,9 @@ import Data.Bytes.Serial
 import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
-import Data.Map as Map (Map, fromList, lookup, fromDistinctAscList)
+import Data.Map as Map (Map, fromDistinctAscList, fromList, lookup)
+-- machinery for special casing maps
+import Data.Map.Strict.Internal (Map (..))
 import Data.Maybe (mapMaybe)
 import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put (runPutLazy)
@@ -28,23 +30,19 @@ import Data.Word (Word16, Word32, Word64)
 import GHC.IsList qualified (fromList)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
+import Unison.Builtin.Decls (mapBin, mapRef, mapTip)
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Optimize as ANF
+import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
+import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
-
--- machinery for special casing maps
-import Data.Map.Strict.Internal (Map (..))
-import Unison.Builtin.Decls (mapRef, mapTip, mapBin)
-
-import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
-import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
 
 -- Version information is threaded through to allow handling
 -- different formats. Transfer means that it is for saving
@@ -954,12 +952,14 @@ getCont =
 deserializeCode :: ByteString -> Either String (Referenced Code)
 deserializeCode bs = runGetS go bs
   where
-    go = getWord32be >>= \case
-      n | n == 4 -> CodeV4.getCodeWithHeader
-        | 1 <= n && n < 4 ->
-          Plain <$> runReaderT getCode (Transfer n, False)
-        | otherwise ->
-            fail $ "deserializeGroup: unknown version: " ++ show n
+    go =
+      getWord32be >>= \case
+        n
+          | n == 4 -> CodeV4.getCodeWithHeader
+          | 1 <= n && n < 4 ->
+              Plain <$> runReaderT getCode (Transfer n, False)
+          | otherwise ->
+              fail $ "deserializeGroup: unknown version: " ++ show n
 
 -- Boolean argument determines whether ForeignFunc occurrences are
 -- allowed to be serialized. For interchange, this should be False.
@@ -1044,10 +1044,12 @@ serializeValue (dereference -> v) =
 
 serializeValueWithVersion :: Word64 -> Referenced Value -> L.ByteString
 serializeValueWithVersion v = \case
-  WithRefs tys tms x | v == 5 ->
-    runPutL $ putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
-  rval | n <- fromIntegral v ->
-    runPutL $ putWord32be n *> putValue (Transfer n) (dereference rval)
+  WithRefs tys tms x
+    | v == 5 ->
+        runPutL $ putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
+  rval
+    | n <- fromIntegral v ->
+        runPutL $ putWord32be n *> putValue (Transfer n) (dereference rval)
 
 -- This serializer is used exclusively for hashing unison values.
 -- For this reason, it doesn't prefix the string with the current
@@ -1081,6 +1083,7 @@ askFOp = asks snd
 type SerialConfig m = MonadReader (Version, Bool) m
 
 type BDeserial = ReaderT (Version, Bool) BGet.Get
+
 type SDeserial = ReaderT (Version, Bool) SGet.Get
 
 -- Convert value version numbers to code version numbers

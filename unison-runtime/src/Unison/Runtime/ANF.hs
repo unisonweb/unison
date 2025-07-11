@@ -1622,8 +1622,8 @@ data GroupRef = GR Reference Word64
 -- invariant together with actual canonicalization would be onerous
 -- and isn't done at this time.
 data Referenced a
-  -- types, terms
-  = WithRefs [Reference] [Reference] a
+  = -- types, terms
+    WithRefs [Reference] [Reference] a
   | Plain a
   deriving (Show, Eq)
 
@@ -1671,7 +1671,8 @@ traverseGroup f (CodeRep sg ch) = flip CodeRep ch <$> f sg
 traverseCodeRefs ::
   (Applicative f) =>
   (Bool -> Reference -> f Reference) ->
-  Code -> f Code
+  Code ->
+  f Code
 traverseCodeRefs h (CodeRep sg ch) =
   flip CodeRep ch <$> traverseGroupLinks h sg
 
@@ -1704,8 +1705,8 @@ data BLit
   | Neg Word64
   | Char Char
   | Float Double
-  -- special cases for newer formats
-  | Map [(Value, Value)]
+  | -- special cases for newer formats
+    Map [(Value, Value)]
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
@@ -2268,9 +2269,10 @@ overValueRefs h = \case
 -- Value, not just the ones necessary to load the value. So, this will
 -- traverse inside quotes and code.
 traverseValueRefs ::
-  Applicative f =>
+  (Applicative f) =>
   (Bool -> Reference -> f Reference) ->
-  Value -> f Value
+  Value ->
+  f Value
 traverseValueRefs h = \case
   Partial (GR r i) vs ->
     Partial . flip GR i
@@ -2319,9 +2321,10 @@ overContRefs h = \case
 -- continuation, not just the ones necessary to load it. So, this will
 -- traverse inside quotes and code.
 traverseContRefs ::
-  Applicative f =>
+  (Applicative f) =>
   (Bool -> Reference -> f Reference) ->
-  Cont -> f Cont
+  Cont ->
+  f Cont
 traverseContRefs h = \case
   KE -> pure KE
   Mark asz rs env k ->
@@ -2333,7 +2336,6 @@ traverseContRefs h = \case
     Push fsz asz . flip GR i
       <$> h False r
       <*> traverseContRefs h k
-
 
 blitLinks :: (Monoid a) => (Bool -> Reference -> a) -> BLit -> a
 blitLinks f (List s) = foldMap (valueLinks f) s
@@ -2362,9 +2364,10 @@ overBLitRefs h = \case
 -- literal, not just the ones necessary to load it. So, this will
 -- traverse inside quotes and code.
 traverseBLitRefs ::
-  Applicative f =>
+  (Applicative f) =>
   (Bool -> Reference -> f Reference) ->
-  BLit -> f BLit
+  BLit ->
+  f BLit
 traverseBLitRefs h = \case
   List vs -> List <$> traverse tval vs
   TmLink rn
@@ -2380,7 +2383,6 @@ traverseBLitRefs h = \case
   l -> pure l
   where
     tval v = traverseValueRefs h v
-
 
 groupTermLinks :: (Var v) => SuperGroup v -> [Reference]
 groupTermLinks = Set.toList . foldGroupLinks f

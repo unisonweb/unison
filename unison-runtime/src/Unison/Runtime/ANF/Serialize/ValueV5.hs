@@ -1,37 +1,34 @@
-
 module Unison.Runtime.ANF.Serialize.ValueV5
   ( getValueWithHeader,
-    putValueWithHeader
-  ) where
+    putValueWithHeader,
+  )
+where
 
 import Control.Monad (replicateM)
+import Data.Binary.Get qualified as BGet
+import Data.Binary.Put qualified as BPut
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
 import Data.Primitive.Array (Array, arrayFromListN)
+import Data.Serialize.Get qualified as SGet
+import Data.Serialize.Put qualified as SPut
 import GHC.IsList qualified (fromList)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.ANF.Serialize.CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.Canonicalizer
-import Unison.Runtime.Serialize
-  hiding
-    ( getConstructorReference
-    , putConstructorReference
-    , getReference
-    , putReference
-    , getReferent
-    , putReferent
-    )
+import Unison.Runtime.Serialize hiding
+  ( getConstructorReference,
+    getReference,
+    getReferent,
+    putConstructorReference,
+    putReference,
+    putReferent,
+  )
 import Unison.Runtime.Serialize qualified as SER
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
-
-import Data.Binary.Get qualified as BGet
-import Data.Binary.Put qualified as BPut
-import Data.Serialize.Get qualified as SGet
-import Data.Serialize.Put qualified as SPut
-
-import Unison.Runtime.ANF.Serialize.CodeV4
 
 putGroupRef :: (MonadPut m) => CanonMap Reference Int -> GroupRef -> m ()
 putGroupRef tms (GR r i) =
@@ -208,13 +205,15 @@ getBLit gref@(tys, _) =
 putValueWithHeader ::
   (MonadPut m) => [Reference] -> [Reference] -> Value -> m ()
 putValueWithHeader tyrs tmrs v =
-  putFoldable SER.putReference tyrs *>
-  putFoldable SER.putReference tmrs *>
-    putValue (fromListByIndex tyrs, fromListByIndex tmrs) v
+  putFoldable SER.putReference tyrs
+    *> putFoldable SER.putReference tmrs
+    *> putValue (fromListByIndex tyrs, fromListByIndex tmrs) v
 {-# SPECIALIZE putValueWithHeader ::
-      [Reference] -> [Reference] -> Value -> BPut.Put #-}
+  [Reference] -> [Reference] -> Value -> BPut.Put
+  #-}
 {-# SPECIALIZE putValueWithHeader ::
-      [Reference] -> [Reference] -> Value -> SPut.Put #-}
+  [Reference] -> [Reference] -> Value -> SPut.Put
+  #-}
 
 getValueWithHeader :: (MonadGet m) => m (Referenced Value)
 getValueWithHeader = do
@@ -226,4 +225,3 @@ getValueWithHeader = do
   pure (WithRefs tys tms v)
 {-# SPECIALIZE getValueWithHeader :: BGet.Get (Referenced Value) #-}
 {-# SPECIALIZE getValueWithHeader :: SGet.Get (Referenced Value) #-}
-

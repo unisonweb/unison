@@ -1,13 +1,16 @@
-
 module Unison.Runtime.ANF.Serialize.CodeV4 where
 
 import Control.Monad
+import Data.Binary.Get qualified as BGet
+import Data.Binary.Put qualified as BPut
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
-import Data.Primitive.Array (arrayFromListN)
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
+import Data.Primitive.Array (arrayFromListN)
+import Data.Serialize.Get qualified as SGet
+import Data.Serialize.Put qualified as SPut
 import Data.Word (Word16, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
@@ -17,16 +20,13 @@ import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
-import Unison.Runtime.Serialize
-  hiding (putReferent, getReferent)
-import Unison.Var (Type (ANFBlank), Var (..))
+import Unison.Runtime.Serialize hiding
+  ( getReferent,
+    putReferent,
+  )
 import Unison.Util.Text qualified as Util.Text
+import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
-
-import Data.Binary.Get qualified as BGet
-import Data.Binary.Put qualified as BPut
-import Data.Serialize.Get qualified as SGet
-import Data.Serialize.Put qualified as SPut
 
 pushCtx :: [v] -> [v] -> [v]
 pushCtx us vs = reverse us ++ vs
@@ -135,13 +135,15 @@ getCode gref = CodeRep <$> getGroup gref <*> getCacheability
 putCodeWithHeader ::
   (MonadPut m) => [Reference] -> [Reference] -> Bool -> Code -> m ()
 putCodeWithHeader tyrs tmrs fops co =
-  putFoldable putReference tyrs *>
-  putFoldable putReference tmrs *>
-    putCode (C.fromListByIndex tyrs, C.fromListByIndex tmrs) fops co
+  putFoldable putReference tyrs
+    *> putFoldable putReference tmrs
+    *> putCode (C.fromListByIndex tyrs, C.fromListByIndex tmrs) fops co
 {-# SPECIALIZE putCodeWithHeader ::
-      [Reference] -> [Reference] -> Bool -> Code -> BPut.Put #-}
+  [Reference] -> [Reference] -> Bool -> Code -> BPut.Put
+  #-}
 {-# SPECIALIZE putCodeWithHeader ::
-      [Reference] -> [Reference] -> Bool -> Code -> SPut.Put #-}
+  [Reference] -> [Reference] -> Bool -> Code -> SPut.Put
+  #-}
 
 getCodeWithHeader :: (MonadGet m) => m (Referenced Code)
 getCodeWithHeader = do
@@ -153,7 +155,6 @@ getCodeWithHeader = do
   pure (WithRefs tys tms co)
 {-# SPECIALIZE getCodeWithHeader :: BGet.Get (Referenced Code) #-}
 {-# SPECIALIZE getCodeWithHeader :: SGet.Get (Referenced Code) #-}
-
 
 putCacheability :: (MonadPut m) => Cacheability -> m ()
 putCacheability Uncacheable = putWord8 0
@@ -211,9 +212,9 @@ putNormal pref@(tys, tms) fops ctx tm = case tm of
       *> putVar ctx nh
       *> putNormal pref fops ctx e
   TShift r v e ->
-    putTag ShiftT *>
-      putReferenceByNumber tys r *>
-      putNormal pref fops (v : ctx) e
+    putTag ShiftT
+      *> putReferenceByNumber tys r
+      *> putNormal pref fops (v : ctx) e
   TMatch v bs ->
     putTag MatchT
       *> putVar ctx v
@@ -594,8 +595,8 @@ getBranches gref@(tys, _) ctx frsh0 =
     MReqT ->
       MatchRequest
         <$> getMap
-              (getReferenceByNumber tys)
-              (getEnumMap getCTag (getCase gref ctx frsh0))
+          (getReferenceByNumber tys)
+          (getEnumMap getCTag (getCase gref ctx frsh0))
         <*> (TAbs v <$> getNormal gref (v : ctx) (frsh0 + 1))
       where
         v = getFresh frsh0

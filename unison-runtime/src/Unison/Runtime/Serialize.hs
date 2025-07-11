@@ -8,20 +8,22 @@ import Data.ByteString qualified as B
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Get qualified as Ser
 import Data.Bytes.Put
-import Data.Primitive.Array
-  (Array, sizeofArray, indexArray)
 import Data.Bytes.Serial
 import Data.Bytes.Signed (Unsigned, unsigned)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
+import Data.Primitive.Array
+  ( Array,
+    indexArray,
+    sizeofArray,
+  )
 import Data.Sequence (Seq, (|>))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Primitive qualified as BA
 import Data.Word (Word64, Word8)
 import GHC.Exts as IL (IsList (..))
-import Unison.Runtime.Canonicalizer
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
@@ -29,6 +31,7 @@ import Unison.Hash qualified as Hash
 import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Array qualified as PA
+import Unison.Runtime.Canonicalizer
 import Unison.Runtime.Exception
 import Unison.Runtime.MCode
   ( Prim1 (..),
@@ -66,8 +69,8 @@ getVarInt = getWord8 >>= go
   where
     go n
       | testBit n 7 = do
-        m <- getWord8 >>= go
-        return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
+          m <- getWord8 >>= go
+          return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
       | otherwise = return $ fromIntegral n
 {-# INLINE getVarInt #-}
 
@@ -77,8 +80,8 @@ putVarInt = go . unsigned
     go n
       | n < 0x80 = putWord8 $ fromIntegral n
       | otherwise = do
-        putWord8 $ setBit (fromIntegral n) 7
-        go $ shiftR n 7
+          putWord8 $ setBit (fromIntegral n) 7
+          go $ shiftR n 7
 {-# INLINE putVarInt #-}
 
 -- Some basics, moved over from V1 serialization
@@ -185,7 +188,7 @@ getSeq a = getLength >>= pull mempty
   where
     pull !acc (n :: Int)
       | n <= 0 = pure acc
-      | otherwise = a >>= \x -> pull (acc |> x) (n-1)
+      | otherwise = a >>= \x -> pull (acc |> x) (n - 1)
 {-# INLINE getSeq #-}
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
@@ -297,6 +300,7 @@ getReferent = do
 -- `Reference` has been resolved to a unique object in memory, so that
 -- we can look them up by stable name.
 type GetRefLookup = (Array Reference, Array Reference)
+
 type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
 
 putReferentByNumber ::
@@ -384,7 +388,7 @@ getReferenceByNumber :: (MonadGet m) => Array Reference -> m Reference
 getReferenceByNumber refm = getVarInt >>= lookupRef refm
 {-# INLINE getReferenceByNumber #-}
 
-lookupRef :: Monad m => Array Reference -> Int -> m Reference
+lookupRef :: (Monad m) => Array Reference -> Int -> m Reference
 lookupRef arr i
   | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
   | otherwise = exn $ "lookupRef: index out of bounds: " ++ show i

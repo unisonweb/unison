@@ -2,8 +2,8 @@ module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
-import Control.Monad.State.Strict
 import Control.Exception hiding (Handler)
+import Control.Monad.State.Strict
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -20,8 +20,8 @@ import Unison.Runtime.ANF
     Referenced (..),
     SuperGroup (..),
     Value,
-    traverseGroupLinks,
     foldGroupLinks,
+    traverseGroupLinks,
     valueLinks,
   )
 import Unison.Runtime.ANF.Optimize (OptInfos)
@@ -173,9 +173,9 @@ canonicalizeCodeRefs (CodeRep sg ch) =
         Equivalent r canon -> pure (r, (canon, tys, tms))
         Novel canon ->
           pure . (r,) $
-            ( canon
-            , if isTy then r:tys else tys
-            , if isTy then tms else r:tms
+            ( canon,
+              if isTy then r : tys else tys,
+              if isTy then tms else r : tms
             )
 
 resolveCode ::
