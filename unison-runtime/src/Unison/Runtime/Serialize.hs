@@ -174,7 +174,7 @@ putFoldable putA as = do
 {-# INLINE putFoldable #-}
 
 putMap :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
-putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+putMap putA putB = putMapping putA putB . Map.toList
 
 getList :: (MonadGet m) => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
@@ -189,7 +189,16 @@ getSeq a = getLength >>= pull mempty
 {-# INLINE getSeq #-}
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
-getMap getA getB = Map.fromList <$> getList (getPair getA getB)
+getMap getA getB = Map.fromList <$> getMapping getA getB
+
+putMapping ::
+  (MonadPut m) => (a -> m ()) -> (b -> m ()) -> [(a, b)] -> m ()
+putMapping putA putB = putFoldable (putPair putA putB)
+{-# INLINE putMapping #-}
+
+getMapping :: (MonadGet m) => m a -> m b -> m [(a, b)]
+getMapping getA getB = getList (getPair getA getB)
+{-# INLINE getMapping #-}
 
 putEnumMap ::
   (MonadPut m) =>

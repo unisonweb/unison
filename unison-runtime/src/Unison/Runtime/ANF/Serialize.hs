@@ -897,7 +897,7 @@ putCont v (Mark a rs ds k) =
   putTag MarkT
     *> putWord64be a
     *> putFoldable putReference rs
-    *> putMap putReference (putValue v) ds
+    *> putMapping putReference (putValue v) ds
     *> putCont v k
 putCont v (Push f n gr k) =
   putTag PushT
@@ -919,14 +919,14 @@ getCont =
             getWord64be >>= assert0 "unboxed arg size"
             ba <- getWord64be
             refs <- getList getReference
-            vals <- getMap getReference getValue
+            vals <- getMapping getReference getValue
             cont <- getCont
             pure $ Mark ba refs vals cont
         | otherwise ->
             Mark
               <$> getWord64be
               <*> getList getReference
-              <*> getMap getReference getValue
+              <*> getMapping getReference getValue
               <*> getCont
       PushT
         | Transfer vn <- v,
