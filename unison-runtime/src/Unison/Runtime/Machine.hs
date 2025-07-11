@@ -53,7 +53,7 @@ import Unison.Reference
   ( Reference,
     Reference' (Builtin),
   )
-import Unison.Referent (Referent, pattern Ref, pattern Con)
+import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
     Code (..),
@@ -1429,10 +1429,11 @@ canonicalizeReference isTy r = StateT \st@(RS _ _ canon tys tms) ->
     C.Novel canon ->
       (r,)
         <$> evaluate
-          st { _canon = canon,
-               _tys = if isTy then r : tys else tys,
-               _tms = if isTy then tms else r : tms
-             }
+          st
+            { _canon = canon,
+              _tys = if isTy then r : tys else tys,
+              _tms = if isTy then tms else r : tms
+            }
 
 canonicalizeReferent :: Referent -> Reflect Referent
 canonicalizeReferent (Ref r) = Ref <$> canonicalizeReference False r
