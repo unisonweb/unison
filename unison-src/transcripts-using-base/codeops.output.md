@@ -218,7 +218,7 @@ h y x = match y with
 f : Nat ->{Zap} Nat
 f x = h zap x
 
-fVal : Value
+fVal : builtin.Value
 fVal = Value.value f
 
 fDeps : [Link.Term]
@@ -294,7 +294,7 @@ badLoad _ =
       f       : Nat ->{Zap} Nat
       fDeps   : [Link.Term]
       fSer    : Bytes
-      fVal    : Value
+      fVal    : builtin.Value
       h       : Three Nat Nat Nat -> Nat -> Nat
       rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
       tests   : '{IO} [Result]

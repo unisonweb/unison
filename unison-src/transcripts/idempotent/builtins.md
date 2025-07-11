@@ -471,7 +471,7 @@ openFile]
                                ->{IO, Exception} Handle
       openFiles              : [Boolean]
       validateSandboxedSimpl : [Link.Term]
-                               -> Value
+                               -> builtin.Value
                                ->{IO} Boolean
 
   Now evaluating any watch expressions (lines starting with

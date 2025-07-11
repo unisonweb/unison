@@ -381,7 +381,7 @@ crawl found = cases
 Code.transitiveDeps : Link.Term ->{IO} [(Link.Term, Code)]
 Code.transitiveDeps base = crawl [] [base]
 
-Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]
+Value.transitiveDeps : builtin.Value ->{IO} [(Link.Term, Code)]
 Value.transitiveDeps v = crawl [] (Value.dependencies v)
 
 --  Save/load a value with its dependencies to a file for serialization testing.
@@ -417,7 +417,7 @@ fromB32 bs32 = match fromBase32 bs32 with
   Left msg -> fail ("base32 decoding failed: " ++ msg) bs32
   Right bs -> bs
 
-loadValueBytes : Bytes ->{Exception,IO} ([(Link.Term, Code)], Value)
+loadValueBytes : Bytes ->{Exception,IO} ([(Link.Term, Code)], builtin.Value)
 loadValueBytes bs = match Value.deserialize bs with
   Left err -> fail ("could not deserialize value: " ++ err) bs
   Right sv -> match Value.load sv with
