@@ -72,7 +72,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integrationtests/IntegrationTests/*')}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integration-tests/IntegrationTests/*')}}
           # added the integration test dependencies here as if they were source, for simplicity
 
       - name: restore stack caches
