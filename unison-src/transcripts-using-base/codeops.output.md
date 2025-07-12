@@ -294,7 +294,7 @@ badLoad _ =
       f       : Nat ->{Zap} Nat
       fDeps   : [Link.Term]
       fSer    : Bytes
-      fVal    : builtin.Value
+      fVal    : Value
       h       : Three Nat Nat Nat -> Nat -> Nat
       rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
       tests   : '{IO} [Result]

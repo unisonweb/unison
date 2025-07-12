@@ -119,10 +119,80 @@ scratch/main> find.verbose
   37.  -- #v7l3vi93crov1681dom6fv17825dpf8rd1q4lpjdr6bn9ltsfliiertoju3rftvdubhn3n8lpf7vtfrmo3p9v47n5in98dq1aosnmq0
        builtin.Author.name.set : Text -> Author -> Author
        
-  38.  -- #78rj5l82r7425i8m9spgvmdig7q6ecmq94a4l9v6n512hchh1lcpf3v652eh96e0uu0kvav1ckkmpl7pachc0n582jd7a7fg3031nao
+  38.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no
+       type builtin.avro.AvroValue
+       
+  39.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#3
+       builtin.avro.AvroValue.ArrayValue : [AvroValue]
+       -> AvroValue
+       
+  40.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#12
+       builtin.avro.AvroValue.BooleanValue : Boolean
+       -> AvroValue
+       
+  41.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#1
+       builtin.avro.AvroValue.BytesValue : ReadSchema
+       -> Bytes
+       -> AvroValue
+       
+  42.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#9
+       builtin.avro.AvroValue.DoubleValue : ReadSchema
+       -> Float
+       -> AvroValue
+       
+  43.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#7
+       builtin.avro.AvroValue.EnumValue : ReadSchema
+       -> Nat
+       -> Text
+       -> AvroValue
+       
+  44.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#2
+       builtin.avro.AvroValue.FixedValue : ReadSchema
+       -> Bytes
+       -> AvroValue
+       
+  45.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#8
+       builtin.avro.AvroValue.FloatValue : ReadSchema
+       -> Float
+       -> AvroValue
+       
+  46.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#10
+       builtin.avro.AvroValue.IntValue : ReadSchema
+       -> Int
+       -> AvroValue
+       
+  47.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#11
+       builtin.avro.AvroValue.LongValue : ReadSchema
+       -> Int
+       -> AvroValue
+       
+  48.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#4
+       builtin.avro.AvroValue.MapValue : Map Text AvroValue
+       -> AvroValue
+       
+  49.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#5
+       builtin.avro.AvroValue.NullValue : AvroValue
+       
+  50.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#0
+       builtin.avro.AvroValue.RecordValue : ReadSchema
+       -> [AvroValue]
+       -> AvroValue
+       
+  51.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#6
+       builtin.avro.AvroValue.StringValue : ReadSchema
+       -> Text
+       -> AvroValue
+       
+  52.  -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#13
+       builtin.avro.AvroValue.UnionValue : ReadSchema
+       -> Nat
+       -> AvroValue
+       -> AvroValue
+       
+  53.  -- #78rj5l82r7425i8m9spgvmdig7q6ecmq94a4l9v6n512hchh1lcpf3v652eh96e0uu0kvav1ckkmpl7pachc0n582jd7a7fg3031nao
        type builtin.avro.schema.AvroEnum
        
-  39.  -- #78rj5l82r7425i8m9spgvmdig7q6ecmq94a4l9v6n512hchh1lcpf3v652eh96e0uu0kvav1ckkmpl7pachc0n582jd7a7fg3031nao#0
+  54.  -- #78rj5l82r7425i8m9spgvmdig7q6ecmq94a4l9v6n512hchh1lcpf3v652eh96e0uu0kvav1ckkmpl7pachc0n582jd7a7fg3031nao#0
        builtin.avro.schema.AvroEnum.AvroEnum : TypeName
        -> Optional Text
        -> [TypeName]
@@ -130,10 +200,10 @@ scratch/main> find.verbose
        -> Optional Text
        -> AvroEnum
        
-  40.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.3
+  55.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.3
        type builtin.avro.schema.AvroField
        
-  41.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.3#0
+  56.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.3#0
        builtin.avro.schema.AvroField.AvroField : Text
        -> Optional Text
        -> Schema
@@ -142,10 +212,10 @@ scratch/main> find.verbose
        -> Optional DefaultValue
        -> AvroField
        
-  42.  -- #mrhlgg58v6jq1ukct9gbb7h364cr86g6gokvr9ckfvaqb5v3bd5ff6us708hsm7g6apg4vsoh6n4q6hq4fjgbqvsdfcjf0j659b2h0o
+  57.  -- #mrhlgg58v6jq1ukct9gbb7h364cr86g6gokvr9ckfvaqb5v3bd5ff6us708hsm7g6apg4vsoh6n4q6hq4fjgbqvsdfcjf0j659b2h0o
        type builtin.avro.schema.AvroFixed
        
-  43.  -- #mrhlgg58v6jq1ukct9gbb7h364cr86g6gokvr9ckfvaqb5v3bd5ff6us708hsm7g6apg4vsoh6n4q6hq4fjgbqvsdfcjf0j659b2h0o#0
+  58.  -- #mrhlgg58v6jq1ukct9gbb7h364cr86g6gokvr9ckfvaqb5v3bd5ff6us708hsm7g6apg4vsoh6n4q6hq4fjgbqvsdfcjf0j659b2h0o#0
        builtin.avro.schema.AvroFixed.AvroFixed : TypeName
        -> Optional Text
        -> [TypeName]
@@ -153,58 +223,58 @@ scratch/main> find.verbose
        -> Optional LogicalFixedType
        -> AvroFixed
        
-  44.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.2
+  59.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.2
        type builtin.avro.schema.AvroRecord
        
-  45.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.2#0
+  60.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.2#0
        builtin.avro.schema.AvroRecord.AvroRecord : TypeName
        -> Optional Text
        -> [TypeName]
        -> [AvroField]
        -> AvroRecord
        
-  46.  -- #ive16tp519bdmscu0ustkk73ikahbrj841ea7u4v3roiv7tdp1ql9r95lbcsn6432naajed7fh2t9va03bete3thaa633f20v6vlcbg
+  61.  -- #ive16tp519bdmscu0ustkk73ikahbrj841ea7u4v3roiv7tdp1ql9r95lbcsn6432naajed7fh2t9va03bete3thaa633f20v6vlcbg
        type builtin.avro.schema.Decimal
        
-  47.  -- #ive16tp519bdmscu0ustkk73ikahbrj841ea7u4v3roiv7tdp1ql9r95lbcsn6432naajed7fh2t9va03bete3thaa633f20v6vlcbg#0
+  62.  -- #ive16tp519bdmscu0ustkk73ikahbrj841ea7u4v3roiv7tdp1ql9r95lbcsn6432naajed7fh2t9va03bete3thaa633f20v6vlcbg#0
        builtin.avro.schema.Decimal.Decimal : Nat
        -> Nat
        -> Decimal
        
-  48.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg
+  63.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg
        type builtin.avro.schema.deconflicted.FieldStatus
        
-  49.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg#0
+  64.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg#0
        builtin.avro.schema.deconflicted.FieldStatus.AsIs : Nat
        -> FieldStatus
        
-  50.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg#2
+  65.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg#2
        builtin.avro.schema.deconflicted.FieldStatus.Defaulted : Nat
        -> DefaultValue
        -> FieldStatus
        
-  51.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg#1
+  66.  -- #mpfi9r6ls69s4i2a65i9k9r0kc5r7p3ru4rri3gh4h04im7n92kagg7lf02ur3mvr4r57ntdi0gsfc6i0rdm5o5vpq87u6t07nqp3dg#1
        builtin.avro.schema.deconflicted.FieldStatus.Ignored : FieldStatus
        
-  52.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho
+  67.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho
        type builtin.avro.schema.deconflicted.ReadDouble
        
-  53.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#2
+  68.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#2
        builtin.avro.schema.deconflicted.ReadDouble.DoubleFromFloat : ReadDouble
        
-  54.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#0
+  69.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#0
        builtin.avro.schema.deconflicted.ReadDouble.DoubleFromInt32 : ReadDouble
        
-  55.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#1
+  70.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#1
        builtin.avro.schema.deconflicted.ReadDouble.DoubleFromInt64 : ReadDouble
        
-  56.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#3
+  71.  -- #7a3agj2d3n28n8aehojpjvooekmflbfklagv3u8dj4assjir9pgc9otjm3u24s1i70jpn22u4mscqgpaqbts57h5tepr2vvfn0kh3ho#3
        builtin.avro.schema.deconflicted.ReadDouble.ReadDouble : ReadDouble
        
-  57.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.1
+  72.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.1
        type builtin.avro.schema.deconflicted.ReadField
        
-  58.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.1#0
+  73.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.1#0
        builtin.avro.schema.deconflicted.ReadField.ReadField : Text
        -> [Text]
        -> Optional Text
@@ -214,386 +284,317 @@ scratch/main> find.verbose
        -> Optional DefaultValue
        -> ReadField
        
-  59.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8
+  74.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8
        type builtin.avro.schema.deconflicted.ReadFloat
        
-  60.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8#0
+  75.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8#0
        builtin.avro.schema.deconflicted.ReadFloat.FloatFromInt32 : ReadFloat
        
-  61.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8#1
+  76.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8#1
        builtin.avro.schema.deconflicted.ReadFloat.FloatFromInt64 : ReadFloat
        
-  62.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8#2
+  77.  -- #k98igpincalf87cmhhqt01omenbch4l8hnn9pn1hkmc7m70mqov7ejfn5gpc110e884qsr8stsbbh4an6kqsmveamamoejn9f8d28v8#2
        builtin.avro.schema.deconflicted.ReadFloat.ReadFloat : ReadFloat
        
-  63.  -- #g458d59f8do9j4n59p5hoe11rfkj08rohkqbce1afgrk9gnu8pbspn4j0b5877qm6i0ceo0o0p8qvlcpivveal3c91mttkmc0poi8k8
+  78.  -- #g458d59f8do9j4n59p5hoe11rfkj08rohkqbce1afgrk9gnu8pbspn4j0b5877qm6i0ceo0o0p8qvlcpivveal3c91mttkmc0poi8k8
        type builtin.avro.schema.deconflicted.ReadLong
        
-  64.  -- #g458d59f8do9j4n59p5hoe11rfkj08rohkqbce1afgrk9gnu8pbspn4j0b5877qm6i0ceo0o0p8qvlcpivveal3c91mttkmc0poi8k8#0
+  79.  -- #g458d59f8do9j4n59p5hoe11rfkj08rohkqbce1afgrk9gnu8pbspn4j0b5877qm6i0ceo0o0p8qvlcpivveal3c91mttkmc0poi8k8#0
        builtin.avro.schema.deconflicted.ReadLong.LongFromInt32 : ReadLong
        
-  65.  -- #g458d59f8do9j4n59p5hoe11rfkj08rohkqbce1afgrk9gnu8pbspn4j0b5877qm6i0ceo0o0p8qvlcpivveal3c91mttkmc0poi8k8#1
+  80.  -- #g458d59f8do9j4n59p5hoe11rfkj08rohkqbce1afgrk9gnu8pbspn4j0b5877qm6i0ceo0o0p8qvlcpivveal3c91mttkmc0poi8k8#1
        builtin.avro.schema.deconflicted.ReadLong.ReadLong : ReadLong
        
-  66.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg
+  81.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg
        type builtin.avro.schema.deconflicted.ReadRecord
        
-  67.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg#0
+  82.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg#0
        builtin.avro.schema.deconflicted.ReadRecord.ReadRecord : TypeName
        -> [TypeName]
        -> Optional Text
        -> [ReadField]
        -> ReadRecord
        
-  68.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2
+  83.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2
        type builtin.avro.schema.deconflicted.ReadSchema
        
-  69.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#15
+  84.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#15
        builtin.avro.schema.deconflicted.ReadSchema.Array : ReadSchema
        -> [DefaultValue]
        -> ReadSchema
        
-  70.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#1
+  85.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#1
        builtin.avro.schema.deconflicted.ReadSchema.Boolean : ReadSchema
        
-  71.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#6
+  86.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#6
        builtin.avro.schema.deconflicted.ReadSchema.Bytes : Optional
          LogicalBytesType
        -> ReadSchema
        
-  72.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#5
+  87.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#5
        builtin.avro.schema.deconflicted.ReadSchema.Double : ReadDouble
        -> ReadSchema
        
-  73.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#13
+  88.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#13
        builtin.avro.schema.deconflicted.ReadSchema.Enum : AvroEnum
        -> ReadSchema
        
-  74.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#4
+  89.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#4
        builtin.avro.schema.deconflicted.ReadSchema.Fixed : AvroFixed
        -> ReadSchema
        
-  75.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#3
+  90.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#3
        builtin.avro.schema.deconflicted.ReadSchema.Float : ReadFloat
        -> ReadSchema
        
-  76.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#12
+  91.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#12
        builtin.avro.schema.deconflicted.ReadSchema.FreeUnion : Nat
        -> ReadSchema
        -> ReadSchema
        
-  77.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#8
+  92.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#8
        builtin.avro.schema.deconflicted.ReadSchema.Int : Optional
          LogicalIntType
        -> ReadSchema
        
-  78.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#9
+  93.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#9
        builtin.avro.schema.deconflicted.ReadSchema.Long : ReadLong
        -> Optional LogicalLongType
        -> ReadSchema
        
-  79.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#10
+  94.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#10
        builtin.avro.schema.deconflicted.ReadSchema.Map : ReadSchema
        -> Map Text DefaultValue
        -> ReadSchema
        
-  80.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#7
+  95.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#7
        builtin.avro.schema.deconflicted.ReadSchema.NamedType : TypeName
        -> ReadSchema
        
-  81.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#0
+  96.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#0
        builtin.avro.schema.deconflicted.ReadSchema.Null : ReadSchema
        
-  82.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#11
+  97.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#11
        builtin.avro.schema.deconflicted.ReadSchema.Record : ReadRecord
        -> ReadSchema
        
-  83.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#2
+  98.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#2
        builtin.avro.schema.deconflicted.ReadSchema.String : Optional
          LogicalStringType
        -> ReadSchema
        
-  84.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#14
+  99.  -- #e2fe3rltivo9ut6pargffort6joue39p1qn7piej9ipoka80r5s982m93vifvrcchp2tap2s8b610f8ebt0jc8jof5hen7funu70gfg.2#14
        builtin.avro.schema.deconflicted.ReadSchema.Union : [( Nat,
          ReadSchema)]
        -> ReadSchema
        
-  85.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8
+  100. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8
        type builtin.avro.schema.DefaultValue
        
-  86.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#2
+  101. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#2
        builtin.avro.schema.DefaultValue.DefaultArray : [DefaultValue]
        -> DefaultValue
        
-  87.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#6
+  102. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#6
        builtin.avro.schema.DefaultValue.DefaultBoolean : Boolean
        -> DefaultValue
        
-  88.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#0
+  103. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#0
        builtin.avro.schema.DefaultValue.DefaultBytes : Schema
        -> Bytes
        -> DefaultValue
        
-  89.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#11
+  104. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#11
        builtin.avro.schema.DefaultValue.DefaultDouble : Schema
        -> Float
        -> DefaultValue
        
-  90.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#5
+  105. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#5
        builtin.avro.schema.DefaultValue.DefaultEnum : Schema
        -> Nat
        -> Text
        -> DefaultValue
        
-  91.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#1
+  106. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#1
        builtin.avro.schema.DefaultValue.DefaultFixed : Schema
        -> Bytes
        -> DefaultValue
        
-  92.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#10
+  107. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#10
        builtin.avro.schema.DefaultValue.DefaultFloat : Schema
        -> Float
        -> DefaultValue
        
-  93.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#3
+  108. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#3
        builtin.avro.schema.DefaultValue.DefaultInt32 : Schema
        -> Int
        -> DefaultValue
        
-  94.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#4
+  109. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#4
        builtin.avro.schema.DefaultValue.DefaultInt64 : Schema
        -> Int
        -> DefaultValue
        
-  95.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#8
+  110. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#8
        builtin.avro.schema.DefaultValue.DefaultMap : Map
          Text DefaultValue
        -> DefaultValue
        
-  96.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#7
+  111. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#7
        builtin.avro.schema.DefaultValue.DefaultNull : DefaultValue
        
-  97.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#12
+  112. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#12
        builtin.avro.schema.DefaultValue.DefaultRecord : Schema
        -> Map Text DefaultValue
        -> DefaultValue
        
-  98.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#9
+  113. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#9
        builtin.avro.schema.DefaultValue.DefaultString : Schema
        -> Text
        -> DefaultValue
        
-  99.  -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#13
+  114. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8#13
        builtin.avro.schema.DefaultValue.DefaultUnion : [Schema]
        -> Schema
        -> DefaultValue
        -> DefaultValue
        
-  100. -- #bjs8p9q97j2ih64losag9n2ujtelgdcck1p4o60lojf8qpd7iliu9qkeg89onkt4dm2ij8k118mlq0bjdmfohada60ki32samd3n2d8
+  115. -- #bjs8p9q97j2ih64losag9n2ujtelgdcck1p4o60lojf8qpd7iliu9qkeg89onkt4dm2ij8k118mlq0bjdmfohada60ki32samd3n2d8
        type builtin.avro.schema.LogicalBytesType
        
-  101. -- #bjs8p9q97j2ih64losag9n2ujtelgdcck1p4o60lojf8qpd7iliu9qkeg89onkt4dm2ij8k118mlq0bjdmfohada60ki32samd3n2d8#0
+  116. -- #bjs8p9q97j2ih64losag9n2ujtelgdcck1p4o60lojf8qpd7iliu9qkeg89onkt4dm2ij8k118mlq0bjdmfohada60ki32samd3n2d8#0
        builtin.avro.schema.LogicalBytesType.DecimalB : Decimal
        -> LogicalBytesType
        
-  102. -- #k6qft6mvdkf82fer5d74sfc72dd2idnfil71bs7c334vrp7tpqi7qtm0e5htgq35ef39cmbrc6pksqh2rvvm25ufcp2j8hu5991dsq0
+  117. -- #k6qft6mvdkf82fer5d74sfc72dd2idnfil71bs7c334vrp7tpqi7qtm0e5htgq35ef39cmbrc6pksqh2rvvm25ufcp2j8hu5991dsq0
        type builtin.avro.schema.LogicalFixedType
        
-  103. -- #k6qft6mvdkf82fer5d74sfc72dd2idnfil71bs7c334vrp7tpqi7qtm0e5htgq35ef39cmbrc6pksqh2rvvm25ufcp2j8hu5991dsq0#1
+  118. -- #k6qft6mvdkf82fer5d74sfc72dd2idnfil71bs7c334vrp7tpqi7qtm0e5htgq35ef39cmbrc6pksqh2rvvm25ufcp2j8hu5991dsq0#1
        builtin.avro.schema.LogicalFixedType.DecimalF : Decimal
        -> LogicalFixedType
        
-  104. -- #k6qft6mvdkf82fer5d74sfc72dd2idnfil71bs7c334vrp7tpqi7qtm0e5htgq35ef39cmbrc6pksqh2rvvm25ufcp2j8hu5991dsq0#0
+  119. -- #k6qft6mvdkf82fer5d74sfc72dd2idnfil71bs7c334vrp7tpqi7qtm0e5htgq35ef39cmbrc6pksqh2rvvm25ufcp2j8hu5991dsq0#0
        builtin.avro.schema.LogicalFixedType.Duration : LogicalFixedType
        
-  105. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0
+  120. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0
        type builtin.avro.schema.LogicalIntType
        
-  106. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0#0
+  121. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0#0
        builtin.avro.schema.LogicalIntType.Date : LogicalIntType
        
-  107. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0#2
+  122. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0#2
        builtin.avro.schema.LogicalIntType.DecimalI : Decimal
        -> LogicalIntType
        
-  108. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0#1
+  123. -- #ir6ui7h0mhgab22oh9g1nbokibvm0jcheslro52httlivhndsmp1mjn3rcec5fst4gt68kio6dh42eggmpr52i0srg7tg60ubqe85c0#1
        builtin.avro.schema.LogicalIntType.TimeMillis : LogicalIntType
        
-  109. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390
+  124. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390
        type builtin.avro.schema.LogicalLongType
        
-  110. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#5
+  125. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#5
        builtin.avro.schema.LogicalLongType.DecimalL : Decimal
        -> LogicalLongType
        
-  111. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#4
+  126. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#4
        builtin.avro.schema.LogicalLongType.LocalTimestampMicros : LogicalLongType
        
-  112. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#3
+  127. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#3
        builtin.avro.schema.LogicalLongType.LocalTimestampMillis : LogicalLongType
        
-  113. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#0
+  128. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#0
        builtin.avro.schema.LogicalLongType.TimeMicros : LogicalLongType
        
-  114. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#2
+  129. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#2
        builtin.avro.schema.LogicalLongType.TimestampMicros : LogicalLongType
        
-  115. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#1
+  130. -- #9eve28pj7168funfg0mvc7rvvvj2gtj55tem8jsf9q0oae700aemqe5f0j9aifcljvth8sp7ke2plo2agprimtt1kuknm0hg7t3r390#1
        builtin.avro.schema.LogicalLongType.TimestampMillis : LogicalLongType
        
-  116. -- #12c408quhjfub5eaoihk8u682gm206c1tmmra53vjs068vhq8ov1vr79cjh7usune7nle7q2mv5esmk8krnrkuis26sft8g10r3jl0g
+  131. -- #12c408quhjfub5eaoihk8u682gm206c1tmmra53vjs068vhq8ov1vr79cjh7usune7nle7q2mv5esmk8krnrkuis26sft8g10r3jl0g
        type builtin.avro.schema.LogicalStringType
        
-  117. -- #12c408quhjfub5eaoihk8u682gm206c1tmmra53vjs068vhq8ov1vr79cjh7usune7nle7q2mv5esmk8krnrkuis26sft8g10r3jl0g#0
+  132. -- #12c408quhjfub5eaoihk8u682gm206c1tmmra53vjs068vhq8ov1vr79cjh7usune7nle7q2mv5esmk8krnrkuis26sft8g10r3jl0g#0
        builtin.avro.schema.LogicalStringType.UUID : LogicalStringType
        
-  118. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto
+  133. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto
        type builtin.avro.schema.Order
        
-  119. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto#0
+  134. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto#0
        builtin.avro.schema.Order.Ascending : Order
        
-  120. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto#1
+  135. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto#1
        builtin.avro.schema.Order.Descending : Order
        
-  121. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto#2
+  136. -- #j65e948o8tn82mkncug3ihlnt5umu7383laqfjchhh8cn6flqnsc4qpr6j4523v25q91sq0nfshnd9jfurbp861gll238qi101mdnto#2
        builtin.avro.schema.Order.Ignore : Order
        
-  122. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1
+  137. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1
        type builtin.avro.schema.Schema
        
-  123. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#8
+  138. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#8
        builtin.avro.schema.Schema.Array : Schema
        -> [DefaultValue]
        -> Schema
        
-  124. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#10
+  139. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#10
        builtin.avro.schema.Schema.Boolean : Schema
        
-  125. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#7
+  140. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#7
        builtin.avro.schema.Schema.Bytes : Optional
          LogicalBytesType
        -> Schema
        
-  126. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#12
+  141. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#12
        builtin.avro.schema.Schema.Double : Schema
        
-  127. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#1
+  142. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#1
        builtin.avro.schema.Schema.Enum : AvroEnum -> Schema
        
-  128. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#0
+  143. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#0
        builtin.avro.schema.Schema.Fixed : AvroFixed -> Schema
        
-  129. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#11
+  144. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#11
        builtin.avro.schema.Schema.Float : Schema
        
-  130. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#3
+  145. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#3
        builtin.avro.schema.Schema.Int : Optional LogicalIntType
        -> Schema
        
-  131. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#5
+  146. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#5
        builtin.avro.schema.Schema.Long : Optional
          LogicalLongType
        -> Schema
        
-  132. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#2
+  147. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#2
        builtin.avro.schema.Schema.Map : Schema
        -> Map Text DefaultValue
        -> Schema
        
-  133. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#6
+  148. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#6
        builtin.avro.schema.Schema.NamedType : TypeName -> Schema
        
-  134. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#9
+  149. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#9
        builtin.avro.schema.Schema.Null : Schema
        
-  135. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#14
+  150. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#14
        builtin.avro.schema.Schema.Record : AvroRecord -> Schema
        
-  136. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#13
+  151. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#13
        builtin.avro.schema.Schema.String : Optional
          LogicalStringType
        -> Schema
        
-  137. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#4
+  152. -- #m58o4h906icpb0o61lr0e51smthgacei8avsg9sf143m5fpqnv98b4872ks2rdfue00d7okj8p43gj899jsja7s03qukoces8k4v2s8.1#4
        builtin.avro.schema.Schema.Union : [Schema] -> Schema
        
-  138. -- #c4tkk8dccjqjug59dabq8snkjdq50c7bjhsovh5t2ovqsb5t9cspo2ass9j02jqa97fst633omcvbqnmjdlpecnnv21fqock5f2pm38
+  153. -- #c4tkk8dccjqjug59dabq8snkjdq50c7bjhsovh5t2ovqsb5t9cspo2ass9j02jqa97fst633omcvbqnmjdlpecnnv21fqock5f2pm38
        type builtin.avro.schema.TypeName
        
-  139. -- #c4tkk8dccjqjug59dabq8snkjdq50c7bjhsovh5t2ovqsb5t9cspo2ass9j02jqa97fst633omcvbqnmjdlpecnnv21fqock5f2pm38#0
+  154. -- #c4tkk8dccjqjug59dabq8snkjdq50c7bjhsovh5t2ovqsb5t9cspo2ass9j02jqa97fst633omcvbqnmjdlpecnnv21fqock5f2pm38#0
        builtin.avro.schema.TypeName.TypeName : Text
        -> [Text]
        -> TypeName
-       
-  140. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no
-       type builtin.avro.Value
-       
-  141. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#3
-       builtin.avro.Value.ArrayValue : [avro.Value]
-       -> avro.Value
-       
-  142. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#12
-       builtin.avro.Value.BooleanValue : Boolean -> avro.Value
-       
-  143. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#1
-       builtin.avro.Value.BytesValue : ReadSchema
-       -> Bytes
-       -> avro.Value
-       
-  144. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#9
-       builtin.avro.Value.DoubleValue : ReadSchema
-       -> Float
-       -> avro.Value
-       
-  145. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#7
-       builtin.avro.Value.EnumValue : ReadSchema
-       -> Nat
-       -> Text
-       -> avro.Value
-       
-  146. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#2
-       builtin.avro.Value.FixedValue : ReadSchema
-       -> Bytes
-       -> avro.Value
-       
-  147. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#8
-       builtin.avro.Value.FloatValue : ReadSchema
-       -> Float
-       -> avro.Value
-       
-  148. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#10
-       builtin.avro.Value.IntValue : ReadSchema
-       -> Int
-       -> avro.Value
-       
-  149. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#11
-       builtin.avro.Value.LongValue : ReadSchema
-       -> Int
-       -> avro.Value
-       
-  150. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#4
-       builtin.avro.Value.MapValue : Map Text avro.Value
-       -> avro.Value
-       
-  151. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#5
-       builtin.avro.Value.NullValue : avro.Value
-       
-  152. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#0
-       builtin.avro.Value.RecordValue : ReadSchema
-       -> [avro.Value]
-       -> avro.Value
-       
-  153. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#6
-       builtin.avro.Value.StringValue : ReadSchema
-       -> Text
-       -> avro.Value
-       
-  154. -- #5i182p334dsilcm4if17da7odod505hhot5kqjqf1gqfnuimbpj0n2avdoqd8v3ea3ibke2rhft2f6mr5g30beoj7flkqs552nuv9no#13
-       builtin.avro.Value.UnionValue : ReadSchema
-       -> Nat
-       -> avro.Value
-       -> avro.Value
        
   155. -- ##Boolean
        builtin type builtin.Boolean
@@ -2214,7 +2215,7 @@ scratch/main> find.verbose
        
   611. -- ##Value.validateSandboxed
        builtin.io2.Value.validateSandboxed : [Link.Term]
-       -> builtin.Value
+       -> Value
        ->{IO} Either [Link.Term] [Link.Term]
        
   612. -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8
@@ -3135,21 +3136,19 @@ scratch/main> find.verbose
        builtin type builtin.Value
        
   873. -- ##Value.dependencies
-       builtin.Value.dependencies : builtin.Value -> [Link.Term]
+       builtin.Value.dependencies : Value -> [Link.Term]
        
   874. -- ##Value.deserialize
-       builtin.Value.deserialize : Bytes
-       -> Either Text builtin.Value
+       builtin.Value.deserialize : Bytes -> Either Text Value
        
   875. -- ##Value.load
-       builtin.Value.load : builtin.Value
-       ->{IO} Either [Link.Term] a
+       builtin.Value.load : Value ->{IO} Either [Link.Term] a
        
   876. -- ##Value.serialize
-       builtin.Value.serialize : builtin.Value -> Bytes
+       builtin.Value.serialize : Value -> Bytes
        
   877. -- ##Value.value
-       builtin.Value.value : a -> builtin.Value
+       builtin.Value.value : a -> Value
        
   878. -- #dem6aglnj8cppfrnq9qipl7geo5pim3auo9cmv1rhh5la9edalj19sspbpm1pd4vh0plokdh6qfo48gs034dqlg0s7j9fhr9p9ndtpo
        type builtin.Year
@@ -3376,7 +3375,7 @@ scratch/main> find.verbose
        
   944. -- #1pkgu9vbcdl57d9pn9ses1htmfokjq6212ed5oo9jscjkf8t2s407j71287hd9nr1shgsjmn0eunm5e7h262id4hh3t4op6barrvc70
        loadValueBytes : Bytes
-       ->{IO, Exception} ([(Link.Term, Code)], builtin.Value)
+       ->{IO, Exception} ([(Link.Term, Code)], Value)
        
   945. -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg
        type Map k v
@@ -3543,8 +3542,7 @@ scratch/main> find.verbose
        uncurry : (i1 ->{g1} i ->{g} o) -> (i1, i) ->{g1, g} o
        
   994. -- #u1o44hd0cdlfa8racf458sahdmgea409k8baajgc5k7bqukf2ak5ggs2ped0u3h85v99pgefgb9r7ct2dv4nn9eihjghnqf30p4l57g
-       Value.transitiveDeps : builtin.Value
-       ->{IO} [(Link.Term, Code)]
+       Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]
        
   995. -- #o5bg5el7ckak28ib98j5b6rt26bqbprpddd1brrg3s18qahhbbe3uohufjjnt5eenvtjg0hrvnvpra95jmdppqrovvmcfm1ih2k7guo
        void : x -> ()

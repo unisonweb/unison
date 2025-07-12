@@ -1,9 +1,9 @@
-# tests for built-in IO functions
+# Unit tests for builtin functions
 
 ``` ucm :hide
-scratch/main> builtins.merge
 scratch/main> builtins.mergeio
 scratch/main> load unison-src/transcripts-using-base/base.u
+scratch/main> add
 ```
 
 🛑

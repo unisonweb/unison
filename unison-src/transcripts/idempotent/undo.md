@@ -38,7 +38,7 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #r93sqqo6b5
+  ⊙ 1. #2o8dsn1h2f
 
     + Adds / updates:
     
@@ -49,13 +49,13 @@ scratch/main> history
       Original name New name(s)
       x             y
 
-  ⊙ 2. #v1scv1rre4
+  ⊙ 2. #6go79nsj7g
 
     + Adds / updates:
     
       x
 
-  □ 3. #8n2ot0bdfa (start of history)
+  □ 3. #o74o5q7df4 (start of history)
 
 scratch/main> undo
 
@@ -76,13 +76,13 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #v1scv1rre4
+  ⊙ 1. #6go79nsj7g
 
     + Adds / updates:
     
       x
 
-  □ 2. #8n2ot0bdfa (start of history)
+  □ 2. #o74o5q7df4 (start of history)
 ```
 
 -----
@@ -125,7 +125,7 @@ scratch/branch1> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #r93sqqo6b5
+  ⊙ 1. #2o8dsn1h2f
 
     + Adds / updates:
     
@@ -136,13 +136,13 @@ scratch/branch1> history
       Original name New name(s)
       x             y
 
-  ⊙ 2. #v1scv1rre4
+  ⊙ 2. #6go79nsj7g
 
     + Adds / updates:
     
       x
 
-  □ 3. #8n2ot0bdfa (start of history)
+  □ 3. #o74o5q7df4 (start of history)
 
 -- Make some changes on an unrelated branch
 
@@ -173,13 +173,13 @@ scratch/branch1> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #v1scv1rre4
+  ⊙ 1. #6go79nsj7g
 
     + Adds / updates:
     
       x
 
-  □ 2. #8n2ot0bdfa (start of history)
+  □ 2. #o74o5q7df4 (start of history)
 ```
 
 -----

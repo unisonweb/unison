@@ -139,20 +139,20 @@ jsonParseError =
     constructorId parseErrorRef "Json.ParseError.ParseError"
 
 avroNull, avroRecord, avroBytes, avroFixed, avroArray, avroMap, avroUnion, avroEnum, avroString, avroInt, avroLong, avroFloat, avroDouble, avroBoolean :: ConstructorId
-avroNull = Maybe.fromJust $ constructorId avroRef "avro.Value.NullValue"
-avroRecord = Maybe.fromJust $ constructorId avroRef "avro.Value.RecordValue"
-avroBytes = Maybe.fromJust $ constructorId avroRef "avro.Value.BytesValue"
-avroFixed = Maybe.fromJust $ constructorId avroRef "avro.Value.FixedValue"
-avroArray = Maybe.fromJust $ constructorId avroRef "avro.Value.ArrayValue"
-avroMap = Maybe.fromJust $ constructorId avroRef "avro.Value.MapValue"
-avroUnion = Maybe.fromJust $ constructorId avroRef "avro.Value.UnionValue"
-avroEnum = Maybe.fromJust $ constructorId avroRef "avro.Value.EnumValue"
-avroString = Maybe.fromJust $ constructorId avroRef "avro.Value.StringValue"
-avroInt = Maybe.fromJust $ constructorId avroRef "avro.Value.IntValue"
-avroLong = Maybe.fromJust $ constructorId avroRef "avro.Value.LongValue"
-avroFloat = Maybe.fromJust $ constructorId avroRef "avro.Value.FloatValue"
-avroDouble = Maybe.fromJust $ constructorId avroRef "avro.Value.DoubleValue"
-avroBoolean = Maybe.fromJust $ constructorId avroRef "avro.Value.BooleanValue"
+avroNull = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.NullValue"
+avroRecord = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.RecordValue"
+avroBytes = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.BytesValue"
+avroFixed = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.FixedValue"
+avroArray = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.ArrayValue"
+avroMap = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.MapValue"
+avroUnion = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.UnionValue"
+avroEnum = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.EnumValue"
+avroString = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.StringValue"
+avroInt = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.IntValue"
+avroLong = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.LongValue"
+avroFloat = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.FloatValue"
+avroDouble = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.DoubleValue"
+avroBoolean = Maybe.fromJust $ constructorId avroRef "avro.AvroValue.BooleanValue"
 
 avroDefaultNull, avroDefaultBoolean, avroDefaultInt, avroDefaultLong, avroDefaultFloat, avroDefaultDouble, avroDefaultBytes, avroDefaultString, avroDefaultArray, avroDefaultMap, avroDefaultRecord, avroDefaultEnum, avroDefaultUnion, avroDefaultFixed, avroDefaultNamedType :: ConstructorId
 avroDefaultNull = Maybe.fromJust $ constructorId avroDefaultRef "avro.schema.DefaultValue.Null"
@@ -409,7 +409,7 @@ parseErrorRef :: Reference
 parseErrorRef = lookupDeclRef "Json.ParseError"
 
 avroRef :: Reference
-avroRef = lookupDeclRef "avro.Value"
+avroRef = lookupDeclRef "avro.AvroValue"
 
 avroDefaultRef :: Reference
 avroDefaultRef = lookupDeclRef "avro.schema.DefaultValue"
@@ -539,7 +539,7 @@ builtinDataDecls = rs1 ++ rs
           (v "Set", set),
           (v "Json", json),
           (v "Json.ParseError", jsonParseError),
-          (v "avro.Value", avro),
+          (v "avro.AvroValue", avro),
           (v "avro.schema.Schema", avroSchema),
           (v "avro.schema.deconflicted.ReadSchema", avroReadSchema),
           (v "avro.schema.deconflicted.ReadFloat", avroReadFloat),
@@ -932,7 +932,7 @@ builtinDataDecls = rs1 ++ rs
         (Unique "qvcc7sqhpv38ttfjq2f2r8k88sl8euku")
         ()
         []
-        let avro = var "avro.Value"
+        let avro = var "avro.AvroValue"
             schema = var "avro.schema.deconflicted.ReadSchema"
             nat = Type.nat ()
             map x y = Type.apps' (var "Map") [x, y]
@@ -942,20 +942,20 @@ builtinDataDecls = rs1 ++ rs
             int = Type.int ()
             float = Type.float ()
             boolean = Type.boolean ()
-         in [ ((), v "avro.Value.RecordValue", schema `arr` list avro `arr` avro),
-              ((), v "avro.Value.BytesValue", schema `arr` bytes `arr` avro),
-              ((), v "avro.Value.FixedValue", schema `arr` bytes `arr` avro),
-              ((), v "avro.Value.ArrayValue", list avro `arr` avro),
-              ((), v "avro.Value.MapValue", map text avro `arr` avro),
-              ((), v "avro.Value.NullValue", avro),
-              ((), v "avro.Value.StringValue", schema `arr` text `arr` avro),
-              ((), v "avro.Value.EnumValue", schema `arr` nat `arr` text `arr` avro),
-              ((), v "avro.Value.FloatValue", schema `arr` float `arr` avro),
-              ((), v "avro.Value.DoubleValue", schema `arr` float `arr` avro),
-              ((), v "avro.Value.IntValue", schema `arr` int `arr` avro),
-              ((), v "avro.Value.LongValue", schema `arr` int `arr` avro),
-              ((), v "avro.Value.BooleanValue", boolean `arr` avro),
-              ((), v "avro.Value.UnionValue", schema `arr` nat `arr` avro `arr` avro)
+         in [ ((), v "avro.AvroValue.RecordValue", schema `arr` list avro `arr` avro),
+              ((), v "avro.AvroValue.BytesValue", schema `arr` bytes `arr` avro),
+              ((), v "avro.AvroValue.FixedValue", schema `arr` bytes `arr` avro),
+              ((), v "avro.AvroValue.ArrayValue", list avro `arr` avro),
+              ((), v "avro.AvroValue.MapValue", map text avro `arr` avro),
+              ((), v "avro.AvroValue.NullValue", avro),
+              ((), v "avro.AvroValue.StringValue", schema `arr` text `arr` avro),
+              ((), v "avro.AvroValue.EnumValue", schema `arr` nat `arr` text `arr` avro),
+              ((), v "avro.AvroValue.FloatValue", schema `arr` float `arr` avro),
+              ((), v "avro.AvroValue.DoubleValue", schema `arr` float `arr` avro),
+              ((), v "avro.AvroValue.IntValue", schema `arr` int `arr` avro),
+              ((), v "avro.AvroValue.LongValue", schema `arr` int `arr` avro),
+              ((), v "avro.AvroValue.BooleanValue", boolean `arr` avro),
+              ((), v "avro.AvroValue.UnionValue", schema `arr` nat `arr` avro `arr` avro)
             ]
 
     avroLogicalStringType =

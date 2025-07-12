@@ -52,9 +52,6 @@ library
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
       Unison.Runtime.Foreign
-      Unison.Runtime.Foreign.Avro
-      Unison.Runtime.Foreign.AvroDecls
-      Unison.Runtime.Foreign.AvroTypeTags
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
       Unison.Runtime.Interface
