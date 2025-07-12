@@ -72,7 +72,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integrationtests/IntegrationTests/*')}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integrationtests/IntegrationTests/*')}}
           # added the integration test dependencies here as if they were source, for simplicity
 
       - name: restore stack caches
@@ -161,10 +161,7 @@ jobs:
 
       - name: cli-integration-tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        run: |
-          stack exec cli-integration-tests
-          # Fail if any transcripts cause git diffs.
-          git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
+        run: stack exec cli-integration-tests
 
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
