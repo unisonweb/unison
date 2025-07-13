@@ -15,7 +15,7 @@ structural type a.b.Baz = Boo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural type a.b.Baz
       structural type a.x.Foo

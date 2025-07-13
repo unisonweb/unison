@@ -48192,8 +48192,8 @@ Doc.Deprecated.example e =
 
 Doc.Deprecated.example.doc : Deprecated
 Doc.Deprecated.example.doc =
-  [: Given a `termRef` reference, constructs an example that shows the source 
-  of that term as well as the result of evaluating it.:]
+  {{ Given a `termRef` reference, constructs an example that shows the source 
+  of that term as well as the result of evaluating it.}}
 
 Doc.doc : Doc
 Doc.doc =

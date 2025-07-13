@@ -452,6 +452,7 @@ data Output
   | OpenCodebaseError CodebasePath OpenCodebaseError
   | UCMServerNotRunning
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
+  | BranchUpdate'BranchChanged
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -694,6 +695,7 @@ isFailure o = case o of
   OpenCodebaseError {} -> True
   UCMServerNotRunning -> True
   BranchSquashSuccess {} -> False
+  BranchUpdate'BranchChanged {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

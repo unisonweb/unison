@@ -47,9 +47,9 @@ data Element r
   | -- ! '
     Parenthesis
   | LinkKeyword -- `typeLink` and `termLink`
-  -- [: :] @[]
+  -- { } @
   | DocDelimiter
-  | -- the 'include' in @[include], etc
+  | -- the 'source' in @source{…}, etc
     DocKeyword
   deriving (Eq, Ord, Show, Functor)
 

@@ -518,14 +518,16 @@ scratch/main> help
                                               `@unison/base`
 
   list (or ls, dir)
-  `list`       lists definitions and namespaces in a namespace
-               you select (requires fzf).
-  `list .`     lists definitions and namespaces in the project
-               root.
-  `list .foo`  lists definitions and namespaces in the '.foo'
+  `list`       lists definitions and namespaces in the current
                namespace.
-  `list foo`   lists definitions and namespaces in the 'foo'
-               namespace.
+  `list foo`   lists the 'foo' namespace.
+  `list .foo`  lists the '.foo' namespace.
+
+  list-fuzzy (or lsf)
+  `list-fuzzy`  lists definitions and namespaces in a namespace
+                you select (requires fzf).
+  If you pass arguments to `list-fuzzy` it will behave the same
+  as as `list`
 
   load
   `load`                 parses, typechecks, and evaluates the

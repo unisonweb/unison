@@ -16,7 +16,7 @@ thingy = lib.old.foo + 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.new.foo : Nat
       lib.old.foo : Nat
@@ -61,7 +61,7 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. new/     (1 term)
 
 proj/main> view thingy
@@ -94,7 +94,7 @@ thingy = lib.old.foo + 10
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.new.foo : Int
       lib.old.foo : Nat
@@ -176,7 +176,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. new/     (1 term)
 
 proj/main> branches
@@ -203,7 +203,7 @@ thingy = lib.old.foo + 10
 
     ⊡ Previously added definitions will be ignored: lib.new.foo
     
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.old.foo : Nat
     
@@ -288,7 +288,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. new/     (1 term)
 
 proj/main> branches
@@ -320,7 +320,7 @@ mything = lib.old.foo + 100
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bar         : Nat
       lib.new.foo : Nat
@@ -379,7 +379,7 @@ bar = a.x.x.x.x + c.y.y.y.y
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       a.x.x.x.x   : Nat
       b.x.x.x.x   : Nat
@@ -462,7 +462,7 @@ mything = lib.old.foo + lib.old.foo
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.new.foo   : Nat
       lib.new.other : Nat
@@ -515,7 +515,7 @@ lib.dep__2.foo = 2
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.foo    : Nat
       lib.dep__2.foo : Nat
@@ -536,7 +536,7 @@ scratch/main> upgrade dep dep__2
 
 scratch/main> ls lib
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. dep/     (1 term)
 ```
 
@@ -562,7 +562,7 @@ lib.dep__2.foo = 3
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       lib.dep.foo    : Nat
       lib.dep__2.foo : Nat
@@ -583,7 +583,7 @@ scratch/main> upgrade hello dep__2
 
 scratch/main> ls lib
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. dep/     (1 term)
   3. dep__2/  (1 term)
 ```

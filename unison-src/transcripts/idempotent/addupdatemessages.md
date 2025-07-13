@@ -20,7 +20,7 @@ structural type Y = Two Nat Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural type X
       structural type Y
@@ -53,7 +53,7 @@ structural type Z = One Nat
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural type Z
         (also named X)

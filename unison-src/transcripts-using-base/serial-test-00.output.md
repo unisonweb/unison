@@ -64,7 +64,8 @@ mkTestCase = do
   f = evaluate balancedSum catenate
   tup = (tree0, tree1, tree2, tree3)
 
-  saveTestCase "case-00" "v4" f tup
+  saveTestCase None "case-00" "v4" f tup
+  saveTestCase (Some 5) "case-00" "v5" f tup
 ```
 
 ``` ucm :added-by-ucm
@@ -73,7 +74,7 @@ mkTestCase = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural type Tree a
       evaluate   : (Tree Nat -> Nat)

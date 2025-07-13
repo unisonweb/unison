@@ -26,7 +26,7 @@ two.ambiguousTerm = "term two"
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type one.AmbiguousType
       type two.AmbiguousType
@@ -111,7 +111,7 @@ useAmbiguousTerm = ambiguousTerm
   by type, as any type would work here.
 
   I found some terms in scope that have matching names and
-  types. Maybe you meant one of these:
+  types. Was any of these what you wanted?
 
   one.ambiguousTerm : Text
   two.ambiguousTerm : Text

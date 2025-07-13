@@ -1189,13 +1189,29 @@ findShallow =
     "list"
     ["ls", "dir"]
     I.Visible
+    (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
+    ( P.wrapColumn2
+        [ (makeExample findShallow [], "lists definitions and namespaces in the current namespace."),
+          (makeExample findShallow ["foo"], "lists the 'foo' namespace."),
+          (makeExample findShallow [".foo"], "lists the '.foo' namespace.")
+        ]
+    )
+    ( fmap Input.FindShallowI . \case
+        [] -> pure Path.Current'
+        path : _ -> handlePath'Arg path
+    )
+
+findFuzzy :: InputPattern
+findFuzzy =
+  InputPattern
+    "list-fuzzy"
+    ["lsf"]
+    I.Visible
     (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces in a namespace you select (requires fzf)."),
-          ("`list .`", "lists definitions and namespaces in the project root."),
-          ("`list .foo`", "lists definitions and namespaces in the '.foo' namespace."),
-          ("`list foo`", "lists definitions and namespaces in the 'foo' namespace.")
-        ]
+        [(makeExample' findFuzzy, "lists definitions and namespaces in a namespace you select (requires fzf).")]
+        <> P.newline
+        <> P.wrap ("If you pass arguments to" <> makeExample' findFuzzy <> "it will behave the same as as" <> makeExample' findShallow)
     )
     ( fmap Input.FindShallowI . \case
         [] -> pure Path.Current'
@@ -1815,7 +1831,7 @@ debugFormat =
     "debug.format"
     []
     I.Hidden
-    (Parameters [] $ Optional [("source-file", filePathArg)] Nothing)
+    (Parameters [] $ Optional [("source file", filePathArg)] Nothing)
     ( P.lines
         [ P.wrap $ "This command can be used to test ucm's file formatter on the latest typechecked file.",
           makeExample' debugFormat
@@ -2016,7 +2032,7 @@ syncToFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg)] $
+        Parameters [("destination sync file", filePathArg)] $
           Optional [("branch", projectAndBranchNamesArg suggestionsConfig)] Nothing,
       help =
         ( P.wrapColumn2
@@ -2048,7 +2064,7 @@ syncFromFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
+        Parameters [("file to sync from", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
           Optional [] Nothing,
       help =
         ( P.wrapColumn2
@@ -2077,9 +2093,9 @@ syncFromCodebase =
       visibility = I.Visible,
       params =
         Parameters
-          [ ("codebase-location", filePathArg),
-            ("branch-to-sync", projectAndBranchNamesArg suggestionsConfig),
-            ("destination-branch", projectAndBranchNamesArg suggestionsConfig)
+          [ ("codebase location", directoryPathArg),
+            ("branch to sync", projectAndBranchNamesArg suggestionsConfig),
+            ("destination branch", projectAndBranchNamesArg suggestionsConfig)
           ]
           $ Optional [] Nothing,
       help =
@@ -2867,7 +2883,7 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    (Parameters [("namespace", branchRelativePathArg), ("output directory", filePathArg)] $ Optional [] Nothing)
+    (Parameters [("namespace", branchRelativePathArg), ("output directory", directoryPathArg)] $ Optional [] Nothing)
     ( P.wrapColumn2
         [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
             "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
@@ -3542,6 +3558,7 @@ validInputs =
       findIn,
       findAll,
       findInAll,
+      findFuzzy,
       findGlobal,
       findShallow,
       findVerbose,
@@ -3746,7 +3763,16 @@ filePathArg :: ParameterType
 filePathArg =
   ParameterType
     { typeName = "file-path",
-      suggestions = noCompletions,
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Just I.DefaultFZFFileSearch,
+      isStructured = False
+    }
+
+directoryPathArg :: ParameterType
+directoryPathArg =
+  ParameterType
+    { typeName = "directory-path",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
       fzfResolver = Nothing,
       isStructured = False
     }

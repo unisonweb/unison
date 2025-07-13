@@ -1,7 +1,7 @@
 # Hello\!
 
 ``` ucm :hide
-scratch/main> builtins.merge
+scratch/main> builtins.mergeio
 ```
 
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
@@ -35,7 +35,7 @@ x = 42
   I found and typechecked these definitions in myfile.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       x : Nat
 ```

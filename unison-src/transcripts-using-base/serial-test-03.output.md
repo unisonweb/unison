@@ -40,7 +40,8 @@ finish = cases (x, y, z) ->
 
 mkTestCase = do
   trip = (suspSum l1, suspSum l2, suspSum l3)
-  saveTestCase "case-03" "v4" finish trip
+  saveTestCase None "case-03" "v4" finish trip
+  saveTestCase (Some 5) "case-03" "v5" finish trip
 ```
 
 ``` ucm :added-by-ucm
@@ -49,7 +50,7 @@ mkTestCase = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability DC r
       structural type Delayed r

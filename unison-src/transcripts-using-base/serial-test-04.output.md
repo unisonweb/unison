@@ -10,7 +10,8 @@ mutual1 n =
   mutual0 n
 
 mkTestCase = do
-  saveTestCase "case-04" "v4" mutual1 5
+  saveTestCase None "case-04" "v4" mutual1 5
+  saveTestCase (Some 5) "case-04" "v5" mutual1 5
 ```
 
 ``` ucm :added-by-ucm
@@ -19,7 +20,7 @@ mkTestCase = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       mkTestCase : '{IO, Exception} ()
       mutual0    : Nat -> Text

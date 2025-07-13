@@ -25,7 +25,8 @@ products = cases (x, y, z) ->
   "(" ++ toText px ++ ", " ++ toText py ++ ", \"" ++ toText pz ++ "\")"
 
 mkTestCase = do
-  saveTestCase "case-02" "v4" products (l1, l2, l3)
+  saveTestCase None "case-02" "v4" products (l1, l2, l3)
+  saveTestCase (Some 5) "case-02" "v5" products (l1, l2, l3)
 
 ```
 
@@ -35,7 +36,7 @@ mkTestCase = do
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       structural ability Exit a
       l1         : [Nat]

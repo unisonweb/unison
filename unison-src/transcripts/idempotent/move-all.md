@@ -21,7 +21,7 @@ unique type Foo.T = T
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       type Foo
       type Foo.T
@@ -78,7 +78,7 @@ scratch/main> ls .
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar/     (4 terms, 1 type)
-  4. builtin/ (483 terms, 78 types)
+  4. builtin/ (485 terms, 78 types)
 
 scratch/main> ls Bar
 
@@ -117,7 +117,7 @@ bonk = 5
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bonk : Nat
 ```
@@ -140,7 +140,7 @@ z/main> move bonk zonk
 
 z/main> ls .
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. zonk     (Nat)
 ```
 
@@ -156,7 +156,7 @@ bonk.zonk = 5
   I found and typechecked these definitions in scratch.u. If you
   do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `update`:
+    ⍟ New definitions:
     
       bonk.zonk : Nat
         (also named zonk)
@@ -180,7 +180,7 @@ a/main> move bonk zonk
 
 a/main> ls .
 
-  1. builtin/ (483 terms, 78 types)
+  1. builtin/ (485 terms, 78 types)
   2. zonk/    (1 term)
 
 a/main> view zonk.zonk

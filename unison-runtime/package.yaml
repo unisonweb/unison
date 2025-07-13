@@ -17,6 +17,12 @@ flags:
     manual: true
     default: false
 
+  # Run code through the serializer to test code loading as if it were
+  # remote.
+  codeserialchecks:
+    manual: true
+    default: false
+
   # Dumps core for debugging to unison-runtime/.stack-work/dist/<arch>/ghc-x.y.z/build/
   dumpcore:
     manual: true
@@ -32,6 +38,8 @@ when:
     cpp-options: -DOPT_CHECK
     dependencies:
       - inspection-testing
+  - condition: flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
   - condition: flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats # -dsuppress-type-applications -dsuppress-type-signatures
 
@@ -92,6 +100,7 @@ library:
     - unison-util-bytes
     - unison-util-recursion
     - unliftio
+    - unordered-containers
     - vector
     - crypton-x509
     - crypton-x509-store

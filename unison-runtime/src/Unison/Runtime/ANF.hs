@@ -64,6 +64,8 @@ module Unison.Runtime.ANF
     Code (..),
     ValList,
     Value (..),
+    Referenced (..),
+    dereference,
     Cont (..),
     BLit (..),
     packTags,
@@ -77,8 +79,11 @@ module Unison.Runtime.ANF
     superNormalize,
     anfTerm,
     codeGroup,
+    traverseCodeRefs,
     valueTermLinks,
     valueLinks,
+    overValueRefs,
+    traverseValueRefs,
     groupTermLinks,
     replaceConstructors,
     replaceFunctions,
@@ -1604,6 +1609,28 @@ type ANFD v = Compose (ANFM v) (Directed ())
 data GroupRef = GR Reference Word64
   deriving (Show, Eq)
 
+-- A value with optional optimization information for serialization.
+-- The references are required for serialization V5, and are assumed
+-- to be the only references used in the value _up to in-memory
+-- uniqueness_.
+--
+-- This is parameterized so that it can be used with both Value and
+-- Code.
+--
+-- Also note, the stored referenced might not be 'tight' in the sense
+-- that they all actually occur in the value. Maintaining this
+-- invariant together with actual canonicalization would be onerous
+-- and isn't done at this time.
+data Referenced a
+  = -- types, terms
+    WithRefs [Reference] [Reference] a
+  | Plain a
+  deriving (Show, Eq)
+
+dereference :: Referenced a -> a
+dereference (WithRefs _ _ x) = x
+dereference (Plain x) = x
+
 -- | A list of either unboxed or boxed values.
 -- Each slot is one of unboxed or boxed but not both.
 type ValList = [Value]
@@ -1641,12 +1668,20 @@ traverseGroup ::
   f Code
 traverseGroup f (CodeRep sg ch) = flip CodeRep ch <$> f sg
 
+traverseCodeRefs ::
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  Code ->
+  f Code
+traverseCodeRefs h (CodeRep sg ch) =
+  flip CodeRep ch <$> traverseGroupLinks h sg
+
 data Cont
   = KE
   | Mark
       Word64 -- pending args
       [Reference]
-      (Map Reference Value)
+      [(Reference, Value)]
       Cont
   | Push
       Word64 -- Frame size
@@ -1670,6 +1705,8 @@ data BLit
   | Neg Word64
   | Char Char
   | Float Double
+  | -- special cases for newer formats
+    Map [(Value, Value)]
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
@@ -2210,18 +2247,142 @@ valueLinks f (Cont vs k) =
   foldMap (valueLinks f) vs <> contLinks f k
 valueLinks f (BLit l) = blitLinks f l
 
+-- Maps over the references in a `Value`, with the boolean indicating
+-- whether or not the reference is for a type.
+--
+-- This traverses _all_ references in the value, not just the ones
+-- necessary to load it.
+overValueRefs :: (Bool -> Reference -> Reference) -> Value -> Value
+overValueRefs h = \case
+  Partial (GR r i) vs ->
+    Partial (GR (h False r) i) (fmap (overValueRefs h) vs)
+  Data r t vs ->
+    Data (h True r) t (fmap (overValueRefs h) vs)
+  Cont vs k ->
+    Cont (fmap (overValueRefs h) vs) (overContRefs h k)
+  BLit l -> BLit (overBLitRefs h l)
+
+-- Traverses the references in a `Value`, with the boolean indicating
+-- whether or not the reference is for a type.
+--
+-- Unlike the "Links" functions, this traverses _all_ references in a
+-- Value, not just the ones necessary to load the value. So, this will
+-- traverse inside quotes and code.
+traverseValueRefs ::
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  Value ->
+  f Value
+traverseValueRefs h = \case
+  Partial (GR r i) vs ->
+    Partial . flip GR i
+      <$> h False r
+      <*> traverse (traverseValueRefs h) vs
+  Data r t vs ->
+    flip Data t
+      <$> h True r
+      <*> traverse (traverseValueRefs h) vs
+  Cont vs k ->
+    Cont
+      <$> traverse (traverseValueRefs h) vs
+      <*> traverseContRefs h k
+  BLit l -> BLit <$> traverseBLitRefs h l
+
 contLinks :: (Monoid a) => (Bool -> Reference -> a) -> Cont -> a
 contLinks f (Push _ _ (GR cr _) k) =
   f False cr <> contLinks f k
 contLinks f (Mark _ ps de k) =
   foldMap (f True) ps
-    <> Map.foldMapWithKey (\k c -> f True k <> valueLinks f c) de
+    <> foldMap (\(k, c) -> f True k <> valueLinks f c) de
     <> contLinks f k
 contLinks _ KE = mempty
+
+-- Maps over the references in a `Cont`, with the boolean indicating
+-- whether or not the reference is for a type.
+--
+-- This traverses _all_ references in the continuation, not just the
+-- ones necessary to load it.
+overContRefs :: (Bool -> Reference -> Reference) -> Cont -> Cont
+overContRefs h = \case
+  KE -> KE
+  Mark asz rs env k ->
+    Mark
+      asz
+      (fmap (h True) rs)
+      (fmap (bimap (h True) (overValueRefs h)) env)
+      (overContRefs h k)
+  Push fsz asz (GR r i) k ->
+    Push fsz asz (GR (h False r) i) (overContRefs h k)
+
+-- Traverses the references in a `Cont`, with the boolean indicating
+-- whether or not the reference is for a type.
+--
+-- Unlike the "Links" functions, this traverses _all_ references in a
+-- continuation, not just the ones necessary to load it. So, this will
+-- traverse inside quotes and code.
+traverseContRefs ::
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  Cont ->
+  f Cont
+traverseContRefs h = \case
+  KE -> pure KE
+  Mark asz rs env k ->
+    Mark asz
+      <$> traverse (h True) rs
+      <*> traverse (bitraverse (h True) (traverseValueRefs h)) env
+      <*> traverseContRefs h k
+  Push fsz asz (GR r i) k ->
+    Push fsz asz . flip GR i
+      <$> h False r
+      <*> traverseContRefs h k
 
 blitLinks :: (Monoid a) => (Bool -> Reference -> a) -> BLit -> a
 blitLinks f (List s) = foldMap (valueLinks f) s
 blitLinks _ _ = mempty
+
+overBLitRefs :: (Bool -> Reference -> Reference) -> BLit -> BLit
+overBLitRefs h = \case
+  List vs -> List (fmap oval vs)
+  TmLink rn
+    | Con (ConstructorReference r j) i <- rn ->
+        TmLink $ Con (ConstructorReference (h True r) j) i
+    | Ref r <- rn -> TmLink . Ref $ h False r
+  TyLink r -> TyLink $ h True r
+  Quote v -> Quote $ oval v
+  Code (CodeRep sg ch) -> Code $ CodeRep (overGroupLinks h sg) ch
+  Arr a -> Arr $ fmap oval a
+  Map kvs -> Map $ fmap (bimap oval oval) kvs
+  l -> l
+  where
+    oval v = overValueRefs h v
+
+-- Traverses the references in a `BLit`, with the boolean indicating
+-- whether or not the reference is for a type.
+--
+-- Unlike the "Links" functions, this traverses _all_ references in a
+-- literal, not just the ones necessary to load it. So, this will
+-- traverse inside quotes and code.
+traverseBLitRefs ::
+  (Applicative f) =>
+  (Bool -> Reference -> f Reference) ->
+  BLit ->
+  f BLit
+traverseBLitRefs h = \case
+  List vs -> List <$> traverse tval vs
+  TmLink rn
+    | Con (ConstructorReference r j) i <- rn ->
+        TmLink . flip Con i . flip ConstructorReference j <$> h True r
+    | Ref r <- rn -> TmLink . Ref <$> h False r
+  TyLink r -> TyLink <$> h True r
+  Quote v -> Quote <$> tval v
+  Code (CodeRep sg ch) ->
+    Code . flip CodeRep ch <$> traverseGroupLinks h sg
+  Arr a -> Arr <$> traverse tval a
+  Map kvs -> Map <$> traverse (bitraverse tval tval) kvs
+  l -> pure l
+  where
+    tval v = traverseValueRefs h v
 
 groupTermLinks :: (Var v) => SuperGroup v -> [Reference]
 groupTermLinks = Set.toList . foldGroupLinks f
@@ -2315,8 +2476,8 @@ branchLinks _ g (MatchText m e) =
   MatchText <$> traverse g m <*> traverse g e
 branchLinks _ g (MatchIntegral m e) =
   MatchIntegral <$> traverse g m <*> traverse g e
-branchLinks _ g (MatchNumeric r m e) =
-  MatchNumeric r <$> traverse g m <*> traverse g e
+branchLinks f g (MatchNumeric r m e) =
+  MatchNumeric <$> f r <*> traverse g m <*> traverse g e
 branchLinks _ g (MatchSum m) =
   MatchSum <$> (traverse . traverse) g m
 branchLinks _ _ MatchEmpty = pure MatchEmpty
@@ -2538,10 +2699,10 @@ prettyBranches ind bs = case bs of
   MatchText bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr (uncurry $ prettyCase ind . shows) id (Map.toList bs)
-  MatchData _ bs df ->
+  MatchData r bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr
-        (uncurry $ prettyCase ind . shows)
+        (uncurry $ prettyCase ind . prettyTag r)
         id
         (mapToList $ snd <$> bs)
   MatchRequest bs df ->
@@ -2567,6 +2728,13 @@ prettyBranches ind bs = case bs of
     -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("
+        . showsShort r
+        . showString ","
+        . shows c
+        . showString ")"
+
+    prettyTag r c =
+      showString "CON("
         . showsShort r
         . showString ","
         . shows c
