@@ -495,31 +495,42 @@ foreignCallHelper = \case
   Tls_terminate_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.bye tls.context
   Code_validateLinks -> mkForeignExn $
-    \(lsgs0 :: [(Referent, ANF.Code)]) -> do
+    \(lsgs0 :: [(Referent, ANF.Referenced ANF.Code)]) -> do
       let f (msg, rs) =
             F.Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
-      pure . first f $ checkGroupHashes lsgs0
+      pure . first f . checkGroupHashes $ second ANF.dereference <$> lsgs0
   Code_dependencies -> mkForeign $
-    \(ANF.CodeRep sg _) ->
-      pure $ Wrap Ty.termLinkRef . Ref <$> ANF.groupTermLinks sg
+    \(ANF.dereference -> ANF.CodeRep sg _) ->
+      -- note: it's not correct to use the stored references of a
+      -- `Referenced Code` because they may over-estimate the actual
+      -- occurrences.
+      pure $ Ref <$> ANF.groupTermLinks sg
   Code_serialize -> mkForeign $
-    \(co :: ANF.Code) ->
+    \(co :: ANF.Referenced ANF.Code) ->
       pure . Bytes.fromArray $ ANF.serializeCode False co
+  Code_serialize_versioned -> mkForeign $
+    \(ver :: Word64, co :: ANF.Referenced ANF.Code) ->
+      case ANF.serializeCodeWithVersion ver False co of
+        Left err -> die err
+        Right bs -> pure $ Bytes.fromLazyByteString bs
   Code_deserialize ->
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
-    \(nm, (ANF.CodeRep sg _)) ->
+    \(nm, (ANF.dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $
-      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks
+      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . ANF.dereference
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
+  Value_serialize_versioned ->
+    mkForeign $
+      pure . Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
   Value_deserialize ->
     mkForeign $
-      pure . ANF.deserializeValue . Bytes.toArray
+      pure . ANF.deserializeValue . Bytes.toLazyByteString
   Crypto_HashAlgorithm_Sha3_512 -> mkHashAlgorithm "Sha3_512" Hash.SHA3_512
   Crypto_HashAlgorithm_Sha3_256 -> mkHashAlgorithm "Sha3_256" Hash.SHA3_256
   Crypto_HashAlgorithm_Sha2_512 -> mkHashAlgorithm "Sha2_512" Hash.SHA512
@@ -547,7 +558,7 @@ foreignCallHelper = \case
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg $ ANF.serializeValueForHash x
+       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ ANF.dereference x
   Crypto_hmac -> mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
       let hmac ::
@@ -557,7 +568,7 @@ foreignCallHelper = \case
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg $ ANF.serializeValueForHash x
+       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ ANF.dereference x
   Crypto_Ed25519_sign_impl ->
     mkForeign $
       pure . signEd25519Wrapper
@@ -572,7 +583,7 @@ foreignCallHelper = \case
       pure . verifyRsaWrapper
   Universal_murmurHash ->
     mkForeign $
-      pure . asWord64 . hash64 . ANF.serializeValueForHash
+      pure . asWord64 . hash64 . ANF.serializeValueForHash . ANF.dereference
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress
@@ -2462,15 +2473,13 @@ functionReplacementList =
     )
   ]
 
-functionReplacements :: Map Reference Reference
-functionReplacements =
-  Map.fromList $ fmap process functionReplacementList
-
-functionUnreplacements :: Map Reference Reference
-functionUnreplacements =
-  Map.fromList . fmap (swap . process) $ functionReplacementList
+-- Built at the same time to attempt to share references.
+functionReplacements, functionUnreplacements :: Map Reference Reference
+(functionReplacements, functionUnreplacements) =
+  (Map.fromList processed, Map.fromList $ swap <$> processed)
   where
     swap (x, y) = (y, x)
+    processed = process <$> functionReplacementList
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.

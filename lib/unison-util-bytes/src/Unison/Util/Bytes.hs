@@ -25,6 +25,7 @@ module Unison.Util.Bytes
     toArray,
     fromArray,
     toLazyByteString,
+    fromLazyByteString,
     flatten,
     at,
     take,

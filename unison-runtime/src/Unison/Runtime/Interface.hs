@@ -919,12 +919,13 @@ deserializeNativeResponse :: ByteString -> NativeResult
 deserializeNativeResponse =
   run $
     getWord8 >>= \case
-      0 -> Success <$> getVersionedValue
-      1 -> Bug <$> getText <*> getVersionedValue
+      0 -> Success <$> getPlainValue
+      1 -> Bug <$> getText <*> getPlainValue
       2 -> Error <$> getText
       _ -> pure $ Error "Unexpected result bytes tag"
   where
     run e bs = either (Error . pack) id (runGetS e bs)
+    getPlainValue = dereference <$> getVersionedValue
 
 -- Note: this currently does not support yielding values; instead it
 -- just produces a result appropriate for unitary `run` commands. The
@@ -952,16 +953,16 @@ nativeEvalInContext executable ppe ctx serv port codes base = do
   crs <- readTVarIO $ combRefs cc
   -- Seems a bit weird, but apparently this is how we do it
   args <- getArgs
-  let bytes = serializeValue . compileValue base $ codes
+  let bytes = serializeValue . Plain . compileValue base $ codes
 
       decodeResult (Error msg) = pure . Left $ text msg
       decodeResult (Bug msg val) =
-        reifyValue cc val >>= \case
+        reifyValue cc (Plain val) >>= \case
           Left _ -> pure . Left $ "missing references from bug result"
           Right cl ->
             pure . Left . bugMsg ppe [] msg $ decompileCtx crs ctx cl
       decodeResult (Success val) =
-        reifyValue cc val >>= \case
+        reifyValue cc (Plain val) >>= \case
           Left _ -> pure . Left $ "missing references from result"
           Right cl -> case decompileCtx crs ctx cl of
             (errs, dv) -> pure $ Right (listErrors errs, dv)
@@ -1004,7 +1005,7 @@ nativeCompileCodes copts executable codes base path = do
   ensureRacoExists
   genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
   createDirectoryIfMissing True genDir
-  let bytes = serializeValue . compileValue base $ codes
+  let bytes = serializeValue . Plain . compileValue base $ codes
       srcPath = genDir </> path <.> "rkt"
       callout (Just pin) _ _ ph = do
         BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes

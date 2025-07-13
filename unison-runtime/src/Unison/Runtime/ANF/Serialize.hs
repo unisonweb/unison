@@ -7,7 +7,10 @@ module Unison.Runtime.ANF.Serialize where
 
 import Control.Monad
 import Control.Monad.Reader
-import Data.Bifunctor (first)
+import Data.Bifunctor (bimap, first)
+import Data.Binary.Get (runGetOrFail)
+import Data.Binary.Get qualified as BGet
+import Data.Binary.Put qualified as BPut
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
@@ -16,17 +19,24 @@ import Data.Bytes.Serial
 import Data.Bytes.VarInt
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
-import Data.Map as Map (Map, fromList, lookup)
+import Data.Map as Map (Map, fromDistinctAscList, fromList, lookup)
+-- machinery for special casing maps
+import Data.Map.Strict.Internal (Map (..))
 import Data.Maybe (mapMaybe)
-import Data.Sequence qualified as Seq
+import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put (runPutLazy)
+import Data.Serialize.Put qualified as SPut
 import Data.Word (Word16, Word32, Word64)
 import GHC.IsList qualified (fromList)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
+import Unison.Builtin.Decls (mapBin, mapRef, mapTip)
 import Unison.Reference (Reference, Reference' (Builtin), pattern Derived)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Optimize as ANF
+import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
+import Unison.Runtime.ANF.Serialize.Tags
+import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Serialize
@@ -40,215 +50,6 @@ import Prelude hiding (getChar, putChar)
 -- bytes for hashing, so we don't need perfect information.
 data Version = Transfer Word32 | Hash Word32
   deriving (Show)
-
-data TmTag
-  = VarT
-  | ForceT
-  | AppT
-  | HandleT
-  | ShiftT
-  | MatchT
-  | LitT
-  | NameRefT
-  | NameVarT
-  | LetDirT
-  | LetIndT
-  | BxLitT
-
-data FnTag
-  = FVarT
-  | FCombT
-  | FContT
-  | FConT
-  | FReqT
-  | FPrimT
-  | FForeignT
-
-data MtTag
-  = MIntT
-  | MTextT
-  | MReqT
-  | MEmptyT
-  | MDataT
-  | MSumT
-  | MNumT
-
-data LtTag
-  = IT
-  | NT
-  | FT
-  | TT
-  | CT
-  | LMT
-  | LYT
-
-data BLTag
-  = TextT
-  | ListT
-  | TmLinkT
-  | TyLinkT
-  | BytesT
-  | QuoteT
-  | CodeT
-  | BArrT
-  | PosT
-  | NegT
-  | CharT
-  | FloatT
-  | ArrT
-  | CachedCodeT
-
-data VaTag = PartialT | DataT | ContT | BLitT
-
-data CoTag = KET | MarkT | PushT
-
-instance Tag TmTag where
-  tag2word = \case
-    VarT -> 1
-    ForceT -> 2
-    AppT -> 3
-    HandleT -> 4
-    ShiftT -> 5
-    MatchT -> 6
-    LitT -> 7
-    NameRefT -> 8
-    NameVarT -> 9
-    LetDirT -> 10
-    LetIndT -> 11
-    BxLitT -> 12
-  word2tag = \case
-    1 -> pure VarT
-    2 -> pure ForceT
-    3 -> pure AppT
-    4 -> pure HandleT
-    5 -> pure ShiftT
-    6 -> pure MatchT
-    7 -> pure LitT
-    8 -> pure NameRefT
-    9 -> pure NameVarT
-    10 -> pure LetDirT
-    11 -> pure LetIndT
-    12 -> pure BxLitT
-    n -> unknownTag "TmTag" n
-
-instance Tag FnTag where
-  tag2word = \case
-    FVarT -> 0
-    FCombT -> 1
-    FContT -> 2
-    FConT -> 3
-    FReqT -> 4
-    FPrimT -> 5
-    FForeignT -> 6
-
-  word2tag = \case
-    0 -> pure FVarT
-    1 -> pure FCombT
-    2 -> pure FContT
-    3 -> pure FConT
-    4 -> pure FReqT
-    5 -> pure FPrimT
-    6 -> pure FForeignT
-    n -> unknownTag "FnTag" n
-
-instance Tag MtTag where
-  tag2word = \case
-    MIntT -> 0
-    MTextT -> 1
-    MReqT -> 2
-    MEmptyT -> 3
-    MDataT -> 4
-    MSumT -> 5
-    MNumT -> 6
-
-  word2tag = \case
-    0 -> pure MIntT
-    1 -> pure MTextT
-    2 -> pure MReqT
-    3 -> pure MEmptyT
-    4 -> pure MDataT
-    5 -> pure MSumT
-    6 -> pure MNumT
-    n -> unknownTag "MtTag" n
-
-instance Tag LtTag where
-  tag2word = \case
-    IT -> 0
-    NT -> 1
-    FT -> 2
-    TT -> 3
-    CT -> 4
-    LMT -> 5
-    LYT -> 6
-
-  word2tag = \case
-    0 -> pure IT
-    1 -> pure NT
-    2 -> pure FT
-    3 -> pure TT
-    4 -> pure CT
-    5 -> pure LMT
-    6 -> pure LYT
-    n -> unknownTag "LtTag" n
-
-instance Tag BLTag where
-  tag2word = \case
-    TextT -> 0
-    ListT -> 1
-    TmLinkT -> 2
-    TyLinkT -> 3
-    BytesT -> 4
-    QuoteT -> 5
-    CodeT -> 6
-    BArrT -> 7
-    PosT -> 8
-    NegT -> 9
-    CharT -> 10
-    FloatT -> 11
-    ArrT -> 12
-    CachedCodeT -> 13
-
-  word2tag = \case
-    0 -> pure TextT
-    1 -> pure ListT
-    2 -> pure TmLinkT
-    3 -> pure TyLinkT
-    4 -> pure BytesT
-    5 -> pure QuoteT
-    6 -> pure CodeT
-    7 -> pure BArrT
-    8 -> pure PosT
-    9 -> pure NegT
-    10 -> pure CharT
-    11 -> pure FloatT
-    12 -> pure ArrT
-    13 -> pure CachedCodeT
-    t -> unknownTag "BLTag" t
-
-instance Tag VaTag where
-  tag2word = \case
-    PartialT -> 0
-    DataT -> 1
-    ContT -> 2
-    BLitT -> 3
-
-  word2tag = \case
-    0 -> pure PartialT
-    1 -> pure DataT
-    2 -> pure ContT
-    3 -> pure BLitT
-    t -> unknownTag "VaTag" t
-
-instance Tag CoTag where
-  tag2word = \case
-    KET -> 0
-    MarkT -> 1
-    PushT -> 2
-  word2tag = \case
-    0 -> pure KET
-    1 -> pure MarkT
-    2 -> pure PushT
-    t -> unknownTag "CoTag" t
 
 index :: (Eq v) => [v] -> v -> Maybe Word64
 index ctx u = go 0 ctx
@@ -828,12 +629,45 @@ putBLit _ (Neg n) = putTag NegT *> putPositive n
 putBLit _ (Char c) = putTag CharT *> putChar c
 putBLit _ (Float d) = putTag FloatT *> putFloat d
 putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
+putBLit _ (Map _) = exn "putBLit: impossible Map"
+{-# SPECIALIZE putBLit :: Version -> BLit -> BPut.Put #-}
+{-# SPECIALIZE putBLit :: Version -> BLit -> SPut.Put #-}
+
+-- special function for serializing a list of pairs as a Unison map.
+-- This allows us to avoid inflating the map to a unison value during
+-- the interpreter->interchange step, which is expensive.
+--
+-- It is assumed that the list is in ascending order. We always
+-- produce an ascending map during reflection, but if you deserialize
+-- a non-ascending list and re-serialize using an old version, you
+-- will get an invalid map. However, you might also just receive an
+-- invalid serialized map.
+putAsMap :: (MonadPut m) => Version -> [(Value, Value)] -> m ()
+putAsMap v = putter . fromDistinctAscList
+  where
+    putter Tip =
+      putTag DataT
+        *> putReference mapRef
+        *> putWord64be mapTip
+        *> putLength (0 :: Int) -- subfields
+    putter (Bin sz k e l r) =
+      putTag DataT
+        *> putReference mapRef
+        *> putWord64be mapBin
+        *> putLength (5 :: Int)
+        *> putValue v (BLit . Pos $ fromIntegral sz)
+        *> putValue v k
+        *> putValue v e
+        *> putter l
+        *> putter r
+{-# SPECIALIZE putAsMap :: Version -> [(Value, Value)] -> BPut.Put #-}
+{-# SPECIALIZE putAsMap :: Version -> [(Value, Value)] -> SPut.Put #-}
 
 getBLit :: (MonadGet m, SerialConfig m) => m BLit
 getBLit =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
-    ListT -> List . Seq.fromList <$> getList getValue
+    ListT -> List <$> getSeq getValue
     TmLinkT -> TmLink <$> getReferent
     TyLinkT -> TyLink <$> getReference
     BytesT -> Bytes <$> getBytes
@@ -847,6 +681,9 @@ getBLit =
     FloatT -> Float <$> getFloat
     ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
+    MapT -> exn "getBLit: unsupported literal map"
+{-# SPECIALIZE getBLit :: BDeserial BLit #-}
+{-# SPECIALIZE getBLit :: SDeserial BLit #-}
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -1000,8 +837,11 @@ putValue v (Cont bs k) =
   putTag ContT
     *> putFoldable (putValue v) bs
     *> putCont v k
+putValue v (BLit (Map l)) = putAsMap v l
 putValue v (BLit l) =
   putTag BLitT *> putBLit v l
+{-# SPECIALIZE putValue :: Version -> Value -> BPut.Put #-}
+{-# SPECIALIZE putValue :: Version -> Value -> SPut.Put #-}
 
 getValue :: (MonadGet m, SerialConfig m) => m Value
 getValue =
@@ -1047,6 +887,8 @@ getValue =
     assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
     assertEmptyUnboxed [] = pure ()
     assertEmptyUnboxed _ = exn "getValue: unboxed values no longer supported"
+{-# SPECIALIZE getValue :: BDeserial Value #-}
+{-# SPECIALIZE getValue :: SDeserial Value #-}
 
 putCont :: (MonadPut m) => Version -> Cont -> m ()
 putCont _ KE = putTag KET
@@ -1054,7 +896,7 @@ putCont v (Mark a rs ds k) =
   putTag MarkT
     *> putWord64be a
     *> putFoldable putReference rs
-    *> putMap putReference (putValue v) ds
+    *> putMapping putReference (putValue v) ds
     *> putCont v k
 putCont v (Push f n gr k) =
   putTag PushT
@@ -1062,6 +904,8 @@ putCont v (Push f n gr k) =
     *> putWord64be n
     *> putGroupRef gr
     *> putCont v k
+{-# SPECIALIZE putCont :: Version -> Cont -> BPut.Put #-}
+{-# SPECIALIZE putCont :: Version -> Cont -> SPut.Put #-}
 
 getCont :: (MonadGet m, SerialConfig m) => m Cont
 getCont =
@@ -1074,14 +918,14 @@ getCont =
             getWord64be >>= assert0 "unboxed arg size"
             ba <- getWord64be
             refs <- getList getReference
-            vals <- getMap getReference getValue
+            vals <- getMapping getReference getValue
             cont <- getCont
             pure $ Mark ba refs vals cont
         | otherwise ->
             Mark
               <$> getWord64be
               <*> getList getReference
-              <*> getMap getReference getValue
+              <*> getMapping getReference getValue
               <*> getCont
       PushT
         | Transfer vn <- v,
@@ -1102,22 +946,45 @@ getCont =
   where
     assert0 _name 0 = pure ()
     assert0 name n = exn $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
+{-# SPECIALIZE getCont :: BDeserial Cont #-}
+{-# SPECIALIZE getCont :: SDeserial Cont #-}
 
-deserializeCode :: ByteString -> Either String Code
-deserializeCode bs =
-  runGetS (getVersion >>= runReaderT getCode . (,False)) bs
+deserializeCode :: ByteString -> Either String (Referenced Code)
+deserializeCode bs = runGetS go bs
   where
-    getVersion =
+    go =
       getWord32be >>= \case
-        n | 1 <= n && n <= 4 -> pure $ Transfer n
-        n -> fail $ "deserializeGroup: unknown version: " ++ show n
+        n
+          | n == 4 -> CodeV4.getCodeWithHeader
+          | 1 <= n && n < 4 ->
+              Plain <$> runReaderT getCode (Transfer n, False)
+          | otherwise ->
+              fail $ "deserializeGroup: unknown version: " ++ show n
 
 -- Boolean argument determines whether ForeignFunc occurrences are
 -- allowed to be serialized. For interchange, this should be False.
-serializeCode :: Bool -> Code -> ByteString
-serializeCode fops co = runPutS (putVersion *> putCode fops co)
+serializeCode :: Bool -> Referenced Code -> ByteString
+serializeCode fops (WithRefs tys tms co) =
+  runPutS (putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co)
+serializeCode fops (Plain co) = runPutS (putVersion *> putCode fops co)
   where
     putVersion = putWord32be codeVersion
+
+serializeCodeWithVersion ::
+  Word64 -> Bool -> Referenced Code -> Either String L.ByteString
+serializeCodeWithVersion v fops = \case
+  WithRefs tys tms co
+    | v == 4 ->
+        Right . runPutL $
+          putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
+  rco
+    | v == 3 ->
+        Right . runPutL $
+          putWord32be 3 *> putCode fops (dereference rco)
+    | v == 4 ->
+        Left "could not serialize plain code at v4"
+    | otherwise ->
+        Left $ "unsupported code serialization version: " ++ show v
 
 -- | Serializes a `SuperGroup` for rehashing.
 --
@@ -1152,26 +1019,37 @@ serializeGroupForRehash (Derived h _) sg =
     f _ = Nothing
     refrep = Map.fromList . mapMaybe f $ groupTermLinks sg
 
-getVersionedValue :: (MonadGet m) => m Value
+getVersionedValue :: (MonadGet m) => m (Referenced Value)
 getVersionedValue =
-  getVersion >>= runReaderT getValue . (,False) . Transfer
+  getWord32be >>= \case
+    n
+      | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
+      | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
+      | n <= 4 -> Plain <$> runReaderT getValue (Transfer n, False)
+      | n == 5 -> ValueV5.getValueWithHeader
+      | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
+{-# SPECIALIZE getVersionedValue :: BGet.Get (Referenced Value) #-}
+{-# SPECIALIZE getVersionedValue :: SGet.Get (Referenced Value) #-}
+
+deserializeValue :: L.ByteString -> Either String (Referenced Value)
+deserializeValue bs = bimap thd thd $ runGetOrFail getVersionedValue bs
   where
-    getVersion =
-      getWord32be >>= \case
-        n
-          | n < 1 -> fail $ "deserializeValue: unknown version: " ++ show n
-          | n < 3 -> fail $ "deserializeValue: unsupported version: " ++ show n
-          | n <= 5 -> pure n
-          | otherwise -> fail $ "deserializeValue: unknown version: " ++ show n
+    thd (_, _, x) = x
 
-deserializeValue :: ByteString -> Either String Value
-deserializeValue bs = runGetS getVersionedValue bs
-
-serializeValue :: Value -> ByteString
-serializeValue v =
+serializeValue :: Referenced Value -> ByteString
+serializeValue (dereference -> v) =
   runPutS (putVersion *> putValue (Transfer valueVersion) v)
   where
     putVersion = putWord32be valueVersion
+
+serializeValueWithVersion :: Word64 -> Referenced Value -> L.ByteString
+serializeValueWithVersion v = \case
+  WithRefs tys tms x
+    | v == 5 ->
+        runPutL $ putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
+  rval
+    | n <- fromIntegral v ->
+        runPutL $ putWord32be n *> putValue (Transfer n) (dereference rval)
 
 -- This serializer is used exclusively for hashing unison values.
 -- For this reason, it doesn't prefix the string with the current
@@ -1203,6 +1081,10 @@ askFOp :: (SerialConfig m) => m Bool
 askFOp = asks snd
 
 type SerialConfig m = MonadReader (Version, Bool) m
+
+type BDeserial = ReaderT (Version, Bool) BGet.Get
+
+type SDeserial = ReaderT (Version, Bool) SGet.Get
 
 -- Convert value version numbers to code version numbers
 valueToCode :: Version -> Version

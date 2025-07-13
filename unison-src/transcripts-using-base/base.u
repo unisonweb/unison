@@ -385,12 +385,15 @@ Value.transitiveDeps : Value ->{IO} [(Link.Term, Code)]
 Value.transitiveDeps v = crawl [] (Value.dependencies v)
 
 --  Save/load a value with its dependencies to a file for serialization testing.
-saveSelfContained : a -> Text ->{IO, Exception} ()
-saveSelfContained x path =
+saveSelfContained : Optional Nat -> a -> Text ->{IO, Exception} ()
+saveSelfContained ver x path =
   v = Value.value x
   deps = Value.transitiveDeps v
   cv = Value.value (deps, v)
-  bs = Bytes.toBase32 (Value.serialize cv)
+  ser = match ver with
+    None -> Value.serialize
+    Some v -> Value.serialize.versioned v
+  bs = Bytes.toBase32 (ser cv)
   writeFile path bs
 
 readFile : Text ->{IO,Exception} Bytes
@@ -449,8 +452,8 @@ loadSelfContained path =
     Left l -> fail "value missing deps" l
     Right x -> x
 
-saveTestCase : Text -> Text -> (a ->{} Text) -> a ->{IO,Exception} ()
-saveTestCase name ver f i =
+saveTestCase : Optional Nat -> Text -> Text -> (a ->{} Text) -> a ->{IO,Exception} ()
+saveTestCase mv name ver f i =
   dir = "unison-src/transcripts-using-base/serialized-cases/"
   sfile = dir ++ name ++ "." ++ ver ++ ".ser"
   ofile = dir ++ name ++ ".out"
@@ -458,7 +461,7 @@ saveTestCase name ver f i =
 
   output = f i
 
-  saveSelfContained (f, i) sfile
+  saveSelfContained mv (f, i) sfile
   writeFile ofile (toUtf8 output)
   writeFile hfile (Bytes.toBase32 (crypto.hash Sha3_512 (f, i)))
 

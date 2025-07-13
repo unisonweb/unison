@@ -10,7 +10,8 @@ mutual1 n =
   mutual0 n
 
 mkTestCase = do
-  saveTestCase "case-04" "v4" mutual1 5
+  saveTestCase None "case-04" "v4" mutual1 5
+  saveTestCase (Some 5) "case-04" "v5" mutual1 5
 ```
 
 ``` ucm :added-by-ucm

@@ -48,7 +48,7 @@ genCont :: Gen Cont
 genCont = do
   Gen.choice
     [ pure KE,
-      Mark <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genReference <*> Gen.map (Range.linear 0 4) ((,) <$> genReference <*> genValue) <*> genCont,
+      Mark <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genReference <*> Gen.list (Range.linear 0 4) ((,) <$> genReference <*> genValue) <*> genCont,
       Push <$> genSmallWord64 <*> genSmallWord64 <*> genGroupRef <*> genCont
     ]
 
