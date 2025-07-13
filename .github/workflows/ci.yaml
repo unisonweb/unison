@@ -177,6 +177,13 @@ jobs:
           path: ${{ env.ucm }}
           if-no-files-found: error
 
+      - name: save built binaries
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          path: ${{ env.ucm_local_bin }}
+          name: local-bin-${{ matrix.os }}
+          if-no-files-found: error
+
       - name: save stack caches
         if: |
           !cancelled()
@@ -233,12 +240,15 @@ jobs:
           path: ${{env.transcript_test_results}}
           key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md', '**/unison-src/**/*.u') }}
       - name: restore binaries
-        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integration-tests/IntegrationTests/*')}}
-          fail-on-cache-miss: true
+          name: local-bin-${{matrix.os}}
+          if-no-files-found: error
+      - name: set built binaries permissions
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: chmod +x ${{env.ucm_local_bin}}/*
       # One of the transcripts fails if the user's git name hasn't been set.
       ## (Which transcript? -AI)
       - name: set git user info
@@ -327,12 +337,15 @@ jobs:
           key: runtime-tests-codebase-${{env.runtime_tests_causalhash}}
           restore-keys: runtime-tests-codebase-
       - name: restore binaries
-        uses: actions/cache/restore@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
-        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}
-          fail-on-cache-miss: true
+          name: local-bin-${{ matrix.os }}
+          if-no-files-found: error
+      - name: set binaries permissions
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: chmod +x ${{env.ucm_local_bin}}/*
       - name: interpreter tests
         # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
