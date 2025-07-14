@@ -80,7 +80,7 @@ structural type SomethingUnusuallyLong
   = SomethingUnusuallyLong Text Text Text
 
 structural type UUID
-  = UUID Nat (Nat, Nat)
+  = UUUID Nat (Nat, Nat)
 
 structural ability Zoink where
   nay : Text -> (Nat, Nat) ->{Zoink} Nat
@@ -816,11 +816,11 @@ use_clauses_example2 oo =
   bar.quaffle + bar.quaffle + bar.quaffle + 1
 
 UUID.random : 'UUID
-UUID.random = do UUID 0 (0, 0)
+UUID.random = do UUUID 0 (0, 0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
-  (UUID a (b, _)) = random()
+  (UUUID a (b, _)) = random()
   encodeNat64be a Bytes.++ encodeNat64be b
 
 (|>) : a -> (a ->{e} b) ->{e} b
