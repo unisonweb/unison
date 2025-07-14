@@ -527,15 +527,12 @@ loop e = do
         SaveExecuteResultI resultName -> handleAddRun input resultName
         Update2I -> handleUpdate2
         TodoI -> handleTodo
-        TestI native testInput -> Tests.handleTest native testInput
-        ExecuteI main args -> handleRun False main args
+        TestI testInput -> Tests.handleTest testInput
+        ExecuteI main args -> handleRun main args
         MakeStandaloneI output main ->
-          doCompile False False output main
-        CompileSchemeI prof output main ->
-          doCompile prof True (Text.unpack output) main
-        ExecuteSchemeI main args -> handleRun True main args
-        IOTestI native main -> Tests.handleIOTest native main
-        IOTestAllI native -> Tests.handleAllIOTests native
+          doCompile False output main
+        IOTestI main -> Tests.handleIOTest main
+        IOTestAllI -> Tests.handleAllIOTests
         -- UpdateBuiltinsI -> do
         --   stepAt updateBuiltins
         --   checkTodo
@@ -844,21 +841,14 @@ inputDescription input =
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
     ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
-    IOTestI native hq -> pure (cmd <> HQ.toText hq)
-      where
-        cmd | native = "io.test.native " | otherwise = "io.test "
-    IOTestAllI native ->
-      pure (if native then "io.test.native.all" else "io.test.all")
+    IOTestI hq -> pure ("io.test " <> HQ.toText hq)
+    IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"
     MergeBuiltinsI Nothing -> pure "builtins.merge"
     MergeBuiltinsI (Just path) -> fmap ("builtins.merge " <>) . p' $ Path.RelativePath' path
     MergeIOBuiltinsI Nothing -> pure "builtins.mergeio"
     MergeIOBuiltinsI (Just path) -> fmap ("builtins.mergeio " <>) . p' $ Path.RelativePath' path
     MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
-    ExecuteSchemeI nm args ->
-      pure $ "run.native " <> Text.unwords (HQ.toText nm : fmap Text.pack args)
-    CompileSchemeI pr fi nm ->
-      pure ("compile.native " <> HQ.toText nm <> " " <> fi <> if pr then " profile" else "")
     CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
     ClearI {} -> pure "clear"
     DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
@@ -1193,21 +1183,16 @@ searchBranchScored names0 score queries =
             pair qn =
               (\score -> (Just score, result)) <$> score qn (Name.toText name)
 
-doCompile :: Bool -> Bool -> String -> HQ.HashQualified Name -> Cli ()
-doCompile profile native output main = do
-  Cli.Env {codebase, runtime, nativeRuntime} <- ask
-  let theRuntime
-        | native = nativeRuntime
-        | otherwise = runtime
+doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
+doCompile profile output main = do
+  Cli.Env {codebase, runtime} <- ask
   (ref, ppe) <- resolveMainRef main
   let codeLookup = () <$ Codebase.codebaseToCodeLookup codebase
-      outf
-        | native = output
-        | otherwise = output <> ".uc"
+      outf = output <> ".uc"
       copts = Runtime.defaultCompileOpts {Runtime.profile = profile}
   whenJustM
     ( liftIO $
-        Runtime.compileTo theRuntime copts codeLookup ppe ref outf
+        Runtime.compileTo runtime copts codeLookup ppe ref outf
     )
     (Cli.returnEarly . EvaluationFailure)
 

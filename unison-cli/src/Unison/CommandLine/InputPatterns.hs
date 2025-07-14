@@ -14,7 +14,6 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
-    compileScheme,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -66,9 +65,7 @@ module Unison.CommandLine.InputPatterns
     helpTopics,
     history,
     ioTest,
-    ioTestNative,
     ioTestAll,
-    ioTestAllNative,
     libInstallInputPattern,
     load,
     makeStandalone,
@@ -100,15 +97,12 @@ module Unison.CommandLine.InputPatterns
     renameTerm,
     renameType,
     reset,
-    runScheme,
     saveExecuteResult,
     sfind,
     sfindReplace,
     textfind,
     test,
-    testNative,
     testAll,
-    testAllNative,
     todo,
     ui,
     undo,
@@ -2795,38 +2789,6 @@ test =
         fmap
           ( \path ->
               Input.TestI
-                False
-                Input.TestInput
-                  { includeLibNamespace = False,
-                    path = Path.Relative path,
-                    showFailures = True,
-                    showSuccesses = True
-                  }
-          )
-          . \case
-            [] -> pure mempty
-            pathString : _ -> handlePathArg pathString
-    }
-
-testNative :: InputPattern
-testNative =
-  InputPattern
-    { patternName = "test.native",
-      aliases = [],
-      visibility = I.Hidden,
-      params = Parameters [] $ Optional [("namespace", namespaceArg)] Nothing,
-      help =
-        P.wrapColumn2
-          [ ( "`test.native`",
-              "runs unit tests for the current branch on the native runtime"
-            ),
-            ("`test foo`", "runs unit tests for the current branch defined in namespace `foo` on the native runtime")
-          ],
-      parse =
-        fmap
-          ( \path ->
-              Input.TestI
-                True
                 Input.TestInput
                   { includeLibNamespace = False,
                     path = Path.Relative path,
@@ -2850,26 +2812,6 @@ testAll =
     . const
     . pure
     $ Input.TestI
-      False
-      Input.TestInput
-        { includeLibNamespace = True,
-          path = mempty,
-          showFailures = True,
-          showSuccesses = True
-        }
-
-testAllNative :: InputPattern
-testAllNative =
-  InputPattern
-    "test.native.all"
-    ["test.all.native"]
-    I.Hidden
-    noParams
-    "`test.native.all` runs unit tests for the current branch (including the `lib` namespace) on the native runtime."
-    . const
-    . pure
-    $ Input.TestI
-      True
       Input.TestInput
         { includeLibNamespace = True,
           path = mempty,
@@ -2968,27 +2910,7 @@ ioTest =
             )
           ],
       parse = \case
-        [thing] -> Input.IOTestI False <$> handleHashQualifiedNameArg thing
-        args -> wrongArgsLength "exactly one argument" args
-    }
-
-ioTestNative :: InputPattern
-ioTestNative =
-  InputPattern
-    { patternName = "io.test.native",
-      aliases = ["test.io.native", "test.native.io"],
-      visibility = I.Hidden,
-      params = Parameters [("test to run", exactDefinitionTermQueryArg)] $ Optional [] Nothing,
-      help =
-        P.wrapColumn2
-          [ ( "`io.test.native mytest`",
-              "Runs `!mytest` on the native runtime, where `mytest` "
-                <> "is a delayed test that can use the `IO` and "
-                <> "`Exception` abilities."
-            )
-          ],
-      parse = \case
-        [thing] -> Input.IOTestI True <$> handleHashQualifiedNameArg thing
+        [thing] -> Input.IOTestI <$> handleHashQualifiedNameArg thing
         args -> wrongArgsLength "exactly one argument" args
     }
 
@@ -3005,23 +2927,7 @@ ioTestAll =
               "runs unit tests for the current branch that use IO"
             )
           ],
-      parse = const . pure $ Input.IOTestAllI False
-    }
-
-ioTestAllNative :: InputPattern
-ioTestAllNative =
-  InputPattern
-    { patternName = "io.test.native.all",
-      aliases = ["test.io.native.all", "test.native.io.all"],
-      visibility = I.Hidden,
-      params = noParams,
-      help =
-        P.wrapColumn2
-          [ ( "`io.test.native.all`",
-              "runs unit tests for the current branch that use IO"
-            )
-          ],
-      parse = const . pure $ Input.IOTestAllI True
+      parse = const . pure $ Input.IOTestAllI
     }
 
 makeStandalone :: InputPattern
@@ -3047,65 +2953,6 @@ makeStandalone =
           <$> unsupportedStructuredArgument makeStandalone "a file name" file
           <*> handleHashQualifiedNameArg main
       args -> wrongArgsLength "exactly two arguments" args
-
-runScheme :: InputPattern
-runScheme =
-  InputPattern
-    "run.native"
-    []
-    I.Visible
-    ( Parameters [("definition to run", exactDefinitionTermQueryArg)] . Optional [] $
-        Just ("arguments", noCompletionsArg)
-    )
-    ( P.wrapColumn2
-        [ ( makeExample runScheme ["main", "args"],
-            "Executes !main using native compilation via scheme."
-          )
-        ]
-    )
-    \case
-      main : args ->
-        Input.ExecuteSchemeI
-          <$> handleHashQualifiedNameArg main
-          <*> traverse (unsupportedStructuredArgument runScheme "a command-line argument") args
-      [] -> wrongArgsLength "at least one argument" []
-
-compileScheme :: InputPattern
-compileScheme =
-  InputPattern
-    "compile.native"
-    []
-    I.Hidden
-    ( Parameters [("definition to compile", exactDefinitionTermQueryArg), ("output file", filePathArg)] $
-        Optional [("profile", profileArg)] Nothing
-    )
-    ( P.wrapColumn2
-        [ ( makeExample compileScheme ["main", "file", "profile"],
-            "Creates stand alone executable via compilation to"
-              <> "scheme. The created executable will have the effect"
-              <> "of running `!main`. Providing `profile` as a third"
-              <> "argument will enable profiling."
-          )
-        ]
-    )
-    \case
-      [main, file] -> mkCompileScheme False file main
-      [main, file, prof] -> do
-        unsupportedStructuredArgument compileScheme "profile" prof
-          >>= \case
-            "profile" -> mkCompileScheme True file main
-            parg ->
-              Left . P.text $
-                "I expected the third argument to be `profile`, but"
-                  <> " instead recieved `"
-                  <> Text.pack parg
-                  <> "`."
-      args -> wrongArgsLength "two or three arguments" args
-  where
-    mkCompileScheme pf fn mn =
-      Input.CompileSchemeI pf . Text.pack
-        <$> unsupportedStructuredArgument compileScheme "a file name" fn
-        <*> handleHashQualifiedNameArg mn
 
 createAuthor :: InputPattern
 createAuthor =
@@ -3511,7 +3358,6 @@ validInputs =
       cd,
       clear,
       clone,
-      compileScheme,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,
@@ -3572,9 +3418,7 @@ validInputs =
       helpTopics,
       history,
       ioTest,
-      ioTestNative,
       ioTestAll,
-      ioTestAllNative,
       libInstallInputPattern,
       load,
       makeStandalone,
@@ -3608,12 +3452,9 @@ validInputs =
       renameType,
       moveAll,
       reset,
-      runScheme,
       saveExecuteResult,
       test,
-      testNative,
       testAll,
-      testAllNative,
       todo,
       ui,
       undo,
@@ -3785,16 +3626,6 @@ remoteNamespaceArg =
       suggestions = \input _cb http _p -> sharePathCompletion http input,
       fzfResolver = Nothing,
       isStructured = True
-    }
-
-profileArg :: ParameterType
-profileArg =
-  ParameterType
-    { typeName = "profile",
-      suggestions = \_input _cb _http _p ->
-        pure [Line.simpleCompletion "profile"],
-      fzfResolver = Nothing,
-      isStructured = False
     }
 
 data ProjectInclusion = OnlyWithinCurrentProject | OnlyOutsideCurrentProject | AllProjects

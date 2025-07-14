@@ -14,7 +14,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Native, Permissive), evalUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Permissive), evalUnisonFile)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
@@ -46,8 +46,8 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Recursion
 import Unison.Var qualified as Var
 
-handleRun :: Bool -> HQ.HashQualified Name -> [String] -> Cli ()
-handleRun native main args = do
+handleRun :: HQ.HashQualified Name -> [String] -> Cli ()
+handleRun main args = do
   (unisonFile, mainResType) <- do
     (sym, term, typ, otyp) <- getTerm main
     uf <- createWatcherFile sym term typ
@@ -56,7 +56,7 @@ handleRun native main args = do
   let namesWithFileDefinitions = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
   let pped = PPED.makePPED (PPE.hqNamer 10 namesWithFileDefinitions) (PPE.suffixifyByHash namesWithFileDefinitions)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
-  let mode | native = Native | otherwise = Permissive
+  let mode = Permissive
   (_, xs) <-
     evalUnisonFile mode suffixifiedPPE unisonFile args & onLeftM \err ->
       Cli.returnEarly (Output.EvaluationFailure err)
