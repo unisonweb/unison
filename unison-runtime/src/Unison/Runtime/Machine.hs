@@ -87,6 +87,7 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
@@ -1415,25 +1416,16 @@ type Reflect = StateT ReflectionState IO
 emptyRS :: ReflectionState
 emptyRS = RS HM.empty HM.empty C.empty [] []
 
-type RTrav a =
-  forall f.
-  (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  (a -> f a)
+mediate ::
+  StateT (C.Canonicalizer Reference, [Reference], [Reference]) IO a ->
+  Reflect a
+mediate act = StateT \(RS sty stm canon tys tms) -> do
+   (v, (canon, tys, tms)) <- runStateT act (canon, tys, tms)
+   pure $ (v, RS sty stm canon tys tms)
+{-# INLINE mediate #-}
 
 canonicalizeReference :: Bool -> Reference -> Reflect Reference
-canonicalizeReference isTy r = StateT \st@(RS _ _ canon tys tms) ->
-  C.categorize canon r >>= \case
-    C.Canonical -> pure (r, st)
-    C.Equivalent s canon -> (s,) <$> evaluate (st {_canon = canon})
-    C.Novel canon ->
-      (r,)
-        <$> evaluate
-          st
-            { _canon = canon,
-              _tys = if isTy then r : tys else tys,
-              _tms = if isTy then tms else r : tms
-            }
+canonicalizeReference isTy = mediate . canonicalizeRefs (\f -> f isTy)
 
 canonicalizeReferent :: Referent -> Reflect Referent
 canonicalizeReferent (Ref r) = Ref <$> canonicalizeReference False r
@@ -1441,59 +1433,7 @@ canonicalizeReferent (Con (ConstructorReference r i) j) =
   flip Con j . flip ConstructorReference i <$> canonicalizeReference True r
 
 canonicalizeReferenced :: RTrav a -> ANF.Referenced a -> Reflect a
-canonicalizeReferenced trav = \case
-  -- no stored refs, have to traverse
-  ANF.Plain v -> trav h v
-  ANF.WithRefs tys tms v -> do
-    typs <- mapMaybe id <$> traverse (g True) tys
-    tmps <- mapMaybe id <$> traverse (g False) tms
-
-    ctys <- lift $ C.fromList typs
-    ctms <- lift $ C.fromList tmps
-
-    let f False r = C.findWithDefault r r ctms
-        f True r = C.findWithDefault r r ctys
-
-    if null typs && null tmps
-      then -- all references are already canonical
-        pure v
-      else lift $ trav f v
-  where
-    -- traversal function for plain values
-    g isTy r = StateT \st@(RS _ _ canon tys tms) ->
-      C.categorize canon r >>= \case
-        C.Canonical -> pure (Nothing, st)
-        C.Novel canon ->
-          (Nothing,)
-            <$> evaluate
-              st
-                { _canon = canon,
-                  _tys = if isTy then r : tys else tys,
-                  _tms = if isTy then tms else r : tms
-                }
-        C.Equivalent s canon ->
-          (Just (r, s),) <$> evaluate (st {_canon = canon})
-
-    -- traversal function for remapping WithRefs values
-    h isTy r = StateT \st@(RS _ _ canon tys tms) ->
-      C.categorize canon r >>= \case
-        C.Canonical -> pure (r, st)
-        C.Novel canon ->
-          (r,)
-            <$> evaluate
-              if isTy
-                then
-                  st
-                    { _canon = canon,
-                      _tys = r : tys
-                    }
-                else
-                  st
-                    { _canon = canon,
-                      _tms = r : tms
-                    }
-        C.Equivalent r canon ->
-          (r,) <$> evaluate (st {_canon = canon})
+canonicalizeReferenced trav x = mediate $ recanonicalizeRefs trav x
 {-# INLINE canonicalizeReferenced #-}
 
 reflectValue :: CCache -> Val -> IO (ANF.Referenced ANF.Value)
