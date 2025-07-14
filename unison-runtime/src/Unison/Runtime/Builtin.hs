@@ -1119,10 +1119,12 @@ declareForeigns = do
   declareForeign Untracked 1 Code_validateLinks
   declareForeign Untracked 1 Code_dependencies
   declareForeign Untracked 1 Code_serialize
+  declareForeign Untracked 2 Code_serialize_versioned
   declareForeign Untracked 1 Code_deserialize
   declareForeign Untracked 2 Code_display
   declareForeign Untracked 1 Value_dependencies
   declareForeign Untracked 1 Value_serialize
+  declareForeign Untracked 2 Value_serialize_versioned
   declareForeign Untracked 1 Value_deserialize
   -- Hashing functions
   declareForeignWrap Untracked direct Crypto_HashAlgorithm_Sha3_512

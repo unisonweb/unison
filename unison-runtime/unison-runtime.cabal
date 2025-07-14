@@ -44,9 +44,13 @@ library
       Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.ANF.Serialize.CodeV4
+      Unison.Runtime.ANF.Serialize.ValueV5
+      Unison.Runtime.ANF.Serialize.Tags
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types
+      Unison.Runtime.Canonicalizer
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile

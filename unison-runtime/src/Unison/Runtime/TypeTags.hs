@@ -6,6 +6,7 @@ module Unison.Runtime.TypeTags
     packTags,
     unpackTags,
     maskTags,
+    typeTag,
     anyTag,
     floatTag,
     natTag,
@@ -190,9 +191,13 @@ newtype PackedTag = PackedTag Word64
 
 class Tag t where rawTag :: t -> Word64
 
-instance Tag RTag where rawTag (RTag w) = w
+instance Tag RTag where
+  rawTag (RTag w) = w
+  {-# INLINE rawTag #-}
 
-instance Tag CTag where rawTag (CTag w) = fromIntegral w
+instance Tag CTag where
+  rawTag (CTag w) = fromIntegral w
+  {-# INLINE rawTag #-}
 
 packTags :: RTag -> CTag -> PackedTag
 packTags (RTag rt) (CTag ct) = PackedTag (ri .|. ci)
@@ -201,11 +206,18 @@ packTags (RTag rt) (CTag ct) = PackedTag (ri .|. ci)
     ci = fromIntegral ct
 
 unpackTags :: PackedTag -> (RTag, CTag)
-unpackTags (PackedTag w) = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
+unpackTags (PackedTag w) =
+  (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
+{-# INLINE unpackTags #-}
 
 -- Masks a packed tag to extract just the constructor tag portion
 maskTags :: PackedTag -> Word64
 maskTags (PackedTag w) = (w .&. 0xFFFF)
+
+-- Extract the type tag portion of some packed tags
+typeTag :: PackedTag -> Word64
+typeTag (PackedTag w) = w `shiftR` 16
+{-# INLINE typeTag #-}
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
