@@ -45,8 +45,8 @@ library
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.ANF.Serialize.CodeV4
-      Unison.Runtime.ANF.Serialize.ValueV5
       Unison.Runtime.ANF.Serialize.Tags
+      Unison.Runtime.ANF.Serialize.ValueV5
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types

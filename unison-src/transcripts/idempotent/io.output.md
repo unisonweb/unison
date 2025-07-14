@@ -11,17 +11,18 @@ scratch/main> load unison-src/transcripts-using-base/base.u
 The transcript failed due to an error in the stanza above. The error is:
 
 ``` 
+I couldn't figure out what Value.serialize.versioned refers to here:
 
-  ❓
-  
-  I couldn't resolve any of these symbols:
-  
-    384 | Value.transitiveDeps : builtins.Value ->{IO} [(Link.Term, Code)]
-      .
-    420 | loadValueBytes : Bytes ->{Exception,IO} ([(Link.Term, Code)], builtins.Value)
-  
-  
-  Symbol           Suggestions
-                   
-  builtins.Value   No matches
+  395 |     Some v -> Value.serialize.versioned v
+
+I think its type should be:
+
+    Nat -> Value -> Bytes
+
+Some common causes of this error include:
+  * Your current namespace is too deep to contain the definition
+    in its subtree
+  * The definition is part of a library which hasn't been added
+    to this project
+  * You have a typo in the name
 ```
