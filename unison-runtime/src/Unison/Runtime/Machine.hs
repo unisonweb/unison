@@ -1420,8 +1420,8 @@ mediate ::
   StateT (C.Canonicalizer Reference, [Reference], [Reference]) IO a ->
   Reflect a
 mediate act = StateT \(RS sty stm canon tys tms) -> do
-   (v, (canon, tys, tms)) <- runStateT act (canon, tys, tms)
-   pure $ (v, RS sty stm canon tys tms)
+  (v, (canon, tys, tms)) <- runStateT act (canon, tys, tms)
+  pure $ (v, RS sty stm canon tys tms)
 {-# INLINE mediate #-}
 
 canonicalizeReference :: Bool -> Reference -> Reflect Reference

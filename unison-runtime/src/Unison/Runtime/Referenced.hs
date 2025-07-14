@@ -1,12 +1,12 @@
-
 module Unison.Runtime.Referenced
-  ( Referenced (..)
-  , dereference
-  , RTrav
-  , Canonize
-  , canonicalizeRefs
-  , recanonicalizeRefs
-  ) where
+  ( Referenced (..),
+    dereference,
+    RTrav,
+    Canonize,
+    canonicalizeRefs,
+    recanonicalizeRefs,
+  )
+where
 
 import Control.Monad.State.Strict
 import Data.Maybe (mapMaybe)
@@ -56,8 +56,8 @@ canonicalizeRefs trav = trav h
       categorize canon r >>= \case
         Canonical -> pure (r, st)
         Novel canon
-          | isTy -> pure (r, (canon, r:tys, tms))
-          | otherwise -> pure (r, (canon, tys, r:tms))
+          | isTy -> pure (r, (canon, r : tys, tms))
+          | otherwise -> pure (r, (canon, tys, r : tms))
         Equivalent s canon -> pure (s, (canon, tys, tms))
 {-# INLINE canonicalizeRefs #-}
 
@@ -83,7 +83,7 @@ recanonicalizeRefs trav = \case
     ctms <- lift $ fromList tmps
 
     let f False r = findWithDefault r r ctms
-        f True  r = findWithDefault r r ctys
+        f True r = findWithDefault r r ctys
 
     if null typs && null tmps
       then pure v -- already canonical
@@ -93,10 +93,12 @@ recanonicalizeRefs trav = \case
       categorize canon r >>= \case
         Canonical -> pure (Nothing, st)
         Novel canon ->
-          pure ( Nothing,
-                 ( canon,
-                   if isTy then r : tys else tys,
-                   if isTy then tms else r : tms
-                 ))
-        Equivalent s canon -> pure (Just (r,s), (canon, tys, tms))
+          pure
+            ( Nothing,
+              ( canon,
+                if isTy then r : tys else tys,
+                if isTy then tms else r : tms
+              )
+            )
+        Equivalent s canon -> pure (Just (r, s), (canon, tys, tms))
 {-# INLINE recanonicalizeRefs #-}

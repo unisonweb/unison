@@ -975,9 +975,10 @@ serializeCode fops (dereference -> co) =
 serializeCodeWithVersion ::
   Word64 -> Bool -> Referenced Code -> IO (Either String L.ByteString)
 serializeCodeWithVersion v fops rco
-  | v == 4 = enreference rco >>= \(tys, tms, co) ->
-      pure . Right . runPutL $
-        putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
+  | v == 4 =
+      enreference rco >>= \(tys, tms, co) ->
+        pure . Right . runPutL $
+          putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
   | v == 3 =
       pure . Right . runPutL $
         putWord32be 3 *> putCode fops (dereference rco)
@@ -988,7 +989,8 @@ serializeCodeWithVersion v fops rco
     enreference (Plain co) =
       runStateT
         (canonicalizeRefs traverseCodeRefs co)
-        (C.empty, [], []) >>= \(co, (_, tys, tms)) -> pure (tys, tms, co)
+        (C.empty, [], [])
+        >>= \(co, (_, tys, tms)) -> pure (tys, tms, co)
 
 -- | Serializes a `SuperGroup` for rehashing.
 --
@@ -1057,10 +1059,11 @@ serializeValueWithVersion v rval
             (canonicalizeRefs traverseValueRefs x)
             (C.empty, [], [])
         v5ser tys tms x
-  | v < 5, n <- fromIntegral v =
+  | v < 5,
+    n <- fromIntegral v =
       pure . runPutL $
-        putWord32be n *>
-        putValue (Transfer n) (dereference rval)
+        putWord32be n
+          *> putValue (Transfer n) (dereference rval)
   | otherwise =
       die $ "Value.serialize.versioned: unrecognized version: " ++ show v
   where
