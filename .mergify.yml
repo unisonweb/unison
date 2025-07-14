@@ -11,13 +11,6 @@ pull_request_rules:
       - check-success=run interpreter tests (ubuntu-20.04)
       - check-success=run interpreter tests (macos-13)
       # - check-success=run interpreter tests (windows-2025)
-      - check-success=generate jit source
-      - check-success=build jit binary / build jit binary (ubuntu-20.04)
-      - check-success=build jit binary / build jit binary (macos-13)
-      - check-success=build jit binary / build jit binary (windows-2025)
-      - check-success=test jit / test jit (ubuntu-20.04)
-      - check-success=test jit / test jit (macos-13)
-      # - check-success=test jit / test jit (windows-2025)
       - label=ready-to-merge
       - "#approved-reviews-by>=1"
     actions:

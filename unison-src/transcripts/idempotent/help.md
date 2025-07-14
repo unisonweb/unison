@@ -777,10 +777,6 @@ scratch/main> help
                         provided at the command line when
                         running mymain as an executable.
 
-  run.native
-  `run.native main args`  Executes !main using native
-                          compilation via scheme.
-
   switch
   `switch`          opens an interactive selector to pick a
                     project and branch

@@ -140,14 +140,13 @@ main ::
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
+main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
   let config = FSNotify.defaultConfig
@@ -265,7 +264,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
                    in putPrettyNonempty p $> args,
                 runtime,
                 sandboxedRuntime = sbRuntime,
-                nativeRuntime = nRuntime,
                 serverBaseUrl,
                 ucmVersion,
                 isTranscriptTest = False

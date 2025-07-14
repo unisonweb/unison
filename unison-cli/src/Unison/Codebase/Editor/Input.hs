@@ -165,17 +165,13 @@ data Input
     ExecuteI (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
-  | -- execute an IO [Result], bool selects runtime
-    IOTestI Bool (HQ.HashQualified Name)
-  | -- execute all in-scope IO tests, interpreter or native
-    IOTestAllI Bool
+  | -- execute an IO [Result]
+    IOTestI (HQ.HashQualified Name)
+  | -- execute all in-scope IO tests
+    IOTestAllI
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
-  | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name) [String]
-  | -- compile to a scheme file; profiling flag
-    CompileSchemeI Bool Text (HQ.HashQualified Name)
-  | TestI Bool TestInput
+  | TestI TestInput
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
