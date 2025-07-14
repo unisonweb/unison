@@ -964,9 +964,8 @@ deserializeCode bs = runGetS go bs
 -- Boolean argument determines whether ForeignFunc occurrences are
 -- allowed to be serialized. For interchange, this should be False.
 serializeCode :: Bool -> Referenced Code -> ByteString
-serializeCode fops (WithRefs tys tms co) =
-  runPutS (putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co)
-serializeCode fops (Plain co) = runPutS (putVersion *> putCode fops co)
+serializeCode fops (dereference -> co) =
+  runPutS (putVersion *> putCode fops co)
   where
     putVersion = putWord32be codeVersion
 
