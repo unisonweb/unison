@@ -94,16 +94,15 @@ withRunner ::
   Bool ->
   Verbosity ->
   UCMVersion ->
-  FilePath ->
   (Runner -> m r) ->
   m r
-withRunner isTest verbosity ucmVersion nrtp action = do
+withRunner isTest verbosity ucmVersion action = do
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
   -- so that errors are consistent.
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
   when isTest $ do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
-  withRuntimes nrtp \runtime sbRuntime nRuntime ->
+  withRuntimes \runtime sbRuntime ->
     action \transcriptName transcriptSrc (codebaseDir, codebase) ->
       Server.startServer
         isTest
@@ -116,15 +115,14 @@ withRunner isTest verbosity ucmVersion nrtp action = do
           Just baseUrl ->
             either
               (pure . Left . ParseError)
-              (run isTest verbosity codebaseDir codebase runtime sbRuntime nRuntime ucmVersion $ tShow @Server.BaseUrl baseUrl)
+              (run isTest verbosity codebaseDir codebase runtime sbRuntime ucmVersion $ tShow @Server.BaseUrl baseUrl)
               $ Transcript.stanzas transcriptName transcriptSrc
   where
-    withRuntimes ::
-      FilePath -> (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
-    withRuntimes nrtp action =
+    withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
+    withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
-          action runtime sbRuntime =<< liftIO (RTI.startNativeRuntime ucmVersion nrtp)
+          action runtime sbRuntime
 
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = \case
@@ -140,12 +138,11 @@ run ::
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
   UCMVersion ->
   Text ->
   [Stanza] ->
   IO (Either Error (Seq Stanza))
-run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL stanzas = UnliftIO.try do
+run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas = UnliftIO.try do
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <-
     Codebase.runTransaction codebase . liftA2 (,) Codebase.expectCurrentProjectPath $ snd <$> Codebase.emptyCausalHash
@@ -504,7 +501,6 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
             notifyNumbered = printNumbered,
             runtime,
             sandboxedRuntime = sbRuntime,
-            nativeRuntime = nRuntime,
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = isTest

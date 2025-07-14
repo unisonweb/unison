@@ -11,7 +11,6 @@ unisonLocal.zip
 !unison-cli-integration/integration-tests/IntegrationTests/**/*.u
 
 # Auto-generated
-jit-tests.md
 interpreter-tests.md
 
 # Stack
