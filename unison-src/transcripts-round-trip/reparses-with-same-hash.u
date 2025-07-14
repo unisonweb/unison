@@ -217,14 +217,14 @@ ex3a =
 -- Make sure use clauses don't show up before a soft hang
 -- Regression test for https://github.com/unisonweb/unison/issues/3883
 
-structural type UUID = UUID Nat (Nat, Nat)
+structural type UUID = UUUID Nat (Nat, Nat)
 
 UUID.random : 'UUID
-UUID.random = do UUID.UUID 0 (0,0)
+UUID.random = do UUID.UUUID 0 (0,0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
-  (UUID.UUID a (b,_)) = !UUID.random
+  (UUID.UUUID a (b,_)) = !UUID.random
   (encodeNat64be a) ++ (encodeNat64be b)
 
 -- Raw string round trip
