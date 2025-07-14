@@ -7,6 +7,7 @@ module Unison.Runtime.ANF.Serialize where
 
 import Control.Monad
 import Control.Monad.Reader
+import Control.Monad.State.Strict (StateT (..))
 import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
 import Data.Binary.Get qualified as BGet
@@ -37,8 +38,10 @@ import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
+import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
+import Unison.Runtime.Referenced
 import Unison.Runtime.Serialize
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
@@ -970,20 +973,22 @@ serializeCode fops (dereference -> co) =
     putVersion = putWord32be codeVersion
 
 serializeCodeWithVersion ::
-  Word64 -> Bool -> Referenced Code -> Either String L.ByteString
-serializeCodeWithVersion v fops = \case
-  WithRefs tys tms co
-    | v == 4 ->
-        Right . runPutL $
-          putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
-  rco
-    | v == 3 ->
-        Right . runPutL $
-          putWord32be 3 *> putCode fops (dereference rco)
-    | v == 4 ->
-        Left "could not serialize plain code at v4"
-    | otherwise ->
-        Left $ "unsupported code serialization version: " ++ show v
+  Word64 -> Bool -> Referenced Code -> IO (Either String L.ByteString)
+serializeCodeWithVersion v fops rco
+  | v == 4 = enreference rco >>= \(tys, tms, co) ->
+      pure . Right . runPutL $
+        putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
+  | v == 3 =
+      pure . Right . runPutL $
+        putWord32be 3 *> putCode fops (dereference rco)
+  | otherwise =
+      pure . Left $ "unsupported code serialization version: " ++ show v
+  where
+    enreference (WithRefs tys tms co) = pure (tys, tms, co)
+    enreference (Plain co) =
+      runStateT
+        (canonicalizeRefs traverseCodeRefs co)
+        (C.empty, [], []) >>= \(co, (_, tys, tms)) -> pure (tys, tms, co)
 
 -- | Serializes a `SuperGroup` for rehashing.
 --
@@ -1041,14 +1046,27 @@ serializeValue (dereference -> v) =
   where
     putVersion = putWord32be valueVersion
 
-serializeValueWithVersion :: Word64 -> Referenced Value -> L.ByteString
-serializeValueWithVersion v = \case
-  WithRefs tys tms x
-    | v == 5 ->
-        runPutL $ putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
-  rval
-    | n <- fromIntegral v ->
-        runPutL $ putWord32be n *> putValue (Transfer n) (dereference rval)
+serializeValueWithVersion ::
+  Word64 -> Referenced Value -> IO L.ByteString
+serializeValueWithVersion v rval
+  | v == 5 = case rval of
+      WithRefs tys tms x -> v5ser tys tms x
+      Plain x -> do
+        (x, (_, tys, tms)) <-
+          runStateT
+            (canonicalizeRefs traverseValueRefs x)
+            (C.empty, [], [])
+        v5ser tys tms x
+  | v < 5, n <- fromIntegral v =
+      pure . runPutL $
+        putWord32be n *>
+        putValue (Transfer n) (dereference rval)
+  | otherwise =
+      die $ "Value.serialize.versioned: unrecognized version: " ++ show v
+  where
+    v5ser tys tms x =
+      pure . runPutL $
+        putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
 
 -- This serializer is used exclusively for hashing unison values.
 -- For this reason, it doesn't prefix the string with the current
