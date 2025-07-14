@@ -1594,7 +1594,7 @@ libInstallInputPattern =
     { patternName = "lib.install",
       aliases = ["install.lib"],
       visibility = I.Visible,
-      params = Parameters [("library name", noCompletionsArg)] $ Optional [] Nothing,
+      params = Parameters [("library name", remoteProjectBranchOrReleaseArg)] $ Optional [] Nothing,
       help =
         P.lines
           [ P.wrap $
@@ -1674,7 +1674,7 @@ pullImpl name aliases pullMode addendum = do
           params =
             Parameters [] $
               Optional
-                [ ("remote namespace to pull", remoteNamespaceArg),
+                [ ("remote namespace to pull", remoteProjectBranchOrReleaseArg),
                   ( "destination branch",
                     projectBranchNameArg
                       ProjectBranchSuggestionsConfig
@@ -1842,7 +1842,7 @@ push =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1898,7 +1898,7 @@ pushCreate =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1951,7 +1951,7 @@ pushForce =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     (P.wrap "Like `push`, but forcibly overwrites the remote namespace.")
@@ -1984,7 +1984,7 @@ pushExhaustive =
     I.Hidden
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -3213,7 +3213,7 @@ clone =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("source branch", projectAndBranchNamesArg suggestionsConfig)] $
+        Parameters [("source branch", remoteProjectBranchOrReleaseArg)] $
           Optional [("target branch", newBranchNameArg)] Nothing,
       help =
         P.wrapColumn2
@@ -3245,13 +3245,6 @@ clone =
             <*> fmap pure (handleProjectAndBranchNamesArg localNames)
         args -> wrongArgsLength "one or two arguments" args
     }
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = True,
-          projectInclusion = AllProjects,
-          branchInclusion = ExcludeCurrentBranch
-        }
 
 releaseDraft :: InputPattern
 releaseDraft =
@@ -3618,12 +3611,20 @@ directoryPathArg =
       isStructured = False
     }
 
--- | Refers to a namespace on some remote code host.
-remoteNamespaceArg :: ParameterType
-remoteNamespaceArg =
+_remoteProjectArg :: ParameterType
+_remoteProjectArg =
   ParameterType
-    { typeName = "remote-namespace",
-      suggestions = \input _cb http _p -> sharePathCompletion http input,
+    { typeName = "remote-project",
+      suggestions = \input _cb http _p -> completeShareProject http input,
+      fzfResolver = Nothing,
+      isStructured = True
+    }
+
+remoteProjectBranchOrReleaseArg :: ParameterType
+remoteProjectBranchOrReleaseArg =
+  ParameterType
+    { typeName = "remote-project-branch",
+      suggestions = \input _cb http _p -> completeShareBranchOrRelease http input,
       fzfResolver = Nothing,
       isStructured = True
     }
