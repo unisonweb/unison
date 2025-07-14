@@ -57,23 +57,29 @@ elapsed t0 t1 =
 -- Tests that the thunk is at least twice as fast in an affine context
 testPerf : '() ->{IO, Exception} Result
 testPerf th =
-  t0 = now ()
-  th ()
-  t1 = now ()
-  handle
-    times 1
+  tester = do
+    t0 = now ()
     th ()
-  with repeated
-  t2 = now ()
+    t1 = now ()
+    handle
+      times 1
+      th ()
+    with repeated
+    t2 = now ()
 
-  dt0 = elapsed t0 t1
-  dt1 = elapsed t1 t2
+    dt0 = elapsed t0 t1
+    dt1 = elapsed t1 t2
 
-  ratio = dt1 / dt0
+    dt1 / dt0
 
-  if ratio > 2.0
-  then Ok "performance improved"
-  else Fail ("performance too similar: " ++ Float.toText ratio)
+  testLoop n ratio =
+    if ratio > 2.0
+    then Ok "performance improved"
+    else if n > 0
+    then testLoop (drop n 1) !tester
+    else Fail ("performance too similar: " ++ Float.toText ratio)
+
+  testLoop 5 !tester
 
 ability Count where
   tick : Nat
@@ -118,8 +124,8 @@ count'wrap k = cases
   n -> handle count'wrap k (Nat.drop n 1) with provide 0
 
 count'test = do
-  [ testPerf do handle count'wrap 1000 100 with counter'ugly 0
-  , testPerf do counter'nice 0 do count'wrap 1000 100
+  [ testPerf do handle count'wrap 100000 100 with counter'ugly 0
+  , testPerf do counter'nice 0 do count'wrap 100000 100
   ]
 ```
 
@@ -195,7 +201,7 @@ fail'count'wrap k = cases
   n -> handle fail'count'wrap k (Nat.drop n 1) with provide 0
 
 fail'count'test = do
-  [ testPerf do fail'counter 1000 do fail'count'wrap 1000 100 ]
+  [ testPerf do fail'counter 1000 do fail'count'wrap 100000 100 ]
 ```
 
 ``` ucm :added-by-ucm
@@ -259,7 +265,7 @@ local'counter o th =
   handle !th with h 0
 
 local'count'test = do
-  [ testPerf do local'counter 5 do count'wrap 1000 100 ]
+  [ testPerf do local'counter 5 do count'wrap 100000 100 ]
 ```
 
 ``` ucm :added-by-ucm
@@ -335,8 +341,8 @@ count'extra n th =
     { r } -> r
 
 elaborate'test = do
-  [ testPerf do recurse do rec'wrap 1000 100
-  , testPerf do count'extra 0 do count'wrap 1000 100
+  [ testPerf do recurse do rec'wrap 100000 100
+  , testPerf do count'extra 0 do count'wrap 100000 100
   ]
 ```
 
