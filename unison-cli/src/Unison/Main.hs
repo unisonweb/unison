@@ -40,19 +40,16 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
 import System.Directory
   ( canonicalizePath,
-    exeExtension,
     getCurrentDirectory,
     removeDirectoryRecursive,
   )
-import System.Environment (getExecutablePath, getProgName, withArgs)
+import System.Environment (getProgName, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
 import System.FilePath
   ( replaceExtension,
-    takeDirectory,
     takeExtension,
-    (<.>),
     (</>),
   )
 import System.IO (stderr)
@@ -98,14 +95,7 @@ import Unison.Version qualified as Version
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Directory (getHomeDirectory)
 
-type Runtimes =
-  (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
-
-fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
-fixNativeRuntimePath override = do
-  ucm <- getExecutablePath
-  let ucr = takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension
-  pure $ maybe ucr id override
+type Runtimes = (RTI.Runtime Symbol, RTI.Runtime Symbol)
 
 main :: Version -> IO ()
 main version = do
@@ -149,7 +139,6 @@ main version = do
       progName <- getProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
-      nrtp <- fixNativeRuntimePath (nativeRuntimePath globalOptions)
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
       currentDir <- getCurrentDirectory
       case command of
@@ -181,7 +170,7 @@ main version = do
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
                   getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                    withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
+                    withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
@@ -191,7 +180,6 @@ main version = do
                         currentDir
                         rt
                         sbrt
-                        nrt
                         theCodebase
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                         serverUrl
@@ -205,7 +193,7 @@ main version = do
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
               getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
+                withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
@@ -215,7 +203,6 @@ main version = do
                     currentDir
                     rt
                     sbrt
-                    nrt
                     theCodebase
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
                     serverUrl
@@ -288,13 +275,13 @@ main version = do
                           \that matches your version of Unison."
                       ]
         Transcript shouldFork shouldSaveCodebase mrtsStatsFp transcriptFiles -> do
-          let action = runTranscripts version Verbosity.Verbose renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption nrtp transcriptFiles
+          let action = runTranscripts version Verbosity.Verbose renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption transcriptFiles
           case mrtsStatsFp of
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
           getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-            withRuntimes nrtp RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
+            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
               startingProjectPath <- do
                 -- If the user didn't provide a starting path on the command line, put them in the most recent
                 -- path they cd'd to
@@ -354,7 +341,6 @@ main version = do
                           currentDir
                           runtime
                           sbRuntime
-                          nRuntime
                           theCodebase
                           []
                           mayBaseUrl
@@ -365,13 +351,11 @@ main version = do
                   Exit -> do Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
-    withRuntimes :: FilePath -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
-    withRuntimes nrtp mode action =
+    withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
+    withRuntimes mode action =
       RTI.withRuntime False mode (Version.gitDescribeWithDate version) \runtime -> do
         RTI.withRuntime True mode (Version.gitDescribeWithDate version) \sbRuntime ->
-          action . (runtime,sbRuntime,)
-            -- startNativeRuntime saves the path to `unison-runtime`
-            =<< RTI.startNativeRuntime (Version.gitDescribeWithDate version) nrtp
+          action (runtime, sbRuntime)
 
 isExitSuccess :: SomeException -> Bool
 isExitSuccess =
@@ -416,10 +400,9 @@ runTranscripts' ::
   Version ->
   String ->
   FilePath ->
-  FilePath ->
   NonEmpty MarkdownFile ->
   IO Bool
-runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
+runTranscripts' version progName transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and
@@ -432,7 +415,6 @@ runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
           isTest
           Verbosity.Verbose
           (Version.gitDescribeWithDate version)
-          nativeRtp
           \runTranscript -> do
             for markdownFiles $ \(MarkdownFile fileName) -> do
               transcriptSrc <- readUtf8 fileName
@@ -482,10 +464,9 @@ runTranscripts ::
   ShouldForkCodebase ->
   ShouldSaveCodebase ->
   Maybe CodebasePathOption ->
-  FilePath ->
   NonEmpty String ->
   IO ()
-runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption nativeRtp args = do
+runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption args = do
   markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
     Failure invalidArgs -> do
       PT.putPrettyLn $
@@ -503,7 +484,7 @@ runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodeba
   progName <- getProgName
   transcriptDir <- prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveTempCodebase
   completed <-
-    runTranscripts' version progName nativeRtp transcriptDir markdownFiles
+    runTranscripts' version progName transcriptDir markdownFiles
   case shouldSaveTempCodebase of
     DontSaveCodebase -> removeDirectoryRecursive transcriptDir
     SaveCodebase _ ->
@@ -529,7 +510,6 @@ launch ::
   FilePath ->
   Rt.Runtime Symbol ->
   Rt.Runtime Symbol ->
-  Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   Maybe Server.BaseUrl ->
@@ -538,7 +518,7 @@ launch ::
   (PP.ProjectPathIds -> IO ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir runtime sbRuntime nRuntime codebase inputs serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
+launch version dir runtime sbRuntime codebase inputs serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -552,7 +532,6 @@ launch version dir runtime sbRuntime nRuntime codebase inputs serverBaseUrl star
         inputs
         runtime
         sbRuntime
-        nRuntime
         codebase
         serverBaseUrl
         ucmVersion

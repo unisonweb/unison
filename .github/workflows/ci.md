@@ -60,29 +60,3 @@ A bit is cached in `unison_src_test_results` after non-Haskell tests in the `uni
 #### `base-codebase`
 This stores the result of `base.md`, which can be reused later to save the cost of a `pull`.
 No steps are skipped on a cache hit; however, a second `pull` will mostly be a no-op.
-
-#### `jit_src_scheme`
-JIT sources are cached in `jit_src_scheme` if the `generate-jit-source` job completes.
-- The **cache key** includes the version of Racket, and the release version of `@unison/internal`.
-- If the cache contains `{data-info, boot-generated, simple-wrappers, builtin-generated, compound-wrappers}.ss`, then these steps are skipped, otherwise they are run:
-    - "create transcript" to produce pull `@unison/internal` and run `generateSchemeBoot`.
-    - download `ucm artifact` saved in the previous step
-    - set `ucm` permissions
-    - checkout `unison` repo, which includes some static scheme and racket files.
-    - run the previously generated transcript
-- If all steps succeed, the `jit_src_scheme` cache is saved.
-
-#### `jit_dist`
-JIT binaries are cached in `jit_dist` if the `build-jit-binary` job completes.
-- The **cache key** includes the version of Racket, and the release version of `@unison/internal`.
-- On an exact cache hit, these steps are skipped, otherwise they are run:
-    - Restore Racket dependencies
-    - setup Racket
-    - restore apt cache (Linux only)
-    - download jit source from previous job
-    - use `raco` to build jit binary
-    - download `ucm` artifact from previous job
-    - set `ucm` permissions
-    - restore `base` codebase saved in previous job
-    - jit integration test
-- If all of these steps succeed, the `jit_dist` cache is saved.

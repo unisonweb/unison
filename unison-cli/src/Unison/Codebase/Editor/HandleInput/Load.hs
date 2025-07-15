@@ -350,7 +350,6 @@ evalUnisonFile mode ppe unisonFile args = do
   let theRuntime = case mode of
         Sandboxed -> env.sandboxedRuntime
         Permissive -> env.runtime
-        Native -> env.nativeRuntime
 
   let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache ref = do
