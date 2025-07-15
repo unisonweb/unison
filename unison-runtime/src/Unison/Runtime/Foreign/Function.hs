@@ -2052,25 +2052,6 @@ avroDecodeBinary _env readSchema bytes = do
     Left (_, _, err) -> pure $ encodeVal @(Either String Val) (Left err)
     Right (_, _, value) -> pure $ encodeVal @(Either String Val) (Right (avroEncodeValue value))
 
--- go schema = case schema of
---   Enum _ t
---     | TT.avroReadSchemaNullTag == t -> pure (Right avroNull)
---     | TT.avroReadSchemaBooleanTag == t -> do
---         b <- Get.getWord8
---         pure (if b == 0 then Right avroFalse else Right avroTrue)
---     | TT.avroReadSchemaIntTag == t -> do
---         n <- Get.var
--- where
---   getNonNegative :: (Bits i, Integral i) => Get i
---   getNonNegative = do
---     orig <- getWord8s
---     return $! foldl' (\a x -> (a `shiftL` 7) + fromIntegral x) 0 (reverse orig)
---   getWord8s :: Get [Word8]
---   getWord8s = do
---     w <- getWord8
---     let msb = w `testBit` 7 in
---       (w .&. 0x7F :) <$> if msb then getWord8s else return []
-
 -- A ForeignConvention explains how to encode foreign values as
 -- unison types. Depending on the situation, this can take three
 -- forms.
