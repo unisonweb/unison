@@ -19,6 +19,7 @@ import Data.Ord (comparing)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.Nonempty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as TL
@@ -146,7 +147,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
-import Unison.Util.Alphabetical (sortAlphabeticallyOn)
+import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..), defnsAreEmpty)
@@ -965,7 +966,7 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  Typechecked2 oldPpe newPpe slurpEntries -> do
+  Typechecked2 oldPpe newPpe slurpEntries aliasesOfTermAdds -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -988,23 +989,26 @@ notifyUser dir = \case
         deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
         deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
 
-    let newTerms0 :: [(Name, Type Symbol Ann)]
+    let newTerms0 :: [(Name, Type Symbol Ann, Maybe (NESet Name))]
         updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
         deletedTerms0 :: [(Name, Type Symbol Ann)]
         numUnchangedTerms :: Int
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.SlurpEntry'Add ty -> over _1 ((name, ty) :) acc
-                SlurpResult.SlurpEntry'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
-                SlurpResult.SlurpEntry'Delete ty -> over _3 ((name, ty) :) acc
-                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, Map.lookup ref aliasesOfTermAdds) :) acc
+                SlurpResult.TermSlurp'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
+                SlurpResult.TermSlurp'Delete ty -> over _3 ((name, ty) :) acc
+                SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
             slurpEntries.terms
 
-    let newTerms :: [(Name, Type Symbol Ann)]
-        newTerms = sortAlphabeticallyOn (view _1) newTerms0
+    let newTerms :: [(Name, Type Symbol Ann, [Name])]
+        newTerms =
+          newTerms0
+            & sortAlphabeticallyOn (view _1)
+            & over (mapped . _3) (maybe [] (sortAlphabetically . NEList.toList . Set.Nonempty.toList))
         updatedTerms :: [(Name, Type Symbol Ann, Type Symbol Ann)]
         updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
         deletedTerms :: [(Name, Type Symbol Ann)]
@@ -1033,7 +1037,26 @@ notifyUser dir = \case
 
     let renderedNewTerms :: Pretty
         renderedNewTerms =
-          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green . ("+ " <>)) name ty) newTerms)
+          newTerms
+            & map (\(name, ty, _aliases) -> renderTerm newPpe (P.green . ("+ " <>)) name ty)
+            & P.align
+            & map P.group
+            & zipWith
+              ( \(_name, _ty, aliases) rendered ->
+                  case aliases of
+                    [] -> rendered
+                    _ ->
+                      rendered
+                        <> P.newline
+                        <> P.indentN
+                          4
+                          ( P.wrap $
+                              P.hiBlack "(also named"
+                                <> P.oxfordCommasWith (P.hiBlack ")") (map prettyName aliases)
+                          )
+              )
+              newTerms
+            & P.lines
 
     let renderedUpdatedTerms :: Pretty
         renderedUpdatedTerms =

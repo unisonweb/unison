@@ -20,6 +20,7 @@ module Unison.Codebase.Editor.SlurpResult
     prettyStatus,
 
     -- * Slurp entry
+    TermSlurp (..),
     SlurpEntry (..),
   )
 where
@@ -33,11 +34,13 @@ import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Reference (TermReference)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.TypePrinter qualified as TP
+import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
@@ -336,6 +339,12 @@ filterUnisonFile
       tlcs = filter (not . null) $ fmap (List.filter filterTLC) topLevelComponents'
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
       filterTLC (v, _, _, _) = Set.member v keepTerms
+
+data TermSlurp v a
+  = TermSlurp'Add !TermReference !(Type v a)
+  | TermSlurp'Delete !(Type v a)
+  | TermSlurp'Update !(Type v a) !(Type v a)
+  | TermSlurp'Unchanged
 
 data SlurpEntry a
   = SlurpEntry'Add a

@@ -6,12 +6,15 @@ module Unison.Codebase.Editor.HandleInput.Load
   )
 where
 
+import Control.Foldl qualified as Foldl
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import System.Environment (lookupEnv, withArgs)
 import System.IO.Unsafe (unsafePerformIO)
@@ -31,11 +34,11 @@ import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Slurp qualified as Slurp
-import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..))
+import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..), TermSlurp (..))
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DataDeclaration qualified as DeclOrBuiltin (DeclOrBuiltin (..))
@@ -52,10 +55,9 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Reference (TypeReference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
-import Unison.ReferentPrime qualified as Referent'
 import Unison.Result qualified as Result
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -119,64 +121,100 @@ loadUnisonFile sourceName text = do
           Cli.Env {codebase} <- ask
           updateBranchParent <- liftIO (Codebase.expectBranchForHash codebase updateBranchParentCausalHash)
           let updateBranchParent0 = Branch.head updateBranchParent
+          let updateBranchParentNames = Branch.toNames updateBranchParent0
           let updateBranchParentLocalNames = Branch.toNames (Branch.deleteLibdeps updateBranchParent0)
           let updateBranchLocalNames =
                 Names.shadowing
                   (UF.typecheckedToNames unisonFile)
                   (Branch.toNames (Branch.deleteLibdeps oldBranch0))
 
-          slurpTerms :: Map Name (SlurpEntry (Type Symbol Ann)) <-
-            let getNewType name ref =
-                  let var = Name.toVar name
-                      termInfo = Map.lookup var (UF.hashTermsId unisonFile)
-                      conInfo = Map.lookup var (UF.constructorsId unisonFile)
-                   in case (ref, termInfo, conInfo) of
-                        (Referent.Ref _, Just (_, _, _, _, ty), _) -> pure ty
-                        (Referent.Con _ _, _, Just (ConstructorReference _ conId, decl)) ->
-                          pure (DataDeclaration.expectTypeOfConstructor (DataDeclaration.asDataDecl decl) conId)
-                        _ -> Codebase.expectTypeOfReferent codebase ref
+          slurpTerms :: Map Name (TermSlurp Symbol Ann) <-
+            let getNewConType :: Name -> ConstructorReference -> Sqlite.Transaction (Type Symbol Ann)
+                getNewConType name ref =
+                  case Map.lookup (Name.toVar name) (UF.constructorsId unisonFile) of
+                    Just (ConstructorReference _ conId, decl) ->
+                      pure (DataDeclaration.expectTypeOfConstructor (DataDeclaration.asDataDecl decl) conId)
+                    Nothing -> Codebase.expectTypeOfConstructor codebase ref
+                getNewRefType :: Name -> TermReference -> Sqlite.Transaction (Type Symbol Ann)
+                getNewRefType name ref =
+                  case Map.lookup (Name.toVar name) (UF.hashTermsId unisonFile) of
+                    Just (_, _, _, _, ty) -> pure ty
+                    Nothing -> Codebase.expectTypeOfTerm codebase ref
              in Cli.runTransaction do
                   Map.mergeA
                     ( Map.traverseMaybeMissing \_ refs ->
-                        let ref = Set.findMin refs
-                         in if Referent'.isConstructor ref
-                              then pure Nothing
-                              else Just . SlurpEntry'Delete <$> Codebase.expectTypeOfReferent codebase ref
+                        case Set.findMin refs of
+                          Referent.Ref ref -> do
+                            ty <- Codebase.expectTypeOfTerm codebase ref
+                            pure (Just (TermSlurp'Delete ty))
+                          Referent.Con _ _ -> pure Nothing
                     )
                     ( Map.traverseMaybeMissing \name refs ->
-                        let ref = Set.findMin refs
-                         in if Referent'.isConstructor ref
-                              then pure Nothing
-                              else Just . SlurpEntry'Add <$> getNewType name ref
+                        case Set.findMin refs of
+                          Referent.Ref ref -> do
+                            ty <- getNewRefType name ref
+                            pure (Just (TermSlurp'Add ref ty))
+                          Referent.Con _ _ -> pure Nothing
                     )
                     ( Map.zipWithMaybeAMatched \name oldRefs newRefs ->
                         let oldRef = Set.findMin oldRefs
                             newRef = Set.findMin newRefs
                          in case (oldRef, newRef) of
-                              (Referent.Ref _, Referent.Ref _) ->
+                              (Referent.Ref _, Referent.Ref newRef1) ->
                                 if oldRef == newRef
                                   then
                                     pure
                                       if Map.member (Name.toVar name) (UF.hashTermsId unisonFile)
-                                        then Just SlurpEntry'Unchanged
+                                        then Just TermSlurp'Unchanged
                                         else Nothing
                                   else do
                                     oldType <- Codebase.expectTypeOfReferent codebase oldRef
-                                    newType <- getNewType name newRef
-                                    pure (Just (SlurpEntry'Update oldType newType))
-                              (Referent.Con _ _, Referent.Ref _) -> do
+                                    newType <- getNewRefType name newRef1
+                                    pure (Just (TermSlurp'Update oldType newType))
+                              (Referent.Con _ _, Referent.Ref newRef1) -> do
                                 oldType <- Codebase.expectTypeOfReferent codebase oldRef
-                                newType <- getNewType name newRef
-                                pure (Just (SlurpEntry'Update oldType newType))
-                              (Referent.Ref _, Referent.Con _ _) -> do
+                                newType <- getNewRefType name newRef1
+                                pure (Just (TermSlurp'Update oldType newType))
+                              (Referent.Ref _, Referent.Con newRef1 _) -> do
                                 oldType <- Codebase.expectTypeOfReferent codebase oldRef
-                                newType <- getNewType name newRef
-                                pure (Just (SlurpEntry'Update oldType newType))
+                                newType <- getNewConType name newRef1
+                                pure (Just (TermSlurp'Update oldType newType))
                               (Referent.Con _ _, Referent.Con _ _) ->
                                 pure Nothing
                     )
                     (Relation.domain updateBranchParentLocalNames.terms)
                     (Relation.domain updateBranchLocalNames.terms)
+
+          let termAddRefs :: Set TermReference
+              termDeleteAndUpdateNames :: Set Name
+              (termAddRefs, termDeleteAndUpdateNames) =
+                Foldl.fold
+                  ( (,)
+                      <$> ( let step acc = \case
+                                  (_, TermSlurp'Add ref _) -> Set.insert ref acc
+                                  (_, TermSlurp'Delete _) -> acc
+                                  (_, TermSlurp'Update _ _) -> acc
+                                  (_, TermSlurp'Unchanged) -> acc
+                             in Foldl.Fold step Set.empty id
+                          )
+                      <*> ( let step acc = \case
+                                  (_, TermSlurp'Add _ _) -> acc
+                                  (name, TermSlurp'Delete _) -> Set.insert name acc
+                                  (name, TermSlurp'Update _ _) -> Set.insert name acc
+                                  (_, TermSlurp'Unchanged) -> acc
+                             in Foldl.Fold step Set.empty id
+                          )
+                  )
+                  (Map.toList slurpTerms)
+
+          let aliasesOfTermAdds :: Map TermReference (NESet Name)
+              aliasesOfTermAdds =
+                let step acc ref =
+                      let existingNames = Relation.lookupRan (Referent.Ref ref) updateBranchParentNames.terms
+                       in case Set.NonEmpty.nonEmptySet (Set.difference existingNames termDeleteAndUpdateNames) of
+                            Nothing -> acc
+                            Just aliases -> Map.insert ref aliases acc
+                 in Set.foldl' step Map.empty termAddRefs
 
           slurpTypes :: Map Name (SlurpEntry (DeclOrBuiltin Symbol Ann)) <-
             let getOldDecl :: TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
@@ -219,13 +257,12 @@ loadUnisonFile sourceName text = do
                     types = slurpTypes
                   }
 
-          let updateBranchParentNames = Branch.toNames updateBranchParent0
           let oldPpe =
                 PPE.suffixifiedPPE $
                   PPED.makePPED
                     (PPE.hqNamer 10 updateBranchParentNames)
                     (PPE.suffixifyByHash updateBranchParentNames)
-          Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries)
+          Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries aliasesOfTermAdds)
     else do
       Cli.respond (Output.Typechecked sourceName newPpe sr unisonFile)
 

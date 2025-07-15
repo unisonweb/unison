@@ -14,6 +14,7 @@ module Unison.Codebase
     unsafeGetTermComponent,
     getTypeOfTerm,
     expectTypeOfTerm,
+    expectTypeOfConstructor,
     getDeclType,
     unsafeGetTypeOfTermById,
     isTerm,
@@ -145,6 +146,7 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as SqliteCodebase.Ope
 import Unison.Codebase.Type (Codebase (..))
 import Unison.CodebasePath (CodebasePath, getCodebaseDir)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.Core.Project (ProjectAndBranch)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
@@ -359,6 +361,17 @@ getTypeOfConstructor codebase (ConstructorReference r0 cid) =
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
     Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
 
+expectTypeOfConstructor ::
+  Ord v =>
+  Codebase m v a ->
+  ConstructorReference ->
+  Sqlite.Transaction (Type v a)
+expectTypeOfConstructor codebase ref =
+  getTypeOfConstructor codebase ref <&> fromMaybe err
+  where
+    err =
+      error (reportBug "E775974" ("constructor reference " ++ Text.unpack (ConstructorReference.toText ref) ++ " not found"))
+
 -- | Like 'getWatch', but first looks up the given reference as a regular watch, then as a test watch.
 --
 -- @
@@ -435,7 +448,7 @@ typeLookupForDependencies codebase s = do
 getTypeOfTerm ::
   (BuiltinAnnotation a) =>
   Codebase m Symbol a ->
-  Reference ->
+  TermReference ->
   Sqlite.Transaction (Maybe (Type Symbol a))
 getTypeOfTerm _c r | debug && trace ("Codebase.getTypeOfTerm " ++ show r) False = undefined
 getTypeOfTerm c r = case r of
@@ -448,7 +461,7 @@ getTypeOfTerm c r = case r of
 expectTypeOfTerm ::
   (BuiltinAnnotation a) =>
   Codebase m Symbol a ->
-  Reference ->
+  TermReference ->
   Sqlite.Transaction (Type Symbol a)
 expectTypeOfTerm codebase ref =
   getTypeOfTerm codebase ref <&> fromMaybe err

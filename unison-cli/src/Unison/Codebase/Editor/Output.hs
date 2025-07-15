@@ -288,9 +288,10 @@ data Output
       PPE.PrettyPrintEnv
       ( DefnsF
           (Map Name)
-          (SR.SlurpEntry (Type Symbol Ann))
+          (SR.TermSlurp Symbol Ann)
           (SR.SlurpEntry (DD.DeclOrBuiltin Symbol Ann))
       )
+      (Map TermReference (NESet Name))
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
