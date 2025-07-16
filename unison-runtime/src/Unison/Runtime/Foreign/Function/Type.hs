@@ -279,6 +279,7 @@ data ForeignFunc
   | Json_toText
   | Json_unconsText
   | Json_tryUnconsText
+  | Avro_decodeBinary
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -554,3 +555,4 @@ foreignFuncBuiltinName = \case
   Json_toText -> "Json.toText"
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
+  Avro_decodeBinary -> "avro.Value.tryDecodeBytes"

@@ -208,7 +208,7 @@ h y x = match y with
 f : Nat ->{Zap} Nat
 f x = h zap x
 
-fVal : Value
+fVal : builtin.Value
 fVal = Value.value f
 
 fDeps : [Link.Term]
