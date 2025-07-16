@@ -966,7 +966,7 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
-  Typechecked2 oldPpe newPpe slurpEntries aliasesOfTermAdds -> do
+  Typechecked2 oldPpe newPpe slurpEntries aliases -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -989,29 +989,31 @@ notifyUser dir = \case
         deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
         deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
 
-    let newTerms0 :: [(Name, Type Symbol Ann, Maybe (NESet Name))]
-        updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
-        deletedTerms0 :: [(Name, Type Symbol Ann)]
+    let fAliases :: Referent -> [Name]
+        fAliases ref =
+          maybe [] (sortAlphabetically . NEList.toList . Set.Nonempty.toList) (Map.lookup ref aliases)
+
+    let newTerms0 :: [(Name, Type Symbol Ann, [Name])]
+        updatedTerms0 :: [(Name, Type Symbol Ann, [Name], Type Symbol Ann, [Name])]
+        deletedTerms0 :: [(Name, Type Symbol Ann, [Name])]
         numUnchangedTerms :: Int
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, Map.lookup ref aliasesOfTermAdds) :) acc
-                SlurpResult.TermSlurp'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
-                SlurpResult.TermSlurp'Delete ty -> over _3 ((name, ty) :) acc
+                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, fAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Update oldRef oldTy newRef newTy ->
+                  over _2 ((name, oldTy, fAliases oldRef, newTy, fAliases newRef) :) acc
+                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, fAliases (Referent.Ref ref)) :) acc
                 SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
             slurpEntries.terms
 
     let newTerms :: [(Name, Type Symbol Ann, [Name])]
-        newTerms =
-          newTerms0
-            & sortAlphabeticallyOn (view _1)
-            & over (mapped . _3) (maybe [] (sortAlphabetically . NEList.toList . Set.Nonempty.toList))
-        updatedTerms :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        newTerms = sortAlphabeticallyOn (view _1) newTerms0
+        updatedTerms :: [(Name, Type Symbol Ann, [Name], Type Symbol Ann, [Name])]
         updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
-        deletedTerms :: [(Name, Type Symbol Ann)]
+        deletedTerms :: [(Name, Type Symbol Ann, [Name])]
         deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
 
     let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
@@ -1035,36 +1037,41 @@ notifyUser dir = \case
         renderedDeletedTypes =
           P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
 
+    let maybeMentionAliases doc = \case
+          [] -> doc
+          aliases ->
+            doc
+              <> P.newline
+              <> P.indentN
+                4
+                ( P.wrap $
+                    P.hiBlack "(also named"
+                      <> P.oxfordCommasWith (P.hiBlack ")") (map prettyName aliases)
+                )
+
     let renderedNewTerms :: Pretty
         renderedNewTerms =
           newTerms
             & map (\(name, ty, _aliases) -> renderTerm newPpe (P.green . ("+ " <>)) name ty)
             & P.align
             & map P.group
-            & zipWith
-              ( \(_name, _ty, aliases) rendered ->
-                  case aliases of
-                    [] -> rendered
-                    _ ->
-                      rendered
-                        <> P.newline
-                        <> P.indentN
-                          4
-                          ( P.wrap $
-                              P.hiBlack "(also named"
-                                <> P.oxfordCommasWith (P.hiBlack ")") (map prettyName aliases)
-                          )
-              )
-              newTerms
+            & zipWith (\(_name, _ty, aliases) doc -> maybeMentionAliases doc aliases) newTerms
             & P.lines
 
     let renderedUpdatedTerms :: Pretty
         renderedUpdatedTerms =
-          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy) updatedTerms)
+          updatedTerms
+            & map (\(name, _oldTy, _oldAliases, newTy, _newAliases) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy)
+            & P.column2
 
     let renderedDeletedTerms :: Pretty
         renderedDeletedTerms =
-          P.column2 (map (\(name, ty) -> renderTerm oldPpe (P.red . ("- " <>)) name ty) deletedTerms)
+          deletedTerms
+            & map (\(name, ty, _aliases) -> renderTerm oldPpe (P.red . ("- " <>)) name ty)
+            & P.align
+            & map P.group
+            & zipWith (\(_name, _ty, aliases) doc -> maybeMentionAliases doc aliases) newTerms
+            & P.lines
 
     pure $
       P.sepNonEmpty

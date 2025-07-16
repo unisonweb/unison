@@ -45,6 +45,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Unison.Referent (Referent)
 
 -- `oldRefNames` are the previously existing names for the old reference
 --   (these names will all be pointed to a new reference)
@@ -342,8 +343,8 @@ filterUnisonFile
 
 data TermSlurp v a
   = TermSlurp'Add !TermReference !(Type v a)
-  | TermSlurp'Delete !(Type v a)
-  | TermSlurp'Update !(Type v a) !(Type v a)
+  | TermSlurp'Delete !TermReference !(Type v a)
+  | TermSlurp'Update !Referent !(Type v a) !Referent !(Type v a)
   | TermSlurp'Unchanged
 
 data SlurpEntry a

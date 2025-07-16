@@ -222,7 +222,6 @@ library
     , errors
     , extra
     , filepath
-    , foldl
     , free
     , friendly-time
     , fsnotify

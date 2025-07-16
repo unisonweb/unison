@@ -6,7 +6,6 @@ module Unison.Codebase.Editor.HandleInput.Load
   )
 where
 
-import Control.Foldl qualified as Foldl
 import Control.Lens ((.=))
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict qualified as State
@@ -74,6 +73,7 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Timing qualified as Timing
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
+import Unison.Referent (Referent)
 
 useUpdateV2 :: Bool
 useUpdateV2 =
@@ -146,7 +146,7 @@ loadUnisonFile sourceName text = do
                         case Set.findMin refs of
                           Referent.Ref ref -> do
                             ty <- Codebase.expectTypeOfTerm codebase ref
-                            pure (Just (TermSlurp'Delete ty))
+                            pure (Just (TermSlurp'Delete ref ty))
                           Referent.Con _ _ -> pure Nothing
                     )
                     ( Map.traverseMaybeMissing \name refs ->
@@ -160,61 +160,60 @@ loadUnisonFile sourceName text = do
                         let oldRef = Set.findMin oldRefs
                             newRef = Set.findMin newRefs
                          in case (oldRef, newRef) of
-                              (Referent.Ref _, Referent.Ref newRef1) ->
-                                if oldRef == newRef
+                              (Referent.Ref oldRef1, Referent.Ref newRef1) ->
+                                if oldRef1 == newRef1
                                   then
                                     pure
                                       if Map.member (Name.toVar name) (UF.hashTermsId unisonFile)
                                         then Just TermSlurp'Unchanged
                                         else Nothing
                                   else do
-                                    oldType <- Codebase.expectTypeOfReferent codebase oldRef
+                                    oldType <- Codebase.expectTypeOfTerm codebase oldRef1
                                     newType <- getNewRefType name newRef1
-                                    pure (Just (TermSlurp'Update oldType newType))
-                              (Referent.Con _ _, Referent.Ref newRef1) -> do
-                                oldType <- Codebase.expectTypeOfReferent codebase oldRef
+                                    pure (Just (TermSlurp'Update oldRef oldType newRef newType))
+                              (Referent.Con oldRef1 _, Referent.Ref newRef1) -> do
+                                oldType <- Codebase.expectTypeOfConstructor codebase oldRef1
                                 newType <- getNewRefType name newRef1
-                                pure (Just (TermSlurp'Update oldType newType))
-                              (Referent.Ref _, Referent.Con newRef1 _) -> do
-                                oldType <- Codebase.expectTypeOfReferent codebase oldRef
+                                pure (Just (TermSlurp'Update oldRef oldType newRef newType))
+                              (Referent.Ref oldRef1, Referent.Con newRef1 _) -> do
+                                oldType <- Codebase.expectTypeOfTerm codebase oldRef1
                                 newType <- getNewConType name newRef1
-                                pure (Just (TermSlurp'Update oldType newType))
+                                pure (Just (TermSlurp'Update oldRef oldType newRef newType))
                               (Referent.Con _ _, Referent.Con _ _) ->
                                 pure Nothing
                     )
                     (Relation.domain updateBranchParentLocalNames.terms)
                     (Relation.domain updateBranchLocalNames.terms)
 
-          let termAddRefs :: Set TermReference
-              termDeleteAndUpdateNames :: Set Name
-              (termAddRefs, termDeleteAndUpdateNames) =
-                Foldl.fold
-                  ( (,)
-                      <$> ( let step acc = \case
-                                  (_, TermSlurp'Add ref _) -> Set.insert ref acc
-                                  (_, TermSlurp'Delete _) -> acc
-                                  (_, TermSlurp'Update _ _) -> acc
-                                  (_, TermSlurp'Unchanged) -> acc
-                             in Foldl.Fold step Set.empty id
-                          )
-                      <*> ( let step acc = \case
-                                  (_, TermSlurp'Add _ _) -> acc
-                                  (name, TermSlurp'Delete _) -> Set.insert name acc
-                                  (name, TermSlurp'Update _ _) -> Set.insert name acc
-                                  (_, TermSlurp'Unchanged) -> acc
-                             in Foldl.Fold step Set.empty id
-                          )
-                  )
-                  (Map.toList slurpTerms)
+          let aliases :: Map Referent (NESet Name)
+              aliases =
+                -- For the purpose of identifying aliases to call out, we omit names that are changing by this update.
+                let (termChangedNames, termChangedRefs) =
+                      Map.foldlWithKey'
+                        ( \ ~acc@(names, refs) name -> \case
+                            TermSlurp'Add ref _ ->
+                              let !names1 = Set.insert name names
+                                  !refs1 = Set.insert (Referent.Ref ref) refs
+                              in (names1, refs1)
+                            TermSlurp'Delete ref _ ->
+                              let !names1 = Set.insert name names
+                                  !refs1 = Set.insert (Referent.Ref ref) refs
+                              in (names1, refs1)
+                            TermSlurp'Update old _ new _ ->
+                              let !names1 = Set.insert name names
+                                  !refs1 = Set.insert new (Set.insert old refs)
+                              in (names1, refs1)
+                            TermSlurp'Unchanged -> acc
+                        )
+                        (Set.empty, Set.empty)
+                        slurpTerms
 
-          let aliasesOfTermAdds :: Map TermReference (NESet Name)
-              aliasesOfTermAdds =
-                let step acc ref =
-                      let existingNames = Relation.lookupRan (Referent.Ref ref) updateBranchParentNames.terms
-                       in case Set.NonEmpty.nonEmptySet (Set.difference existingNames termDeleteAndUpdateNames) of
+                    step acc ref =
+                      let existingNames = Relation.lookupRan ref updateBranchParentNames.terms
+                       in case Set.NonEmpty.nonEmptySet (Set.difference existingNames termChangedNames) of
                             Nothing -> acc
                             Just aliases -> Map.insert ref aliases acc
-                 in Set.foldl' step Map.empty termAddRefs
+                 in Set.foldl' step Map.empty termChangedRefs
 
           slurpTypes :: Map Name (SlurpEntry (DeclOrBuiltin Symbol Ann)) <-
             let getOldDecl :: TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
@@ -262,7 +261,7 @@ loadUnisonFile sourceName text = do
                   PPED.makePPED
                     (PPE.hqNamer 10 updateBranchParentNames)
                     (PPE.suffixifyByHash updateBranchParentNames)
-          Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries aliasesOfTermAdds)
+          Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries aliases)
     else do
       Cli.respond (Output.Typechecked sourceName newPpe sr unisonFile)
 
