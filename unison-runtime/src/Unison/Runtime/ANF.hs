@@ -125,6 +125,7 @@ import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShort
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
+import Unison.Runtime.Referenced
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
@@ -1608,28 +1609,6 @@ type ANFD v = Compose (ANFM v) (Directed ())
 
 data GroupRef = GR Reference Word64
   deriving (Show, Eq)
-
--- A value with optional optimization information for serialization.
--- The references are required for serialization V5, and are assumed
--- to be the only references used in the value _up to in-memory
--- uniqueness_.
---
--- This is parameterized so that it can be used with both Value and
--- Code.
---
--- Also note, the stored referenced might not be 'tight' in the sense
--- that they all actually occur in the value. Maintaining this
--- invariant together with actual canonicalization would be onerous
--- and isn't done at this time.
-data Referenced a
-  = -- types, terms
-    WithRefs [Reference] [Reference] a
-  | Plain a
-  deriving (Show, Eq)
-
-dereference :: Referenced a -> a
-dereference (WithRefs _ _ x) = x
-dereference (Plain x) = x
 
 -- | A list of either unboxed or boxed values.
 -- Each slot is one of unboxed or boxed but not both.
