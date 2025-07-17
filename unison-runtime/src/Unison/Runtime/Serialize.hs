@@ -350,12 +350,14 @@ putText text = do
   let bs = encodeUtf8 text
   putLength $ B.length bs
   putByteString bs
+{-# INLINE putText #-}
 
 getText :: (MonadGet m) => m Text
 getText = do
   len <- getLength
   bs <- B.copy <$> Ser.getBytes len
   pure $ decodeUtf8 bs
+{-# INLINE getText #-}
 
 putReference :: (MonadPut m) => Reference -> m ()
 putReference r = case r of
