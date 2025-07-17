@@ -47,9 +47,12 @@ scratch/main> update
 
   That's done. Now I'm making sure everything typechecks...
 
-  Typechecking failed. I've updated your scratch file with the
-  definitions that need fixing. Once the file is compiling, try
-  `update` again.
+  Some definitions don't typecheck with your changes. I've
+  update the file scratch.u with the definitions that need
+  fixing. Once the file is compiling, try `update` again.
+
+  I've also switched you to a new branch update-main for this
+  work. On `update`, it will be merged back into main.
 ```
 
 ``` unison :added-by-ucm scratch.u

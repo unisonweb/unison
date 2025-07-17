@@ -75,7 +75,7 @@ import Unison.WatchKind qualified as WK
 
 useUpdateV2 :: Bool
 useUpdateV2 =
-  isJust (unsafePerformIO (lookupEnv "UNISON_USE_UPDATE_V2"))
+  not . isJust . unsafePerformIO $ lookupEnv "UNISON_USE_UPDATE_V1"
 {-# NOINLINE useUpdateV2 #-}
 
 handleLoad :: Maybe FilePath -> Cli ()
