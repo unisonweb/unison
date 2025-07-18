@@ -209,16 +209,18 @@ scratch/main> names max /invalid1 /invalid2 + Boolean foo baz
   ##Nat.+     Term   lib.builtins.Nat.+
 
   'Boolean':
-  Hash            Kind   Names
-  #idl63c82kf#0   Term   a.baz.Boolean
-  #56fi1cmq3u     Term   aa.baz,
-                         another.Boolean,
-                         bb.baz,
-                         cc.baz,
-                         dd.baz
-  ##Boolean       Type   lib.builtins.Boolean
-  #j0uel16uhe#1   Term   lib.builtins.Json.Boolean
-  #cmihlkoddu#0   Term   z.baz.Boolean
+  Hash               Kind   Names
+  #idl63c82kf#0      Term   a.baz.Boolean
+  #56fi1cmq3u        Term   aa.baz,
+                            another.Boolean,
+                            bb.baz,
+                            cc.baz,
+                            dd.baz
+  #e2fe3rltiv.2#1    Term   lib.builtins.avro.schema.deconflicted.ReadSchema.Boolean
+  #m58o4h906i.1#10   Term   lib.builtins.avro.schema.Schema.Boolean
+  ##Boolean          Type   lib.builtins.Boolean
+  #j0uel16uhe#1      Term   lib.builtins.Json.Boolean
+  #cmihlkoddu#0      Term   z.baz.Boolean
 
   'foo':
   😶

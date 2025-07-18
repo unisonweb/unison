@@ -66,6 +66,7 @@ library
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Referenced
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
@@ -108,6 +109,7 @@ library
       asn1-encoding
     , asn1-types
     , atomic-primops
+    , avro
     , base
     , binary
     , bytes
