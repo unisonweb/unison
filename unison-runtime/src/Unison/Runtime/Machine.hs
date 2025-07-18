@@ -1642,12 +1642,10 @@ reifyValue0Canon combs tys tms rty rtm = goV
         _ -> die . err $ "unknown term reference: " ++ show r
 
     goIx :: ANF.GroupRef -> IO (CombIx, MComb)
-    goIx (ANF.GR r0 i) =
+    goIx (ANF.GR r i) =
       refTm r <&> \n ->
         let cix = (CIx r n i)
          in (cix, rCombSection combs cix)
-      where
-        r = M.findWithDefault r0 r0 functionReplacements
 
     goV :: ANF.Value -> IO Val
     goV (ANF.Partial gr vs) =
