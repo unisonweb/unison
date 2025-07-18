@@ -1037,17 +1037,13 @@ notifyUser dir = \case
         renderedDeletedTypes =
           P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
 
-    let maybeMentionAliases doc = \case
-          [] -> doc
+    let mentionAliases old = \case
+          [] -> mempty
           aliases ->
-            doc
-              <> P.newline
-              <> P.indentN
-                4
-                ( P.wrap $
-                    P.hiBlack "(also named"
-                      <> P.oxfordCommasWith (P.hiBlack ")") (map prettyName aliases)
-                )
+            P.indentN 4 $
+              P.wrap $
+                P.hiBlack (if old then "(was also named" else "(also named")
+                  <> P.oxfordCommasWith (P.hiBlack ")") (map prettyName aliases)
 
     let renderedNewTerms :: Pretty
         renderedNewTerms =
@@ -1055,14 +1051,32 @@ notifyUser dir = \case
             & map (\(name, ty, _aliases) -> renderTerm newPpe (P.green . ("+ " <>)) name ty)
             & P.align
             & map P.group
-            & zipWith (\(_name, _ty, aliases) doc -> maybeMentionAliases doc aliases) newTerms
+            & zipWith
+              ( \(_name, _ty, aliases) doc ->
+                  P.linesNonEmpty
+                    [ doc,
+                      mentionAliases False aliases
+                    ]
+              )
+              newTerms
             & P.lines
 
     let renderedUpdatedTerms :: Pretty
         renderedUpdatedTerms =
           updatedTerms
             & map (\(name, _oldTy, _oldAliases, newTy, _newAliases) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy)
-            & P.column2
+            & P.align
+            & map P.group
+            & zipWith
+              ( \(_name, _oldTy, oldAliases, _newTy, newAliases) doc ->
+                  P.linesNonEmpty
+                    [ doc,
+                      mentionAliases True oldAliases,
+                      mentionAliases False newAliases
+                    ]
+              )
+              updatedTerms
+            & P.lines
 
     let renderedDeletedTerms :: Pretty
         renderedDeletedTerms =
@@ -1070,7 +1084,14 @@ notifyUser dir = \case
             & map (\(name, ty, _aliases) -> renderTerm oldPpe (P.red . ("- " <>)) name ty)
             & P.align
             & map P.group
-            & zipWith (\(_name, _ty, aliases) doc -> maybeMentionAliases doc aliases) newTerms
+            & zipWith
+              ( \(_name, _ty, aliases) doc ->
+                  P.linesNonEmpty
+                    [ doc,
+                      mentionAliases True aliases
+                    ]
+              )
+              deletedTerms
             & P.lines
 
     pure $
