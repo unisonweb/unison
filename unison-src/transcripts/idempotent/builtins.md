@@ -355,6 +355,12 @@ test> Bytes.tests.indexOf =
 
    ]
 
+test> Bytes.tests.byteArray = 
+  bs = 0xs0102030405
+  checks [
+    ImmutableByteArray.toBytes (ImmutableByteArray.fromBytes bs) 0 5 == bs
+  ]
+
 ```
 
 ``` ucm :hide
