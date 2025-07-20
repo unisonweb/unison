@@ -14,6 +14,8 @@ module Unison.Util.Bytes
     toBase32,
     fromBase64,
     toBase64,
+    fromByteArray,
+    toByteArray,
     fromBase64UrlUnpadded,
     toBase64UrlUnpadded,
     chunkFromByteString,
@@ -69,6 +71,7 @@ import Data.Char
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
     copyByteArrayToPtr,
+    newByteArray,
   )
 import Data.Primitive.Ptr (copyPtrToMutableByteArray)
 import Data.Text qualified as Text
@@ -123,6 +126,12 @@ toArray b = chunkToArray $ V.concat (chunks b)
 
 fromArray :: (BA.ByteArrayAccess b) => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
+
+fromByteArray :: Int -> Int -> ByteArray -> Bytes
+fromByteArray o l ba = snoc empty (V.Vector o l ba)
+
+toByteArray :: (MSV.PrimMonad m) => Bytes -> m ByteArray
+toByteArray b = chunkToByteArray (V.concat (chunks b))
 
 byteStringToChunk, chunkFromByteString :: B.ByteString -> Chunk
 byteStringToChunk = fromStorable . BSV.byteStringToVector
@@ -361,6 +370,15 @@ chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
           else pure ()
    in go 0
 arrayFromChunk = chunkToArray
+
+chunkToByteArray :: (MSV.PrimMonad m) => Chunk -> m ByteArray
+chunkToByteArray bs = do
+  let sz = V.length bs
+  ba <- newByteArray sz
+  let mv = MV.MVector 0 sz ba
+  V.unsafeCopy mv bs
+  (V.Vector _ _ ba) <- V.freeze mv
+  pure ba
 
 arrayToChunk, chunkFromArray :: (BA.ByteArrayAccess b) => b -> Chunk
 arrayToChunk bs = case BA.convert bs :: Block Word8 of
