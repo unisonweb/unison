@@ -181,24 +181,18 @@ unique type Record5 =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Record5
 
-    ⍟ New definitions:
-    
-      Record5.a        : Record5 -> Text
-      Record5.a.modify : (Text ->{g} Text)
-                         -> Record5
-                         ->{g} Record5
-      Record5.a.set    : Text -> Record5 -> Record5
-      Record5.b        : Record5 -> Int
-      Record5.b.modify : (Int ->{g} Int)
-                         -> Record5
-                         ->{g} Record5
-      Record5.b.set    : Int -> Record5 -> Record5
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Record5
+  + Record5.a        : Record5 -> Text
+  + Record5.a.modify : (Text ->{g} Text)
+                       -> Record5
+                       ->{g} Record5
+  + Record5.a.set    : Text -> Record5 -> Record5
+  + Record5.b        : Record5 -> Int
+  + Record5.b.modify : (Int ->{g} Int) -> Record5 ->{g} Record5
+  + Record5.b.set    : Int -> Record5 -> Record5
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```

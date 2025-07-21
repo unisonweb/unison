@@ -117,14 +117,13 @@ a = 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + a                  : Nat
+  + deeply.nested.num  : Nat
+  + deeply.nested.term : Nat
 
-    ⍟ New definitions:
-    
-      a                  : Nat
-      deeply.nested.num  : Nat
-      deeply.nested.term : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -158,12 +157,11 @@ other.num = 20
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + other.num : Nat
 
-    ⍟ New definitions:
-    
-      other.num : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

@@ -6,13 +6,12 @@ foo.bar = 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo     : ##Nat
+  + foo.bar : ##Nat
 
-    ⍟ New definitions:
-    
-      foo     : ##Nat
-      foo.bar : ##Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -32,15 +31,14 @@ donk.bonk = 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bonk      : ##Nat
+      (also named foo)
+  + donk.bonk : ##Nat
+      (also named foo.bar)
 
-    ⍟ New definitions:
-    
-      bonk      : ##Nat
-        (also named foo)
-      donk.bonk : ##Nat
-        (also named foo.bar)
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

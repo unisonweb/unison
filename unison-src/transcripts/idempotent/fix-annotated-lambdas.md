@@ -16,13 +16,12 @@ bar k = k (x -> x)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar : (∀ r. (a -> r) ->{g} r) ->{g} a
+  + foo : a -> a
 
-    ⍟ New definitions:
-    
-      bar : (∀ r. (a -> r) ->{g} r) ->{g} a
-      foo : a -> a
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

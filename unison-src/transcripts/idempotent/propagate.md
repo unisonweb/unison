@@ -16,13 +16,13 @@ fooToInt _ = +42
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      fooToInt : Foo -> Int
+  + fooToInt : Foo -> Int
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 And then we add it.
@@ -62,13 +62,11 @@ unique type Foo = Foo | Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 and update the codebase to use the new type `Foo`...
@@ -111,13 +109,12 @@ preserve.otherTerm y = someTerm y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + preserve.otherTerm : Optional baz -> Optional baz
+  + preserve.someTerm  : Optional foo -> Optional foo
 
-    ⍟ New definitions:
-    
-      preserve.otherTerm : Optional baz -> Optional baz
-      preserve.someTerm  : Optional foo -> Optional foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Add that to the codebase:
@@ -141,13 +138,11 @@ preserve.someTerm _ = None
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ preserve.someTerm : Optional x -> Optional x
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      preserve.someTerm : Optional x -> Optional x
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Update...

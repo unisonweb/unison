@@ -27,13 +27,12 @@ bar = foo + foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar : Nat
+  + foo : Nat
 
-    ⍟ New definitions:
-    
-      bar : Nat
-      foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -72,13 +71,12 @@ baz = foo.bar + foo.bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + baz     : Nat
+  + foo.bar : Nat
 
-    ⍟ New definitions:
-    
-      baz     : Nat
-      foo.bar : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -128,13 +126,12 @@ bar = 17
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar : Nat
+  + foo : Nat
 
-    ⍟ New definitions:
-    
-      bar : Nat
-      foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -181,12 +178,11 @@ lib.foo = 16
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.foo : Nat
 
-    ⍟ New definitions:
-    
-      lib.foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -223,12 +219,11 @@ type Foo = One
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -272,12 +267,11 @@ type Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -323,13 +317,12 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type Foo a
+  + structural type Foo.inner.Bar a
 
-    ⍟ New definitions:
-    
-      structural type Foo a
-      structural type Foo.inner.Bar a
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -368,12 +361,11 @@ type Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

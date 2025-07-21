@@ -29,12 +29,11 @@ casTest = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + casTest : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      casTest : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -92,13 +91,12 @@ promiseConcurrentTest = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + promiseConcurrentTest : '{IO} [Result]
+  + promiseSequentialTest : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      promiseConcurrentTest : '{IO} [Result]
-      promiseSequentialTest : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -144,12 +142,11 @@ atomicUpdate ref f =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
-    ⍟ New definitions:
-    
-      atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -182,12 +179,11 @@ spawnN n fa =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + spawnN : Nat -> '{IO} a ->{IO} [a]
 
-    ⍟ New definitions:
-    
-      spawnN : Nat -> '{IO} a ->{IO} [a]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -230,12 +226,11 @@ fullTest = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + fullTest : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      fullTest : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

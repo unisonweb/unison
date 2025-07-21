@@ -10,15 +10,14 @@ joey.yaml.zz = 45
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + joey.httpServer.z   : ##Nat
+  + joey.yaml.zz        : ##Nat
+  + rachel.filesystem.x : ##Nat
+  + ross.httpClient.y   : ##Nat
 
-    ⍟ New definitions:
-    
-      joey.httpServer.z   : ##Nat
-      joey.yaml.zz        : ##Nat
-      rachel.filesystem.x : ##Nat
-      ross.httpClient.y   : ##Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

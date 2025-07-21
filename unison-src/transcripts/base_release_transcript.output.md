@@ -18,12 +18,7 @@ This just verifies that a `Map` prints out nicely, as a call to `Map.fromList`:
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > Map.fromList [("Alice", 1), ("Bob", 2), ("Carol", 3)]
           ⧩

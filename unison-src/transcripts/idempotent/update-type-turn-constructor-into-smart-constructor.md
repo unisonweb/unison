@@ -12,13 +12,13 @@ makeFoo n = Bar (n+10)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      makeFoo : Nat -> Foo
+  + makeFoo : Nat -> Foo
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -40,14 +40,13 @@ Foo.Bar n = internal.Bar n
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ Foo.Bar : Nat -> Foo
 
-    ⊡ Previously added definitions will be ignored: Foo
-    
-    ⍟ New definitions:
-    
-      Foo.Bar : Nat -> Foo
+  (and 1 unchanged type)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

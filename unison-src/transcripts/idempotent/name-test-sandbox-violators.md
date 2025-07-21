@@ -14,15 +14,11 @@ test> foo.test =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo.test : [Result]
 
-    ⍟ New definitions:
-    
-      foo.test : [Result]
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     2 |   x = 192
     
@@ -65,12 +61,11 @@ bar.test =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar.test : [Result]
 
-    ⍟ New definitions:
-    
-      bar.test : [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

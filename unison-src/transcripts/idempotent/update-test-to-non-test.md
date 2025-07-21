@@ -11,15 +11,11 @@ test> foo = []
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo : [Result]
 
-    ⍟ New definitions:
-    
-      foo : [Result]
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | test> foo = []
     
@@ -48,13 +44,11 @@ foo = 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ foo : Nat
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 After updating `foo` to not be a test, we expect `view` to not render it like a test.

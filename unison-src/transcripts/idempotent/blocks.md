@@ -22,15 +22,11 @@ ex thing =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex : thing -> Nat
 
-    ⍟ New definitions:
-    
-      ex : thing -> Nat
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     8 | > ex "hello"
           ⧩
@@ -53,15 +49,11 @@ ex thing =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex : thing -> Nat
 
-    ⍟ New definitions:
-    
-      ex : thing -> Nat
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     6 | > ex "hello"
           ⧩
@@ -86,15 +78,11 @@ ex thing =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex : (Nat ->{g} Nat) ->{g} Nat
 
-    ⍟ New definitions:
-    
-      ex : (Nat ->{g} Nat) ->{g} Nat
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     8 | > ex (x -> x * 100)
           ⧩
@@ -116,15 +104,11 @@ ex thing =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex : (Nat ->{g} Nat) ->{g} Nat
 
-    ⍟ New definitions:
-    
-      ex : (Nat ->{g} Nat) ->{g} Nat
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     7 | > ex (x -> x * 100)
           ⧩
@@ -153,13 +137,12 @@ ex n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex    : n -> r
+  + sumTo : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      ex    : n -> r
-      sumTo : Nat -> Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 The `go` function is a one-element cycle (it reference itself), and `ping` and `pong` form a two-element cycle.
@@ -178,12 +161,11 @@ ex n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex : n -> Nat
 
-    ⍟ New definitions:
-    
-      ex : n -> Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Since the forward reference to `pong` appears inside `ping`.
@@ -231,12 +213,11 @@ ex n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex : n -> r
 
-    ⍟ New definitions:
-    
-      ex : n -> r
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Just don't try to run it as it's an infinite loop\!
@@ -280,13 +261,13 @@ ex n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability SpaceAttack
 
-    ⍟ New definitions:
-    
-      structural ability SpaceAttack
-      ex : n ->{SpaceAttack} Nat
+  + ex : n ->{SpaceAttack} Nat
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ### Unrelated definitions not part of a cycle and are moved after the cycle
@@ -307,13 +288,13 @@ ex n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability SpaceAttack
 
-    ⍟ New definitions:
-    
-      structural ability SpaceAttack
-      ex : n ->{SpaceAttack} r
+  + ex : n ->{SpaceAttack} r
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 This is actually parsed as if you moved `zap` after the cycle it find itself a part of:
@@ -332,11 +313,11 @@ ex n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability SpaceAttack
 
-    ⍟ New definitions:
-    
-      structural ability SpaceAttack
-      ex : n ->{SpaceAttack} r
+  + ex : n ->{SpaceAttack} r
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```

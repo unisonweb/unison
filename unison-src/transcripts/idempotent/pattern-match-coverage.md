@@ -111,13 +111,13 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type V
 
-    ⍟ New definitions:
-    
-      type V
-      test : Optional (Optional V) -> ()
+  + test : Optional (Optional V) -> ()
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 uninhabited patterns are reported as redundant
@@ -214,12 +214,11 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : Optional Nat -> Nat
 
-    ⍟ New definitions:
-    
-      test : Optional Nat -> Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 # Pattern instantiation depth
@@ -333,12 +332,11 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : Nat -> ()
 
-    ⍟ New definitions:
-    
-      test : Nat -> ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Boolean
@@ -353,12 +351,11 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : Boolean -> ()
 
-    ⍟ New definitions:
-    
-      test : Boolean -> ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 # Redundant
@@ -413,12 +410,11 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : [()] -> ()
 
-    ⍟ New definitions:
-    
-      test : [()] -> ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Non-exhaustive
@@ -532,13 +528,13 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type V
 
-    ⍟ New definitions:
-    
-      type V
-      test : [V] -> ()
+  + test : [V] -> ()
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Length restrictions can equate cons and nil patterns
@@ -562,12 +558,11 @@ test = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : [Boolean] -> ()
 
-    ⍟ New definitions:
-    
-      test : [Boolean] -> ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 This is the same idea as above but shows that fourth match is redundant.
@@ -627,13 +622,13 @@ unit2t = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type T
 
-    ⍟ New definitions:
-    
-      type T
-      unit2t : 'T
+  + unit2t : 'T
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -662,12 +657,11 @@ witht = match unit2t () with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + witht : ()
 
-    ⍟ New definitions:
-    
-      witht : ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -680,13 +674,13 @@ evil = bug ""
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type V
 
-    ⍟ New definitions:
-    
-      type V
-      evil : 'V
+  + evil : 'V
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -719,12 +713,11 @@ unique type SomeType = A
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type SomeType
 
-    ⍟ New definitions:
-    
-      type SomeType
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -746,13 +739,13 @@ get x = match x with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type R
 
-    ⍟ New definitions:
-    
-      type R
-      get : R -> SomeType
+  + get : R -> SomeType
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -762,15 +755,15 @@ unique type R = { someType : SomeType }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type R
 
-    ⍟ New definitions:
-    
-      type R
-      R.someType        : R -> SomeType
-      R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
-      R.someType.set    : SomeType -> R -> R
+  + R.someType        : R -> SomeType
+  + R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
+  + R.someType.set    : SomeType -> R -> R
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 # Ability handlers
@@ -791,13 +784,13 @@ result f = handle !f with cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Abort
 
-    ⍟ New definitions:
-    
-      structural ability Abort
-      result : '{e, Abort} a ->{e} a
+  + result : '{e, Abort} a ->{e} a
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -816,18 +809,14 @@ result f = handle !f with cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Abort
+  ~ type T
 
-    ⍟ New definitions:
-    
-      structural ability Abort
-      result : '{e, Abort} T ->{e} ()
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type T
+  + result : '{e, Abort} T ->{e} ()
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -845,13 +834,13 @@ result f =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Abort
 
-    ⍟ New definitions:
-    
-      structural ability Abort
-      result : '{e, Abort} V ->{e} V
+  + result : '{e, Abort} V ->{e} V
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -873,14 +862,14 @@ handleMulti c =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Abort
+  + structural ability Stream a
 
-    ⍟ New definitions:
-    
-      structural ability Abort
-      structural ability Stream a
-      handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
+  + handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Non-exhaustive ability handlers are rejected
@@ -1030,13 +1019,13 @@ result f = handle !f with cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Abort
 
-    ⍟ New definitions:
-    
-      structural ability Abort
-      result : '{e, Abort} a ->{e, Abort} a
+  + result : '{e, Abort} a ->{e, Abort} a
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -1056,13 +1045,13 @@ result f =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Abort a
 
-    ⍟ New definitions:
-    
-      structural ability Abort a
-      result : '{e, Abort V} a ->{e, Abort V} a
+  + result : '{e, Abort V} a ->{e, Abort V} a
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Non-exhaustive ability reinterpretations are rejected
@@ -1149,13 +1138,13 @@ result f =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Give a
 
-    ⍟ New definitions:
-    
-      ability Give a
-      result : '{e, Give V} r ->{e} r
+  + result : '{e, Give V} r ->{e} r
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison
@@ -1175,13 +1164,13 @@ result f =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Give a
 
-    ⍟ New definitions:
-    
-      ability Give a
-      result : '{e, Give V} r ->{e} r
+  + result : '{e, Give V} r ->{e} r
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` unison :error
@@ -1258,12 +1247,12 @@ result f =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability GiveA a
+  + ability GiveB a
 
-    ⍟ New definitions:
-    
-      ability GiveA a
-      ability GiveB a
-      result : '{e, GiveB V, GiveA V} r ->{e} r
+  + result : '{e, GiveB V, GiveA V} r ->{e} r
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```

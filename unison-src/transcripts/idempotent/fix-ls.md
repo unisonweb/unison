@@ -13,13 +13,12 @@ foo.bar.subtract x y = x Int.- y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo.bar.add      : Int -> Int -> Int
+  + foo.bar.subtract : Int -> Int -> Int
 
-    ⍟ New definitions:
-    
-      foo.bar.add      : Int -> Int -> Int
-      foo.bar.subtract : Int -> Int -> Int
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

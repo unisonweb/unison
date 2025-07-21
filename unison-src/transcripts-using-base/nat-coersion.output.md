@@ -35,16 +35,15 @@ test = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test    : '{IO} [Result]
+  + testNat : Nat
+              -> Optional Int
+              -> Optional Float
+              ->{Stream Result} ()
 
-    ⍟ New definitions:
-    
-      test    : '{IO} [Result]
-      testNat : Nat
-                -> Optional Int
-                -> Optional Float
-                ->{Stream Result} ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

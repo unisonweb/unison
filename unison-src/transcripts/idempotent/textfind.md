@@ -54,17 +54,16 @@ lib.bar = 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar     : Nat
+  + baz     : [Text]
+  + foo     : Nat
+  + lib.bar : Nat
+  + lib.foo : [Any]
+  + qux     : Nat
 
-    ⍟ New definitions:
-    
-      bar     : Nat
-      baz     : [Text]
-      foo     : Nat
-      lib.bar : Nat
-      lib.foo : [Any]
-      qux     : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide

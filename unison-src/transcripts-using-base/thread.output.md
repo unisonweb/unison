@@ -19,13 +19,12 @@ testBasicFork = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + otherThread   : '{IO} ()
+  + testBasicFork : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      otherThread   : '{IO} ()
-      testBasicFork : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 See if we can get another thread to stuff a value into a MVar
@@ -63,13 +62,12 @@ testBasicMultiThreadMVar = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testBasicMultiThreadMVar : '{IO} [Result]
+  + thread1                  : Nat -> MVar Nat -> '{IO} ()
 
-    ⍟ New definitions:
-    
-      testBasicMultiThreadMVar : '{IO} [Result]
-      thread1                  : Nat -> MVar Nat -> '{IO} ()
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -132,15 +130,14 @@ testTwoThreads = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + receivingThread : MVar Nat -> MVar Text -> '{IO} ()
+  + sendingThread   : Nat -> MVar Nat -> '{IO} ()
+      (also named thread1)
+  + testTwoThreads  : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      receivingThread : MVar Nat -> MVar Text -> '{IO} ()
-      sendingThread   : Nat -> MVar Nat -> '{IO} ()
-        (also named thread1)
-      testTwoThreads  : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

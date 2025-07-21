@@ -21,12 +21,11 @@ baz = 17
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo.baz : Nat
 
-    ⍟ New definitions:
-    
-      foo.baz : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 2.  Free variables whose names exactly match bindings in the file are rewritten to refer to the prefixed binder instead.
@@ -47,13 +46,12 @@ longer.evil.factorial n = n
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo.factorial             : Int -> Int
+  + foo.longer.evil.factorial : Int -> Int
 
-    ⍟ New definitions:
-    
-      foo.factorial             : Int -> Int
-      foo.longer.evil.factorial : Int -> Int
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -91,18 +89,16 @@ type longer.foo.Baz = { qux : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type longer.foo.Baz
+  + type longer.foo.Foo
 
-    ⍟ New definitions:
-    
-      type longer.foo.Baz
-      type longer.foo.Foo
-      longer.foo.Baz.qux        : Baz -> Nat
-      longer.foo.Baz.qux.modify : (Nat ->{g} Nat)
-                                  -> Baz
-                                  ->{g} Baz
-      longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
+  + longer.foo.Baz.qux        : Baz -> Nat
+  + longer.foo.Baz.qux.modify : (Nat ->{g} Nat) -> Baz ->{g} Baz
+  + longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -135,22 +131,22 @@ hasTypeLink =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type foo.Baz
+  + type foo.Foo
+  + type foo.RefersToFoo
 
-    ⍟ New definitions:
-    
-      type foo.Baz
-      type foo.Foo
-      type foo.RefersToFoo
-      foo.Baz.qux        : foo.Baz -> Nat
-      foo.Baz.qux.modify : (Nat ->{g} Nat)
-                           -> foo.Baz
-                           ->{g} foo.Baz
-      foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
-      foo.hasTypeLink    : Doc2
-      foo.refersToBar    : foo.Foo -> Nat
-      foo.refersToQux    : foo.Baz -> Nat
+  + foo.Baz.qux        : foo.Baz -> Nat
+  + foo.Baz.qux.modify : (Nat ->{g} Nat)
+                         -> foo.Baz
+                         ->{g} foo.Baz
+  + foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
+  + foo.hasTypeLink    : Doc2
+  + foo.refersToBar    : foo.Foo -> Nat
+  + foo.refersToQux    : foo.Baz -> Nat
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

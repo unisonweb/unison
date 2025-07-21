@@ -31,17 +31,17 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type time.DayOfWeek
 
-    ⍟ New definitions:
-    
-      type time.DayOfWeek
-      ImportantConstant     : Nat
-      ImportantConstant.doc : Doc2
-      d1                    : Doc2
-      name                  : Doc2
-      time.DayOfWeek.doc    : Doc2
+  + d1                    : Doc2
+  + ImportantConstant     : Nat
+  + ImportantConstant.doc : Doc2
+  + name                  : Doc2
+  + time.DayOfWeek.doc    : Doc2
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ ... }}`.
@@ -76,20 +76,18 @@ scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
   Loading changes detected in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
 
-  I found and typechecked these definitions in
-  ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If
-  you do an `update`, here's how your codebase would change:
+  + basicFormatting     : Doc2
+  + doc.guide           : Doc2
+  + evaluation          : Doc2
+  + includingSource     : Doc2
+  + lists               : Doc2
+  + nonUnisonCodeBlocks : Doc2
+  + otherElements       : Doc2
+  + sqr                 : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      basicFormatting     : Doc2
-      doc.guide           : Doc2
-      evaluation          : Doc2
-      includingSource     : Doc2
-      lists               : Doc2
-      nonUnisonCodeBlocks : Doc2
-      otherElements       : Doc2
-      sqr                 : Nat -> Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide

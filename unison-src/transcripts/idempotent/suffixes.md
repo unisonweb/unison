@@ -73,15 +73,14 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + cool.abra.cadabra            : Text
+  + lib.distributed.abra.cadabra : Text
+  + lib.distributed.baz.qux      : Text
+  + lib.distributed.lib.baz.qux  : Text
 
-    ⍟ New definitions:
-    
-      cool.abra.cadabra            : Text
-      lib.distributed.abra.cadabra : Text
-      lib.distributed.baz.qux      : Text
-      lib.distributed.lib.baz.qux  : Text
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -121,12 +120,7 @@ scratch/main> add
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > baz.qux
           ⧩

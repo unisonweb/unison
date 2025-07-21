@@ -32,15 +32,11 @@ foo _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo : ∀ _. _ -> Nat
 
-    ⍟ New definitions:
-    
-      foo : ∀ _. _ -> Nat
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     12 | > !foo
            ⧩

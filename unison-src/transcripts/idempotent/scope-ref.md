@@ -20,15 +20,11 @@ test = Scope.run 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : (Nat, Nat, Nat)
 
-    ⍟ New definitions:
-    
-      test : (Nat, Nat, Nat)
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     10 | > test
            ⧩

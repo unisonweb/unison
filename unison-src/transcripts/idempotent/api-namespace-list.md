@@ -14,14 +14,13 @@ nested.names.readme = {{ I'm a readme! }}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + nested.names.readme : Doc2
+  + nested.names.x      : Nat
+  + nested.names.x.doc  : Doc2
 
-    ⍟ New definitions:
-    
-      nested.names.readme : Doc2
-      nested.names.x      : Nat
-      nested.names.x.doc  : Doc2
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

@@ -14,13 +14,12 @@ lib.foo = 100
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo     : Nat
+  + lib.foo : Nat
 
-    ⍟ New definitions:
-    
-      foo     : Nat
-      lib.foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -39,14 +38,12 @@ foo = 200
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ foo : Nat
+      (was also named lib.foo)
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Nat
-        (The old definition is also named lib.foo.)
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

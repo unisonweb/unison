@@ -17,15 +17,15 @@ structural type Y = Two Nat Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type X
+  + structural type Y
 
-    ⍟ New definitions:
-    
-      structural type X
-      structural type Y
-      x : Nat
-      y : Nat
+  + x : Nat
+  + y : Nat
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Expected: `x` and `y`, `X`, and `Y` exist as above. UCM tells you this.
@@ -50,15 +50,14 @@ structural type Z = One Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type Z
 
-    ⍟ New definitions:
-    
-      structural type Z
-        (also named X)
-      z : Nat
-        (also named x)
+  + z : Nat
+      (also named x)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Expected: `z` is now `1`. UCM tells you that this definition is also called `x`.
@@ -83,16 +82,14 @@ structural type X = Three Nat Nat Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ structural type X
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      structural type X
-        (The old definition is also named Z.)
-      x : Nat
-        (The old definition is also named z.)
+  ~ x : Nat
+      (was also named z)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old definitions were also called `z` and `Z` and these names have also been updated.
@@ -120,16 +117,14 @@ structural type X = Two Nat Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ structural type X
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      structural type X
-        (also named Y)
-      x : Nat
-        (also named y)
+  ~ x : Nat
+      (also named y)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Expected: `x` is now `2` and `X` is `Two`. UCM says the old definition was also named `z/Z`, and was also updated. And it says the new definition is also named `y/Y`.

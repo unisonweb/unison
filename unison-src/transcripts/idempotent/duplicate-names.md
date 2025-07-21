@@ -106,14 +106,13 @@ X = ()
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type X
 
-    ⍟ New definitions:
-    
-      structural type X
-        (also named builtin.Unit)
-      X : ()
+  + X : ()
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

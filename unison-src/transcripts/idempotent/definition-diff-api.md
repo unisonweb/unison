@@ -41,17 +41,17 @@ unitCase = id (x -> 1)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Stream a
+  + type Type
 
-    ⍟ New definitions:
-    
-      ability Stream a
-      type Type
-      id       : x -> x
-      take     : Nat -> '{g} t ->{g, Stream a} Optional t
-      term     : Nat
-      unitCase : x -> Nat
+  + id       : x -> x
+  + take     : Nat -> '{g} t ->{g, Stream a} Optional t
+  + term     : Nat
+  + unitCase : x -> Nat
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -100,18 +100,17 @@ unitCase = id (x -> (1, ()))
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Type a
 
-    ⊡ Previously added definitions will be ignored: Stream id
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Type a
-      take     : Nat -> '{g} t ->{g, Stream a} Optional t
-      term     : Nat
-      unitCase : x -> (Nat, ())
+  ~ take     : Nat -> '{g} t ->{g, Stream a} Optional t
+  ~ term     : Nat
+  ~ unitCase : x -> (Nat, ())
+
+  (and 1 unchanged type and 1 unchanged term)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

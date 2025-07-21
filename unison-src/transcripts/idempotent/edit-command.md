@@ -13,14 +13,13 @@ mytest = [Ok "ok"]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar    : Nat
+  + foo    : Nat
+  + mytest : [Result]
 
-    ⍟ New definitions:
-    
-      bar    : Nat
-      foo    : Nat
-      mytest : [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -100,14 +99,13 @@ baz = 19
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar : Nat
+  + baz : Nat
+  + foo : Nat
 
-    ⍟ New definitions:
-    
-      bar : Nat
-      baz : Nat
-      foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -127,8 +125,11 @@ bar = 18
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
+  (and 2 unchanged terms)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

@@ -18,17 +18,17 @@ baz x = x
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Bar
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Bar
-      type Foo
-      Bar.bar        : Bar -> Foo
-      Bar.bar.modify : (Foo ->{g} Foo) -> Bar ->{g} Bar
-      Bar.bar.set    : Foo -> Bar -> Bar
-      baz            : Bar -> Bar
+  + Bar.bar        : Bar -> Foo
+  + Bar.bar.modify : (Foo ->{g} Foo) -> Bar ->{g} Bar
+  + Bar.bar.set    : Foo -> Bar -> Bar
+  + baz            : Bar -> Bar
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -50,16 +50,15 @@ type Bar = { bar : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Bar
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Bar
-      Bar.bar        : Bar -> Nat
-      Bar.bar.modify : (Nat ->{g} Nat) -> Bar ->{g} Bar
-      Bar.bar.set    : Nat -> Bar -> Bar
+  ~ Bar.bar        : Bar -> Nat
+  ~ Bar.bar.modify : (Nat ->{g} Nat) -> Bar ->{g} Bar
+  ~ Bar.bar.set    : Nat -> Bar -> Bar
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

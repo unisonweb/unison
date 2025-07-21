@@ -50,13 +50,12 @@ unique type Pong = Pong (Ping Optional)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Ping a
+  + type Pong
 
-    ⍟ New definitions:
-    
-      type Ping a
-      type Pong
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Catch the conflict on the kind of `a` in `Ping a`. `Ping` restricts
@@ -88,13 +87,12 @@ unique ability Pong a where
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Ping a
+  + ability Pong a
 
-    ⍟ New definitions:
-    
-      type Ping a
-      ability Pong a
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Catch conflict between mutually recursive type and ability
@@ -126,13 +124,12 @@ unique type S = S (T Nat)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type S
+  + type T a
 
-    ⍟ New definitions:
-    
-      type S
-      type T a
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Delay kind defaulting until all components are processed. Here `S`
@@ -148,13 +145,12 @@ unique type S = S (T Optional)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type S
+  + type T a
 
-    ⍟ New definitions:
-    
-      type S
-      type T a
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Catch invalid instantiation of `T`'s `a` parameter in `S`

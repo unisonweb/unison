@@ -16,12 +16,11 @@ type Namespace.Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Namespace.Foo
 
-    ⍟ New definitions:
-    
-      type Namespace.Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -63,13 +62,12 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type File.Foo
+  + type UsesFoo
 
-    ⍟ New definitions:
-    
-      type File.Foo
-      type UsesFoo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -94,12 +92,11 @@ type Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -119,13 +116,12 @@ type UsesFoo = UsesFoo Foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type File.Foo
+  + type UsesFoo
 
-    ⍟ New definitions:
-    
-      type File.Foo
-      type UsesFoo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -163,12 +159,11 @@ type Namespace.Foo = Bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Namespace.Foo
 
-    ⍟ New definitions:
-    
-      type Namespace.Foo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -188,13 +183,12 @@ type UsesFoo = UsesFoo Foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
+  + type UsesFoo
 
-    ⍟ New definitions:
-    
-      type Foo
-      type UsesFoo
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -233,12 +227,11 @@ ns.foo = 42
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ns.foo : Nat
 
-    ⍟ New definitions:
-    
-      ns.foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -261,13 +254,12 @@ bar = foo ++ "bar"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar      : Text
+  + file.foo : Text
 
-    ⍟ New definitions:
-    
-      bar      : Text
-      file.foo : Text
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -293,12 +285,11 @@ ns.foo = 42
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ns.foo : Nat
 
-    ⍟ New definitions:
-    
-      ns.foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -321,13 +312,12 @@ bar = foo + 42
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar      : Nat
+  + file.foo : Text
 
-    ⍟ New definitions:
-    
-      bar      : Nat
-      file.foo : Text
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -353,12 +343,11 @@ ns.foo = 42
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ns.foo : Nat
 
-    ⍟ New definitions:
-    
-      ns.foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -405,13 +394,12 @@ bar = file.foo + ns.foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar      : Nat
+  + file.foo : Nat
 
-    ⍟ New definitions:
-    
-      bar      : Nat
-      file.foo : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

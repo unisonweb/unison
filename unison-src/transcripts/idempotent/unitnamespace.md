@@ -5,12 +5,11 @@
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + `()`.foo : ##Text
 
-    ⍟ New definitions:
-    
-      `()`.foo : ##Text
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

@@ -19,16 +19,14 @@ structural ability MyAbilityS where const : a
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Abc
+  + type Def
+  + structural type Ghi
+  + ability MyAbility
+  + structural ability MyAbilityS
+  + ability MyAbilityU
 
-    ⍟ New definitions:
-    
-      type Abc
-      type Def
-      structural type Ghi
-        (also named builtin.Unit)
-      ability MyAbility
-      structural ability MyAbilityS
-      ability MyAbilityU
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```

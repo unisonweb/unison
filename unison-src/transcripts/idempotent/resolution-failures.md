@@ -23,15 +23,15 @@ two.ambiguousTerm = "term two"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type one.AmbiguousType
+  + type two.AmbiguousType
 
-    ⍟ New definitions:
-    
-      type one.AmbiguousType
-      type two.AmbiguousType
-      one.ambiguousTerm : Text
-      two.ambiguousTerm : Text
+  + one.ambiguousTerm : Text
+  + two.ambiguousTerm : Text
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

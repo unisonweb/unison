@@ -79,14 +79,13 @@ main _ = y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + main : '{IO, Exception} (Nat -> Nat -> Nat)
+  + y    : Nat -> Nat -> Nat
+  + z    : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      main : '{IO, Exception} (Nat -> Nat -> Nat)
-      y    : Nat -> Nat -> Nat
-      z    : Nat -> Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -112,12 +111,11 @@ inc x = x + 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + inc : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      inc : Nat -> Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -162,14 +160,13 @@ main = 'y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + main : 'Nat
+  + x    : Nat
+  + y    : Nat
 
-    ⍟ New definitions:
-    
-      main : 'Nat
-      x    : Nat
-      y    : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

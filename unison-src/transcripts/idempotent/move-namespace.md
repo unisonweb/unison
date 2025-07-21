@@ -121,13 +121,13 @@ unique type a.T = T
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type a.T
 
-    ⍟ New definitions:
-    
-      type a.T
-      a.termInA : Nat
+  + a.termInA : Nat
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -147,14 +147,13 @@ unique type a.T = T1 | T2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type a.T
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type a.T
-      a.termInA : Nat
+  ~ a.termInA : Nat
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -213,13 +212,12 @@ b.termInB = 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + a.termInA : Nat
+  + b.termInB : Nat
 
-    ⍟ New definitions:
-    
-      a.termInA : Nat
-      b.termInB : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -239,14 +237,12 @@ b.termInB = 11
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ a.termInA : Nat
+  ~ b.termInB : Nat
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      a.termInA : Nat
-      b.termInB : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -314,13 +310,12 @@ b.termInB = 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + a.termInA : Nat
+  + b.termInB : Nat
 
-    ⍟ New definitions:
-    
-      a.termInA : Nat
-      b.termInB : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -340,14 +335,12 @@ b.termInB = 11
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ a.termInA : Nat
+  ~ b.termInB : Nat
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      a.termInA : Nat
-      b.termInB : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

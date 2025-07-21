@@ -11,14 +11,13 @@ unique type C = C B
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type A
+  + type B
+  + type C
 
-    ⍟ New definitions:
-    
-      type A
-      type B
-      type C
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -40,8 +39,11 @@ unique type C = C B
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
+  (and 3 unchanged types)
+
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 If the name stays the same, the churn is even prevented if the type is updated and then reverted to the original form.
@@ -62,13 +64,11 @@ unique type A = A ()
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type A
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type A
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -94,13 +94,11 @@ unique type A = A
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type A
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type A
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Note that `A` is back to its original hash.

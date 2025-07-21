@@ -32,12 +32,11 @@ x = 42
 ``` ucm :added-by-ucm
   Loading changes detected in myfile.u.
 
-  I found and typechecked these definitions in myfile.u. If you
-  do an `update`, here's how your codebase would change:
+  + x : Nat
 
-    ⍟ New definitions:
-    
-      x : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Let's go ahead and add that to the codebase, then make sure it's there:

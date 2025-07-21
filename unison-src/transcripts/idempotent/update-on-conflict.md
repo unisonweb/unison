@@ -14,13 +14,12 @@ temp = 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + temp : Nat
+  + x    : Nat
 
-    ⍟ New definitions:
-    
-      temp : Nat
-      x    : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -47,13 +46,11 @@ x = 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ x : Nat
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      x : Nat
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error

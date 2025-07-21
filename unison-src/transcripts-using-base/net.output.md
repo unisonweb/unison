@@ -99,14 +99,13 @@ testDefaultPort _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testDefaultHost  : '{IO} [Result]
+  + testDefaultPort  : '{IO} [Result]
+  + testExplicitHost : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testDefaultHost  : '{IO} [Result]
-      testDefaultPort  : '{IO} [Result]
-      testExplicitHost : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -184,14 +183,13 @@ testTcpConnect = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + clientThread   : MVar Nat -> MVar Text -> '{IO} ()
+  + serverThread   : MVar Nat -> Text -> '{IO} ()
+  + testTcpConnect : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      clientThread   : MVar Nat -> MVar Text -> '{IO} ()
-      serverThread   : MVar Nat -> Text -> '{IO} ()
-      testTcpConnect : '{IO} [Result]
+  + (added), ~ (modified), - (deleted)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

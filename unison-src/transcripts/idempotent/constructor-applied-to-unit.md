@@ -14,15 +14,11 @@ structural type Zoink a b c = Zoink a b c
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type Zoink a b c
 
-    ⍟ New definitions:
-    
-      structural type Zoink a b c
+  + (added), ~ (modified), - (deleted)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     3 | > Any ()
           ⧩
