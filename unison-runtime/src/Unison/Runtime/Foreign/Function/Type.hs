@@ -208,6 +208,8 @@ data ForeignFunc
   | MutableArray_freeze
   | MutableByteArray_length
   | ImmutableByteArray_length
+  | ImmutableByteArray_toBytes
+  | ImmutableByteArray_fromBytes
   | IO_array
   | IO_arrayOf
   | IO_bytearray
@@ -484,6 +486,8 @@ foreignFuncBuiltinName = \case
   MutableArray_freeze -> "MutableArray.freeze"
   MutableByteArray_length -> "MutableByteArray.length"
   ImmutableByteArray_length -> "ImmutableByteArray.length"
+  ImmutableByteArray_toBytes -> "ImmutableByteArray.toBytes"
+  ImmutableByteArray_fromBytes -> "ImmutableByteArray.fromBytes"
   IO_array -> "IO.array"
   IO_arrayOf -> "IO.arrayOf"
   IO_bytearray -> "IO.bytearray"

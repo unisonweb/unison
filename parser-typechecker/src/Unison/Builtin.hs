@@ -677,6 +677,10 @@ builtinsSrc =
       marrayt g a --> nat --> nat --> Type.effect1 () g (iarrayt a),
     B "MutableByteArray.freeze" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect1 () g ibytearrayt,
+    B "ImmutableByteArray.toBytes" $
+      ibytearrayt --> nat --> nat --> bytes,
+    B "ImmutableByteArray.fromBytes" $
+      bytes --> ibytearrayt,
     B "Scope.array" . forall2 "s" "a" $ \s a ->
       nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
     B "Scope.arrayOf" . forall2 "s" "a" $ \s a ->

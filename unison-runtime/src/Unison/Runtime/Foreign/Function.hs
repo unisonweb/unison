@@ -791,6 +791,19 @@ foreignCallHelper = \case
   ImmutableByteArray_length ->
     mkForeign $
       pure . PA.sizeofByteArray
+  ImmutableByteArray_toBytes -> mkForeignExn $ \(ba :: PA.ByteArray, off, len) ->
+    if len == 0
+      then pure (Right Bytes.empty)
+      else
+        checkBoundsPrim
+          "ImmutableByteArray_toBytes"
+          (PA.sizeofByteArray ba)
+          (off + len)
+          0
+          $ pure
+          $ Right
+          $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
+  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -994,6 +1007,9 @@ mkHashAlgorithm txt alg =
   let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
    in mkForeign $ \() -> pure (HashAlgorithm algoRef alg)
 
+-- | mkForeign is the most basic helper for implementing a Unison foreign function.
+--   It takes a function from Unison arguments (decoded from the stack) to an IO result,
+--   writes the result back to the stack, and returns a tuple indicating whether an exception occurred (always False here).
 {-# INLINE mkForeign #-}
 mkForeign :: (ForeignConvention a, ForeignConvention b) => (a -> IO b) -> Args -> Stack -> IO (Bool, Stack)
 mkForeign !f !args !stk = do
@@ -1001,6 +1017,9 @@ mkForeign !f !args !stk = do
   stk <- bump stk
   (False, stk) <$ writeBack stk r
 
+-- | mkForeignIOF is like mkForeign, but it wraps the IO action in exception handling for IOExceptions.
+--   If an IOException occurs, it returns a Failure value; otherwise, it returns the result.
+--   This is useful for foreign functions that may throw IOExceptions, and you want to propagate those as Unison failures.
 {-# INLINE mkForeignIOF #-}
 mkForeignIOF ::
   (ForeignConvention a, ForeignConvention r) =>
@@ -1016,6 +1035,10 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
     handleIOE (Left e) = Left $ F.Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
     handleIOE (Right a) = Right a
 
+-- | mkForeignExn is for foreign functions that may return either a failure or a result (as an Either).
+--   If the function returns a Left (failure), it writes the failure to the stack and returns (True, stack).
+--   If it returns a Right (result), it writes the result and returns (False, stack).
+--   This is for functions that have their own error reporting, not just IOExceptions.
 {-# INLINE mkForeignExn #-}
 mkForeignExn ::
   (ForeignConvention a, ForeignConvention e, ForeignConvention r) =>
@@ -1032,6 +1055,10 @@ mkForeignExn f args stk =
       stk <- bump stk
       (False, stk) <$ writeBack stk r
 
+-- | mkForeignTls is for foreign functions that may throw TLS-specific exceptions or IOExceptions.
+--   It wraps the IO action in two layers of exception handling: first for TLS exceptions, then for IOExceptions.
+--   If an exception occurs, it returns a Failure value with the appropriate type (ioFailureRef or tlsFailureRef).
+--   Otherwise, it returns the result.
 {-# INLINE mkForeignTls #-}
 mkForeignTls ::
   forall a r.
@@ -1051,6 +1078,9 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
     flatten (Right (Left e)) = Left (F.Failure Ty.tlsFailureRef (Util.Text.pack (show e)) unitValue)
     flatten (Right (Right a)) = Right a
 
+-- | mkForeignTlsE is like mkForeignTls, but for functions that may return an Either Failure r,
+--   in addition to possibly throwing TLS or IO exceptions.
+--   It flattens all three error sources (IO, TLS, and custom Failure) into a single Either Failure r.
 {-# INLINE mkForeignTlsE #-}
 mkForeignTlsE ::
   forall a r.

@@ -1226,6 +1226,9 @@ declareForeigns = do
 
   declareForeign Untracked 1 ImmutableByteArray_length
 
+  declareForeign Untracked 3 ImmutableByteArray_toBytes
+  declareForeign Untracked 1 ImmutableByteArray_fromBytes
+
   declareForeign Tracked 1 IO_array
   declareForeign Tracked 2 IO_arrayOf
   declareForeign Tracked 1 IO_bytearray

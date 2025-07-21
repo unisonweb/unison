@@ -492,7 +492,7 @@ iarrayFromListRef :: R.Reference
 iarrayFromListRef = termNamed "ImmutableArray.fromList"
 
 ibarrayFromBytesRef :: R.Reference
-ibarrayFromBytesRef = termNamed "ImmutableByteArray.fromBytes"
+ibarrayFromBytesRef = R.ReferenceBuiltin "ImmutableByteArray.fromBytes"
 
 constructorNamed :: R.Reference -> Text -> DD.ConstructorId
 constructorNamed ref name =
@@ -1008,21 +1008,6 @@ ImmutableArray.fromList l = Scope.run do
     { raise _ -> _ } -> ()
   MutableArray.freeze! dst
 
-ImmutableByteArray.fromBytes : Bytes -> ImmutableByteArray
-ImmutableByteArray.fromBytes bs = Scope.run do
-  sz = Bytes.size bs
-  arr = Scope.bytearray sz
-  fill i =
-    match Bytes.at i bs with
-      Some b ->
-        MutableByteArray.write8 arr i b
-        fill (i + 1)
-      None -> ()
-  handle fill 0
-  with cases
-    { _ }                      -> ()
-    { raise _ -> _ } -> ()
-  MutableByteArray.freeze! arr
 |]
 
 type Note = Result.Note Symbol Ann
