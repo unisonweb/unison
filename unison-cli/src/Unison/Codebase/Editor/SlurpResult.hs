@@ -73,9 +73,6 @@ data SlurpResult = SlurpResult
     -- in the branch with a different definition.
     -- I.e. an update is required but we're performing an add.
     collisions :: SlurpComponent,
-    -- Names that already exist in the branch, but whose definitions
-    -- in `originalFile` are treated as updates.
-    updates :: SlurpComponent,
     -- Names of terms in `originalFile` that couldn't be updated because
     -- they refer to existing constructors. (User should instead do a find/replace,
     -- a constructor rename, or refactor the type that the name comes from).
@@ -201,17 +198,6 @@ pretty isPast ppe sr =
             updatedTypes = P.lines $ okType <$> toList (SC.types sc)
             updatedTerms = P.mayColumn2 . (=<<) okTerm . Set.toList $ SC.terms sc
          in header <> "\n\n" <> P.linesNonEmpty [updatedTypes, updatedTerms]
-      okToUpdate =
-        ok
-          (P.green "I've updated these names to your new definition:")
-          ( P.green $
-              "These names already exist. You can `update` them "
-                <> "to your new definition:"
-          )
-      okToAdd =
-        ok
-          (P.green "I've added these definitions:")
-          (P.green "New definitions:")
       notOks _past _present sr | isOk sr = mempty
       notOks past present sr =
         let header =
@@ -285,8 +271,10 @@ pretty isPast ppe sr =
                         " "
                         (P.hiBlack . prettyVar <$> dups)
                   ),
-          okToAdd (adds sr),
-          okToUpdate (updates sr),
+          ok
+            (P.green "I've added these definitions:")
+            (P.green "New definitions:")
+            (adds sr),
           notOks
             (P.red "These definitions failed:")
             (P.wrap $ P.red "These definitions would fail on `update`:")
@@ -303,7 +291,6 @@ isOk SlurpResult {..} =
 isAllDuplicates :: SlurpResult -> Bool
 isAllDuplicates SlurpResult {..} =
   emptyIgnoringConstructors adds
-    && emptyIgnoringConstructors updates
     && emptyIgnoringConstructors extraDefinitions
     && SC.isEmpty collisions
     && Map.null typeAlias
@@ -321,7 +308,7 @@ filterUnisonFile ::
   UF.TypecheckedUnisonFile Symbol Ann ->
   UF.TypecheckedUnisonFile Symbol Ann
 filterUnisonFile
-  SlurpResult {adds, updates}
+  SlurpResult {adds}
   ( UF.TypecheckedUnisonFileId
       dataDeclarations'
       effectDeclarations'
@@ -331,7 +318,7 @@ filterUnisonFile
     ) =
     UF.TypecheckedUnisonFileId datas effects tlcs watches hashTerms'
     where
-      keep = updates <> adds
+      keep = adds
       keepTerms = SC.terms keep
       keepTypes = SC.types keep
       hashTerms' = Map.restrictKeys hashTerms keepTerms

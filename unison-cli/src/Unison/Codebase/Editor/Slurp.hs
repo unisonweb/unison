@@ -1,6 +1,5 @@
 module Unison.Codebase.Editor.Slurp
-  ( SlurpOp (..),
-    slurpFile,
+  ( slurpFile,
   )
 where
 
@@ -23,22 +22,12 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent
 import Unison.Symbol (Symbol)
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
+import Unison.Syntax.Name qualified as Name (toVar, unsafeParseVar)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Map qualified as Map
 import Unison.Util.Relation qualified as Rel
-import Unison.Util.Set qualified as Set
-import Unison.Var (Var)
-import Unison.Var qualified as Var
 import Unison.WatchKind (watchKindShouldBeStoredInDatabase)
-
--- | The operation which is being performed or checked.
-data SlurpOp
-  = AddOp
-  | -- Run when the user saves the scratch file.
-    CheckOp
-  deriving (Eq, Show)
 
 -- | Tag a variable as representing a term, type, or constructor
 data TaggedVar = TermVar Symbol | TypeVar Symbol | ConstructorVar Symbol
@@ -96,11 +85,10 @@ mostSevereDepStatus =
 -- of vars to analyze and an operation you wish to perform.
 slurpFile ::
   UF.TypecheckedUnisonFile Symbol Ann ->
-  Set Symbol ->
-  SlurpOp ->
+  Symbol ->
   Names ->
   SR.SlurpResult
-slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
+slurpFile uf requestedVar unalteredCodebaseNames =
   let -- A mapping of all vars in the file to their references.
       -- TypeVars are keyed to Type references
       -- TermVars are keyed to Term references
@@ -111,11 +99,11 @@ slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
       -- 1. specified explicitly by the end-user
       -- 2. An in-file transitive dependency (within the file) of a var specified by the end-user.
       involvedVars :: Set TaggedVar
-      involvedVars = computeInvolvedVars uf defsToConsider varReferences
+      involvedVars = varClosure uf (TermVar requestedVar)
       -- The set of names after removing any constructors which would
       -- be removed by the requested operation.
       codebaseNames :: Names
-      codebaseNames = computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars slurpOp
+      codebaseNames = unalteredCodebaseNames
       -- A mapping of every involved variable to its transitive dependencies.
       -- Dependency here is any type or term referenced within the definition (transitively).
       -- This also includes all Constructors of any type used by a term.
@@ -128,54 +116,10 @@ slurpFile uf defsToConsider slurpOp unalteredCodebaseNames =
       -- A mapping from each definition's name to the most severe status of it plus its transitive dependencies.
       depStatuses :: Map TaggedVar DepStatus
       depStatuses = computeDepStatuses varDeps selfStatuses
-   in toSlurpResult uf slurpOp defsToConsider involvedVars fileNames codebaseNames selfStatuses depStatuses
+   in toSlurpResult uf requestedVar involvedVars fileNames codebaseNames selfStatuses depStatuses
   where
     fileNames :: Names
     fileNames = UF.typecheckedToNames uf
-
--- | Return a modified set of names with constructors which would be deprecated by possible
--- updates are removed.
-computeNamesWithDeprecations ::
-  UF.TypecheckedUnisonFile Symbol Ann ->
-  Names ->
-  Set TaggedVar ->
-  SlurpOp ->
-  Names
-computeNamesWithDeprecations uf unalteredCodebaseNames involvedVars = \case
-  -- If we're 'adding', there won't be any deprecations to worry about.
-  AddOp -> unalteredCodebaseNames
-  CheckOp -> codebaseNames
-  where
-    -- Get the set of all DIRECT definitions in the file which a definition depends on.
-    codebaseNames :: Names
-    codebaseNames =
-      Names.filter (`Set.notMember` deprecatedConstructors) unalteredCodebaseNames
-    constructorsUnderConsideration :: Set Name
-    constructorsUnderConsideration =
-      Map.toList (UF.dataDeclarationsId' uf)
-        <> (fmap . fmap . fmap) DD.toDataDecl (Map.toList (UF.effectDeclarationsId' uf))
-        & filter (\(typeV, _) -> Set.member (TypeVar typeV) involvedVars)
-        & concatMap (\(_typeV, (_refId, decl)) -> DD.constructors' decl)
-        & fmap
-          ( \(_ann, v, _typ) -> Name.unsafeParseVar v
-          )
-        & Set.fromList
-
-    deprecatedConstructors :: Set Name
-    deprecatedConstructors =
-      let oldRefsForEditedTypes = Set.unions $ do
-            let declNames = Map.keys (UF.dataDeclarationsId' uf)
-            let effectNames = Map.keys (UF.effectDeclarationsId' uf)
-            typeName <- declNames <> effectNames
-            when (not . null $ involvedVars) (guard (TypeVar typeName `Set.member` involvedVars))
-            pure $ Names.typesNamed unalteredCodebaseNames (Name.unsafeParseVar typeName)
-          existingConstructorsFromEditedTypes = Set.fromList $ do
-            -- List Monad
-            ref <- Set.toList oldRefsForEditedTypes
-            (name, _ref) <- Names.constructorsForType ref unalteredCodebaseNames
-            pure name
-       in -- Compute any constructors which were deleted
-          existingConstructorsFromEditedTypes `Set.difference` constructorsUnderConsideration
 
 -- | Compute a mapping of each definition to its status.
 computeSelfStatuses ::
@@ -222,31 +166,6 @@ computeDepStatuses varDeps selfStatuses =
       & mapMaybe (\depName -> defnStatusToDepStatus <$> Map.lookup depName selfStatuses)
       & Foldable.foldr mostSevereDepStatus (defnStatusToDepStatus status)
 
--- | Determine all variables which should be considered in analysis.
--- I.e. any variable requested by the user and all of their dependencies,
--- component peers, and component peers of dependencies.
-computeInvolvedVars ::
-  UF.TypecheckedUnisonFile Symbol Ann ->
-  Set Symbol ->
-  Map TaggedVar LD.LabeledDependency ->
-  Set TaggedVar
-computeInvolvedVars uf defsToConsider varReferences
-  -- If nothing was specified, consider every var in the file.
-  | Set.null defsToConsider = Map.keysSet varReferences
-  | otherwise = varClosure uf requestedVarsWhichActuallyExist
-  where
-    -- The user specifies _untyped_ names, which may not even exist in the file.
-    -- We need to figure out which vars exist, and what type they are if they do.
-    requestedVarsWhichActuallyExist :: Set TaggedVar
-    requestedVarsWhichActuallyExist = Set.fromList do
-      v <- Set.toList defsToConsider
-      -- We don't know whether each var is a type or term, so we try both.
-      -- We don't test ConstructorVar because you can't request to add/update a Constructor in
-      -- ucm, you add/update the type instead.
-      tv <- [TypeVar v, TermVar v]
-      guard (Map.member tv varReferences)
-      pure tv
-
 -- | Compute transitive dependencies for all relevant variables.
 computeVarDeps ::
   UF.TypecheckedUnisonFile Symbol Ann ->
@@ -255,17 +174,14 @@ computeVarDeps ::
 computeVarDeps uf allInvolvedVars =
   allInvolvedVars
     & Set.toList
-    & fmap
-      ( \tv -> (tv, Set.delete tv $ varClosure uf (Set.singleton tv))
-      )
+    & fmap (\tv -> (tv, Set.delete tv $ varClosure uf tv))
     & Map.fromAscList
 
--- | Compute the closure of all vars which the provided vars depend on.
+-- | Compute the closure of all vars which the provided var depends on.
 -- A type depends on its constructors.
-varClosure :: UF.TypecheckedUnisonFile Symbol a -> Set TaggedVar -> Set TaggedVar
-varClosure uf (partitionVars -> sc) =
-  let deps = SC.closeWithDependencies uf sc
-   in mingleVars deps
+varClosure :: UF.TypecheckedUnisonFile Symbol a -> TaggedVar -> Set TaggedVar
+varClosure uf var =
+  mingleVars (SC.closeWithDependencies uf (partitionVars [var]))
 
 -- | Collect a relation of term or type var to labelled dependency for all definitions mentioned in a file.
 buildVarReferences :: UF.TypecheckedUnisonFile Symbol a -> Map TaggedVar LD.LabeledDependency
@@ -337,29 +253,20 @@ instance Monoid SlurpingSummary where
 -- | Convert a 'VarsByStatus' mapping into a 'SR.SlurpResult'
 toSlurpResult ::
   UF.TypecheckedUnisonFile Symbol Ann ->
-  SlurpOp ->
-  Set Symbol ->
+  Symbol ->
   Set TaggedVar ->
   Names ->
   Names ->
   Map TaggedVar DefnStatus ->
   Map TaggedVar DepStatus ->
   SR.SlurpResult
-toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatuses depStatuses =
+toSlurpResult uf requestedVar involvedVars fileNames codebaseNames selfStatuses depStatuses =
   SR.SlurpResult
     { SR.originalFile = uf,
-      SR.extraDefinitions =
-        if Set.null requestedVars
-          then mempty
-          else
-            let desired =
-                  requestedVars
-                    & Set.flatMap (\v -> Set.fromList [TypeVar v, TermVar v])
-             in partitionVars $ Set.difference involvedVars desired,
+      SR.extraDefinitions = partitionVars $ Set.delete (TermVar requestedVar) involvedVars,
       SR.adds = adds,
       SR.duplicates = duplicates,
-      SR.collisions = if op == AddOp then updates else mempty,
-      SR.updates = if op /= AddOp then updates else mempty,
+      SR.collisions = updates,
       SR.termExistingConstructorCollisions =
         let SlurpComponent {types, terms, ctors} = termCtorColl
          in types <> terms <> ctors,
@@ -384,10 +291,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
       New ->
         case depStatus of
           DepOk -> mempty {adds = sc}
-          DepNeedsUpdate ->
-            case op of
-              AddOp -> mempty {blocked = sc}
-              CheckOp -> mempty {adds = sc}
+          DepNeedsUpdate -> mempty {blocked = sc}
           DepCollision -> mempty {blocked = sc}
       Updated ->
         case depStatus of
@@ -416,7 +320,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
       Map Symbol SR.Aliases
     buildAliases existingNames namesFromFile dups =
       Map.fromList
-        [ ( varFromName n,
+        [ ( Name.toVar n,
             if null aliasesOfOld
               then SR.AddAliases aliasesOfNew
               else SR.UpdateAliases aliasesOfOld aliasesOfNew
@@ -431,7 +335,7 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
                   Set.delete n . Rel.dom $
                     Rel.restrictRan existingNames refs,
             not (null aliasesOfNew && null aliasesOfOld),
-            Set.notMember (varFromName n) dups
+            Set.notMember (Name.toVar n) dups
         ]
 
     termAliases :: Map Symbol SR.Aliases
@@ -447,9 +351,6 @@ toSlurpResult uf op requestedVars involvedVars fileNames codebaseNames selfStatu
         (Rel.mapRan Referent.Ref $ Names.types codebaseNames)
         (Rel.mapRan Referent.Ref $ Names.types fileNames)
         (SC.types duplicates)
-
-    varFromName :: (Var v) => Name -> v
-    varFromName name = Var.named (Name.toText name)
 
 -- | Sort out a set of variables by whether it is a term or type.
 partitionVars :: (Foldable f) => f TaggedVar -> SlurpComponent

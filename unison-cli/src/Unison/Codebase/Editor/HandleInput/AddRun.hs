@@ -6,7 +6,6 @@ where
 import Control.Lens (use)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -47,7 +46,7 @@ handleAddRun input resultName = do
           (UF.watchComponents uf0)
   Cli.Env {codebase} <- ask
   currentNames <- Cli.currentNames
-  let sr = Slurp.slurpFile uf (Set.singleton resultVar) Slurp.AddOp currentNames
+  let sr = Slurp.slurpFile uf resultVar currentNames
   let adds = SlurpResult.adds sr
   Cli.runTransaction . Codebase.addDefsToCodebase codebase . SlurpResult.filterUnisonFile sr $ uf
   let description = (Text.pack (InputPattern.patternName InputPatterns.saveExecuteResult) <> " " <> Name.toText resultName)
