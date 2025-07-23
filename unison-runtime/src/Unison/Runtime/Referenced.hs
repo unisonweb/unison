@@ -5,7 +5,7 @@ module Unison.Runtime.Referenced
     Canonize,
     canonicalizeRefs,
     recanonicalizeRefs,
-    toReferenced
+    toReferenced,
   )
 where
 

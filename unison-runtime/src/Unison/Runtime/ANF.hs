@@ -909,10 +909,11 @@ alignBranch f (MatchText bl dl) (MatchText br dr)
           <*> ds
 alignBranch f (MatchRequest bl pl) (MatchRequest br pr)
   | Just bs <- alignAscList h bl br =
-    Just $ MatchRequest <$> bs <*> f pl pr
+      Just $ MatchRequest <$> bs <*> f pl pr
   where
     h csl csr
-      | keysSet csl == keysSet csr, all q (keys csl) =
+      | keysSet csl == keysSet csr,
+        all q (keys csl) =
           Just $ interverse (alignCCs f) csl csr
       | otherwise = Nothing
       where
@@ -955,9 +956,9 @@ alignAscList f ls0 rs0
       Left n -> (n, sortBy (comparing fst) rs0)
       Right n -> (n, rs0)
 
-    prep !n ((k0,_) : xs@((k1, _) : _))
-      | k0 <= k1 = prep (n+1) xs
-    prep n [_] = Right (n+1)
+    prep !n ((k0, _) : xs@((k1, _) : _))
+      | k0 <= k1 = prep (n + 1) xs
+    prep n [_] = Right (n + 1)
     prep n [] = Right n
     prep n xs = Left (n + length xs)
 
