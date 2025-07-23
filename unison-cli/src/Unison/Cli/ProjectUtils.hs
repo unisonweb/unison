@@ -13,6 +13,7 @@ module Unison.Cli.ProjectUtils
     expectProjectAndBranchByIds,
     getProjectAndBranchByTheseNames,
     getProjectAndBranchByNames,
+    getProjectByName,
     expectProjectAndBranchByTheseNames,
     getProjectBranchCausalHash,
 
@@ -38,6 +39,10 @@ module Unison.Cli.ProjectUtils
     -- * Merge/upgrade branch utils
     getMergeBranchParent,
     getUpgradeBranchParent,
+
+    -- * Export fields so we can use dot-notation
+    ProjectBranch (..),
+    Project (..),
   )
 where
 
@@ -209,6 +214,12 @@ resolveProjectBranchInProject defaultProj (ProjectAndBranch mayProjectName mayBr
   let projectName = fromMaybe (defaultProj ^. #name) mayProjectName
   projectAndBranch <- expectProjectAndBranchByTheseNames (These projectName branchName)
   pure projectAndBranch
+
+getProjectByName :: ProjectName -> Cli (Maybe Sqlite.Project)
+getProjectByName projectName = do
+  Cli.runTransaction (Queries.loadProjectByName projectName) >>= \case
+    Nothing -> pure Nothing
+    Just project -> pure (Just project)
 
 -- | Expect/resolve branch reference with the following rules:
 --

@@ -38,10 +38,9 @@ unique type subnamespace.AType = A | B
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type subnamespace.AType
       othernamespace.someName    : ##Nat
@@ -104,9 +103,10 @@ absolute.term = "absolute"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    absolute.term : ##Text
+  Done.
 
 -- Should tab complete absolute names
 
@@ -163,10 +163,9 @@ add b = b
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Foo
       add : a -> a
@@ -219,10 +218,9 @@ mybranchsubnamespace.term = 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       mybranchsubnamespace.term : ##Nat
 ```
@@ -230,9 +228,10 @@ mybranchsubnamespace.term = 1
 ``` ucm
 myproject/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    mybranchsubnamespace.term : ##Nat
+  Done.
 
 myproject/main> debug.tab-complete merge mybr
 

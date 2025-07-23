@@ -7,20 +7,29 @@ function. Also ask for its dependencies for display later.
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
+save.versioned : Nat -> a -> Bytes
+save.versioned v x = Value.serialize.versioned v (Value.value x)
+
 Code.save : Code -> Bytes
 Code.save = Code.serialize
+
+Code.save.versioned : Nat -> Code -> Bytes
+Code.save.versioned = Code.serialize.versioned
 
 Code.get : Link.Term -> Code
 Code.get tl = match Code.lookup tl with
   Some co -> co
   None -> throw "could not look up code"
 
-load : Bytes ->{io2.IO, Throw Text} a
-load b = match Value.deserialize b with
+Value.deser : Bytes ->{io2.IO, Throw Text} Value
+Value.deser b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
-  Right v -> match Value.load v with
-    Left _ -> throw "could not load value"
-    Right x -> x
+  Right v -> v
+
+load : Bytes ->{io2.IO, Throw Text} a
+load b = match Value.load (deser b) with
+  Left _ -> throw "could not load value"
+  Right x -> x
 
 Code.load : Bytes ->{io2.IO, Throw Text} Code
 Code.load b = match Code.deserialize b with
@@ -29,6 +38,23 @@ Code.load b = match Code.deserialize b with
 
 roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
+
+roundtrip.versioned : Nat -> a ->{io2.IO, Throw Text} a
+roundtrip.versioned v x = load (save.versioned v x)
+
+Code.crossVersion : Nat -> Nat -> Text -> Link.Term ->{io2.IO} Result
+Code.crossVersion v0 v1 txt ln =
+  handle
+    Code.serialize.versioned v1
+      (Code.load (Code.serialize.versioned v0 (Code.get ln)))
+  with handleTest txt
+
+-- tests that you can load a v0 saved value and save it as v1
+Value.crossVersion : Nat -> Nat -> Text -> a ->{io2.IO} Result
+Value.crossVersion v0 v1 txt a =
+  handle
+    Value.serialize.versioned v1 (Value.deser (save.versioned v0 a))
+  with handleTest txt
 
 handleTest : Text -> Request {Throw Text} a -> Result
 handleTest t = let
@@ -104,6 +130,10 @@ identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
 
+identicality.versioned : Nat -> Text -> a ->{io2.IO} Result
+identicality.versioned v t x
+  = handle identical "" x (roundtrip.versioned v x) with handleTest t
+
 idempotence : Text -> Link.Term ->{io2.IO} Result
 idempotence t tl =
   handle let
@@ -111,6 +141,16 @@ idempotence t tl =
     b1 = Code.save co1
     co2 = Code.load b1
     b2 = Code.save co2
+    identical "" b1 b2
+  with handleTest t
+
+idempotence.versioned : Nat -> Text -> Link.Term ->{io2.IO} Result
+idempotence.versioned v t tl =
+  handle let
+    co1 = Code.get tl
+    b1 = Code.save.versioned v co1
+    co2 = Code.load b1
+    b2 = Code.save.versioned v co2
     identical "" b1 b2
   with handleTest t
 
@@ -155,88 +195,81 @@ swapped name link =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural type Three a b c
-      Code.get       : Link.Term ->{IO, Throw Text} Code
-      Code.load      : Bytes ->{IO, Throw Text} Code
-      Code.save      : Code -> Bytes
-      concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
-      expectFailure  : Text -> Request {Throw Text} a -> Result
-      extensionality : Text
-                       -> (Three Nat Nat Nat -> Nat -> b)
-                       ->{IO} Result
-      extensionals   : (a -> b -> Text)
-                       -> (a -> b -> c)
-                       -> (a -> b -> c)
-                       -> [(a, b)]
-                       ->{Throw Text} ()
-      fib10          : [Nat]
-      handleTest     : Text -> Request {Throw Text} a -> Result
-      idempotence    : Text -> Link.Term ->{IO} Result
-      identical      : Text -> a -> a ->{Throw Text} ()
-      identicality   : Text -> a ->{IO} Result
-      load           : Bytes ->{IO, Throw Text} a
-      missed         : Text -> Link.Term ->{IO} Result
-      mutual0        : Nat -> Nat
-      mutual1        : Nat -> Nat
-      mutual2        : Nat -> Nat
-      prod           : [a] -> [b] -> [(a, b)]
-      rejected       : Text -> [(Link.Term, Code)] ->{IO} Result
-      roundtrip      : a ->{IO, Throw Text} a
-      save           : a -> Bytes
-      showThree      : Three Nat Nat Nat -> Text
-      swapped        : Text -> Link.Term ->{IO} Result
-      threes         : [Three Nat Nat Nat]
-      verified       : Text -> Link.Term ->{IO} Result
-      verify         : Text
-                       -> [(Link.Term, Code)]
-                       ->{Throw Text} ()
+      Code.crossVersion      : Nat
+                               -> Nat
+                               -> Text
+                               -> Link.Term
+                               ->{IO} Result
+      Code.get               : Link.Term ->{IO, Throw Text} Code
+      Code.load              : Bytes ->{IO, Throw Text} Code
+      Code.save              : Code -> Bytes
+      Code.save.versioned    : Nat -> Code -> Bytes
+      Value.crossVersion     : Nat
+                               -> Nat
+                               -> Text
+                               -> a
+                               ->{IO} Result
+      Value.deser            : Bytes ->{IO, Throw Text} Value
+      concatMap              : (a ->{g} [b]) -> [a] ->{g} [b]
+      expectFailure          : Text
+                               -> Request {Throw Text} a
+                               -> Result
+      extensionality         : Text
+                               -> (Three Nat Nat Nat
+                               -> Nat
+                               -> b)
+                               ->{IO} Result
+      extensionals           : (a -> b -> Text)
+                               -> (a -> b -> c)
+                               -> (a -> b -> c)
+                               -> [(a, b)]
+                               ->{Throw Text} ()
+      fib10                  : [Nat]
+      handleTest             : Text
+                               -> Request {Throw Text} a
+                               -> Result
+      idempotence            : Text -> Link.Term ->{IO} Result
+      idempotence.versioned  : Nat
+                               -> Text
+                               -> Link.Term
+                               ->{IO} Result
+      identical              : Text -> a -> a ->{Throw Text} ()
+      identicality           : Text -> a ->{IO} Result
+      identicality.versioned : Nat -> Text -> a ->{IO} Result
+      load                   : Bytes ->{IO, Throw Text} a
+      missed                 : Text -> Link.Term ->{IO} Result
+      mutual0                : Nat -> Nat
+      mutual1                : Nat -> Nat
+      mutual2                : Nat -> Nat
+      prod                   : [a] -> [b] -> [(a, b)]
+      rejected               : Text
+                               -> [(Link.Term, Code)]
+                               ->{IO} Result
+      roundtrip              : a ->{IO, Throw Text} a
+      roundtrip.versioned    : Nat -> a ->{IO, Throw Text} a
+      save                   : a -> Bytes
+      save.versioned         : Nat -> a -> Bytes
+      showThree              : Three Nat Nat Nat -> Text
+      swapped                : Text -> Link.Term ->{IO} Result
+      threes                 : [Three Nat Nat Nat]
+      verified               : Text -> Link.Term ->{IO} Result
+      verify                 : Text
+                               -> [(Link.Term, Code)]
+                               ->{Throw Text} ()
 ```
 
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Three a b c
-    Code.get       : Link.Term ->{IO, Throw Text} Code
-    Code.load      : Bytes ->{IO, Throw Text} Code
-    Code.save      : Code -> Bytes
-    concatMap      : (a ->{g} [b]) -> [a] ->{g} [b]
-    expectFailure  : Text -> Request {Throw Text} a -> Result
-    extensionality : Text
-                     -> (Three Nat Nat Nat -> Nat -> b)
-                     ->{IO} Result
-    extensionals   : (a -> b -> Text)
-                     -> (a -> b -> c)
-                     -> (a -> b -> c)
-                     -> [(a, b)]
-                     ->{Throw Text} ()
-    fib10          : [Nat]
-    handleTest     : Text -> Request {Throw Text} a -> Result
-    idempotence    : Text -> Link.Term ->{IO} Result
-    identical      : Text -> a -> a ->{Throw Text} ()
-    identicality   : Text -> a ->{IO} Result
-    load           : Bytes ->{IO, Throw Text} a
-    missed         : Text -> Link.Term ->{IO} Result
-    mutual0        : Nat -> Nat
-    mutual1        : Nat -> Nat
-    mutual2        : Nat -> Nat
-    prod           : [a] -> [b] -> [(a, b)]
-    rejected       : Text -> [(Link.Term, Code)] ->{IO} Result
-    roundtrip      : a ->{IO, Throw Text} a
-    save           : a -> Bytes
-    showThree      : Three Nat Nat Nat -> Text
-    swapped        : Text -> Link.Term ->{IO} Result
-    threes         : [Three Nat Nat Nat]
-    verified       : Text -> Link.Term ->{IO} Result
-    verify         : Text
-                     -> [(Link.Term, Code)]
-                     ->{Throw Text} ()
+  Done.
 ```
 
 ``` unison
@@ -252,7 +285,7 @@ h y x = match y with
 f : Nat ->{Zap} Nat
 f x = h zap x
 
-fVal : Value
+fVal : builtin.Value
 fVal = Value.value f
 
 fDeps : [Link.Term]
@@ -288,12 +321,38 @@ tests =
    , identicality "ident effect" (_ -> zap)
    , identicality "ident zero" zero
    , identicality "ident h" h
-   , identicality "ident text" "hello"
+   , identicality "ident text v5" "hello"
    , identicality "ident int" +5
    , identicality "ident float" 0.5
    , identicality "ident termlink" fDeps
    , identicality "ident bool" false
    , identicality "ident bytes" [fSer, Bytes.empty]
+
+   , identicality.versioned 5 "ident compound v5"
+       (x -> handle f x with zapper (zero 5))
+   , identicality.versioned 5 "ident fib10 v5" fib10
+   , identicality.versioned 5 "ident effect v5" (_ -> zap)
+   , identicality.versioned 5 "ident zero v5" zero
+   , identicality.versioned 5 "ident h v5" h
+   , identicality.versioned 5 "ident text v5" "hello"
+   , identicality.versioned 5 "ident int v5" +5
+   , identicality.versioned 5 "ident float v5" 0.5
+   , identicality.versioned 5 "ident termlink v5" fDeps
+   , identicality.versioned 5 "ident bool v5" false
+   , identicality.versioned 5 "ident bytes v5" [fSer, Bytes.empty]
+
+   , Value.crossVersion 4 5 "cross version compound"
+       (x -> handle f x with zapper (zero 5))
+   , Value.crossVersion 4 5 "cross version fib10" fib10
+   , Value.crossVersion 4 5 "cross version effect" (_ -> zap)
+   , Value.crossVersion 4 5 "cross version zero" zero
+   , Value.crossVersion 4 5 "cross version h" h
+   , Value.crossVersion 4 5 "cross version text" "hello"
+   , Value.crossVersion 4 5 "cross version int" +5
+   , Value.crossVersion 4 5 "cross version float" 0.5
+   , Value.crossVersion 4 5 "cross version termlink" fDeps
+   , Value.crossVersion 4 5 "cross version bool" false
+   , Value.crossVersion 4 5 "cross version bytes" [fSer, Bytes.empty]
    ]
 
 badLoad : '{IO} [Result]
@@ -318,10 +377,9 @@ badLoad _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural ability Zap
       badLoad : '{IO} [Result]
@@ -343,19 +401,10 @@ to actual show that the serialization works.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural ability Zap
-    badLoad : '{IO} [Result]
-    bigFun  : Nat -> Nat -> Nat -> Nat
-    f       : Nat ->{Zap} Nat
-    fDeps   : [Link.Term]
-    fSer    : Bytes
-    fVal    : Value
-    h       : Three Nat Nat Nat -> Nat -> Nat
-    rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
-    tests   : '{IO} [Result]
-    zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
+  Done.
 
 scratch/main> io.test tests
 
@@ -368,14 +417,36 @@ scratch/main> io.test tests
                ◉ (ident effect) passed
                ◉ (ident zero) passed
                ◉ (ident h) passed
-               ◉ (ident text) passed
+               ◉ (ident text v5) passed
                ◉ (ident int) passed
                ◉ (ident float) passed
                ◉ (ident termlink) passed
                ◉ (ident bool) passed
                ◉ (ident bytes) passed
+               ◉ (ident compound v5) passed
+               ◉ (ident fib10 v5) passed
+               ◉ (ident effect v5) passed
+               ◉ (ident zero v5) passed
+               ◉ (ident h v5) passed
+               ◉ (ident text v5) passed
+               ◉ (ident int v5) passed
+               ◉ (ident float v5) passed
+               ◉ (ident termlink v5) passed
+               ◉ (ident bool v5) passed
+               ◉ (ident bytes v5) passed
+               ◉ (cross version compound) passed
+               ◉ (cross version fib10) passed
+               ◉ (cross version effect) passed
+               ◉ (cross version zero) passed
+               ◉ (cross version h) passed
+               ◉ (cross version text) passed
+               ◉ (cross version int) passed
+               ◉ (cross version float) passed
+               ◉ (cross version termlink) passed
+               ◉ (cross version bool) passed
+               ◉ (cross version bytes) passed
 
-  ✅ 13 test(s) passing
+  ✅ 35 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 
@@ -402,6 +473,27 @@ codeTests =
    , idempotence "idem big" (termLink bigFun)
    , idempotence "idem extensionality" (termLink extensionality)
    , idempotence "idem identicality" (termLink identicality)
+
+   , idempotence.versioned 4 "idem f v4" (termLink f)
+   , idempotence.versioned 4 "idem h v4" (termLink h)
+   , idempotence.versioned 4 "idem rotate v4" (termLink rotate)
+   , idempotence.versioned 4 "idem zapper v4" (termLink zapper)
+   , idempotence.versioned 4 "idem showThree v4" (termLink showThree)
+   , idempotence.versioned 4 "idem concatMap v4" (termLink concatMap)
+   , idempotence.versioned 4 "idem big v4" (termLink bigFun)
+   , idempotence.versioned 4 "idem extensionality v4" (termLink extensionality)
+   , idempotence.versioned 4 "idem identicality v4" (termLink identicality)
+
+   , Code.crossVersion 3 4 "cross version idem f" (termLink f)
+   , Code.crossVersion 3 4 "cross version idem h" (termLink h)
+   , Code.crossVersion 3 4 "cross version idem rotate" (termLink rotate)
+   , Code.crossVersion 3 4 "cross version idem zapper" (termLink zapper)
+   , Code.crossVersion 3 4 "cross version idem showThree" (termLink showThree)
+   , Code.crossVersion 3 4 "cross version idem concatMap" (termLink concatMap)
+   , Code.crossVersion 3 4 "cross version idem big" (termLink bigFun)
+   , Code.crossVersion 3 4 "cross version idem extensionality" (termLink extensionality)
+   , Code.crossVersion 3 4 "cross version idem identicality" (termLink identicality)
+
    , verified "f" (termLink f)
    , verified "h" (termLink h)
    , verified "rotate" (termLink rotate)
@@ -414,9 +506,11 @@ codeTests =
    , verified "mutual0" (termLink mutual0)
    , verified "mutual1" (termLink mutual0)
    , verified "mutual2" (termLink mutual0)
+
    , missed "mutual0" (termLink mutual0)
    , missed "mutual1" (termLink mutual1)
    , missed "mutual2" (termLink mutual2)
+
    , swapped "zapper" (termLink zapper)
    , swapped "extensionality" (termLink extensionality)
    , swapped "identicality" (termLink identicality)
@@ -430,10 +524,9 @@ codeTests =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       codeTests : '{IO} [Result]
 ```
@@ -441,9 +534,10 @@ codeTests =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    codeTests : '{IO} [Result]
+  Done.
 
 scratch/main> io.test codeTests
 
@@ -458,6 +552,24 @@ scratch/main> io.test codeTests
                    ◉ (idem big) passed
                    ◉ (idem extensionality) passed
                    ◉ (idem identicality) passed
+                   ◉ (idem f v4) passed
+                   ◉ (idem h v4) passed
+                   ◉ (idem rotate v4) passed
+                   ◉ (idem zapper v4) passed
+                   ◉ (idem showThree v4) passed
+                   ◉ (idem concatMap v4) passed
+                   ◉ (idem big v4) passed
+                   ◉ (idem extensionality v4) passed
+                   ◉ (idem identicality v4) passed
+                   ◉ (cross version idem f) passed
+                   ◉ (cross version idem h) passed
+                   ◉ (cross version idem rotate) passed
+                   ◉ (cross version idem zapper) passed
+                   ◉ (cross version idem showThree) passed
+                   ◉ (cross version idem concatMap) passed
+                   ◉ (cross version idem big) passed
+                   ◉ (cross version idem extensionality) passed
+                   ◉ (cross version idem identicality) passed
                    ◉ (verified f) passed
                    ◉ (verified h) passed
                    ◉ (verified rotate) passed
@@ -480,7 +592,7 @@ scratch/main> io.test codeTests
                    ◉ (rejected swapped mututal1) passed
                    ◉ (rejected swapped mututal2) passed
 
-  ✅ 30 test(s) passing
+  ✅ 48 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```
@@ -515,10 +627,9 @@ vtests _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       validateTest : Link.Term ->{IO} Result
       vtests       : '{IO} [Result]
@@ -527,10 +638,10 @@ vtests _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    validateTest : Link.Term ->{IO} Result
-    vtests       : '{IO} [Result]
+  Done.
 
 scratch/main> io.test vtests
 

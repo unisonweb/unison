@@ -30,14 +30,13 @@ import Unison.Term qualified as Term
 import Unison.Util.Pretty qualified as P
 import Unison.WatchKind qualified as WK
 
-data EvalMode = Sandboxed | Permissive | Native
+data EvalMode = Sandboxed | Permissive
 
 selectRuntime :: EvalMode -> Cli (Runtime.Runtime Symbol)
 selectRuntime mode =
-  ask <&> \Cli.Env {runtime, sandboxedRuntime, nativeRuntime} -> case mode of
+  ask <&> \Cli.Env {runtime, sandboxedRuntime} -> case mode of
     Permissive -> runtime
     Sandboxed -> sandboxedRuntime
-    Native -> nativeRuntime
 
 displayDecompileErrors :: [Runtime.Error] -> Cli ()
 displayDecompileErrors errs = Cli.respond (PrintMessage msg)
@@ -94,15 +93,14 @@ evalUnisonTerm mode ppe useCache tm =
     Cli.returnEarly (EvaluationFailure err)
 
 evalPureUnison ::
-  Bool ->
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
   Cli (Either Runtime.Error (Term Symbol Ann))
-evalPureUnison native ppe useCache tm =
+evalPureUnison ppe useCache tm =
   evalUnisonTermE mode ppe useCache tm'
   where
-    mode = if native then Native else Permissive
+    mode = Permissive
     tm' =
       Term.iff
         a

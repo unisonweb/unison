@@ -10,17 +10,17 @@ mutual1 n =
   mutual0 n
 
 mkTestCase = do
-  saveTestCase "case-04" "v4" mutual1 5
+  saveTestCase None "case-04" "v4" mutual1 5
+  saveTestCase (Some 5) "case-04" "v5" mutual1 5
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       mkTestCase : '{IO, Exception} ()
       mutual0    : Nat -> Text
@@ -30,11 +30,10 @@ mkTestCase = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    mkTestCase : '{IO, Exception} ()
-    mutual0    : Nat -> Text
-    mutual1    : Nat -> Text
+  Done.
 
 scratch/main> run mkTestCase
 

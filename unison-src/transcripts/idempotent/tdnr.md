@@ -14,10 +14,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -42,10 +41,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo : Text
 ```
@@ -53,9 +51,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo : Text
+  Done.
 ```
 
 ``` unison
@@ -67,10 +66,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -94,10 +92,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo : Text
 ```
@@ -105,9 +102,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo : Text
+  Done.
 ```
 
 ``` unison
@@ -120,10 +118,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -152,10 +149,9 @@ good.foo = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo : Nat
 ```
@@ -163,9 +159,10 @@ good.foo = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -177,10 +174,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo : Text
       thing   : Nat
@@ -205,10 +201,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -217,10 +212,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo  : Text
-    good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -231,10 +226,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -258,10 +252,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -270,10 +263,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo  : Text
-    good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -285,10 +278,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -316,10 +308,9 @@ good.foo = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo : Nat
 ```
@@ -327,9 +318,10 @@ good.foo = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -342,10 +334,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo : Text
       thing   : Nat
@@ -375,10 +366,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -387,10 +377,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo  : Text
-    good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -402,10 +392,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -434,10 +423,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo  : Text
       good.foo : Nat
@@ -446,10 +434,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo  : Text
-    good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -462,10 +450,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -496,10 +483,9 @@ lib.bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.bad.foo : Text
 ```
@@ -507,9 +493,10 @@ lib.bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.bad.foo : Text
+  Done.
 ```
 
 ``` unison
@@ -521,10 +508,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -549,10 +535,9 @@ lib.bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo    : Nat
       lib.bad.foo : Text
@@ -561,10 +546,10 @@ lib.bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    good.foo    : Nat
-    lib.bad.foo : Text
+  Done.
 ```
 
 ``` unison
@@ -575,10 +560,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -602,10 +586,9 @@ lib.bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo    : Nat
       lib.bad.foo : Text
@@ -614,10 +597,10 @@ lib.bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    good.foo    : Nat
-    lib.bad.foo : Text
+  Done.
 ```
 
 ``` unison
@@ -629,10 +612,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -660,10 +642,9 @@ lib.dep.lib.dep.foo = 217
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.dep.lib.dep.foo : Nat
 ```
@@ -671,9 +652,10 @@ lib.dep.lib.dep.foo = 217
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.dep.lib.dep.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -685,10 +667,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo : Nat
       thing    : Nat
@@ -713,10 +694,9 @@ lib.dep.lib.dep.foo = 217
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo            : Nat
       lib.dep.lib.dep.foo : Nat
@@ -725,10 +705,10 @@ lib.dep.lib.dep.foo = 217
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    good.foo            : Nat
-    lib.dep.lib.dep.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -739,10 +719,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -766,10 +745,9 @@ lib.dep.lib.dep.foo = 217
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       good.foo            : Nat
       lib.dep.lib.dep.foo : Nat
@@ -778,10 +756,10 @@ lib.dep.lib.dep.foo = 217
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    good.foo            : Nat
-    lib.dep.lib.dep.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -793,10 +771,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -824,10 +801,9 @@ lib.good.foo = 17
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.good.foo : Nat
 ```
@@ -835,9 +811,10 @@ lib.good.foo = 17
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -849,10 +826,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo : Text
       thing   : Nat
@@ -877,10 +853,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo      : Text
       lib.good.foo : Nat
@@ -889,10 +864,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo      : Text
-    lib.good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -903,10 +878,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -930,10 +904,9 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bad.foo      : Text
       lib.good.foo : Nat
@@ -942,10 +915,10 @@ bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bad.foo      : Text
-    lib.good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -957,10 +930,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
     
@@ -989,10 +961,9 @@ lib.bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.bad.foo  : Text
       lib.good.foo : Nat
@@ -1001,10 +972,10 @@ lib.bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.bad.foo  : Text
-    lib.good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -1015,10 +986,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -1042,10 +1012,9 @@ lib.dep.lib.dep.foo = 217
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.dep.lib.dep.foo : Nat
       lib.good.foo        : Nat
@@ -1054,10 +1023,10 @@ lib.dep.lib.dep.foo = 217
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.dep.lib.dep.foo : Nat
-    lib.good.foo        : Nat
+  Done.
 ```
 
 ``` unison
@@ -1068,10 +1037,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```
@@ -1095,10 +1063,9 @@ lib.dep.lib.bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.dep.lib.bad.foo  : Text
       lib.dep.lib.good.foo : Nat
@@ -1107,10 +1074,10 @@ lib.dep.lib.bad.foo = "bar"
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    lib.dep.lib.bad.foo  : Text
-    lib.dep.lib.good.foo : Nat
+  Done.
 ```
 
 ``` unison
@@ -1121,10 +1088,9 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       thing : Nat
 ```

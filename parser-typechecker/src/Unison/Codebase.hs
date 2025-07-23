@@ -13,6 +13,7 @@ module Unison.Codebase
     getTermComponentWithTypes,
     unsafeGetTermComponent,
     getTypeOfTerm,
+    expectTypeOfTerm,
     getDeclType,
     unsafeGetTypeOfTermById,
     isTerm,
@@ -21,6 +22,7 @@ module Unison.Codebase
 
     -- ** Referents (sorta-termlike)
     getTypeOfReferent,
+    expectTypeOfReferent,
 
     -- ** Search
     termsOfType,
@@ -38,6 +40,7 @@ module Unison.Codebase
     putTypeDeclarationComponent,
     SqliteCodebase.Operations.typeReferencesByPrefix,
     isType,
+    expectDeclNumConstructors,
 
     -- * Branches
     SqliteCodebase.Operations.branchExists,
@@ -54,12 +57,16 @@ module Unison.Codebase
     getShallowCausalAtPathFromRootHash,
     getShallowProjectBranchRoot,
     expectShallowProjectBranchRoot,
+    expectProjectBranchRootCausal,
     getShallowBranchAtProjectPath,
     getMaybeShallowBranchAtProjectPath,
     getShallowProjectRootByNames,
     expectProjectBranchRoot,
     getBranchAtProjectPath,
     preloadProjectBranch,
+    getBranchDeclNumConstructors,
+    getBranchPartialDeclNameLookup,
+    getBranchDeclNameLookup,
 
     -- * Root branch
     SqliteCodebase.Operations.namesAtPath,
@@ -116,6 +123,7 @@ where
 import Control.Monad.Except (ExceptT)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
@@ -248,7 +256,7 @@ getShallowProjectRootByNames (ProjectAndBranch projectName branchName) = runMayb
 
 expectProjectBranchRoot :: (MonadIO m) => Codebase m v a -> Db.ProjectId -> Db.ProjectBranchId -> m (Branch m)
 expectProjectBranchRoot codebase projectId branchId = do
-  causalHash <- runTransaction codebase $ do
+  causalHash <- runTransaction codebase do
     causalHashId <- Q.expectProjectBranchHead projectId branchId
     Q.expectCausalHash causalHashId
   expectBranchForHash codebase causalHash
@@ -260,10 +268,20 @@ expectShallowProjectBranchRoot ProjectBranch {projectId, branchId} = do
   Operations.expectCausalBranchByCausalHash causalHash >>= V2Causal.value
 
 getShallowProjectBranchRoot :: ProjectBranch -> Sqlite.Transaction (Maybe (V2Branch.Branch Sqlite.Transaction))
-getShallowProjectBranchRoot ProjectBranch {projectId, branchId} = do
+getShallowProjectBranchRoot pb = do
+  getProjectBranchRootCausal pb >>= traverse V2Causal.value
+
+getProjectBranchRootCausal :: ProjectBranch -> Sqlite.Transaction (Maybe (V2Branch.CausalBranch Sqlite.Transaction))
+getProjectBranchRootCausal ProjectBranch {projectId, branchId} = runMaybeT do
+  causalHashId <- MaybeT $ Q.loadProjectBranchHead projectId branchId
+  causalHash <- lift $ Q.expectCausalHash causalHashId
+  MaybeT $ Operations.loadCausalBranchByCausalHash causalHash
+
+expectProjectBranchRootCausal :: ProjectBranch -> Sqlite.Transaction (V2Branch.CausalBranch Sqlite.Transaction)
+expectProjectBranchRootCausal ProjectBranch {projectId, branchId} = do
   causalHashId <- Q.expectProjectBranchHead projectId branchId
   causalHash <- Q.expectCausalHash causalHashId
-  Operations.loadCausalBranchByCausalHash causalHash >>= traverse V2Causal.value
+  Operations.expectCausalBranchByCausalHash causalHash
 
 getBranchAtProjectPath ::
   (MonadIO m) =>
@@ -336,7 +354,7 @@ getTypeOfConstructor codebase (ConstructorReference r0 cid) =
   case r0 of
     Reference.DerivedId r -> do
       maybeDecl <- getTypeDeclaration codebase r
-      pure $ case maybeDecl of
+      pure case maybeDecl of
         Nothing -> Nothing
         Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
     Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
@@ -427,6 +445,17 @@ getTypeOfTerm c r = case r of
       fmap (const builtinAnnotation)
         <$> Map.lookup r Builtin.termRefTypes
 
+expectTypeOfTerm ::
+  (BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
+  Reference ->
+  Sqlite.Transaction (Type Symbol a)
+expectTypeOfTerm codebase ref =
+  getTypeOfTerm codebase ref <&> fromMaybe err
+  where
+    err =
+      error (reportBug "E464302" ("term reference " ++ Text.unpack (Reference.toText ref) ++ " not found"))
+
 -- | Get the type of a referent.
 getTypeOfReferent ::
   (BuiltinAnnotation a) =>
@@ -436,6 +465,17 @@ getTypeOfReferent ::
 getTypeOfReferent c = \case
   Referent.Ref r -> getTypeOfTerm c r
   Referent.Con r _ -> getTypeOfConstructor c r
+
+expectTypeOfReferent ::
+  (BuiltinAnnotation a) =>
+  Codebase m Symbol a ->
+  Referent.Referent ->
+  Sqlite.Transaction (Type Symbol a)
+expectTypeOfReferent c r =
+  getTypeOfReferent c r <&> fromMaybe err
+  where
+    err =
+      error (reportBug "E772282" ("referent " ++ Text.unpack (Referent.toText r) ++ " not found"))
 
 componentReferencesForReference :: Reference -> Sqlite.Transaction (Set Reference)
 componentReferencesForReference = \case

@@ -27,10 +27,9 @@ structural type Y = Y Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural type Z
     
@@ -41,25 +40,21 @@ structural type Y = Y Nat
         (The old definition is also named builtin.Unit.)
 ```
 
-Adding should fail for BOTH definitions, `Y` needs an update and `Z` is blocked by `Y`.
+``` ucm
+scratch/main> update
 
-``` ucm :error
-scratch/main> add
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-  x These definitions failed:
+  That's done. Now I'm making sure everything typechecks...
 
-    Reason
-    needs update structural type Y
-    blocked      structural type Z
+  Everything typechecks, so I'm saving the results...
 
-    Tip: Use `help filestatus` to learn more.
+  Done.
 
 -- This shouldn't exist, because it should've been blocked.
 
 scratch/main> view Z
 
-  ⚠️
-
-  The following names were not found in the codebase. Check your spelling.
-    Z
+  structural type Z = Z Y
 ```

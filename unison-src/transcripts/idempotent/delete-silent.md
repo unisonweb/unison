@@ -15,10 +15,10 @@ structural type Foo = Foo ()
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Foo
-    foo : ##Nat
+  Done.
 
 scratch/main> delete foo
 

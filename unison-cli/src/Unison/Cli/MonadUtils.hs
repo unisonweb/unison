@@ -13,6 +13,7 @@ module Unison.Cli.MonadUtils
     -- * Project and branch resolution
     getCurrentProjectAndBranch,
     getCurrentProjectBranch,
+    getCurrentProject,
 
     -- * Branches
 
@@ -22,6 +23,7 @@ module Unison.Cli.MonadUtils
     resolveBranchId,
     resolveBranchIdToAbsBranchId,
     resolveShortCausalHash,
+    resolveShortCausalHashToCausalHash,
 
     -- ** Getting/setting branches
     getCurrentProjectRoot,
@@ -134,6 +136,10 @@ getCurrentProjectPath = do
 getCurrentProjectAndBranch :: Cli (ProjectAndBranch Project ProjectBranch)
 getCurrentProjectAndBranch = do
   PP.toProjectAndBranch <$> getCurrentProjectPath
+
+getCurrentProject :: Cli Project
+getCurrentProject = do
+  view #project <$> getCurrentProjectPath
 
 getCurrentProjectBranch :: Cli ProjectBranch
 getCurrentProjectBranch = do
@@ -417,16 +423,26 @@ updateProjectBranchRoot :: ProjectBranch -> Text -> (Branch IO -> Cli (Branch IO
 updateProjectBranchRoot projectBranch reason f = do
   env <- ask
   Cli.time "updateProjectBranchRoot" do
-    old <- getProjectBranchRoot projectBranch
-    (new, result) <- f old
-    when (old /= new) do
+    beforeUpdates <- getProjectBranchRoot projectBranch
+    (new, result) <- f beforeUpdates
+    when (beforeUpdates /= new) do
       liftIO $ Codebase.putBranch env.codebase new
-      Cli.runTransaction do
-        -- TODO: If we transactionally check that the project branch hasn't changed while we were computing the new
-        -- branch, and if it has, abort the transaction and return an error, then we can
-        -- remove the single UCM per codebase restriction.
-        causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
-        Q.setProjectBranchHead reason projectBranch.projectId projectBranch.branchId causalHashId
+      Cli.runTransactionWithRollback \rollback -> do
+        causalHashId <- Q.expectProjectBranchHead projectBranch.projectId projectBranch.branchId
+        currentHeadHash <- Q.expectCausalHash causalHashId
+        -- Inside the transaction we ensure that the branch from before the updates matches the current head of the
+        -- project branch, like a check-and-set operation.
+        -- If it doesn't, then some other process has updated the branch between when we read it and computed the
+        -- updates. We should abort and ask the user to try again.
+        if
+          | (currentHeadHash == Branch.headHash new) -> do
+              -- Someone else updated the branch, but they set it to what we wanted to anyways.
+              pure ()
+          | (currentHeadHash /= Branch.headHash beforeUpdates) -> do
+              rollback Output.BranchUpdate'BranchChanged
+          | otherwise -> do
+              causalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash new)
+              Q.setProjectBranchHead reason projectBranch.projectId projectBranch.branchId causalHashId
       -- The input to this function isn't necessarily the *current* project branch, which is what LSP cares about. But
       -- it might be! There's no harm in unconditionally notifying the LSP that the current project branch may have
       -- changed, but it is slightly more efficient for us to just do the == comparison here (since otherwise the LSP
@@ -436,7 +452,7 @@ updateProjectBranchRoot projectBranch reason f = do
         liftIO (env.lspCheckForChanges projectPathIds)
     pure result
 
-setProjectBranchRootToCausalHash :: ProjectBranch -> Text -> CausalHash -> Cli ()
+setProjectBranchRootToCausalHash :: (HasCallStack) => ProjectBranch -> Text -> CausalHash -> Cli ()
 setProjectBranchRootToCausalHash projectBranch reason targetCH = do
   Cli.time "setProjectBranchRootToCausalHash" do
     Cli.runTransaction $ do

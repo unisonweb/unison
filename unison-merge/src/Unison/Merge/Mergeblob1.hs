@@ -12,19 +12,19 @@ import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DataDeclaration.Dependencies qualified as Decl
+import Unison.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
-import Unison.Merge.Diff (humanizeDiffs, nameBasedNamespaceDiff)
+import Unison.Merge.Diff (diffSynhashedDefns, humanizeDiffs, synhashDefns)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
 import Unison.Merge.Mergeblob0 (Mergeblob0 (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
-import Unison.Merge.Synhashed (Synhashed)
+import Unison.Merge.Rename (Rename, SimpleRenames, makeRenames, makeSimpleRenames)
+import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
@@ -33,6 +33,7 @@ import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
@@ -46,6 +47,7 @@ import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
 
 data Mergeblob1 libdep = Mergeblob1
@@ -66,6 +68,8 @@ data Mergeblob1 libdep = Mergeblob1
     lcaLibdeps :: Map NameSegment libdep,
     libdeps :: Map NameSegment libdep,
     libdepsDiffs :: TwoWay (Map NameSegment (DiffOp libdep)),
+    renames :: TwoWay (DefnsF [] Rename Rename),
+    simpleRenames :: TwoWay (Defns SimpleRenames SimpleRenames),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
 
@@ -135,13 +139,12 @@ makeMergeblob1 blob names3 hydratedDefns = do
   let lcaDeclNameLookup =
         lenientCheckDeclCoherency blob.nametrees.lca numConstructors
 
-  -- Diff LCA->Alice and LCA->Bob
-  let (diffsFromLCA, propagatedUpdates) =
-        nameBasedNamespaceDiff
-          declNameLookups
-          lcaDeclNameLookup
+  -- Synhash all the defns
+  let synhashedDefns =
+        synhashDefns
+          (declNameLookups, lcaDeclNameLookup)
           ppeds3
-          blob.defns
+          (bimap BiMultimap.range BiMultimap.range <$> blob.defns)
           Defns
             { terms =
                 foldMap
@@ -153,10 +156,22 @@ makeMergeblob1 blob names3 hydratedDefns = do
                   hydratedDefns
             }
 
-  -- Combine the LCA->Alice and LCA->Bob diffs together
-  let diff = combineDiffs diffsFromLCA
+  let renames =
+        makeRenames (bimap BiMultimap.fromRange BiMultimap.fromRange <$> synhashedDefns)
 
-  let humanDiffsFromLCA = humanizeDiffs names3 diffsFromLCA propagatedUpdates
+  let simpleRenames =
+        makeSimpleRenames <$> renames
+
+  -- Diff LCA->Alice and LCA->Bob
+  let (diffsFromLCA, propagatedUpdates) =
+        diffSynhashedDefns synhashedDefns
+
+  -- Combine the LCA->Alice and LCA->Bob diffs together
+  let diff =
+        combineDiffs diffsFromLCA
+
+  let humanDiffsFromLCA =
+        humanizeDiffs names3 diffsFromLCA propagatedUpdates
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
@@ -184,5 +199,7 @@ makeMergeblob1 blob names3 hydratedDefns = do
         lcaLibdeps = blob.libdeps.lca,
         libdeps,
         libdepsDiffs,
+        renames,
+        simpleRenames,
         unconflicts
       }

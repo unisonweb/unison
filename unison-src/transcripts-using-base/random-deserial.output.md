@@ -29,11 +29,16 @@ runTestCase name =
   ls3file = directory ++ name ++ ".v3.ser"
   ofile = directory ++ name ++ ".out"
   hfile = directory ++ name ++ ".v4.hash"
+  s5file = directory ++ name ++ ".v5.ser"
 
   p@(f, i) = loadSelfContained sfile
   pl3@(fl3, il3) =
     if fileExists ls3file
     then loadSelfContained ls3file
+    else p
+  p5@(f5, i5) =
+    if fileExists s5file
+    then loadSelfContained s5file
     else p
   o = fromUtf8 (readFile ofile)
   h = readFile hfile
@@ -45,6 +50,8 @@ runTestCase name =
     then Fail (name ++ " hash mismatch")
     else if not (fl3 il3 == f i)
     then Fail (name ++ " legacy v3 mismatch")
+    else if not (f5 i5 == f i)
+    then Fail (name ++ " v5 mismatch")
     else Ok name
   (name, result)
 
@@ -59,10 +66,9 @@ serialTests = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       availableCases : '{IO, Exception} [Text]
       directory      : Text
@@ -75,14 +81,10 @@ serialTests = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    availableCases : '{IO, Exception} [Text]
-    directory      : Text
-    gen            : Nat -> Nat -> (Nat, Nat)
-    runTestCase    : Text ->{IO, Exception} (Text, Result)
-    serialTests    : '{IO, Exception} [Result]
-    shuffle        : Nat -> [a] -> [a]
+  Done.
 
 scratch/main> io.test serialTests
 

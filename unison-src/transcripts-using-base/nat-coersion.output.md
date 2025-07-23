@@ -36,10 +36,9 @@ test = 'let
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       test    : '{IO} [Result]
       testNat : Nat
@@ -51,13 +50,10 @@ test = 'let
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    test    : '{IO} [Result]
-    testNat : Nat
-              -> Optional Int
-              -> Optional Float
-              ->{Stream Result} ()
+  Done.
 
 scratch/main> io.test test
 

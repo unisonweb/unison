@@ -47,6 +47,7 @@ import Unison.Prelude
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
+import Unison.Util.List (safeHead)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
@@ -54,9 +55,9 @@ import Unison.Util.Relation qualified as Relation
 
 type OptionFetcher = Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
 
-data FZFResolver = FZFResolver
-  { getOptions :: OptionFetcher
-  }
+data FZFResolver
+  = FetchOptions OptionFetcher
+  | DefaultFZFFileSearch
 
 instance Show FZFResolver where
   show _ = "<FZFResolver>"
@@ -97,7 +98,15 @@ namespaceOptions _codebase _projCtx searchBranch0 = do
     & Branch.deepPaths
     & Set.delete mempty {- The current path just renders as an empty string which isn't a valid arg -}
     & Set.toList
+    -- Sort libs last, then by path depth, then lexicographically
+    & List.sortOn
+      ( \path ->
+          let pathList = Path.toList path
+           in (safeHead pathList == Just NameSegment.libSegment, length pathList, pathList)
+      )
     & map (Path.toText . intoPath')
+    -- Add the root namespace to the path list
+    & (Path.toText Path.Root' :)
     & pure
 
 -- | Lists all dependencies of the current project.
@@ -117,7 +126,7 @@ projectDependencyOptions _codebase _projCtx searchBranch0 = do
 -- Returned Path's will match the provided 'Position' type.
 fuzzySelectFromList :: [Text] -> FZFResolver
 fuzzySelectFromList options =
-  (FZFResolver {getOptions = \_codebase _projCtx _branch -> pure options})
+  (FetchOptions (\_codebase _projCtx _branch -> pure options))
 
 -- | Combine multiple option fetchers into one resolver.
 multiResolver :: [OptionFetcher] -> FZFResolver
@@ -125,25 +134,25 @@ multiResolver resolvers =
   let getOptions :: Codebase IO Symbol Ann -> PP.ProjectPath -> Branch0 IO -> IO [Text]
       getOptions codebase projCtx searchBranch0 = do
         List.nubOrd <$> foldMapM (\f -> f codebase projCtx searchBranch0) resolvers
-   in (FZFResolver {getOptions})
+   in (FetchOptions getOptions)
 
 definitionResolver :: FZFResolver
-definitionResolver = FZFResolver {getOptions = definitionOptions}
+definitionResolver = FetchOptions definitionOptions
 
 typeDefinitionResolver :: FZFResolver
-typeDefinitionResolver = FZFResolver {getOptions = typeDefinitionOptions}
+typeDefinitionResolver = FetchOptions typeDefinitionOptions
 
 termDefinitionResolver :: FZFResolver
-termDefinitionResolver = FZFResolver {getOptions = termDefinitionOptions}
+termDefinitionResolver = FetchOptions termDefinitionOptions
 
 namespaceResolver :: FZFResolver
-namespaceResolver = FZFResolver {getOptions = namespaceOptions}
+namespaceResolver = FetchOptions namespaceOptions
 
 namespaceOrDefinitionResolver :: FZFResolver
 namespaceOrDefinitionResolver = multiResolver [definitionOptions, namespaceOptions]
 
 projectDependencyResolver :: FZFResolver
-projectDependencyResolver = FZFResolver {getOptions = projectDependencyOptions}
+projectDependencyResolver = FetchOptions projectDependencyOptions
 
 -- | A project name, branch name, or both.
 projectAndOrBranchArg :: FZFResolver
@@ -153,13 +162,13 @@ projectOrBranchResolver :: FZFResolver
 projectOrBranchResolver = multiResolver [projectBranchOptions, namespaceOptions]
 
 projectBranchResolver :: FZFResolver
-projectBranchResolver = FZFResolver {getOptions = projectBranchOptions}
+projectBranchResolver = FetchOptions projectBranchOptions
 
 projectBranchWithinCurrentProjectResolver :: FZFResolver
-projectBranchWithinCurrentProjectResolver = FZFResolver {getOptions = projectBranchOptionsWithinCurrentProject}
+projectBranchWithinCurrentProjectResolver = FetchOptions projectBranchOptionsWithinCurrentProject
 
 projectNameResolver :: FZFResolver
-projectNameResolver = FZFResolver {getOptions = projectNameOptions}
+projectNameResolver = FetchOptions projectNameOptions
 
 -- | All possible local project names
 -- E.g. '@unison/base'

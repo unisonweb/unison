@@ -29,10 +29,10 @@ data BranchDiff = BranchDiff
 diff0 :: Branch0 m -> Branch0 m -> BranchDiff
 diff0 old new = do
   BranchDiff
-    { addedTerms = Star2.difference (new ^. Branch.terms) (old ^. Branch.terms),
-      removedTerms = Star2.difference (old ^. Branch.terms) (new ^. Branch.terms),
-      addedTypes = Star2.difference (new ^. Branch.types) (old ^. Branch.types),
-      removedTypes = Star2.difference (old ^. Branch.types) (new ^. Branch.types)
+    { addedTerms = Star2.difference (new ^. Branch.terms_) (old ^. Branch.terms_),
+      removedTerms = Star2.difference (old ^. Branch.terms_) (new ^. Branch.terms_),
+      addedTypes = Star2.difference (new ^. Branch.types_) (old ^. Branch.types_),
+      removedTypes = Star2.difference (old ^. Branch.types_) (new ^. Branch.types_)
     }
 
 instance Semigroup BranchDiff where

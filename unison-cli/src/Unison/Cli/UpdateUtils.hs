@@ -11,9 +11,6 @@ module Unison.Cli.UpdateUtils
     getNamespaceDependentsOf2,
     getNamespaceDependentsOf3,
 
-    -- * Narrowing definitions
-    narrowDefns,
-
     -- * Hydrating definitions
     hydrateDefns,
 
@@ -66,7 +63,7 @@ import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
-import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName, unflattenNametrees)
+import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
@@ -185,38 +182,6 @@ getNamespaceDependentsOf3 defns dependencies = do
   let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
   let scope = bifoldMap toTermScope toTypeScope defns
   Operations.transitiveDependentsWithinScope scope (bifold dependencies)
-
-------------------------------------------------------------------------------------------------------------------------
--- Narrowing definitions
-
--- | "Narrow" a namespace that may contain conflicted names, resulting in either a failure (if we find a conflicted
--- name), or the narrowed nametree without conflicted names.
-narrowDefns ::
-  forall term typ.
-  (Ord term, Ord typ) =>
-  DefnsF (Relation Name) term typ ->
-  Either
-    ( Defn
-        (Conflicted Name term)
-        (Conflicted Name typ)
-    )
-    (Nametree (DefnsF (Map NameSegment) term typ))
-narrowDefns =
-  fmap unflattenNametrees
-    . bitraverse
-      (go (\name -> TermDefn . Conflicted name))
-      (go (\name -> TypeDefn . Conflicted name))
-  where
-    go :: forall ref x. (Ord ref) => (Name -> NESet ref -> x) -> Relation Name ref -> Either x (Map Name ref)
-    go conflicted =
-      Map.traverseWithKey unconflicted . Relation.domain
-      where
-        unconflicted :: Name -> Set ref -> Either x ref
-        unconflicted name refs0
-          | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
-          | otherwise = Left (conflicted name refs)
-          where
-            refs = Set.NonEmpty.unsafeFromSet refs0
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Hydrating definitions

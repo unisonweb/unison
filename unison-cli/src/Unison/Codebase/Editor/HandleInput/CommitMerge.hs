@@ -33,8 +33,8 @@ handleCommitMerge = do
 
   parentBranch <-
     Cli.runTransaction do
-      parentBranch <- Queries.expectProjectBranch mergeProjectAndBranch.project.projectId parentBranchId
-      pure parentBranch
+      Queries.expectProjectBranch mergeProjectAndBranch.project.projectId parentBranchId
+
   Cli.switchProject (ProjectAndBranch parentBranch.projectId parentBranch.branchId)
 
   -- Merge the merge branch into the parent

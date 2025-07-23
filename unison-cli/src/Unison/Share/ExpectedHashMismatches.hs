@@ -6,7 +6,7 @@
 -- Keeping this table allows us to allow UCM to validate the hashes of new terms which are
 -- received from remote sources, but allows a bit of lee-way for these known exceptions.
 --
--- While we certainly don't want to make this a common occurence, it's safe as long as we
+-- While we certainly don't want to make this a common occurrence, it's safe as long as we
 -- are specific about both the provided and actual hashes.
 module Unison.Share.ExpectedHashMismatches (expectedComponentHashMismatches, expectedCausalHashMismatches) where
 

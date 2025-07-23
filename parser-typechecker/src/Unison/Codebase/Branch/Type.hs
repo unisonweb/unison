@@ -1,26 +1,23 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Unison.Codebase.Branch.Type
   ( NamespaceHash,
     head,
     headHash,
     namespaceHash,
     Branch (..),
-    Branch0,
+    Branch0 (asUnconflicted),
+    UnconflictedBranchView (..),
     branch0,
-    Unison.Codebase.Branch.Type.terms,
-    Unison.Codebase.Branch.Type.types,
-    children,
+    terms_,
+    types_,
+    children_,
     nonEmptyChildren,
-    history,
-    edits,
+    history_,
+    edits_,
     isEmpty0,
     deepTerms,
     deepTypes,
-    deepDefns,
     deepPaths,
+    deleteLibdeps,
     Star,
     UnwrappedBranch,
   )
@@ -29,27 +26,38 @@ where
 import Control.Lens hiding (children, cons, transform, uncons)
 import Control.Monad.State (State)
 import Control.Monad.State qualified as State
+import Data.Bitraversable (bitraverse)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
-import U.Codebase.HashTags (CausalHash, PatchHash (..))
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
+import U.Codebase.HashTags (BranchHash (..), CausalHash, PatchHash (..))
 import Unison.Codebase.Causal.Type (Causal)
 import Unison.Codebase.Causal.Type qualified as Causal
 import Unison.Codebase.Metadata qualified as Metadata
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
+import Unison.Hash (HashFor (..))
 import Unison.Hash qualified as Hash
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Prelude hiding (empty)
-import Unison.Reference (Reference, TypeReference)
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Conflicted (Conflicted (..))
+import Unison.Util.Defn (Defn (..), DefnF)
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Nametree (Nametree, unflattenNametrees)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
@@ -74,8 +82,8 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> CausalHash
 headHash (Branch c) = Causal.currentHash c
 
-namespaceHash :: Branch m -> NamespaceHash m
-namespaceHash (Branch c) = Causal.valueHash c
+namespaceHash :: forall m. Branch m -> BranchHash
+namespaceHash (Branch c) = coerce @(HashFor (Branch0 m)) @BranchHash (Causal.valueHash c)
 
 -- | A node in the Unison namespace hierarchy.
 --
@@ -90,7 +98,7 @@ namespaceHash (Branch c) = Causal.valueHash c
 -- Use either the lensy accessors or the field getters.
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment,
-    _types :: Star Reference NameSegment,
+    _types :: Star TypeReference NameSegment,
     -- | Note the 'Branch' here, not 'Branch0'.
     -- Every level in the tree has a history.
     _children :: Map NameSegment (Branch m),
@@ -100,8 +108,15 @@ data Branch0 m = Branch0
     _isEmpty0 :: Bool,
     -- names for this branch and its children
     _deepTerms :: Relation Referent Name,
-    _deepTypes :: Relation Reference Name,
-    _deepPaths :: Set Path
+    _deepTypes :: Relation TypeReference Name,
+    _deepPaths :: Set Path,
+    asUnconflicted ::
+      Either
+        ( Defn
+            (Conflicted Name Referent)
+            (Conflicted Name TypeReference)
+        )
+        UnconflictedBranchView
   }
 
 instance Eq (Branch0 m) where
@@ -111,11 +126,28 @@ instance Eq (Branch0 m) where
       && _children a == _children b
       && (fmap fst . _edits) a == (fmap fst . _edits) b
 
-history :: Iso' (Branch m) (UnwrappedBranch m)
-history = iso _history Branch
+-- | A view of a branch's definition (everything outside of `lib`) that is unconflicted: each name refers to one thing.
+-- The data contained within is all just different expressions of the same contents, for various use cases. The
+-- intention is to use laziness to avoid recomputing data structures whenever possible.
+data UnconflictedBranchView = UnconflictedBranchView
+  { defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
+    nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference),
+    names :: Names
+  }
 
-edits :: Lens' (Branch0 m) (Map NameSegment (PatchHash, m Patch))
-edits =
+makeUnconflictedBranchView :: DefnsF (Map Name) Referent TypeReference -> UnconflictedBranchView
+makeUnconflictedBranchView defns0 =
+  UnconflictedBranchView
+    { defns = bimap BiMultimap.fromRange BiMultimap.fromRange defns0,
+      nametree = unflattenNametrees defns0,
+      names = Names.fromUnconflicted defns0
+    }
+
+history_ :: Iso' (Branch m) (UnwrappedBranch m)
+history_ = iso _history Branch
+
+edits_ :: Lens' (Branch0 m) (Map NameSegment (PatchHash, m Patch))
+edits_ =
   lens
     _edits
     ( \b0 e ->
@@ -123,22 +155,24 @@ edits =
           & deriveIsEmpty
     )
 
-terms :: Lens' (Branch0 m) (Star Referent NameSegment)
-terms =
+terms_ :: Lens' (Branch0 m) (Star Referent NameSegment)
+terms_ =
   lens
     _terms
     \branch terms ->
       branch {_terms = terms}
         & deriveDeepTerms
+        & deriveAsUnconflicted
         & deriveIsEmpty
 
-types :: Lens' (Branch0 m) (Star TypeReference NameSegment)
-types =
+types_ :: Lens' (Branch0 m) (Star TypeReference NameSegment)
+types_ =
   lens
     _types
     \branch types ->
       branch {_types = types}
         & deriveDeepTypes
+        & deriveAsUnconflicted
         & deriveIsEmpty
 
 isEmpty0 :: Branch0 m -> Bool
@@ -150,18 +184,11 @@ deepTerms = _deepTerms
 deepTypes :: Branch0 m -> Relation TypeReference Name
 deepTypes = _deepTypes
 
-deepDefns :: Branch0 m -> DefnsF (Relation Name) Referent TypeReference
-deepDefns branch =
-  Defns
-    { terms = Relation.swap (deepTerms branch),
-      types = Relation.swap (deepTypes branch)
-    }
-
 deepPaths :: Branch0 m -> Set Path
 deepPaths = _deepPaths
 
-children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
-children = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)
+children_ :: Lens' (Branch0 m) (Map NameSegment (Branch m))
+children_ = lens _children (\Branch0 {_terms, _types, _edits} x -> branch0 _terms _types x _edits)
 
 nonEmptyChildren :: Branch0 m -> Map NameSegment (Branch m)
 nonEmptyChildren b =
@@ -187,10 +214,12 @@ branch0 terms types children edits =
       -- These are all overwritten immediately
       _deepTerms = R.empty,
       _deepTypes = R.empty,
-      _deepPaths = Set.empty
+      _deepPaths = Set.empty,
+      asUnconflicted = undefined
     }
     & deriveDeepTerms
     & deriveDeepTypes
+    & deriveAsUnconflicted
     & deriveDeepPaths
     & deriveIsEmpty
 
@@ -218,7 +247,7 @@ deriveDeepTerms branch =
           forall m.
           Seq (DeepChildAcc m) ->
           [(Referent, Name)] ->
-          DeepState m [(Referent, Name)]
+          DeepState [(Referent, Name)]
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let terms :: [(Referent, Name)]
@@ -240,13 +269,50 @@ deriveDeepTypes branch =
         go ::
           Seq (DeepChildAcc m) ->
           [(TypeReference, Name)] ->
-          DeepState m [(TypeReference, Name)]
+          DeepState [(TypeReference, Name)]
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let types :: [(TypeReference, Name)]
               types = map (second (Name.fromReverseSegments . (NonEmpty.:| reversePrefix))) (R.toList (Star2.d1 (_types b0)))
           children <- deepChildrenHelper e
           go (work <> children) (types <> acc)
+
+-- | Derive the 'asUnconflicted' field of a branch.
+deriveAsUnconflicted :: Branch0 m -> Branch0 m
+deriveAsUnconflicted branch =
+  branch {asUnconflicted = makeUnconflictedBranchView <$> narrowDefns defns}
+  where
+    branchWithoutLibdeps = deleteLibdeps branch
+    defns =
+      Defns
+        { terms = Relation.swap (deepTerms branchWithoutLibdeps),
+          types = Relation.swap (deepTypes branchWithoutLibdeps)
+        }
+
+-- | "Narrow" a namespace that may contain conflicted names, resulting in either a failure (if we find a conflicted
+-- name), or the narrowed nametree without conflicted names.
+narrowDefns ::
+  forall term typ.
+  (Ord term, Ord typ) =>
+  DefnsF (Relation Name) term typ ->
+  Either
+    (DefnF (Conflicted Name) term typ)
+    (DefnsF (Map Name) term typ)
+narrowDefns =
+  bitraverse
+    (go (\name -> TermDefn . Conflicted name))
+    (go (\name -> TypeDefn . Conflicted name))
+  where
+    go :: forall ref x. (Ord ref) => (Name -> NESet ref -> x) -> Relation Name ref -> Either x (Map Name ref)
+    go conflicted =
+      Map.traverseWithKey unconflicted . Relation.domain
+      where
+        unconflicted :: Name -> Set ref -> Either x ref
+        unconflicted name refs0
+          | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
+          | otherwise = Left (conflicted name refs)
+          where
+            refs = Set.NonEmpty.unsafeFromSet refs0
 
 -- | Derive the 'deepPaths' field of a branch.
 deriveDeepPaths :: forall m. Branch0 m -> Branch0 m
@@ -256,7 +322,7 @@ deriveDeepPaths branch =
     makeDeepPaths :: Branch0 m -> Set Path
     makeDeepPaths branch = State.evalState (go (Seq.singleton ([], 0, branch)) mempty) Set.empty
       where
-        go :: Seq (DeepChildAcc m) -> Set Path -> DeepState m (Set Path)
+        go :: Seq (DeepChildAcc m) -> Set Path -> DeepState (Set Path)
         go Seq.Empty acc = pure acc
         go (e@(reversePrefix, _, b0) Seq.:<| work) acc = do
           let paths :: Set Path
@@ -269,7 +335,7 @@ deriveDeepPaths branch =
 
 -- | State used by deepChildrenHelper to determine whether to descend into a child branch.
 -- Contains the set of visited namespace hashes.
-type DeepState m = State (Set (NamespaceHash m))
+type DeepState = State (Set BranchHash)
 
 -- | Represents a unit of remaining work in traversing children for computing `deep*`.
 -- (reverse prefix to a branch, the number of `lib` segments in the reverse prefix, and the branch itself)
@@ -277,9 +343,9 @@ type DeepChildAcc m = ([NameSegment], Int, Branch0 m)
 
 -- | Helper for knowing whether to descend into a child branch or not.
 -- Accepts child namespaces with previously unseen hashes, and any nested under 1 or fewer `lib` segments.
-deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState m (Seq (DeepChildAcc m))
+deepChildrenHelper :: forall m. DeepChildAcc m -> DeepState (Seq (DeepChildAcc m))
 deepChildrenHelper (reversePrefix, libDepth, b0) = do
-  let go :: (NameSegment, Branch m) -> DeepState m (Seq (DeepChildAcc m))
+  let go :: (NameSegment, Branch m) -> DeepState (Seq (DeepChildAcc m))
       go (ns, b) = do
         let h = namespaceHash b
         result <- do
@@ -294,3 +360,8 @@ deepChildrenHelper (reversePrefix, libDepth, b0) = do
         State.modify' (Set.insert h)
         pure result
   Monoid.foldMapM go (Map.toList (nonEmptyChildren b0))
+
+-- | @deleteLibdeps branch@ deletes all libdeps from @branch@.
+deleteLibdeps :: Branch0 m -> Branch0 m
+deleteLibdeps =
+  over children_ (Map.delete NameSegment.libSegment)

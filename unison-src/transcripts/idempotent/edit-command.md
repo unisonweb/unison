@@ -14,10 +14,9 @@ mytest = [Ok "ok"]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bar    : Nat
       foo    : Nat
@@ -27,11 +26,10 @@ mytest = [Ok "ok"]
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar    : Nat
-    foo    : Nat
-    mytest : [Result]
+  Done.
 
 scratch/main> edit.new foo bar
 
@@ -103,10 +101,9 @@ baz = 19
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       bar : Nat
       baz : Nat
@@ -116,11 +113,10 @@ baz = 19
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    bar : Nat
-    baz : Nat
-    foo : Nat
+  Done.
 ```
 
 ``` unison

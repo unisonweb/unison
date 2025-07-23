@@ -1,7 +1,6 @@
 -- | This module defines 'InputPattern' values for every supported input command.
 module Unison.CommandLine.InputPatterns
   ( -- * Input commands
-    add,
     aliasMany,
     aliasTerm,
     aliasType,
@@ -15,7 +14,6 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
-    compileScheme,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -67,9 +65,7 @@ module Unison.CommandLine.InputPatterns
     helpTopics,
     history,
     ioTest,
-    ioTestNative,
     ioTestAll,
-    ioTestAllNative,
     libInstallInputPattern,
     load,
     makeStandalone,
@@ -80,7 +76,6 @@ module Unison.CommandLine.InputPatterns
     moveAll,
     names,
     namespaceDependencies,
-    previewAdd,
     printVersion,
     projectCreate,
     projectCreateEmptyInputPattern,
@@ -102,15 +97,12 @@ module Unison.CommandLine.InputPatterns
     renameTerm,
     renameType,
     reset,
-    runScheme,
     saveExecuteResult,
     sfind,
     sfindReplace,
     textfind,
     test,
-    testNative,
     testAll,
-    testAllNative,
     todo,
     ui,
     undo,
@@ -149,7 +141,6 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
 import Network.URI qualified as URI
@@ -856,37 +847,11 @@ clear =
     . const
     $ pure Input.ClearI
 
-add :: InputPattern
-add =
-  InputPattern
-    "add"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`add` adds to the codebase all the definitions from the most recently "
-        <> "typechecked file."
-    )
-    $ fmap (Input.AddI . Set.fromList) . traverse handleNameArg
-
-previewAdd :: InputPattern
-previewAdd =
-  InputPattern
-    "add.preview"
-    []
-    I.Visible
-    (Parameters [] . Optional [] $ Just ("definition", exactDefinitionArg))
-    ( "`add.preview` previews additions to the codebase from the most recently "
-        <> "typechecked file. This command only displays cached typechecking "
-        <> "results. Use `load` to reparse & typecheck the file if the context "
-        <> "has changed."
-    )
-    $ fmap (Input.PreviewAddI . Set.fromList) . traverse handleNameArg
-
 update :: InputPattern
 update =
   InputPattern
     { patternName = "update",
-      aliases = [],
+      aliases = ["add"],
       visibility = I.Visible,
       params = noParams,
       help =
@@ -1218,13 +1183,29 @@ findShallow =
     "list"
     ["ls", "dir"]
     I.Visible
+    (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
+    ( P.wrapColumn2
+        [ (makeExample findShallow [], "lists definitions and namespaces in the current namespace."),
+          (makeExample findShallow ["foo"], "lists the 'foo' namespace."),
+          (makeExample findShallow [".foo"], "lists the '.foo' namespace.")
+        ]
+    )
+    ( fmap Input.FindShallowI . \case
+        [] -> pure Path.Current'
+        path : _ -> handlePath'Arg path
+    )
+
+findFuzzy :: InputPattern
+findFuzzy =
+  InputPattern
+    "list-fuzzy"
+    ["lsf"]
+    I.Visible
     (Parameters [("namespace", namespaceArg)] (Optional [] Nothing))
     ( P.wrapColumn2
-        [ ("`list`", "lists definitions and namespaces in a namespace you select (requires fzf)."),
-          ("`list .`", "lists definitions and namespaces in the project root."),
-          ("`list .foo`", "lists definitions and namespaces in the '.foo' namespace."),
-          ("`list foo`", "lists definitions and namespaces in the 'foo' namespace.")
-        ]
+        [(makeExample' findFuzzy, "lists definitions and namespaces in a namespace you select (requires fzf).")]
+        <> P.newline
+        <> P.wrap ("If you pass arguments to" <> makeExample' findFuzzy <> "it will behave the same as as" <> makeExample' findShallow)
     )
     ( fmap Input.FindShallowI . \case
         [] -> pure Path.Current'
@@ -1613,7 +1594,7 @@ libInstallInputPattern =
     { patternName = "lib.install",
       aliases = ["install.lib"],
       visibility = I.Visible,
-      params = Parameters [("library name", noCompletionsArg)] $ Optional [] Nothing,
+      params = Parameters [("library name", remoteProjectBranchOrReleaseArg)] $ Optional [] Nothing,
       help =
         P.lines
           [ P.wrap $
@@ -1693,7 +1674,7 @@ pullImpl name aliases pullMode addendum = do
           params =
             Parameters [] $
               Optional
-                [ ("remote namespace to pull", remoteNamespaceArg),
+                [ ("remote namespace to pull", remoteProjectBranchOrReleaseArg),
                   ( "destination branch",
                     projectBranchNameArg
                       ProjectBranchSuggestionsConfig
@@ -1844,7 +1825,7 @@ debugFormat =
     "debug.format"
     []
     I.Hidden
-    (Parameters [] $ Optional [("source-file", filePathArg)] Nothing)
+    (Parameters [] $ Optional [("source file", filePathArg)] Nothing)
     ( P.lines
         [ P.wrap $ "This command can be used to test ucm's file formatter on the latest typechecked file.",
           makeExample' debugFormat
@@ -1861,7 +1842,7 @@ push =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1917,7 +1898,7 @@ pushCreate =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -1970,7 +1951,7 @@ pushForce =
     I.Visible
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local source", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     (P.wrap "Like `push`, but forcibly overwrites the remote namespace.")
@@ -2003,7 +1984,7 @@ pushExhaustive =
     I.Hidden
     ( Parameters [] $
         Optional
-          [("remote destination", remoteNamespaceArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
+          [("remote destination", remoteProjectBranchOrReleaseArg), ("local target", namespaceOrProjectBranchArg suggestionsConfig)]
           Nothing
     )
     ( P.lines
@@ -2045,7 +2026,7 @@ syncToFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg)] $
+        Parameters [("destination sync file", filePathArg)] $
           Optional [("branch", projectAndBranchNamesArg suggestionsConfig)] Nothing,
       help =
         ( P.wrapColumn2
@@ -2077,7 +2058,7 @@ syncFromFile =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("file-path", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
+        Parameters [("file to sync from", filePathArg), ("destination branch", projectAndBranchNamesArg suggestionsConfig)] $
           Optional [] Nothing,
       help =
         ( P.wrapColumn2
@@ -2106,9 +2087,9 @@ syncFromCodebase =
       visibility = I.Visible,
       params =
         Parameters
-          [ ("codebase-location", filePathArg),
-            ("branch-to-sync", projectAndBranchNamesArg suggestionsConfig),
-            ("destination-branch", projectAndBranchNamesArg suggestionsConfig)
+          [ ("codebase location", directoryPathArg),
+            ("branch to sync", projectAndBranchNamesArg suggestionsConfig),
+            ("destination branch", projectAndBranchNamesArg suggestionsConfig)
           ]
           $ Optional [] Nothing,
       help =
@@ -2418,21 +2399,20 @@ helpTopicsMap =
           "",
           P.wrapColumn2
             [ ( P.bold $ SR.prettyStatus SR.Collision,
-                "A definition with the same name as an existing definition. Doing"
-                  <> "`update` instead of `add` will turn this failure into a successful"
-                  <> "update."
+                "A definition with the same name as an existing definition."
+                  <> "Rename or delete the existing definition and then try again."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
                 "A definition with the same name as an existing constructor for "
                   <> "some data type. Rename your definition or the data type before"
-                  <> "trying again to `add` or `update`."
+                  <> "trying again to `update`."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.ConstructorExistingTermCollision,
                 "A type defined in the file has a constructor that's named the"
                   <> "same as an existing term. Rename that term or your constructor"
-                  <> "before trying again to `add` or `update`."
+                  <> "before trying again to `update`."
               ),
               blankline,
               ( P.bold $ SR.prettyStatus SR.BlockedDependency,
@@ -2809,38 +2789,6 @@ test =
         fmap
           ( \path ->
               Input.TestI
-                False
-                Input.TestInput
-                  { includeLibNamespace = False,
-                    path = Path.Relative path,
-                    showFailures = True,
-                    showSuccesses = True
-                  }
-          )
-          . \case
-            [] -> pure mempty
-            pathString : _ -> handlePathArg pathString
-    }
-
-testNative :: InputPattern
-testNative =
-  InputPattern
-    { patternName = "test.native",
-      aliases = [],
-      visibility = I.Hidden,
-      params = Parameters [] $ Optional [("namespace", namespaceArg)] Nothing,
-      help =
-        P.wrapColumn2
-          [ ( "`test.native`",
-              "runs unit tests for the current branch on the native runtime"
-            ),
-            ("`test foo`", "runs unit tests for the current branch defined in namespace `foo` on the native runtime")
-          ],
-      parse =
-        fmap
-          ( \path ->
-              Input.TestI
-                True
                 Input.TestInput
                   { includeLibNamespace = False,
                     path = Path.Relative path,
@@ -2864,26 +2812,6 @@ testAll =
     . const
     . pure
     $ Input.TestI
-      False
-      Input.TestInput
-        { includeLibNamespace = True,
-          path = mempty,
-          showFailures = True,
-          showSuccesses = True
-        }
-
-testAllNative :: InputPattern
-testAllNative =
-  InputPattern
-    "test.native.all"
-    ["test.all.native"]
-    I.Hidden
-    noParams
-    "`test.native.all` runs unit tests for the current branch (including the `lib` namespace) on the native runtime."
-    . const
-    . pure
-    $ Input.TestI
-      True
       Input.TestInput
         { includeLibNamespace = True,
           path = mempty,
@@ -2897,7 +2825,7 @@ docsToHtml =
     "docs.to-html"
     []
     I.Visible
-    (Parameters [("namespace", branchRelativePathArg), ("output directory", filePathArg)] $ Optional [] Nothing)
+    (Parameters [("namespace", branchRelativePathArg), ("output directory", directoryPathArg)] $ Optional [] Nothing)
     ( P.wrapColumn2
         [ ( makeExample docsToHtml [".path.to.ns", "doc-dir"],
             "Render all docs contained within the namespace `.path.to.ns`, no matter how deep, to html files in `doc-dir` in the directory UCM was run from."
@@ -2982,27 +2910,7 @@ ioTest =
             )
           ],
       parse = \case
-        [thing] -> Input.IOTestI False <$> handleHashQualifiedNameArg thing
-        args -> wrongArgsLength "exactly one argument" args
-    }
-
-ioTestNative :: InputPattern
-ioTestNative =
-  InputPattern
-    { patternName = "io.test.native",
-      aliases = ["test.io.native", "test.native.io"],
-      visibility = I.Hidden,
-      params = Parameters [("test to run", exactDefinitionTermQueryArg)] $ Optional [] Nothing,
-      help =
-        P.wrapColumn2
-          [ ( "`io.test.native mytest`",
-              "Runs `!mytest` on the native runtime, where `mytest` "
-                <> "is a delayed test that can use the `IO` and "
-                <> "`Exception` abilities."
-            )
-          ],
-      parse = \case
-        [thing] -> Input.IOTestI True <$> handleHashQualifiedNameArg thing
+        [thing] -> Input.IOTestI <$> handleHashQualifiedNameArg thing
         args -> wrongArgsLength "exactly one argument" args
     }
 
@@ -3019,23 +2927,7 @@ ioTestAll =
               "runs unit tests for the current branch that use IO"
             )
           ],
-      parse = const . pure $ Input.IOTestAllI False
-    }
-
-ioTestAllNative :: InputPattern
-ioTestAllNative =
-  InputPattern
-    { patternName = "io.test.native.all",
-      aliases = ["test.io.native.all", "test.native.io.all"],
-      visibility = I.Hidden,
-      params = noParams,
-      help =
-        P.wrapColumn2
-          [ ( "`io.test.native.all`",
-              "runs unit tests for the current branch that use IO"
-            )
-          ],
-      parse = const . pure $ Input.IOTestAllI True
+      parse = const . pure $ Input.IOTestAllI
     }
 
 makeStandalone :: InputPattern
@@ -3061,65 +2953,6 @@ makeStandalone =
           <$> unsupportedStructuredArgument makeStandalone "a file name" file
           <*> handleHashQualifiedNameArg main
       args -> wrongArgsLength "exactly two arguments" args
-
-runScheme :: InputPattern
-runScheme =
-  InputPattern
-    "run.native"
-    []
-    I.Visible
-    ( Parameters [("definition to run", exactDefinitionTermQueryArg)] . Optional [] $
-        Just ("arguments", noCompletionsArg)
-    )
-    ( P.wrapColumn2
-        [ ( makeExample runScheme ["main", "args"],
-            "Executes !main using native compilation via scheme."
-          )
-        ]
-    )
-    \case
-      main : args ->
-        Input.ExecuteSchemeI
-          <$> handleHashQualifiedNameArg main
-          <*> traverse (unsupportedStructuredArgument runScheme "a command-line argument") args
-      [] -> wrongArgsLength "at least one argument" []
-
-compileScheme :: InputPattern
-compileScheme =
-  InputPattern
-    "compile.native"
-    []
-    I.Hidden
-    ( Parameters [("definition to compile", exactDefinitionTermQueryArg), ("output file", filePathArg)] $
-        Optional [("profile", profileArg)] Nothing
-    )
-    ( P.wrapColumn2
-        [ ( makeExample compileScheme ["main", "file", "profile"],
-            "Creates stand alone executable via compilation to"
-              <> "scheme. The created executable will have the effect"
-              <> "of running `!main`. Providing `profile` as a third"
-              <> "argument will enable profiling."
-          )
-        ]
-    )
-    \case
-      [main, file] -> mkCompileScheme False file main
-      [main, file, prof] -> do
-        unsupportedStructuredArgument compileScheme "profile" prof
-          >>= \case
-            "profile" -> mkCompileScheme True file main
-            parg ->
-              Left . P.text $
-                "I expected the third argument to be `profile`, but"
-                  <> " instead recieved `"
-                  <> Text.pack parg
-                  <> "`."
-      args -> wrongArgsLength "two or three arguments" args
-  where
-    mkCompileScheme pf fn mn =
-      Input.CompileSchemeI pf . Text.pack
-        <$> unsupportedStructuredArgument compileScheme "a file name" fn
-        <*> handleHashQualifiedNameArg mn
 
 createAuthor :: InputPattern
 createAuthor =
@@ -3347,6 +3180,32 @@ branchRenameInputPattern =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+squashProjectBranch :: InputPattern
+squashProjectBranch =
+  InputPattern
+    { patternName = "branch.squash",
+      aliases = ["squash.branch"],
+      visibility = I.Visible,
+      params = Parameters [("branch-to-squash", projectBranchNameArg suggestionsConfig), ("destination-branch", newBranchNameArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ("`branch.squash /foo /bar`", "creates (or updates) the branch `/bar` with a snapshot of the code at branch `/foo` without any of its history.")
+          ],
+      parse = \case
+        [branchToSquash, newNameString] ->
+          Input.BranchSquashI
+            <$> handleMaybeProjectBranchArg branchToSquash
+            <*> handleMaybeProjectBranchArg newNameString
+        args -> wrongArgsLength "two arguments" args
+    }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = OnlyWithinCurrentProject,
+          branchInclusion = AllBranches
+        }
+
 clone :: InputPattern
 clone =
   InputPattern
@@ -3354,7 +3213,7 @@ clone =
       aliases = [],
       visibility = I.Visible,
       params =
-        Parameters [("source branch", projectAndBranchNamesArg suggestionsConfig)] $
+        Parameters [("source branch", remoteProjectBranchOrReleaseArg)] $
           Optional [("target branch", newBranchNameArg)] Nothing,
       help =
         P.wrapColumn2
@@ -3386,13 +3245,6 @@ clone =
             <*> fmap pure (handleProjectAndBranchNamesArg localNames)
         args -> wrongArgsLength "one or two arguments" args
     }
-  where
-    suggestionsConfig =
-      ProjectBranchSuggestionsConfig
-        { showProjectCompletions = True,
-          projectInclusion = AllProjects,
-          branchInclusion = ExcludeCurrentBranch
-        }
 
 releaseDraft :: InputPattern
 releaseDraft =
@@ -3486,8 +3338,7 @@ validInputs :: [InputPattern]
 validInputs =
   sortOn
     I.patternName
-    [ add,
-      aliasMany,
+    [ aliasMany,
       aliasTerm,
       aliasType,
       api,
@@ -3500,7 +3351,6 @@ validInputs =
       cd,
       clear,
       clone,
-      compileScheme,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,
@@ -3547,6 +3397,7 @@ validInputs =
       findIn,
       findAll,
       findInAll,
+      findFuzzy,
       findGlobal,
       findShallow,
       findVerbose,
@@ -3560,9 +3411,7 @@ validInputs =
       helpTopics,
       history,
       ioTest,
-      ioTestNative,
       ioTestAll,
-      ioTestAllNative,
       libInstallInputPattern,
       load,
       makeStandalone,
@@ -3573,7 +3422,6 @@ validInputs =
       names False, -- names
       names True, -- debug.names.global
       namespaceDependencies,
-      previewAdd,
       printVersion,
       projectCreate,
       projectCreateEmptyInputPattern,
@@ -3586,6 +3434,7 @@ validInputs =
       pushCreate,
       pushExhaustive,
       pushForce,
+      squashProjectBranch,
       syncToFile,
       syncFromFile,
       syncFromCodebase,
@@ -3596,12 +3445,9 @@ validInputs =
       renameType,
       moveAll,
       reset,
-      runScheme,
       saveExecuteResult,
       test,
-      testNative,
       testAll,
-      testAllNative,
       todo,
       ui,
       undo,
@@ -3751,29 +3597,36 @@ filePathArg :: ParameterType
 filePathArg =
   ParameterType
     { typeName = "file-path",
-      suggestions = noCompletions,
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Just I.DefaultFZFFileSearch,
+      isStructured = False
+    }
+
+directoryPathArg :: ParameterType
+directoryPathArg =
+  ParameterType
+    { typeName = "directory-path",
+      suggestions = \prefix _ _ _ -> filenameCompletion prefix,
       fzfResolver = Nothing,
       isStructured = False
     }
 
--- | Refers to a namespace on some remote code host.
-remoteNamespaceArg :: ParameterType
-remoteNamespaceArg =
+_remoteProjectArg :: ParameterType
+_remoteProjectArg =
   ParameterType
-    { typeName = "remote-namespace",
-      suggestions = \input _cb http _p -> sharePathCompletion http input,
+    { typeName = "remote-project",
+      suggestions = \input _cb http _p -> completeShareProject http input,
       fzfResolver = Nothing,
       isStructured = True
     }
 
-profileArg :: ParameterType
-profileArg =
+remoteProjectBranchOrReleaseArg :: ParameterType
+remoteProjectBranchOrReleaseArg =
   ParameterType
-    { typeName = "profile",
-      suggestions = \_input _cb _http _p ->
-        pure [Line.simpleCompletion "profile"],
+    { typeName = "remote-project-branch",
+      suggestions = \input _cb http _p -> completeShareBranchOrRelease http input,
       fzfResolver = Nothing,
-      isStructured = False
+      isStructured = True
     }
 
 data ProjectInclusion = OnlyWithinCurrentProject | OnlyOutsideCurrentProject | AllProjects

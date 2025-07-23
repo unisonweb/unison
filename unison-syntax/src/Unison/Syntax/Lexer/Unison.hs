@@ -454,41 +454,11 @@ lexemes eof =
     toks :: P [Token Lexeme]
     toks =
       doc2
-        <|> doc
         <|> token numeric
         <|> token character
         <|> reserved
         <|> token identifierLexemeP
         <|> (asum . map token) [semi, textual, hash]
-
-    doc :: P [Token Lexeme]
-    doc = open <+> (CP.space *> fmap fixup body) <+> (close <* space)
-      where
-        open = token'' (\t _ _ -> t) $ tok (Open <$> lit "[:")
-        close = tok (Close <$ lit ":]")
-        at = lit "@"
-        -- this removes some trailing whitespace from final textual segment
-        fixup [] = []
-        fixup (Token (Textual (reverse -> txt)) start stop : []) =
-          [Token (Textual txt') start stop]
-          where
-            txt' = reverse (dropWhile (\c -> isSpace c && not (c == '\n')) txt)
-        fixup (h : t) = h : fixup t
-
-        body :: P [Token Lexeme]
-        body = txt <+> (atk <|> pure [])
-          where
-            ch = (":]" <$ lit "\\:]") <|> ("@" <$ lit "\\@") <|> (pure <$> P.anySingle)
-            txt = tok (Textual . join <$> P.manyTill ch (P.lookAhead sep))
-            sep = void at <|> void close
-            ref = at *> (tok identifierLexemeP <|> docTyp)
-            atk = (ref <|> docTyp) <+> body
-            docTyp = do
-              _ <- lit "["
-              typ <- tok (P.manyTill P.anySingle (P.lookAhead (lit "]")))
-              _ <- lit "]" *> CP.space
-              t <- tok identifierLexemeP
-              pure $ (fmap Reserved <$> typ) <> t
 
     semi = char ';' $> Semi False
     textual = Textual <$> quoted
@@ -733,11 +703,6 @@ openKw s = separated wordySep $ do
   env <- S.get
   S.put (env {opening = Just s})
   pure [Open <$> token]
-
-tok :: P a -> P [Token a]
-tok p = do
-  token <- tokenP p
-  pure [token]
 
 -- An identifier is a non-empty dot-delimited list of segments, with an optional leading dot, where each segment is
 -- symboly (comprised of only symbols) or wordy (comprised of only alphanums).

@@ -355,6 +355,12 @@ test> Bytes.tests.indexOf =
 
    ]
 
+test> Bytes.tests.byteArray = 
+  bs = 0xs0102030405
+  checks [
+    ImmutableByteArray.toBytes (ImmutableByteArray.fromBytes bs) 0 5 == bs
+  ]
+
 ```
 
 ``` ucm :hide
@@ -402,10 +408,9 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       Any.test1 : [Result]
       Any.test2 : [Result]
@@ -457,10 +462,9 @@ openFile]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       Sandbox.test1          : [Result]
       Sandbox.test2          : [Result]
@@ -513,10 +517,9 @@ openFilesIO = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       openFilesIO : '{IO} [Result]
 ```
@@ -524,9 +527,10 @@ openFilesIO = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    openFilesIO : '{IO} [Result]
+  Done.
 
 scratch/main> io.test openFilesIO
 
@@ -552,10 +556,9 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       Universal.murmurHash.tests : [Result]
 
@@ -590,29 +593,30 @@ scratch/main> test
     4.  Boolean.tests.notTable              ◉ Passed
     5.  Boolean.tests.orTable               ◉ Passed
     6.  Bytes.tests.at                      ◉ Passed
-    7.  Bytes.tests.compression             ◉ Passed
-    8.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
-    9.  Bytes.tests.indexOf                 ◉ Passed
-    10. Int.tests.arithmetic                ◉ Passed
-    11. Int.tests.bitTwiddling              ◉ Passed
-    12. Int.tests.conversions               ◉ Passed
-    13. Nat.tests.arithmetic                ◉ Passed
-    14. Nat.tests.bitTwiddling              ◉ Passed
-    15. Nat.tests.conversions               ◉ Passed
-    16. Sandbox.test1                       ◉ Passed
-    17. Sandbox.test2                       ◉ Passed
-    18. Sandbox.test3                       ◉ Passed
-    19. test.rtjqan7bcs                     ◉ Passed
-    20. Text.tests.alignment                ◉ Passed
-    21. Text.tests.indexOf                  ◉ Passed
-    22. Text.tests.indexOfEmoji             ◉ Passed
-    23. Text.tests.literalsEq               ◉ Passed
-    24. Text.tests.patterns                 ◉ Passed
-    25. Text.tests.repeat                   ◉ Passed
-    26. Text.tests.takeDropAppend           ◉ Passed
-    27. Universal.murmurHash.tests          ◉ Passed
+    7.  Bytes.tests.byteArray               ◉ Passed
+    8.  Bytes.tests.compression             ◉ Passed
+    9.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
+    10. Bytes.tests.indexOf                 ◉ Passed
+    11. Int.tests.arithmetic                ◉ Passed
+    12. Int.tests.bitTwiddling              ◉ Passed
+    13. Int.tests.conversions               ◉ Passed
+    14. Nat.tests.arithmetic                ◉ Passed
+    15. Nat.tests.bitTwiddling              ◉ Passed
+    16. Nat.tests.conversions               ◉ Passed
+    17. Sandbox.test1                       ◉ Passed
+    18. Sandbox.test2                       ◉ Passed
+    19. Sandbox.test3                       ◉ Passed
+    20. test.rtjqan7bcs                     ◉ Passed
+    21. Text.tests.alignment                ◉ Passed
+    22. Text.tests.indexOf                  ◉ Passed
+    23. Text.tests.indexOfEmoji             ◉ Passed
+    24. Text.tests.literalsEq               ◉ Passed
+    25. Text.tests.patterns                 ◉ Passed
+    26. Text.tests.repeat                   ◉ Passed
+    27. Text.tests.takeDropAppend           ◉ Passed
+    28. Universal.murmurHash.tests          ◉ Passed
 
-  ✅ 27 test(s) passing
+  ✅ 28 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

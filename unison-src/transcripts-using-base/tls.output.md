@@ -35,10 +35,9 @@ what_should_work _ = this_should_work ++ this_should_not_work
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       this_should_not_work : [Result]
       this_should_work     : [Result]
@@ -48,11 +47,10 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    this_should_not_work : [Result]
-    this_should_work     : [Result]
-    what_should_work     : ∀ _. _ -> [Result]
+  Done.
 
 scratch/main> io.test what_should_work
 
@@ -224,10 +222,9 @@ testCNReject _ =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       serverThread          : MVar Nat -> Text -> '{IO} ()
       testCAReject          : '{IO} [Result]
@@ -242,16 +239,10 @@ testCNReject _ =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    serverThread          : MVar Nat -> Text -> '{IO} ()
-    testCAReject          : '{IO} [Result]
-    testCNReject          : '{IO} [Result]
-    testClient            : Optional SignedCert
-                            -> Text
-                            -> MVar Nat
-                            -> '{IO, Exception} Text
-    testConnectSelfSigned : '{IO} [Result]
+  Done.
 
 scratch/main> io.test testConnectSelfSigned
 

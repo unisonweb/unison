@@ -122,7 +122,3 @@ Stack doesn't work deterministically in Windows due to mismatched expectations a
 ## Nix support
 
 See the [readme](./nix/README.md).
-
-## Native compilation
-
-See the [readme](scheme-libs/racket/unison/Readme.md).

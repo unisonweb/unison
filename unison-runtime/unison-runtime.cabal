@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -21,6 +21,10 @@ flag arraychecks
   manual: True
   default: False
 
+flag codeserialchecks
+  manual: True
+  default: False
+
 flag dumpcore
   manual: True
   default: False
@@ -37,11 +41,16 @@ library
   exposed-modules:
       Unison.Codebase.Execute
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.ANF.Serialize.CodeV4
+      Unison.Runtime.ANF.Serialize.Tags
+      Unison.Runtime.ANF.Serialize.ValueV5
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types
+      Unison.Runtime.Canonicalizer
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -57,6 +66,7 @@ library
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Referenced
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
@@ -99,6 +109,7 @@ library
       asn1-encoding
     , asn1-types
     , atomic-primops
+    , avro
     , base
     , binary
     , bytes
@@ -149,6 +160,7 @@ library
     , unison-util-bytes
     , unison-util-recursion
     , unliftio
+    , unordered-containers
     , vector
   default-language: Haskell2010
   if flag(arraychecks)
@@ -160,6 +172,8 @@ library
     cpp-options: -DOPT_CHECK
     build-depends:
         inspection-testing
+  if flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats
 
@@ -246,5 +260,7 @@ test-suite runtime-tests
     cpp-options: -DOPT_CHECK
     build-depends:
         inspection-testing
+  if flag(codeserialchecks)
+    ghc-options: -DCODE_SERIAL_CHECK
   if flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats

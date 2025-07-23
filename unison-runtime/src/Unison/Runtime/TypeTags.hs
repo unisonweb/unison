@@ -6,6 +6,7 @@ module Unison.Runtime.TypeTags
     packTags,
     unpackTags,
     maskTags,
+    typeTag,
     anyTag,
     floatTag,
     natTag,
@@ -49,6 +50,102 @@ module Unison.Runtime.TypeTags
     jsonTextTag,
     jsonArrTag,
     jsonParseErrorTag,
+    avroNullTag,
+    avroRecordTag,
+    avroBytesTag,
+    avroFixedTag,
+    avroArrayTag,
+    avroMapTag,
+    avroUnionTag,
+    avroEnumTag,
+    avroStringTag,
+    avroIntTag,
+    avroLongTag,
+    avroFloatTag,
+    avroDoubleTag,
+    avroBooleanTag,
+    avroReadSchemaNullTag,
+    avroReadSchemaBooleanTag,
+    avroReadSchemaIntTag,
+    avroReadSchemaLongTag,
+    avroReadSchemaFloatTag,
+    avroReadSchemaDoubleTag,
+    avroReadSchemaBytesTag,
+    avroReadSchemaStringTag,
+    avroReadSchemaArrayTag,
+    avroReadSchemaMapTag,
+    avroReadSchemaRecordTag,
+    avroReadSchemaEnumTag,
+    avroReadSchemaUnionTag,
+    avroReadSchemaFixedTag,
+    avroReadSchemaFreeUnionTag,
+    avroReadSchemaNamedTypeTag,
+    avroTypeNameTag,
+    avroLogicalIntDateTag,
+    avroLogicalIntTimeTag,
+    avroLogicalIntDecimalTag,
+    avroReadFloatFromInt32Tag,
+    avroReadFloatFromInt64Tag,
+    avroReadFloatTag,
+    avroLogicalLongTimeMicrosTag,
+    avroLogicalLongTimestampMillisTag,
+    avroLogicalLongTimestampMicrosTag,
+    avroLogicalLongLocalTimestampMillisTag,
+    avroLogicalLongLocalTimestampMicrosTag,
+    avroLogicalLongDecimalTag,
+    avroLogicalFixedDurationTag,
+    avroLogicalFixedDecimalTag,
+    avroLogicalStringUUIDTag,
+    avroReadDoubleFromInt32Tag,
+    avroReadDoubleFromInt64Tag,
+    avroReadDoubleFromFloatTag,
+    avroReadDoubleTag,
+    avroDecimalTag,
+    avroReadLongInt32Tag,
+    avroReadLongTag,
+    avroLogicalBytesDecimalTag,
+    avroLogicalStringUuidTag,
+    avroReadFieldTag,
+    avroFieldTag,
+    avroFieldStatusAsIsTag,
+    avroFieldStatusDefaultedTag,
+    avroFieldStatusIgnoredTag,
+    avroOrderAscendingTag,
+    avroOrderDescendingTag,
+    avroOrderIgnoreTag,
+    avroDefaultValueIntTag,
+    avroDefaultValueLongTag,
+    avroDefaultValueFloatTag,
+    avroDefaultValueDoubleTag,
+    avroDefaultValueBytesTag,
+    avroDefaultValueStringTag,
+    avroDefaultValueArrayTag,
+    avroDefaultValueMapTag,
+    avroDefaultValueRecordTag,
+    avroDefaultValueUnionTag,
+    avroDefaultValueFixedTag,
+    avroDefaultValueEnumTag,
+    avroDefaultValueNullTag,
+    avroDefaultValueBooleanTag,
+    avroSchemaNullTag,
+    avroSchemaBooleanTag,
+    avroSchemaIntTag,
+    avroSchemaLongTag,
+    avroSchemaFloatTag,
+    avroSchemaDoubleTag,
+    avroSchemaBytesTag,
+    avroSchemaStringTag,
+    avroSchemaArrayTag,
+    avroSchemaMapTag,
+    avroSchemaNamedTypeTag,
+    avroSchemaRecordTag,
+    avroSchemaEnumTag,
+    avroSchemaUnionTag,
+    avroSchemaFixedTag,
+    avroReadRecordTag,
+    avroFixedTypeTag,
+    avroRecordTypeTag,
+    avroEnumTypeTag,
   )
 where
 
@@ -94,9 +191,13 @@ newtype PackedTag = PackedTag Word64
 
 class Tag t where rawTag :: t -> Word64
 
-instance Tag RTag where rawTag (RTag w) = w
+instance Tag RTag where
+  rawTag (RTag w) = w
+  {-# INLINE rawTag #-}
 
-instance Tag CTag where rawTag (CTag w) = fromIntegral w
+instance Tag CTag where
+  rawTag (CTag w) = fromIntegral w
+  {-# INLINE rawTag #-}
 
 packTags :: RTag -> CTag -> PackedTag
 packTags (RTag rt) (CTag ct) = PackedTag (ri .|. ci)
@@ -105,11 +206,18 @@ packTags (RTag rt) (CTag ct) = PackedTag (ri .|. ci)
     ci = fromIntegral ct
 
 unpackTags :: PackedTag -> (RTag, CTag)
-unpackTags (PackedTag w) = (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
+unpackTags (PackedTag w) =
+  (RTag $ w `shiftR` 16, CTag . fromIntegral $ w .&. 0xFFFF)
+{-# INLINE unpackTags #-}
 
 -- Masks a packed tag to extract just the constructor tag portion
 maskTags :: PackedTag -> Word64
 maskTags (PackedTag w) = (w .&. 0xFFFF)
+
+-- Extract the type tag portion of some packed tags
+typeTag :: PackedTag -> Word64
+typeTag (PackedTag w) = w `shiftR` 16
+{-# INLINE typeTag #-}
 
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
@@ -324,6 +432,159 @@ jsonParseErrorTag
         [Ty.jsonParseError] =
       pet
   | otherwise = error "internal error: json parse error tag"
+
+avroNullTag, avroRecordTag, avroBytesTag, avroFixedTag, avroArrayTag, avroMapTag, avroUnionTag, avroEnumTag, avroStringTag, avroIntTag, avroLongTag, avroFloatTag, avroDoubleTag, avroBooleanTag :: PackedTag
+(avroNullTag, avroRecordTag, avroBytesTag, avroFixedTag, avroArrayTag, avroMapTag, avroUnionTag, avroEnumTag, avroStringTag, avroIntTag, avroLongTag, avroFloatTag, avroDoubleTag, avroBooleanTag)
+  | [nlt, rct, bct, fct, act, mct, ut, et, st, it, lt, ft, dt, bt] <-
+      mkTags
+        "avro tags"
+        Ty.avroRef
+        [Ty.avroNull, Ty.avroRecord, Ty.avroBytes, Ty.avroFixed, Ty.avroArray, Ty.avroMap, Ty.avroUnion, Ty.avroEnum, Ty.avroString, Ty.avroInt, Ty.avroLong, Ty.avroFloat, Ty.avroDouble, Ty.avroBoolean] =
+      (nlt, rct, bct, fct, act, mct, ut, et, st, it, lt, ft, dt, bt)
+  | otherwise = error "internal error: avro tags"
+
+avroFixedTypeTag :: PackedTag
+avroFixedTypeTag = mkSimpleTag "avroFixedTypeTag" Ty.avroFixedRef
+
+avroRecordTypeTag :: PackedTag
+avroRecordTypeTag = mkSimpleTag "avroRecordTypeTag" Ty.avroRecordRef
+
+avroEnumTypeTag :: PackedTag
+avroEnumTypeTag = mkSimpleTag "avroEnumTypeTag" Ty.avroEnumRef
+
+avroDefaultValueIntTag, avroDefaultValueLongTag, avroDefaultValueFloatTag, avroDefaultValueDoubleTag, avroDefaultValueBytesTag, avroDefaultValueStringTag, avroDefaultValueArrayTag, avroDefaultValueMapTag, avroDefaultValueRecordTag, avroDefaultValueUnionTag, avroDefaultValueFixedTag, avroDefaultValueEnumTag, avroDefaultValueNullTag, avroDefaultValueBooleanTag :: PackedTag
+(avroDefaultValueIntTag, avroDefaultValueLongTag, avroDefaultValueFloatTag, avroDefaultValueDoubleTag, avroDefaultValueBytesTag, avroDefaultValueStringTag, avroDefaultValueArrayTag, avroDefaultValueMapTag, avroDefaultValueRecordTag, avroDefaultValueUnionTag, avroDefaultValueFixedTag, avroDefaultValueEnumTag, avroDefaultValueNullTag, avroDefaultValueBooleanTag)
+  | [it, lt, ft, dt, bct, st, art, mct, rct, ut, fct, ent, nct, bot] <-
+      mkTags
+        "avro default value tags"
+        Ty.avroDefaultValueRef
+        [Ty.avroDefaultValueInt32, Ty.avroDefaultValueInt64, Ty.avroDefaultValueFloat, Ty.avroDefaultValueDouble, Ty.avroDefaultValueBytes, Ty.avroDefaultValueString, Ty.avroDefaultValueArray, Ty.avroDefaultValueMap, Ty.avroDefaultValueRecord, Ty.avroDefaultValueUnion, Ty.avroDefaultValueFixed, Ty.avroDefaultValueEnum, Ty.avroDefaultValueNull, Ty.avroDefaultValueBoolean] =
+      (it, lt, ft, dt, bct, st, art, mct, rct, ut, fct, ent, nct, bot)
+  | otherwise = error "internal error: avro default value tags"
+
+avroReadSchemaNullTag, avroReadSchemaBooleanTag, avroReadSchemaStringTag, avroReadSchemaFloatTag, avroReadSchemaFixedTag, avroReadSchemaDoubleTag, avroReadSchemaBytesTag, avroReadSchemaNamedTypeTag, avroReadSchemaIntTag, avroReadSchemaLongTag, avroReadSchemaMapTag, avroReadSchemaRecordTag, avroReadSchemaFreeUnionTag, avroReadSchemaEnumTag, avroReadSchemaUnionTag, avroReadSchemaArrayTag :: PackedTag
+(avroReadSchemaNullTag, avroReadSchemaBooleanTag, avroReadSchemaStringTag, avroReadSchemaFloatTag, avroReadSchemaFixedTag, avroReadSchemaDoubleTag, avroReadSchemaBytesTag, avroReadSchemaNamedTypeTag, avroReadSchemaIntTag, avroReadSchemaLongTag, avroReadSchemaMapTag, avroReadSchemaRecordTag, avroReadSchemaFreeUnionTag, avroReadSchemaEnumTag, avroReadSchemaUnionTag, avroReadSchemaArrayTag)
+  | [nullTag, booleanTag, stringTag, floatTag, fixedTag, doubleTag, bytesTag, namedTypeTag, intTag, longTag, mapTag, recordTag, freeUnionTag, enumTag, unionTag, arrayTag] <-
+      mkTags
+        "avro read schema tags"
+        Ty.avroReadSchemaRef
+        [Ty.avroReadSchemaNull, Ty.avroReadSchemaBoolean, Ty.avroReadSchemaString, Ty.avroReadSchemaFloat, Ty.avroReadSchemaFixed, Ty.avroReadSchemaDouble, Ty.avroReadSchemaBytes, Ty.avroReadSchemaNamedType, Ty.avroReadSchemaInt, Ty.avroReadSchemaLong, Ty.avroReadSchemaMap, Ty.avroReadSchemaRecord, Ty.avroReadSchemaFreeUnion, Ty.avroReadSchemaEnum, Ty.avroReadSchemaUnion, Ty.avroReadSchemaArray] =
+      (nullTag, booleanTag, stringTag, floatTag, fixedTag, doubleTag, bytesTag, namedTypeTag, intTag, longTag, mapTag, recordTag, freeUnionTag, enumTag, unionTag, arrayTag)
+  | otherwise = error "internal error: avro readschema tags"
+
+avroSchemaNullTag, avroSchemaBooleanTag, avroSchemaIntTag, avroSchemaLongTag, avroSchemaFloatTag, avroSchemaDoubleTag, avroSchemaBytesTag, avroSchemaStringTag, avroSchemaArrayTag, avroSchemaMapTag, avroSchemaNamedTypeTag, avroSchemaRecordTag, avroSchemaEnumTag, avroSchemaUnionTag, avroSchemaFixedTag :: PackedTag
+(avroSchemaNullTag, avroSchemaBooleanTag, avroSchemaIntTag, avroSchemaLongTag, avroSchemaFloatTag, avroSchemaDoubleTag, avroSchemaBytesTag, avroSchemaStringTag, avroSchemaArrayTag, avroSchemaMapTag, avroSchemaNamedTypeTag, avroSchemaRecordTag, avroSchemaEnumTag, avroSchemaUnionTag, avroSchemaFixedTag)
+  | [nlt, bot, it, lt, ft, dt, bst, st, at, mt, ntt, rct, ent, ut, fxt] <-
+      mkTags
+        "avro schema tags"
+        Ty.avroSchemaRef
+        [Ty.avroSchemaNull, Ty.avroSchemaBoolean, Ty.avroSchemaInt, Ty.avroSchemaLong, Ty.avroSchemaFloat, Ty.avroSchemaDouble, Ty.avroSchemaBytes, Ty.avroSchemaString, Ty.avroSchemaArray, Ty.avroSchemaMap, Ty.avroSchemaNamedType, Ty.avroSchemaRecord, Ty.avroSchemaEnum, Ty.avroSchemaUnion, Ty.avroSchemaFixed] =
+      (nlt, bot, it, lt, ft, dt, bst, st, at, mt, ntt, rct, ent, ut, fxt)
+  | otherwise = error "internal error: avro schema tags"
+
+avroLogicalIntDateTag, avroLogicalIntTimeTag, avroLogicalIntDecimalTag :: PackedTag
+(avroLogicalIntDateTag, avroLogicalIntTimeTag, avroLogicalIntDecimalTag)
+  | [dt, tt, dect] <-
+      mkTags
+        "avro logical int tags"
+        Ty.avroLogicalIntRef
+        [Ty.avroLogicalIntDate, Ty.avroLogicalIntTime, Ty.avroLogicalIntDecimal] =
+      (dt, tt, dect)
+  | otherwise = error "internal error: avro logical int tags"
+
+avroReadFieldTag :: PackedTag
+avroReadFieldTag = mkSimpleTag "avroReadFieldTag" Ty.avroReadFieldRef
+
+avroFieldTag :: PackedTag
+avroFieldTag = mkSimpleTag "avroFieldTag" Ty.avroFieldRef
+
+avroReadRecordTag :: PackedTag
+avroReadRecordTag = mkSimpleTag "avroReadRecordTag" Ty.avroReadRecordRef
+
+avroLogicalStringUuidTag :: PackedTag
+avroLogicalStringUuidTag = mkSimpleTag "avroLogicalStringUuidTag" Ty.avroLogicalStringRef
+
+avroLogicalBytesDecimalTag :: PackedTag
+avroLogicalBytesDecimalTag = mkSimpleTag "avroLogicalBytesDecimalTag" Ty.avroLogicalBytesRef
+
+avroLogicalLongTimeMicrosTag, avroLogicalLongTimestampMillisTag, avroLogicalLongTimestampMicrosTag, avroLogicalLongLocalTimestampMillisTag, avroLogicalLongLocalTimestampMicrosTag, avroLogicalLongDecimalTag :: PackedTag
+(avroLogicalLongTimeMicrosTag, avroLogicalLongTimestampMillisTag, avroLogicalLongTimestampMicrosTag, avroLogicalLongLocalTimestampMillisTag, avroLogicalLongLocalTimestampMicrosTag, avroLogicalLongDecimalTag)
+  | [tmct, tsmst, tsmcst, ltsmst, ltsmcst, decct] <-
+      mkTags
+        "avro logical long tags"
+        Ty.avroLogicalLongRef
+        [Ty.avroLogicalLongTimeMicros, Ty.avroLogicalLongTimestampMillis, Ty.avroLogicalLongTimestampMicros, Ty.avroLogicalLongLocalTimestampMillis, Ty.avroLogicalLongLocalTimestampMicros, Ty.avroLogicalLongDecimal] =
+      (tmct, tsmst, tsmcst, ltsmst, ltsmcst, decct)
+  | otherwise = error "internal error: avro logical long tags"
+
+avroLogicalFixedDurationTag, avroLogicalFixedDecimalTag :: PackedTag
+(avroLogicalFixedDurationTag, avroLogicalFixedDecimalTag)
+  | [durt, decct] <-
+      mkTags
+        "avro logical fixed tags"
+        Ty.avroLogicalFixedRef
+        [Ty.avroLogicalFixedDuration, Ty.avroLogicalFixedDecimal] =
+      (durt, decct)
+  | otherwise = error "internal error: avro logical fixed tags"
+
+avroLogicalStringUUIDTag :: PackedTag
+avroLogicalStringUUIDTag = mkSimpleTag "avroLogicalStringUUIDTag" Ty.avroLogicalStringRef
+
+avroReadFloatFromInt32Tag, avroReadFloatFromInt64Tag, avroReadFloatTag :: PackedTag
+(avroReadFloatFromInt32Tag, avroReadFloatFromInt64Tag, avroReadFloatTag)
+  | [i32t, i64t, ft] <-
+      mkTags
+        "avro read float tags"
+        Ty.avroReadFloatRef
+        [Ty.avroReadFloatInt32, Ty.avroReadFloatInt64, Ty.avroReadFloat] =
+      (i32t, i64t, ft)
+  | otherwise = error "internal error: avro read float tags"
+
+avroReadDoubleFromInt32Tag, avroReadDoubleFromInt64Tag, avroReadDoubleFromFloatTag, avroReadDoubleTag :: PackedTag
+(avroReadDoubleFromInt32Tag, avroReadDoubleFromInt64Tag, avroReadDoubleFromFloatTag, avroReadDoubleTag)
+  | [i32t, i64t, ft, dt] <-
+      mkTags
+        "avro read double tags"
+        Ty.avroReadDoubleRef
+        [Ty.avroReadDoubleInt32, Ty.avroReadDoubleInt64, Ty.avroReadDoubleFromFloat, Ty.avroReadDouble] =
+      (i32t, i64t, ft, dt)
+  | otherwise = error "internal error: avro read double tags"
+
+avroReadLongInt32Tag, avroReadLongTag :: PackedTag
+(avroReadLongInt32Tag, avroReadLongTag)
+  | [i32t, lt] <-
+      mkTags
+        "avro read long tags"
+        Ty.avroReadLongRef
+        [Ty.avroReadLongInt32, Ty.avroReadLong] =
+      (i32t, lt)
+  | otherwise = error "internal error: avro read long tags"
+
+avroTypeNameTag :: PackedTag
+avroTypeNameTag = mkSimpleTag "avroTypeNameTag" Ty.avroTypeNameRef
+
+avroDecimalTag :: PackedTag
+avroDecimalTag = mkSimpleTag "avroDecimalTag" Ty.avroDecimalRef
+
+avroFieldStatusAsIsTag, avroFieldStatusDefaultedTag, avroFieldStatusIgnoredTag :: PackedTag
+(avroFieldStatusAsIsTag, avroFieldStatusDefaultedTag, avroFieldStatusIgnoredTag)
+  | [ast, dct, igt] <-
+      mkTags
+        "avro field status tags"
+        Ty.avroFieldStatusRef
+        [Ty.avroFieldStatusAsIs, Ty.avroFieldStatusDefaulted, Ty.avroFieldStatusIgnored] =
+      (ast, dct, igt)
+  | otherwise = error "internal error: avro field status tags"
+
+avroOrderAscendingTag, avroOrderDescendingTag, avroOrderIgnoreTag :: PackedTag
+(avroOrderAscendingTag, avroOrderDescendingTag, avroOrderIgnoreTag)
+  | [ast, dct, igt] <-
+      mkTags
+        "avro order tags"
+        Ty.avroOrderRef
+        [Ty.avroOrderAscending, Ty.avroOrderDescending, Ty.avroOrderIgnore] =
+      (ast, dct, igt)
+  | otherwise = error "internal error: avro order tags"
 
 -- | A tag we use to represent the 'pure' effect case.
 pureEffectTag :: PackedTag

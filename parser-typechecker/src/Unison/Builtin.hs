@@ -5,6 +5,7 @@ module Unison.Builtin
     builtinDataDecls,
     builtinEffectDecls,
     builtinConstructorType,
+    expectBuiltinConstructorType,
     builtinTypeDependents,
     builtinTypeDependentsOfComponent,
     builtinTypes,
@@ -269,6 +270,15 @@ intrinsicTermReferences = Map.keysSet termRefTypes
 
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]
+
+expectBuiltinConstructorType :: Text -> CT.ConstructorType
+expectBuiltinConstructorType builtin =
+  fromMaybe (error (reportBug "E680087" err)) (Map.lookup (R.Builtin builtin) builtinConstructorType)
+  where
+    err =
+      "I don't know about the builtin type "
+        ++ show (R.Builtin builtin :: R.TypeReference)
+        ++ ", but I've been asked for it's ConstructorType."
 
 data BuiltinTypeDSL = B' Text CT.ConstructorType | D' Text | Rename' Text Text | Alias' Text Text
 
@@ -667,6 +677,10 @@ builtinsSrc =
       marrayt g a --> nat --> nat --> Type.effect1 () g (iarrayt a),
     B "MutableByteArray.freeze" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect1 () g ibytearrayt,
+    B "ImmutableByteArray.toBytes" $
+      ibytearrayt --> nat --> nat --> bytes,
+    B "ImmutableByteArray.fromBytes" $
+      bytes --> ibytearrayt,
     B "Scope.array" . forall2 "s" "a" $ \s a ->
       nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
     B "Scope.arrayOf" . forall2 "s" "a" $ \s a ->
@@ -938,6 +952,7 @@ codeBuiltins =
   [ ("Code.dependencies", code --> list termLink),
     ("Code.isMissing", termLink --> io boolean),
     ("Code.serialize", code --> bytes),
+    ("Code.serialize.versioned", nat --> code --> bytes),
     ("Code.deserialize", bytes --> eithert text code),
     ("Code.cache_", list (tuple [termLink, code]) --> io (list termLink)),
     ("Code.validate", list (tuple [termLink, code]) --> io (optionalt failure)),
@@ -952,6 +967,7 @@ codeBuiltins =
     ),
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
+    ("Value.serialize.versioned", nat --> value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
     ("Value.value", forall1 "a" $ \a -> a --> value),
     ( "Value.load",

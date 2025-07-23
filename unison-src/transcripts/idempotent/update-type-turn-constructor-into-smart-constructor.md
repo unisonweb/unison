@@ -13,10 +13,9 @@ makeFoo n = Bar (n+10)
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Foo
       makeFoo : Nat -> Foo
@@ -25,10 +24,10 @@ makeFoo n = Bar (n+10)
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    makeFoo : Nat -> Foo
+  Done.
 ```
 
 ``` unison
@@ -42,12 +41,11 @@ Foo.Bar n = internal.Bar n
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⊡ Previously added definitions will be ignored: Foo
     
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       Foo.Bar : Nat -> Foo
 ```

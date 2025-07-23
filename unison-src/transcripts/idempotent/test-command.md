@@ -18,10 +18,9 @@ foo.test2 = [Ok "test2"]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       foo.test2 : [Result]
       test1     : [Result]
@@ -76,10 +75,9 @@ lib.dep.testInLib = [Ok "testInLib"]
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       lib.dep.testInLib : [Result]
 ```

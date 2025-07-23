@@ -28,7 +28,7 @@ scratch/main> builtins.merge
     "implement me later"
 
   Stack trace:
-    todo
+    #kuk93g9qt6
     #qe5e1lcfn8
 ```
 
@@ -54,7 +54,7 @@ scratch/main> builtins.merge
     "there's a bug in my code"
 
   Stack trace:
-    bug
+    #o6nuga5ucb
     #m67hcdcoda
 ```
 
@@ -70,10 +70,9 @@ complicatedMathStuff x = todo "Come back and to something with x here"
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       complicatedMathStuff : x -> r
 ```
@@ -92,10 +91,9 @@ test = match true with
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       test : Text
 ```

@@ -1,15 +1,15 @@
-This transcript explains a few minor details about doc parsing and pretty-printing, both from a user point of view and with some implementation notes.  The later stuff is meant more as unit testing than for human consumption.  (The ucm `add` commands and their output are hidden for brevity.)
+This transcript explains a few minor details about doc parsing and pretty-printing, both from a user point of view and with some implementation notes.  The later stuff is meant more as unit testing than for human consumption.  (The ucm `update` commands and their output are hidden for brevity.)
 
 Docs can be used as inline code comments.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+scratch/main> builtins.mergeio
 ```
 
 ``` unison
 foo : Nat -> Nat
 foo n =
-  _ = [: do the thing :]
+  _ = {{ do the thing }}
   n + 1
 ```
 
@@ -17,10 +17,9 @@ foo n =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       foo : Nat -> Nat
 ```
@@ -35,26 +34,25 @@ scratch/main> view foo
   foo : Nat -> Nat
   foo n =
     use Nat +
-    _ = [: do the thing :]
+    _ = {{ do the thing }}
     n + 1
 ```
 
-Note that `@` and `:]` must be escaped within docs.
+Note that `{{` and `}}` must be escaped within docs.
 
 ``` unison
-escaping = [: Docs look [: like \@this \:] :]
+escaping = {{ Docs look `{{ like {this} }}` }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      escaping : Doc
+      escaping : Doc2
 ```
 
 ``` ucm :hide
@@ -64,32 +62,31 @@ scratch/main> add
 ``` ucm
 scratch/main> view escaping
 
-  escaping : Doc
-  escaping = [: Docs look [: like \@this \:] :]
+  escaping : Doc2
+  escaping = {{ Docs look `{{ like {this} }}` }}
 ```
 
-(Alas you can't have `\@` or `\:]` in your doc, as there's currently no way to 'unescape' them.)
+(Alas you can't have `\}}` in your doc, as there's currently no way to 'unescape' it.)
 
 ``` unison
 -- Note that -- comments are preserved within doc literals.
-commented = [:
+commented = {{
   example:
 
     -- a comment
     f x = x + 1
-:]
+}}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      commented : Doc
+      commented : Doc2
 ```
 
 ``` ucm :hide
@@ -99,12 +96,13 @@ scratch/main> add
 ``` ucm
 scratch/main> view commented
 
-  commented : Doc
+  commented : Doc2
   commented =
-    [: example:
+    {{
+    example:
     
     -- a comment f x = x + 1
-     :]
+    }}
 ```
 
 ### Indenting, and paragraph reflow
@@ -115,19 +113,18 @@ Handling of indenting in docs between the parser and pretty-printer is a bit fid
 -- The leading and trailing spaces are stripped from the stored Doc by the
 -- lexer, and one leading and trailing space is inserted again on view/edit
 -- by the pretty-printer.
-doc1 = [:   hi   :]
+doc1 = {{   hi   }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      doc1 : Doc
+      doc1 : Doc2
 ```
 
 ``` ucm :hide
@@ -137,32 +134,32 @@ scratch/main> add
 ``` ucm
 scratch/main> view doc1
 
-  doc1 : Doc
-  doc1 = [: hi :]
+  doc1 : Doc2
+  doc1 = {{ hi }}
 ```
 
 ``` unison
--- Lines (apart from the first line, i.e. the bit between the [: and the
+-- Lines (apart from the first line, i.e. the bit between the {{ and the
 -- first newline) are unindented until at least one of
 -- them hits the left margin (by a post-processing step in the parser).
 -- You may not notice this because the pretty-printer indents them again on
 -- view/edit.
-doc2 = [: hello
+doc2 = {{ hello
+
             - foo
             - bar
-          and the rest. :]
+          and the rest. }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      doc2 : Doc
+      doc2 : Doc2
 ```
 
 ``` ucm :hide
@@ -172,16 +169,20 @@ scratch/main> add
 ``` ucm
 scratch/main> view doc2
 
-  doc2 : Doc
+  doc2 : Doc2
   doc2 =
-    [: hello
-      - foo
-      - bar
-    and the rest. :]
+    {{
+    hello
+    
+    * foo
+    * bar
+    
+    and the rest.
+    }}
 ```
 
 ``` unison
-doc3 = [: When Unison identifies a paragraph, it removes any newlines from it before storing it, and then reflows the paragraph text to fit the display window on display/view/edit.
+doc3 = {{ When Unison identifies a paragraph, it removes any newlines from it before storing it, and then reflows the paragraph text to fit the display window on display/view/edit.
 
 For these purposes, a paragraph is any sequence of non-empty lines that have zero indent (after the unindenting mentioned above.)
 
@@ -192,19 +193,18 @@ For these purposes, a paragraph is any sequence of non-empty lines that have zer
    is not treated | either.
 
 Note that because of the special treatment of the first line mentioned above, where its leading space is removed, it is always treated as a paragraph.
-   :]
+   }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      doc3 : Doc
+      doc3 : Doc2
 ```
 
 ``` ucm :hide
@@ -214,47 +214,45 @@ scratch/main> add
 ``` ucm
 scratch/main> view doc3
 
-  doc3 : Doc
+  doc3 : Doc2
   doc3 =
-    [: When Unison identifies a paragraph, it removes any 
-    newlines from it before storing it, and then reflows the 
-    paragraph text to fit the display window on 
-    display/view/edit.
+    {{
+    When Unison identifies a paragraph, it removes any newlines
+    from it before storing it, and then reflows the paragraph
+    text to fit the display window on display/view/edit.
     
     For these purposes, a paragraph is any sequence of non-empty
     lines that have zero indent (after the unindenting mentioned
     above.)
     
-     - So this is not a paragraph, even
-       though you might want it to be.
+    * So this is not a paragraph, even though you might want it
+      to be.
     
-       And this text  | as a paragraph
-       is not treated | either.
+    And this text | as a paragraph is not treated | either.
     
     Note that because of the special treatment of the first line
-    mentioned above, where its leading space is removed, it is 
+    mentioned above, where its leading space is removed, it is
     always treated as a paragraph.
-    :]
+    }}
 ```
 
 ``` unison
-doc4 = [: Here's another example of some paragraphs.
+doc4 = {{ Here's another example of some paragraphs.
 
           All these lines have zero indent.
 
-            - Apart from this one. :]
+            - Apart from this one. }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      doc4 : Doc
+      doc4 : Doc2
 ```
 
 ``` ucm :hide
@@ -264,35 +262,36 @@ scratch/main> add
 ``` ucm
 scratch/main> view doc4
 
-  doc4 : Doc
+  doc4 : Doc2
   doc4 =
-    [: Here's another example of some paragraphs.
+    {{
+    Here's another example of some paragraphs.
     
     All these lines have zero indent.
     
-      - Apart from this one. :]
+    * Apart from this one.
+    }}
 ```
 
 ``` unison
 -- The special treatment of the first line does mean that the following
 -- is pretty-printed not so prettily.  To fix that we'd need to get the
 -- lexer to help out with interpreting doc literal indentation (because
--- it knows what columns the `[:` was in.)
-doc5 = [:   - foo
+-- it knows what columns the `{{` was in.)
+doc5 = {{   - foo
             - bar
-          and the rest. :]
+          and the rest. }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      doc5 : Doc
+      doc5 : Doc2
 ```
 
 ``` ucm :hide
@@ -302,32 +301,35 @@ scratch/main> add
 ``` ucm
 scratch/main> view doc5
 
-  doc5 : Doc
+  doc5 : Doc2
   doc5 =
-    [: - foo
-      - bar
-    and the rest. :]
+    {{
+    * foo
+    * bar
+    
+    and the rest.
+    }}
 ```
 
 ``` unison
 -- You can do the following to avoid that problem.
-doc6 = [:
+doc6 = {{
             - foo
             - bar
           and the rest.
-       :]
+       }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      doc6 : Doc
+      doc6 : Doc2
+        (also named doc5)
 ```
 
 ``` ucm :hide
@@ -337,19 +339,21 @@ scratch/main> add
 ``` ucm
 scratch/main> view doc6
 
-  doc6 : Doc
+  doc6 : Doc2
   doc6 =
-    [: - foo
-      - bar
+    {{
+    * foo
+    * bar
+    
     and the rest.
-     :]
+    }}
 ```
 
 ### More testing
 
 ``` unison
 -- Check empty doc works.
-empty = [::]
+empty = {{}}
 
 expr = foo 1
 ```
@@ -358,12 +362,11 @@ expr = foo 1
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      empty : Doc
+      empty : Doc2
       expr  : Nat
 ```
 
@@ -374,60 +377,63 @@ scratch/main> add
 ``` ucm
 scratch/main> view empty
 
-  empty : Doc
-  empty = [:  :]
+  empty : Doc2
+  empty = {{  }}
 ```
 
 ``` unison
-test1 = [:
-The internal logic starts to get hairy when you use the \@ features, for example referencing a name like @List.take.  Internally, the text between each such usage is its own blob (blob ends here --> @List.take), so paragraph reflow has to be aware of multiple blobs to do paragraph reflow (or, more accurately, to do the normalization step where newlines with a paragraph are removed.)
+test1 = {{
+The internal logic starts to get hairy when you use the reference features, for example referencing a name like {List.take}.  Internally, the text between each such usage is its own blob (blob ends here --> {List.take}), so paragraph reflow has to be aware of multiple blobs to do paragraph reflow (or, more accurately, to do the normalization step where newlines with a paragraph are removed.)
 
-Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor ending in ref @List.take
+Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor ending in ref {List.take}
 
-@List.take starting para lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+{List.take} starting para lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
 
-Middle of para: lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+Middle of para: lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor {List.take} lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
 
-  - non-para line (@List.take) with ref @List.take
+  - non-para line ({List.take}) with ref {List.take}
   Another non-para line
-  @List.take starting non-para line
 
-  - non-para line with ref @List.take
+  {List.take} starting non-para line
+
+  - non-para line with ref {List.take}
 before a para-line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
 
   - non-para line followed by a para line starting with ref
-@List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
+{List.take} lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor.
 
-a para-line ending with ref lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take
+a para-line ending with ref lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor {List.take}
+
   - non-para line
 
 para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
-  @List.take followed by non-para line starting with ref.
 
-@[signature] List.take
+  {List.take} followed by non-para line starting with ref.
 
-@[source] foo
+@signature{List.take}
 
-@[evaluate] expr
+@source{foo}
 
-@[include] doc1
+@eval{expr}
+
+{{doc1}}
 
 -- note the leading space below
-  @[signature] List.take
 
-:]
+  @signature{List.take}
+
+}}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      test1 : Doc
+      test1 : Doc2
 ```
 
 ``` ucm :hide
@@ -437,82 +443,89 @@ scratch/main> add
 ``` ucm
 scratch/main> view test1
 
-  test1 : Doc
+  test1 : Doc2
   test1 =
-    [: The internal logic starts to get hairy when you use the 
-    \@ features, for example referencing a name like @List.take.
-    Internally, the text between each such usage is its own blob
-    (blob ends here --> @List.take), so paragraph reflow has to 
-    be aware of multiple blobs to do paragraph reflow (or, more 
-    accurately, to do the normalization step where newlines with
-    a paragraph are removed.)
+    use List take
+    {{
+    The internal logic starts to get hairy when you use the
+    reference features, for example referencing a name like
+    {take}. Internally, the text between each such usage is its
+    own blob (blob ends here --> {take}), so paragraph reflow
+    has to be aware of multiple blobs to do paragraph reflow
+    (or, more accurately, to do the normalization step where
+    newlines with a paragraph are removed.)
     
-    Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem 
-    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum 
-    dolor lorem ipsum dolor ending in ref @List.take
+    Para to reflow: lorem ipsum dolor lorem ipsum dolor lorem
+    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor ending in ref {take}
     
-    @List.take starting para lorem ipsum dolor lorem ipsum dolor
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem 
+    {take} starting para lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem
     ipsum dolor lorem ipsum dolor.
     
-    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem 
-    ipsum dolor @List.take lorem ipsum dolor lorem ipsum dolor 
-    lorem ipsum dolor lorem ipsum dolor.
+    Middle of para: lorem ipsum dolor lorem ipsum dolor lorem
+    ipsum dolor {take} lorem ipsum dolor lorem ipsum dolor lorem
+    ipsum dolor lorem ipsum dolor.
     
-      - non-para line (@List.take) with ref @List.take
-      Another non-para line
-      @List.take starting non-para line
+    * non-para line ({List.take}) with ref {take}
     
-      - non-para line with ref @List.take
+    Another non-para line
+    
+    {take} starting non-para line
+    
+    * non-para line with ref {take}
+    
     before a para-line lorem ipsum dolor lorem ipsum dolor lorem
-    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum 
+    ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum
     dolor lorem ipsum dolor lorem ipsum dolor.
     
-      - non-para line followed by a para line starting with ref
-    @List.take lorem ipsum dolor lorem ipsum dolor lorem ipsum 
-    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
-    lorem ipsum dolor lorem ipsum dolor.
+    * non-para line followed by a para line starting with ref
     
-    a para-line ending with ref lorem ipsum dolor lorem ipsum 
-    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
-    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor @List.take
-      - non-para line
+    {take} lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem
+    ipsum dolor lorem ipsum dolor.
     
-    para line lorem ipsum dolor lorem ipsum dolor lorem ipsum 
-    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor 
+    a para-line ending with ref lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
+    lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor {take}
+    
+    * non-para line
+    
+    para line lorem ipsum dolor lorem ipsum dolor lorem ipsum
+    dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor
     lorem ipsum dolor lorem ipsum dolor
-      @List.take followed by non-para line starting with ref.
     
-    @[signature] List.take
+    {take} followed by non-para line starting with ref.
     
-    @[source] foo
+        @signature{take}
     
-    @[evaluate] expr
+        @source{foo}
     
-    @[include] doc1
+    @eval{ expr }
+    
+    {{ doc1 }}
     
     -- note the leading space below
-      @[signature] List.take
     
-    :]
+        @signature{take}
+    }}
 ```
 
 ``` unison
 -- Regression test for #1363 - preservation of spaces after @ directives in first line when unindenting
-reg1363 = [: `@List.take foo` bar
-  baz :]
+reg1363 = {{ `{List.take} foo` bar
+  baz }}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      reg1363 : Doc
+      reg1363 : Doc2
 ```
 
 ``` ucm :hide
@@ -522,30 +535,30 @@ scratch/main> add
 ``` ucm
 scratch/main> view reg1363
 
-  reg1363 : Doc
-  reg1363 = [: `@List.take foo` bar baz :]
+  reg1363 : Doc2
+  reg1363 = {{ `{List.take} foo` bar baz }}
 ```
 
 ``` unison
--- Demonstrate doc display when whitespace follows a @[source] or @[evaluate]
+-- Demonstrate doc display when whitespace follows a `@source` or @eval`
 -- whose output spans multiple lines.
 
-test2 = [:
+test2 = {{
   Take a look at this:
-  @[source] foo    ▶    bar
-:]
+
+  @source{foo}    ▶    bar
+}}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
-      test2 : Doc
+      test2 : Doc2
 ```
 
 ``` ucm :hide
@@ -557,11 +570,13 @@ View is fine.
 ``` ucm
 scratch/main> view test2
 
-  test2 : Doc
+  test2 : Doc2
   test2 =
-    [: Take a look at this:
-    @[source] foo    ▶    bar
-     :]
+    {{
+    Take a look at this:
+    
+        @source{foo} ▶ bar
+    }}
 ```
 
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
@@ -570,9 +585,10 @@ But note it's not obvious how display should best be handling this.  At the mome
 scratch/main> display test2
 
   Take a look at this:
-  foo : Nat -> Nat
-  foo n =
-    use Nat +
-    _ = [: do the thing :]
-    n + 1    ▶    bar
+
+      foo : Nat -> Nat
+      foo n =
+        use Nat +
+        _ = {{ do the thing }}
+        n + 1 ▶ bar
 ```

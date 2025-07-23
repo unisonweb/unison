@@ -10,7 +10,6 @@ module Unison.Names
     contains,
     difference,
     filter,
-    filterByHQs,
     filterBySHs,
     filterTypes,
     fromReferenceIds,
@@ -20,6 +19,8 @@ module Unison.Names
     makeAbsolute,
     makeRelative,
     fuzzyFind,
+    queryEditDistances,
+    queryEditDistances',
     hqName,
     hqTermName,
     hqTypeName,
@@ -66,6 +67,7 @@ import Data.Semialign (alignWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.These (These (..))
+import Text.EditDistance
 import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -147,7 +149,7 @@ makeAbsolute = map Name.makeAbsolute
 makeRelative :: Names -> Names
 makeRelative = map Name.makeRelative
 
--- Finds names that are supersequences of all the given strings, ordered by
+-- | Finds names that are supersequences of all the given strings, ordered by
 -- score and grouped by name.
 fuzzyFind ::
   (Name -> Text) ->
@@ -188,6 +190,51 @@ fuzzyFind nameToText query names =
                       (Just mempty)
                       query
             )
+
+-- | Computes edit distances between a name query and each name in names.
+--
+-- Searches both terms and types in names.
+queryEditDistances ::
+  (Name -> Text) ->
+  String ->
+  Names ->
+  [(Int, Name, Maybe (Set (Either Referent TypeReference)))]
+queryEditDistances nameToText query names = do
+  let namedReferences =
+        (Set.mapMonotonic Left <$> R.toMultimap names.terms)
+          <> (Set.mapMonotonic Right <$> R.toMultimap names.types)
+          & Map.toList
+  let nameToString = Text.unpack . nameToText
+  let fuzzyMatches =
+        fmap
+          ( \(name, reference) ->
+              (editDistance query (nameToString name), name, Just reference)
+          )
+          namedReferences
+
+  fuzzyMatches
+
+-- | Computes edit distances between a name query and each name in names.
+--
+-- Searches over a set of names.
+queryEditDistances' ::
+  (Name -> Text) ->
+  String ->
+  Set Name ->
+  [(Int, Name, Maybe (Set (Either Referent TypeReference)))]
+queryEditDistances' nameToText query names = do
+  let nameToString = Text.unpack . nameToText
+  let fuzzyMatches =
+        Set.map
+          ( \name ->
+              (editDistance query (nameToString name), name, Nothing)
+          )
+          names
+
+  Set.toList fuzzyMatches
+
+editDistance :: String -> String -> Int
+editDistance = restrictedDamerauLevenshteinDistance defaultEditCosts
 
 -- | Get all (untagged) term/type references ids in a @Names@.
 referenceIds :: Names -> Set Reference.Id
@@ -388,15 +435,6 @@ prefix0 n =
 
 filter :: (Name -> Bool) -> Names -> Names
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
-
--- currently used for filtering before a conditional `add`
-filterByHQs :: Set (HQ'.HashQualified Name) -> Names -> Names
-filterByHQs hqs Names {..} = Names terms' types'
-  where
-    terms' = R.filter f terms
-    types' = R.filter g types
-    f (n, r) = any (HQ'.matchesNamedReferent n r) hqs
-    g (n, r) = any (HQ'.matchesNamedReference n r) hqs
 
 filterBySHs :: Set ShortHash -> Names -> Names
 filterBySHs shs Names {..} = Names terms' types'

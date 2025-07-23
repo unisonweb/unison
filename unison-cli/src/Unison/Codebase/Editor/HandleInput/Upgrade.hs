@@ -19,6 +19,7 @@ import Data.Text.Lazy qualified as Text.Lazy
 import Text.Builder qualified
 import Text.Pretty.Simple (pShow)
 import U.Codebase.Sqlite.DbId (ProjectId)
+import U.Util.Text qualified as Text (unsafeToInt)
 import Unison.Builtin.Decls qualified as Decls
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -75,6 +76,7 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Map qualified as Map
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
@@ -93,11 +95,12 @@ handleUpgrade oldName newName = do
   let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
 
   currentNamespace <- Cli.getCurrentProjectRoot
+  let currentNamespace0 = Branch.head currentNamespace
   let currentNamespaceSansOld = currentNamespace & Branch.step (Branch.deleteLibdep oldName)
   let currentNamespaceSansOld0 = Branch.head currentNamespaceSansOld
   let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld0
   let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld0
-  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps $ Branch.head currentNamespace)
+  let currentLocalNames = Branch.toNames (Branch.deleteLibdeps currentNamespace0)
   let currentLocalConstructorNames = forwardCtorNames currentLocalNames
   let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld0
 
@@ -105,7 +108,7 @@ handleUpgrade oldName newName = do
   let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
   let oldLocalTerms = Branch.deepTerms oldLocalNamespace
   let oldLocalTypes = Branch.deepTypes oldLocalNamespace
-  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup NameSegment.libSegment (oldNamespace ^. Branch.children))
+  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup NameSegment.libSegment (oldNamespace ^. Branch.children_))
   let oldDeepMinusLocalTerms = Branch.deepTerms oldNamespaceMinusLocal
   let oldDeepMinusLocalTypes = Branch.deepTypes oldNamespaceMinusLocal
 
@@ -208,12 +211,40 @@ handleUpgrade oldName newName = do
         abort
         (findCtorNamesMaybe Output.UOUUpgrade currentLocalNames currentLocalConstructorNames Nothing)
         typecheckedUnisonFile
+
+  -- If new name ends in `__N`, that looks like a name we generated due to a name clash (e.g. by installing a `main`
+  -- branch of an unreleased dependency more than once), so we remove it, if possible.
+  let maybeFinalName = do
+        (NameSegment -> newNameWithoutSuffix, _) <- unsnocUnderscoreUnderscoreNumber (NameSegment.toUnescapedText newName)
+        -- If the new name is `foo__2`, then we've parsed it into (`foo`, 2). We can use the name `foo` if either:
+        --
+        --   1. `foo` is the old name (which we're deleting, so we can reuse the name)
+        --   2. `foo` isn't already taken.
+        --
+        guard $
+          or
+            [ newNameWithoutSuffix == oldName,
+              not (Lens.has (Branch.libdeps_ . Lens.ix newNameWithoutSuffix) currentNamespace0)
+            ]
+        Just newNameWithoutSuffix
+
+  let finalNameBranchStep =
+        case maybeFinalName of
+          Nothing -> id
+          Just finalName ->
+            over
+              Branch.libdeps_
+              ( Map.deleteLookupJust newName
+                  >>> \(newLibdep, libdepsWithoutNewName) -> Map.insert finalName newLibdep libdepsWithoutNewName
+              )
+
   Cli.stepAt
     textualDescriptionOfUpgrade
     ( PP.toRoot pp,
-      Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
+      finalNameBranchStep . Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
     )
-  Cli.respond (Output.UpgradeSuccess oldName newName)
+
+  Cli.respond (Output.UpgradeSuccess oldName newName maybeFinalName)
   where
     textualDescriptionOfUpgrade :: Text
     textualDescriptionOfUpgrade =
@@ -481,3 +512,16 @@ incrementLastSegmentChar (ForwardName segments) =
               then text
               else Text.init text `Text.append` Text.singleton (succ $ Text.last text)
        in NameSegment incrementedText
+
+-- >>> unsnocUnderscoreUnderscoreNumber "unison_base_main__13"
+-- Just ("unison_base_main",13)
+--
+-- >>> unsnocUnderscoreUnderscoreNumber "unison_base_4_0_2"
+-- Nothing
+unsnocUnderscoreUnderscoreNumber :: Text -> Maybe (Text, Int)
+unsnocUnderscoreUnderscoreNumber text =
+  let digits = Text.takeWhileEnd Char.isDigit text
+      numDigits = Text.length digits
+   in if numDigits > 0 && ("__" `Text.isSuffixOf` Text.dropEnd numDigits text)
+        then Just (Text.dropEnd (numDigits + 2) text, Text.unsafeToInt digits)
+        else Nothing

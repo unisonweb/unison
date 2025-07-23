@@ -42,10 +42,9 @@ unitCase = id (x -> 1)
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       ability Stream a
       type Type
@@ -58,14 +57,10 @@ unitCase = id (x -> 1)
 ``` ucm
 diffs/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ability Stream a
-    type Type
-    id       : x -> x
-    take     : Nat -> '{g} t ->{g, Stream a} Optional t
-    term     : Nat
-    unitCase : x -> Nat
+  Done.
 
 diffs/main> branch.create new
 
@@ -106,8 +101,7 @@ unitCase = id (x -> (1, ()))
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⊡ Previously added definitions will be ignored: Stream id
     

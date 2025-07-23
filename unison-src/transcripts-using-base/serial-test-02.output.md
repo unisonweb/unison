@@ -25,7 +25,8 @@ products = cases (x, y, z) ->
   "(" ++ toText px ++ ", " ++ toText py ++ ", \"" ++ toText pz ++ "\")"
 
 mkTestCase = do
-  saveTestCase "case-02" "v4" products (l1, l2, l3)
+  saveTestCase None "case-02" "v4" products (l1, l2, l3)
+  saveTestCase (Some 5) "case-02" "v5" products (l1, l2, l3)
 
 ```
 
@@ -33,10 +34,9 @@ mkTestCase = do
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural ability Exit a
       l1         : [Nat]
@@ -50,15 +50,10 @@ mkTestCase = do
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural ability Exit a
-    l1         : [Nat]
-    l2         : [Nat]
-    l3         : [Nat]
-    mkTestCase : '{IO, Exception} ()
-    prod       : [Nat] -> Nat
-    products   : ([Nat], [Nat], [Nat]) -> Text
+  Done.
 
 scratch/main> run mkTestCase
 

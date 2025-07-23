@@ -125,10 +125,12 @@ data ForeignFunc
   | Code_validateLinks
   | Code_dependencies
   | Code_serialize
+  | Code_serialize_versioned
   | Code_deserialize
   | Code_display
   | Value_dependencies
   | Value_serialize
+  | Value_serialize_versioned
   | Value_deserialize
   | Crypto_HashAlgorithm_Sha3_512
   | Crypto_HashAlgorithm_Sha3_256
@@ -206,6 +208,8 @@ data ForeignFunc
   | MutableArray_freeze
   | MutableByteArray_length
   | ImmutableByteArray_length
+  | ImmutableByteArray_toBytes
+  | ImmutableByteArray_fromBytes
   | IO_array
   | IO_arrayOf
   | IO_bytearray
@@ -277,6 +281,7 @@ data ForeignFunc
   | Json_toText
   | Json_unconsText
   | Json_tryUnconsText
+  | Avro_decodeBinary
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -398,10 +403,12 @@ foreignFuncBuiltinName = \case
   Code_validateLinks -> "Code.validateLinks"
   Code_dependencies -> "Code.dependencies"
   Code_serialize -> "Code.serialize"
+  Code_serialize_versioned -> "Code.serialize.versioned"
   Code_deserialize -> "Code.deserialize"
   Code_display -> "Code.display"
   Value_dependencies -> "Value.dependencies"
   Value_serialize -> "Value.serialize"
+  Value_serialize_versioned -> "Value.serialize.versioned"
   Value_deserialize -> "Value.deserialize"
   Crypto_HashAlgorithm_Sha3_512 -> "crypto.HashAlgorithm.Sha3_512"
   Crypto_HashAlgorithm_Sha3_256 -> "crypto.HashAlgorithm.Sha3_256"
@@ -479,6 +486,8 @@ foreignFuncBuiltinName = \case
   MutableArray_freeze -> "MutableArray.freeze"
   MutableByteArray_length -> "MutableByteArray.length"
   ImmutableByteArray_length -> "ImmutableByteArray.length"
+  ImmutableByteArray_toBytes -> "ImmutableByteArray.toBytes"
+  ImmutableByteArray_fromBytes -> "ImmutableByteArray.fromBytes"
   IO_array -> "IO.array"
   IO_arrayOf -> "IO.arrayOf"
   IO_bytearray -> "IO.bytearray"
@@ -550,3 +559,4 @@ foreignFuncBuiltinName = \case
   Json_toText -> "Json.toText"
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
+  Avro_decodeBinary -> "avro.Value.tryDecodeBytes"

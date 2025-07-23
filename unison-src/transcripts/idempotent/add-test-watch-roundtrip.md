@@ -12,9 +12,10 @@ Apparently when we add a test watch, we add a type annotation to it, even if it 
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    foo : [Result]
+  Done.
 
 scratch/main> view foo
 

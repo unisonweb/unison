@@ -25,10 +25,9 @@ unique type Foo = { bar : Nat, baz : Nat }
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       type Foo
       Foo.bar               : Foo -> Nat
@@ -50,23 +49,10 @@ unique type Foo = { bar : Nat, baz : Nat }
 ``` ucm
 project/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    type Foo
-    Foo.bar               : Foo -> Nat
-    Foo.bar.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
-    Foo.bar.set           : Nat -> Foo -> Foo
-    Foo.baz               : Foo -> Nat
-    Foo.baz.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
-    Foo.baz.set           : Nat -> Foo -> Foo
-    lib.project.ignoreMe  : Nat
-    nested.cycle.ping     : Nat -> Nat
-    nested.cycle.ping.doc : Doc2
-    nested.cycle.pong     : Nat -> Nat
-    nested.cycle.pong.doc : Doc2
-    simple.x              : Nat
-    simple.y              : Nat
-    toplevel              : Text
+  Done.
 ```
 
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).

@@ -99,6 +99,7 @@ createSchema = do
   Q.addProjectBranchCausalHashIdColumn
   Q.addProjectBranchLastAccessedColumn
   Q.addMergeBranchTables
+  Q.addUpdateBranchTable
   (_, emptyCausalHashId) <- emptyCausalHash
   (_, ProjectBranch {projectId, branchId}) <- insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
   Q.setCurrentProjectPath projectId branchId []
@@ -228,14 +229,7 @@ getTerm doGetDeclType (Reference.Id h i) =
 
 getDeclType :: C.Reference.Reference -> Transaction CT.ConstructorType
 getDeclType = \case
-  C.Reference.ReferenceBuiltin t ->
-    let err =
-          error $
-            "I don't know about the builtin type ##"
-              ++ show t
-              ++ ", but I've been asked for it's ConstructorType."
-     in pure . fromMaybe err $
-          Map.lookup (Reference.Builtin t) Builtins.builtinConstructorType
+  C.Reference.ReferenceBuiltin t -> pure (Builtins.expectBuiltinConstructorType t)
   C.Reference.ReferenceDerived i -> expectDeclTypeById i
 
 expectDeclTypeById :: C.Reference.Id -> Transaction CT.ConstructorType
@@ -732,27 +726,24 @@ regenerateNameLookup getDeclType bh = do
       ensureNameLookupForBranchHash getDeclType Nothing bh
     False -> ensureNameLookupForBranchHash getDeclType Nothing bh
 
--- | Given a transaction, return a transaction that first checks a semispace cache of the given size.
+-- | Given a transaction, return a transaction that first checks a given semispace cache.
 --
 -- The transaction should probably be read-only, as we (of course) don't hit SQLite on a cache hit.
-makeCachedTransaction :: (Ord a, MonadIO m) => Word -> (a -> Sqlite.Transaction b) -> m (a -> Sqlite.Transaction b)
-makeCachedTransaction size action = do
-  cache <- Cache.semispaceCache size
-  pure \x -> do
-    conn <- Sqlite.unsafeGetConnection
-    Sqlite.unsafeIO (Cache.apply cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
+makeCachedTransaction :: (Ord a) => Cache.Cache a b -> (a -> Sqlite.Transaction b) -> a -> Sqlite.Transaction b
+makeCachedTransaction cache action x = do
+  conn <- Sqlite.unsafeGetConnection
+  Sqlite.unsafeIO (Cache.apply cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
 
 -- | Like 'makeCachedTransaction', but for when the transaction returns a Maybe; only cache the Justs.
 makeMaybeCachedTransaction ::
-  (Ord a, MonadIO m) =>
-  Word ->
+  (Ord a) =>
+  Cache.Cache a b ->
   (a -> Sqlite.Transaction (Maybe b)) ->
-  m (a -> Sqlite.Transaction (Maybe b))
-makeMaybeCachedTransaction size action = do
-  cache <- Cache.semispaceCache size
-  pure \x -> do
-    conn <- Sqlite.unsafeGetConnection
-    Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
+  a ->
+  Sqlite.Transaction (Maybe b)
+makeMaybeCachedTransaction cache action x = do
+  conn <- Sqlite.unsafeGetConnection
+  Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
 
 -- | Creates a project by name if one doesn't already exist, creates a branch in that project, then returns the project and branch ids. Fails if a branch by that name already exists in the project.
 insertProjectAndBranch :: ProjectName -> ProjectBranchName -> Db.CausalHashId -> Sqlite.Transaction (Project, ProjectBranch)

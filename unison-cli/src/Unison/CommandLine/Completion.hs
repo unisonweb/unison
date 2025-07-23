@@ -11,20 +11,23 @@ module Unison.CommandLine.Completion
     prefixCompleteType,
     noCompletions,
     prefixCompleteNamespace,
-    -- Unused for now, but may be useful later
-    prettyCompletion,
     fixupCompletion,
     haskelineTabComplete,
-    sharePathCompletion,
+    completeShareUser,
+    completeShareProject,
+    completeShareBranchOrRelease,
+    filenameCompletion,
+    -- Unused for now, but may be useful later
+    prettyCompletion,
   )
 where
 
 import Control.Lens
+import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.List (isPrefixOf)
 import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
-import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set.NonEmpty (NESet)
@@ -49,16 +52,11 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Prelude
-import Unison.Server.Local.Endpoints.NamespaceListing (NamespaceListing (NamespaceListing))
-import Unison.Server.Local.Endpoints.NamespaceListing qualified as Server
-import Unison.Server.Types qualified as Server
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Types qualified as Share
 import Unison.Sqlite qualified as Sqlite
-import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty qualified as P
@@ -335,107 +333,287 @@ fixupCompletion q cs@(h : t) =
         then [c {Line.replacement = q} | c <- cs]
         else cs
 
-sharePathCompletion ::
-  (MonadIO m) =>
-  AuthenticatedHttpClient ->
-  String ->
-  m [Completion]
-sharePathCompletion = shareCompletion (NESet.singleton NamespaceCompletion)
+data SearchKind = UserKind | ProjectKind
+  deriving (Show, Eq)
 
-shareCompletion ::
+-- | Completes a user handle by searching Share.
+completeShareUser ::
   (MonadIO m) =>
-  NESet CompletionType ->
   AuthenticatedHttpClient ->
   String ->
   m [Completion]
-shareCompletion completionTypes authHTTPClient str =
+completeShareUser authHTTPClient query =
+  completeShareUserHelper authHTTPClient (Text.pack query)
+    <&> fmap \handle ->
+      Line.Completion
+        { Line.replacement = Text.unpack handle,
+          Line.display = Text.unpack handle,
+          Line.isFinished = False
+        }
+
+-- | E.g. "@uni" -> "@unison"
+completeShareUserHelper ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  Text ->
+  m [Text]
+completeShareUserHelper authHTTPClient query = do
+  results <- runShareOmniSearch authHTTPClient (NESet.singleton UserKind) query Nothing
+  results
+    & mapMaybe \case
+      SearchResultUserLike handle -> Just $ "@" <> handle
+      SearchResultProject _ -> Nothing
+    & pure
+
+-- | Does progressive tab-completion, so if you're working on the user-segment it'll complete that, then if you mash tab
+-- it'll proceed to project completion.
+-- E.g. "@uni" -> "@unison/"
+-- Then "@unison/" -> "@unison/base"
+completeShareProject ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  String ->
+  m [Completion]
+completeShareProject authHTTPClient query =
+  completeShareProjectHelper authHTTPClient (Text.pack query)
+    <&> fmap \ref ->
+      Line.Completion
+        { Line.replacement = Text.unpack ref,
+          Line.display = Text.unpack ref,
+          Line.isFinished = False
+        }
+
+completeShareProjectHelper ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  Text ->
+  m [Text]
+completeShareProjectHelper authHTTPClient query
+  | Text.isInfixOf "/" query = do
+      results <- runShareOmniSearch authHTTPClient (NESet.singleton ProjectKind) query (Just "slug-prefix")
+      results
+        & mapMaybe \case
+          SearchResultUserLike _ -> Nothing
+          SearchResultProject ref -> Just ref
+        & pure
+  | otherwise =
+      completeShareUserHelper authHTTPClient query
+        <&> fmap \handle -> ensureTrailingSlash handle
+
+-- | Does progressive tab-completion, so if you're working on the user-segment it'll complete that, then if you mash tab
+-- it'll proceed to project completion, then branch or release completion.
+-- E.g. "@uni" -> "@unison/"
+-- Then "@unison/" -> "@unison/base/"
+-- Then "@unison/base/" -> "@unison/base/main"
+-- or "@unison/base/@cont" -> "@unison/base/@contributor/"
+-- or "@unison/base/@contributor/" -> "@unison/base/@contributor/feature"
+-- or "@unison/base/releases/lat" -> "@unison/base/releases/latest"
+-- or "@unison/base/releases/1." -> "@unison/base/releases/1.2.3"
+completeShareBranchOrRelease ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  String ->
+  m [Completion]
+completeShareBranchOrRelease authHTTPClient query = do
+  completeShareBranchHelper authHTTPClient (Text.pack query)
+    <&> fmap \branch ->
+      Line.Completion
+        { Line.replacement = Text.unpack branch,
+          Line.display = Text.unpack branch,
+          Line.isFinished = False
+        }
+
+completeShareBranchHelper ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  Text ->
+  m [Text]
+completeShareBranchHelper authHTTPClient query = do
+  case Text.splitOn "/" query of
+    -- /branch
+    ["", _branchQuery] ->
+      -- TODO: Add support for inferring the remote project branch.
+      pure []
+    -- @handle/proj/branch
+    [handle, proj, branchOrContributorPrefix]
+      | Text.isPrefixOf "@" branchOrContributorPrefix -> do
+          -- Search contributors instead.
+          completeShareUserHelper authHTTPClient branchOrContributorPrefix
+            <&> fmap \contributorHandle ->
+              handle <> "/" <> proj <> "/" <> ensureTrailingSlash contributorHandle
+      | otherwise -> do
+          results <- searchProjectBranches authHTTPClient handle proj Nothing branchOrContributorPrefix
+          pure $
+            Monoid.whenM (Text.isPrefixOf branchOrContributorPrefix "releases") [handle <> "/" <> proj <> "/releases/"]
+              <> results
+    [handle, proj, "releases", ""] -> do
+      searchProjectReleases authHTTPClient handle proj ""
+        <&> (handle <> "/" <> proj <> "/releases/latest" :)
+    [handle, proj, "releases", branch]
+      | Text.isPrefixOf branch "latest" -> pure [handle <> "/" <> proj <> "/releases/latest"]
+      | otherwise -> do
+          searchProjectReleases authHTTPClient handle proj branch
+    [handle, proj, contributor, branch] ->
+      searchProjectBranches authHTTPClient handle proj (Just contributor) branch
+    _ ->
+      completeShareProjectHelper authHTTPClient query
+        <&> fmap ensureTrailingSlash
+
+-- | Search share for branches within the provided handle and project
+searchProjectBranches ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  Text ->
+  Text ->
+  Maybe Text ->
+  Text ->
+  m [Text]
+searchProjectBranches (AuthenticatedHttpClient httpManager) handle proj contributor query = do
   fromMaybe [] <$> runMaybeT do
-    case Path.toList <$> Path.parsePath str of
-      Left _err -> empty
-      Right [] -> empty
-      Right [userPrefix] -> do
-        userHandles <- searchUsers authHTTPClient (NameSegment.toEscapedText userPrefix)
-        pure $
-          userHandles
-            & filter (\userHandle -> NameSegment.toEscapedText userPrefix `Text.isPrefixOf` userHandle)
-            <&> \handle -> prettyCompletionWithQueryPrefix False (Text.unpack (NameSegment.toEscapedText userPrefix)) (Text.unpack handle)
-      Right (userHandle : path0) -> do
-        let (path, pathSuffix) =
-              case unsnoc path0 of
-                Just (path, pathSuffix) -> (Path.fromList path, NameSegment.toEscapedText pathSuffix)
-                Nothing -> (mempty, "")
-        NamespaceListing {namespaceListingChildren} <- MaybeT $ fetchShareNamespaceInfo authHTTPClient (NameSegment.toEscapedText userHandle) path
-        namespaceListingChildren
-          & fmap
-            ( \case
-                Server.Subnamespace nn ->
-                  let name = Server.namespaceName nn
-                   in (NamespaceCompletion, name)
-                Server.TermObject nt ->
-                  let name = HQ'.toTextWith Name.toText $ Server.termName nt
-                   in (NamespaceCompletion, name)
-                Server.TypeObject nt ->
-                  let name = HQ'.toTextWith Name.toText $ Server.typeName nt
-                   in (TermCompletion, name)
-                Server.PatchObject np ->
-                  let name = Server.patchName np
-                   in (NamespaceCompletion, name)
-            )
-          & filter (\(typ, name) -> typ `NESet.member` completionTypes && pathSuffix `Text.isPrefixOf` name)
-          & fmap
-            ( \(_, name) ->
-                let queryPath = userHandle : Path.toList path
-                    result =
-                      (queryPath ++ [NameSegment.unsafeParseText name])
-                        & List.NonEmpty.fromList
-                        & Name.fromSegments
-                        & Name.toText
-                        & Text.unpack
-                 in prettyCompletionWithQueryPrefix False str result
-            )
-          & pure
+    let (searchKind, contributorFilter) = case contributor of
+          Just contributor -> ("contributor", "&contributor-handle=" <> contributor)
+          Nothing -> ("core", "")
+    let cleanedHandle = Text.dropWhile (== '@') handle
+    let uri =
+          (Share.codeserverToURI Codeserver.defaultCodeserver)
+            { URI.uriPath = "/users/" <> Text.unpack cleanedHandle <> "/projects/" <> Text.unpack proj <> "/branches",
+              URI.uriQuery = Text.unpack $ "?name-prefix=" <> query <> "&kind=" <> searchKind <> contributorFilter
+            }
+    req <- MaybeT $ pure (HTTP.requestFromURI uri)
+    let req' = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 5000000} -- 5 seconds
+    -- Set a timeout on the request
+    fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req' httpManager
+    resp <- either (const empty) pure $ fullResp
+    (MaybeT . pure . Aeson.decode @(PagedResponse BranchResult) $ HTTP.responseBody resp)
+      <&> \(PagedResponse {items}) ->
+        items <&> \BranchResult {branchRef, projectSlug, projectOwnerHandle} ->
+          projectOwnerHandle <> "/" <> projectSlug <> "/" <> branchRef
 
-fetchShareNamespaceInfo :: (MonadIO m) => AuthenticatedHttpClient -> Text -> Path.Path -> m (Maybe NamespaceListing)
-fetchShareNamespaceInfo (AuthenticatedHttpClient httpManager) userHandle path = runMaybeT do
-  let uri =
-        (Share.codeserverToURI Codeserver.defaultCodeserver)
-          { URI.uriPath = Text.unpack $ "/codebases/" <> userHandle <> "/browse",
-            URI.uriQuery =
-              if not . null $ Path.toList path
-                then Text.unpack $ "?relativeTo=" <> tShow path
-                else ""
-          }
-  req <- MaybeT $ pure (HTTP.requestFromURI uri)
-  fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
-  resp <- either (const empty) pure $ fullResp
-  MaybeT . pure . Aeson.decode @Server.NamespaceListing $ HTTP.responseBody resp
+-- | Search share for releases within the provided handle and project
+searchProjectReleases ::
+  (MonadIO m) =>
+  AuthenticatedHttpClient ->
+  Text ->
+  Text ->
+  Text ->
+  m [Text]
+searchProjectReleases (AuthenticatedHttpClient httpManager) handle proj query = do
+  fromMaybe [] <$> runMaybeT do
+    let cleanedHandle = Text.dropWhile (== '@') handle
+    let uri =
+          (Share.codeserverToURI Codeserver.defaultCodeserver)
+            { URI.uriPath = "/users/" <> Text.unpack cleanedHandle <> "/projects/" <> Text.unpack proj <> "/releases",
+              URI.uriQuery = Text.unpack $ "?version-prefix=" <> query
+            }
+    req <- MaybeT $ pure (HTTP.requestFromURI uri)
+    let req' = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 5000000} -- 5 seconds
+    -- Set a timeout on the request
+    fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req' httpManager
+    resp <- either (const empty) pure $ fullResp
+    (MaybeT . pure . Aeson.decode @(PagedResponse ReleaseResult) $ HTTP.responseBody resp)
+      <&> \(PagedResponse {items}) ->
+        items <&> \ReleaseResult {projectRef, version} ->
+          projectRef <> "/releases/" <> version
 
-searchUsers :: (MonadIO m) => AuthenticatedHttpClient -> Text -> m [Text]
-searchUsers _ "" = pure []
-searchUsers (AuthenticatedHttpClient httpManager) userHandlePrefix =
+ensureTrailingSlash :: Text -> Text
+ensureTrailingSlash ref =
+  case Text.stripSuffix "/" ref of
+    Nothing -> ref <> "/"
+    Just stripped -> stripped <> "/"
+
+-- | Search Share for users and projects based on the provided query and search kinds.
+runShareOmniSearch :: (MonadIO m) => AuthenticatedHttpClient -> NESet SearchKind -> Text -> Maybe Text -> m [SearchResult]
+runShareOmniSearch (AuthenticatedHttpClient httpManager) kinds query mayPsk = do
   fromMaybe [] <$> runMaybeT do
     let uri =
           (Share.codeserverToURI Codeserver.defaultCodeserver)
             { URI.uriPath = "/search",
-              URI.uriQuery = Text.unpack $ "?query=" <> userHandlePrefix
+              URI.uriQuery = Text.unpack $ "?user-search-kind=handle-prefix&kinds=" <> searchKinds <> "&query=" <> query <> psk
             }
     req <- MaybeT $ pure (HTTP.requestFromURI uri)
-    fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req httpManager
+    let req' = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 5000000} -- 5 seconds
+    fullResp <- liftIO $ UnliftIO.tryAny $ HTTP.httpLbs req' httpManager
     resp <- either (const empty) pure $ fullResp
-    results <- (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
-    pure $
-      results
-        & filter (\SearchResult {tag} -> tag == "User")
-        & fmap handle
+    (MaybeT . pure . Aeson.decode @[SearchResult] $ HTTP.responseBody resp)
+  where
+    psk :: Text
+    psk =
+      case mayPsk of
+        Just p -> "&project-search-kind=" <> p
+        Nothing -> ""
+    searchKinds :: Text
+    searchKinds =
+      toList kinds
+        & Monoid.intercalateMap "," \case
+          UserKind -> "users"
+          ProjectKind -> "projects"
 
-data SearchResult = SearchResult
-  { handle :: Text,
-    tag :: Text
+data UserLike = UserLike
+  { handle :: Text
   }
   deriving (Show)
 
-instance Aeson.FromJSON SearchResult where
-  parseJSON = Aeson.withObject "SearchResult" \obj -> do
-    handle <- obj Aeson..: "handle"
-    tag <- obj Aeson..: "tag"
-    pure $ SearchResult {..}
+instance FromJSON SearchResult where
+  parseJSON = Aeson.withObject "SearchResultUserLike" \obj -> do
+    obj Aeson..: "tag" >>= \case
+      ("user" :: Text) -> SearchResultUserLike <$> (obj Aeson..: "handle")
+      "org" -> do
+        user <- obj Aeson..: "user"
+        SearchResultUserLike <$> (user Aeson..: "handle")
+      "project" -> do
+        ref <- obj Aeson..: "projectRef"
+        pure $ SearchResultProject ref
+      _ -> fail "Expected 'user' or 'org' or 'project' tag"
+
+data SearchResult
+  = SearchResultUserLike Text
+  | SearchResultProject Text
+  deriving (Show)
+
+data PagedResponse a = PagedResponse
+  { items :: [a]
+  }
+  deriving (Show)
+
+instance (FromJSON a) => FromJSON (PagedResponse a) where
+  parseJSON = Aeson.withObject "PagedResponse" \obj -> do
+    items <- obj Aeson..: "items"
+    pure $ PagedResponse items
+
+data BranchResult = BranchResult
+  { branchRef :: Text,
+    projectSlug :: Text,
+    projectOwnerHandle :: Text
+  }
+  deriving (Show)
+
+instance FromJSON BranchResult where
+  parseJSON = Aeson.withObject "BranchResult" \obj -> do
+    branchRef <- obj Aeson..: "branchRef"
+    project <- obj Aeson..: "project"
+    projectSlug <- project Aeson..: "slug"
+    owner <- project Aeson..: "owner"
+    projectOwnerHandle <- owner Aeson..: "handle"
+    pure $ BranchResult branchRef projectSlug projectOwnerHandle
+
+data ReleaseResult = ReleaseResult
+  { projectRef :: Text,
+    version :: Text
+  }
+  deriving (Show)
+
+instance FromJSON ReleaseResult where
+  parseJSON = Aeson.withObject "ReleaseResult" \obj -> do
+    projectRef <- obj Aeson..: "projectRef"
+    version <- obj Aeson..: "version"
+    pure $ ReleaseResult projectRef version
+
+filenameCompletion ::
+  (MonadIO m) =>
+  String ->
+  m [Completion]
+filenameCompletion query = do
+  -- Haskeline uses a zipper-style cursor format, so it expects the prefix to be reversed.
+  let prefix = reverse query
+  (_leftovers, results) <- Line.completeFilename (prefix, "")
+  pure results

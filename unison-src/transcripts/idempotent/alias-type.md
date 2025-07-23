@@ -12,7 +12,7 @@ project/main> alias.type lib.builtins.Nat Foo
 project/main> ls .
 
   1. Foo  (builtin type)
-  2. lib/ (657 terms, 96 types)
+  2. lib/ (755 terms, 118 types)
 ```
 
 It won't create a conflicted name, though.
@@ -29,7 +29,7 @@ project/main> alias.type lib.builtins.Int Foo
 project/main> ls .
 
   1. Foo  (builtin type)
-  2. lib/ (657 terms, 96 types)
+  2. lib/ (755 terms, 118 types)
 ```
 
 You can use `debug.alias.type.force` for that.
@@ -43,5 +43,5 @@ project/main> ls .
 
   1. Foo  (builtin type)
   2. Foo  (builtin type)
-  3. lib/ (657 terms, 96 types)
+  3. lib/ (755 terms, 118 types)
 ```

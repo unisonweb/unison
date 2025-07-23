@@ -22,10 +22,9 @@ ex1 tup =
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       ex0 : Nat -> Nat
       ex1 : (a, b, (Nat, Nat)) -> Nat
@@ -34,10 +33,10 @@ ex1 tup =
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ex0 : Nat -> Nat
-    ex1 : (a, b, (Nat, Nat)) -> Nat
+  Done.
 
 scratch/main> view ex0 ex1
 
@@ -65,10 +64,9 @@ ex2 tup = match tup with
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       ex2 : (a, b, (Nat, Nat)) -> Nat
         (also named ex1)
@@ -91,16 +89,12 @@ ex4 =
 
       2 |   (a,b) = (a Nat.+ b, 19)
 
-  I think its type should be:
+  I found some terms in scope with similar names but different 
+  types. Was any of these what you wanted?
 
-      Nat
-
-  Some common causes of this error include:
-    * Your current namespace is too deep to contain the
-      definition in its subtree
-    * The definition is part of a library which hasn't been
-      added to this project
-    * You have a typo in the name
+  (Float.*) : Float -> Float -> Float
+  (Int.*) : Int -> Int -> Int
+  (Nat.*) : Nat -> Nat -> Nat
 ```
 
 Even though the parser accepts any pattern on the LHS of a bind, it looks pretty weird to see things like `12 = x`, so we avoid showing a destructuring bind when the LHS is a "literal" pattern (like `42` or "hi"). Again these examples wouldn't compile with coverage checking.
@@ -121,10 +115,9 @@ ex5a _ = match (99 + 1, "hi") with
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       ex5  : 'Text
       ex5a : 'Text
@@ -133,10 +126,10 @@ ex5a _ = match (99 + 1, "hi") with
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ex5  : 'Text
-    ex5a : 'Text
+  Done.
 
 scratch/main> view ex5 ex5a
 
@@ -165,9 +158,10 @@ For clarity, the pretty-printer leaves this alone, even though in theory it coul
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ex6 : (Nat, Nat) -> Nat
+  Done.
 
 scratch/main> view ex6
 

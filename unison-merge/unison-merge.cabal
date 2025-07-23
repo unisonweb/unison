@@ -19,7 +19,6 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge.CombineDiffs
-      Unison.Merge.DeclCoherencyCheck
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.EitherWay
@@ -34,8 +33,8 @@ library
       Unison.Merge.Mergeblob3
       Unison.Merge.Mergeblob4
       Unison.Merge.Mergeblob5
-      Unison.Merge.PartialDeclNameLookup
       Unison.Merge.PartitionCombinedDiffs
+      Unison.Merge.Rename
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay
@@ -86,13 +85,11 @@ library
       base
     , containers
     , lens
-    , mtl
     , nonempty-containers
     , semialign
     , semigroups
     , text
     , these
-    , transformers
     , unison-core
     , unison-core1
     , unison-hash

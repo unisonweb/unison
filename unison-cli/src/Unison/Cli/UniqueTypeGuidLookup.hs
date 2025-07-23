@@ -18,8 +18,8 @@ import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 
 loadUniqueTypeGuid :: ProjectPath -> Name -> Sqlite.Transaction (Maybe Text)
-loadUniqueTypeGuid pp name0 = do
-  let (namePath, finalSegment) = Path.splitFromName name0
+loadUniqueTypeGuid pp name = do
+  let (namePath, finalSegment) = Path.splitFromName name
   let fullPP = pp & over PP.path_ (<> namePath)
 
   -- Define an operation to load a branch by its full path from the root namespace.
@@ -30,18 +30,26 @@ loadUniqueTypeGuid pp name0 = do
       loadBranchAtPath = Codebase.getMaybeShallowBranchAtProjectPath
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath fullPP finalSegment >>= \case
-    Nothing ->
-      Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
-        Nothing -> pure Nothing
-        Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
-          loadUniqueTypeGuidFromMergeParents
-            pp
-            name0
-            bobMaybeBranchId
-            bobCausalHashId
-            aliceMaybeBranchId
-            aliceCausalHashId
     Just guid -> pure (Just guid)
+    Nothing ->
+      Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
+        Just parentCausalHashId -> loadUniqueTypeGuidFromUpdateParent name parentCausalHashId
+        Nothing ->
+          Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
+            Nothing -> pure Nothing
+            Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
+              loadUniqueTypeGuidFromMergeParents
+                pp
+                name
+                bobMaybeBranchId
+                bobCausalHashId
+                aliceMaybeBranchId
+                aliceCausalHashId
+
+loadUniqueTypeGuidFromUpdateParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)
+loadUniqueTypeGuidFromUpdateParent name causalHashId = do
+  namespaceHashId <- Queries.expectCausalValueHashId causalHashId
+  Queries.loadNamespaceUniqueTypeGuid namespaceHashId name
 
 loadUniqueTypeGuidFromMergeParents ::
   ProjectPath ->
@@ -51,12 +59,12 @@ loadUniqueTypeGuidFromMergeParents ::
   Maybe Sqlite.ProjectBranchId ->
   Sqlite.CausalHashId ->
   Sqlite.Transaction (Maybe Text)
-loadUniqueTypeGuidFromMergeParents pp name0 bobMaybeBranchId bobCausalHashId aliceMaybeBranchId aliceCausalHashId = do
+loadUniqueTypeGuidFromMergeParents pp name bobMaybeBranchId bobCausalHashId aliceMaybeBranchId aliceCausalHashId = do
   aliceNamespaceHashId <- Queries.expectCausalValueHashId aliceCausalHashId
   bobNamespaceHashId <- Queries.expectCausalValueHashId bobCausalHashId
 
-  maybeAliceGuid <- Queries.loadNamespaceUniqueTypeGuid aliceNamespaceHashId name0
-  maybeBobGuid <- Queries.loadNamespaceUniqueTypeGuid bobNamespaceHashId name0
+  maybeAliceGuid <- Queries.loadNamespaceUniqueTypeGuid aliceNamespaceHashId name
+  maybeBobGuid <- Queries.loadNamespaceUniqueTypeGuid bobNamespaceHashId name
 
   case (maybeAliceGuid, maybeBobGuid) of
     -- A few simple cases – reuse a GUID if it is sensible to do so

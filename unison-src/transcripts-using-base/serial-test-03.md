@@ -40,7 +40,8 @@ finish = cases (x, y, z) ->
 
 mkTestCase = do
   trip = (suspSum l1, suspSum l2, suspSum l3)
-  saveTestCase "case-03" "v4" finish trip
+  saveTestCase None "case-03" "v4" finish trip
+  saveTestCase (Some 5) "case-03" "v5" finish trip
 ```
 
 ``` ucm

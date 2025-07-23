@@ -95,7 +95,7 @@ spawnLsp lspFormattingConfig codebase runtime signal =
       case Errno <$> ioe_errno ioerr of
         Just errNo
           | errNo == eADDRINUSE -> do
-              Text.hPutStrLn UnliftIO.stderr $ "Note: Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
+              Text.hPutStrLn UnliftIO.stderr $ "⚠️  Port " <> Text.pack lspPort <> " is already bound by another process or another UCM. The LSP server will not be started."
         _ -> do
           Text.hPutStrLn UnliftIO.stderr $ "LSP server failed to start."
     -- Where to send logs that occur before a client connects

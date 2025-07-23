@@ -18,10 +18,9 @@ structural type Y = Two Nat Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural type X
       structural type Y
@@ -34,12 +33,10 @@ Expected: `x` and `y`, `X`, and `Y` exist as above. UCM tells you this.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type X
-    structural type Y
-    x : Nat
-    y : Nat
+  Done.
 ```
 
 Let's add an alias for `1` and `One`:
@@ -54,10 +51,9 @@ structural type Z = One Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       structural type Z
         (also named X)
@@ -71,12 +67,10 @@ Also, `Z` is an alias for `X`.
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    structural type Z
-      (also named X)
-    z : Nat
-      (also named x)
+  Done.
 ```
 
 Let's update something that has an alias (to a value that doesn't have a name already):
@@ -90,8 +84,7 @@ structural type X = Three Nat Nat Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:
@@ -128,8 +121,7 @@ structural type X = Two Nat Nat
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
     ⍟ These names already exist. You can `update` them to your
       new definition:

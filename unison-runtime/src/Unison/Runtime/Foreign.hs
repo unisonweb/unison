@@ -30,10 +30,12 @@ import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Mem.StableName
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, Value)
+import Unison.Runtime.ANF (Code, Referenced, Value, dereference)
 import Unison.Runtime.Array
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
@@ -80,6 +82,10 @@ tvarEq l r = l == r
 socketEq :: Socket -> Socket -> Bool
 socketEq l r = l == r
 {-# NOINLINE socketEq #-}
+
+tlsEq :: Tls -> Tls -> Bool
+tlsEq (Tls s1 _) (Tls s2 _) = socketEq s1 s2
+{-# NOINLINE tlsEq #-}
 
 udpSocketEq :: UDPSocket -> UDPSocket -> Bool
 udpSocketEq l r = l == r
@@ -129,8 +135,8 @@ charClassCmp :: CharPattern -> CharPattern -> Ordering
 charClassCmp = compare
 {-# NOINLINE charClassCmp #-}
 
-codeEq :: Code -> Code -> Bool
-codeEq co1 co2 = co1 == co2
+codeEq :: Referenced Code -> Referenced Code -> Bool
+codeEq co1 co2 = dereference co1 == dereference co2
 {-# NOINLINE codeEq #-}
 
 tylEq :: Reference -> Reference -> Bool
@@ -161,6 +167,7 @@ ref2eq r
   -- Ditto
   | r == Ty.tvarRef = Just $ promote tvarEq
   | r == Ty.socketRef = Just $ promote socketEq
+  | r == Ty.tlsRef = Just $ promote tlsEq
   | r == Ty.udpSocketRef = Just $ promote udpSocketEq
   | r == Ty.refRef = Just $ promote refEq
   | r == Ty.threadIdRef = Just $ promote tidEq
@@ -184,9 +191,18 @@ ref2cmp r
   | r == Ty.charClassRef = Just $ promote charClassCmp
   | otherwise = Nothing
 
+ptrEq :: a -> b -> Bool
+ptrEq x y =
+  unsafePerformIO $ do
+    sn1 <- makeStableName $! x
+    sn2 <- makeStableName $! y
+    return (sn1 == unsafeCoerce sn2)
+
 instance Eq Foreign where
   Wrap rl t == Wrap rr u
     | rl == rr, Just (~~) <- ref2eq rl = t ~~ u
+  Wrap rl t == Wrap rr u
+    | rl == rr = ptrEq t u
   Wrap rl1 _ == Wrap rl2 _ =
     error $
       "Attempting to check equality of two values of different types: "
@@ -195,6 +211,11 @@ instance Eq Foreign where
 instance Ord Foreign where
   Wrap rl t `compare` Wrap rr u
     | rl == rr, Just cmp <- ref2cmp rl = cmp t u
+  Wrap rl _ `compare` Wrap rr _
+    | rl == rr =
+        error $
+          "Do not know how to compare values of type: "
+            <> show rl
   compare (Wrap rl1 _) (Wrap rl2 _) =
     error $
       "Attempting to compare two values of different types: "
@@ -288,15 +309,15 @@ instance BuiltinForeign FilePath where
   foreignName = Tagged "FilePath"
   foreignRef = Tagged Ty.filePathRef
 
-instance BuiltinForeign TLS.Context where
-  foreignName = Tagged "TLS.Context"
+instance BuiltinForeign Tls where
+  foreignName = Tagged "Tls"
   foreignRef = Tagged Ty.tlsRef
 
-instance BuiltinForeign Code where
+instance BuiltinForeign (Referenced Code) where
   foreignName = Tagged "Code"
   foreignRef = Tagged Ty.codeRef
 
-instance BuiltinForeign Value where
+instance BuiltinForeign (Referenced Value) where
   foreignName = Tagged "Value"
   foreignRef = Tagged Ty.valueRef
 
@@ -316,7 +337,13 @@ data HashAlgorithm where
   -- Reference is a reference to the hash algorithm
   HashAlgorithm :: (Hash.HashAlgorithm a) => Reference -> a -> HashAlgorithm
 
-newtype Tls = Tls TLS.Context
+data Tls = Tls
+  { socket :: Socket,
+    context :: TLS.Context
+  }
+
+instance Eq Tls where
+  Tls s1 _ == Tls s2 _ = socketEq s1 s2
 
 data Failure a = Failure Reference Text a
 

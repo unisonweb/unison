@@ -16,10 +16,9 @@ pong _ = !ping + 2
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       ping : 'Nat
       pong : 'Nat
@@ -28,10 +27,10 @@ pong _ = !ping + 2
 ``` ucm
 scratch/main> add
 
-  ⍟ I've added these definitions:
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
-    ping : 'Nat
-    pong : 'Nat
+  Done.
 ```
 
 ``` unison
@@ -46,10 +45,9 @@ clang _ = !pong + 3
   Loading changes detected in scratch.u.
 
   I found and typechecked these definitions in scratch.u. If you
-  do an `add` or `update`, here's how your codebase would
-  change:
+  do an `update`, here's how your codebase would change:
 
-    ⍟ These new definitions are ok to `add`:
+    ⍟ New definitions:
     
       clang : 'Nat
     

@@ -3,12 +3,6 @@
 ``` ucm
 scratch/main> help
 
-  add
-  `add` adds to the codebase all the definitions from the most recently typechecked file.
-
-  add.preview
-  `add.preview` previews additions to the codebase from the most recently typechecked file. This command only displays cached typechecking results. Use `load` to reparse & typecheck the file if the context has changed.
-
   add.run
   `add.run name` adds to the codebase the result of the most recent `run` command as `name`.
 
@@ -46,6 +40,12 @@ scratch/main> help
 
   branch.rename (or rename.branch)
   `branch.rename foo`  renames the current branch to `foo`
+
+  branch.squash (or squash.branch)
+  `branch.squash /foo /bar`  creates (or updates) the branch
+                             `/bar` with a snapshot of the code
+                             at branch `/foo` without any of its
+                             history.
 
   branches (or list.branch, ls.branch, branch.list)
   `branches`      lists all branches in the current project
@@ -518,14 +518,16 @@ scratch/main> help
                                               `@unison/base`
 
   list (or ls, dir)
-  `list`       lists definitions and namespaces in a namespace
-               you select (requires fzf).
-  `list .`     lists definitions and namespaces in the project
-               root.
-  `list .foo`  lists definitions and namespaces in the '.foo'
+  `list`       lists definitions and namespaces in the current
                namespace.
-  `list foo`   lists definitions and namespaces in the 'foo'
-               namespace.
+  `list foo`   lists the 'foo' namespace.
+  `list .foo`  lists the '.foo' namespace.
+
+  list-fuzzy (or lsf)
+  `list-fuzzy`  lists definitions and namespaces in a namespace
+                you select (requires fzf).
+  If you pass arguments to `list-fuzzy` it will behave the same
+  as as `list`
 
   load
   `load`                 parses, typechecks, and evaluates the
@@ -775,10 +777,6 @@ scratch/main> help
                         provided at the command line when
                         running mymain as an executable.
 
-  run.native
-  `run.native main args`  Executes !main using native
-                          compilation via scheme.
-
   switch
   `switch`          opens an interactive selector to pick a
                     project and branch
@@ -865,7 +863,7 @@ scratch/main> help
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.
 
-  update
+  update (or add)
   Adds everything in the most recently typechecked file to the
   namespace, replacing existing definitions having the same
   name, and attempts to update all the existing dependents
@@ -930,20 +928,19 @@ scratch/main> help-topic filestatus
   definitions in a .u file.
 
   needs update         A definition with the same name as an
-                       existing definition. Doing `update`
-                       instead of `add` will turn this failure
-                       into a successful update.
+                       existing definition. Rename or delete the
+                       existing definition and then try again.
                        
   term/ctor collision  A definition with the same name as an
                        existing constructor for some data type.
                        Rename your definition or the data type
-                       before trying again to `add` or `update`.
+                       before trying again to `update`.
                        
   ctor/term collision  A type defined in the file has a
                        constructor that's named the same as an
                        existing term. Rename that term or your
-                       constructor before trying again to `add`
-                       or `update`.
+                       constructor before trying again to
+                       `update`.
                        
   blocked              This definition was blocked because it
                        dependended on a definition with a failed

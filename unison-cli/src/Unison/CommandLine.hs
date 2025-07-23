@@ -239,12 +239,19 @@ fzfResolve codebase ppCtx getCurrentBranch InputPattern.Parameters {requiredPara
         fzfResolver
     fuzzyFillArg ::
       Bool -> Text -> InputPattern.FZFResolver -> MaybeT (ExceptT FZFResolveFailure IO) (NonEmpty InputPattern.Argument)
-    fuzzyFillArg allowMulti argDesc InputPattern.FZFResolver {getOptions} = MaybeT do
+    fuzzyFillArg allowMulti argDesc fzfResolver = MaybeT do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
-      options <- liftIO $ getOptions codebase ppCtx currentBranch
-      when (null options) . throwError $ NoFZFOptions argDesc
-      liftIO $ PrettyTerm.putPrettyLn' (FZFResolvers.fuzzySelectHeader argDesc)
-      results <- liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} id options)
+      results <- case fzfResolver of
+        InputPattern.FetchOptions getOptions -> do
+          options <- liftIO $ getOptions codebase ppCtx currentBranch
+          when (null options) . throwError $ NoFZFOptions argDesc
+          liftIO $ PrettyTerm.putPrettyLn' (FZFResolvers.fuzzySelectHeader argDesc)
+          let selections = Fuzzy.SelectFromChoices id options
+          liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} selections)
+        InputPattern.DefaultFZFFileSearch -> do
+          liftIO $ PrettyTerm.putPrettyLn' (FZFResolvers.fuzzySelectHeader argDesc)
+          let selections = Fuzzy.SelectFiles
+          liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} selections)
       -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing
       -- execution with no arguments.
       pure $ fmap (Left . Text.unpack <$>) . nonEmpty =<< results

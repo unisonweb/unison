@@ -13,7 +13,7 @@ module Unison.Runtime.Builtin
     builtinTermBackref,
     builtinTypeBackref,
     builtinArities,
-    builtinInlineInfo,
+    builtinOptInfo,
     numberedTermLookup,
     Sandbox (..),
     baseSandboxInfo,
@@ -34,6 +34,7 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Runtime.ANF as ANF
+import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.Builtin.Types
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.Stack (UnboxedTypeTag (..), Val (..), unboxedTypeTagToInt)
@@ -1118,10 +1119,12 @@ declareForeigns = do
   declareForeign Untracked 1 Code_validateLinks
   declareForeign Untracked 1 Code_dependencies
   declareForeign Untracked 1 Code_serialize
+  declareForeign Untracked 2 Code_serialize_versioned
   declareForeign Untracked 1 Code_deserialize
   declareForeign Untracked 2 Code_display
   declareForeign Untracked 1 Value_dependencies
   declareForeign Untracked 1 Value_serialize
+  declareForeign Untracked 2 Value_serialize_versioned
   declareForeign Untracked 1 Value_deserialize
   -- Hashing functions
   declareForeignWrap Untracked direct Crypto_HashAlgorithm_Sha3_512
@@ -1223,6 +1226,9 @@ declareForeigns = do
 
   declareForeign Untracked 1 ImmutableByteArray_length
 
+  declareForeign Untracked 3 ImmutableByteArray_toBytes
+  declareForeign Untracked 1 ImmutableByteArray_fromBytes
+
   declareForeign Tracked 1 IO_array
   declareForeign Tracked 2 IO_arrayOf
   declareForeign Tracked 1 IO_bytearray
@@ -1299,6 +1305,7 @@ declareForeigns = do
   declareForeign Untracked 1 Json_toText
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
+  declareForeign Untracked 3 Avro_decodeBinary
 
 foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
 foreignDeclResults =
@@ -1344,9 +1351,9 @@ builtinArities =
   Map.fromList $
     [(r, arity s) | (r, (_, s)) <- Map.toList builtinLookup]
 
-builtinInlineInfo :: Map Reference (Int, ANormal Symbol)
-builtinInlineInfo =
-  ANF.buildInlineMap $ fmap (Rec [] . snd) builtinLookup
+builtinOptInfo :: ANF.OptInfos Symbol
+builtinOptInfo =
+  ANF.buildOptInfos $ fmap (Rec [] . snd) builtinLookup
 
 sandboxedForeignFuncs :: Set ForeignFunc
 sandboxedForeignFuncs =

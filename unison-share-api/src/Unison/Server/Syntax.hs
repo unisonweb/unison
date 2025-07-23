@@ -147,7 +147,7 @@ data Element
   | -- ! '
     Parenthesis
   | LinkKeyword -- `typeLink` and `termLink`
-  -- [: :] @[]
+  -- { } @
   | DocDelimiter
   | -- the 'include' in @[include], etc
     DocKeyword

@@ -140,14 +140,13 @@ main ::
   [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
+main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
   let config = FSNotify.defaultConfig
@@ -157,8 +156,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
       _ <- Ki.fork scope (Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch)
       -- IOSource takes a while to compile, we should start compiling it on startup
       _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
-      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event (automatically
-      -- first tossing all that have accumulated since the last call)
+      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event.
       awaitFileEvent <- do
         (fmap . fmap)
           (\(file, contents) -> UnisonFileChanged (Text.pack file) contents)
@@ -266,7 +264,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime nRuntime codebase serverB
                    in putPrettyNonempty p $> args,
                 runtime,
                 sandboxedRuntime = sbRuntime,
-                nativeRuntime = nRuntime,
                 serverBaseUrl,
                 ucmVersion,
                 isTranscriptTest = False

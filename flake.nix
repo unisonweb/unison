@@ -24,6 +24,7 @@
       "x86_64-linux"
       "x86_64-darwin"
       "aarch64-darwin"
+      "aarch64-linux"
     ]
     (system: let
       versions = import ./nix/versions.nix {inherit (nixpkgs-haskellNix) lib;};

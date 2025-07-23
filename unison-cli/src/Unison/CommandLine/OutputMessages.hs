@@ -82,13 +82,14 @@ import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName))
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
+import Unison.DeclCoherencyCheck (IncoherentDeclReason (..))
 import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency as LD
-import Unison.Merge.DeclCoherencyCheck (IncoherentDeclReason (..), IncoherentDeclReasons (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -121,6 +122,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
@@ -144,9 +146,10 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), defnsAreEmpty)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -673,10 +676,8 @@ notifyUser dir = \case
           "I'm currently watching for definitions in .u files under the"
             <> dir
             <> "directory. Make sure you've updated something there before using the"
-            <> makeExample' IP.add
-            <> "or"
             <> makeExample' IP.update
-            <> "commands, or use"
+            <> "command, or use"
             <> makeExample' IP.load
             <> "to load a file explicitly."
   InvalidSourceName name ->
@@ -827,7 +828,6 @@ notifyUser dir = \case
         Reference.DerivedId {} -> P.lit "(type)"
   SlurpOutput input ppe s ->
     let isPast = case input of
-          Input.AddI {} -> True
           Input.Update2I {} -> True
           Input.SaveExecuteResultI {} -> True
           _ -> False
@@ -944,8 +944,6 @@ notifyUser dir = \case
                                 <> "these definitions in "
                                 <> P.group (fileName <> ".")
                                 <> "If you do an "
-                                <> IP.makeExample' IP.add
-                                <> " or "
                                 <> P.group (IP.makeExample' IP.update <> ",")
                                 <> "here's how your codebase would change:",
                             P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
@@ -967,6 +965,130 @@ notifyUser dir = \case
             pure . P.wrap $
               "I loaded " <> P.text sourceName <> " and didn't find anything."
           else pure mempty
+  Typechecked2 oldPpe newPpe slurpEntries -> do
+    let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
+        updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
+        deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
+        numUnchangedTypes :: Int
+        (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
+          Map.foldlWithKey'
+            ( \acc name -> \case
+                SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
+                SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+            )
+            ([], [], [], 0)
+            slurpEntries.types
+
+    let newTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
+        newTypes = sortAlphabeticallyOn (view _1) newTypes0
+        updatedTypes :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
+        updatedTypes = sortAlphabeticallyOn (view _1) updatedTypes0
+        deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
+        deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
+
+    let newTerms0 :: [(Name, Type Symbol Ann)]
+        updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        deletedTerms0 :: [(Name, Type Symbol Ann)]
+        numUnchangedTerms :: Int
+        (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
+          Map.foldlWithKey'
+            ( \acc name -> \case
+                SlurpResult.SlurpEntry'Add ty -> over _1 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
+                SlurpResult.SlurpEntry'Delete ty -> over _3 ((name, ty) :) acc
+                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+            )
+            ([], [], [], 0)
+            slurpEntries.terms
+
+    let newTerms :: [(Name, Type Symbol Ann)]
+        newTerms = sortAlphabeticallyOn (view _1) newTerms0
+        updatedTerms :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
+        deletedTerms :: [(Name, Type Symbol Ann)]
+        deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
+
+    let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+        renderType name decl =
+          P.syntaxToColor
+            (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+
+    let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+        renderTerm ppe colored name ty =
+          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+
+    let renderedNewTypes :: Pretty
+        renderedNewTypes =
+          P.lines (map (\(name, decl) -> P.green ("+ " <> renderType name decl)) newTypes)
+
+    let renderedUpdatedTypes :: Pretty
+        renderedUpdatedTypes =
+          P.lines (map (\(name, _oldDecl, newDecl) -> P.yellow ("~ " <> renderType name newDecl)) updatedTypes)
+
+    let renderedDeletedTypes :: Pretty
+        renderedDeletedTypes =
+          P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
+
+    let renderedNewTerms :: Pretty
+        renderedNewTerms =
+          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green . ("+ " <>)) name ty) newTerms)
+
+    let renderedUpdatedTerms :: Pretty
+        renderedUpdatedTerms =
+          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy) updatedTerms)
+
+    let renderedDeletedTerms :: Pretty
+        renderedDeletedTerms =
+          P.column2 (map (\(name, ty) -> renderTerm oldPpe (P.red . ("- " <>)) name ty) deletedTerms)
+
+    pure $
+      P.sepNonEmpty
+        "\n\n"
+        [ P.linesNonEmpty
+            [ renderedNewTypes,
+              renderedUpdatedTypes,
+              renderedDeletedTypes
+            ],
+          P.linesNonEmpty
+            [ renderedNewTerms,
+              renderedUpdatedTerms,
+              renderedDeletedTerms
+            ],
+          if defnsAreEmpty slurpEntries then "No changes found." else mempty,
+          P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
+            (0, 0) -> mempty
+            (0, _) ->
+              "(and "
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> if numUnchangedTerms == 1 then ")" else "s)"
+            (_, 0) ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> if numUnchangedTypes == 1 then ")" else "s)"
+            _ ->
+              "(and "
+                <> P.num numUnchangedTypes
+                <> " unchanged type"
+                <> (if numUnchangedTypes == 1 then " and " else "s and ")
+                <> P.num numUnchangedTerms
+                <> " unchanged term"
+                <> (if numUnchangedTerms == 1 then ")" else "s)"),
+          if defnsAreEmpty slurpEntries
+            then mempty
+            else
+              P.lines
+                [ P.green "+" <> " (added), " <> P.yellow "~" <> " (modified), " <> P.red "-" <> " (deleted)",
+                  "",
+                  P.wrap $
+                    "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
+                ]
+        ]
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -1826,7 +1948,7 @@ notifyUser dir = \case
               <> P.newline
               <> P.wrap "2. Write some Unison code and save the file."
               <> P.newline
-              <> P.wrap "3. In UCM, type `add` to save it to your new project."
+              <> P.wrap "3. In UCM, type `update` to save it to your new project."
           )
         <> P.newline
         <> P.newline
@@ -1841,6 +1963,26 @@ notifyUser dir = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
+  UpdateTypecheckingFailure2 scratchFile0 baseBranch updateBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap
+        ( "Some definitions don't typecheck with your changes. I've update the file"
+            <> scratchFile
+            <> "with the definitions that need fixing. Once the file is compiling, try"
+            <> makeExample' IP.update
+            <> "again."
+        )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "I've also switched you to a new branch"
+              <> prettyProjectBranchName updateBranch
+              <> "for this work. On"
+              <> P.group (makeExample' IP.update <> ",")
+              <> "it will be merged back into"
+              <> P.group (prettyProjectBranchName baseBranch <> ".")
+          )
   UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
     let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
      in pure $
@@ -1888,14 +2030,26 @@ notifyUser dir = \case
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName main <> ".")
         ]
-  UpgradeSuccess old new ->
-    pure . P.wrap $
-      "I upgraded"
-        <> P.text (NameSegment.toEscapedText old)
-        <> "to"
-        <> P.group (P.text (NameSegment.toEscapedText new) <> ",")
-        <> "and removed"
-        <> P.group (P.text (NameSegment.toEscapedText old) <> ".")
+  UpgradeSuccess old new maybeFinal ->
+    let prettyLib = P.blue . P.text . NameSegment.toEscapedText
+        prettyOld = prettyLib old
+        prettyNew = prettyLib new
+     in pure . P.wrap $
+          "I upgraded"
+            <> prettyOld
+            <> "to"
+            <> P.group (prettyNew <> ",")
+            <> case maybeFinal of
+              Nothing ->
+                "and removed"
+                  <> P.group (prettyOld <> ".")
+              Just final ->
+                "removed"
+                  <> P.group (prettyOld <> ",")
+                  <> "and renamed"
+                  <> prettyNew
+                  <> "to"
+                  <> P.group (prettyLib final <> ".")
   MergeFailure path aliceAndBob temp ->
     pure $
       P.lines $
@@ -2185,6 +2339,16 @@ notifyUser dir = \case
           "Please open the other codebase with UCM directly to upgrade it to the latest version, then try again."
         ]
   UCMServerNotRunning -> pure (P.wrap "The UCM server is not running.")
+  BranchSquashSuccess srcPAB destPAB -> do
+    let sourceName = prettyProjectAndBranchName (ProjectAndBranch srcPAB.project.name srcPAB.branch.name)
+    let destName = prettyProjectAndBranchName (ProjectAndBranch destPAB.project.name destPAB.branch.name)
+    pure $
+      P.lines
+        [ P.wrap $ "I squashed " <> sourceName <> " into " <> destName
+        ]
+  BranchUpdate'BranchChanged -> do
+    pure $
+      P.wrap "Another process updated the codebase while your command was running, so I didn't apply the update. Please run the command again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -2773,8 +2937,8 @@ handleTodoOutput todo
               foldr
                 (\(short, long) acc -> typeName /= short && typeName /= long && acc)
                 True
-                todo.incoherentDeclReasons.nestedDeclAliases
-         in case filter notNestedDeclAlias todo.incoherentDeclReasons.constructorAliases of
+                (maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons)
+         in case filter notNestedDeclAlias (maybe [] (view #constructorAliases) todo.incoherentDeclReasons) of
               [] -> pure mempty
               aliases -> do
                 things <-
@@ -2798,7 +2962,7 @@ handleTodoOutput todo
                     & P.sep "\n\n"
 
       prettyMissingConstructorNames <-
-        case NEList.nonEmpty todo.incoherentDeclReasons.missingConstructorNames of
+        case NEList.nonEmpty (maybe [] (view #missingConstructorNames) todo.incoherentDeclReasons) of
           Nothing -> pure mempty
           Just types0 -> do
             stuff <-
@@ -2830,7 +2994,7 @@ handleTodoOutput todo
                   )
 
       prettyNestedDeclAliases <-
-        case todo.incoherentDeclReasons.nestedDeclAliases of
+        case maybe [] (view #nestedDeclAliases) todo.incoherentDeclReasons of
           [] -> pure mempty
           aliases0 -> do
             aliases1 <-
@@ -2854,7 +3018,7 @@ handleTodoOutput todo
                 & P.sep "\n\n"
 
       prettyStrayConstructors <-
-        case todo.incoherentDeclReasons.strayConstructors of
+        case maybe [] (view #strayConstructors) todo.incoherentDeclReasons of
           [] -> pure mempty
           constructors -> do
             nums <-

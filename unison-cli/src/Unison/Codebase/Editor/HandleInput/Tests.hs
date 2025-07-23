@@ -61,8 +61,8 @@ import Unison.WatchKind qualified as WK
 
 -- | Handle a @test@ command.
 -- Run pure tests in the current subnamespace.
-handleTest :: Bool -> TestInput -> Cli ()
-handleTest native TestInput {includeLibNamespace, path, showFailures, showSuccesses} = do
+handleTest :: TestInput -> Cli ()
+handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = do
   Cli.Env {codebase} <- ask
 
   testRefs <- findTermsOfTypes codebase includeLibNamespace path (NESet.singleton (DD.testResultListType mempty))
@@ -116,7 +116,7 @@ handleTest native TestInput {includeLibNamespace, path, showFailures, showSucces
         Just tm -> do
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
-          tm' <- RuntimeUtils.evalPureUnison native fqnPPE False tm
+          tm' <- RuntimeUtils.evalPureUnison fqnPPE False tm
           case tm' of
             Left e -> do
               Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
@@ -133,9 +133,9 @@ handleTest native TestInput {includeLibNamespace, path, showFailures, showSucces
         (mFails, mOks) = passFails m
     Cli.respondNumbered $ TestResults Output.NewlyComputed fqnPPE showSuccesses showFailures mOks mFails
 
-handleIOTest :: Bool -> HQ.HashQualified Name -> Cli ()
-handleIOTest native main = do
-  let mode = if native then Native else Permissive
+handleIOTest :: HQ.HashQualified Name -> Cli ()
+handleIOTest main = do
+  let mode = Permissive
   runtime <- RuntimeUtils.selectRuntime mode
   names <- Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
@@ -167,11 +167,10 @@ findTermsOfTypes codebase includeLib path filterTypes = do
     filterTypes & foldMapM \matchTyp -> do
       Codebase.filterTermsByReferenceIdHavingType codebase matchTyp possibleTests
 
-handleAllIOTests :: Bool -> Cli ()
-handleAllIOTests native = do
+handleAllIOTests :: Cli ()
+handleAllIOTests = do
   Cli.Env {codebase} <- ask
-  let mode = if native then Native else Permissive
-  runtime <- RuntimeUtils.selectRuntime mode
+  runtime <- RuntimeUtils.selectRuntime Permissive
   names <- Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped

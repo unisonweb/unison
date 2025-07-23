@@ -1,5 +1,6 @@
 module Unison.Merge.Diff
-  ( nameBasedNamespaceDiff,
+  ( synhashDefns,
+    diffSynhashedDefns,
     humanizeDiffs,
   )
 where
@@ -22,8 +23,6 @@ import Unison.DeclNameLookup qualified as DeclNameLookup
 import Unison.Hash (Hash (Hash))
 import Unison.Merge.DiffOp (DiffOp (..), DiffOp2 (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp (..))
-import Unison.Merge.PartialDeclNameLookup (PartialDeclNameLookup (..))
-import Unison.Merge.PartialDeclNameLookup qualified as PartialDeclNameLookup
 import Unison.Merge.Synhash qualified as Synhash
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.Synhashed qualified as Synhashed
@@ -36,9 +35,12 @@ import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
+import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
 import Unison.Prelude hiding (catMaybes)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReferenceId)
 import Unison.Referent (Referent)
@@ -65,7 +67,7 @@ nameBasedNamespaceDiff ::
   (HasCallStack) =>
   TwoWay DeclNameLookup ->
   PartialDeclNameLookup ->
-  ThreeWay PPED.PrettyPrintEnvDecl ->
+  ThreeWay PrettyPrintEnvDecl ->
   ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
   Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
   ( -- Core diffs, i.e. adds, deletes, and updates which have different synhashes.
@@ -105,7 +107,7 @@ nameBasedNamespaceDiff declNameLookups lcaDeclNameLookup ppeds defns0 hydratedDe
       -- Compute the syntactic hash of definitions
       synhashedDefns :: TwoWay (DefnsF2 (Map Name) Synhashed Referent TypeReference)
       synhashedDefns =
-        synhashDefns synhashPPE hydratedDefns <$> declNameLookups <*> narrowedDefns
+        synhashDefns0 synhashPPE hydratedDefns <$> declNameLookups <*> narrowedDefns
 
       -- Compute 2-way diffs
       diff ::
@@ -114,13 +116,17 @@ nameBasedNamespaceDiff declNameLookups lcaDeclNameLookup ppeds defns0 hydratedDe
             DefnsF2 (Map Name) Updated Referent TypeReference
           )
       diff =
-        diffHashedNamespaceDefns <$> synhashedNarrowedLcaDefns <*> synhashedDefns
+        diffSynhashedDefns0 <$> synhashedNarrowedLcaDefns <*> synhashedDefns
    in Zip.unzip diff
   where
     synhashPPE :: PPE.PrettyPrintEnv
     synhashPPE =
       let ThreeWay {lca = lcaPPE, alice = alicePPE, bob = bobPPE} = PPED.unsuffixifiedPPE <$> ppeds
        in alicePPE `PPE.addFallback` bobPPE `PPE.addFallback` lcaPPE
+
+    --   alice = synhashDefns0 ppe hydratedDefns declNameLookups.alice defns.alice,
+    --   bob = synhashDefns0 ppe hydratedDefns declNameLookups.bob defns.bob,
+    --   lca = synhashLcaDefns ppe lcaDeclNameLookup defns.lca hydratedDefns
 
 -- `narrowDefns` takes and old and new namespace (and their respective decl name lookups), and returns old' and new'
 -- namespaces, that contain only definitions that have a chance at having different syntactic hashes.
@@ -200,7 +206,140 @@ filterOutEqualSynhash equal oldDefns newDefns =
         then Nothing
         else Just (These oldRef newRef)
 
-diffHashedNamespaceDefns ::
+------------------------------------------------------------------------------------------------------------------------
+-- Syntactic hashing
+
+-- | @synhashDefns declNameLookups ppes defns hydratedDefns@ computes syntactic hashes of @defns@.
+synhashDefns ::
+  (HasCallStack) =>
+  (TwoWay DeclNameLookup, PartialDeclNameLookup) ->
+  ThreeWay PrettyPrintEnvDecl ->
+  ThreeWay (DefnsF (Map Name) Referent TypeReference) ->
+  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
+  ThreeWay (DefnsF2 (Map Name) Synhashed Referent TypeReference)
+synhashDefns (declNameLookups, lcaDeclNameLookup) ppes defns hydratedDefns =
+  ThreeWay
+    { alice = synhashDefns0 ppe hydratedDefns declNameLookups.alice defns.alice,
+      bob = synhashDefns0 ppe hydratedDefns declNameLookups.bob defns.bob,
+      lca = synhashLcaDefns ppe lcaDeclNameLookup defns.lca hydratedDefns
+    }
+  where
+    ppe :: PPE.PrettyPrintEnv
+    ppe =
+      ppes.alice.unsuffixifiedPPE
+        `PPE.addFallback` ppes.bob.unsuffixifiedPPE
+        `PPE.addFallback` ppes.lca.unsuffixifiedPPE
+
+synhashLcaDefns ::
+  (HasCallStack) =>
+  PrettyPrintEnv ->
+  PartialDeclNameLookup ->
+  DefnsF (Map Name) Referent TypeReference ->
+  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
+  DefnsF2 (Map Name) Synhashed Referent TypeReference
+synhashLcaDefns ppe declNameLookup defns hydratedDefns =
+  synhashDefnsWith hashReferent hashType defns
+  where
+    -- For the LCA only, if we don't have a name for every constructor, or we don't have a name for a decl, that's okay,
+    -- just use a dummy syntactic hash (e.g. where we return `Hash mempty` below in two places).
+    --
+    -- This is safe and correct; Alice/Bob can't have such a decl (it violates a merge precondition), so there's no risk
+    -- that we accidentally get an equal hash and classify a real update as unchanged.
+
+    hashReferent :: Name -> Referent -> Hash
+    hashReferent name = \case
+      Referent.Con (ConstructorReference ref _) _ ->
+        case Map.lookup name declNameLookup.constructorToDecl of
+          Nothing -> Hash mempty -- see note above
+          Just declName -> hashType declName ref
+      Referent.Ref ref -> synhashTermReference ppe hydratedDefns.terms ref
+
+    hashType :: Name -> TypeReference -> Hash
+    hashType name = \case
+      ReferenceBuiltin builtin -> Synhash.synhashBuiltinDecl builtin
+      ReferenceDerived ref ->
+        case sequence (declNameLookup.declToConstructors Map.! name) of
+          Nothing -> Hash mempty -- see note above
+          Just names -> synhashDerivedDecl ppe hydratedDefns.types names name ref
+
+synhashDefns0 ::
+  (HasCallStack) =>
+  PrettyPrintEnv ->
+  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
+  DeclNameLookup ->
+  DefnsF (Map Name) Referent TypeReference ->
+  DefnsF2 (Map Name) Synhashed Referent TypeReference
+synhashDefns0 ppe hydratedDefns declNameLookup =
+  synhashDefnsWith hashReferent hashType
+  where
+    hashReferent :: Name -> Referent -> Hash
+    hashReferent name = \case
+      -- We say that a referent constructor *in the namespace* (distinct from a referent that is in a term body) has a
+      -- synhash that is simply equal to the synhash of its type declaration. This is because the type declaration and
+      -- constructors are changed in lock-step: it is not possible to change one, but not the other.
+      --
+      -- For example, if Alice updates `type Foo = Bar Nat` to `type Foo = Bar Nat Nat`, we want different synhashes on
+      -- both the type (Foo) and the constructor (Foo.Bar).
+      Referent.Con (ConstructorReference ref _) _ -> hashType (DeclNameLookup.expectDeclName declNameLookup name) ref
+      Referent.Ref ref -> synhashTermReference ppe hydratedDefns.terms ref
+
+    hashType :: Name -> TypeReference -> Hash
+    hashType name = \case
+      ReferenceBuiltin builtin -> Synhash.synhashBuiltinDecl builtin
+      ReferenceDerived ref ->
+        synhashDerivedDecl ppe hydratedDefns.types (DeclNameLookup.expectConstructorNames declNameLookup name) name ref
+
+synhashDerivedDecl ::
+  (HasCallStack) =>
+  PrettyPrintEnv ->
+  Map TypeReferenceId (Decl Symbol Ann) ->
+  [Name] ->
+  Name ->
+  TypeReferenceId ->
+  Hash
+synhashDerivedDecl ppe declsById names name ref =
+  declsById
+    & expectDecl ref
+    & DataDeclaration.setConstructorNames (map Name.toVar names)
+    & Synhash.synhashDerivedDecl ppe name
+
+synhashTermReference :: (HasCallStack) => PrettyPrintEnv -> Map TermReferenceId (Term Symbol Ann) -> TermReference -> Hash
+synhashTermReference ppe termsById = \case
+  ReferenceBuiltin builtin -> Synhash.synhashBuiltinTerm builtin
+  ReferenceDerived ref -> Synhash.synhashDerivedTerm ppe (expectTerm ref termsById)
+
+synhashDefnsWith ::
+  (HasCallStack) =>
+  (Name -> term -> Hash) ->
+  (Name -> typ -> Hash) ->
+  DefnsF (Map Name) term typ ->
+  DefnsF2 (Map Name) Synhashed term typ
+synhashDefnsWith hashTerm hashType = do
+  bimap (Map.mapWithKey hashTerm1) (Map.mapWithKey hashType1)
+  where
+    hashTerm1 name term =
+      Synhashed (hashTerm name term) term
+
+    hashType1 name typ =
+      Synhashed (hashType name typ) typ
+
+------------------------------------------------------------------------------------------------------------------------
+-- Diffing syntactic hashes
+
+-- | @diffSynhashedDefns defns@, given the output of @synhashDefns@, computes the two two-way diffs (each consisting of
+-- the "core" diffs, i.e. adds/delete/updates, alongside the propagated updates, i.e. updates that have the same synhash
+-- but different Unison hashes).
+diffSynhashedDefns ::
+  ThreeWay (DefnsF2 (Map Name) Synhashed Referent TypeReference) ->
+  ( -- Core diffs, i.e. adds, deletes, and updates which have different synhashes.
+    TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
+    -- Propagated updates, i.e. updates which have the same synhash but different Unison hashes.
+    TwoWay (DefnsF2 (Map Name) Updated Referent TypeReference)
+  )
+diffSynhashedDefns defns =
+  Zip.unzip (diffSynhashedDefns0 defns.lca <$> ThreeWay.forgetLca defns)
+
+diffSynhashedDefns0 ::
   (Eq term, Eq typ) =>
   DefnsF2 (Map Name) Synhashed term typ ->
   DefnsF2 (Map Name) Synhashed term typ ->
@@ -209,7 +348,7 @@ diffHashedNamespaceDefns ::
     -- Propagated updates, i.e. updates which have the same synhash but different Unison hashes.
     DefnsF2 (Map Name) Updated term typ
   )
-diffHashedNamespaceDefns old new =
+diffSynhashedDefns0 old new =
   unzipDefns (zipDefnsWith f f old new)
   where
     f ::
@@ -218,39 +357,39 @@ diffHashedNamespaceDefns old new =
       Map Name (Synhashed ref) ->
       (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
     f old new =
-      partitionPropagated (computeDiff old new)
+      partitionPropagated (diffSynhashedDefns1 old new)
 
-    -- Compute the diff by comparing old-and-new values, resulting in either an add, delete, update (propagated or not),
-    -- or dropping the thing entirely (because old and new have the same hash).
-    computeDiff ::
-      (Eq ref) =>
-      Map Name (Synhashed ref) ->
-      Map Name (Synhashed ref) ->
-      Map Name (DiffOp2 (Synhashed ref))
-    computeDiff =
-      Map.merge
-        (Map.mapMissing (\_ -> DiffOp2'Delete))
-        (Map.mapMissing (\_ -> DiffOp2'Add))
-        ( let f old new = do
-                let equalSynhashes = old == new
-                -- Drop things that haven't changed
-                when equalSynhashes do
-                  guard (Synhashed.value old /= Synhashed.value new)
-                Just (DiffOp2'Update Updated {old, new} equalSynhashes)
-           in Map.zipWithMaybeMatched \_ -> f
-        )
+-- Compute the diff by comparing old-and-new values, resulting in either an add, delete, update (propagated or not),
+-- or dropping the thing entirely (because old and new have the same hash).
+diffSynhashedDefns1 ::
+  forall ref.
+  (Eq ref) =>
+  Map Name (Synhashed ref) ->
+  Map Name (Synhashed ref) ->
+  Map Name (DiffOp2 (Synhashed ref))
+diffSynhashedDefns1 =
+  Map.merge
+    (Map.mapMissing \_ -> DiffOp2'Delete)
+    (Map.mapMissing \_ -> DiffOp2'Add)
+    (Map.zipWithMaybeMatched \_ -> f)
+  where
+    f :: Synhashed ref -> Synhashed ref -> Maybe (DiffOp2 (Synhashed ref))
+    f old new = do
+      let equalSynhashes = old == new
+      -- Drop things that haven't changed
+      when equalSynhashes do
+        guard (Synhashed.value old /= Synhashed.value new)
+      Just (DiffOp2'Update Updated {old, new} equalSynhashes)
 
-    -- Partition add/delete/update/propagated-update into add/delete/update + propagated-update
-    partitionPropagated ::
-      Map Name (DiffOp2 (Synhashed ref)) ->
-      (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
-    partitionPropagated =
-      Map.mapEither \case
-        DiffOp2'Add ref -> Left (DiffOp'Add ref)
-        DiffOp2'Delete ref -> Left (DiffOp'Delete ref)
-        DiffOp2'Update refs propagated
-          | propagated -> Right (Synhashed.value <$> refs)
-          | otherwise -> Left (DiffOp'Update refs)
+-- Partition add/delete/update/propagated-update into add/delete/update + propagated-update
+partitionPropagated :: Map Name (DiffOp2 (Synhashed ref)) -> (Map Name (DiffOp (Synhashed ref)), Map Name (Updated ref))
+partitionPropagated =
+  Map.mapEither \case
+    DiffOp2'Add ref -> Left (DiffOp'Add ref)
+    DiffOp2'Delete ref -> Left (DiffOp'Delete ref)
+    DiffOp2'Update refs propagated
+      | propagated -> Right (Synhashed.value <$> refs)
+      | otherwise -> Left (DiffOp'Update refs)
 
 -- | Post-process a diff to identify relationships humans might care about, such as whether a given addition could be
 -- interpreted as an alias of an existing definition, or whether an add and deletion could be a rename.
@@ -320,104 +459,6 @@ humanizeDiffs names3 =
               Nothing -> HumanDiffOp'Delete ref
               Just newNames -> HumanDiffOp'RenamedTo ref (NESet.fromList newNames)
           DiffOp'Update Updated {old, new} -> HumanDiffOp'Update Updated {old, new}
-
-------------------------------------------------------------------------------------------------------------------------
--- Syntactic hashing
-
-synhashLcaDefns ::
-  (HasCallStack) =>
-  PrettyPrintEnv ->
-  PartialDeclNameLookup ->
-  DefnsF (Map Name) Referent TypeReference ->
-  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
-  DefnsF2 (Map Name) Synhashed Referent TypeReference
-synhashLcaDefns ppe declNameLookup defns hydratedDefns =
-  synhashDefnsWith hashReferent hashType defns
-  where
-    -- For the LCA only, if we don't have a name for every constructor, or we don't have a name for a decl, that's okay,
-    -- just use a dummy syntactic hash (e.g. where we return `Hash mempty` below in two places).
-    --
-    -- This is safe and correct; Alice/Bob can't have such a decl (it violates a merge precondition), so there's no risk
-    -- that we accidentally get an equal hash and classify a real update as unchanged.
-
-    hashReferent :: Name -> Referent -> Hash
-    hashReferent name = \case
-      Referent.Con (ConstructorReference ref _) _ ->
-        case Map.lookup name declNameLookup.constructorToDecl of
-          Nothing -> Hash mempty -- see note above
-          Just declName -> hashType declName ref
-      Referent.Ref ref -> synhashTermReference ppe hydratedDefns.terms ref
-
-    hashType :: Name -> TypeReference -> Hash
-    hashType name = \case
-      ReferenceBuiltin builtin -> Synhash.synhashBuiltinDecl builtin
-      ReferenceDerived ref ->
-        case sequence (declNameLookup.declToConstructors Map.! name) of
-          Nothing -> Hash mempty -- see note above
-          Just names -> synhashDerivedDecl ppe hydratedDefns.types names name ref
-
-synhashDefns ::
-  (HasCallStack) =>
-  PrettyPrintEnv ->
-  Defns (Map TermReferenceId (Term Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)) ->
-  DeclNameLookup ->
-  DefnsF (Map Name) Referent TypeReference ->
-  DefnsF2 (Map Name) Synhashed Referent TypeReference
-synhashDefns ppe hydratedDefns declNameLookup =
-  synhashDefnsWith hashReferent hashType
-  where
-    hashReferent :: Name -> Referent -> Hash
-    hashReferent name = \case
-      -- We say that a referent constructor *in the namespace* (distinct from a referent that is in a term body) has a
-      -- synhash that is simply equal to the synhash of its type declaration. This is because the type declaration and
-      -- constructors are changed in lock-step: it is not possible to change one, but not the other.
-      --
-      -- For example, if Alice updates `type Foo = Bar Nat` to `type Foo = Bar Nat Nat`, we want different synhashes on
-      -- both the type (Foo) and the constructor (Foo.Bar).
-      Referent.Con (ConstructorReference ref _) _ -> hashType (DeclNameLookup.expectDeclName declNameLookup name) ref
-      Referent.Ref ref -> synhashTermReference ppe hydratedDefns.terms ref
-
-    hashType :: Name -> TypeReference -> Hash
-    hashType name = \case
-      ReferenceBuiltin builtin -> Synhash.synhashBuiltinDecl builtin
-      ReferenceDerived ref ->
-        synhashDerivedDecl ppe hydratedDefns.types (DeclNameLookup.expectConstructorNames declNameLookup name) name ref
-
-synhashDerivedDecl ::
-  (HasCallStack) =>
-  PrettyPrintEnv ->
-  Map TypeReferenceId (Decl Symbol Ann) ->
-  [Name] ->
-  Name ->
-  TypeReferenceId ->
-  Hash
-synhashDerivedDecl ppe declsById names name ref =
-  declsById
-    & expectDecl ref
-    & DataDeclaration.setConstructorNames (map Name.toVar names)
-    & Synhash.synhashDerivedDecl ppe name
-
-synhashTermReference :: (HasCallStack) => PrettyPrintEnv -> Map TermReferenceId (Term Symbol Ann) -> TermReference -> Hash
-synhashTermReference ppe termsById = \case
-  ReferenceBuiltin builtin -> Synhash.synhashBuiltinTerm builtin
-  ReferenceDerived ref -> Synhash.synhashDerivedTerm ppe (expectTerm ref termsById)
-
-synhashDefnsWith ::
-  (HasCallStack) =>
-  (Name -> term -> Hash) ->
-  (Name -> typ -> Hash) ->
-  DefnsF (Map Name) term typ ->
-  DefnsF2 (Map Name) Synhashed term typ
-synhashDefnsWith hashTerm hashType = do
-  bimap
-    (Map.mapWithKey hashTerm1)
-    (Map.mapWithKey hashType1)
-  where
-    hashTerm1 name term =
-      Synhashed (hashTerm name term) term
-
-    hashType1 name typ =
-      Synhashed (hashType name typ) typ
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Looking up terms and decls that we expect to be there
