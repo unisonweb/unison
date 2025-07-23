@@ -35,7 +35,8 @@ import System.Mem.StableName
 import System.Process (ProcessHandle)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, Referenced, Value, dereference)
+import Unison.Runtime.Referenced (Referenced, dereference)
+import Unison.Runtime.ANF (Code, Value)
 import Unison.Runtime.Array
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)

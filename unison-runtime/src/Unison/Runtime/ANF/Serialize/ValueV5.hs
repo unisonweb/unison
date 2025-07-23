@@ -18,6 +18,7 @@ import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Serialize.CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.Canonicalizer
+import Unison.Runtime.Referenced
 import Unison.Runtime.Serialize hiding
   ( getConstructorReference,
     getReference,

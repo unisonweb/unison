@@ -488,7 +488,7 @@ raise =
   binop0 2 $ \[ah, r, f, n] ->
     TMatch r
       . flip MatchRequest (TAbs f $ TVar f)
-      . Map.singleton Ty.exceptionRef
+      . (:[]) . (Ty.exceptionRef,)
       $ mapSingleton
         0
         ( [BX],

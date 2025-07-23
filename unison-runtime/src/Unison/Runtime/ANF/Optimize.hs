@@ -734,11 +734,11 @@ translateHandlerMatch opts self ah (Lambda ccs (ABTN.TAbss args body))
         . ABTN.TAbss args
         . TMatch u
         . flip MatchRequest df
-        <$> traverse3 (affineHandlerCase opts self bound vs ah) cs
+        <$> traverse4 (affineHandlerCase opts self bound vs ah) cs
   | otherwise = Nothing
   where
     ar = freshAff 2
-    traverse3 = traverse . traverse . traverse
+    traverse4 = traverse . traverse . traverse . traverse
 
 -- Recognizes the entry combinator of a compiled handler. If it is
 -- one, then the result is a modified version with an affine handler
