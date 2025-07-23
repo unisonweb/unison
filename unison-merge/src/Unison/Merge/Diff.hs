@@ -124,9 +124,9 @@ nameBasedNamespaceDiff declNameLookups lcaDeclNameLookup ppeds defns0 hydratedDe
       let ThreeWay {lca = lcaPPE, alice = alicePPE, bob = bobPPE} = PPED.unsuffixifiedPPE <$> ppeds
        in alicePPE `PPE.addFallback` bobPPE `PPE.addFallback` lcaPPE
 
-    --   alice = synhashDefns0 ppe hydratedDefns declNameLookups.alice defns.alice,
-    --   bob = synhashDefns0 ppe hydratedDefns declNameLookups.bob defns.bob,
-    --   lca = synhashLcaDefns ppe lcaDeclNameLookup defns.lca hydratedDefns
+--   alice = synhashDefns0 ppe hydratedDefns declNameLookups.alice defns.alice,
+--   bob = synhashDefns0 ppe hydratedDefns declNameLookups.bob defns.bob,
+--   lca = synhashLcaDefns ppe lcaDeclNameLookup defns.lca hydratedDefns
 
 -- `narrowDefns` takes and old and new namespace (and their respective decl name lookups), and returns old' and new'
 -- namespaces, that contain only definitions that have a chance at having different syntactic hashes.
