@@ -327,7 +327,7 @@ instance FromJSON ShareProjectReadmeToolArguments where
 
 data TypecheckCodeToolArguments = TypecheckCodeToolArguments
   { projectContext :: ProjectContext,
-    code :: Text
+    code :: Either FilePath Text
   }
   deriving (Eq, Show)
 
@@ -337,21 +337,54 @@ instance HasInputSchema TypecheckCodeToolArguments where
       [ "type" .= ("object" :: Text),
         "properties"
           .= object
-            [ "code"
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "code"
                 .= object
-                  [ "type" .= ("string" :: Text),
-                    "description" .= ("The code to typecheck, as a string. All the code you've written which is not yet part of the project must be provided at once." :: Text)
-                  ],
-              "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext)
+                  [ "description" .= ("The source code to typecheck. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
+                    "oneOf"
+                      .= [ object
+                             [ "description" .= ("The file path to the source code." :: Text),
+                               "type" .= ("object" :: Text),
+                               "properties"
+                                 .= object
+                                   [ "filePath"
+                                       .= object
+                                         [ "type" .= ("string" :: Text),
+                                           "description" .= ("An absolute file path to the source code." :: Text)
+                                         ]
+                                   ],
+                               "required" .= ["filePath" :: Text],
+                               "additionalProperties" .= False
+                             ],
+                           object
+                             [ "description" .= ("The source code to typecheck." :: Text),
+                               "type" .= ("object" :: Text),
+                               "properties"
+                                 .= object
+                                   [ "text"
+                                       .= object
+                                         [ "type" .= ("string" :: Text),
+                                           "description" .= ("The source code to typecheck." :: Text)
+                                         ]
+                                   ],
+                               "required" .= ["text" :: Text],
+                               "additionalProperties" .= False
+                             ]
+                         ]
+                  ]
             ],
-        "required" .= ["code", "projectContext" :: Text]
+        "required" .= ["projectContext", "code" :: Text]
       ]
 
 instance FromJSON TypecheckCodeToolArguments where
   parseJSON = withObject "TypecheckCodeToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
-    code <- o .: "code"
-    pure $ TypecheckCodeToolArguments {projectContext, code}
+    source <- o .: "code"
+    source .:? "filePath" >>= \case
+      Just filePath -> pure $ TypecheckCodeToolArguments {projectContext, code = Left filePath}
+      Nothing -> do
+        text <- source .: "text"
+        pure $ TypecheckCodeToolArguments {projectContext, code = Right text}
 
 data DocsToolArguments = DocsToolArguments
   { projectContext :: ProjectContext,

@@ -28,6 +28,7 @@ import Unison.MCP.Types
 import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.NameSegment qualified as NameSegment
+import Unison.Prelude (readUtf8)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Relation qualified as R
@@ -127,15 +128,28 @@ typecheckCodeTool =
           If you would like to test the behaviour of any pure functions, you may prefix a code snippet with an angle bracket.
 
           e.g.
+
           ```
           > 1 + 2
           ```
 
           Or
+
           ```
           > let
               isGreaterThan3 x = x > 3
               isGreaterThan3 4
+          ```
+
+          If you wish to write unit tests, you may do so like this:
+
+          ```
+          test> Nat.tests.additionIsCommutative = test.verify do
+            Each.repeat 100
+            n = Random.natIn 0 1000
+            m = Random.natIn 0 1000
+            ensureEqual (n + m) (m + n)
+          ```
         |],
       toolAnnotations =
         ToolAnnotations
@@ -147,7 +161,10 @@ typecheckCodeTool =
           },
       toolArgType = Proxy,
       toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> handleToolError do
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
+        source <- case code of
+          Left filePath -> liftIO $ readUtf8 filePath
+          Right codeSnippet -> pure codeSnippet
+        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" source]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
