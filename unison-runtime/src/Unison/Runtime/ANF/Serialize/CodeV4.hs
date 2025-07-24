@@ -20,6 +20,7 @@ import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
+import Unison.Runtime.Referenced
 import Unison.Runtime.Serialize hiding
   ( getReferent,
     putReferent,
@@ -554,7 +555,7 @@ putBranches pref@(tys, _) fops ctx bs = case bs of
     putMaybe df $ putNormal pref fops ctx
   MatchRequest m (TAbs v df) -> do
     putTag MReqT
-    putMap
+    putMapping
       (putReferenceByNumber tys)
       (putEnumMap putCTag (putCase pref fops ctx))
       m
@@ -594,7 +595,7 @@ getBranches gref@(tys, _) ctx frsh0 =
         <*> getMaybe (getNormal gref ctx frsh0)
     MReqT ->
       MatchRequest
-        <$> getMap
+        <$> getMapping
           (getReferenceByNumber tys)
           (getEnumMap getCTag (getCase gref ctx frsh0))
         <*> (TAbs v <$> getNormal gref (v : ctx) (frsh0 + 1))

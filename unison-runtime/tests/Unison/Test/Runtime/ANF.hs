@@ -169,12 +169,12 @@ denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler ::
   (Var v) =>
-  Map.Map Reference (EnumMap CTag ([Mem], ANormal v)) ->
+  [(Reference, (EnumMap CTag ([Mem], ANormal v)))] ->
   ANormal v ->
   [Term.MatchCase () (Term.Term0 v)]
 denormalizeHandler cs df = dcs
   where
-    dcs = Map.foldMapWithKey rf cs <> dfc
+    dcs = foldMap rf cs <> dfc
     dfc =
       [ Term.MatchCase
           (P.EffectPure () (P.Var ()))
@@ -183,7 +183,7 @@ denormalizeHandler cs df = dcs
       ]
       where
         (_, db) = denormalizeBranch @Int df
-    rf r rcs = foldMapWithKey (cf r) rcs
+    rf (r, rcs) = foldMapWithKey (cf r) rcs
     cf r t b =
       [ Term.MatchCase
           ( P.EffectBind

@@ -3,7 +3,6 @@ module Unison.Runtime.Machine.Types where
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
-import Control.Monad.State.Strict
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -17,19 +16,18 @@ import Unison.Runtime.ANF
   ( Cacheability (..),
     Code (..),
     CompileExn (..),
-    Referenced (..),
     SuperGroup (..),
     Value,
     foldGroupLinks,
-    traverseGroupLinks,
+    traverseCodeRefs,
     valueLinks,
   )
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
-import Unison.Runtime.Canonicalizer as C
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
+import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
@@ -163,20 +161,7 @@ lookupCode _ _ = die "lookupCode: Expected Ref"
 -- Traverses a `Code`, calculating the used references within, and
 -- canonicalizing them in memory.
 canonicalizeCodeRefs :: Code -> IO (Referenced Code)
-canonicalizeCodeRefs (CodeRep sg ch) =
-  finalize <$> runStateT (traverseGroupLinks f sg) (C.empty, [], [])
-  where
-    finalize (sg, (_, tys, tms)) = WithRefs tys tms (CodeRep sg ch)
-    f isTy r = StateT \st@(canon, tys, tms) ->
-      categorize canon r >>= \case
-        Canonical -> pure (r, st)
-        Equivalent r canon -> pure (r, (canon, tys, tms))
-        Novel canon ->
-          pure . (r,) $
-            ( canon,
-              if isTy then r : tys else tys,
-              if isTy then tms else r : tms
-            )
+canonicalizeCodeRefs = toReferenced . canonicalizeRefs traverseCodeRefs
 
 resolveCode ::
   Reference ->

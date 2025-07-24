@@ -1213,7 +1213,7 @@ updateMap new0 r = do
 decodeCacheArgument :: USeq -> IO [(Reference, Code)]
 decodeCacheArgument s = traverse (f <=< decodeVal) $ toList s
   where
-    f (Ref r, rco) = pure (r, ANF.dereference rco)
+    f (Ref r, rco) = pure (r, dereference rco)
     f _ = die "decodeCacheArgument: Con reference"
 
 addRefs ::
@@ -1432,11 +1432,11 @@ canonicalizeReferent (Ref r) = Ref <$> canonicalizeReference False r
 canonicalizeReferent (Con (ConstructorReference r i) j) =
   flip Con j . flip ConstructorReference i <$> canonicalizeReference True r
 
-canonicalizeReferenced :: RTrav a -> ANF.Referenced a -> Reflect a
+canonicalizeReferenced :: RTrav a -> Referenced a -> Reflect a
 canonicalizeReferenced trav x = mediate $ recanonicalizeRefs trav x
 {-# INLINE canonicalizeReferenced #-}
 
-reflectValue :: CCache -> Val -> IO (ANF.Referenced ANF.Value)
+reflectValue :: CCache -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do
   tyr <- readTVarIO (tagRefs env)
   tmr <- readTVarIO (combRefs env)
@@ -1479,7 +1479,7 @@ reflectValue0 ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Val ->
-  IO (ANF.Referenced ANF.Value)
+  IO (Referenced ANF.Value)
 reflectValue0 rty rtm = goV0
   where
     refTy w =
@@ -1509,9 +1509,9 @@ reflectValue0 rty rtm = goV0
 
     reflExn msg = lift . throwIO $ ReflectExn msg
 
-    finish (val, RS _ _ _ tys tms) = ANF.WithRefs tys tms val
+    finish (val, RS _ _ _ tys tms) = WithRefs tys tms val
 
-    goV0 :: Val -> IO (ANF.Referenced ANF.Value)
+    goV0 :: Val -> IO (Referenced ANF.Value)
     goV0 v = finish <$> runStateT (goV v) emptyRS
 
     goV :: Val -> Reflect ANF.Value
@@ -1586,7 +1586,7 @@ data ReflectExn = ReflectExn String deriving (Show)
 instance Exception ReflectExn
 
 reifyValue ::
-  CCache -> ANF.Referenced ANF.Value -> IO (Either [Reference] Val)
+  CCache -> Referenced ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do
   erc <-
     atomically $ do
@@ -1602,15 +1602,15 @@ reifyValue cc val = do
     f False r = (mempty, S.singleton r)
     f True r = (S.singleton r, mempty)
     (tyLinks, tmLinks) = case val of
-      ANF.WithRefs tys tms _ -> (Set.fromList tys, Set.fromList tms)
-      ANF.Plain val -> valueLinks f val
+      WithRefs tys tms _ -> (Set.fromList tys, Set.fromList tms)
+      Plain val -> valueLinks f val
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
-  ANF.Referenced ANF.Value ->
+  Referenced ANF.Value ->
   IO Val
-reifyValue1 tup (ANF.Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0) (ANF.WithRefs tys tms v) = do
+reifyValue1 tup (Plain v) = reifyValue0 tup v
+reifyValue1 (combs, rty0, rtm0) (WithRefs tys tms v) = do
   rty <- C.fromList $ mapMaybe (\r -> (r,) <$> M.lookup r rty0) tys
   rtm <- C.fromList $ mapMaybe procTermRefs tms
   reifyValue0Canon combs tys tms rty rtm v
@@ -1700,8 +1700,8 @@ reifyValue0Canon combs tys tms rty rtm = goV
     goL (ANF.TmLink r) = pure $ encodeVal r
     goL (ANF.TyLink r) = pure $ encodeVal r
     goL (ANF.Bytes b) = pure $ encodeVal b
-    goL (ANF.Quote v) = pure $ encodeVal (ANF.WithRefs tys tms v)
-    goL (ANF.Code g) = pure $ encodeVal (ANF.WithRefs tys tms g)
+    goL (ANF.Quote v) = pure $ encodeVal (WithRefs tys tms v)
+    goL (ANF.Code g) = pure $ encodeVal (WithRefs tys tms g)
     goL (ANF.BArr a) = pure $ encodeVal a
     goL (ANF.Char c) = pure $ CharVal c
     goL (ANF.Pos w) =
@@ -1788,8 +1788,8 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.TmLink r) = pure $ encodeVal r
     goL (ANF.TyLink r) = pure $ encodeVal r
     goL (ANF.Bytes b) = pure $ encodeVal b
-    goL (ANF.Quote v) = pure $ encodeVal (ANF.Plain v)
-    goL (ANF.Code g) = pure $ encodeVal (ANF.Plain g)
+    goL (ANF.Quote v) = pure $ encodeVal (Plain v)
+    goL (ANF.Code g) = pure $ encodeVal (Plain g)
     goL (ANF.BArr a) = pure $ encodeVal a
     goL (ANF.Char c) = pure $ CharVal c
     goL (ANF.Pos w) =

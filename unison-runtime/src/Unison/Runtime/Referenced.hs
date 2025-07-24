@@ -5,6 +5,7 @@ module Unison.Runtime.Referenced
     Canonize,
     canonicalizeRefs,
     recanonicalizeRefs,
+    toReferenced,
   )
 where
 
@@ -55,9 +56,8 @@ canonicalizeRefs trav = trav h
     h isTy r = StateT \st@(canon, tys, tms) ->
       categorize canon r >>= \case
         Canonical -> pure (r, st)
-        Novel canon
-          | isTy -> pure (r, (canon, r : tys, tms))
-          | otherwise -> pure (r, (canon, tys, r : tms))
+        Novel canon ->
+          pure (r, if isTy then (canon, r : tys, tms) else (canon, tys, r : tms))
         Equivalent s canon -> pure (s, (canon, tys, tms))
 {-# INLINE canonicalizeRefs #-}
 
@@ -82,8 +82,7 @@ recanonicalizeRefs trav = \case
     ctys <- lift $ fromList typs
     ctms <- lift $ fromList tmps
 
-    let f False r = findWithDefault r r ctms
-        f True r = findWithDefault r r ctys
+    let f isTy r = findWithDefault r r (if isTy then ctys else ctms)
 
     if null typs && null tmps
       then pure v -- already canonical
@@ -102,3 +101,9 @@ recanonicalizeRefs trav = \case
             )
         Equivalent s canon -> pure (Just (r, s), (canon, tys, tms))
 {-# INLINE recanonicalizeRefs #-}
+
+toReferenced :: Canonize a -> IO (Referenced a)
+toReferenced cn = finalize <$> runStateT cn (empty, [], [])
+  where
+    finalize (x, (_, tys, tms)) = WithRefs tys tms x
+{-# INLINE toReferenced #-}
