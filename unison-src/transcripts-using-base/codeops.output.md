@@ -276,6 +276,9 @@ scratch/main> add
 structural ability Zap where
   zap : Three Nat Nat Nat
 
+structural ability Zep where
+  harp : Nat
+
 h : Three Nat Nat Nat -> Nat -> Nat
 h y x = match y with
   zero y -> x + y
@@ -304,6 +307,12 @@ zapper : Three Nat Nat Nat -> Request {Zap} r -> r
 zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
+
+zaeper : Request {Zap,Zep} r -> Nat
+zaeper = cases
+ { r } -> 1
+ { zap -> _ } -> 2
+ { harp -> _ } -> 3
 
 bigFun : Nat -> Nat -> Nat -> Nat
 bigFun i j k = let
@@ -382,6 +391,7 @@ badLoad _ =
     ⍟ New definitions:
     
       structural ability Zap
+      structural ability Zep
       badLoad : '{IO} [Result]
       bigFun  : Nat -> Nat -> Nat -> Nat
       f       : Nat ->{Zap} Nat
@@ -391,6 +401,7 @@ badLoad _ =
       h       : Three Nat Nat Nat -> Nat -> Nat
       rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
       tests   : '{IO} [Result]
+      zaeper  : Request {Zap, Zep} r -> Nat
       zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 ```
 
@@ -474,6 +485,10 @@ codeTests =
    , idempotence "idem extensionality" (termLink extensionality)
    , idempotence "idem identicality" (termLink identicality)
 
+   -- actually tests that code serialization works on this previously
+   -- problem term
+   , idempotence "idem zaeper" (termLink zaeper)
+
    , idempotence.versioned 4 "idem f v4" (termLink f)
    , idempotence.versioned 4 "idem h v4" (termLink h)
    , idempotence.versioned 4 "idem rotate v4" (termLink rotate)
@@ -552,6 +567,7 @@ scratch/main> io.test codeTests
                    ◉ (idem big) passed
                    ◉ (idem extensionality) passed
                    ◉ (idem identicality) passed
+                   ◉ (idem zaeper) passed
                    ◉ (idem f v4) passed
                    ◉ (idem h v4) passed
                    ◉ (idem rotate v4) passed
@@ -592,7 +608,7 @@ scratch/main> io.test codeTests
                    ◉ (rejected swapped mututal1) passed
                    ◉ (rejected swapped mututal2) passed
 
-  ✅ 48 test(s) passing
+  ✅ 49 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```
