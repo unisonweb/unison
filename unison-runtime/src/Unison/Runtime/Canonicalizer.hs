@@ -116,28 +116,44 @@ canonicalize cn !x =
   unsafePerformIO $ makeStableName x >>= canonicalize0 cn x
 {-# INLINEABLE canonicalize #-}
 
-newtype CanonMap k v = CanonM (HashMap (StableName k) v)
+data CanonMap k v =
+  CanonM { _fast :: HashMap (StableName k) v,
+           _slow :: M.Map k v
+         }
   deriving (Functor)
 
-lookup :: k -> CanonMap k v -> IO (Maybe v)
-lookup !k (CanonM m) = flip HM.lookup m <$> makeStableName k
+lookup0 :: (Ord k) => k -> CanonMap k v -> StableName k -> Maybe v
+lookup0 k (CanonM fast slow) name
+  | r@Just {} <- HM.lookup name fast = r
+  | otherwise = M.lookup k slow
+{-# INLINE lookup0 #-}
+
+lookup :: (Ord k) => k -> CanonMap k v -> IO (Maybe v)
+lookup !k m = lookup0 k m <$> makeStableName k
 {-# INLINE lookup #-}
 
-findWithDefault :: v -> k -> CanonMap k v -> IO v
-findWithDefault d !k (CanonM m) =
-  flip (HM.findWithDefault d) m <$> makeStableName k
+findWithDefault0 :: (Ord k) => v -> k -> CanonMap k v -> StableName k -> v
+findWithDefault0 df k (CanonM fast slow) name =
+  HM.findWithDefault (M.findWithDefault df k slow) name fast
+{-# INLINE findWithDefault0 #-}
+
+findWithDefault :: (Ord k) => v -> k -> CanonMap k v -> IO v
+findWithDefault df !k m =
+  findWithDefault0 df k m <$> makeStableName k
 {-# INLINE findWithDefault #-}
 
-unsafeLookup :: k -> CanonMap k v -> Maybe v
+unsafeLookup :: (Ord k) => k -> CanonMap k v -> Maybe v
 unsafeLookup k m = unsafePerformIO $ lookup k m
 {-# INLINE unsafeLookup #-}
 
-fromListByIndex :: [k] -> CanonMap k Int
-fromListByIndex l = unsafePerformIO do
-  l <- traverse (\k -> makeStableName =<< evaluate k) l
-  pure . CanonM $ HM.fromList (zip l [0 ..])
+fromListByIndex :: (Ord k) => [k] -> CanonMap k Int
+fromListByIndex ks = unsafePerformIO do
+  ns <- traverse (\k -> makeStableName =<< evaluate k) ks
+  pure $ CanonM (HM.fromList (zip ns [0 ..])) (M.fromList (zip ks [0 ..]))
 
-fromList :: [(k, v)] -> IO (CanonMap k v)
-fromList = fmap (CanonM . HM.fromList) . traverse f
+fromList :: (Ord k) => [(k, v)] -> IO (CanonMap k v)
+fromList kvs = do
+  nvs <- traverse f kvs
+  pure $ CanonM (HM.fromList nvs) (M.fromList kvs)
   where
     f (k, v) = (,v) <$> (makeStableName =<< evaluate k)
