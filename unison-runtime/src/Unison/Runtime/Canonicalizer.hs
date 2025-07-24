@@ -116,10 +116,10 @@ canonicalize cn !x =
   unsafePerformIO $ makeStableName x >>= canonicalize0 cn x
 {-# INLINEABLE canonicalize #-}
 
-data CanonMap k v =
-  CanonM { _fast :: HashMap (StableName k) v,
-           _slow :: M.Map k v
-         }
+data CanonMap k v = CanonM
+  { _fast :: HashMap (StableName k) v,
+    _slow :: M.Map k v
+  }
   deriving (Functor)
 
 lookup0 :: (Ord k) => k -> CanonMap k v -> StableName k -> Maybe v
