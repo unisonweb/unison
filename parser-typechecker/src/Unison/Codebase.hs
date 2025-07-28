@@ -362,7 +362,7 @@ getTypeOfConstructor codebase (ConstructorReference r0 cid) =
     Reference.Builtin _ -> error (reportBug "924628772" "Attempt to load a type declaration which is a builtin!")
 
 expectTypeOfConstructor ::
-  Ord v =>
+  (Ord v) =>
   Codebase m v a ->
   ConstructorReference ->
   Sqlite.Transaction (Type v a)
