@@ -32,7 +32,6 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.Slurp qualified as Slurp
 import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..), TermSlurp (..))
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
@@ -118,21 +117,22 @@ loadUnisonFile sourceName text = do
       slurpEntries <-
         Cli.runTransaction do
           Defns
-            <$> slurpThemTerms
+            <$> slurpTerms
               env.codebase
               unisonFile
               False
               (Relation.domain oldNames.terms)
               (Relation.domain unisonFileNames.terms)
-            <*> slurpThemTypes
+            <*> slurpTypes
               env.codebase
               unisonFile
               False
               (Relation.domain oldNames.types)
               (Relation.domain unisonFileNames.types)
 
-      let aliases =
-            getThemTermAliases oldNames.terms slurpEntries.terms
+      let aliases :: Map Referent (NESet Name)
+          aliases =
+            getTermAliases oldNames.terms slurpEntries.terms
 
       let oldPpe =
             PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
@@ -148,13 +148,13 @@ loadUnisonFile sourceName text = do
       slurpEntries <-
         Cli.runTransaction do
           Defns
-            <$> slurpThemTerms
+            <$> slurpTerms
               env.codebase
               unisonFile
               True
               (Relation.domain updateBranchParentLocalNames.terms)
               (Relation.domain updateBranchLocalNames.terms)
-            <*> slurpThemTypes
+            <*> slurpTypes
               env.codebase
               unisonFile
               False
@@ -163,7 +163,7 @@ loadUnisonFile sourceName text = do
 
       let aliases :: Map Referent (NESet Name)
           aliases =
-            getThemTermAliases updateBranchParentNames.terms slurpEntries.terms
+            getTermAliases updateBranchParentNames.terms slurpEntries.terms
 
       let oldPpe =
             PPE.suffixifiedPPE $
@@ -184,14 +184,14 @@ loadUnisonFile sourceName text = do
 
   #latestTypecheckedFile .= Just (Right unisonFile)
 
-slurpThemTerms ::
+slurpTerms ::
   Codebase m Symbol Ann ->
   TypecheckedUnisonFile Symbol Ann ->
   Bool ->
   Map Name (Set Referent) ->
   Map Name (Set Referent) ->
   Sqlite.Transaction (Map Name (TermSlurp Symbol Ann))
-slurpThemTerms codebase unisonFile isUpdate =
+slurpTerms codebase unisonFile isUpdate =
   Map.mergeA
     ( if isUpdate
         then Map.traverseMaybeMissing \_ refs ->
@@ -248,14 +248,14 @@ slurpThemTerms codebase unisonFile isUpdate =
         Just (_, _, _, _, ty) -> pure ty
         Nothing -> Codebase.expectTypeOfTerm codebase ref
 
-slurpThemTypes ::
+slurpTypes ::
   Codebase m Symbol Ann ->
   TypecheckedUnisonFile Symbol Ann ->
   Bool ->
   Map Name (Set TypeReference) ->
   Map Name (Set TypeReference) ->
   Sqlite.Transaction (Map Name (SlurpEntry (DeclOrBuiltin Symbol Ann)))
-slurpThemTypes codebase unisonFile isUpdate =
+slurpTypes codebase unisonFile isUpdate =
   Map.mergeA
     ( if isUpdate
         then Map.traverseMissing \_ -> fmap SlurpEntry'Delete . getOldDecl . Set.findMin
@@ -292,8 +292,8 @@ slurpThemTypes codebase unisonFile isUpdate =
       Reference.Builtin builtin ->
         pure (DeclOrBuiltin.Builtin (Builtin.expectBuiltinConstructorType builtin))
 
-getThemTermAliases :: Relation Name Referent -> Map Name (TermSlurp Symbol Ann) -> Map Referent (NESet Name)
-getThemTermAliases existingTerms slurpTerms =
+getTermAliases :: Relation Name Referent -> Map Name (TermSlurp Symbol Ann) -> Map Referent (NESet Name)
+getTermAliases existingTerms slurpTerms =
   -- For the purpose of identifying aliases to call out, we omit names that are changing by this update.
   let (changedNames, changedRefs) =
         Map.foldlWithKey'
