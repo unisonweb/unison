@@ -86,8 +86,6 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
       (also named id)
   + mysecret : Bytes
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     22 | > ex1
@@ -382,8 +380,6 @@ test> hmac_sha2_512.tests.ex2 =
   + hmac_sha2_512.tests.ex1 : [Result]
   + hmac_sha2_512.tests.ex2 : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     4 |   ex' Sha2_256
@@ -434,8 +430,6 @@ test> md5.tests.ex3 =
   + md5.tests.ex3 : [Result]
 
   (and 1 unchanged term)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 

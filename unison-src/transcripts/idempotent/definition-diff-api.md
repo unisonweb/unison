@@ -49,8 +49,6 @@ unitCase = id (x -> 1)
   + term     : Nat
   + unitCase : x -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -108,7 +106,7 @@ unitCase = id (x -> (1, ()))
 
   (and 1 unchanged type and 1 unchanged term)
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

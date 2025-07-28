@@ -148,8 +148,6 @@ count'test = do
   + repeated     : Request {Repeat, g} () ->{g} ()
   + testPerf     : '() ->{IO, Exception} Result
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -214,8 +212,6 @@ fail'count'test = do
   + fail'count'wrap : Nat -> Nat ->{CountOrFail} ()
   + fail'counter    : Nat -> '{CountOrFail} r -> ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -273,8 +269,6 @@ local'count'test = do
 
   + local'count'test : '{IO, Exception} [Result]
   + local'counter    : Nat -> '{Count} r -> r
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -357,8 +351,6 @@ elaborate'test = do
   + rec'loop       : Nat ->{Rec} ()
   + rec'wrap       : Nat -> Nat ->{Rec} ()
   + recurse        : '{Rec} r -> r
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

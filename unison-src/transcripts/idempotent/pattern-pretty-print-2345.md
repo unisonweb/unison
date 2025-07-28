@@ -83,8 +83,6 @@ doc = cases
   + throaty   : Request {g, Ab} x -> ()
   + tremulous : (Nat, Nat) -> ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

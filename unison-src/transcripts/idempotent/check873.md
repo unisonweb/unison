@@ -13,8 +13,6 @@ scratch/main> builtins.merge
 
   + - : Nat -> Nat -> Int
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -35,8 +33,6 @@ baz x = x - 1
   Loading changes detected in scratch.u.
 
   + baz : Nat -> Int
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

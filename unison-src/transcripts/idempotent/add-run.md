@@ -83,8 +83,6 @@ main _ = y
   + y    : Nat -> Nat -> Nat
   + z    : Nat -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -112,8 +110,6 @@ inc x = x + 1
   Loading changes detected in scratch.u.
 
   + inc : Nat -> Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -163,8 +159,6 @@ main = 'y
   + main : 'Nat
   + x    : Nat
   + y    : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

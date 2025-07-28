@@ -125,8 +125,6 @@ unique type a.T = T
 
   + a.termInA : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -151,7 +149,7 @@ unique type a.T = T1 | T2
 
   ~ a.termInA : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -215,8 +213,6 @@ b.termInB = 10
   + a.termInA : Nat
   + b.termInB : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -240,7 +236,7 @@ b.termInB = 11
   ~ a.termInA : Nat
   ~ b.termInB : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -313,8 +309,6 @@ b.termInB = 10
   + a.termInA : Nat
   + b.termInB : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -338,7 +332,7 @@ b.termInB = 11
   ~ a.termInA : Nat
   ~ b.termInB : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

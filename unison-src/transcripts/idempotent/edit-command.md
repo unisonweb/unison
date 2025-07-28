@@ -17,8 +17,6 @@ mytest = [Ok "ok"]
   + foo    : Nat
   + mytest : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -103,8 +101,6 @@ baz = 19
   + baz : Nat
   + foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -125,11 +121,7 @@ bar = 18
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  (and 2 unchanged terms)
-
-  + (added), ~ (modified), - (deleted)
-
-  Run `update` to apply these changes to your codebase.
+  No changes found.
 ```
 
 ``` ucm

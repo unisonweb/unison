@@ -16,8 +16,6 @@ makeFoo n = Bar (n+10)
 
   + makeFoo : Nat -> Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -44,7 +42,7 @@ Foo.Bar n = internal.Bar n
 
   (and 1 unchanged type)
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

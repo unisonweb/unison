@@ -17,8 +17,6 @@ isEmpty x = match x with
 
   + isEmpty : [t] -> Boolean
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -39,8 +37,6 @@ isEmpty2 = cases
 
   + isEmpty2 : [t] -> Boolean
       (also named isEmpty)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -99,8 +95,6 @@ merge2 = cases
   + merge2 : [a] -> [a] -> [a]
       (also named merge)
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -147,8 +141,6 @@ blorf = cases
   + blah  : B -> B -> Text
   + blorf : B -> B -> B
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     12 | > blah T F
@@ -179,8 +171,6 @@ merge3 = cases
   Loading changes detected in scratch.u.
 
   + merge3 : [a] -> [a] -> [a]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -220,8 +210,6 @@ merge4 a b = match (a,b) with
 
   + merge4 : [a] -> [a] -> [a]
       (also named merge3)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

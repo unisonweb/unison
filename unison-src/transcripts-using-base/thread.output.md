@@ -22,8 +22,6 @@ testBasicFork = 'let
   + otherThread   : '{IO} ()
   + testBasicFork : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -64,8 +62,6 @@ testBasicMultiThreadMVar = 'let
 
   + testBasicMultiThreadMVar : '{IO} [Result]
   + thread1                  : Nat -> MVar Nat -> '{IO} ()
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -134,8 +130,6 @@ testTwoThreads = 'let
   + sendingThread   : Nat -> MVar Nat -> '{IO} ()
       (also named thread1)
   + testTwoThreads  : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

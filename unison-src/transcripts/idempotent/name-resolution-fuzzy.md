@@ -20,8 +20,6 @@ myFunction = truncate
 
   + myFunction : Float -> Int
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

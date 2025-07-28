@@ -24,8 +24,6 @@ ex thing =
 
   + ex : thing -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     8 | > ex "hello"
@@ -50,8 +48,6 @@ ex thing =
   Loading changes detected in scratch.u.
 
   + ex : thing -> Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 
@@ -80,8 +76,6 @@ ex thing =
 
   + ex : (Nat ->{g} Nat) ->{g} Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     8 | > ex (x -> x * 100)
@@ -105,8 +99,6 @@ ex thing =
   Loading changes detected in scratch.u.
 
   + ex : (Nat ->{g} Nat) ->{g} Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 
@@ -140,8 +132,6 @@ ex n =
   + ex    : n -> r
   + sumTo : Nat -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -162,8 +152,6 @@ ex n =
   Loading changes detected in scratch.u.
 
   + ex : n -> Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -215,8 +203,6 @@ ex n =
 
   + ex : n -> r
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -265,8 +251,6 @@ ex n =
 
   + ex : n ->{SpaceAttack} Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -292,8 +276,6 @@ ex n =
 
   + ex : n ->{SpaceAttack} r
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -316,8 +298,6 @@ ex n =
   + structural ability SpaceAttack
 
   + ex : n ->{SpaceAttack} r
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

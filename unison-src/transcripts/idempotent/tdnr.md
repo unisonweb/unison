@@ -17,8 +17,6 @@ thing = foo Nat.+ foo
   + good.foo : Nat
   + thing    : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -40,8 +38,6 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   + bad.foo : Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -66,8 +62,6 @@ thing = foo Nat.+ foo
   + good.foo : Nat
   + thing    : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -89,8 +83,6 @@ bad.foo = "bar"
   Loading changes detected in scratch.u.
 
   + bad.foo : Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -117,7 +109,7 @@ thing = foo Nat.+ foo
   + thing    : Nat
   ~ bad.foo : Text
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -141,8 +133,6 @@ good.foo = 17
 
   + good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -165,8 +155,6 @@ thing = foo Nat.+ foo
 
   + bad.foo : Text
   + thing   : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -192,8 +180,6 @@ bad.foo = "bar"
   + bad.foo  : Text
   + good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -214,8 +200,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -241,8 +225,6 @@ bad.foo = "bar"
   + bad.foo  : Text
   + good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -266,7 +248,7 @@ thing = foo Nat.+ foo
   + thing : Nat
   ~ bad.foo : Text
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -289,8 +271,6 @@ good.foo = 17
   Loading changes detected in scratch.u.
 
   + good.foo : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -317,7 +297,7 @@ thing = foo Nat.+ foo
   + thing   : Nat
   ~ good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -343,8 +323,6 @@ bad.foo = "bar"
   + bad.foo  : Text
   + good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -368,7 +346,7 @@ thing = foo Nat.+ foo
   + thing : Nat
   ~ good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -393,8 +371,6 @@ bad.foo = "bar"
 
   + bad.foo  : Text
   + good.foo : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -421,7 +397,7 @@ thing = foo Nat.+ foo
   ~ bad.foo  : Text
   ~ good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -447,8 +423,6 @@ lib.bad.foo = "bar"
 
   + lib.bad.foo : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -471,8 +445,6 @@ thing = foo Nat.+ foo
 
   + good.foo : Nat
   + thing    : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -498,8 +470,6 @@ lib.bad.foo = "bar"
   + good.foo    : Nat
   + lib.bad.foo : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -520,8 +490,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -547,8 +515,6 @@ lib.bad.foo = "bar"
   + good.foo    : Nat
   + lib.bad.foo : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -572,7 +538,7 @@ thing = foo Nat.+ foo
   + thing : Nat
   ~ good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -596,8 +562,6 @@ lib.dep.lib.dep.foo = 217
 
   + lib.dep.lib.dep.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -620,8 +584,6 @@ thing = foo Nat.+ foo
 
   + good.foo : Nat
   + thing    : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -647,8 +609,6 @@ lib.dep.lib.dep.foo = 217
   + good.foo            : Nat
   + lib.dep.lib.dep.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -669,8 +629,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -696,8 +654,6 @@ lib.dep.lib.dep.foo = 217
   + good.foo            : Nat
   + lib.dep.lib.dep.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -721,7 +677,7 @@ thing = foo Nat.+ foo
   + thing : Nat
   ~ good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -745,8 +701,6 @@ lib.good.foo = 17
 
   + lib.good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -769,8 +723,6 @@ thing = foo Nat.+ foo
 
   + bad.foo : Text
   + thing   : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -796,8 +748,6 @@ bad.foo = "bar"
   + bad.foo      : Text
   + lib.good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -818,8 +768,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -845,8 +793,6 @@ bad.foo = "bar"
   + bad.foo      : Text
   + lib.good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -870,7 +816,7 @@ thing = foo Nat.+ foo
   + thing : Nat
   ~ bad.foo : Text
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -896,8 +842,6 @@ lib.bad.foo = "bar"
   + lib.bad.foo  : Text
   + lib.good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -918,8 +862,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -945,8 +887,6 @@ lib.dep.lib.dep.foo = 217
   + lib.dep.lib.dep.foo : Nat
   + lib.good.foo        : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -967,8 +907,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -994,8 +932,6 @@ lib.dep.lib.bad.foo = "bar"
   + lib.dep.lib.bad.foo  : Text
   + lib.dep.lib.good.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -1016,8 +952,6 @@ thing = foo Nat.+ foo
   Loading changes detected in scratch.u.
 
   + thing : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

@@ -21,8 +21,6 @@ mkTestCase = do
   + mutual0    : Nat -> Text
   + mutual1    : Nat -> Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

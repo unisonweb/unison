@@ -48,8 +48,6 @@ sigKo = match signature with
   + sigOkay            : Either Failure Boolean
   + up                 : Bytes
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     28 | > signature

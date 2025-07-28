@@ -20,8 +20,6 @@ fooToInt _ = +42
 
   + fooToInt : Foo -> Int
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -64,7 +62,7 @@ unique type Foo = Foo | Bar
 
   ~ type Foo
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -112,8 +110,6 @@ preserve.otherTerm y = someTerm y
   + preserve.otherTerm : Optional baz -> Optional baz
   + preserve.someTerm  : Optional foo -> Optional foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -140,7 +136,7 @@ preserve.someTerm _ = None
 
   ~ preserve.someTerm : Optional x -> Optional x
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

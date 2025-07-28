@@ -58,8 +58,6 @@ xyz.baz = 100.1
   + somewhere.z       : Nat
   + xyz.baz           : Float
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

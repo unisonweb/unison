@@ -19,8 +19,6 @@ bar k = k (x -> x)
   + bar : (∀ r. (a -> r) ->{g} r) ->{g} a
   + foo : a -> a
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

@@ -12,8 +12,6 @@ unique type Foo
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -37,7 +35,7 @@ unique type Foo
 
   ~ type Foo
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

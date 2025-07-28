@@ -29,7 +29,7 @@ structural type Y = Y Nat
   + structural type Z
   ~ structural type Y
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

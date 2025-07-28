@@ -15,8 +15,6 @@ unique type Foo = { bar : Nat }
   + Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
   + Foo.bar.set    : Nat -> Foo -> Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

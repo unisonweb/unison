@@ -75,7 +75,5 @@ forget2 k = handle provide 3 k with cases
   + forget2 : '{Ask Nat, Tell a} x -> x
   + provide : a -> '{g, Ask a} r ->{g} r
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```

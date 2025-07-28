@@ -29,8 +29,6 @@ two.ambiguousTerm = "term two"
   + one.ambiguousTerm : Text
   + two.ambiguousTerm : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

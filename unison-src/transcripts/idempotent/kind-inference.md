@@ -53,8 +53,6 @@ unique type Pong = Pong (Ping Optional)
   + type Ping a
   + type Pong
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -89,8 +87,6 @@ unique ability Pong a where
 
   + type Ping a
   + ability Pong a
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -127,8 +123,6 @@ unique type S = S (T Nat)
   + type S
   + type T a
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -147,8 +141,6 @@ unique type S = S (T Optional)
 
   + type S
   + type T a
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

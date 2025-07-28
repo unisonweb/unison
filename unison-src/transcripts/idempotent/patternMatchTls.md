@@ -30,8 +30,6 @@ assertRight = cases
   + assertRight : Either a b -> b
   + frank       : '{IO} ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

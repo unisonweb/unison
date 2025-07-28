@@ -44,8 +44,6 @@ unique type subnamespace.AType = A | B
   + subnamespace.someOtherName : ##Nat
   + subnamespace2.thing        : ##Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -166,8 +164,6 @@ add b = b
 
   + add : a -> a
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -218,8 +214,6 @@ mybranchsubnamespace.term = 1
   Loading changes detected in scratch.u.
 
   + mybranchsubnamespace.term : ##Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

@@ -20,8 +20,6 @@ structural type a.b.Baz = Boo
   + a.x.four  : ##Nat
   + a.x.three : ##Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

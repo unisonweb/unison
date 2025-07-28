@@ -38,8 +38,6 @@ what_should_work _ = this_should_work ++ this_should_not_work
   + this_should_work     : [Result]
   + what_should_work     : ∀ _. _ -> [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -228,8 +226,6 @@ testCNReject _ =
                             -> '{IO, Exception} Text
   + testCNReject          : '{IO} [Result]
   + testConnectSelfSigned : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

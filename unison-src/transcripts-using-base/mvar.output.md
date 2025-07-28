@@ -56,8 +56,6 @@ testMvars _ =
   + eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
   + testMvars : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

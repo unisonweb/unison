@@ -256,8 +256,6 @@ swapped name link =
                              -> [(Link.Term, Code)]
                              ->{Throw Text} ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -398,8 +396,6 @@ badLoad _ =
   + zaeper  : Request {Zap, Zep} r -> Nat
   + zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -538,8 +534,6 @@ codeTests =
 
   + codeTests : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -641,8 +635,6 @@ vtests _ =
 
   + validateTest : Link.Term ->{IO} Result
   + vtests       : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

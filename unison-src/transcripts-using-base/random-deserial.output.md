@@ -72,8 +72,6 @@ serialTests = do
   + serialTests    : '{IO, Exception} [Result]
   + shuffle        : Nat -> [a] -> [a]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

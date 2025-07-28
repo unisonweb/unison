@@ -18,8 +18,6 @@ foo n =
 
   + foo : Nat -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -47,8 +45,6 @@ escaping = {{ Docs look `{{ like {this} }}` }}
   Loading changes detected in scratch.u.
 
   + escaping : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -80,8 +76,6 @@ commented = {{
   Loading changes detected in scratch.u.
 
   + commented : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -118,8 +112,6 @@ doc1 = {{   hi   }}
 
   + doc1 : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -151,8 +143,6 @@ doc2 = {{ hello
   Loading changes detected in scratch.u.
 
   + doc2 : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -195,8 +185,6 @@ Note that because of the special treatment of the first line mentioned above, wh
   Loading changes detected in scratch.u.
 
   + doc3 : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -243,8 +231,6 @@ doc4 = {{ Here's another example of some paragraphs.
 
   + doc4 : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -281,8 +267,6 @@ doc5 = {{   - foo
 
   + doc5 : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -318,8 +302,6 @@ doc6 = {{
   + doc6 : Doc2
       (also named doc5)
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -354,8 +336,6 @@ expr = foo 1
 
   + empty : Doc2
   + expr  : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -419,8 +399,6 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
   Loading changes detected in scratch.u.
 
   + test1 : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -511,8 +489,6 @@ reg1363 = {{ `{List.take} foo` bar
 
   + reg1363 : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -542,8 +518,6 @@ test2 = {{
   Loading changes detected in scratch.u.
 
   + test2 : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

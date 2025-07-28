@@ -39,8 +39,6 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
   + name                  : Doc2
   + time.DayOfWeek.doc    : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -84,8 +82,6 @@ scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
   + nonUnisonCodeBlocks : Doc2
   + otherElements       : Doc2
   + sqr                 : Nat -> Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

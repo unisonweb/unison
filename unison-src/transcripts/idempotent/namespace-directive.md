@@ -23,8 +23,6 @@ baz = 17
 
   + foo.baz : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -48,8 +46,6 @@ longer.evil.factorial n = n
 
   + foo.factorial             : Int -> Int
   + foo.longer.evil.factorial : Int -> Int
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -96,8 +92,6 @@ type longer.foo.Baz = { qux : Nat }
   + longer.foo.Baz.qux.modify : (Nat ->{g} Nat) -> Baz ->{g} Baz
   + longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -143,8 +137,6 @@ hasTypeLink =
   + foo.hasTypeLink    : Doc2
   + foo.refersToBar    : foo.Foo -> Nat
   + foo.refersToQux    : foo.Baz -> Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

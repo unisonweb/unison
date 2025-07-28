@@ -16,8 +16,6 @@ p1 = join [literal "blue", literal "frog"]
 
   + p1 : Pattern Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     3 | > Pattern.run (many p1) "bluefrogbluegoat"

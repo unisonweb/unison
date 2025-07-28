@@ -25,8 +25,6 @@ mkTestCase = do
   + l3         : [Char]
   + mkTestCase : '{IO, Exception} ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

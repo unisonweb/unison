@@ -17,8 +17,6 @@ thingy = lib.old.foo + 10
   + lib.old.foo : Nat
   + thingy      : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -94,8 +92,6 @@ thingy = lib.old.foo + 10
   + lib.old.foo : Nat
   + thingy      : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -146,7 +142,7 @@ thingy = foo + +10
 
   ~ thingy : Int
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -199,7 +195,7 @@ thingy = lib.old.foo + 10
 
   (and 1 unchanged term)
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -251,7 +247,7 @@ thingy = foo + +10
 
   ~ thingy : Int
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -311,8 +307,6 @@ mything = lib.old.foo + 100
   + lib.old.foo : Nat
   + mything     : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -371,8 +365,6 @@ bar = a.x.x.x.x + c.y.y.y.y
   + d.y.y.y.y   : Nat
   + lib.new.foo : Int
   + lib.old.foo : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -451,8 +443,6 @@ mything = lib.old.foo + lib.old.foo
   + lib.old.foo   : Nat
   + mything       : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -501,8 +491,6 @@ lib.dep__2.foo = 2
   + lib.dep.foo    : Nat
   + lib.dep__2.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -547,8 +535,6 @@ lib.dep__2.foo = 3
   + lib.dep.foo    : Nat
   + lib.dep__2.foo : Nat
   + lib.hello.foo  : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

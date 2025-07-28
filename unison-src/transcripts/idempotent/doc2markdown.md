@@ -194,7 +194,5 @@ structural type MyStructuralType = MyStructuralType
   + MyType.doc           : Doc2
   + MyUniqueType.doc     : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```

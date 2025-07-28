@@ -14,8 +14,6 @@ scratch/main> builtins.merge
 
   + +-+ : Nat -> Nat -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

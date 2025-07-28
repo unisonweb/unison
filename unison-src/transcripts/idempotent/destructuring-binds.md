@@ -24,8 +24,6 @@ ex1 tup =
   + ex0 : Nat -> Nat
   + ex1 : (a, b, (Nat, Nat)) -> Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -64,8 +62,6 @@ ex2 tup = match tup with
 
   + ex2 : (a, b, (Nat, Nat)) -> Nat
       (also named ex1)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -114,8 +110,6 @@ ex5a _ = match (99 + 1, "hi") with
 
   + ex5  : 'Text
   + ex5a : 'Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

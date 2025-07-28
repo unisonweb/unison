@@ -25,8 +25,6 @@ mapTests = do [!testIt]
   + testIt   : '{IO} Result
   + theMap   : Map Nat Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     14 | > Map.get 1

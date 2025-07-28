@@ -103,8 +103,6 @@ testDefaultPort _ =
   + testDefaultPort  : '{IO} [Result]
   + testExplicitHost : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -186,8 +184,6 @@ testTcpConnect = 'let
   + clientThread   : MVar Nat -> MVar Text -> '{IO} ()
   + serverThread   : MVar Nat -> Text -> '{IO} ()
   + testTcpConnect : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

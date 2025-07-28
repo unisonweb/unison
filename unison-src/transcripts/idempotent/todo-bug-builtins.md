@@ -61,8 +61,6 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 
   + complicatedMathStuff : x -> r
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -80,8 +78,6 @@ test = match true with
   Loading changes detected in scratch.u.
 
   + test : Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

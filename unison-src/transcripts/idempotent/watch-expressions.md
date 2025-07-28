@@ -13,8 +13,6 @@ test> pass = [Ok "Passed"]
 
   + pass : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     1 | test> pass = [Ok "Passed"]
@@ -38,11 +36,7 @@ test> pass = [Ok "Passed"]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  (and 1 unchanged term)
-
-  + (added), ~ (modified), - (deleted)
-
-  Run `update` to apply these changes to your codebase.
+  No changes found.
 
     1 | test> pass = [Ok "Passed"]
     

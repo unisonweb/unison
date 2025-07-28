@@ -18,8 +18,6 @@ pong _ = !ping + 2
   + ping : 'Nat
   + pong : 'Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -42,7 +40,7 @@ ping _ = 3
 
   ~ ping : 'Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

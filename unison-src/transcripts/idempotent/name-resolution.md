@@ -18,8 +18,6 @@ type Namespace.Foo = Bar
 
   + type Namespace.Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -65,8 +63,6 @@ type UsesFoo = UsesFoo Namespace.Foo File.Foo
   + type File.Foo
   + type UsesFoo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -94,8 +90,6 @@ type Foo = Bar
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -118,8 +112,6 @@ type UsesFoo = UsesFoo Foo
 
   + type File.Foo
   + type UsesFoo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -161,8 +153,6 @@ type Namespace.Foo = Bar
 
   + type Namespace.Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -185,8 +175,6 @@ type UsesFoo = UsesFoo Foo
 
   + type Foo
   + type UsesFoo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -229,8 +217,6 @@ ns.foo = 42
 
   + ns.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -256,8 +242,6 @@ bar = foo ++ "bar"
 
   + bar      : Text
   + file.foo : Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -287,8 +271,6 @@ ns.foo = 42
 
   + ns.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -314,8 +296,6 @@ bar = foo + 42
 
   + bar      : Nat
   + file.foo : Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -344,8 +324,6 @@ ns.foo = 42
   Loading changes detected in scratch.u.
 
   + ns.foo : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -396,8 +374,6 @@ bar = file.foo + ns.foo
 
   + bar      : Nat
   + file.foo : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

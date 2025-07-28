@@ -30,8 +30,6 @@ bar = foo + foo
   + bar : Nat
   + foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -73,8 +71,6 @@ baz = foo.bar + foo.bar
 
   + baz     : Nat
   + foo.bar : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -129,8 +125,6 @@ bar = 17
   + bar : Nat
   + foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -180,8 +174,6 @@ lib.foo = 16
 
   + lib.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -220,8 +212,6 @@ type Foo = One
   Loading changes detected in scratch.u.
 
   + type Foo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -268,8 +258,6 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   + type Foo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -320,8 +308,6 @@ structural type Foo.inner.Bar a = Uno a | Dos a a
   + structural type Foo a
   + structural type Foo.inner.Bar a
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -362,8 +348,6 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   + type Foo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

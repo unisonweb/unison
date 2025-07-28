@@ -17,8 +17,6 @@ lib.foo = 100
   + foo     : Nat
   + lib.foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -41,7 +39,7 @@ foo = 200
   ~ foo : Nat
       (was also named lib.foo)
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

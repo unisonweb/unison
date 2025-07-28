@@ -9,8 +9,6 @@ foo.bar = 1
   + foo     : ##Nat
   + foo.bar : ##Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -35,8 +33,6 @@ donk.bonk = 1
       (also named foo)
   + donk.bonk : ##Nat
       (also named foo.bar)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

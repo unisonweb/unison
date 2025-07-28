@@ -21,8 +21,6 @@ bar = a.x.x.x.x + c.y.y.y.y
   + d.y.y.y.y : Nat
   + foo       : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -44,7 +42,7 @@ foo = +30
 
   ~ foo : Int
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

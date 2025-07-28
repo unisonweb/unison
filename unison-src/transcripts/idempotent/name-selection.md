@@ -121,8 +121,6 @@ a = 10
   + deeply.nested.num  : Nat
   + deeply.nested.term : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -158,8 +156,6 @@ other.num = 20
   Loading changes detected in scratch.u.
 
   + other.num : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

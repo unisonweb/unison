@@ -19,7 +19,5 @@ x = [(R,1005),(U,563),(R,417),(U,509),(L,237),(U,555),(R,397),(U,414),(L,490),(U
 
   + x : [(Direction, Nat)]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```

@@ -24,8 +24,6 @@ test2 = do
   + test1 : '{IO, Exception} [Result]
   + test2 : '{IO, Exception} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

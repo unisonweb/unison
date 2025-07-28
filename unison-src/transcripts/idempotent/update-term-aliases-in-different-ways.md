@@ -18,8 +18,6 @@ bar = 5
   + bar : Nat
   + foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -46,7 +44,7 @@ bar = 7
   ~ bar : Nat
   ~ foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

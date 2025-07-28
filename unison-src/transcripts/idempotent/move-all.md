@@ -24,8 +24,6 @@ unique type Foo.T = T
   + Foo         : Nat
   + Foo.termInA : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -51,7 +49,7 @@ unique type Foo.T = T1 | T2
   ~ Foo.termInA : Nat
       (also named Foo)
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -115,8 +113,6 @@ bonk = 5
 
   + bonk : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -153,8 +149,6 @@ bonk.zonk = 5
 
   + bonk.zonk : Nat
       (also named zonk)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

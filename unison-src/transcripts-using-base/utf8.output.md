@@ -25,7 +25,7 @@ ascii = "ABCDE"
 
   ~ ascii : Text
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 
@@ -47,8 +47,6 @@ greek = "ΑΒΓΔΕ"
   Loading changes detected in scratch.u.
 
   + greek : Text
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 
@@ -79,8 +77,6 @@ test> greekTest = checkRoundTrip greek
   + greek          : Text
   + greekTest      : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     10 | test> greekTest = checkRoundTrip greek
@@ -105,8 +101,6 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
   Loading changes detected in scratch.u.
 
   + greek_bytes : Bytes
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 

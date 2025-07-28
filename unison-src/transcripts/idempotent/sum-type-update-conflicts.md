@@ -17,8 +17,6 @@ structural type X = x
 
   + structural type X
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -52,7 +50,7 @@ dependsOnX = Text.size X.x
   ~ X.x : Text
       (was also named lib.builtins.Unit.Unit)
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

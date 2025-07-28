@@ -61,8 +61,6 @@ lib.bar = 3
   + lib.foo : [Any]
   + qux     : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

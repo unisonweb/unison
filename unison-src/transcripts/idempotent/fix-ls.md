@@ -16,8 +16,6 @@ foo.bar.subtract x y = x Int.- y
   + foo.bar.add      : Int -> Int -> Int
   + foo.bar.subtract : Int -> Int -> Int
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

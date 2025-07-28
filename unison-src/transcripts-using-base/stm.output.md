@@ -36,8 +36,6 @@ body k out v =
   + inc   : TVar Nat ->{IO} Nat
   + loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -92,8 +90,6 @@ tests = '(map spawn nats)
   + nats    : [Nat]
   + spawn   : Nat ->{IO} Result
   + tests   : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

@@ -31,8 +31,6 @@ casTest = do
 
   + casTest : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -94,8 +92,6 @@ promiseConcurrentTest = do
   + promiseConcurrentTest : '{IO} [Result]
   + promiseSequentialTest : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -144,8 +140,6 @@ atomicUpdate ref f =
 
   + atomicUpdate : Ref {IO} a -> (a -> a) ->{IO} ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -180,8 +174,6 @@ spawnN n fa =
   Loading changes detected in scratch.u.
 
   + spawnN : Nat -> '{IO} a ->{IO} [a]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -227,8 +219,6 @@ fullTest = do
   Loading changes detected in scratch.u.
 
   + fullTest : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

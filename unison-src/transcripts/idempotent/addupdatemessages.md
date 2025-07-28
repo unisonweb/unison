@@ -23,8 +23,6 @@ structural type Y = Two Nat Nat
   + x : Nat
   + y : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -54,8 +52,6 @@ structural type Z = One Nat
 
   + z : Nat
       (also named x)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -87,7 +83,7 @@ structural type X = Three Nat Nat Nat
   ~ x : Nat
       (was also named z)
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -122,7 +118,7 @@ structural type X = Two Nat Nat
   ~ x : Nat
       (also named y)
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

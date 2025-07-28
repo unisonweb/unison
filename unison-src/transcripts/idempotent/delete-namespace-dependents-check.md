@@ -20,8 +20,6 @@ dependent = dependency + 99
   + dependent      : Nat
   + sub.dependency : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

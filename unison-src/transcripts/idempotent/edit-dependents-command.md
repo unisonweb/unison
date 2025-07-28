@@ -26,8 +26,6 @@ baz x = x
   + Bar.bar.set    : Foo -> Bar -> Bar
   + baz            : Bar -> Bar
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -56,7 +54,7 @@ type Bar = { bar : Nat }
   ~ Bar.bar.modify : (Nat ->{g} Nat) -> Bar ->{g} Bar
   ~ Bar.bar.set    : Nat -> Bar -> Bar
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

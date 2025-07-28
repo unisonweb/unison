@@ -1893,8 +1893,6 @@ foo = "alice and bobs foo"
 
   + foo : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2451,8 +2449,6 @@ structural type Foo = Bar Nat | Baz Nat Nat
 
   + structural type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2498,8 +2494,6 @@ alice = 100
 
   + alice : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2540,8 +2534,6 @@ bob = 101
   Loading changes detected in scratch.u.
 
   + bob : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -2600,8 +2592,6 @@ bar = 17
   + bar : Nat
   + foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2634,7 +2624,7 @@ foo = 18
 
   ~ foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -2663,8 +2653,6 @@ bob = 101
   Loading changes detected in scratch.u.
 
   + bob : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -2717,8 +2705,6 @@ type Foo = Bar | Baz
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2747,8 +2733,6 @@ boop = "boop"
 
   + boop : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2770,7 +2754,7 @@ type Foo = Bar
 
   ~ type Foo
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -2840,8 +2824,6 @@ baz = "lca"
   + baz : Text
   + foo : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -2873,7 +2855,7 @@ baz = "bob"
 
   ~ baz : Text
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -2903,7 +2885,7 @@ baz = "alice"
   ~ baz : Text
   ~ foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -2997,8 +2979,6 @@ a = 1
 
   + a : ##Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3020,8 +3000,6 @@ b = 2
 
   + b : ##Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3041,11 +3019,7 @@ b = 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  (and 1 unchanged term)
-
-  + (added), ~ (modified), - (deleted)
-
-  Run `update` to apply these changes to your codebase.
+  No changes found.
 ```
 
 ``` ucm
@@ -3066,8 +3040,6 @@ a = 1
 
   + a : ##Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3088,11 +3060,7 @@ b = 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  (and 2 unchanged terms)
-
-  + (added), ~ (modified), - (deleted)
-
-  Run `update` to apply these changes to your codebase.
+  No changes found.
 ```
 
 ``` ucm
@@ -3189,8 +3157,6 @@ bar =
   + foo    : Nat
   + ignore : a -> ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3222,7 +3188,7 @@ bar =
 
   ~ bar : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -3249,7 +3215,7 @@ foo = 19
 
   ~ foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -3310,8 +3276,6 @@ type Bar = MkBar Foo
 
   + type Bar
   + type Foo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -3410,8 +3374,6 @@ type Bar = MkBar Foo
   + type Bar
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3458,8 +3420,6 @@ type Foo = Bar
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3497,8 +3457,6 @@ type Foo = Bar
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3521,8 +3479,6 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   + type Foo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -3593,8 +3549,6 @@ type Foo = Bar
   Loading changes detected in scratch.u.
 
   + type Foo
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -3681,8 +3635,6 @@ type Foo = Bar
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3768,8 +3720,6 @@ type Foo = Bar
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3823,8 +3773,6 @@ hello = 17
 
   + hello : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -3855,7 +3803,7 @@ foo = 100
   + foo : Nat
   ~ hello : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -3887,7 +3835,7 @@ bar = 100
   + bar : Nat
   ~ hello : Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

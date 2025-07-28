@@ -13,8 +13,6 @@ test> foo = []
 
   + foo : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     1 | test> foo = []
@@ -46,7 +44,7 @@ foo = 1
 
   ~ foo : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

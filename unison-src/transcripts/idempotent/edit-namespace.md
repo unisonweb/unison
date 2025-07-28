@@ -41,8 +41,6 @@ unique type Foo = { bar : Nat, baz : Nat }
   + simple.y              : Nat
   + toplevel              : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

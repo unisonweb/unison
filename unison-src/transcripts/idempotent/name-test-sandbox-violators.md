@@ -16,8 +16,6 @@ test> foo.test =
 
   + foo.test : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     2 |   x = 192
@@ -62,8 +60,6 @@ bar.test =
   Loading changes detected in scratch.u.
 
   + bar.test : [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

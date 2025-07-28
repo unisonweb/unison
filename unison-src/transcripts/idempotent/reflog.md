@@ -13,8 +13,6 @@ x = 1
 
   + x : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -35,8 +33,6 @@ y = 2
   Loading changes detected in scratch.u.
 
   + y : Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

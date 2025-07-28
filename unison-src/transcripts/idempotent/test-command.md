@@ -20,8 +20,6 @@ foo.test2 = [Ok "test2"]
   + foo.test2 : [Result]
   + test1     : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -74,8 +72,6 @@ lib.dep.testInLib = [Ok "testInLib"]
   Loading changes detected in scratch.u.
 
   + lib.dep.testInLib : [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

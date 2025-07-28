@@ -13,8 +13,6 @@ unique type Baz = Qux Foo
   + type Baz
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -36,7 +34,7 @@ unique type Foo a = Bar Nat a
 
   ~ type Foo a
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

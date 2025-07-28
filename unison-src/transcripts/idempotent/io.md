@@ -64,8 +64,6 @@ testCreateRename _ =
 
   + testCreateRename : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -145,8 +143,6 @@ testOpenClose _ =
   Loading changes detected in scratch.u.
 
   + testOpenClose : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -235,8 +231,6 @@ testGetSomeBytes _ =
   Loading changes detected in scratch.u.
 
   + testGetSomeBytes : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -353,8 +347,6 @@ testAppend _ =
   + testSeek    : '{IO} [Result]
   + testSetEcho : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -419,8 +411,6 @@ testSystemTime _ =
   Loading changes detected in scratch.u.
 
   + testSystemTime : '{IO} [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

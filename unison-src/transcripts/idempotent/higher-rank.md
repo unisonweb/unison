@@ -22,8 +22,6 @@ f id = (id 1, id "hi")
 
   + f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     4 | > f (x -> x)
@@ -44,8 +42,6 @@ f id _ =
   Loading changes detected in scratch.u.
 
   + f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -72,8 +68,6 @@ Functor.blah = cases Functor f ->
 
   + Functor.blah : Functor f -> ()
   + Functor.map  : Functor f -> (∀ a b. (a -> b) -> f a -> f b)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -119,8 +113,6 @@ Loc.transform2 nt = cases Loc f ->
   + Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
                      -> Loc
                      -> Loc
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

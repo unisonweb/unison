@@ -192,7 +192,7 @@ unique type Record5 =
   + Record5.b.modify : (Int ->{g} Int) -> Record5 ->{g} Record5
   + Record5.b.set    : Int -> Record5 -> Record5
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

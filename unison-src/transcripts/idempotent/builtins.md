@@ -410,8 +410,6 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
   + Any.test1 : [Result]
   + Any.test2 : [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     1 | > [Any "hi", Any (41 + 1)]
@@ -469,8 +467,6 @@ openFile]
   + Sandbox.test3          : [Result]
   + validateSandboxedSimpl : [Link.Term] -> Value ->{IO} Boolean
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
@@ -508,8 +504,6 @@ openFilesIO = do
 
   + openFilesIO : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -545,8 +539,6 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
   Loading changes detected in scratch.u.
 
   + Universal.murmurHash.tests : [Result]
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 

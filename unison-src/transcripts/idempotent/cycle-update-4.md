@@ -18,8 +18,6 @@ pong _ = !ping + 2
   + ping : 'Nat
   + pong : 'Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -46,7 +44,7 @@ clang _ = !pong + 3
   + clang : 'Nat
   ~ ping : 'Nat
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

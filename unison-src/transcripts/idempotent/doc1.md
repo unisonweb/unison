@@ -35,8 +35,6 @@ Can link to definitions like {List.drop} or {type List}
 
   + doc1 : Doc2
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -74,8 +72,6 @@ take 2 [1,2,3,4,5]
   Loading changes detected in scratch.u.
 
   + List.take.doc : Doc2
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

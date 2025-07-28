@@ -22,8 +22,6 @@ test = Scope.run 'let
 
   + test : (Nat, Nat, Nat)
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     10 | > test

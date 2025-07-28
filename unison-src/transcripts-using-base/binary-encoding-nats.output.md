@@ -68,8 +68,6 @@ testABunchOfNats _ =
   + testNat          : Nat -> '{IO, Stream Result} ()
   + testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

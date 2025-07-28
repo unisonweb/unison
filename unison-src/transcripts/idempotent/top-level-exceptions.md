@@ -33,8 +33,6 @@ mytest _ = [Ok "Great"]
   + main   : '{IO, Exception} ()
   + mytest : '{IO, Exception} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -80,8 +78,6 @@ unique type RuntimeError =
 
   + error : Text -> a ->{Exception} x
   + main2 : '{Exception} r
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

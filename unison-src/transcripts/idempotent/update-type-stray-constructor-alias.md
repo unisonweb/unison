@@ -11,8 +11,6 @@ unique type Foo = Bar Nat
 
   + type Foo
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -38,7 +36,7 @@ unique type Foo = Bar Nat Nat
 
   ~ type Foo
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

@@ -15,8 +15,6 @@ unique type C = C B
   + type B
   + type C
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -39,11 +37,7 @@ unique type C = C B
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  (and 3 unchanged types)
-
-  + (added), ~ (modified), - (deleted)
-
-  Run `update` to apply these changes to your codebase.
+  No changes found.
 ```
 
 If the name stays the same, the churn is even prevented if the type is updated and then reverted to the original form.
@@ -66,7 +60,7 @@ unique type A = A ()
 
   ~ type A
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -96,7 +90,7 @@ unique type A = A
 
   ~ type A
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

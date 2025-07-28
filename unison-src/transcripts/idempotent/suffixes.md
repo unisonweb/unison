@@ -78,8 +78,6 @@ lib.distributed.lib.baz.qux = "indirect dependency"
   + lib.distributed.baz.qux      : Text
   + lib.distributed.lib.baz.qux  : Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

@@ -115,8 +115,6 @@ test = cases
 
   + test : Optional (Optional V) -> ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -215,8 +213,6 @@ test = cases
   Loading changes detected in scratch.u.
 
   + test : Optional Nat -> Nat
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -334,8 +330,6 @@ test = cases
 
   + test : Nat -> ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -352,8 +346,6 @@ test = cases
   Loading changes detected in scratch.u.
 
   + test : Boolean -> ()
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -411,8 +403,6 @@ test = cases
   Loading changes detected in scratch.u.
 
   + test : [()] -> ()
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -532,8 +522,6 @@ test = cases
 
   + test : [V] -> ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -559,8 +547,6 @@ test = cases
   Loading changes detected in scratch.u.
 
   + test : [Boolean] -> ()
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -626,8 +612,6 @@ unit2t = cases
 
   + unit2t : 'T
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -659,8 +643,6 @@ witht = match unit2t () with
 
   + witht : ()
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -677,8 +659,6 @@ evil = bug ""
   + type V
 
   + evil : 'V
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -715,8 +695,6 @@ unique type SomeType = A
 
   + type SomeType
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -743,8 +721,6 @@ get x = match x with
 
   + get : R -> SomeType
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -760,8 +736,6 @@ unique type R = { someType : SomeType }
   + R.someType        : R -> SomeType
   + R.someType.modify : (SomeType ->{g} SomeType) -> R ->{g} R
   + R.someType.set    : SomeType -> R -> R
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -788,8 +762,6 @@ result f = handle !f with cases
 
   + result : '{e, Abort} a ->{e} a
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -814,7 +786,7 @@ result f = handle !f with cases
 
   + result : '{e, Abort} T ->{e} ()
 
-  + (added), ~ (modified), - (deleted)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -837,8 +809,6 @@ result f =
   + structural ability Abort
 
   + result : '{e, Abort} V ->{e} V
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -866,8 +836,6 @@ handleMulti c =
   + structural ability Stream a
 
   + handleMulti : '{Abort, Stream a} r -> (Optional r, [a])
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -1023,8 +991,6 @@ result f = handle !f with cases
 
   + result : '{e, Abort} a ->{e, Abort} a
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -1048,8 +1014,6 @@ result f =
   + structural ability Abort a
 
   + result : '{e, Abort V} a ->{e, Abort V} a
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -1142,8 +1106,6 @@ result f =
 
   + result : '{e, Give V} r ->{e} r
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -1167,8 +1129,6 @@ result f =
   + ability Give a
 
   + result : '{e, Give V} r ->{e} r
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -1251,8 +1211,6 @@ result f =
   + ability GiveB a
 
   + result : '{e, GiveB V, GiveA V} r ->{e} r
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

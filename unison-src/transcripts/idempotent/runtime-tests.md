@@ -83,8 +83,6 @@ casting = (Nat.toInt 100,
   + negativeCaseMatch              : Text
   + unboxedAndBoxedArgsInSequences : ([Nat], [Text])
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     6 | > negativeCaseMatch

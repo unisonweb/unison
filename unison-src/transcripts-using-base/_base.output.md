@@ -56,8 +56,6 @@ testAutoClean _ =
 
   + testAutoClean : '{IO} [Result]
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

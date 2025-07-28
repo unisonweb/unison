@@ -16,8 +16,6 @@ structural type Zoink a b c = Zoink a b c
 
   + structural type Zoink a b c
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 
     3 | > Any ()

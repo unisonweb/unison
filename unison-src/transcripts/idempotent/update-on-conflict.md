@@ -17,8 +17,6 @@ temp = 2
   + temp : Nat
   + x    : Nat
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -48,7 +46,7 @@ x = 3
 
   ~ x : Nat
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```

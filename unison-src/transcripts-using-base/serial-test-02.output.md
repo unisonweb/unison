@@ -42,8 +42,6 @@ mkTestCase = do
   + prod       : [Nat] -> Nat
   + products   : ([Nat], [Nat], [Nat]) -> Text
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 

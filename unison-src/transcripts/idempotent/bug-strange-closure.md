@@ -422,8 +422,6 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 
   + rendered : Annotated () (Either SpecialForm ConsoleText)
 
-  + (added), ~ (modified), - (deleted)
-
   Run `update` to apply these changes to your codebase.
 ```
 
@@ -852,8 +850,6 @@ rendered = Pretty.get (docFormatConsole doc.guide)
   Loading changes detected in scratch.u.
 
   + rendered : Annotated () (Either SpecialForm ConsoleText)
-
-  + (added), ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 
