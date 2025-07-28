@@ -1050,7 +1050,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
-    hs <- mapFromList $ first (dnum rns) <$> M.toList hs0 =
+    hs <- mapFromList $ first (dnum rns) <$> hs0 =
       uncurry (RMatch i)
         <$> emitRequestMatching rns grpr grpn rec ctx hs df
   | Just (i, UN) <- ctxResolve ctx v,

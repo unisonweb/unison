@@ -714,7 +714,7 @@ putBranches refrep fops ctx bs = case bs of
     putMaybe df $ putNormal refrep fops ctx
   MatchRequest m (TAbs v df) -> do
     putTag MReqT
-    putMap putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
+    putMapping putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
     putNormal refrep fops (v : ctx) df
   MatchData r m df -> do
     putTag MDataT
@@ -751,7 +751,7 @@ getBranches ctx frsh0 =
         <*> getMaybe (getNormal ctx frsh0)
     MReqT ->
       MatchRequest
-        <$> getMap getReference (getEnumMap getCTag (getCase ctx frsh0))
+        <$> getMapping getReference (getEnumMap getCTag (getCase ctx frsh0))
         <*> (TAbs v <$> getNormal (v : ctx) (frsh0 + 1))
       where
         v = getFresh frsh0

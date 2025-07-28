@@ -64,8 +64,6 @@ module Unison.Runtime.ANF
     Code (..),
     ValList,
     Value (..),
-    Referenced (..),
-    dereference,
     Cont (..),
     BLit (..),
     packTags,
@@ -109,6 +107,7 @@ import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
+import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import GHC.Stack (CallStack, callStack)
@@ -125,7 +124,6 @@ import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShort
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
-import Unison.Runtime.Referenced
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
@@ -910,18 +908,16 @@ alignBranch f (MatchText bl dl) (MatchText br dr)
           <$> traverse id (Map.intersectionWith f bl br)
           <*> ds
 alignBranch f (MatchRequest bl pl) (MatchRequest br pr)
-  | Map.keysSet bl == Map.keysSet br,
-    all p (Map.keysSet bl) =
-      Just $
-        MatchRequest
-          <$> traverse id (Map.intersectionWith (interverse (alignCCs f)) bl br)
-          <*> f pl pr
+  | Just bs <- alignAscList h bl br =
+      Just $ MatchRequest <$> bs <*> f pl pr
   where
-    p r = keysSet hsl == keysSet hsr && all q (keys hsl)
+    h csl csr
+      | keysSet csl == keysSet csr,
+        all q (keys csl) =
+          Just $ interverse (alignCCs f) csl csr
+      | otherwise = Nothing
       where
-        hsl = bl Map.! r
-        hsr = br Map.! r
-        q t = fst (hsl ! t) == fst (hsr ! t)
+        q t = fst (csl ! t) == fst (csr ! t)
 alignBranch f (MatchData rfl bl dl) (MatchData rfr br dr)
   | rfl == rfr,
     keysSet bl == keysSet br,
@@ -941,6 +937,35 @@ alignBranch f (MatchNumeric rl bl dl) (MatchNumeric rr br dr)
           <$> interverse f bl br
           <*> ds
 alignBranch _ _ _ = Nothing
+
+alignAscList ::
+  (Applicative f, Ord k) =>
+  (a -> b -> Maybe (f c)) ->
+  [(k, a)] ->
+  [(k, b)] ->
+  Maybe (f [(k, c)])
+alignAscList f ls0 rs0
+  | ll /= lr = Nothing
+  | otherwise = getCompose $ zipped ls rs
+  where
+    (ll, ls) = case prep 0 ls0 of
+      Left n -> (n, sortBy (comparing fst) ls0)
+      Right n -> (n, ls0)
+
+    (lr, rs) = case prep 0 rs0 of
+      Left n -> (n, sortBy (comparing fst) rs0)
+      Right n -> (n, rs0)
+
+    prep !n ((k0, _) : xs@((k1, _) : _))
+      | k0 <= k1 = prep (n + 1) xs
+    prep n [_] = Right (n + 1)
+    prep n [] = Right n
+    prep n xs = Left (n + length xs)
+
+    zipped [] [] = Compose . Just $ pure []
+    zipped ((lk, lv) : lkvs) ((rk, rv) : rkvs)
+      | lk == rk = (:) . (lk,) <$> Compose (f lv rv) <*> zipped lkvs rkvs
+    zipped _ _ = Compose Nothing
 
 alignCCs :: (Functor f) => (l -> r -> f s) -> (a, l) -> (a, r) -> f (a, s)
 alignCCs f (ccs, l) (_, r) = (,) ccs <$> f l r
@@ -1208,7 +1233,7 @@ data SeqEnd = SLeft | SRight
 data Branched e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Util.Text.Text e) (Maybe e)
-  | MatchRequest (Map Reference (EnumMap CTag ([Mem], e))) e
+  | MatchRequest [(Reference, (EnumMap CTag ([Mem], e)))] e
   | MatchEmpty
   | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
@@ -2125,7 +2150,7 @@ makeHandler v abr df = do
       Set.toList $ ABTN.freeVars hfb `Set.difference` gvs
   pure (hfvs, Lambda (BX <$ hfvs ++ [v]) $ ABTN.TAbss hfvs hfb)
   where
-    hfb = ABTN.TAbs v . TMatch v $ MatchRequest abr df
+    hfb = ABTN.TAbs v . TMatch v $ MatchRequest (Map.toList abr) df
 
 -- Note: this assumes that patterns have already been translated
 -- to a state in which every case matches a single layer of data,
@@ -2426,6 +2451,7 @@ anfFLinks f g (AHnd rs nh ah e) =
   (\rs -> AHnd rs nh ah) <$> traverse (f True) rs <*> g e
 anfFLinks f _ (AApp fu vs) = flip AApp vs <$> funcLinks f fu
 anfFLinks f _ (ALit l) = ALit <$> litLinks f l
+anfFLinks f _ (ABLit l) = ABLit <$> litLinks f l
 anfFLinks _ _ v = pure v
 
 litLinks ::
@@ -2446,9 +2472,9 @@ branchLinks ::
   Branched e ->
   f (Branched e)
 branchLinks f g (MatchRequest m e) =
-  MatchRequest . Map.fromList
-    <$> traverse (bitraverse f $ (traverse . traverse) g) (Map.toList m)
-    <*> g e
+  MatchRequest <$> traverse h m <*> g e
+  where
+    h (r, cs) = (,) <$> f r <*> (traverse . traverse) g cs
 branchLinks f g (MatchData r m e) =
   MatchData <$> f r <*> (traverse . traverse) g m <*> traverse g e
 branchLinks _ g (MatchText m e) =
@@ -2693,7 +2719,7 @@ prettyBranches ind bs = case bs of
             (mapToList $ snd <$> m)
       )
       (prettyCase ind (showString "REQ(0,0)") df id)
-      (Map.toList bs)
+      bs
   MatchSum bs ->
     foldr
       (uncurry $ prettyCase ind . shows)

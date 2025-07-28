@@ -488,7 +488,8 @@ raise =
   binop0 2 $ \[ah, r, f, n] ->
     TMatch r
       . flip MatchRequest (TAbs f $ TVar f)
-      . Map.singleton Ty.exceptionRef
+      . (: [])
+      . (Ty.exceptionRef,)
       $ mapSingleton
         0
         ( [BX],
@@ -1225,6 +1226,9 @@ declareForeigns = do
   declareForeign Untracked 1 MutableByteArray_length
 
   declareForeign Untracked 1 ImmutableByteArray_length
+
+  declareForeign Untracked 3 ImmutableByteArray_toBytes
+  declareForeign Untracked 1 ImmutableByteArray_fromBytes
 
   declareForeign Tracked 1 IO_array
   declareForeign Tracked 2 IO_arrayOf

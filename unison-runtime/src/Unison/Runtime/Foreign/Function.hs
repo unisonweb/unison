@@ -171,6 +171,7 @@ import Unison.Runtime.Foreign.Function.Type
     foreignFuncBuiltinName,
   )
 import Unison.Runtime.MCode
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
@@ -504,21 +505,21 @@ foreignCallHelper = \case
   Tls_terminate_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.bye tls.context
   Code_validateLinks -> mkForeignExn $
-    \(lsgs0 :: [(Referent, ANF.Referenced ANF.Code)]) -> do
+    \(lsgs0 :: [(Referent, Referenced ANF.Code)]) -> do
       let f (msg, rs) =
             F.Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
-      pure . first f . checkGroupHashes $ second ANF.dereference <$> lsgs0
+      pure . first f . checkGroupHashes $ second dereference <$> lsgs0
   Code_dependencies -> mkForeign $
-    \(ANF.dereference -> ANF.CodeRep sg _) ->
+    \(dereference -> ANF.CodeRep sg _) ->
       -- note: it's not correct to use the stored references of a
       -- `Referenced Code` because they may over-estimate the actual
       -- occurrences.
       pure $ Ref <$> ANF.groupTermLinks sg
   Code_serialize -> mkForeign $
-    \(co :: ANF.Referenced ANF.Code) ->
+    \(co :: Referenced ANF.Code) ->
       pure . Bytes.fromArray $ ANF.serializeCode False co
   Code_serialize_versioned -> mkForeign $
-    \(ver :: Word64, co :: ANF.Referenced ANF.Code) ->
+    \(ver :: Word64, co :: Referenced ANF.Code) ->
       ANF.serializeCodeWithVersion ver False co >>= \case
         Left err -> die err
         Right bs -> pure $ Bytes.fromLazyByteString bs
@@ -526,11 +527,11 @@ foreignCallHelper = \case
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
-    \(nm, (ANF.dereference -> ANF.CodeRep sg _)) ->
+    \(nm, (dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $
-      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . ANF.dereference
+      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . dereference
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
@@ -567,7 +568,7 @@ foreignCallHelper = \case
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ ANF.dereference x
+       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ dereference x
   Crypto_hmac -> mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
       let hmac ::
@@ -577,7 +578,7 @@ foreignCallHelper = \case
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ ANF.dereference x
+       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ dereference x
   Crypto_Ed25519_sign_impl ->
     mkForeign $
       pure . signEd25519Wrapper
@@ -592,7 +593,7 @@ foreignCallHelper = \case
       pure . verifyRsaWrapper
   Universal_murmurHash ->
     mkForeign $
-      pure . asWord64 . hash64 . ANF.serializeValueForHash . ANF.dereference
+      pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress
@@ -791,6 +792,19 @@ foreignCallHelper = \case
   ImmutableByteArray_length ->
     mkForeign $
       pure . PA.sizeofByteArray
+  ImmutableByteArray_toBytes -> mkForeignExn $ \(ba :: PA.ByteArray, off, len) ->
+    if len == 0
+      then pure (Right Bytes.empty)
+      else
+        checkBoundsPrim
+          "ImmutableByteArray_toBytes"
+          (PA.sizeofByteArray ba)
+          (off + len)
+          0
+          $ pure
+          $ Right
+          $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
+  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -994,6 +1008,9 @@ mkHashAlgorithm txt alg =
   let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
    in mkForeign $ \() -> pure (HashAlgorithm algoRef alg)
 
+-- | mkForeign is the most basic helper for implementing a Unison foreign function.
+--   It takes a function from Unison arguments (decoded from the stack) to an IO result,
+--   writes the result back to the stack, and returns a tuple indicating whether an exception occurred (always False here).
 {-# INLINE mkForeign #-}
 mkForeign :: (ForeignConvention a, ForeignConvention b) => (a -> IO b) -> Args -> Stack -> IO (Bool, Stack)
 mkForeign !f !args !stk = do
@@ -1001,6 +1018,9 @@ mkForeign !f !args !stk = do
   stk <- bump stk
   (False, stk) <$ writeBack stk r
 
+-- | mkForeignIOF is like mkForeign, but it wraps the IO action in exception handling for IOExceptions.
+--   If an IOException occurs, it returns a Failure value; otherwise, it returns the result.
+--   This is useful for foreign functions that may throw IOExceptions, and you want to propagate those as Unison failures.
 {-# INLINE mkForeignIOF #-}
 mkForeignIOF ::
   (ForeignConvention a, ForeignConvention r) =>
@@ -1016,6 +1036,10 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
     handleIOE (Left e) = Left $ F.Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
     handleIOE (Right a) = Right a
 
+-- | mkForeignExn is for foreign functions that may return either a failure or a result (as an Either).
+--   If the function returns a Left (failure), it writes the failure to the stack and returns (True, stack).
+--   If it returns a Right (result), it writes the result and returns (False, stack).
+--   This is for functions that have their own error reporting, not just IOExceptions.
 {-# INLINE mkForeignExn #-}
 mkForeignExn ::
   (ForeignConvention a, ForeignConvention e, ForeignConvention r) =>
@@ -1032,6 +1056,10 @@ mkForeignExn f args stk =
       stk <- bump stk
       (False, stk) <$ writeBack stk r
 
+-- | mkForeignTls is for foreign functions that may throw TLS-specific exceptions or IOExceptions.
+--   It wraps the IO action in two layers of exception handling: first for TLS exceptions, then for IOExceptions.
+--   If an exception occurs, it returns a Failure value with the appropriate type (ioFailureRef or tlsFailureRef).
+--   Otherwise, it returns the result.
 {-# INLINE mkForeignTls #-}
 mkForeignTls ::
   forall a r.
@@ -1051,6 +1079,9 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
     flatten (Right (Left e)) = Left (F.Failure Ty.tlsFailureRef (Util.Text.pack (show e)) unitValue)
     flatten (Right (Right a)) = Right a
 
+-- | mkForeignTlsE is like mkForeignTls, but for functions that may return an Either Failure r,
+--   in addition to possibly throwing TLS or IO exceptions.
+--   It flattens all three error sources (IO, TLS, and custom Failure) into a single Either Failure r.
 {-# INLINE mkForeignTlsE #-}
 mkForeignTlsE ::
   forall a r.

@@ -21,7 +21,7 @@ scratch/main> builtins.merge lib.builtins
 
 scratch/main> ls lib
 
-  1. builtins/ (580 terms, 100 types)
+  1. builtins/ (582 terms, 100 types)
 ```
 
 And for a limited time, you can get even more builtin goodies:
@@ -33,8 +33,8 @@ scratch/main> builtins.mergeio lib.builtinsio
 
 scratch/main> ls lib
 
-  1. builtins/   (580 terms, 100 types)
-  2. builtinsio/ (754 terms, 118 types)
+  1. builtins/   (582 terms, 100 types)
+  2. builtinsio/ (755 terms, 118 types)
 ```
 
 More typically, you'd start out by pulling `base`.
