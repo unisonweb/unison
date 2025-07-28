@@ -150,7 +150,7 @@ import Unison.UnisonFile qualified as UF
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), defnsAreEmpty)
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -989,8 +989,8 @@ notifyUser dir = \case
         deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
         deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
 
-    let fAliases :: Referent -> [Name]
-        fAliases ref =
+    let toAliases :: Referent -> [Name]
+        toAliases ref =
           maybe [] (sortAlphabetically . NEList.toList . Set.Nonempty.toList) (Map.lookup ref aliases)
 
     let newTerms0 :: [(Name, Type Symbol Ann, [Name])]
@@ -1000,10 +1000,10 @@ notifyUser dir = \case
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, fAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
                 SlurpResult.TermSlurp'Update oldRef oldTy newRef newTy ->
-                  over _2 ((name, oldTy, fAliases oldRef, newTy, fAliases newRef) :) acc
-                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, fAliases (Referent.Ref ref)) :) acc
+                  over _2 ((name, oldTy, toAliases oldRef, newTy, toAliases newRef) :) acc
+                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
                 SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
@@ -1015,6 +1015,11 @@ notifyUser dir = \case
         updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
         deletedTerms :: [(Name, Type Symbol Ann, [Name])]
         deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
+
+    let existAdds = not (List.null newTypes && List.null newTerms)
+        existUpdates = not (List.null updatedTypes && List.null updatedTerms)
+        existDeletes = not (List.null deletedTypes && List.null deletedTerms)
+        existChanges = existAdds || existUpdates || existDeletes
 
     let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
         renderType name decl =
@@ -1095,51 +1100,66 @@ notifyUser dir = \case
             & P.lines
 
     pure $
-      P.sepNonEmpty
-        "\n\n"
-        [ P.linesNonEmpty
-            [ renderedNewTypes,
-              renderedUpdatedTypes,
-              renderedDeletedTypes
-            ],
-          P.linesNonEmpty
-            [ renderedNewTerms,
-              renderedUpdatedTerms,
-              renderedDeletedTerms
-            ],
-          if defnsAreEmpty slurpEntries then "No changes found." else mempty,
-          P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
-            (0, 0) -> mempty
-            (0, _) ->
-              "(and "
-                <> P.num numUnchangedTerms
-                <> " unchanged term"
-                <> if numUnchangedTerms == 1 then ")" else "s)"
-            (_, 0) ->
-              "(and "
-                <> P.num numUnchangedTypes
-                <> " unchanged type"
-                <> if numUnchangedTypes == 1 then ")" else "s)"
-            _ ->
-              "(and "
-                <> P.num numUnchangedTypes
-                <> " unchanged type"
-                <> (if numUnchangedTypes == 1 then " and " else "s and ")
-                <> P.num numUnchangedTerms
-                <> " unchanged term"
-                <> (if numUnchangedTerms == 1 then ")" else "s)"),
-          if defnsAreEmpty slurpEntries
-            then mempty
-            else
-              P.lines
-                [ P.green "+" <> " (added), " <> P.yellow "~" <> " (modified), " <> P.red "-" <> " (deleted)",
-                  "",
-                  P.wrap $
-                    "Run"
-                      <> makeExample' IP.update
-                      <> "to apply these changes to your codebase."
-                ]
-        ]
+      if existChanges
+        then
+          P.sepNonEmpty
+            "\n\n"
+            [ P.linesNonEmpty
+                [ renderedNewTypes,
+                  renderedUpdatedTypes,
+                  renderedDeletedTypes
+                ],
+              P.linesNonEmpty
+                [ renderedNewTerms,
+                  renderedUpdatedTerms,
+                  renderedDeletedTerms
+                ],
+              P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
+                (0, 0) -> mempty
+                (0, _) ->
+                  "(and "
+                    <> P.num numUnchangedTerms
+                    <> " unchanged term"
+                    <> if numUnchangedTerms == 1 then ")" else "s)"
+                (_, 0) ->
+                  "(and "
+                    <> P.num numUnchangedTypes
+                    <> " unchanged type"
+                    <> if numUnchangedTypes == 1 then ")" else "s)"
+                _ ->
+                  "(and "
+                    <> P.num numUnchangedTypes
+                    <> " unchanged type"
+                    <> (if numUnchangedTypes == 1 then " and " else "s and ")
+                    <> P.num numUnchangedTerms
+                    <> " unchanged term"
+                    <> (if numUnchangedTerms == 1 then ")" else "s)"),
+              let legendAdded = P.green "+" <> " (added)"
+                  legendModified = P.yellow "~" <> " (modified)"
+                  legendDeleted = P.red "-" <> " (deleted)"
+               in ( if not existUpdates && not existDeletes
+                      then mempty
+                      else
+                        mconcat
+                          ( List.intersperse
+                              ", "
+                              ( catMaybes
+                                  [ if existAdds then Just legendAdded else Nothing,
+                                    if existUpdates then Just legendModified else Nothing,
+                                    if existDeletes then Just legendDeleted else Nothing
+                                  ]
+                              )
+                          )
+                          <> P.newline
+                          <> P.newline
+                  )
+                    <> P.wrap
+                      ( "Run"
+                          <> makeExample' IP.update
+                          <> "to apply these changes to your codebase."
+                      )
+            ]
+        else "No changes found."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably

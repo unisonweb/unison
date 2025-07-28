@@ -116,19 +116,21 @@ loadUnisonFile sourceName text = do
     Nothing -> do
       slurpEntries <-
         Cli.runTransaction do
-          Defns
-            <$> slurpTerms
+          terms <-
+            slurpTerms
               env.codebase
               unisonFile
               False
               (Relation.domain oldNames.terms)
               (Relation.domain unisonFileNames.terms)
-            <*> slurpTypes
+          types <-
+            slurpTypes
               env.codebase
               unisonFile
               False
               (Relation.domain oldNames.types)
               (Relation.domain unisonFileNames.types)
+          pure Defns {terms, types}
 
       let aliases :: Map Referent (NESet Name)
           aliases =
@@ -147,19 +149,21 @@ loadUnisonFile sourceName text = do
 
       slurpEntries <-
         Cli.runTransaction do
-          Defns
-            <$> slurpTerms
+          terms <-
+            slurpTerms
               env.codebase
               unisonFile
               True
               (Relation.domain updateBranchParentLocalNames.terms)
               (Relation.domain updateBranchLocalNames.terms)
-            <*> slurpTypes
+          types <-
+            slurpTypes
               env.codebase
               unisonFile
               False
               (Relation.domain updateBranchParentLocalNames.types)
               (Relation.domain updateBranchLocalNames.types)
+          pure Defns {terms, types}
 
       let aliases :: Map Referent (NESet Name)
           aliases =
