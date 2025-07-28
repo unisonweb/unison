@@ -122,6 +122,7 @@ import Unison.Pattern qualified as P
 import Unison.Prelude
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
+import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
@@ -681,10 +682,10 @@ saturate dat = ABT.visitPure $ \case
         args' = saturate dat <$> args
 
 replaceConstructors ::
-  (Var v) =>
-  Map Reference (Map CTag ForeignFunc) ->
-  SuperGroup v ->
-  SuperGroup v
+  (Ord ref, Var v) =>
+  Map ref (Map CTag ForeignFunc) ->
+  SuperGroup ref v ->
+  SuperGroup ref v
 replaceConstructors reps (Rec bs entry) =
   Rec (fmap go0 <$> bs) (go0 entry)
   where
@@ -697,10 +698,10 @@ replaceConstructors reps (Rec bs entry) =
     f _ = Nothing
 
 replaceFunctions ::
-  (Var v) =>
-  Map Reference Reference ->
-  SuperGroup v ->
-  SuperGroup v
+  (Ord ref, Var v) =>
+  Map ref ref ->
+  SuperGroup ref v ->
+  SuperGroup ref v
 replaceFunctions reps (Rec bs entry) =
   Rec (fmap go0 <$> bs) (go0 entry)
   where
@@ -762,15 +763,15 @@ cteVars :: (Ord v) => Cte v -> Set v
 cteVars (ST _ vs _ e) = Set.fromList vs `Set.union` ABTN.freeVars e
 cteVars (LZ v r as) = Set.fromList (either (const id) (:) r $ v : as)
 
-data ANormalF v e
+data ANormalF ref v e
   = ALet (Direction Word16) [Mem] e e
-  | AName (Either Reference v) [v] e
-  | ALit Lit
-  | ABLit Lit -- direct boxed literal
-  | AMatch v (Branched e)
-  | AShift Reference e
-  | AHnd [Reference] v (Maybe v) e
-  | AApp (Func v) [v]
+  | AName (Either ref v) [v] e
+  | ALit (Lit ref)
+  | ABLit (Lit ref) -- direct boxed literal
+  | AMatch v (Branched ref e)
+  | AShift ref e
+  | AHnd [ref] v (Maybe v) e
+  | AApp (Func ref v) [v]
   | AFrc v
   | AVar v
   | -- Affine handler support
@@ -780,7 +781,7 @@ data ANormalF v e
     AUpdate Bool v v
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-instance Bifunctor ANormalF where
+instance Bifunctor (ANormalF ref) where
   bimap f _ (AVar v) = AVar (f v)
   bimap _ _ (ALit l) = ALit l
   bimap _ _ (ABLit l) = ABLit l
@@ -795,7 +796,7 @@ instance Bifunctor ANormalF where
   bimap f g (ALocal v bo) = ALocal (f v) (g bo)
   bimap f _ (AUpdate b r v) = AUpdate b (f r) (f v)
 
-instance Bifoldable ANormalF where
+instance Bifoldable (ANormalF ref) where
   bifoldMap f _ (AVar v) = f v
   bifoldMap _ _ (ALit _) = mempty
   bifoldMap _ _ (ABLit _) = mempty
@@ -810,7 +811,7 @@ instance Bifoldable ANormalF where
   bifoldMap f g (ALocal v bo) = f v <> g bo
   bifoldMap f _ (AUpdate _ r v) = f r <> f v
 
-instance ABTN.Align ANormalF where
+instance (Ord ref) => ABTN.Align (ANormalF ref) where
   align f _ (AVar u) (AVar v) = Just $ AVar <$> f u v
   align _ _ (ALit l) (ALit r)
     | l == r = Just $ pure (ALit l)
@@ -850,11 +851,11 @@ instance ABTN.Align ANormalF where
   align _ _ _ _ = Nothing
 
 alignEither ::
-  (Applicative f) =>
+  (Eq ref, Applicative f) =>
   (l -> r -> f s) ->
-  Either Reference l ->
-  Either Reference r ->
-  Maybe (f (Either Reference s))
+  Either ref l ->
+  Either ref r ->
+  Maybe (f (Either ref s))
 alignEither _ (Left rl) (Left rr) | rl == rr = Just . pure $ Left rl
 alignEither f (Right u) (Right v) = Just $ Right <$> f u v
 alignEither _ _ _ = Nothing
@@ -870,11 +871,11 @@ alignMaybe _ Nothing Nothing = Just (pure Nothing)
 alignMaybe _ _ _ = Nothing
 
 alignFunc ::
-  (Applicative f) =>
+  (Eq ref, Applicative f) =>
   (vl -> vr -> f vs) ->
-  Func vl ->
-  Func vr ->
-  Maybe (f (Func vs))
+  Func ref vl ->
+  Func ref vr ->
+  Maybe (f (Func ref vs))
 alignFunc f (FVar u) (FVar v) = Just $ FVar <$> f u v
 alignFunc _ (FComb rl) (FComb rr) | rl == rr = Just . pure $ FComb rl
 alignFunc f (FCont u) (FCont v) = Just $ FCont <$> f u v
@@ -887,11 +888,11 @@ alignFunc _ (FPrim ol) (FPrim or)
 alignFunc _ _ _ = Nothing
 
 alignBranch ::
-  (Applicative f) =>
+  (Ord ref, Applicative f) =>
   (el -> er -> f es) ->
-  Branched el ->
-  Branched er ->
-  Maybe (f (Branched es))
+  Branched ref el ->
+  Branched ref er ->
+  Maybe (f (Branched ref es))
 alignBranch _ MatchEmpty MatchEmpty = Just $ pure MatchEmpty
 alignBranch f (MatchIntegral bl dl) (MatchIntegral br dr)
   | keysSet bl == keysSet br,
@@ -970,7 +971,7 @@ alignAscList f ls0 rs0
 alignCCs :: (Functor f) => (l -> r -> f s) -> (a, l) -> (a, r) -> f (a, s)
 alignCCs f (ccs, l) (_, r) = (,) ccs <$> f l r
 
-matchLit :: Term v a -> Maybe Lit
+matchLit :: Term v a -> Maybe (Lit Reference)
 matchLit (Int' i) = Just $ I i
 matchLit (Nat' n) = Just $ N n
 matchLit (Float' f) = Just $ F f
@@ -983,18 +984,18 @@ pattern TLet ::
   Direction Word16 ->
   v ->
   Mem ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v
+  ANormal ref v ->
+  ANormal ref v ->
+  ANormal ref v
 pattern TLet d v m bn bo = ABTN.TTm (ALet d [m] bn (ABTN.TAbs v bo))
 
 pattern TLetD ::
   (ABT.Var v) =>
   v ->
   Mem ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v
+  ANormal ref v ->
+  ANormal ref v ->
+  ANormal ref v
 pattern TLetD v m bn bo = ABTN.TTm (ALet Direct [m] bn (ABTN.TAbs v bo))
 
 pattern TLets ::
@@ -1002,152 +1003,153 @@ pattern TLets ::
   Direction Word16 ->
   [v] ->
   [Mem] ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v
+  ANormal ref v ->
+  ANormal ref v ->
+  ANormal ref v
 pattern TLets d vs ms bn bo = ABTN.TTm (ALet d ms bn (ABTN.TAbss vs bo))
 
 pattern TName ::
   (ABT.Var v) =>
   v ->
-  Either Reference v ->
+  Either ref v ->
   [v] ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v
+  ANormal ref v ->
+  ANormal ref v
 pattern TName v f as bo = ABTN.TTm (AName f as (ABTN.TAbs v bo))
 
-pattern Lit' :: Lit -> Term v a
+pattern Lit' :: Lit Reference -> Term v a
 pattern Lit' l <- (matchLit -> Just l)
 
 pattern TLit ::
   (ABT.Var v) =>
-  Lit ->
-  ABTN.Term ANormalF v
+  Lit ref ->
+  ANormal ref v
 pattern TLit l = ABTN.TTm (ALit l)
 
 pattern TBLit ::
   (ABT.Var v) =>
-  Lit ->
-  ABTN.Term ANormalF v
+  Lit ref ->
+  ANormal ref v
 pattern TBLit l = ABTN.TTm (ABLit l)
 
 pattern TApp ::
   (ABT.Var v) =>
-  Func v ->
+  Func ref v ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TApp f args = ABTN.TTm (AApp f args)
 
-pattern AApv :: v -> [v] -> ANormalF v e
+pattern AApv :: v -> [v] -> ANormalF ref v e
 pattern AApv v args = AApp (FVar v) args
 
 pattern TApv ::
   (ABT.Var v) =>
   v ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TApv v args = TApp (FVar v) args
 
-pattern ACom :: Reference -> [v] -> ANormalF v e
+pattern ACom :: ref -> [v] -> ANormalF ref v e
 pattern ACom r args = AApp (FComb r) args
 
 pattern TCom ::
   (ABT.Var v) =>
-  Reference ->
+  ref ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TCom r args = TApp (FComb r) args
 
-pattern ACon :: Reference -> CTag -> [v] -> ANormalF v e
+pattern ACon :: ref -> CTag -> [v] -> ANormalF ref v e
 pattern ACon r t args = AApp (FCon r t) args
 
 pattern TCon ::
   (ABT.Var v) =>
-  Reference ->
+  ref ->
   CTag ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TCon r t args = TApp (FCon r t) args
 
-pattern AKon :: v -> [v] -> ANormalF v e
+pattern AKon :: v -> [v] -> ANormalF ref v e
 pattern AKon v args = AApp (FCont v) args
 
 pattern TKon ::
   (ABT.Var v) =>
   v ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TKon v args = TApp (FCont v) args
 
-pattern AReq :: Reference -> CTag -> [v] -> ANormalF v e
+pattern AReq :: ref -> CTag -> [v] -> ANormalF ref v e
 pattern AReq r t args = AApp (FReq r t) args
 
 pattern TReq ::
   (ABT.Var v) =>
-  Reference ->
+  ref ->
   CTag ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TReq r t args = TApp (FReq r t) args
 
-pattern APrm :: POp -> [v] -> ANormalF v e
+pattern APrm :: POp -> [v] -> ANormalF ref v e
 pattern APrm p args = AApp (FPrim (Left p)) args
 
 pattern TPrm ::
   (ABT.Var v) =>
   POp ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TPrm p args = TApp (FPrim (Left p)) args
 
-pattern AFOp :: ForeignFunc -> [v] -> ANormalF v e
+pattern AFOp :: ForeignFunc -> [v] -> ANormalF ref v e
 pattern AFOp p args = AApp (FPrim (Right p)) args
 
 pattern TFOp ::
   (ABT.Var v) =>
   ForeignFunc ->
   [v] ->
-  ABTN.Term ANormalF v
+  ANormal ref v
 pattern TFOp p args = TApp (FPrim (Right p)) args
 
 pattern THnd ::
   (ABT.Var v) =>
-  [Reference] ->
+  [ref] ->
   v ->
   Maybe v ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v
+  ANormal ref v ->
+  ANormal ref v
 pattern THnd rs nh ah b = ABTN.TTm (AHnd rs nh ah b)
 
 pattern TShift ::
   (ABT.Var v) =>
-  Reference ->
+  ref ->
   v ->
-  ABTN.Term ANormalF v ->
-  ABTN.Term ANormalF v
+  ANormal ref v ->
+  ANormal ref v
 pattern TShift i v e = ABTN.TTm (AShift i (ABTN.TAbs v e))
 
 pattern TMatch ::
   (ABT.Var v) =>
   v ->
-  Branched (ABTN.Term ANormalF v) ->
-  ABTN.Term ANormalF v
+  Branched ref (ANormal ref v) ->
+  ANormal ref v
 pattern TMatch v cs = ABTN.TTm (AMatch v cs)
 
-pattern TFrc :: (ABT.Var v) => v -> ABTN.Term ANormalF v
+pattern TFrc :: (ABT.Var v) => v -> ANormal ref v
 pattern TFrc v = ABTN.TTm (AFrc v)
 
-pattern TVar :: (ABT.Var v) => v -> ABTN.Term ANormalF v
+pattern TVar :: (ABT.Var v) => v -> ANormal ref v
 pattern TVar v = ABTN.TTm (AVar v)
 
-pattern TDiscard :: (ABT.Var v) => v -> ABTN.Term ANormalF v
+pattern TDiscard :: (ABT.Var v) => v -> ANormal ref v
 pattern TDiscard v = ABTN.TTm (ADiscard v)
 
 pattern TLocal ::
-  (ABT.Var v) => v -> ABTN.Term ANormalF v -> ABTN.Term ANormalF v
+  (ABT.Var v) => v -> ANormal ref v -> ANormal ref v
 pattern TLocal v e = ABTN.TTm (ALocal v e)
 
-pattern TUpdate :: (ABT.Var v) => Bool -> v -> v -> ABTN.Term ANormalF v
+pattern TUpdate ::
+  (ABT.Var v) => Bool -> v -> v -> ABTN.Term (ANormalF ref) v
 pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
 
 {-# COMPLETE
@@ -1190,16 +1192,18 @@ pattern TUpdate ind u v = ABTN.TTm (AUpdate ind u v)
   ABTN.TAbs
   #-}
 
-bind :: (Var v) => Cte v -> ANormal v -> ANormal v
+bind :: (Var v) => Cte v -> ANormal Reference v -> ANormal Reference v
 bind (ST d us ms bu) = TLets d us ms bu
 bind (LZ u f as) = TName u f as
 
-unbind :: (Var v) => ANormal v -> Maybe (Cte v, ANormal v)
+unbind ::
+  (Var v) => ANormal Reference v -> Maybe (Cte v, ANormal Reference v)
 unbind (TLets d us ms bu bd) = Just (ST d us ms bu, bd)
 unbind (TName u f as bd) = Just (LZ u f as, bd)
 unbind _ = Nothing
 
-unbinds :: (Var v) => ANormal v -> ([Cte v], ANormal v)
+unbinds ::
+  (Var v) => ANormal Reference v -> ([Cte v], ANormal Reference v)
 unbinds (TLets d us ms bu (unbinds -> (ctx, bd))) =
   (ST d us ms bu : ctx, bd)
 unbinds (TName u f as (unbinds -> (ctx, bd))) = (LZ u f as : ctx, bd)
@@ -1208,14 +1212,15 @@ unbinds tm = ([], tm)
 pattern TBind ::
   (Var v) =>
   Cte v ->
-  ANormal v ->
-  ANormal v
+  ANormal Reference v ->
+  ANormal Reference v
 pattern TBind bn bd <-
   (unbind -> Just (bn, bd))
   where
     TBind bn bd = bind bn bd
 
-pattern TBinds :: (Var v) => [Cte v] -> ANormal v -> ANormal v
+pattern TBinds ::
+  (Var v) => [Cte v] -> ANormal Reference v -> ANormal Reference v
 pattern TBinds ctx bd <-
   (unbinds -> (ctx, bd))
   where
@@ -1230,48 +1235,49 @@ data SeqEnd = SLeft | SRight
 -- numeric data. This leaves MatchIntegral around so that builtins can
 -- continue to use it. But interchanged code can be free of unboxed
 -- details.
-data Branched e
+data Branched ref e
   = MatchIntegral (EnumMap Word64 e) (Maybe e)
   | MatchText (Map.Map Util.Text.Text e) (Maybe e)
-  | MatchRequest [(Reference, (EnumMap CTag ([Mem], e)))] e
+  | MatchRequest [(ref, (EnumMap CTag ([Mem], e)))] e
   | MatchEmpty
-  | MatchData Reference (EnumMap CTag ([Mem], e)) (Maybe e)
+  | MatchData ref (EnumMap CTag ([Mem], e)) (Maybe e)
   | MatchSum (EnumMap Word64 ([Mem], e))
-  | MatchNumeric Reference (EnumMap Word64 e) (Maybe e)
+  | MatchNumeric ref (EnumMap Word64 e) (Maybe e)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- Data cases expected to cover all constructors
-pattern MatchDataCover :: Reference -> EnumMap CTag ([Mem], e) -> Branched e
+pattern MatchDataCover ::
+  ref -> EnumMap CTag ([Mem], e) -> Branched ref e
 pattern MatchDataCover r m = MatchData r m Nothing
 
 data BranchAccum v
   = AccumEmpty
   | AccumIntegral
       Reference
-      (Maybe (ANormal v))
-      (EnumMap Word64 (ANormal v))
+      (Maybe (ANormal Reference v))
+      (EnumMap Word64 (ANormal Reference v))
   | AccumText
-      (Maybe (ANormal v))
-      (Map.Map Util.Text.Text (ANormal v))
-  | AccumDefault (ANormal v)
-  | AccumPure (ANormal v)
+      (Maybe (ANormal Reference v))
+      (Map.Map Util.Text.Text (ANormal Reference v))
+  | AccumDefault (ANormal Reference v)
+  | AccumPure (ANormal Reference v)
   | AccumRequest
-      (Map Reference (EnumMap CTag ([Mem], ANormal v)))
-      (Maybe (ANormal v))
+      (Map Reference (EnumMap CTag ([Mem], ANormal Reference v)))
+      (Maybe (ANormal Reference v))
   | AccumData
       Reference
-      (Maybe (ANormal v))
-      (EnumMap CTag ([Mem], ANormal v))
-  | AccumSeqEmpty (ANormal v)
+      (Maybe (ANormal Reference v))
+      (EnumMap CTag ([Mem], ANormal Reference v))
+  | AccumSeqEmpty (ANormal Reference v)
   | AccumSeqView
       SeqEnd
-      (Maybe (ANormal v)) -- empty
-      (ANormal v) -- cons/snoc
+      (Maybe (ANormal Reference v)) -- empty
+      (ANormal Reference v) -- cons/snoc
   | AccumSeqSplit
       SeqEnd
       Int -- split at
-      (Maybe (ANormal v)) -- default
-      (ANormal v) -- split
+      (Maybe (ANormal Reference v)) -- default
+      (ANormal Reference v) -- split
 
 instance Semigroup (BranchAccum v) where
   AccumEmpty <> r = r
@@ -1333,32 +1339,32 @@ instance Semigroup (BranchAccum v) where
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
 
-data Func v
+data Func ref v
   = -- variable
     FVar v
   | -- top-level combinator
-    FComb !Reference
+    FComb !ref
   | -- continuation jump
     FCont v
   | -- data constructor
-    FCon !Reference !CTag
+    FCon !ref !CTag
   | -- ability request
-    FReq !Reference !CTag
+    FReq !ref !CTag
   | -- prim op
     FPrim (Either POp ForeignFunc)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-data Lit
+data Lit ref
   = I Int64
   | N Word64
   | F Double
   | T Util.Text.Text
   | C Char
-  | LM Referent -- Term Link
-  | LY Reference -- Type Link
+  | LM (Rfn.Referent' ref) -- Term Link
+  | LY ref -- Type Link
   deriving (Show, Eq)
 
-litRef :: Lit -> Reference
+litRef :: Lit ref -> Reference
 litRef (I _) = Ty.intRef
 litRef (N _) = Ty.natRef
 litRef (F _) = Ty.floatRef
@@ -1537,9 +1543,9 @@ data POp
   | IORB -- or
   deriving (Show, Eq, Ord, Enum, Bounded)
 
-type ANormal = ABTN.Term ANormalF
+type ANormal ref = ABTN.Term (ANormalF ref)
 
-type Cte v = CTE v (ANormal v)
+type Cte v = CTE v (ANormal Reference v)
 
 type Ctx v = Directed () [Cte v]
 
@@ -1562,15 +1568,16 @@ instance (Semigroup a) => Monoid (Direction a) where
 
 type Directed a = (,) (Direction a)
 
-type DNormal v = Directed () (ANormal v)
+type DNormal v = Directed () (ANormal Reference v)
 
 -- Should be a completely closed term
-data SuperNormal v = Lambda {conventions :: [Mem], bound :: ANormal v}
+data SuperNormal ref v =
+  Lambda {conventions :: [Mem], bound :: ANormal ref v}
   deriving (Show, Eq)
 
-data SuperGroup v = Rec
-  { group :: [(v, SuperNormal v)],
-    entry :: SuperNormal v
+data SuperGroup ref v = Rec
+  { group :: [(v, SuperNormal ref v)],
+    entry :: SuperNormal ref v
   }
   deriving (Show)
 
@@ -1579,36 +1586,36 @@ data SuperGroup v = Rec
 data Cacheability = Cacheable | Uncacheable
   deriving stock (Eq, Show)
 
-instance (Var v) => Eq (SuperGroup v) where
+instance (Ord ref, Var v) => Eq (SuperGroup ref v) where
   g0 == g1 | Left _ <- equivocate g0 g1 = False | otherwise = True
 
 -- Failure modes for SuperGroup alpha equivalence test
-data SGEqv v
+data SGEqv ref v
   = -- mismatch number of definitions in group
-    NumDefns (SuperGroup v) (SuperGroup v)
+    NumDefns (SuperGroup ref v) (SuperGroup ref v)
   | -- mismatched SuperNormal calling conventions
-    DefnConventions (SuperNormal v) (SuperNormal v)
+    DefnConventions (SuperNormal ref v) (SuperNormal ref v)
   | -- mismatched subterms in corresponding definition
-    Subterms (ANormal v) (ANormal v)
+    Subterms (ANormal ref v) (ANormal ref v)
 
 -- Yields the number of arguments directly accepted by a combinator.
-arity :: SuperNormal v -> Int
+arity :: SuperNormal ref v -> Int
 arity (Lambda ccs _) = length ccs
 
 -- Yields the numbers of arguments directly accepted by the
 -- combinators in a group. The main entry is the first element, and
 -- local bindings follow in their original order.
-arities :: SuperGroup v -> [Int]
+arities :: SuperGroup ref v -> [Int]
 arities (Rec bs e) = arity e : fmap (arity . snd) bs
 
 -- Checks if two SuperGroups are equivalent up to renaming. The rest
 -- of the structure must match on the nose. If the two groups are not
 -- equivalent, an example of conflicting structure is returned.
 equivocate ::
-  (Var v) =>
-  SuperGroup v ->
-  SuperGroup v ->
-  Either (SGEqv v) ()
+  (Ord ref, Var v) =>
+  SuperGroup ref v ->
+  SuperGroup ref v ->
+  Either (SGEqv ref v) ()
 equivocate g0@(Rec bs0 e0) g1@(Rec bs1 e1)
   | length bs0 == length bs1 =
       traverse_ eqvSN (zip ns0 ns1) *> eqvSN (e0, e1)
@@ -1628,7 +1635,7 @@ equivocate g0@(Rec bs0 e0) g1@(Rec bs1 e1)
 type ANFM v =
   ReaderT
     (Set v)
-    (State (Word64, Word16, [(v, SuperNormal v)]))
+    (State (Word64, Word16, [(v, SuperNormal Reference v)]))
 
 type ANFD v = Compose (ANFM v) (Directed ())
 
@@ -1650,24 +1657,28 @@ data Value
 -- pairs the two together. This is the type that should be used
 -- as the representation of unison Code values rather than the
 -- previous `SuperGroup Symbol`.
-data Code = CodeRep (SuperGroup Symbol) Cacheability
+data Code = CodeRep (SuperGroup Reference Symbol) Cacheability
   deriving (Show)
 
-codeGroup :: Code -> SuperGroup Symbol
+codeGroup :: Code -> SuperGroup Reference Symbol
 codeGroup (CodeRep sg _) = sg
 
 instance Eq Code where
   CodeRep sg1 _ == CodeRep sg2 _ = sg1 == sg2
 
-overGroup :: (SuperGroup Symbol -> SuperGroup Symbol) -> Code -> Code
+overGroup ::
+  (SuperGroup Reference Symbol -> SuperGroup Reference Symbol) ->
+  Code ->
+  Code
 overGroup f (CodeRep sg ch) = CodeRep (f sg) ch
 
-foldGroup :: (Monoid m) => (SuperGroup Symbol -> m) -> Code -> m
+foldGroup ::
+  (Monoid m) => (SuperGroup Reference Symbol -> m) -> Code -> m
 foldGroup f (CodeRep sg _) = f sg
 
 traverseGroup ::
   (Applicative f) =>
-  (SuperGroup Symbol -> f (SuperGroup Symbol)) ->
+  (SuperGroup Reference Symbol -> f (SuperGroup Reference Symbol)) ->
   Code ->
   f Code
 traverseGroup f (CodeRep sg ch) = flip CodeRep ch <$> f sg
@@ -1745,10 +1756,10 @@ binder = state $ \(fr, bnd, cs) -> (bnd, (fr, bnd + 1, cs))
 bindDirection :: Direction a -> ANFM v (Direction Word16)
 bindDirection = traverse (const binder)
 
-record :: (Var v) => (v, SuperNormal v) -> ANFM v ()
+record :: (Var v) => (v, SuperNormal Reference v) -> ANFM v ()
 record p = modify $ \(fr, bnd, to) -> (fr, bnd, p : to)
 
-superNormalize :: (Var v) => Term v a -> SuperGroup v
+superNormalize :: (Var v) => Term v a -> SuperGroup Reference v
 superNormalize tm = Rec l c
   where
     (bs, e)
@@ -1764,7 +1775,7 @@ superBinding (v, tm) = do
   nf <- toSuperNormal tm
   modify $ \(cvs, bnd, ctx) -> (cvs, bnd, (v, nf) : ctx)
 
-toSuperNormal :: (Var v) => Term v a -> ANFM v (SuperNormal v)
+toSuperNormal :: (Var v) => Term v a -> ANFM v (SuperNormal Reference v)
 toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
@@ -2140,10 +2151,11 @@ anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
     tms = toList as
 anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
 
-type ReqBranches v = Map Reference (EnumMap CTag ([Mem], ANormal v))
+type ReqBranches ref v =
+  Map Reference (EnumMap CTag ([Mem], ANormal ref v))
 
 makeHandler ::
-  (Var v) => v -> ReqBranches v -> ANormal v -> ANFM v ([v], SuperNormal v)
+  (Var v) => v -> ReqBranches Reference v -> ANormal Reference v -> ANFM v ([v], SuperNormal Reference v)
 makeHandler v abr df = do
   hfvs <-
     groupVars <&> \gvs ->
@@ -2388,7 +2400,7 @@ traverseBLitRefs h = \case
   where
     tval v = traverseValueRefs h v
 
-groupTermLinks :: (Var v) => SuperGroup v -> [Reference]
+groupTermLinks :: (Ord ref, Var v) => SuperGroup ref v -> [ref]
 groupTermLinks = Set.toList . foldGroupLinks f
   where
     f False r = Set.singleton r
@@ -2396,39 +2408,39 @@ groupTermLinks = Set.toList . foldGroupLinks f
 
 overGroupLinks ::
   (Var v) =>
-  (Bool -> Reference -> Reference) ->
-  SuperGroup v ->
-  SuperGroup v
+  (Bool -> ref0 -> ref1) ->
+  SuperGroup ref0 v ->
+  SuperGroup ref1 v
 overGroupLinks f =
   runIdentity . traverseGroupLinks (\b -> Identity . f b)
 
 traverseGroupLinks ::
   (Applicative f, Var v) =>
-  (Bool -> Reference -> f Reference) ->
-  SuperGroup v ->
-  f (SuperGroup v)
+  (Bool -> ref0 -> f ref1) ->
+  SuperGroup ref0 v ->
+  f (SuperGroup ref1 v)
 traverseGroupLinks f (Rec bs e) =
   Rec <$> (traverse . traverse) (normalLinks f) bs <*> normalLinks f e
 
 foldGroupLinks ::
   (Monoid r, Var v) =>
-  (Bool -> Reference -> r) ->
-  SuperGroup v ->
+  (Bool -> ref -> r) ->
+  SuperGroup ref v ->
   r
 foldGroupLinks f = getConst . traverseGroupLinks (\b -> Const . f b)
 
 normalLinks ::
   (Applicative f, Var v) =>
-  (Bool -> Reference -> f Reference) ->
-  SuperNormal v ->
-  f (SuperNormal v)
+  (Bool -> ref0 -> f ref1) ->
+  SuperNormal ref0 v ->
+  f (SuperNormal ref1 v)
 normalLinks f (Lambda ccs e) = Lambda ccs <$> anfLinks f e
 
 anfLinks ::
   (Applicative f, Var v) =>
-  (Bool -> Reference -> f Reference) ->
-  ANormal v ->
-  f (ANormal v)
+  (Bool -> ref0 -> f ref1) ->
+  ANormal ref0 v ->
+  f (ANormal ref1 v)
 anfLinks f (ABTN.Term _ (ABTN.Abs v e)) =
   ABTN.TAbs v <$> anfLinks f e
 anfLinks f (ABTN.Term _ (ABTN.Tm e)) =
@@ -2436,10 +2448,10 @@ anfLinks f (ABTN.Term _ (ABTN.Tm e)) =
 
 anfFLinks ::
   (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  (e -> f e) ->
-  ANormalF v e ->
-  f (ANormalF v e)
+  (Bool -> ref0 -> f ref1) ->
+  (e0 -> f e1) ->
+  ANormalF ref0 v e0 ->
+  f (ANormalF ref1 v e1)
 anfFLinks _ g (ALet d ccs b e) = ALet d ccs <$> g b <*> g e
 anfFLinks f g (AName er vs e) =
   flip AName vs <$> bitraverse (f False) pure er <*> g e
@@ -2452,25 +2464,33 @@ anfFLinks f g (AHnd rs nh ah e) =
 anfFLinks f _ (AApp fu vs) = flip AApp vs <$> funcLinks f fu
 anfFLinks f _ (ALit l) = ALit <$> litLinks f l
 anfFLinks f _ (ABLit l) = ABLit <$> litLinks f l
-anfFLinks _ _ v = pure v
+anfFLinks _ _ (AFrc v) = pure $ AFrc v
+anfFLinks _ _ (AVar v) = pure $ AVar v
+anfFLinks _ _ (ADiscard v) = pure $ ADiscard v
+anfFLinks _ g (ALocal v e) = ALocal v <$> g e
+anfFLinks _ _ (AUpdate b u v) = pure $ AUpdate b u v
 
 litLinks ::
   (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  Lit ->
-  f Lit
+  (Bool -> ref0 -> f ref1) ->
+  Lit ref0 ->
+  f (Lit ref1)
 litLinks f (LY r) = LY <$> f True r
-litLinks f (LM (Con (ConstructorReference r i) t)) =
-  LM . flip Con t . flip ConstructorReference i <$> f True r
-litLinks f (LM (Ref r)) = LM . Ref <$> f False r
-litLinks _ v = pure v
+litLinks f (LM (Rfn.Con' (ConstructorReference r i) t)) =
+  LM . flip Rfn.Con' t . flip ConstructorReference i <$> f True r
+litLinks f (LM (Rfn.Ref' r)) = LM . Rfn.Ref' <$> f False r
+litLinks _ (I i) = pure $ I i
+litLinks _ (N n) = pure $ N n
+litLinks _ (F d) = pure $ F d
+litLinks _ (T t) = pure $ T t
+litLinks _ (C c) = pure $ C c
 
 branchLinks ::
   (Applicative f) =>
-  (Reference -> f Reference) ->
-  (e -> f e) ->
-  Branched e ->
-  f (Branched e)
+  (ref0 -> f ref1) ->
+  (e0 -> f e1) ->
+  Branched ref0 e0 ->
+  f (Branched ref1 e1)
 branchLinks f g (MatchRequest m e) =
   MatchRequest <$> traverse h m <*> g e
   where
@@ -2489,13 +2509,15 @@ branchLinks _ _ MatchEmpty = pure MatchEmpty
 
 funcLinks ::
   (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  Func v ->
-  f (Func v)
+  (Bool -> ref0 -> f ref1) ->
+  Func ref0 v ->
+  f (Func ref1 v)
 funcLinks f (FComb r) = FComb <$> f False r
 funcLinks f (FCon r t) = flip FCon t <$> f True r
 funcLinks f (FReq r t) = flip FReq t <$> f True r
-funcLinks _ ff = pure ff
+funcLinks _ (FVar v) = pure $ FVar v
+funcLinks _ (FCont v) = pure $ FCont v
+funcLinks _ (FPrim e) = pure $ FPrim e
 
 expandBindings' ::
   (Var v) =>
@@ -2530,7 +2552,8 @@ anfCases ::
   ANFM v (Directed () (BranchAccum v))
 anfCases u = getCompose . fmap fold . traverse (anfInitCase u)
 
-anfFunc :: (Var v) => Term v a -> ANFM v (Ctx v, Directed () (Func v))
+anfFunc ::
+  (Var v) => Term v a -> ANFM v (Ctx v, Directed () (Func Reference v))
 anfFunc (Var' v) = pure (mempty, (Indirect (), FVar v))
 anfFunc (Ref' r) = pure (mempty, (Indirect (), FComb r))
 anfFunc (Constructor' (ConstructorReference r t)) = pure (mempty, (Direct, FCon r $ fromIntegral t))
@@ -2552,7 +2575,7 @@ anfArgs tms = first fold . unzip <$> traverse anfArg tms
 indent :: Int -> ShowS
 indent ind = showString (replicate (ind * 2) ' ')
 
-prettyGroup :: (Var v) => String -> SuperGroup v -> ShowS
+prettyGroup :: (Var v) => String -> SuperGroup Reference v -> ShowS
 prettyGroup s (Rec grp ent) =
   showString ("let rec[" ++ s ++ "]\n")
     . foldr f id grp
@@ -2589,19 +2612,20 @@ prettyRBind (v : vs) =
   showParen True $
     pvar v . foldr (\v r -> shows v . showString "," . r) id vs
 
-prettySuperNormal :: (Var v) => Int -> SuperNormal v -> ShowS
+prettySuperNormal ::
+  (Var v) => Int -> SuperNormal Reference v -> ShowS
 prettySuperNormal ind (Lambda ccs (ABTN.TAbss vs tm)) =
   prettyLVars ccs vs
     . showString "="
     . prettyANF False (ind + 1) tm
 
-reqSpace :: (Var v) => Bool -> ANormal v -> Bool
+reqSpace :: (Var v) => Bool -> ANormal ref v -> Bool
 reqSpace _ TLets {} = True
 reqSpace _ TName {} = True
 reqSpace _ TLocal {} = True
 reqSpace b _ = b
 
-prettyANF :: (Var v) => Bool -> Int -> ANormal v -> ShowS
+prettyANF :: (Var v) => Bool -> Int -> ANormal Reference v -> ShowS
 prettyANF m ind tm =
   prettySpace (reqSpace m tm) ind . case tm of
     TLets _ vs _ bn bo ->
@@ -2673,7 +2697,7 @@ prettyRefs (r : rs) =
     . foldr (\t r -> showString "," . showsShort t . r) id rs
     . showString "}"
 
-prettyFunc :: (Var v) => Func v -> ShowS
+prettyFunc :: (Var v) => Func Reference v -> ShowS
 prettyFunc (FVar v) = pvar v . showString " "
 prettyFunc (FCont v) = pvar v . showString " "
 prettyFunc (FComb w) = showString "ENV(" . showsShort w . showString ")"
@@ -2695,7 +2719,8 @@ showsShort :: Reference -> ShowS
 showsShort =
   showString . Pretty.toPlainUnbroken . prettyShortHash . shortenTo 10 . toShortHash
 
-prettyBranches :: (Var v) => Int -> Branched (ANormal v) -> ShowS
+prettyBranches ::
+  (Var v) => Int -> Branched Reference (ANormal Reference v) -> ShowS
 prettyBranches ind bs = case bs of
   MatchEmpty -> showString "{}"
   MatchIntegral bs df ->
@@ -2745,7 +2770,8 @@ prettyBranches ind bs = case bs of
         . shows c
         . showString ")"
 
-prettyCase :: (Var v) => Int -> ShowS -> ANormal v -> ShowS -> ShowS
+prettyCase ::
+  (Var v) => Int -> ShowS -> ANormal Reference v -> ShowS -> ShowS
 prettyCase ind sc (ABTN.TAbss vs e) r =
   showString "\n"
     . indent ind

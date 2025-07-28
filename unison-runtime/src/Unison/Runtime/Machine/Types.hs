@@ -92,11 +92,11 @@ data CCache = CCache
     combRefs :: TVar (EnumMap Word64 Reference),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
-    optInfos :: TVar (OptInfos Symbol),
+    optInfos :: TVar (OptInfos Reference Symbol),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
-    intermed :: TVar (M.Map Reference (SuperGroup Symbol)),
+    intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
     sandbox :: TVar (M.Map Reference (Set Reference))
@@ -165,7 +165,7 @@ canonicalizeCodeRefs = toReferenced . canonicalizeRefs traverseCodeRefs
 
 resolveCode ::
   Reference ->
-  Map Reference (SuperGroup Symbol) ->
+  Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   EnumSet Word64 ->
   Maybe Code
@@ -231,7 +231,7 @@ checkValueSandboxing cc allowed0 v = do
 
 codeValidate ::
   CCache ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, SuperGroup Reference Symbol)] ->
   IO (Maybe (Failure UText.Text))
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)

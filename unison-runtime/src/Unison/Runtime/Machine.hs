@@ -1279,7 +1279,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
           ANF.replaceConstructors pseudoConstructors
             . ANF.replaceFunctions functionReplacements
         haff (cmbs, opts) =
-          (M.mapWithKey (ANF.optimizeHandler opts) cmbs, opts)
+          (M.mapWithKey (ANF.optimizeHandler Builtin opts) cmbs, opts)
     opt <-
       stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
@@ -1288,7 +1288,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
-        combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
+        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n, emitCombs rns r n g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
@@ -1364,7 +1364,7 @@ isSandboxingException _ = False
 
 expandSandbox ::
   Map Reference (Set Reference) ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, SuperGroup Reference Symbol)] ->
   [(Reference, Set Reference)]
 expandSandbox sand0 groups = fixed mempty
   where

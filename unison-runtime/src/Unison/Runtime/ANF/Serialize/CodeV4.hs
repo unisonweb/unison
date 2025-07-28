@@ -102,7 +102,7 @@ putGroup ::
   (Var v) =>
   PutRefLookup ->
   Bool ->
-  SuperGroup v ->
+  SuperGroup Reference v ->
   m ()
 putGroup pref fops (Rec bs e) =
   putLength n
@@ -117,7 +117,7 @@ getGroup ::
   (MonadGet m) =>
   (Var v) =>
   GetRefLookup ->
-  m (SuperGroup v)
+  m (SuperGroup Reference v)
 getGroup gref = do
   l <- getLength
   let n = fromIntegral l
@@ -174,7 +174,7 @@ putComb ::
   PutRefLookup ->
   Bool ->
   [v] ->
-  SuperNormal v ->
+  SuperNormal Reference v ->
   m ()
 putComb pref fops ctx (Lambda ccs (TAbss us e)) =
   putCCs ccs *> putNormal pref fops (pushCtx us ctx) e
@@ -188,7 +188,7 @@ getComb ::
   GetRefLookup ->
   [v] ->
   Word64 ->
-  m (SuperNormal v)
+  m (SuperNormal Reference v)
 getComb gref ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
@@ -201,7 +201,7 @@ putNormal ::
   PutRefLookup ->
   Bool ->
   [v] ->
-  ANormal v ->
+  ANormal Reference v ->
   m ()
 putNormal pref@(tys, tms) fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
@@ -251,7 +251,7 @@ getNormal ::
   GetRefLookup ->
   [v] ->
   Word64 ->
-  m (ANormal v)
+  m (ANormal Reference v)
 getNormal gref@(tys, tms) ctx frsh0 =
   getTag >>= \case
     VarT -> TVar <$> getVar ctx
@@ -309,7 +309,7 @@ putFunc ::
   (Var v) =>
   PutRefLookup ->
   [v] ->
-  Func v ->
+  Func Reference v ->
   m ()
 putFunc (tys, tms) ctx f = case f of
   FVar v -> putTag FVarT *> putVar ctx v
@@ -320,7 +320,7 @@ putFunc (tys, tms) ctx f = case f of
   FPrim (Left p) -> putTag FPrimT *> putPOp p
   FPrim (Right f) -> putTag FForeignT *> putFOp f
 
-getFunc :: (MonadGet m, Var v) => GetRefLookup -> [v] -> m (Func v)
+getFunc :: (MonadGet m, Var v) => GetRefLookup -> [v] -> m (Func Reference v)
 getFunc (tys, tms) ctx =
   getTag >>= \case
     FVarT -> FVar <$> getVar ctx
@@ -514,7 +514,7 @@ word2pop = fromList $ swap <$> pOpAssoc
   where
     swap (x, y) = (y, x)
 
-putLit :: (MonadPut m) => PutRefLookup -> Lit -> m ()
+putLit :: (MonadPut m) => PutRefLookup -> Lit Reference -> m ()
 putLit pref@(tys, _) = \case
   I i -> putTag IT *> putInt i
   N n -> putTag NT *> putNat n
@@ -524,7 +524,7 @@ putLit pref@(tys, _) = \case
   LM r -> putTag LMT *> putReferentByNumber pref r
   LY r -> putTag LYT *> putReferenceByNumber tys r
 
-getLit :: (MonadGet m) => GetRefLookup -> m Lit
+getLit :: (MonadGet m) => GetRefLookup -> m (Lit Reference)
 getLit gref@(tys, _) =
   getTag >>= \case
     IT -> I <$> getInt
@@ -541,7 +541,7 @@ putBranches ::
   PutRefLookup ->
   Bool ->
   [v] ->
-  Branched (ANormal v) ->
+  Branched Reference (ANormal Reference v) ->
   m ()
 putBranches pref@(tys, _) fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
@@ -581,7 +581,7 @@ getBranches ::
   GetRefLookup ->
   [v] ->
   Word64 ->
-  m (Branched (ANormal v))
+  m (Branched Reference (ANormal Reference v))
 getBranches gref@(tys, _) ctx frsh0 =
   getTag >>= \case
     MEmptyT -> pure MatchEmpty
@@ -619,7 +619,7 @@ putCase ::
   PutRefLookup ->
   Bool ->
   [v] ->
-  ([Mem], ANormal v) ->
+  ([Mem], ANormal Reference v) ->
   m ()
 putCase pref fops ctx (ccs, (TAbss us e)) =
   putCCs ccs *> putNormal pref fops (pushCtx us ctx) e
@@ -630,7 +630,7 @@ getCase ::
   GetRefLookup ->
   [v] ->
   Word64 ->
-  m ([Mem], ANormal v)
+  m ([Mem], ANormal Reference v)
 getCase gref ctx frsh0 = do
   ccs <- getCCs
   let l = length ccs

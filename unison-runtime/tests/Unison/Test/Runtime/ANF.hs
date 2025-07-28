@@ -59,7 +59,7 @@ testLift s = case cs of !_ -> ok
         . lamLift mempty
         $ tm s
 
-denormalizeLit :: (Var v) => Lit -> Term.Term0 v
+denormalizeLit :: (Var v) => Lit Reference -> Term.Term0 v
 denormalizeLit (I i) = Term.int () i
 denormalizeLit (N n) = Term.nat () n
 denormalizeLit (F f) = Term.float () f
@@ -68,7 +68,7 @@ denormalizeLit (C c) = Term.char () c
 denormalizeLit (LM r) = Term.termLink () r
 denormalizeLit (LY r) = Term.typeLink () r
 
-denormalize :: (Var v) => ANormal v -> Term.Term0 v
+denormalize :: (Var v) => ANormal Reference v -> Term.Term0 v
 denormalize (TVar v) = Term.var () v
 denormalize (TLit l) = denormalizeLit l
 denormalize (TBLit l) = denormalizeLit l
@@ -125,7 +125,9 @@ backReference :: Word64 -> Reference
 backReference _ = error "backReference"
 
 denormalizeMatch ::
-  (Var v) => Branched (ANormal v) -> [Term.MatchCase () (Term.Term0 v)]
+  (Var v) =>
+  Branched Reference (ANormal Reference v) ->
+  [Term.MatchCase () (Term.Term0 v)]
 denormalizeMatch b
   | MatchEmpty <- b = []
   | MatchIntegral m df <- b =
@@ -160,7 +162,7 @@ denormalizeMatch b
 
 denormalizeBranch ::
   (Num a, Var v) =>
-  Term ANormalF v ->
+  ANormal Reference v ->
   (a, ABT.Term (Term.F v () ()) v ())
 denormalizeBranch (TAbs v br) = (n + 1, ABT.abs v dbr)
   where
@@ -169,8 +171,8 @@ denormalizeBranch tm = (0, denormalize tm)
 
 denormalizeHandler ::
   (Var v) =>
-  [(Reference, (EnumMap CTag ([Mem], ANormal v)))] ->
-  ANormal v ->
+  [(Reference, (EnumMap CTag ([Mem], ANormal Reference v)))] ->
+  ANormal Reference v ->
   [Term.MatchCase () (Term.Term0 v)]
 denormalizeHandler cs df = dcs
   where

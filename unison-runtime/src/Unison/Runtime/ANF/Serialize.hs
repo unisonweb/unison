@@ -125,7 +125,7 @@ putGroup ::
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
-  SuperGroup v ->
+  SuperGroup Reference v ->
   m ()
 putGroup refrep fops (Rec bs e) =
   putLength n
@@ -140,7 +140,7 @@ getGroup ::
   (MonadGet m) =>
   (SerialConfig m) =>
   (Var v) =>
-  m (SuperGroup v)
+  m (SuperGroup Reference v)
 getGroup = do
   l <- getLength
   let n = fromIntegral l
@@ -158,20 +158,23 @@ getCode = CodeRep <$> getGroup <*> getCacheability
 putInlineInfo ::
   (MonadPut m, Var v) =>
   [v] ->
-  InlineInfo v ->
+  InlineInfo Reference v ->
   m ()
 putInlineInfo ctx (InlInfo clazz expr) =
   putInlineClass clazz *> putInlineExpr ctx expr
 
 getInlineInfo ::
-  (MonadGet m, SerialConfig m, Var v) => [v] -> Word64 -> m (InlineInfo v)
+  (MonadGet m, SerialConfig m, Var v) =>
+  [v] ->
+  Word64 ->
+  m (InlineInfo Reference v)
 getInlineInfo ctx frsh =
   InlInfo <$> getInlineClass <*> getInlineExpr ctx frsh
 
 putInlineExpr ::
   (MonadPut m, Var v) =>
   [v] ->
-  ANormal v ->
+  ANormal Reference v ->
   m ()
 putInlineExpr ctx (TAbss vs body) =
   putLength (length vs)
@@ -181,14 +184,14 @@ getInlineExpr ::
   (MonadGet m, SerialConfig m, Var v) =>
   [v] ->
   Word64 ->
-  m (ANormal v)
+  m (ANormal Reference v)
 getInlineExpr ctx frsh0 = do
   n <- getLength
   let frsh = frsh0 + fromIntegral n
       vs = getFresh <$> take n [frsh0 ..]
   TAbss vs <$> getNormal (pushCtx vs ctx) frsh
 
-putOptInfos :: (MonadPut m, Var v) => OptInfos v -> m ()
+putOptInfos :: (MonadPut m, Var v) => OptInfos Reference v -> m ()
 putOptInfos (arities, inls) =
   putMap putReference pInt arities
     *> putMap putReference (putInlineInfo []) inls
@@ -196,7 +199,7 @@ putOptInfos (arities, inls) =
     pInt = serialize . VarInt
 
 -- Note: current version
-getOptInfos :: (MonadGet m, Var v) => m (OptInfos v)
+getOptInfos :: (MonadGet m, Var v) => m (OptInfos Reference v)
 getOptInfos =
   flip runReaderT (Transfer codeVersion, True) $
     (,)
@@ -240,7 +243,7 @@ putComb ::
   Map Reference Word64 ->
   Bool ->
   [v] ->
-  SuperNormal v ->
+  SuperNormal Reference v ->
   m ()
 putComb refrep fops ctx (Lambda ccs (TAbss us e)) =
   putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
@@ -254,7 +257,7 @@ getComb ::
   (Var v) =>
   [v] ->
   Word64 ->
-  m (SuperNormal v)
+  m (SuperNormal Reference v)
 getComb ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
@@ -267,7 +270,7 @@ putNormal ::
   Map Reference Word64 ->
   Bool ->
   [v] ->
-  ANormal v ->
+  ANormal Reference v ->
   m ()
 putNormal refrep fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
@@ -319,7 +322,7 @@ getNormal ::
   (Var v) =>
   [v] ->
   Word64 ->
-  m (ANormal v)
+  m (ANormal Reference v)
 getNormal ctx frsh0 =
   getTag >>= \case
     VarT -> TVar <$> getVar ctx
@@ -376,7 +379,7 @@ putFunc ::
   Map Reference Word64 ->
   Bool ->
   [v] ->
-  Func v ->
+  Func Reference v ->
   m ()
 putFunc refrep allowFop ctx f = case f of
   FVar v -> putTag FVarT *> putVar ctx v
@@ -392,7 +395,8 @@ putFunc refrep allowFop ctx f = case f of
     | otherwise ->
         exn $ "putFunc: could not serialize foreign operation: " ++ show f
 
-getFunc :: (MonadGet m, SerialConfig m, Var v) => [v] -> m (Func v)
+getFunc ::
+  (MonadGet m, SerialConfig m, Var v) => [v] -> m (Func Reference v)
 getFunc ctx =
   askFOp >>= \allowFOp ->
     getTag >>= \case
@@ -589,7 +593,7 @@ word2pop = fromList $ swap <$> pOpAssoc
   where
     swap (x, y) = (y, x)
 
-putLit :: (MonadPut m) => Lit -> m ()
+putLit :: (MonadPut m) => Lit Reference -> m ()
 putLit (I i) = putTag IT *> putInt i
 putLit (N n) = putTag NT *> putNat n
 putLit (F f) = putTag FT *> putFloat f
@@ -598,7 +602,7 @@ putLit (C c) = putTag CT *> putChar c
 putLit (LM r) = putTag LMT *> putReferent r
 putLit (LY r) = putTag LYT *> putReference r
 
-getLit :: (MonadGet m) => m Lit
+getLit :: (MonadGet m) => m (Lit Reference)
 getLit =
   getTag >>= \case
     IT -> I <$> getInt
@@ -700,7 +704,7 @@ putBranches ::
   Map Reference Word64 ->
   Bool ->
   [v] ->
-  Branched (ANormal v) ->
+  Branched Reference (ANormal Reference v) ->
   m ()
 putBranches refrep fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
@@ -737,7 +741,7 @@ getBranches ::
   (Var v) =>
   [v] ->
   Word64 ->
-  m (Branched (ANormal v))
+  m (Branched Reference (ANormal Reference v))
 getBranches ctx frsh0 =
   getTag >>= \case
     MEmptyT -> pure MatchEmpty
@@ -773,7 +777,7 @@ putCase ::
   Map Reference Word64 ->
   Bool ->
   [v] ->
-  ([Mem], ANormal v) ->
+  ([Mem], ANormal Reference v) ->
   m ()
 putCase refrep fops ctx (ccs, (TAbss us e)) =
   putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
@@ -784,7 +788,7 @@ getCase ::
   (Var v) =>
   [v] ->
   Word64 ->
-  m ([Mem], ANormal v)
+  m ([Mem], ANormal Reference v)
 getCase ctx frsh0 = do
   ccs <- getCCs
   let l = length ccs
@@ -1014,7 +1018,7 @@ serializeCodeWithVersion v fops rco
 serializeGroupForRehash ::
   (Var v) =>
   Reference ->
-  SuperGroup v ->
+  SuperGroup Reference v ->
   L.ByteString
 serializeGroupForRehash (Builtin _) _ =
   error "serializeForRehash: builtin reference"
@@ -1091,7 +1095,7 @@ serializeValueForHash v = runPutLazy (putPrefix *> putValue (Hash 4) v)
 
 -- Gets a SuperGroup with the current code version. Used for
 -- interpreter state serialization in U.R.Interface.
-getGroupCurrent :: (MonadGet m, Var v) => m (SuperGroup v)
+getGroupCurrent :: (MonadGet m, Var v) => m (SuperGroup Reference v)
 getGroupCurrent = runReaderT getGroup (Transfer codeVersion, False)
 
 askVersion :: (SerialConfig m) => m Version
