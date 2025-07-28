@@ -35,6 +35,7 @@ import Network.MCP.Server
 import Network.MCP.Types (CallToolResult (CallToolResult))
 import Network.MCP.Types qualified as MCP
 import Unison.Prelude
+import UnliftIO qualified
 
 type StaticResources = Map Text (MCP.Resource, MCP.ResourceContent)
 
@@ -49,7 +50,8 @@ instance HasInputSchema () where
         ("required", Aeson.Array mempty)
       ]
 
-data Tool m = forall arg.
+data Tool m
+  = forall arg.
   (FromJSON arg, HasInputSchema arg) =>
   Tool
   { toolName :: Text,
@@ -116,7 +118,10 @@ doTools server tools = do
     case Map.lookup callToolName toolMap of
       Just Tool {toolHandler} -> do
         case Aeson.fromJSON callToolArguments of
-          Aeson.Success arg -> toolHandler arg
+          Aeson.Success arg ->
+            UnliftIO.timeout (60 * 1_000_000) (toolHandler arg) >>= \case
+              Nothing -> pure $ errorToolResult $ "Tool '" <> callToolName <> "' timed out after 1 minute."
+              Just result -> pure result
           Aeson.Error err -> pure $ errorToolResult $ "Failed to parse arguments for tool '" <> callToolName <> "': " <> Text.pack err
       Nothing -> pure $ errorToolResult $ "Tool '" <> callToolName <> "' not found."
 
