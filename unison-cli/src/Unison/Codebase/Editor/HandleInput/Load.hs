@@ -139,7 +139,7 @@ loadUnisonFile sourceName text = do
       let oldPpe =
             PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
 
-      Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries aliases)
+      Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
     Just updateBranchParentCausalHash -> do
       updateBranchParent <- liftIO (Codebase.expectBranchForHash env.codebase updateBranchParentCausalHash)
       let updateBranchParent0 = Branch.head updateBranchParent
@@ -175,7 +175,7 @@ loadUnisonFile sourceName text = do
                 (PPE.hqNamer 10 updateBranchParentNames)
                 (PPE.suffixifyByHash updateBranchParentNames)
 
-      Cli.respond (Output.Typechecked2 oldPpe newPpe slurpEntries aliases)
+      Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do

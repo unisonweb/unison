@@ -12,7 +12,7 @@ import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
 import Data.List qualified as List
-import Data.List.Extra (notNull, nubOrd, nubOrdOn)
+import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.List.NonEmpty qualified as NEList
 import Data.Map qualified as Map
 import Data.Ord (comparing)
@@ -147,7 +147,6 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
-import Unison.UnisonFile qualified as UF
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
@@ -917,57 +916,7 @@ notifyUser dir = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked sourceName ppe slurpResult uf -> do
-    let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
-    let containsWatchExpressions = notNull $ UF.watchComponents uf
-    if UF.nonEmpty uf
-      then do
-        fileName <- renderFileName $ Text.unpack sourceName
-        pure $
-          P.linesNonEmpty
-            ( [ if fileStatusMsg == mempty
-                  then P.okCallout $ fileName <> " changed."
-                  else
-                    if SlurpResult.isAllDuplicates slurpResult
-                      then
-                        P.wrap $
-                          "I found and"
-                            <> P.bold "typechecked"
-                            <> "the definitions in "
-                            <> P.group (fileName <> ".")
-                            <> "This file "
-                            <> P.bold "has been previously added"
-                            <> "to the codebase."
-                      else
-                        P.linesSpaced $
-                          [ P.wrap $
-                              "I found and"
-                                <> P.bold "typechecked"
-                                <> "these definitions in "
-                                <> P.group (fileName <> ".")
-                                <> "If you do an "
-                                <> P.group (IP.makeExample' IP.update <> ",")
-                                <> "here's how your codebase would change:",
-                            P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
-                          ]
-              ]
-                ++ if containsWatchExpressions
-                  then
-                    [ "",
-                      P.wrap $
-                        "Now evaluating any watch expressions"
-                          <> "(lines starting with `>`)... "
-                          <> P.group (P.hiBlack "Ctrl+C cancels.")
-                    ]
-                  else []
-            )
-      else
-        if (null $ UF.watchComponents uf)
-          then
-            pure . P.wrap $
-              "I loaded " <> P.text sourceName <> " and didn't find anything."
-          else pure mempty
-  Typechecked2 oldPpe newPpe slurpEntries aliases -> do
+  Typechecked oldPpe newPpe slurpEntries aliases -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
