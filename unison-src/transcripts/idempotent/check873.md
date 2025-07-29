@@ -11,7 +11,7 @@ scratch/main> builtins.merge
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + - : Nat -> Nat -> Int
+  + (-) : Nat -> Nat -> Int
 
   Run `update` to apply these changes to your codebase.
 ```
