@@ -430,7 +430,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, Code)])
+  IO (EvalCtx, [(Reference, Code Reference)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -450,7 +450,7 @@ checkCacheability ::
   CodeLookup Symbol IO () ->
   EvalCtx ->
   (IntermediateReference, SuperGroup Reference Symbol) ->
-  IO (IntermediateReference, Code)
+  IO (IntermediateReference, Code Reference)
 checkCacheability cl ctx (r, sg) =
   getTermType codebaseRef >>= \case
     -- A term's result is cacheable iff it has no arrows in its type,
@@ -634,7 +634,7 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, [(Reference, Code)], Reference)
+  IO (EvalCtx, [(Reference, Code Reference)], Reference)
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $

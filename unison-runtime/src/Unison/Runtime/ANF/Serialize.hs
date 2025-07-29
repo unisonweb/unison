@@ -18,7 +18,7 @@ import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
-import Data.Foldable (traverse_)
+import Data.Foldable (traverse_, toList)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromDistinctAscList, fromList, lookup)
 -- machinery for special casing maps
@@ -38,7 +38,6 @@ import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.ANF.Serialize.CodeV4 qualified as CodeV4
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.ANF.Serialize.ValueV5 qualified as ValueV5
-import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Referenced
@@ -149,10 +148,10 @@ getGroup = do
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
 
-putCode :: (MonadPut m) => Bool -> Code -> m ()
+putCode :: (MonadPut m) => Bool -> Code Reference -> m ()
 putCode fops (CodeRep g c) = putGroup mempty fops g *> putCacheability c
 
-getCode :: (MonadGet m, SerialConfig m) => m Code
+getCode :: (MonadGet m, SerialConfig m) => m (Code Reference)
 getCode = CodeRep <$> getGroup <*> getCacheability
 
 putInlineInfo ::
@@ -613,7 +612,7 @@ getLit =
     LMT -> LM <$> getReferent
     LYT -> LY <$> getReference
 
-putBLit :: (MonadPut m) => Version -> BLit -> m ()
+putBLit :: (MonadPut m) => Version -> BLit Reference -> m ()
 putBLit _ (Text t) = putTag TextT *> putText (Util.Text.toText t)
 putBLit v (List s) = putTag ListT *> putFoldable (putValue v) s
 putBLit _ (TmLink r) = putTag TmLinkT *> putReferent r
@@ -637,8 +636,8 @@ putBLit _ (Char c) = putTag CharT *> putChar c
 putBLit _ (Float d) = putTag FloatT *> putFloat d
 putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
 putBLit _ (Map _) = exn "putBLit: impossible Map"
-{-# SPECIALIZE putBLit :: Version -> BLit -> BPut.Put #-}
-{-# SPECIALIZE putBLit :: Version -> BLit -> SPut.Put #-}
+{-# SPECIALIZE putBLit :: Version -> BLit Reference -> BPut.Put #-}
+{-# SPECIALIZE putBLit :: Version -> BLit Reference -> SPut.Put #-}
 
 -- special function for serializing a list of pairs as a Unison map.
 -- This allows us to avoid inflating the map to a unison value during
@@ -649,7 +648,8 @@ putBLit _ (Map _) = exn "putBLit: impossible Map"
 -- a non-ascending list and re-serialize using an old version, you
 -- will get an invalid map. However, you might also just receive an
 -- invalid serialized map.
-putAsMap :: (MonadPut m) => Version -> [(Value, Value)] -> m ()
+putAsMap ::
+  (MonadPut m) => Version -> [(Value Reference, Value Reference)] -> m ()
 putAsMap v = putter . fromDistinctAscList
   where
     putter Tip =
@@ -667,10 +667,16 @@ putAsMap v = putter . fromDistinctAscList
         *> putValue v e
         *> putter l
         *> putter r
-{-# SPECIALIZE putAsMap :: Version -> [(Value, Value)] -> BPut.Put #-}
-{-# SPECIALIZE putAsMap :: Version -> [(Value, Value)] -> SPut.Put #-}
+{-# SPECIALIZE
+      putAsMap ::
+        Version -> [(Value Reference, Value Reference)] -> BPut.Put
+  #-}
+{-# SPECIALIZE
+      putAsMap ::
+        Version -> [(Value Reference, Value Reference)] -> SPut.Put
+  #-}
 
-getBLit :: (MonadGet m, SerialConfig m) => m BLit
+getBLit :: (MonadGet m, SerialConfig m) => m (BLit Reference)
 getBLit =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
@@ -689,8 +695,8 @@ getBLit =
     ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
     MapT -> exn "getBLit: unsupported literal map"
-{-# SPECIALIZE getBLit :: BDeserial BLit #-}
-{-# SPECIALIZE getBLit :: SDeserial BLit #-}
+{-# SPECIALIZE getBLit :: BDeserial (BLit Reference) #-}
+{-# SPECIALIZE getBLit :: SDeserial (BLit Reference) #-}
 
 putRefs :: (MonadPut m) => [Reference] -> m ()
 putRefs rs = putFoldable putReference rs
@@ -802,11 +808,11 @@ putCTag c = serialize (VarInt $ fromEnum c)
 getCTag :: (MonadGet m) => m CTag
 getCTag = toEnum . unVarInt <$> deserialize
 
-putGroupRef :: (MonadPut m) => GroupRef -> m ()
+putGroupRef :: (MonadPut m) => GroupRef Reference -> m ()
 putGroupRef (GR r i) =
   putReference r *> putWord64be i
 
-getGroupRef :: (MonadGet m) => m GroupRef
+getGroupRef :: (MonadGet m) => m (GroupRef Reference)
 getGroupRef = GR <$> getReference <*> getWord64be
 
 -- Notes
@@ -830,7 +836,7 @@ getGroupRef = GR <$> getReference <*> getWord64be
 --
 -- So, unboxed data is completely absent from the format. We are now
 -- exchanging unison surface values, effectively.
-putValue :: (MonadPut m) => Version -> Value -> m ()
+putValue :: (MonadPut m) => Version -> Value Reference -> m ()
 putValue v (Partial gr vs) =
   putTag PartialT
     *> putGroupRef gr
@@ -847,10 +853,10 @@ putValue v (Cont bs k) =
 putValue v (BLit (Map l)) = putAsMap v l
 putValue v (BLit l) =
   putTag BLitT *> putBLit v l
-{-# SPECIALIZE putValue :: Version -> Value -> BPut.Put #-}
-{-# SPECIALIZE putValue :: Version -> Value -> SPut.Put #-}
+{-# SPECIALIZE putValue :: Version -> Value Reference -> BPut.Put #-}
+{-# SPECIALIZE putValue :: Version -> Value Reference -> SPut.Put #-}
 
-getValue :: (MonadGet m, SerialConfig m) => m Value
+getValue :: (MonadGet m, SerialConfig m) => m (Value Reference)
 getValue =
   askVersion >>= \v ->
     getTag >>= \case
@@ -894,10 +900,10 @@ getValue =
     assertEmptyUnboxed :: (MonadGet m) => [a] -> m ()
     assertEmptyUnboxed [] = pure ()
     assertEmptyUnboxed _ = exn "getValue: unboxed values no longer supported"
-{-# SPECIALIZE getValue :: BDeserial Value #-}
-{-# SPECIALIZE getValue :: SDeserial Value #-}
+{-# SPECIALIZE getValue :: BDeserial (Value Reference) #-}
+{-# SPECIALIZE getValue :: SDeserial (Value Reference) #-}
 
-putCont :: (MonadPut m) => Version -> Cont -> m ()
+putCont :: (MonadPut m) => Version -> Cont Reference -> m ()
 putCont _ KE = putTag KET
 putCont v (Mark a rs ds k) =
   putTag MarkT
@@ -911,10 +917,10 @@ putCont v (Push f n gr k) =
     *> putWord64be n
     *> putGroupRef gr
     *> putCont v k
-{-# SPECIALIZE putCont :: Version -> Cont -> BPut.Put #-}
-{-# SPECIALIZE putCont :: Version -> Cont -> SPut.Put #-}
+{-# SPECIALIZE putCont :: Version -> Cont Reference -> BPut.Put #-}
+{-# SPECIALIZE putCont :: Version -> Cont Reference -> SPut.Put #-}
 
-getCont :: (MonadGet m, SerialConfig m) => m Cont
+getCont :: (MonadGet m, SerialConfig m) => m (Cont Reference)
 getCont =
   askVersion >>= \v ->
     getTag >>= \case
@@ -953,8 +959,8 @@ getCont =
   where
     assert0 _name 0 = pure ()
     assert0 name n = exn $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
-{-# SPECIALIZE getCont :: BDeserial Cont #-}
-{-# SPECIALIZE getCont :: SDeserial Cont #-}
+{-# SPECIALIZE getCont :: BDeserial (Cont Reference) #-}
+{-# SPECIALIZE getCont :: SDeserial (Cont Reference) #-}
 
 deserializeCode :: ByteString -> Either String (Referenced Code)
 deserializeCode bs = runGetS go bs
@@ -991,10 +997,8 @@ serializeCodeWithVersion v fops rco
   where
     enreference (WithRefs tys tms co) = pure (tys, tms, co)
     enreference (Plain co) =
-      runStateT
-        (canonicalizeRefs traverseCodeRefs co)
-        (C.empty, [], [])
-        >>= \(co, (_, tys, tms)) -> pure (tys, tms, co)
+      runStateT (canonicalizeRefs co) emptyCST
+        <&> \(co, CST _ _ _ tys tms) -> (toList tys, toList tms, co)
 
 -- | Serializes a `SuperGroup` for rehashing.
 --
@@ -1058,11 +1062,9 @@ serializeValueWithVersion v rval
   | v == 5 = case rval of
       WithRefs tys tms x -> v5ser tys tms x
       Plain x -> do
-        (x, (_, tys, tms)) <-
-          runStateT
-            (canonicalizeRefs traverseValueRefs x)
-            (C.empty, [], [])
-        v5ser tys tms x
+        (x, CST _ _ _ tys tms) <-
+          runStateT (canonicalizeRefs x) emptyCST
+        v5ser (toList tys) (toList tms) x
   | v < 5,
     n <- fromIntegral v =
       pure . runPutL $
@@ -1088,7 +1090,7 @@ serializeValueWithVersion v rval
 -- retaining this representation as much as possible, even if it
 -- becomes a separate format, because there is no need to parse from
 -- the hash serialization, just generate and hash it.
-serializeValueForHash :: Value -> L.ByteString
+serializeValueForHash :: Value Reference -> L.ByteString
 serializeValueForHash v = runPutLazy (putPrefix *> putValue (Hash 4) v)
   where
     putPrefix = putWord32be 4

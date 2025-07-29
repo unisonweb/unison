@@ -77,11 +77,8 @@ module Unison.Runtime.ANF
     superNormalize,
     anfTerm,
     codeGroup,
-    traverseCodeRefs,
     valueTermLinks,
     valueLinks,
-    overValueRefs,
-    traverseValueRefs,
     groupTermLinks,
     replaceConstructors,
     replaceFunctions,
@@ -121,15 +118,15 @@ import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
-import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
+import Unison.Runtime.Referenced (Referential (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyShortHash)
-import Unison.Term hiding (List, Ref, Text, arity, float, fresh, resolve)
+import Unison.Term hiding (List, Ref, Text, arity, float, fresh, resolve, Float, Char)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
@@ -1639,89 +1636,87 @@ type ANFM v =
 
 type ANFD v = Compose (ANFM v) (Directed ())
 
-data GroupRef = GR Reference Word64
-  deriving (Show, Eq)
+data GroupRef ref = GR ref Word64
+  deriving (Functor, Foldable, Traversable, Show, Eq)
 
 -- | A list of either unboxed or boxed values.
 -- Each slot is one of unboxed or boxed but not both.
-type ValList = [Value]
+type ValList ref = [Value ref]
 
-data Value
-  = Partial GroupRef ValList
-  | Data Reference Word64 ValList
-  | Cont ValList Cont
-  | BLit BLit
+data Value ref
+  = Partial (GroupRef ref) (ValList ref)
+  | Data ref Word64 (ValList ref)
+  | Cont (ValList ref) (Cont ref)
+  | BLit (BLit ref)
   deriving (Show, Eq)
 
 -- Since we can now track cacheability of supergroups, this type
 -- pairs the two together. This is the type that should be used
 -- as the representation of unison Code values rather than the
 -- previous `SuperGroup Symbol`.
-data Code = CodeRep (SuperGroup Reference Symbol) Cacheability
+data Code ref = CodeRep (SuperGroup ref Symbol) Cacheability
   deriving (Show)
 
-codeGroup :: Code -> SuperGroup Reference Symbol
+codeGroup :: Code ref -> SuperGroup ref Symbol
 codeGroup (CodeRep sg _) = sg
 
-instance Eq Code where
+instance (Ord ref) => Eq (Code ref) where
   CodeRep sg1 _ == CodeRep sg2 _ = sg1 == sg2
 
 overGroup ::
-  (SuperGroup Reference Symbol -> SuperGroup Reference Symbol) ->
-  Code ->
-  Code
+  (SuperGroup ref0 Symbol -> SuperGroup ref1 Symbol) ->
+  Code ref0 ->
+  Code ref1
 overGroup f (CodeRep sg ch) = CodeRep (f sg) ch
 
 foldGroup ::
-  (Monoid m) => (SuperGroup Reference Symbol -> m) -> Code -> m
+  (Monoid m) => (SuperGroup ref Symbol -> m) -> Code ref -> m
 foldGroup f (CodeRep sg _) = f sg
 
 traverseGroup ::
   (Applicative f) =>
-  (SuperGroup Reference Symbol -> f (SuperGroup Reference Symbol)) ->
-  Code ->
-  f Code
+  (SuperGroup ref0 Symbol -> f (SuperGroup ref1 Symbol)) ->
+  Code ref0 ->
+  f (Code ref1)
 traverseGroup f (CodeRep sg ch) = flip CodeRep ch <$> f sg
 
-traverseCodeRefs ::
-  (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  Code ->
-  f Code
-traverseCodeRefs h (CodeRep sg ch) =
-  flip CodeRep ch <$> traverseGroupLinks h sg
+instance Referential Code where
+  overRefs f (CodeRep sg ch) = CodeRep (overGroupLinks f sg) ch
+  foldMapRefs f (CodeRep sg _) = foldGroupLinks f sg
+  traverseRefs f (CodeRep sg ch) =
+    flip CodeRep ch <$> traverseGroupLinks f sg
 
-data Cont
+data Cont ref
   = KE
   | Mark
       Word64 -- pending args
-      [Reference]
-      [(Reference, Value)]
-      Cont
+      [ref]
+      [(ref, Value ref)]
+      (Cont ref)
   | Push
       Word64 -- Frame size
       Word64 -- Pending args
-      GroupRef
-      Cont
+      (GroupRef ref)
+      (Cont ref)
   deriving (Show, Eq)
 
-data BLit
+data BLit ref
   = Text Util.Text.Text
-  | List (Seq Value)
-  | TmLink Referent
-  | TyLink Reference
+  | List (Seq (Value ref))
+  | TmLink (Rfn.Referent' ref)
+  | TyLink ref
   | Bytes Bytes
-  | Quote Value
-  | Code Code
+  | Quote (Value ref)
+  | Code (Code ref)
   | BArr PA.ByteArray
-  | Arr (PA.Array Value)
+  | Arr (PA.Array (Value ref))
   | -- Despite the following being in the Boxed Literal type, they all represent unboxed values
     Pos Word64
   | Neg Word64
   | Char Char
   | Float Double
   | -- special cases for newer formats
-    Map [(Value, Value)]
+    Map [(Value ref, Value ref)]
   deriving (Show, Eq)
 
 groupVars :: ANFM v (Set v)
@@ -2248,13 +2243,16 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
 anfInitCase _ (MatchCase p _ _) =
   internalBug $ "anfInitCase: unexpected pattern: " ++ show p
 
-valueTermLinks :: Value -> [Reference]
+valueTermLinks :: Ord ref => Value ref -> [ref]
 valueTermLinks = Set.toList . valueLinks f
   where
     f False r = Set.singleton r
     f _ _ = Set.empty
 
-valueLinks :: (Monoid a) => (Bool -> Reference -> a) -> Value -> a
+-- Folds over the references necessary to _load_ a `Value`. This does
+-- not include references in quoted code or values, or literal
+-- term/type links.
+valueLinks :: (Monoid a) => (Bool -> ref -> a) -> Value ref -> a
 valueLinks f (Partial (GR cr _) vs) =
   f False cr <> foldMap (valueLinks f) vs
 valueLinks f (Data dr _ vs) =
@@ -2263,48 +2261,40 @@ valueLinks f (Cont vs k) =
   foldMap (valueLinks f) vs <> contLinks f k
 valueLinks f (BLit l) = blitLinks f l
 
--- Maps over the references in a `Value`, with the boolean indicating
--- whether or not the reference is for a type.
---
--- This traverses _all_ references in the value, not just the ones
--- necessary to load it.
-overValueRefs :: (Bool -> Reference -> Reference) -> Value -> Value
-overValueRefs h = \case
-  Partial (GR r i) vs ->
-    Partial (GR (h False r) i) (fmap (overValueRefs h) vs)
-  Data r t vs ->
-    Data (h True r) t (fmap (overValueRefs h) vs)
-  Cont vs k ->
-    Cont (fmap (overValueRefs h) vs) (overContRefs h k)
-  BLit l -> BLit (overBLitRefs h l)
+-- Traversals of _all_ references in a `Value`, for e.g.
+-- canonicalization.
+instance Referential Value where
+  overRefs h = \case
+    Partial gr vs ->
+      Partial (h False <$> gr) (fmap (overRefs h) vs)
+    Data r t vs ->
+      Data (h True r) t (fmap (overRefs h) vs)
+    Cont vs k ->
+      Cont (fmap (overRefs h) vs) (overRefs h k)
+    BLit l -> BLit (overRefs h l)
 
--- Traverses the references in a `Value`, with the boolean indicating
--- whether or not the reference is for a type.
---
--- Unlike the "Links" functions, this traverses _all_ references in a
--- Value, not just the ones necessary to load the value. So, this will
--- traverse inside quotes and code.
-traverseValueRefs ::
-  (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  Value ->
-  f Value
-traverseValueRefs h = \case
-  Partial (GR r i) vs ->
-    Partial . flip GR i
-      <$> h False r
-      <*> traverse (traverseValueRefs h) vs
-  Data r t vs ->
-    flip Data t
-      <$> h True r
-      <*> traverse (traverseValueRefs h) vs
-  Cont vs k ->
-    Cont
-      <$> traverse (traverseValueRefs h) vs
-      <*> traverseContRefs h k
-  BLit l -> BLit <$> traverseBLitRefs h l
+  foldMapRefs h = \case
+    Partial (GR r _) vs -> h False r <> foldMap (foldMapRefs h) vs
+    Data r _ vs -> h True r <> foldMap (foldMapRefs h) vs
+    Cont vs k -> foldMap (foldMapRefs h) vs <> foldMapRefs h k
+    BLit l -> foldMapRefs h l
 
-contLinks :: (Monoid a) => (Bool -> Reference -> a) -> Cont -> a
+  traverseRefs h = \case
+    Partial gr vs ->
+      Partial
+        <$> traverse (h False) gr
+        <*> traverse (traverseRefs h) vs
+    Data r t vs ->
+      flip Data t
+        <$> h True r
+        <*> traverse (traverseRefs h) vs
+    Cont vs k ->
+      Cont
+        <$> traverse (traverseRefs h) vs
+        <*> traverseRefs h k
+    BLit l -> BLit <$> traverseRefs h l
+
+contLinks :: (Monoid a) => (Bool -> ref -> a) -> Cont ref -> a
 contLinks f (Push _ _ (GR cr _) k) =
   f False cr <> contLinks f k
 contLinks f (Mark _ ps de k) =
@@ -2313,92 +2303,90 @@ contLinks f (Mark _ ps de k) =
     <> contLinks f k
 contLinks _ KE = mempty
 
--- Maps over the references in a `Cont`, with the boolean indicating
--- whether or not the reference is for a type.
+-- Traversals over references in a cont.
 --
 -- This traverses _all_ references in the continuation, not just the
 -- ones necessary to load it.
-overContRefs :: (Bool -> Reference -> Reference) -> Cont -> Cont
-overContRefs h = \case
-  KE -> KE
-  Mark asz rs env k ->
-    Mark
-      asz
-      (fmap (h True) rs)
-      (fmap (bimap (h True) (overValueRefs h)) env)
-      (overContRefs h k)
-  Push fsz asz (GR r i) k ->
-    Push fsz asz (GR (h False r) i) (overContRefs h k)
+instance Referential Cont where
+  overRefs h = \case
+    KE -> KE
+    Mark asz rs env k ->
+      Mark
+        asz
+        (fmap (h True) rs)
+        (fmap (bimap (h True) (overRefs h)) env)
+        (overRefs h k)
+    Push fsz asz gr k ->
+      Push fsz asz (h False <$> gr) (overRefs h k)
 
--- Traverses the references in a `Cont`, with the boolean indicating
--- whether or not the reference is for a type.
---
--- Unlike the "Links" functions, this traverses _all_ references in a
--- continuation, not just the ones necessary to load it. So, this will
--- traverse inside quotes and code.
-traverseContRefs ::
-  (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  Cont ->
-  f Cont
-traverseContRefs h = \case
-  KE -> pure KE
-  Mark asz rs env k ->
-    Mark asz
-      <$> traverse (h True) rs
-      <*> traverse (bitraverse (h True) (traverseValueRefs h)) env
-      <*> traverseContRefs h k
-  Push fsz asz (GR r i) k ->
-    Push fsz asz . flip GR i
-      <$> h False r
-      <*> traverseContRefs h k
+  foldMapRefs h = \case
+    KE -> mempty
+    Push _ _ (GR r _) k -> h False r <> foldMapRefs h k
+    Mark _ rs env k ->
+      foldMap (h True) rs <>
+        foldMap (bifoldMap (h True) (foldMapRefs h)) env <>
+        foldMapRefs h k
 
-blitLinks :: (Monoid a) => (Bool -> Reference -> a) -> BLit -> a
+  traverseRefs h = \case
+    KE -> pure KE
+    Mark asz rs env k ->
+      Mark asz
+        <$> traverse (h True) rs
+        <*> traverse (bitraverse (h True) (traverseRefs h)) env
+        <*> traverseRefs h k
+    Push fsz asz gr k ->
+      Push fsz asz
+        <$> traverse (h False) gr
+        <*> traverseRefs h k
+
+blitLinks :: (Monoid a) => (Bool -> ref -> a) -> BLit ref -> a
 blitLinks f (List s) = foldMap (valueLinks f) s
 blitLinks _ _ = mempty
 
-overBLitRefs :: (Bool -> Reference -> Reference) -> BLit -> BLit
-overBLitRefs h = \case
-  List vs -> List (fmap oval vs)
-  TmLink rn
-    | Con (ConstructorReference r j) i <- rn ->
-        TmLink $ Con (ConstructorReference (h True r) j) i
-    | Ref r <- rn -> TmLink . Ref $ h False r
-  TyLink r -> TyLink $ h True r
-  Quote v -> Quote $ oval v
-  Code (CodeRep sg ch) -> Code $ CodeRep (overGroupLinks h sg) ch
-  Arr a -> Arr $ fmap oval a
-  Map kvs -> Map $ fmap (bimap oval oval) kvs
-  l -> l
-  where
-    oval v = overValueRefs h v
+instance Referential BLit where
+  overRefs h = \case
+    List vs -> List (fmap (overRefs h) vs)
+    TmLink rn -> TmLink (overRefs h rn)
+    TyLink r -> TyLink $ h True r
+    Quote v -> Quote $ overRefs h v
+    Code co -> Code $ overRefs h co
+    Arr a -> Arr $ fmap (overRefs h) a
+    Map kvs -> Map $ fmap (bimap (overRefs h) (overRefs h)) kvs
+    Text t -> Text t
+    Bytes b -> Bytes b
+    BArr ba -> BArr ba
+    Pos n -> Pos n
+    Neg n -> Neg n
+    Char c -> Char c
+    Float f -> Float f
 
--- Traverses the references in a `BLit`, with the boolean indicating
--- whether or not the reference is for a type.
---
--- Unlike the "Links" functions, this traverses _all_ references in a
--- literal, not just the ones necessary to load it. So, this will
--- traverse inside quotes and code.
-traverseBLitRefs ::
-  (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  BLit ->
-  f BLit
-traverseBLitRefs h = \case
-  List vs -> List <$> traverse tval vs
-  TmLink rn
-    | Con (ConstructorReference r j) i <- rn ->
-        TmLink . flip Con i . flip ConstructorReference j <$> h True r
-    | Ref r <- rn -> TmLink . Ref <$> h False r
-  TyLink r -> TyLink <$> h True r
-  Quote v -> Quote <$> tval v
-  Code (CodeRep sg ch) ->
-    Code . flip CodeRep ch <$> traverseGroupLinks h sg
-  Arr a -> Arr <$> traverse tval a
-  Map kvs -> Map <$> traverse (bitraverse tval tval) kvs
-  l -> pure l
-  where
-    tval v = traverseValueRefs h v
+  foldMapRefs h = \case
+    List vs -> foldMap (foldMapRefs h) vs
+    TmLink rn -> foldMapRefs h rn
+    TyLink r -> h True r
+    Quote v -> foldMapRefs h v
+    Code co -> foldMapRefs h co
+    Arr a -> foldMap (foldMapRefs h) a
+    Map kvs -> foldMap (bifoldMap (foldMapRefs h) (foldMapRefs h)) kvs
+    _ -> mempty
+
+  traverseRefs h = \case
+    List vs -> List <$> traverse (traverseRefs h) vs
+    TmLink rn -> TmLink <$> traverseRefs h rn
+    TyLink r -> TyLink <$> h True r
+    Quote v -> Quote <$> traverseRefs h v
+    Code co -> Code <$> traverseRefs h co
+    Arr a -> Arr <$> traverse (traverseRefs h) a
+    Map kvs ->
+      Map <$>
+        traverse (bitraverse (traverseRefs h) (traverseRefs h)) kvs
+    Text t -> pure $ Text t
+    Bytes b -> pure $ Bytes b
+    BArr ba -> pure $ BArr ba
+    Pos n -> pure $ Pos n
+    Neg n -> pure $ Neg n
+    Char c -> pure $ Char c
+    Float f -> pure $ Float f
 
 groupTermLinks :: (Ord ref, Var v) => SuperGroup ref v -> [ref]
 groupTermLinks = Set.toList . foldGroupLinks f

@@ -19,7 +19,7 @@ import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Symbol (Symbol)
 
 checkGroupHashes ::
-  [(Referent, Code)] ->
+  [(Referent, Code Reference)] ->
   Either (Text, [Referent]) (Either [Referent] [Referent])
 checkGroupHashes rgs = case checkMissing rgs of
   Left err -> Left err
@@ -54,7 +54,7 @@ rehashGroups m
         (rm, sgs) = rehashSCC scc
 
 checkMissing ::
-  [(Referent, Code)] ->
+  [(Referent, Code Reference)] ->
   Either (Text, [Referent]) [Reference]
 checkMissing (unzip -> (rs, cs)) = do
   is <- fmap Set.fromList . traverse f $ rs

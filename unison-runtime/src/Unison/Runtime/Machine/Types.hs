@@ -19,7 +19,6 @@ import Unison.Runtime.ANF
     SuperGroup (..),
     Value,
     foldGroupLinks,
-    traverseCodeRefs,
     valueLinks,
   )
 import Unison.Runtime.ANF.Optimize (OptInfos)
@@ -160,15 +159,16 @@ lookupCode _ _ = die "lookupCode: Expected Ref"
 
 -- Traverses a `Code`, calculating the used references within, and
 -- canonicalizing them in memory.
-canonicalizeCodeRefs :: Code -> IO (Referenced Code)
-canonicalizeCodeRefs = toReferenced . canonicalizeRefs traverseCodeRefs
+canonicalizeCodeRefs ::
+  Code Reference -> IO (Referenced Code)
+canonicalizeCodeRefs = toReferenced . canonicalizeRefs
 
 resolveCode ::
   Reference ->
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   EnumSet Word64 ->
-  Maybe Code
+  Maybe (Code Reference)
 resolveCode link m rfn cach
   | Just sg <- M.lookup link m,
     ch <- cacheability rfn cach link =
@@ -210,7 +210,7 @@ checkSandboxing cc allowed0 c = do
 checkValueSandboxing ::
   CCache ->
   [Reference] ->
-  Value ->
+  Value Reference ->
   IO (Either [Referent] [Referent])
 checkValueSandboxing cc allowed0 v = do
   sands <- readTVarIO $ sandbox cc

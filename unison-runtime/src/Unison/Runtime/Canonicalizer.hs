@@ -7,10 +7,12 @@ module Unison.Runtime.Canonicalizer
     CanonMap (..),
     empty,
     lookup,
+    insert,
     unsafeLookup,
     findWithDefault,
     fromListByIndex,
     fromList,
+    emptyCM,
   )
 where
 
@@ -132,6 +134,20 @@ lookup :: (Ord k) => k -> CanonMap k v -> IO (Maybe v)
 lookup !k m = lookup0 k m <$> makeStableName k
 {-# INLINE lookup #-}
 
+insert0 :: (Ord k) => k -> v -> CanonMap k v -> StableName k -> CanonMap k v
+insert0 k v (CanonM fast slow) name =
+  CanonM (HM.insert name v fast) (M.insert k v slow)
+{-# INLINE insert0 #-}
+
+-- Inserts a key-value pair into the map. Note that this operation
+-- should _only_ be used in conjunction with a `Canonicalizer` that
+-- matches the `CanonMap` on canonical keys, to ensure that any key
+-- inserted into the latter is canonical. Otherwise it is possible to
+-- create an inconsistent `CanonMap` that will map the same key to
+-- different values depending on which copy is given.
+insert :: (Ord k) => k -> v -> CanonMap k v -> IO (CanonMap k v)
+insert !k v m = insert0 k v m <$> makeStableName k
+
 findWithDefault0 :: (Ord k) => v -> k -> CanonMap k v -> StableName k -> v
 findWithDefault0 df k (CanonM fast slow) name =
   HM.findWithDefault (M.findWithDefault df k slow) name fast
@@ -157,3 +173,6 @@ fromList kvs = do
   pure $ CanonM (HM.fromList nvs) (M.fromList kvs)
   where
     f (k, v) = (,v) <$> (makeStableName =<< evaluate k)
+
+emptyCM :: CanonMap k v
+emptyCM = CanonM HM.empty M.empty

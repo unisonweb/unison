@@ -114,7 +114,8 @@ prettyRef = prettyShortHash . shortenTo 10 . toShortHash
 prettyRefStr :: Reference -> String
 prettyRefStr = toAnsiUnbroken . prettyRef
 
-tracePrettyCodes :: Bool -> [(Reference, Code)] -> [(Reference, Code)]
+tracePrettyCodes ::
+  Bool -> [(Reference, Code Reference)] -> [(Reference, Code Reference)]
 tracePrettyCodes False = id
 tracePrettyCodes True = map f
   where
