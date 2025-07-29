@@ -35,6 +35,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (TermReference)
+import Unison.Referent (Referent)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
@@ -45,7 +46,6 @@ import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.Referent (Referent)
 
 -- `oldRefNames` are the previously existing names for the old reference
 --   (these names will all be pointed to a new reference)
