@@ -134,6 +134,7 @@ import Unison.Syntax.NamePrinter
     prettyHashQualified',
     prettyHashQualifiedFull,
     prettyName,
+    prettyNameParens,
     prettyNamedReference,
     prettyNamedReferent,
     prettyReference,
@@ -1028,7 +1029,7 @@ notifyUser dir = \case
 
     let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
         renderTerm ppe colored name ty =
-          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+          (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
 
     let renderedNewTypes :: Pretty
         renderedNewTypes =
@@ -1048,7 +1049,7 @@ notifyUser dir = \case
             P.indentN 4 $
               P.wrap $
                 P.hiBlack (if old then "(was also named" else "(also named")
-                  <> P.oxfordCommasWith (P.hiBlack ")") (map prettyName aliases)
+                  <> P.oxfordCommasWith (P.hiBlack ")") (map prettyNameParens aliases)
 
     let renderedNewTerms :: Pretty
         renderedNewTerms =

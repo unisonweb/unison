@@ -16,7 +16,7 @@ import Unison.Referent (Referent)
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 import Unison.Syntax.HashQualified qualified as HQ (toText)
-import Unison.Syntax.Name qualified as Name (toText)
+import Unison.Syntax.Name qualified as Name (toText, toTextParens)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as PP
 import Unison.Util.SyntaxText qualified as S
@@ -25,6 +25,9 @@ type SyntaxText = S.SyntaxText' Reference
 
 prettyName :: (IsString s) => Name -> Pretty s
 prettyName = PP.text . Name.toText
+
+prettyNameParens :: (IsString s) => Name -> Pretty s
+prettyNameParens = PP.text . Name.toTextParens
 
 prettyHashQualified :: HQ.HashQualified Name -> Pretty SyntaxText
 prettyHashQualified hq = styleHashQualified' id (fmt $ S.HashQualifier hq) hq
