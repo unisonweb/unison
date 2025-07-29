@@ -33,12 +33,9 @@ Can link to definitions like {List.drop} or {type List}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc1 : Doc2
 
-    ⍟ New definitions:
-    
-      doc1 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 Syntax:
@@ -74,12 +71,9 @@ take 2 [1,2,3,4,5]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + List.take.doc : Doc2
 
-    ⍟ New definitions:
-    
-      List.take.doc : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 Let's add it to the codebase.

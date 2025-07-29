@@ -184,18 +184,15 @@ structural type MyStructuralType = MyStructuralType
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type MyStructuralType
+  + type MyType
+  + type MyUniqueType
 
-    ⍟ New definitions:
-    
-      structural type MyStructuralType
-        (also named builtin.Unit)
-      type MyType
-      type MyUniqueType
-      MyStructuralType.doc : Doc2
-      MyType.doc           : Doc2
-      MyUniqueType.doc     : Doc2
-      myTerm               : Nat
-      myTerm.doc           : Doc2
+  + MyStructuralType.doc : Doc2
+  + myTerm               : Nat
+  + myTerm.doc           : Doc2
+  + MyType.doc           : Doc2
+  + MyUniqueType.doc     : Doc2
+
+  Run `update` to apply these changes to your codebase.
 ```

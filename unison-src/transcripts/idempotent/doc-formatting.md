@@ -16,12 +16,9 @@ foo n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      foo : Nat -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -47,12 +44,9 @@ escaping = {{ Docs look `{{ like {this} }}` }}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + escaping : Doc2
 
-    ⍟ New definitions:
-    
-      escaping : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -81,12 +75,9 @@ commented = {{
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + commented : Doc2
 
-    ⍟ New definitions:
-    
-      commented : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -119,12 +110,9 @@ doc1 = {{   hi   }}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc1 : Doc2
 
-    ⍟ New definitions:
-    
-      doc1 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -154,12 +142,9 @@ doc2 = {{ hello
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc2 : Doc2
 
-    ⍟ New definitions:
-    
-      doc2 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -199,12 +184,9 @@ Note that because of the special treatment of the first line mentioned above, wh
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc3 : Doc2
 
-    ⍟ New definitions:
-    
-      doc3 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -247,12 +229,9 @@ doc4 = {{ Here's another example of some paragraphs.
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc4 : Doc2
 
-    ⍟ New definitions:
-    
-      doc4 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -286,12 +265,9 @@ doc5 = {{   - foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc5 : Doc2
 
-    ⍟ New definitions:
-    
-      doc5 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -323,13 +299,10 @@ doc6 = {{
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc6 : Doc2
+      (also named doc5)
 
-    ⍟ New definitions:
-    
-      doc6 : Doc2
-        (also named doc5)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -361,13 +334,10 @@ expr = foo 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + empty : Doc2
+  + expr  : Nat
 
-    ⍟ New definitions:
-    
-      empty : Doc2
-      expr  : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -428,12 +398,9 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test1 : Doc2
 
-    ⍟ New definitions:
-    
-      test1 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -520,12 +487,9 @@ reg1363 = {{ `{List.take} foo` bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + reg1363 : Doc2
 
-    ⍟ New definitions:
-    
-      reg1363 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -553,12 +517,9 @@ test2 = {{
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test2 : Doc2
 
-    ⍟ New definitions:
-    
-      test2 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide

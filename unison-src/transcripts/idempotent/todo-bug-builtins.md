@@ -13,12 +13,7 @@ scratch/main> builtins.merge
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
   💔💥
 
@@ -39,12 +34,7 @@ scratch/main> builtins.merge
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
   💔💥
 
@@ -69,12 +59,9 @@ complicatedMathStuff x = todo "Come back and to something with x here"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + complicatedMathStuff : x -> r
 
-    ⍟ New definitions:
-    
-      complicatedMathStuff : x -> r
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Bug
@@ -90,10 +77,7 @@ test = match true with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test : Text
 
-    ⍟ New definitions:
-    
-      test : Text
+  Run `update` to apply these changes to your codebase.
 ```

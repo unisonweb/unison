@@ -15,11 +15,9 @@ x = [(R,1005),(U,563),(R,417),(U,509),(L,237),(U,555),(R,397),(U,414),(L,490),(U
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Direction
 
-    ⍟ New definitions:
-    
-      type Direction
-      x : [(Direction, Nat)]
+  + x : [(Direction, Nat)]
+
+  Run `update` to apply these changes to your codebase.
 ```

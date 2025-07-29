@@ -86,7 +86,6 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
-import Unison.UnisonFile qualified as UF
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
 import Unison.Util.Defns (DefnsF, defnsAreEmpty)
@@ -282,15 +281,15 @@ data Output
       (Map Symbol (Ann, WK.WatchKind, Term Symbol (), Runtime.IsCacheHit))
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
-  | Typechecked SourceName PPE.PrettyPrintEnv SlurpResult (UF.TypecheckedUnisonFile Symbol Ann)
-  | Typechecked2
+  | Typechecked
       PPE.PrettyPrintEnv
       PPE.PrettyPrintEnv
       ( DefnsF
           (Map Name)
-          (SR.SlurpEntry (Type Symbol Ann))
+          (SR.TermSlurp Symbol Ann)
           (SR.SlurpEntry (DD.DeclOrBuiltin Symbol Ann))
       )
+      (Map Referent (NESet Name))
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -578,7 +577,6 @@ isFailure o = case o of
   Evaluated {} -> False
   LoadingFile {} -> False
   Typechecked {} -> False
-  Typechecked2 {} -> False
   LoadedDefinitionsToSourceFile {} -> False
   DisplayDefinitions {} -> False
   DisplayRendered {} -> False

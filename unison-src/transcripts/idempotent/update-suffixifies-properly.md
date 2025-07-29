@@ -14,17 +14,14 @@ bar = a.x.x.x.x + c.y.y.y.y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + a.x.x.x.x : Nat
+  + b.x.x.x.x : Nat
+  + bar       : Nat
+  + c.y.y.y.y : Nat
+  + d.y.y.y.y : Nat
+  + foo       : Nat
 
-    ⍟ New definitions:
-    
-      a.x.x.x.x : Nat
-      b.x.x.x.x : Nat
-      bar       : Nat
-      c.y.y.y.y : Nat
-      d.y.y.y.y : Nat
-      foo       : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -43,13 +40,11 @@ foo = +30
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ foo : Int
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Int
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error

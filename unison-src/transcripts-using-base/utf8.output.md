@@ -23,16 +23,11 @@ ascii = "ABCDE"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ ascii : Text
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      ascii : Text
+  ~ (modified)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     4 | > toUtf8 ascii
           ⧩
@@ -51,15 +46,9 @@ greek = "ΑΒΓΔΕ"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + greek : Text
 
-    ⍟ New definitions:
-    
-      greek : Text
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     4 | > toUtf8 greek
           ⧩
@@ -84,17 +73,11 @@ test> greekTest = checkRoundTrip greek
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + checkRoundTrip : Text -> [Result]
+  + greek          : Text
+  + greekTest      : [Result]
 
-    ⍟ New definitions:
-    
-      checkRoundTrip : Text -> [Result]
-      greek          : Text
-      greekTest      : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     10 | test> greekTest = checkRoundTrip greek
     
@@ -117,15 +100,9 @@ greek_bytes = Bytes.fromList [206, 145, 206, 146, 206, 147, 206, 148, 206]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + greek_bytes : Bytes
 
-    ⍟ New definitions:
-    
-      greek_bytes : Bytes
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     5 | > match fromUtf8.impl (drop 1 greek_bytes) with
           ⧩

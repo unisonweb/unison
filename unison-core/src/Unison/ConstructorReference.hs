@@ -6,11 +6,13 @@ module Unison.ConstructorReference
     reference_,
     toId,
     toShortHash,
+    toText,
   )
 where
 
 import Control.Lens
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Prelude
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.ShortHash (ShortHash)
@@ -39,3 +41,7 @@ toShortHash (ConstructorReference r i) =
   case Reference.toShortHash r of
     ShortHash.Builtin b -> ShortHash.Builtin b
     ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just i)
+
+toText :: ConstructorReference -> Text
+toText (ConstructorReference r _) =
+  Reference.toText r

@@ -17,14 +17,11 @@ mkTestCase = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + mkTestCase : '{IO, Exception} ()
+  + mutual0    : Nat -> Text
+  + mutual1    : Nat -> Text
 
-    ⍟ New definitions:
-    
-      mkTestCase : '{IO, Exception} ()
-      mutual0    : Nat -> Text
-      mutual1    : Nat -> Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

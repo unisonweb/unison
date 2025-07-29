@@ -62,12 +62,9 @@ testCreateRename _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testCreateRename : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testCreateRename : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -145,12 +142,9 @@ testOpenClose _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testOpenClose : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testOpenClose : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -236,12 +230,9 @@ testGetSomeBytes _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testGetSomeBytes : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testGetSomeBytes : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -352,14 +343,11 @@ testAppend _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testAppend  : '{IO} [Result]
+  + testSeek    : '{IO} [Result]
+  + testSetEcho : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testAppend  : '{IO} [Result]
-      testSeek    : '{IO} [Result]
-      testSetEcho : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -422,12 +410,9 @@ testSystemTime _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testSystemTime : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testSystemTime : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

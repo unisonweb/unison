@@ -132,25 +132,23 @@ count'test = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Count
+  + ability Env e
+  + ability Repeat
 
-    ⍟ New definitions:
-    
-      ability Count
-      ability Env e
-      ability Repeat
-      count'loop   : Nat ->{Count} ()
-      count'test   : '{IO, Exception} [Result]
-      count'wrap   : Nat -> Nat ->{Count} ()
-      counter'nice : Nat -> '{Count} r -> r
-      counter'ugly : Nat -> Request {Count} r -> r
-      elapsed      : TimeSpec -> TimeSpec -> Float
-      looped       : '{g} r -> Nat ->{g} ()
-      now          : '{IO, Exception} TimeSpec
-      provide      : e -> Request {Env e} r -> r
-      repeated     : Request {Repeat, g} () ->{g} ()
-      testPerf     : '() ->{IO, Exception} Result
+  + count'loop   : Nat ->{Count} ()
+  + count'test   : '{IO, Exception} [Result]
+  + count'wrap   : Nat -> Nat ->{Count} ()
+  + counter'nice : Nat -> '{Count} r -> r
+  + counter'ugly : Nat -> Request {Count} r -> r
+  + elapsed      : TimeSpec -> TimeSpec -> Float
+  + looped       : '{g} r -> Nat ->{g} ()
+  + now          : '{IO, Exception} TimeSpec
+  + provide      : e -> Request {Env e} r -> r
+  + repeated     : Request {Repeat, g} () ->{g} ()
+  + testPerf     : '() ->{IO, Exception} Result
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -207,16 +205,14 @@ fail'count'test = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability CountOrFail
 
-    ⍟ New definitions:
-    
-      ability CountOrFail
-      fail'count'loop : Nat ->{CountOrFail} ()
-      fail'count'test : '{IO, Exception} [Result]
-      fail'count'wrap : Nat -> Nat ->{CountOrFail} ()
-      fail'counter    : Nat -> '{CountOrFail} r -> ()
+  + fail'count'loop : Nat ->{CountOrFail} ()
+  + fail'count'test : '{IO, Exception} [Result]
+  + fail'count'wrap : Nat -> Nat ->{CountOrFail} ()
+  + fail'counter    : Nat -> '{CountOrFail} r -> ()
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -271,13 +267,10 @@ local'count'test = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + local'count'test : '{IO, Exception} [Result]
+  + local'counter    : Nat -> '{Count} r -> r
 
-    ⍟ New definitions:
-    
-      local'count'test : '{IO, Exception} [Result]
-      local'counter    : Nat -> '{Count} r -> r
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -349,19 +342,17 @@ elaborate'test = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Rec
 
-    ⍟ New definitions:
-    
-      ability Rec
-      count'extra    : Nat -> '{Count} r -> r
-      elaborate'test : '{IO, Exception} [Result]
-      f              : Nat -> Nat -> Nat
-      g              : Nat -> Nat -> Nat
-      rec'loop       : Nat ->{Rec} ()
-      rec'wrap       : Nat -> Nat ->{Rec} ()
-      recurse        : '{Rec} r -> r
+  + count'extra    : Nat -> '{Count} r -> r
+  + elaborate'test : '{IO, Exception} [Result]
+  + f              : Nat -> Nat -> Nat
+  + g              : Nat -> Nat -> Nat
+  + rec'loop       : Nat ->{Rec} ()
+  + rec'wrap       : Nat -> Nat ->{Rec} ()
+  + recurse        : '{Rec} r -> r
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

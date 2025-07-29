@@ -407,16 +407,10 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + Any.test1 : [Result]
+  + Any.test2 : [Result]
 
-    ⍟ New definitions:
-    
-      Any.test1 : [Result]
-      Any.test2 : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | > [Any "hi", Any (41 + 1)]
           ⧩
@@ -461,27 +455,19 @@ openFile]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + openFile1              : Text
+                             -> FileMode
+                             ->{IO, Exception} Handle
+  + openFile2              : Text
+                             -> FileMode
+                             ->{IO, Exception} Handle
+  + openFiles              : [Boolean]
+  + Sandbox.test1          : [Result]
+  + Sandbox.test2          : [Result]
+  + Sandbox.test3          : [Result]
+  + validateSandboxedSimpl : [Link.Term] -> Value ->{IO} Boolean
 
-    ⍟ New definitions:
-    
-      Sandbox.test1          : [Result]
-      Sandbox.test2          : [Result]
-      Sandbox.test3          : [Result]
-      openFile1              : Text
-                               -> FileMode
-                               ->{IO, Exception} Handle
-      openFile2              : Text
-                               -> FileMode
-                               ->{IO, Exception} Handle
-      openFiles              : [Boolean]
-      validateSandboxedSimpl : [Link.Term]
-                               -> Value
-                               ->{IO} Boolean
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
@@ -516,12 +502,9 @@ openFilesIO = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + openFilesIO : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      openFilesIO : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -555,15 +538,9 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + Universal.murmurHash.tests : [Result]
 
-    ⍟ New definitions:
-    
-      Universal.murmurHash.tests : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | > Universal.murmurHash 1
           ⧩

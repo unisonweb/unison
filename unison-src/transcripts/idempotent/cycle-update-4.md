@@ -15,13 +15,10 @@ pong _ = !ping + 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ping : 'Nat
+  + pong : 'Nat
 
-    ⍟ New definitions:
-    
-      ping : 'Nat
-      pong : 'Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -44,17 +41,12 @@ clang _ = !pong + 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + clang : 'Nat
+  ~ ping : 'Nat
 
-    ⍟ New definitions:
-    
-      clang : 'Nat
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      ping : 'Nat
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

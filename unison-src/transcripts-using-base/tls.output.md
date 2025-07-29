@@ -34,14 +34,11 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + this_should_not_work : [Result]
+  + this_should_work     : [Result]
+  + what_should_work     : ∀ _. _ -> [Result]
 
-    ⍟ New definitions:
-    
-      this_should_not_work : [Result]
-      this_should_work     : [Result]
-      what_should_work     : ∀ _. _ -> [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -221,19 +218,16 @@ testCNReject _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + serverThread          : MVar Nat -> Text -> '{IO} ()
+  + testCAReject          : '{IO} [Result]
+  + testClient            : Optional SignedCert
+                            -> Text
+                            -> MVar Nat
+                            -> '{IO, Exception} Text
+  + testCNReject          : '{IO} [Result]
+  + testConnectSelfSigned : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      serverThread          : MVar Nat -> Text -> '{IO} ()
-      testCAReject          : '{IO} [Result]
-      testCNReject          : '{IO} [Result]
-      testClient            : Optional SignedCert
-                              -> Text
-                              -> MVar Nat
-                              -> '{IO, Exception} Text
-      testConnectSelfSigned : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

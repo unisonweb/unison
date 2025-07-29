@@ -21,13 +21,10 @@ ex1 tup =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex0 : Nat -> Nat
+  + ex1 : (a, b, (Nat, Nat)) -> Nat
 
-    ⍟ New definitions:
-    
-      ex0 : Nat -> Nat
-      ex1 : (a, b, (Nat, Nat)) -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -63,13 +60,10 @@ ex2 tup = match tup with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex2 : (a, b, (Nat, Nat)) -> Nat
+      (also named ex1)
 
-    ⍟ New definitions:
-    
-      ex2 : (a, b, (Nat, Nat)) -> Nat
-        (also named ex1)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Corner cases
@@ -114,13 +108,10 @@ ex5a _ = match (99 + 1, "hi") with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex5  : 'Text
+  + ex5a : 'Text
 
-    ⍟ New definitions:
-    
-      ex5  : 'Text
-      ex5a : 'Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
