@@ -267,7 +267,7 @@ recursiveRefDeps cl (RF.DerivedId i) =
 recursiveRefDeps _ _ = pure mempty
 
 recursiveIRefDeps ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   Set Reference ->
   [Reference] ->
   Set Reference
@@ -278,9 +278,9 @@ recursiveIRefDeps cl seen0 rfs = srfs <> foldMap f rfs
     f = foldMap (recursiveGroupDeps cl seen) . flip Map.lookup cl
 
 recursiveGroupDeps ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   Set Reference ->
-  SuperGroup Symbol ->
+  SuperGroup Reference Symbol ->
   Set Reference
 recursiveGroupDeps cl seen0 grp = deps <> recursiveIRefDeps cl seen depl
   where
@@ -289,9 +289,9 @@ recursiveGroupDeps cl seen0 grp = deps <> recursiveIRefDeps cl seen depl
     seen = seen0 <> deps
 
 recursiveIntermedDeps ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   [Reference] ->
-  [(Reference, SuperGroup Symbol)]
+  [(Reference, SuperGroup Reference Symbol)]
 recursiveIntermedDeps cl rfs = mapMaybe f $ Set.toList ds
   where
     ds = recursiveIRefDeps cl mempty rfs
@@ -371,9 +371,9 @@ backmapRef ctx r0 = r2
     r2 = Map.findWithDefault r1 r1 . backmap $ floatRemap ctx
 
 performRehash ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   EvalCtx ->
-  (EvalCtx, Map Reference Reference, [(Reference, SuperGroup Symbol)])
+  (EvalCtx, Map Reference Reference, [(Reference, SuperGroup Reference Symbol)])
 performRehash rgrp0 ctx =
   (intermedRemapAdd rrefs ctx, rrefs, Map.toList rrgrp)
   where
@@ -397,7 +397,7 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
+  IO (EvalCtx, [(Reference, SuperGroup Reference Symbol)])
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -430,7 +430,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, Code)])
+  IO (EvalCtx, [(Reference, Code Reference)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -449,8 +449,8 @@ loadDeps cl ppe ctx tyrs tmrs = do
 checkCacheability ::
   CodeLookup Symbol IO () ->
   EvalCtx ->
-  (IntermediateReference, SuperGroup Symbol) ->
-  IO (IntermediateReference, Code)
+  (IntermediateReference, SuperGroup Reference Symbol) ->
+  IO (IntermediateReference, Code Reference)
 checkCacheability cl ctx (r, sg) =
   getTermType codebaseRef >>= \case
     -- A term's result is cacheable iff it has no arrows in its type,
@@ -542,7 +542,7 @@ intermediateTerms ::
   EvalCtx ->
   Map RF.Id (Symbol, Term Symbol) ->
   ( Map.Map Symbol Reference,
-    Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
@@ -616,7 +616,7 @@ intermediateTerm ::
   Term Symbol ->
   ( Reference,
     Map.Map Reference Reference,
-    Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerm ppe ctx tm =
@@ -634,7 +634,7 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, [(Reference, Code)], Reference)
+  IO (EvalCtx, [(Reference, Code Reference)], Reference)
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
@@ -925,11 +925,11 @@ data StoredCache
       (EnumMap Word64 Combs)
       (EnumMap Word64 Reference)
       (EnumSet Word64)
-      (OptInfos Symbol)
+      (OptInfos Reference Symbol)
       (EnumMap Word64 Reference)
       Word64
       Word64
-      (Map Reference (SuperGroup Symbol))
+      (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
       (Map Reference (Set Reference))
@@ -1039,8 +1039,8 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
 
 traceNeeded ::
   Reference ->
-  Map Reference (SuperGroup Symbol) ->
-  IO (Map Reference (SuperGroup Symbol))
+  Map Reference (SuperGroup Reference Symbol) ->
+  IO (Map Reference (SuperGroup Reference Symbol))
 traceNeeded init src = go mempty init
   where
     go acc nx
@@ -1055,11 +1055,11 @@ buildSCache ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Combs ->
   EnumSet Word64 ->
-  OptInfos Symbol ->
+  OptInfos Reference Symbol ->
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
-  Map Reference (SuperGroup Symbol) ->
+  Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
   Map Reference (Set Reference) ->

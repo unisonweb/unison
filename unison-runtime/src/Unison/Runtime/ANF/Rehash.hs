@@ -19,7 +19,7 @@ import Unison.Runtime.ANF.Serialize as ANF
 import Unison.Symbol (Symbol)
 
 checkGroupHashes ::
-  [(Referent, Code)] ->
+  [(Referent, Code Reference)] ->
   Either (Text, [Referent]) (Either [Referent] [Referent])
 checkGroupHashes rgs = case checkMissing rgs of
   Left err -> Left err
@@ -31,8 +31,8 @@ checkGroupHashes rgs = case checkMissing rgs of
   Right ms -> Right (Left $ Ref <$> ms)
 
 rehashGroups ::
-  Map.Map Reference (SuperGroup Symbol) ->
-  Either (Text, [Referent]) (Map.Map Reference Reference, Map.Map Reference (SuperGroup Symbol))
+  Map.Map Reference (SuperGroup Reference Symbol) ->
+  Either (Text, [Referent]) (Map.Map Reference Reference, Map.Map Reference (SuperGroup Reference Symbol))
 rehashGroups m
   | badsccs <- filter (not . checkSCC) sccs,
     not $ null badsccs =
@@ -54,7 +54,7 @@ rehashGroups m
         (rm, sgs) = rehashSCC scc
 
 checkMissing ::
-  [(Referent, Code)] ->
+  [(Referent, Code Reference)] ->
   Either (Text, [Referent]) [Reference]
 checkMissing (unzip -> (rs, cs)) = do
   is <- fmap Set.fromList . traverse f $ rs
@@ -71,8 +71,10 @@ checkMissing (unzip -> (rs, cs)) = do
     p _ _ = False
 
 rehashSCC ::
-  SCC (Reference, SuperGroup Symbol) ->
-  (Map.Map Reference Reference, Map.Map Reference (SuperGroup Symbol))
+  SCC (Reference, SuperGroup Reference Symbol) ->
+  ( Map.Map Reference Reference,
+    Map.Map Reference (SuperGroup Reference Symbol)
+  )
 rehashSCC scc
   | checkSCC scc = (refreps, newSGs)
   where

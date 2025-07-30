@@ -127,6 +127,7 @@ library
     , directory
     , exceptions
     , filepath
+    , hashable
     , inspection-testing
     , iproute
     , lens

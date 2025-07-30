@@ -36,7 +36,10 @@ mainRef = Builtin "main"
 modifyTVarTest :: TVar a -> (a -> a) -> Test ()
 modifyTVarTest v f = io . atomically $ modifyTVar v f
 
-testEval0 :: [(Reference, SuperGroup Symbol)] -> SuperGroup Symbol -> Test ()
+testEval0 ::
+  [(Reference, SuperGroup Reference Symbol)] ->
+  SuperGroup Reference Symbol ->
+  Test ()
 testEval0 env main =
   ok << io do
     cc <- baseCCache False
