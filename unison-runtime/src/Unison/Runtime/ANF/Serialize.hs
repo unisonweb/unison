@@ -18,7 +18,7 @@ import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
-import Data.Foldable (traverse_, toList)
+import Data.Foldable (toList, traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromDistinctAscList, fromList, lookup)
 -- machinery for special casing maps
@@ -667,13 +667,11 @@ putAsMap v = putter . fromDistinctAscList
         *> putValue v e
         *> putter l
         *> putter r
-{-# SPECIALIZE
-      putAsMap ::
-        Version -> [(Value Reference, Value Reference)] -> BPut.Put
+{-# SPECIALIZE putAsMap ::
+  Version -> [(Value Reference, Value Reference)] -> BPut.Put
   #-}
-{-# SPECIALIZE
-      putAsMap ::
-        Version -> [(Value Reference, Value Reference)] -> SPut.Put
+{-# SPECIALIZE putAsMap ::
+  Version -> [(Value Reference, Value Reference)] -> SPut.Put
   #-}
 
 getBLit :: (MonadGet m, SerialConfig m) => m (BLit Reference)

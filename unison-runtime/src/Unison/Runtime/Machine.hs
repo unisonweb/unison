@@ -1427,7 +1427,7 @@ canonicalizeReferent :: Referent -> Reflect (Referent' RefNum)
 canonicalizeReferent = mediate . canonicalizeRefs
 
 canonicalizeReferenced ::
-  Referential t => Referenced t -> Reflect (t RefNum)
+  (Referential t) => Referenced t -> Reflect (t RefNum)
 canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
 
@@ -1449,7 +1449,6 @@ reflectValue env val = do
       NoTrace -> show val
       MsgTrace _ _ pre -> pre
       SimpleTrace ugl -> ugl
-
 
 reflExn :: String -> Reflect a
 reflExn msg = lift . throwIO $ ReflectExn msg
@@ -1619,8 +1618,8 @@ reifyValue1 ::
   IO Val
 reifyValue1 tup (Plain v) = reifyValue0 tup v
 reifyValue1 (combs, rty0, rtm0) (WithRefs tys tms v) = do
-  let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0..] tys
-      rtm = HM.fromList . mapMaybe procTermRefs $ zip [0..] tms
+  let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
+      rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
   reifyValue0Canon combs tys tms rty rtm v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0

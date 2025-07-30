@@ -126,7 +126,7 @@ import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), 
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyShortHash)
-import Unison.Term hiding (List, Ref, Text, arity, float, fresh, resolve, Float, Char)
+import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
@@ -1568,8 +1568,7 @@ type Directed a = (,) (Direction a)
 type DNormal v = Directed () (ANormal Reference v)
 
 -- Should be a completely closed term
-data SuperNormal ref v =
-  Lambda {conventions :: [Mem], bound :: ANormal ref v}
+data SuperNormal ref v = Lambda {conventions :: [Mem], bound :: ANormal ref v}
   deriving (Show, Eq)
 
 data SuperGroup ref v = Rec
@@ -2243,7 +2242,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
 anfInitCase _ (MatchCase p _ _) =
   internalBug $ "anfInitCase: unexpected pattern: " ++ show p
 
-valueTermLinks :: Ord ref => Value ref -> [ref]
+valueTermLinks :: (Ord ref) => Value ref -> [ref]
 valueTermLinks = Set.toList . valueLinks f
   where
     f False r = Set.singleton r
@@ -2323,9 +2322,9 @@ instance Referential Cont where
     KE -> mempty
     Push _ _ (GR r _) k -> h False r <> foldMapRefs h k
     Mark _ rs env k ->
-      foldMap (h True) rs <>
-        foldMap (bifoldMap (h True) (foldMapRefs h)) env <>
-        foldMapRefs h k
+      foldMap (h True) rs
+        <> foldMap (bifoldMap (h True) (foldMapRefs h)) env
+        <> foldMapRefs h k
 
   traverseRefs h = \case
     KE -> pure KE
@@ -2378,8 +2377,8 @@ instance Referential BLit where
     Code co -> Code <$> traverseRefs h co
     Arr a -> Arr <$> traverse (traverseRefs h) a
     Map kvs ->
-      Map <$>
-        traverse (bitraverse (traverseRefs h) (traverseRefs h)) kvs
+      Map
+        <$> traverse (bitraverse (traverseRefs h) (traverseRefs h)) kvs
     Text t -> pure $ Text t
     Bytes b -> pure $ Bytes b
     BArr ba -> pure $ BArr ba

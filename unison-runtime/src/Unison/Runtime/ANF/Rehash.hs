@@ -72,8 +72,9 @@ checkMissing (unzip -> (rs, cs)) = do
 
 rehashSCC ::
   SCC (Reference, SuperGroup Reference Symbol) ->
-  (Map.Map Reference Reference,
-    Map.Map Reference (SuperGroup Reference Symbol))
+  ( Map.Map Reference Reference,
+    Map.Map Reference (SuperGroup Reference Symbol)
+  )
 rehashSCC scc
   | checkSCC scc = (refreps, newSGs)
   where

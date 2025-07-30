@@ -34,11 +34,11 @@ import Unison.ReferentPrime (Referent' (..))
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Canonicalizer
 import Unison.Runtime.Exception
-import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Runtime.MCode
   ( Prim1 (..),
     Prim2 (..),
   )
+import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 
@@ -335,10 +335,11 @@ getReferentByNumber (tys, tms) = do
     _ -> unknownTag "getReferent" tag
 
 getNumberedReferent :: (MonadGet m) => m (Referent' RefNum)
-getNumberedReferent = getWord8 >>= \case
-  0 -> Ref' <$> getRefNum
-  1 -> Con' <$> getNumberedConstructorReference <*> getConstructorType
-  tag -> unknownTag "getNumberedReferent" tag
+getNumberedReferent =
+  getWord8 >>= \case
+    0 -> Ref' <$> getRefNum
+    1 -> Con' <$> getNumberedConstructorReference <*> getConstructorType
+    tag -> unknownTag "getNumberedReferent" tag
 
 getConstructorType :: (MonadGet m) => m CT.ConstructorType
 getConstructorType =

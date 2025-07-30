@@ -20,8 +20,8 @@ import Control.Monad.State.Strict
 import Data.Foldable (toList)
 import Data.Functor.Const
 import Data.Functor.Identity
-import Data.Hashable (Hashable)
 import Data.HashMap.Strict qualified as HM
+import Data.Hashable (Hashable)
 import Data.Primitive.Array (arrayFromList, indexArray, sizeofArray)
 import Data.Sequence (Seq, (|>))
 import Unison.ConstructorReference
@@ -55,23 +55,23 @@ data Referenced t
     WithRefs [Reference] [Reference] (t RefNum)
   | Plain (t Reference)
 
-instance (forall r. Eq r => Eq (t r)) => Eq (Referenced t) where
+instance (forall r. (Eq r) => Eq (t r)) => Eq (Referenced t) where
   Plain x == Plain y = x == y
   WithRefs tysx tmsx x == WithRefs tysy tmsy y =
     tysx == tysy && tmsx == tmsy && x == y
   _ == _ = False
 
-instance (forall r. Show r => Show (t r)) => Show (Referenced t) where
+instance (forall r. (Show r) => Show (t r)) => Show (Referenced t) where
   showsPrec p = \case
     Plain t -> showParen (p > 10) (showString "Plain " . showsPrec 11 t)
     WithRefs tys tms t ->
       showParen (p > 10) $
-        showString "WithRefs " .
-        shows tys .
-        showString " " .
-        shows tms .
-        showString " " .
-        showsPrec 11 t
+        showString "WithRefs "
+          . shows tys
+          . showString " "
+          . shows tms
+          . showString " "
+          . showsPrec 11 t
 
 -- A class categorizing types that contain something like a codebase
 -- reference, providing traversal functions over the references. The
@@ -105,7 +105,7 @@ instance Referential Referent' where
       flip Con' i . flip ConstructorReference j <$> f True r
     Ref' r -> Ref' <$> f False r
 
-dereference :: Referential t => Referenced t -> t Reference
+dereference :: (Referential t) => Referenced t -> t Reference
 dereference (Plain x) = x
 dereference (WithRefs tysl tmsl x) = overRefs lkup x
   where
@@ -135,23 +135,26 @@ resolveRef isTy = resolveRef0 "resolveRef" isTy
 
 resolveRef0 :: String -> Bool -> Reference -> Canonize RefNum
 resolveRef0 funName isTy r = StateT \st@(CST canon tym tmm tys tms) ->
-  let look r = lookup r (if isTy then tym else tmm) in
-  categorize canon r >>= \case
-    Canonical -> look r >>= \case
-      Just rn -> pure (rn, st)
-      Nothing -> errmsg
-    Novel canon -> do
-      tym <- if isTy then insert r rn tym else pure tym
-      tmm <- if isTy then pure tmm else insert r rn tmm
-      tys <- pure $ if isTy then tys |> r else tys
-      tms <- pure $ if isTy then tms else tms |> r
-      pure (rn, CST canon tym tmm tys tms)
-      where
-        rn | isTy = RefNum (length tys)
-           | otherwise = RefNum (length tms)
-    Equivalent s canon -> look s >>= \case
-      Just rn -> pure (rn, st { canon = canon })
-      Nothing -> errmsg
+  let look r = lookup r (if isTy then tym else tmm)
+   in categorize canon r >>= \case
+        Canonical ->
+          look r >>= \case
+            Just rn -> pure (rn, st)
+            Nothing -> errmsg
+        Novel canon -> do
+          tym <- if isTy then insert r rn tym else pure tym
+          tmm <- if isTy then pure tmm else insert r rn tmm
+          tys <- pure $ if isTy then tys |> r else tys
+          tms <- pure $ if isTy then tms else tms |> r
+          pure (rn, CST canon tym tmm tys tms)
+          where
+            rn
+              | isTy = RefNum (length tys)
+              | otherwise = RefNum (length tms)
+        Equivalent s canon ->
+          look s >>= \case
+            Just rn -> pure (rn, st {canon = canon})
+            Nothing -> errmsg
   where
     errmsg = error $ funName ++ ": inconsistent canonization state"
 
@@ -160,7 +163,7 @@ resolveRef0 funName isTy r = StateT \st@(CST canon tym tmm tys tms) ->
 -- that it can hook into a larger canonicalization procedure. The
 -- lists of canonical references of each sort are yielded as part of
 -- the state.
-canonicalizeRefs :: Referential t => t Reference -> Canonize (t RefNum)
+canonicalizeRefs :: (Referential t) => t Reference -> Canonize (t RefNum)
 canonicalizeRefs = traverseRefs $ resolveRef0 "canonicalizeRefs"
 {-# INLINE canonicalizeRefs #-}
 
@@ -176,18 +179,19 @@ canonicalizeRefs = traverseRefs $ resolveRef0 "canonicalizeRefs"
 -- canonical refs. If so, we don't need to traverse the value. Even if
 -- not, we can traverse with marginally more efficient lookups.
 recanonicalizeRefs ::
-  Referential t => Referenced t -> Canonize (t RefNum)
+  (Referential t) => Referenced t -> Canonize (t RefNum)
 recanonicalizeRefs = \case
   Plain v -> canonicalizeRefs v
   WithRefs tys tms v -> do
     tyns <- traverse (resolveRef0 "recanonicalizeRefs" True) tys
     tmns <- traverse (resolveRef0 "recanonicalizeRefs" False) tms
 
-    rtys <- pure . HM.fromList . filter notSame $ zip [0..] tyns
-    rtms <- pure . HM.fromList . filter notSame $ zip [0..] tmns
+    rtys <- pure . HM.fromList . filter notSame $ zip [0 ..] tyns
+    rtms <- pure . HM.fromList . filter notSame $ zip [0 ..] tmns
 
     let f isTy r = HM.findWithDefault r (getRefNum r) m
-          where m = if isTy then rtys else rtms
+          where
+            m = if isTy then rtys else rtms
 
     if HM.null rtys && HM.null rtms
       then pure v -- already canonical
