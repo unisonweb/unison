@@ -12,6 +12,8 @@ dependencies:
   - base
   - bytestring
   - containers
+  - unordered-containers
+  - hashable
   - directory
   - generic-lens
   - either

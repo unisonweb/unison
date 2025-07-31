@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -21,6 +21,7 @@ library
       Unison.Debug
       Unison.Prelude
       Unison.Util.Alternative
+      Unison.Util.InternCache
       Unison.Util.Lens
       Unison.Util.List
       Unison.Util.Map
@@ -70,6 +71,7 @@ library
     , extra
     , filepath
     , generic-lens
+    , hashable
     , lens
     , mtl
     , pretty-simple
@@ -79,6 +81,7 @@ library
     , time
     , transformers
     , unliftio
+    , unordered-containers
     , vector
     , witch
     , witherable
