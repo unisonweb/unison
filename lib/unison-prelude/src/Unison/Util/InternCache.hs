@@ -3,7 +3,8 @@ module Unison.Util.InternCache
     newInternCache,
     lookupCached,
     insertCached,
-    hoistInternCache,
+    intern,
+    hoist,
   )
 where
 
@@ -53,8 +54,17 @@ newInternCache = do
     removeDeadVal var k = liftIO do
       atomically $ modifyTVar' var (HashMap.delete k)
 
-hoistInternCache :: (forall x. m x -> n x) -> InternCache m k v -> InternCache n k v
-hoistInternCache f (InternCache lookup' insert') =
+intern :: (Hashable k, Monad m) => InternCache m k k -> k -> m k
+intern cache k = do
+  mVal <- lookupCached cache k
+  case mVal of
+    Just v -> pure v
+    Nothing -> do
+      insertCached cache k k
+      pure k
+
+hoist :: (forall x. m x -> n x) -> InternCache m k v -> InternCache n k v
+hoist f (InternCache lookup' insert') =
   InternCache
     { lookupCached = f . lookup',
       insertCached = \k v -> f $ insert' k v
