@@ -1988,7 +1988,7 @@ notifyUser dir = \case
     scratchFile <- renderFileName scratchFile0
     pure $
       P.wrap
-        ( "Some definitions don't typecheck with your changes. I've update the file"
+        ( "Some definitions don't typecheck with your changes. I've updated the file"
             <> scratchFile
             <> "with the definitions that need fixing. Once the file is compiling, try"
             <> makeExample' IP.update
