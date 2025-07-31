@@ -370,6 +370,12 @@ backmapRef ctx r0 = r2
     r1 = Map.findWithDefault r0 r0 . backmap $ intermedRemap ctx
     r2 = Map.findWithDefault r1 r1 . backmap $ floatRemap ctx
 
+-- Runs references through the backmaps with defaults at all steps.
+maybeBackmapRef :: EvalCtx -> Reference -> Maybe CodebaseReference
+maybeBackmapRef ctx r0 = do
+  r1 <- Map.lookup r0 . backmap $ intermedRemap ctx
+  Map.lookup r1 . backmap $ floatRemap ctx
+
 performRehash ::
   Map.Map Reference (SuperGroup Reference Symbol) ->
   EvalCtx ->
@@ -452,7 +458,7 @@ checkCacheability ::
   (IntermediateReference, SuperGroup Reference Symbol) ->
   IO (IntermediateReference, Code Reference)
 checkCacheability cl ctx (r, sg) =
-  getTermType codebaseRef >>= \case
+  getTermType mayCodebaseRef >>= \case
     -- A term's result is cacheable iff it has no arrows in its type,
     -- this is sufficient since top-level definitions can't have effects without a delay.
     Just typ
@@ -460,14 +466,16 @@ checkCacheability cl ctx (r, sg) =
           pure (r, CodeRep sg Cacheable)
     _ -> pure (r, CodeRep sg Uncacheable)
   where
-    codebaseRef = backmapRef ctx r
-    getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
+    mayCodebaseRef :: Maybe CodebaseReference
+    mayCodebaseRef = maybeBackmapRef ctx r
+    getTermType :: Maybe CodebaseReference -> IO (Maybe (Type Symbol))
     getTermType = \case
-      (RF.DerivedId i) ->
+      Just (RF.DerivedId i) ->
         getTypeOfTerm cl i >>= \case
           Just t -> pure $ Just t
           Nothing -> pure Nothing
-      RF.Builtin {} -> pure $ Nothing
+      Just (RF.Builtin {}) -> pure $ Nothing
+      Nothing -> pure Nothing
     hasArrows :: Type.TypeF v a Bool -> Bool
     hasArrows abt = case ABT.out' abt of
       (ABT.Tm f) -> case f of
