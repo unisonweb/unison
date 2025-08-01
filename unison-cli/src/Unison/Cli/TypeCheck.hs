@@ -4,6 +4,7 @@ module Unison.Cli.TypeCheck
   )
 where
 
+import Data.Hashable (hashed)
 import Data.Map.Strict qualified as Map
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -42,7 +43,7 @@ typecheckTerm ::
         (Type Symbol Ann)
     )
 typecheckTerm codebase tm = do
-  let v = Symbol 0 (Var.Inference Var.Other)
+  let v = Symbol 0 (hashed $ Var.Inference $ Var.Other)
   let file = UF.UnisonFileId mempty mempty (Map.singleton v (External, tm)) mempty
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
   let typecheckingEnv =

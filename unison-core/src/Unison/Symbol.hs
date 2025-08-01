@@ -3,13 +3,14 @@
 
 module Unison.Symbol where
 
+import Data.Hashable (Hashed, hashed, unhashed)
 import Data.Set qualified as Set
 import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Var (Var (..))
 import Unison.Var qualified as Var
 
-data Symbol = Symbol !Word64 Var.Type deriving (Generic)
+data Symbol = Symbol !Word64 (Hashed Var.Type) deriving (Generic)
 
 instance ABT.Var Symbol where
   freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
@@ -17,8 +18,8 @@ instance ABT.Var Symbol where
     Symbol i2 _ -> if i > i2 then s else Symbol (i2 + 1) n
 
 instance Var Symbol where
-  typed t = Symbol 0 t
-  typeOf (Symbol _ t) = t
+  typed t = Symbol 0 (hashed t)
+  typeOf (Symbol _ t) = unhashed t
   freshId (Symbol id _) = id
   freshenId id (Symbol _ n) = Symbol id n
 

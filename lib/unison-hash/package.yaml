@@ -7,6 +7,7 @@ ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-si
 dependencies:
   - base
   - bytestring
+  - hashable
   - unison-prelude
   - unison-util-base32hex
 

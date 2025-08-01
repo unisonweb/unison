@@ -22,6 +22,7 @@ import Unison.Hashing.V2.Convert2 qualified as H2
 import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
+import Data.Hashable (hashed)
 
 verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
 verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) =
@@ -49,7 +50,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIn
     mapTypeV :: ABT.Term (C.Type.F' r) S.Symbol () -> ABT.Term (C.Type.F' r) Unison.Symbol ()
     mapTypeV = ABT.vmap symbol2to1
     symbol2to1 :: S.Symbol -> Unison.Symbol
-    symbol2to1 (S.Symbol i t) = Unison.Symbol i (Var.User t)
+    symbol2to1 (S.Symbol i t) = Unison.Symbol i (hashed $ Var.User t)
 
 s2cTermWithType :: (LocalIds.LocalIds' Text Hash32, S.Term.Term, S.Term.Type) -> (C.Term S.Symbol, C.Term.Type S.Symbol)
 s2cTermWithType (ids, tm, tp) =

@@ -1,6 +1,7 @@
 module Unison.Codebase.SqliteCodebase.Conversions where
 
 import Control.Lens
+import Data.Hashable (hashed, unhashed)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text (pack)
@@ -243,10 +244,10 @@ decl1to2 h decl1 = case V1.Decl.asDataDecl decl1 of
       cts' = [dtype1to2 h t | (_, _, t) <- cts]
 
 symbol2to1 :: V2.Symbol -> V1.Symbol
-symbol2to1 (V2.Symbol i t) = V1.Symbol i (Var.User t)
+symbol2to1 (V2.Symbol i t) = V1.Symbol i (hashed $ Var.User t)
 
 symbol1to2 :: V1.Symbol -> V2.Symbol
-symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName varType)
+symbol1to2 (V1.Symbol i varType) = V2.Symbol i (Var.rawName . unhashed $ varType)
 
 rreference2to1 :: Hash -> V2.Reference' Text (Maybe Hash) -> V1.Reference
 rreference2to1 h = \case

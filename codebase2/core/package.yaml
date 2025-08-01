@@ -10,6 +10,7 @@ library:
 dependencies:
   - base
   - containers
+  - hashable
   - lens
   - mtl
   - recover-rtti

@@ -2,6 +2,7 @@ module Unison.LSP.Hover where
 
 import Control.Lens hiding (List)
 import Control.Monad.Reader
+import Data.Hashable (unhashed)
 import Data.IntervalMap.Lazy qualified as IM
 import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens
@@ -135,7 +136,7 @@ hoverInfo uri pos =
 
       pped <- lift $ ppedForFile uri
       let varName = case localVar of
-            (Symbol.Symbol _ (Var.User name)) -> name
+            (Symbol.Symbol _ (unhashed -> Var.User name)) -> name
             _ -> tShow localVar
       pure $ renderTypeSigForHover pped varName typ
 

@@ -9,6 +9,7 @@ where
 
 import Control.Lens
 import Data.Foldable
+import Data.Hashable (unhashed)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.DataDeclaration qualified as DD
@@ -126,7 +127,7 @@ mkFileSummary parsed typechecked = case (parsed, typechecked) of
     -- \| If a symbol is a 'User' symbol, return (Just sym), otherwise return Nothing.
     assertUserSym :: Symbol -> Maybe Symbol
     assertUserSym sym = case sym of
-      Symbol.Symbol _ (Var.User {}) -> Just sym
+      Symbol.Symbol _ (unhashed -> Var.User {}) -> Just sym
       _ -> Nothing
 
 -- | Compute the location of user defined definitions within the file

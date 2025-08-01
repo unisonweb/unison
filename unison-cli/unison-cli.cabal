@@ -226,6 +226,7 @@ library
     , friendly-time
     , fsnotify
     , generic-lens
+    , hashable
     , haskeline
     , http-client >=0.7.6
     , http-client-tls

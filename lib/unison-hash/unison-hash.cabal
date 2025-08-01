@@ -53,6 +53,7 @@ library
   build-depends:
       base
     , bytestring
+    , hashable
     , unison-prelude
     , unison-util-base32hex
   default-language: Haskell2010

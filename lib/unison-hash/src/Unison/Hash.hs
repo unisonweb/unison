@@ -25,10 +25,12 @@ import Data.ByteString.Short qualified as B.Short
 import U.Util.Base32Hex (Base32Hex)
 import U.Util.Base32Hex qualified as Base32Hex
 import Unison.Prelude
+import Data.Hashable (Hashable)
 
 -- | A hash.
 newtype Hash = Hash {toShort :: ShortByteString}
   deriving stock (Eq, Ord, Generic)
+  deriving anyclass (Hashable)
 
 instance Show Hash where
   show = show . toBase32HexText

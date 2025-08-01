@@ -41,6 +41,7 @@ import Unison.Hash qualified as Hash
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Data.Hashable (Hashable)
 
 -- | This is the canonical representation of Reference
 type Reference = Reference' Text Hash
@@ -111,7 +112,8 @@ type Pos = Word64
 
 -- | @Pos@ is a position into a cycle, as cycles are hashed together.
 data Id' h = Id h Pos
-  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+  deriving anyclass (Hashable)
 
 t_ :: Prism (Reference' t h) (Reference' t' h) t t'
 t_ = prism ReferenceBuiltin \case

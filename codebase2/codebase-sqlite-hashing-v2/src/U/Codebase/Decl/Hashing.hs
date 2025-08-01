@@ -22,6 +22,7 @@ import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Syntax.Name qualified as Name
 import Unison.Var qualified as Var
+import Data.Hashable (hashed)
 
 verifyDeclFormatHash :: ComponentHash -> DeclFormat.HashDeclFormat -> Maybe HH.DeclHashingError
 verifyDeclFormatHash (ComponentHash hash) (DeclFormat.Decl (DeclFormat.LocallyIndexedComponent elements)) =
@@ -45,7 +46,7 @@ verifyDeclFormatHash (ComponentHash hash) (DeclFormat.Decl (DeclFormat.LocallyIn
               else Just (HH.DeclHashMismatch $ HashMismatch hash hash')
   where
     symbol2to1 :: S.Symbol -> Unison.Symbol
-    symbol2to1 (S.Symbol i t) = Unison.Symbol i (Var.User t)
+    symbol2to1 (S.Symbol i t) = Unison.Symbol i $ hashed (Var.User t)
 
 s2cDecl :: (LocalIds.LocalIds' Text Hash32, DeclFormat.Decl Sqlite.Symbol) -> C.Decl Sqlite.Symbol
 s2cDecl (ids, decl) =

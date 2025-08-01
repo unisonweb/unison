@@ -19,6 +19,7 @@ import Unison.Util.List qualified as ListUtils
 import Unison.Util.Range qualified as Range
 import Unison.Util.Recursion
 import Unison.Var qualified as Var
+import Data.Hashable (unhashed)
 
 data VarUsages = VarUsages
   { unusedVars :: Map Symbol (Set Ann),
@@ -56,10 +57,10 @@ analyseTerm fileUri tm =
     getRelevantVarName :: Symbol -> Maybe Text
     getRelevantVarName = \case
       -- Sometimes 'do' gets a binding of '()', which we don't care about
-      Symbol _ (Var.User "()") -> Nothing
-      Symbol _ (Var.User "") -> Nothing
+      Symbol _ (unhashed -> Var.User "()") -> Nothing
+      Symbol _ (unhashed -> Var.User "") -> Nothing
       -- We only care about user bindings which don't start with an underscore
-      Symbol _ (Var.User n) -> do
+      Symbol _ (unhashed -> Var.User n) -> do
         guard (not (Text.isPrefixOf "_" n))
         Just n
       _ -> Nothing

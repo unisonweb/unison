@@ -31,6 +31,7 @@ module Unison.Var
 where
 
 import Data.Char (isAlphaNum, isLower, toLower)
+import Data.Hashable (Hashable)
 import Data.Text (pack)
 import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
@@ -176,7 +177,8 @@ data Type
     Delay
   | -- A variable used to introduce affine handlers into a definition
     AffBlank
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 data InferenceType
   = Ability
@@ -189,7 +191,8 @@ data InferenceType
   | TypeConstructor
   | TypeConstructorArg
   | Other
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 reset :: (Var v) => v -> v
 reset v = typed (typeOf v)
