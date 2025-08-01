@@ -26,6 +26,7 @@ import ArgParse
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Exception (displayException, evaluate, fromException)
+import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
@@ -94,6 +95,7 @@ import Unison.Version (Version)
 import Unison.Version qualified as Version
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Directory (getHomeDirectory)
+import UnliftIO.Directory qualified as Directory
 
 type Runtimes = (RTI.Runtime Symbol, RTI.Runtime Symbol)
 
@@ -375,11 +377,11 @@ initHTTPClient version = do
 
 -- | Prep the codebase for transcripts, then pass the directory to the action.
 -- After the action the codebase will be deleted/copied/saved as indicated.
-withTranscriptDir :: Verbosity.Verbosity -> String -> TranscriptCodebaseSetup -> Maybe CodebasePathOption -> (FilePath -> IO r) -> IO r
+withTranscriptDir :: Verbosity.Verbosity -> String -> TranscriptCodebaseSetup -> Maybe CodebasePathOption -> (FilePath -> IO r) -> IO (Maybe r)
 withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
-  UnliftIO.bracket setup cleanup (action . fst)
+  UnliftIO.bracket setup cleanup (\(mayDir, _cleanup) -> for mayDir action)
   where
-    setup :: IO (FilePath, IO ())
+    setup :: IO (Maybe FilePath, IO ())
     setup = do
       case codebaseSetup of
         InPlace -> do
@@ -403,7 +405,7 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
                           P.indentN 2 (P.string path)
                         ]
                     )
-          pure (path, after)
+          pure (Just path, after)
         UseTempCodebase shouldFork shouldSaveCodebase -> do
           (tmp, cleanup) <- case shouldSaveCodebase of
             SaveCodebase (Just path) -> do
@@ -433,18 +435,32 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
               -- A forked codebase does not need to Create a codebase, because it already exists
               getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
               path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
-              unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
-                P.lines
-                  [ P.wrap "Transcript will be run on a copy of the codebase at: ",
-                    "",
-                    P.indentN 2 (P.string path)
-                  ]
-              Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
+              (absPath, absTmp) <- bitraverse Directory.canonicalizePath Directory.canonicalizePath (path, tmp)
+              if (absPath == absTmp)
+                then do
+                  unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
+                    P.hang "⚠️" $
+                      P.lines
+                        [ "I noticed that you're forking from and saving to the same path at: " <> P.string path,
+                          "",
+                          "I'll skip running the transcript for now in case this was a mistake.",
+                          "If this is what you meant to do, use `transcript.in-place` instead."
+                        ]
+                  pure (Nothing, pure ())
+                else do
+                  unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
+                    P.lines
+                      [ P.wrap "Transcript will be run on a copy of the codebase at: ",
+                        "",
+                        P.indentN 2 (P.string path)
+                      ]
+                  Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
+                  pure (Just tmp, cleanup)
             DontFork -> do
               PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
               CodebaseInit.withNewUcmCodebaseOrExit cbInit verbosity "main.transcript" tmp SC.DoLock (const $ pure ())
-          pure (tmp, cleanup)
-    cleanup :: (FilePath, IO ()) -> IO ()
+              pure (Just tmp, cleanup)
+    cleanup :: (Maybe FilePath, IO ()) -> IO ()
     cleanup (_transcriptDir, cleanupAction) = do
       cleanupAction
 
@@ -533,8 +549,9 @@ runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption a
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
   progName <- getProgName
-  completed <- withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
-    runTranscripts' version progName transcriptDir markdownFiles
+  completed <-
+    fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
+      runTranscripts' version progName transcriptDir markdownFiles
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
 launch ::
