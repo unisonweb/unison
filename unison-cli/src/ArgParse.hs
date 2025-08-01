@@ -79,6 +79,13 @@ data RunSource
   | RunCompiled FilePath
   deriving (Show, Eq)
 
+data TranscriptCodebaseSetup
+  = -- Use the default codebase or one provided by the --codebase option.
+    InPlace
+  | -- Operate on a temp codebase, which is possibly forked from an existing codebase, and is possibly saved to a given location afterwards.
+    UseTempCodebase ShouldForkCodebase ShouldSaveCodebase
+  deriving stock (Show, Eq)
+
 data ShouldForkCodebase
   = UseFork
   | DontFork
@@ -115,7 +122,7 @@ data Command
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
   | Run RunSource [String]
-  | Transcript ShouldForkCodebase ShouldSaveCodebase (Maybe RtsStatsPath) (NonEmpty FilePath)
+  | Transcript TranscriptCodebaseSetup (Maybe RtsStatsPath) (NonEmpty FilePath)
   deriving (Show, Eq)
 
 -- | Options shared by sufficiently many subcommands.
@@ -242,6 +249,18 @@ transcriptForkCommand =
           "Multiple transcript files may be provided; they are processed in sequence" <+> "starting from the same codebase."
         ]
 
+transcriptInPlaceCommand :: Mod CommandFields Command
+transcriptInPlaceCommand =
+  command "transcript.in-place" (info transcriptInPlaceParser (fullDesc <> progDesc transcriptHelp <> footerDoc transcriptFooter))
+  where
+    transcriptHelp = "Execute transcript markdown files on the specified (or default) codebase"
+    transcriptFooter =
+      Just . fold . List.intersperse P.line $
+        [ "For each <transcript>.md file provided this executes the transcript directly on the codebase and creates" <+> P.annotate bold "<transcript>.output.md" <+> "if successful.",
+          "After completion, any changes made to the codebase will persist.",
+          "Multiple transcript files may be provided; they are processed in sequence."
+        ]
+
 commandParser :: CodebaseServerOpts -> Parser Command
 commandParser envOpts =
   hsubparser commands <|> launchParser envOpts WithCLI
@@ -256,6 +275,7 @@ commandParser envOpts =
           runPipeCommand,
           transcriptCommand,
           transcriptForkCommand,
+          transcriptInPlaceCommand,
           launchHeadlessCommand envOpts
         ]
 
@@ -494,7 +514,7 @@ transcriptParser = do
     ( let saveCodebase = case shouldSaveCodebaseTo of
             DontSaveCodebase -> shouldSaveCodebase
             _ -> shouldSaveCodebaseTo
-       in Transcript DontFork saveCodebase mrtsStatsFp files
+       in Transcript (UseTempCodebase DontFork saveCodebase) mrtsStatsFp files
     )
 
 transcriptForkParser :: Parser Command
@@ -508,8 +528,14 @@ transcriptForkParser = do
     ( let saveCodebase = case shouldSaveCodebaseTo of
             DontSaveCodebase -> shouldSaveCodebase
             _ -> shouldSaveCodebaseTo
-       in Transcript UseFork saveCodebase mrtsStatsFp files
+       in Transcript (UseTempCodebase UseFork saveCodebase) mrtsStatsFp files
     )
+
+transcriptInPlaceParser :: Parser Command
+transcriptInPlaceParser = do
+  mrtsStatsFp <- rtsStatsOption
+  files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
+  pure (Transcript InPlace mrtsStatsFp files)
 
 unisonHelp :: String -> String -> P.Doc
 unisonHelp (fromString -> executable) (fromString -> version) =
