@@ -9,12 +9,9 @@ unique type Foo = Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -33,19 +30,15 @@ unique type Foo = { bar : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo
 
-    ⍟ New definitions:
-    
-      Foo.bar        : Foo -> Nat
-      Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
-      Foo.bar.set    : Nat -> Foo -> Foo
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
+  + Foo.bar        : Foo -> Nat
+  + Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
+  + Foo.bar.set    : Nat -> Foo -> Foo
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

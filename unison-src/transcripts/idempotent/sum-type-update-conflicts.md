@@ -15,13 +15,9 @@ structural type X = x
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type X
 
-    ⍟ New definitions:
-    
-      structural type X
-        (also named lib.builtins.Unit)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -48,19 +44,15 @@ dependsOnX = Text.size X.x
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ structural type X
 
-    ⍟ New definitions:
-    
-      X.x        : Text
-      dependsOnX : Nat
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      structural type X
-        (The old definition is also named lib.builtins.Unit.)
+  + dependsOnX : Nat
+  ~ X.x : Text
+      (was also named lib.builtins.Unit.Unit)
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 This update should succeed since the conflicted constructor

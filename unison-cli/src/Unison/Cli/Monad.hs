@@ -176,7 +176,6 @@ data Env = Env
     notifyNumbered :: NumberedOutput -> IO NumberedArgs,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
-    nativeRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
     ucmVersion :: UCMVersion,
     -- | Whether we're running in a transcript test or not.

@@ -18,17 +18,14 @@ corge = "corge"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar   : Text
+  + baz   : Text
+  + corge : Text
+  + foo   : Text
+  + quux  : Text
+  + qux   : Text
 
-    ⍟ New definitions:
-    
-      bar   : Text
-      baz   : Text
-      corge : Text
-      foo   : Text
-      quux  : Text
-      qux   : Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

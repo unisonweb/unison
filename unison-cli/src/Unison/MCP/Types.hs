@@ -43,7 +43,6 @@ import Unison.Syntax.Name qualified as Name
 data Env = Env
   { codebase :: Codebase IO Symbol Ann,
     runtime :: Runtime Symbol,
-    nRuntime :: Runtime Symbol,
     sbRuntime :: Runtime Symbol,
     ucmVersion :: UCMVersion,
     workDir :: FilePath,

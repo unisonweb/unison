@@ -20,15 +20,9 @@ f id = (id 1, id "hi")
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
 
-    ⍟ New definitions:
-    
-      f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     4 | > f (x -> x)
           ⧩
@@ -47,12 +41,9 @@ f id _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
 
-    ⍟ New definitions:
-    
-      f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 Here's an example, showing that polymorphic functions can be fields of a constructor, and the functions remain polymorphic even when the field is bound to a name during pattern matching:
@@ -73,15 +64,12 @@ Functor.blah = cases Functor f ->
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Functor f
 
-    ⍟ New definitions:
-    
-      type Functor f
-      Functor.blah : Functor f -> ()
-      Functor.map  : Functor f
-                     -> (∀ a b. (a -> b) -> f a -> f b)
+  + Functor.blah : Functor f -> ()
+  + Functor.map  : Functor f -> (∀ a b. (a -> b) -> f a -> f b)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 This example is similar, but involves abilities:
@@ -115,20 +103,18 @@ Loc.transform2 nt = cases Loc f ->
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Loc
+  + ability Remote t
 
-    ⍟ New definitions:
-    
-      type Loc
-      ability Remote t
-      Loc.blah       : Loc -> ()
-      Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
-                       -> Loc
-                       -> Loc
-      Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
-                       -> Loc
-                       -> Loc
+  + Loc.blah       : Loc -> ()
+  + Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
+                     -> Loc
+                     -> Loc
+  + Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
+                     -> Loc
+                     -> Loc
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Types with polymorphic fields

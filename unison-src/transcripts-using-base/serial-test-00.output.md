@@ -71,26 +71,24 @@ mkTestCase = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type Tree a
 
-    ⍟ New definitions:
-    
-      structural type Tree a
-      evaluate   : (Tree Nat -> Nat)
-                   -> (Tree Text -> Text)
-                   -> (Tree Nat, Tree Nat, Tree Nat, Tree Text)
-                   -> Text
-      foldMap    : r
-                   -> (r ->{g2} r ->{g1} r)
-                   -> (a ->{g} r)
-                   -> Tree a
-                   ->{g2, g1, g} r
-      mkTestCase : '{IO, Exception} ()
-      tree0      : Tree Nat
-      tree1      : Tree Nat
-      tree2      : Tree Nat
-      tree3      : Tree Text
+  + evaluate   : (Tree Nat -> Nat)
+                 -> (Tree Text -> Text)
+                 -> (Tree Nat, Tree Nat, Tree Nat, Tree Text)
+                 -> Text
+  + foldMap    : r
+                 -> (r ->{g2} r ->{g1} r)
+                 -> (a ->{g} r)
+                 -> Tree a
+                 ->{g2, g1, g} r
+  + mkTestCase : '{IO, Exception} ()
+  + tree0      : Tree Nat
+  + tree1      : Tree Nat
+  + tree2      : Tree Nat
+  + tree3      : Tree Text
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

@@ -68,14 +68,12 @@ forget2 k = handle provide 3 k with cases
   To avoid this warning, you can give explicit types to the arguments
   of the recursive call to the handler.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Ask a
+  + ability Tell a
 
-    ⍟ New definitions:
-    
-      ability Ask a
-      ability Tell a
-      forget1 : '{Ask Nat, Tell a} x -> x
-      forget2 : '{Ask Nat, Tell a} x -> x
-      provide : a -> '{g, Ask a} r ->{g} r
+  + forget1 : '{Ask Nat, Tell a} x -> x
+  + forget2 : '{Ask Nat, Tell a} x -> x
+  + provide : a -> '{g, Ask a} r ->{g} r
+
+  Run `update` to apply these changes to your codebase.
 ```

@@ -114,7 +114,6 @@ cliToMCP projCtx cli = do
             notifyNumbered,
             runtime,
             sandboxedRuntime = error "Sandboxed runtime not implemented in MCP Server",
-            nativeRuntime = error "Native runtime not implemented in MCP Server",
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = False

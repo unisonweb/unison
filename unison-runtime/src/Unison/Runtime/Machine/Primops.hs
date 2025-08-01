@@ -16,15 +16,14 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF
   ( Code,
-    Referenced,
     Value,
     codeGroup,
-    dereference,
   )
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as Ty
 import Unison.ShortHash qualified as SH

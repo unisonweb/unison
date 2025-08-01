@@ -21,12 +21,9 @@ x = ()
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + x : ()
 
-    ⍟ New definitions:
-    
-      x : ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -80,7 +77,7 @@ structural type SomethingUnusuallyLong
   = SomethingUnusuallyLong Text Text Text
 
 structural type UUID
-  = UUID Nat (Nat, Nat)
+  = UUUID Nat (Nat, Nat)
 
 structural ability Zoink where
   nay : Text -> (Nat, Nat) ->{Zoink} Nat
@@ -816,11 +813,11 @@ use_clauses_example2 oo =
   bar.quaffle + bar.quaffle + bar.quaffle + 1
 
 UUID.random : 'UUID
-UUID.random = do UUID 0 (0, 0)
+UUID.random = do UUUID 0 (0, 0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
-  (UUID a (b, _)) = random()
+  (UUUID a (b, _)) = random()
   encodeNat64be a Bytes.++ encodeNat64be b
 
 (|>) : a -> (a ->{e} b) ->{e} b
@@ -950,7 +947,7 @@ scratch/regressions> load
 
   Loading changes detected in scratch.u.
 
-  I loaded scratch.u and didn't find anything.
+  No changes found.
 ```
 
 ``` unison :added-by-ucm scratch.u

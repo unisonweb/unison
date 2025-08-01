@@ -9,12 +9,9 @@ def = "first value"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + def : Text
 
-    ⍟ New definitions:
-    
-      def : Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -40,19 +37,19 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #b1gl51vo5o
+  ⊙ 1. #h1ju12hm2p
 
     + Adds / updates:
     
       def
 
-  ⊙ 2. #cei8g7lpgj
+  ⊙ 2. #b4jik942on
 
     + Adds / updates:
     
       def
 
-  □ 3. #18am4hkn5e (start of history)
+  □ 3. #pvkf11c9e1 (start of history)
 
 scratch/main> reset 2
 
@@ -68,13 +65,13 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #cei8g7lpgj
+  ⊙ 1. #b4jik942on
 
     + Adds / updates:
     
       def
 
-  □ 2. #18am4hkn5e (start of history)
+  □ 2. #pvkf11c9e1 (start of history)
 ```
 
 Can reset to a value from reflog by number.
@@ -90,10 +87,10 @@ scratch/main> reflog
        history.
 
        Branch         Hash          Description
-  1.   scratch/main   #cei8g7lpgj   reset cei8g7lpgj8l3sru696qg706d8s8gsdhtmsoj7gnnpcpll34sd783c...
-  2.   scratch/main   #b1gl51vo5o   update
-  3.   scratch/main   #cei8g7lpgj   update
-  4.   scratch/main   #18am4hkn5e   builtins.merge
+  1.   scratch/main   #b4jik942on   reset b4jik942onlc99ilseq0a0on7r3ne6phn95r4m4e06la6atv3ilglj...
+  2.   scratch/main   #h1ju12hm2p   update
+  3.   scratch/main   #b4jik942on   update
+  4.   scratch/main   #pvkf11c9e1   builtins.merge
   5.   scratch/main   #sg60bvjo91   Project Created
 
 -- Reset the current branch to the first history element
@@ -112,19 +109,19 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #b1gl51vo5o
+  ⊙ 1. #h1ju12hm2p
 
     + Adds / updates:
     
       def
 
-  ⊙ 2. #cei8g7lpgj
+  ⊙ 2. #b4jik942on
 
     + Adds / updates:
     
       def
 
-  □ 3. #18am4hkn5e (start of history)
+  □ 3. #pvkf11c9e1 (start of history)
 ```
 
 # reset branch

@@ -7,10 +7,12 @@ module Unison.Runtime.Canonicalizer
     CanonMap (..),
     empty,
     lookup,
+    insert,
     unsafeLookup,
     findWithDefault,
     fromListByIndex,
     fromList,
+    emptyCM,
   )
 where
 
@@ -116,28 +118,61 @@ canonicalize cn !x =
   unsafePerformIO $ makeStableName x >>= canonicalize0 cn x
 {-# INLINEABLE canonicalize #-}
 
-newtype CanonMap k v = CanonM (HashMap (StableName k) v)
+data CanonMap k v = CanonM
+  { _fast :: HashMap (StableName k) v,
+    _slow :: M.Map k v
+  }
   deriving (Functor)
 
-lookup :: k -> CanonMap k v -> IO (Maybe v)
-lookup !k (CanonM m) = flip HM.lookup m <$> makeStableName k
+lookup0 :: (Ord k) => k -> CanonMap k v -> StableName k -> Maybe v
+lookup0 k (CanonM fast slow) name
+  | r@Just {} <- HM.lookup name fast = r
+  | otherwise = M.lookup k slow
+{-# INLINE lookup0 #-}
+
+lookup :: (Ord k) => k -> CanonMap k v -> IO (Maybe v)
+lookup !k m = lookup0 k m <$> makeStableName k
 {-# INLINE lookup #-}
 
-findWithDefault :: v -> k -> CanonMap k v -> IO v
-findWithDefault d !k (CanonM m) =
-  flip (HM.findWithDefault d) m <$> makeStableName k
+insert0 :: (Ord k) => k -> v -> CanonMap k v -> StableName k -> CanonMap k v
+insert0 k v (CanonM fast slow) name =
+  CanonM (HM.insert name v fast) (M.insert k v slow)
+{-# INLINE insert0 #-}
+
+-- Inserts a key-value pair into the map. Note that this operation
+-- should _only_ be used in conjunction with a `Canonicalizer` that
+-- matches the `CanonMap` on canonical keys, to ensure that any key
+-- inserted into the latter is canonical. Otherwise it is possible to
+-- create an inconsistent `CanonMap` that will map the same key to
+-- different values depending on which copy is given.
+insert :: (Ord k) => k -> v -> CanonMap k v -> IO (CanonMap k v)
+insert !k v m = insert0 k v m <$> makeStableName k
+
+findWithDefault0 :: (Ord k) => v -> k -> CanonMap k v -> StableName k -> v
+findWithDefault0 df k (CanonM fast slow) name =
+  HM.findWithDefault (M.findWithDefault df k slow) name fast
+{-# INLINE findWithDefault0 #-}
+
+findWithDefault :: (Ord k) => v -> k -> CanonMap k v -> IO v
+findWithDefault df !k m =
+  findWithDefault0 df k m <$> makeStableName k
 {-# INLINE findWithDefault #-}
 
-unsafeLookup :: k -> CanonMap k v -> Maybe v
+unsafeLookup :: (Ord k) => k -> CanonMap k v -> Maybe v
 unsafeLookup k m = unsafePerformIO $ lookup k m
 {-# INLINE unsafeLookup #-}
 
-fromListByIndex :: [k] -> CanonMap k Int
-fromListByIndex l = unsafePerformIO do
-  l <- traverse (\k -> makeStableName =<< evaluate k) l
-  pure . CanonM $ HM.fromList (zip l [0 ..])
+fromListByIndex :: (Ord k) => [k] -> CanonMap k Int
+fromListByIndex ks = unsafePerformIO do
+  ns <- traverse (\k -> makeStableName =<< evaluate k) ks
+  pure $ CanonM (HM.fromList (zip ns [0 ..])) (M.fromList (zip ks [0 ..]))
 
-fromList :: [(k, v)] -> IO (CanonMap k v)
-fromList = fmap (CanonM . HM.fromList) . traverse f
+fromList :: (Ord k) => [(k, v)] -> IO (CanonMap k v)
+fromList kvs = do
+  nvs <- traverse f kvs
+  pure $ CanonM (HM.fromList nvs) (M.fromList kvs)
   where
     f (k, v) = (,v) <$> (makeStableName =<< evaluate k)
+
+emptyCM :: CanonMap k v
+emptyCM = CanonM HM.empty M.empty

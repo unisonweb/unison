@@ -152,6 +152,7 @@ module Unison.Runtime.Stack
     asize,
     useg,
     bseg,
+    segFromList,
 
     -- * Unboxed type tags
     natTypeTag,

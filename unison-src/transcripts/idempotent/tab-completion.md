@@ -37,16 +37,14 @@ unique type subnamespace.AType = A | B
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type subnamespace.AType
 
-    ⍟ New definitions:
-    
-      type subnamespace.AType
-      othernamespace.someName    : ##Nat
-      subnamespace.someName      : ##Nat
-      subnamespace.someOtherName : ##Nat
-      subnamespace2.thing        : ##Nat
+  + othernamespace.someName    : ##Nat
+  + subnamespace.someName      : ##Nat
+  + subnamespace.someOtherName : ##Nat
+  + subnamespace2.thing        : ##Nat
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -162,13 +160,11 @@ add b = b
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      add : a -> a
+  + add : a -> a
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -217,12 +213,9 @@ mybranchsubnamespace.term = 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + mybranchsubnamespace.term : ##Nat
 
-    ⍟ New definitions:
-    
-      mybranchsubnamespace.term : ##Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

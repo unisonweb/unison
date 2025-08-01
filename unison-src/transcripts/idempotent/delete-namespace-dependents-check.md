@@ -17,13 +17,10 @@ dependent = dependency + 99
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + dependent      : Nat
+  + sub.dependency : Nat
 
-    ⍟ New definitions:
-    
-      dependent      : Nat
-      sub.dependency : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error

@@ -12,17 +12,15 @@ structural type a.b.Baz = Boo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type a.b.Baz
+  + structural type a.x.Foo
 
-    ⍟ New definitions:
-    
-      structural type a.b.Baz
-      structural type a.x.Foo
-      a.b.one   : ##Nat
-      a.two     : ##Nat
-      a.x.four  : ##Nat
-      a.x.three : ##Nat
+  + a.b.one   : ##Nat
+  + a.two     : ##Nat
+  + a.x.four  : ##Nat
+  + a.x.three : ##Nat
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

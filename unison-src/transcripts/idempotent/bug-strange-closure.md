@@ -420,12 +420,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + rendered : Annotated () (Either SpecialForm ConsoleText)
 
-    ⍟ New definitions:
-    
-      rendered : Annotated () (Either SpecialForm ConsoleText)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ```` ucm
@@ -852,15 +849,9 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + rendered : Annotated () (Either SpecialForm ConsoleText)
 
-    ⍟ New definitions:
-    
-      rendered : Annotated () (Either SpecialForm ConsoleText)
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     3 | > rendered
           ⧩

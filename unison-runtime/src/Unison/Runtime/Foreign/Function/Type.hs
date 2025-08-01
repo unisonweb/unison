@@ -208,6 +208,8 @@ data ForeignFunc
   | MutableArray_freeze
   | MutableByteArray_length
   | ImmutableByteArray_length
+  | ImmutableByteArray_toBytes
+  | ImmutableByteArray_fromBytes
   | IO_array
   | IO_arrayOf
   | IO_bytearray
@@ -279,6 +281,7 @@ data ForeignFunc
   | Json_toText
   | Json_unconsText
   | Json_tryUnconsText
+  | Avro_decodeBinary
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -483,6 +486,8 @@ foreignFuncBuiltinName = \case
   MutableArray_freeze -> "MutableArray.freeze"
   MutableByteArray_length -> "MutableByteArray.length"
   ImmutableByteArray_length -> "ImmutableByteArray.length"
+  ImmutableByteArray_toBytes -> "ImmutableByteArray.toBytes"
+  ImmutableByteArray_fromBytes -> "ImmutableByteArray.fromBytes"
   IO_array -> "IO.array"
   IO_arrayOf -> "IO.arrayOf"
   IO_bytearray -> "IO.bytearray"
@@ -554,3 +559,4 @@ foreignFuncBuiltinName = \case
   Json_toText -> "Json.toText"
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
+  Avro_decodeBinary -> "avro.Value.tryDecodeBytes"

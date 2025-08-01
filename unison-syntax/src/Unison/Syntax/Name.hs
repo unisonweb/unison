@@ -7,6 +7,7 @@ module Unison.Syntax.Name
     parseTextEither,
     unsafeParseText,
     toText,
+    toTextParens,
     unsafeParseVar,
     parseVar,
     toVar,
@@ -68,21 +69,41 @@ unsafeParseText =
 
 -- | Convert a name to a string representation.
 toText :: Name -> Text
-toText (Name pos (x0 :| xs)) =
-  build (buildPos pos <> foldr step mempty xs <> NameSegment.toEscapedTextBuilder x0)
+toText =
+  toText1 False
+
+-- | Like 'toText', but surrounds symboly names with parens.
+toTextParens :: Name -> Text
+toTextParens =
+  toText1 True
+
+toText1 :: Bool -> Name -> Text
+toText1 parensIfSymboly (Name pos (x0 :| xs)) =
+  (foldr step prefix xs <> NameSegment.toEscapedTextBuilder x0 <> suffix)
+    & Text.Builder.toLazyText
+    & Text.Lazy.toStrict
   where
     step :: NameSegment -> Text.Builder -> Text.Builder
     step x acc =
       acc <> NameSegment.toEscapedTextBuilder x <> "."
 
-    build :: Text.Builder -> Text
-    build =
-      Text.Lazy.toStrict . Text.Builder.toLazyText
+    parens :: Bool
+    parens =
+      parensIfSymboly && NameSegment.isSymboly x0
 
-    buildPos :: Position -> Text.Builder
-    buildPos = \case
-      Absolute -> "."
-      Relative -> ""
+    prefix :: Text.Builder
+    prefix =
+      case (pos, parens) of
+        (Absolute, False) -> "."
+        (Absolute, True) -> "(."
+        (Relative, False) -> mempty
+        (Relative, True) -> "("
+
+    suffix :: Text.Builder
+    suffix =
+      case parens of
+        False -> mempty
+        True -> ")"
 
 -- | Parse a name from a var, by first rendering the var as a string.
 parseVar :: (Var v) => v -> Maybe Name

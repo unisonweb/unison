@@ -30,6 +30,7 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
+import Unison.ReferentPrime (Referent' (..))
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Canonicalizer
 import Unison.Runtime.Exception
@@ -37,6 +38,7 @@ import Unison.Runtime.MCode
   ( Prim1 (..),
     Prim2 (..),
   )
+import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 
@@ -314,6 +316,16 @@ putReferentByNumber (tys, tms) = \case
     putConstructorReferenceByNumber tys r
     putConstructorType ct
 
+putNumberedReferent :: (MonadPut m) => Referent' RefNum -> m ()
+putNumberedReferent = \case
+  Ref' r -> do
+    putWord8 0
+    putRefNum r
+  Con' r ct -> do
+    putWord8 1
+    putNumberedConstructorReference r
+    putConstructorType ct
+
 getReferentByNumber :: (MonadGet m) => GetRefLookup -> m Referent
 getReferentByNumber (tys, tms) = do
   tag <- getWord8
@@ -321,6 +333,13 @@ getReferentByNumber (tys, tms) = do
     0 -> Ref <$> getReferenceByNumber tms
     1 -> Con <$> getConstructorReferenceByNumber tys <*> getConstructorType
     _ -> unknownTag "getReferent" tag
+
+getNumberedReferent :: (MonadGet m) => m (Referent' RefNum)
+getNumberedReferent =
+  getWord8 >>= \case
+    0 -> Ref' <$> getRefNum
+    1 -> Con' <$> getNumberedConstructorReference <*> getConstructorType
+    tag -> unknownTag "getNumberedReferent" tag
 
 getConstructorType :: (MonadGet m) => m CT.ConstructorType
 getConstructorType =
@@ -345,17 +364,30 @@ getConstructorReferenceByNumber ::
 getConstructorReferenceByNumber tys =
   ConstructorReference <$> getReferenceByNumber tys <*> getLength
 
+putNumberedConstructorReference ::
+  (MonadPut m) => GConstructorReference RefNum -> m ()
+putNumberedConstructorReference (ConstructorReference r i) = do
+  putRefNum r
+  putLength i
+
+getNumberedConstructorReference ::
+  (MonadGet m) => m (GConstructorReference RefNum)
+getNumberedConstructorReference =
+  ConstructorReference <$> getRefNum <*> getLength
+
 putText :: (MonadPut m) => Text -> m ()
 putText text = do
   let bs = encodeUtf8 text
   putLength $ B.length bs
   putByteString bs
+{-# INLINE putText #-}
 
 getText :: (MonadGet m) => m Text
 getText = do
   len <- getLength
   bs <- B.copy <$> Ser.getBytes len
   pure $ decodeUtf8 bs
+{-# INLINE getText #-}
 
 putReference :: (MonadPut m) => Reference -> m ()
 putReference r = case r of
@@ -375,6 +407,10 @@ putReferenceByNumber cm r
   | otherwise = exn $ "could not serialize reference: " ++ show r
 {-# INLINE putReferenceByNumber #-}
 
+putRefNum :: (MonadPut m) => RefNum -> m ()
+putRefNum (RefNum i) = putVarInt i
+{-# INLINE putRefNum #-}
+
 getReference :: (MonadGet m) => m Reference
 getReference = do
   tag <- getWord8
@@ -393,6 +429,10 @@ lookupRef arr i
   | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
   | otherwise = exn $ "lookupRef: index out of bounds: " ++ show i
 {-# INLINE lookupRef #-}
+
+getRefNum :: (MonadGet m) => m RefNum
+getRefNum = RefNum <$> getVarInt
+{-# INLINE getRefNum #-}
 
 putConstructorReference :: (MonadPut m) => ConstructorReference -> m ()
 putConstructorReference (ConstructorReference r i) = do

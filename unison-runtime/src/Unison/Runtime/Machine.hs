@@ -47,13 +47,13 @@ import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
-import Unison.ConstructorReference (pattern ConstructorReference)
 import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
   )
-import Unison.Referent (Referent, pattern Con, pattern Ref)
+import Unison.Referent (Referent, pattern Ref)
+import Unison.ReferentPrime (Referent' (..))
 import Unison.Runtime.ANF as ANF
   ( Cacheability (..),
     Code (..),
@@ -73,7 +73,6 @@ import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
@@ -87,6 +86,7 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
@@ -1209,10 +1209,10 @@ updateMap new0 r = do
   stateTVar r $ \old ->
     let total = new <> old in (total, total)
 
-decodeCacheArgument :: USeq -> IO [(Reference, Code)]
+decodeCacheArgument :: USeq -> IO [(Reference, Code Reference)]
 decodeCacheArgument s = traverse (f <=< decodeVal) $ toList s
   where
-    f (Ref r, rco) = pure (r, ANF.dereference rco)
+    f (Ref r, rco) = pure (r, dereference rco)
     f _ = die "decodeCacheArgument: Con reference"
 
 addRefs ::
@@ -1245,24 +1245,26 @@ evaluateSTM x = unsafeIOToSTM (evaluate x)
 -- a test that involves remote code loading.
 #if defined(CODE_SERIAL_CHECK)
 
-normalizeCode :: Code -> Code
+normalizeCode :: Code Reference -> Code Reference
 normalizeCode co = case deserializeCode (serializeCode False co) of
   Left _ -> error "normalizeCode: impossible"
   Right co -> co
 
-normalizeCodes :: [(Reference, Code)] -> [(Reference, Code)]
+normalizeCodes ::
+  [(Reference, Code Reference)] -> [(Reference, Code Reference)]
 normalizeCodes = fmap $ second normalizeCode
 
 #else
 
-normalizeCodes :: [(Reference, Code)] -> [(Reference, Code)]
+normalizeCodes ::
+  [(Reference, Code Reference)] -> [(Reference, Code Reference)]
 normalizeCodes = id
 
 #endif
 
 cacheAdd0 ::
   S.Set Reference ->
-  [(Reference, Code)] ->
+  [(Reference, Code Reference)] ->
   [(Reference, Set Reference)] ->
   CCache ->
   IO ()
@@ -1278,7 +1280,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
           ANF.replaceConstructors pseudoConstructors
             . ANF.replaceFunctions functionReplacements
         haff (cmbs, opts) =
-          (M.mapWithKey (ANF.optimizeHandler opts) cmbs, opts)
+          (M.mapWithKey (ANF.optimizeHandler Builtin opts) cmbs, opts)
     opt <-
       stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
@@ -1287,7 +1289,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
-        combinate :: Word64 -> (Reference, SuperGroup Symbol) -> (Word64, EnumMap Word64 Comb)
+        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n, emitCombs rns r n g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
@@ -1363,7 +1365,7 @@ isSandboxingException _ = False
 
 expandSandbox ::
   Map Reference (Set Reference) ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, SuperGroup Reference Symbol)] ->
   [(Reference, Set Reference)]
 expandSandbox sand0 groups = fixed mempty
   where
@@ -1382,7 +1384,7 @@ expandSandbox sand0 groups = fixed mempty
         extra' = M.fromList new
 
 cacheAdd ::
-  [(Reference, Code)] ->
+  [(Reference, Code Reference)] ->
   CCache ->
   IO [Reference]
 cacheAdd l cc = do
@@ -1403,100 +1405,33 @@ cacheAdd l cc = do
     else pure $ S.toList missing
 
 data ReflectionState = RS
-  { _tyNums :: HM.HashMap Word64 Reference,
-    _tmNums :: HM.HashMap Word64 Reference,
-    _canon :: C.Canonicalizer Reference,
-    _tys :: [Reference],
-    _tms :: [Reference]
+  { _tyNums :: HM.HashMap Word64 RefNum,
+    _tmNums :: HM.HashMap Word64 RefNum,
+    _canonST :: {-# UNPACK #-} !CanonST
   }
 
 type Reflect = StateT ReflectionState IO
 
 emptyRS :: ReflectionState
-emptyRS = RS HM.empty HM.empty C.empty [] []
+emptyRS = RS HM.empty HM.empty emptyCST
 
-type RTrav a =
-  forall f.
-  (Applicative f) =>
-  (Bool -> Reference -> f Reference) ->
-  (a -> f a)
+mediate :: Canonize a -> Reflect a
+mediate act = StateT \(RS sty stm cst) ->
+  second (RS sty stm) <$> runStateT act cst
+{-# INLINE mediate #-}
 
-canonicalizeReference :: Bool -> Reference -> Reflect Reference
-canonicalizeReference isTy r = StateT \st@(RS _ _ canon tys tms) ->
-  C.categorize canon r >>= \case
-    C.Canonical -> pure (r, st)
-    C.Equivalent s canon -> (s,) <$> evaluate (st {_canon = canon})
-    C.Novel canon ->
-      (r,)
-        <$> evaluate
-          st
-            { _canon = canon,
-              _tys = if isTy then r : tys else tys,
-              _tms = if isTy then tms else r : tms
-            }
+canonicalizeReference :: Bool -> Reference -> Reflect RefNum
+canonicalizeReference isTy = mediate . resolveRef isTy
 
-canonicalizeReferent :: Referent -> Reflect Referent
-canonicalizeReferent (Ref r) = Ref <$> canonicalizeReference False r
-canonicalizeReferent (Con (ConstructorReference r i) j) =
-  flip Con j . flip ConstructorReference i <$> canonicalizeReference True r
+canonicalizeReferent :: Referent -> Reflect (Referent' RefNum)
+canonicalizeReferent = mediate . canonicalizeRefs
 
-canonicalizeReferenced :: RTrav a -> ANF.Referenced a -> Reflect a
-canonicalizeReferenced trav = \case
-  -- no stored refs, have to traverse
-  ANF.Plain v -> trav h v
-  ANF.WithRefs tys tms v -> do
-    typs <- mapMaybe id <$> traverse (g True) tys
-    tmps <- mapMaybe id <$> traverse (g False) tms
-
-    ctys <- lift $ C.fromList typs
-    ctms <- lift $ C.fromList tmps
-
-    let f False r = C.findWithDefault r r ctms
-        f True r = C.findWithDefault r r ctys
-
-    if null typs && null tmps
-      then -- all references are already canonical
-        pure v
-      else lift $ trav f v
-  where
-    -- traversal function for plain values
-    g isTy r = StateT \st@(RS _ _ canon tys tms) ->
-      C.categorize canon r >>= \case
-        C.Canonical -> pure (Nothing, st)
-        C.Novel canon ->
-          (Nothing,)
-            <$> evaluate
-              st
-                { _canon = canon,
-                  _tys = if isTy then r : tys else tys,
-                  _tms = if isTy then tms else r : tms
-                }
-        C.Equivalent s canon ->
-          (Just (r, s),) <$> evaluate (st {_canon = canon})
-
-    -- traversal function for remapping WithRefs values
-    h isTy r = StateT \st@(RS _ _ canon tys tms) ->
-      C.categorize canon r >>= \case
-        C.Canonical -> pure (r, st)
-        C.Novel canon ->
-          (r,)
-            <$> evaluate
-              if isTy
-                then
-                  st
-                    { _canon = canon,
-                      _tys = r : tys
-                    }
-                else
-                  st
-                    { _canon = canon,
-                      _tms = r : tms
-                    }
-        C.Equivalent r canon ->
-          (r,) <$> evaluate (st {_canon = canon})
+canonicalizeReferenced ::
+  (Referential t) => Referenced t -> Reflect (t RefNum)
+canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
 
-reflectValue :: CCache -> Val -> IO (ANF.Referenced ANF.Value)
+reflectValue :: CCache -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do
   tyr <- readTVarIO (tagRefs env)
   tmr <- readTVarIO (combRefs env)
@@ -1514,6 +1449,44 @@ reflectValue env val = do
       NoTrace -> show val
       MsgTrace _ _ pre -> pre
       SimpleTrace ugl -> ugl
+
+reflExn :: String -> Reflect a
+reflExn msg = lift . throwIO $ ReflectExn msg
+
+-- Converts the numbered reference map to a renumbering operation for
+-- reflection.
+resolveTy :: EnumMap Word64 Reference -> Word64 -> Reflect RefNum
+resolveTy rty w =
+  StateT \st@(RS seenty seentm cst) ->
+    case HM.lookup w seenty of
+      Just r -> pure (r, st)
+      -- if we haven't seen the number before, we need to consult the
+      -- reference map and canonicalizers.
+      Nothing
+        | Just r <- EC.lookup w rty -> do
+            (rn, cst) <- runStateT (resolveRef True r) cst
+            seenty <- pure $ HM.insert w rn seenty
+            st <- pure $ RS seenty seentm cst
+            pure (rn, st)
+        | otherwise -> throwIO $ ReflectExn "unknown type reference"
+
+-- Converts the numbered refence map to a renumbering operation for
+-- reflection, with function unreplacements considered.
+resolveTm :: EnumMap Word64 Reference -> Word64 -> Reflect RefNum
+resolveTm rtm w =
+  StateT \st@(RS seenty seentm cst) ->
+    case HM.lookup w seentm of
+      Just r -> pure (r, st)
+      -- if we haven't seen the number before, we need to consult the
+      -- reference map and canonicalizers.
+      Nothing
+        | Just r <- EC.lookup w rtm,
+          r <- M.findWithDefault r r functionUnreplacements -> do
+            (rn, cst) <- runStateT (resolveRef False r) cst
+            seentm <- pure $ HM.insert w rn seentm
+            st <- pure $ RS seenty seentm cst
+            pure (rn, st)
+        | otherwise -> throwIO $ ReflectExn "unknown term reference"
 
 -- Reflects a runtime value into an interchange value, given a mapping
 -- from numberings to references.
@@ -1539,42 +1512,18 @@ reflectValue0 ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Val ->
-  IO (ANF.Referenced ANF.Value)
+  IO (Referenced ANF.Value)
 reflectValue0 rty rtm = goV0
   where
-    refTy w =
-      get >>= \(RS seenty seentm canon tys tms) ->
-        case HM.lookup w seenty of
-          Just r -> pure r
-          Nothing
-            | Just r <- EC.lookup w rty,
-              (r, canon) <- C.canonicalize canon r,
-              upd <- RS (HM.insert w r seenty) seentm canon (r : tys) tms ->
-                r <$ put upd
-            | otherwise -> reflExn "unknown type reference"
+    goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
 
-    refTm w =
-      get >>= \(RS seenty seentm canon tys tms) ->
-        case HM.lookup w seentm of
-          Just r -> pure r
-          Nothing
-            | Just r <- EC.lookup w rtm,
-              r <- M.findWithDefault r r functionUnreplacements,
-              (r, canon) <- C.canonicalize canon r,
-              upd <- RS seenty (HM.insert w r seentm) canon tys (r : tms) ->
-                r <$ put upd
-            | otherwise -> reflExn "unknown term reference"
+    finish (val, RS _ _ (CST _ _ _ tys tms)) =
+      WithRefs (toList tys) (toList tms) val
 
-    goIx (CIx _ top i) = flip ANF.GR i <$> refTm top
-
-    reflExn msg = lift . throwIO $ ReflectExn msg
-
-    finish (val, RS _ _ _ tys tms) = ANF.WithRefs tys tms val
-
-    goV0 :: Val -> IO (ANF.Referenced ANF.Value)
+    goV0 :: Val -> IO (Referenced ANF.Value)
     goV0 v = finish <$> runStateT (goV v) emptyRS
 
-    goV :: Val -> Reflect ANF.Value
+    goV :: Val -> Reflect (ANF.Value RefNum)
     goV = \case
       -- For back-compatibility we reflect all Unboxed values into boxed literals, we could change this in the future,
       -- but there's not much of a big reason to.
@@ -1590,7 +1539,7 @@ reflectValue0 rty rtm = goV0
           PApV cix _rComb args ->
             ANF.Partial <$> goIx cix <*> traverse goV args
           DataC _ t segs -> do
-            r <- refTy $ TT.typeTag t
+            r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> traverse goV segs
           CapV k _ segs ->
             ANF.Cont <$> traverse goV segs <*> goK k
@@ -1605,8 +1554,8 @@ reflectValue0 rty rtm = goV0
     goK (AMark {}) = reflExn "captured AMark frame"
     goK KE = pure ANF.KE
     goK (Mark a ps de k) = do
-      ps <- traverse refTy (EC.setToList ps)
-      de <- traverse (\(k, v) -> (,) <$> refTy k <*> goV v) (mapToList de)
+      ps <- traverse (resolveTy rty) (EC.setToList ps)
+      de <- traverse (\(k, v) -> (,) <$> resolveTy rty k <*> goV v) (mapToList de)
       ANF.Mark (fromIntegral a) ps de <$> goK k
     goK (Push f a cix _ _rsect k) =
       ANF.Push
@@ -1627,11 +1576,9 @@ reflectValue0 rty rtm = goV0
       | Just l <- maybeUnwrapBuiltin f =
           ANF.TyLink <$> canonicalizeReference True l
       | Just v <- maybeUnwrapBuiltin f =
-          ANF.Quote
-            <$> canonicalizeReferenced ANF.traverseValueRefs v
+          ANF.Quote <$> canonicalizeReferenced v
       | Just g <- maybeUnwrapBuiltin f =
-          ANF.Code
-            <$> canonicalizeReferenced ANF.traverseCodeRefs g
+          ANF.Code <$> canonicalizeReferenced g
       | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
           pure (ANF.BArr a)
       | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
@@ -1646,7 +1593,7 @@ data ReflectExn = ReflectExn String deriving (Show)
 instance Exception ReflectExn
 
 reifyValue ::
-  CCache -> ANF.Referenced ANF.Value -> IO (Either [Reference] Val)
+  CCache -> Referenced ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do
   erc <-
     atomically $ do
@@ -1662,54 +1609,67 @@ reifyValue cc val = do
     f False r = (mempty, S.singleton r)
     f True r = (S.singleton r, mempty)
     (tyLinks, tmLinks) = case val of
-      ANF.WithRefs tys tms _ -> (Set.fromList tys, Set.fromList tms)
-      ANF.Plain val -> valueLinks f val
+      WithRefs tys tms _ -> (Set.fromList tys, Set.fromList tms)
+      Plain val -> valueLinks f val
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
-  ANF.Referenced ANF.Value ->
+  Referenced ANF.Value ->
   IO Val
-reifyValue1 tup (ANF.Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0) (ANF.WithRefs tys tms v) = do
-  rty <- C.fromList $ mapMaybe (\r -> (r,) <$> M.lookup r rty0) tys
-  rtm <- C.fromList $ mapMaybe procTermRefs tms
+reifyValue1 tup (Plain v) = reifyValue0 tup v
+reifyValue1 (combs, rty0, rtm0) (WithRefs tys tms v) = do
+  let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
+      rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
   reifyValue0Canon combs tys tms rty rtm v
   where
-    procTermRefs r =
-      (r,)
+    procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
+    procTermRefs (i, r) =
+      (RefNum i,)
         <$> M.lookup (M.findWithDefault r r functionReplacements) rtm0
 
 reifyValue0Canon ::
   EnumMap Word64 MCombs ->
   [Reference] ->
   [Reference] ->
-  C.CanonMap Reference Word64 ->
-  C.CanonMap Reference Word64 ->
-  ANF.Value ->
+  HM.HashMap RefNum Word64 ->
+  HM.HashMap RefNum Word64 ->
+  ANF.Value RefNum ->
   IO Val
 reifyValue0Canon combs tys tms rty rtm = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
-    refTy r =
-      C.lookup r rty >>= \case
-        Just w -> pure w
-        _ -> die . err $ "unknown type reference: " ++ show r
+    !tya = arrayFromList tys
+    !tma = arrayFromList tms
 
-    refTm r =
-      C.lookup r rtm >>= \case
-        Just w -> pure w
-        _ -> die . err $ "unknown term reference: " ++ show r
+    ixTy (RefNum i)
+      | 0 <= i, i < sizeofArray tya = pure $ indexArray tya i
+      | otherwise = die . err $ "type ref index out of bounds: " ++ show i
 
-    goIx :: ANF.GroupRef -> IO (CombIx, MComb)
-    goIx (ANF.GR r0 i) =
-      refTm r <&> \n ->
-        let cix = (CIx r n i)
-         in (cix, rCombSection combs cix)
-      where
-        r = M.findWithDefault r0 r0 functionReplacements
+    ixTm (RefNum i)
+      | 0 <= i, i < sizeofArray tma = pure $ indexArray tma i
+      | otherwise = die . err $ "term ref index out of bounds: " ++ show i
 
-    goV :: ANF.Value -> IO Val
+    numToRef :: Bool -> RefNum -> IO Reference
+    numToRef True = ixTy
+    numToRef False = ixTm
+
+    refTy r = case HM.lookup r rty of
+      Just w -> pure w
+      _ -> die . err $ "unknown type reference: " ++ show r
+
+    refTm r = case HM.lookup r rtm of
+      Just w -> pure w
+      _ -> die . err $ "unknown term reference: " ++ show r
+
+    goIx :: ANF.GroupRef RefNum -> IO (CombIx, MComb)
+    goIx (ANF.GR rn i) = do
+      n <- refTm rn
+      rf <- ixTm rn
+      let cix = (CIx rf n i)
+      pure (cix, rCombSection combs cix)
+
+    goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
         (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
@@ -1718,9 +1678,10 @@ reifyValue0Canon combs tys tms rty rtm = goV
           | otherwise -> die . err $ msg
           where
             msg = "reifyValue0: non-trivial partial application to cached value"
-    goV (ANF.Data r t0 vs) = do
-      t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . formDataReplaced r t <$> traverse goV vs
+    goV (ANF.Data rn t0 vs) = do
+      t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
+      rf <- ixTy rn
+      boxedVal . formDataReplaced rf t <$> traverse goV vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- traverse goV vs
@@ -1756,14 +1717,14 @@ reifyValue0Canon combs tys tms rty rtm = goV
             "tried to reify a continuation with a cached value resumption"
               ++ show r
 
-    goL :: ANF.BLit -> IO Val
+    goL :: ANF.BLit RefNum -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
     goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
-    goL (ANF.TmLink r) = pure $ encodeVal r
-    goL (ANF.TyLink r) = pure $ encodeVal r
+    goL (ANF.TmLink r) = encodeVal <$> traverseRefs numToRef r
+    goL (ANF.TyLink r) = encodeVal <$> ixTy r
     goL (ANF.Bytes b) = pure $ encodeVal b
-    goL (ANF.Quote v) = pure $ encodeVal (ANF.WithRefs tys tms v)
-    goL (ANF.Code g) = pure $ encodeVal (ANF.WithRefs tys tms g)
+    goL (ANF.Quote v) = pure $ encodeVal (WithRefs tys tms v)
+    goL (ANF.Code g) = pure $ encodeVal (WithRefs tys tms g)
     goL (ANF.BArr a) = pure $ encodeVal a
     goL (ANF.Char c) = pure $ CharVal c
     goL (ANF.Pos w) =
@@ -1778,7 +1739,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
 reifyValue0 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
-  ANF.Value ->
+  ANF.Value Reference ->
   IO Val
 reifyValue0 (combs, rty, rtm) = goV
   where
@@ -1789,7 +1750,7 @@ reifyValue0 (combs, rty, rtm) = goV
     refTm r
       | Just w <- M.lookup r rtm = pure w
       | otherwise = die . err $ "unknown term reference: " ++ show r
-    goIx :: ANF.GroupRef -> IO (CombIx, MComb)
+    goIx :: ANF.GroupRef Reference -> IO (CombIx, MComb)
     goIx (ANF.GR r0 i) =
       refTm r <&> \n ->
         let cix = (CIx r n i)
@@ -1797,7 +1758,7 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         r = M.findWithDefault r0 r0 functionReplacements
 
-    goV :: ANF.Value -> IO Val
+    goV :: ANF.Value Reference -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
         (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
@@ -1844,14 +1805,14 @@ reifyValue0 (combs, rty, rtm) = goV
             "tried to reify a continuation with a cached value resumption"
               ++ show r
 
-    goL :: ANF.BLit -> IO Val
+    goL :: ANF.BLit Reference -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
     goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
     goL (ANF.TmLink r) = pure $ encodeVal r
     goL (ANF.TyLink r) = pure $ encodeVal r
     goL (ANF.Bytes b) = pure $ encodeVal b
-    goL (ANF.Quote v) = pure $ encodeVal (ANF.Plain v)
-    goL (ANF.Code g) = pure $ encodeVal (ANF.Plain g)
+    goL (ANF.Quote v) = pure $ encodeVal (Plain v)
+    goL (ANF.Code g) = pure $ encodeVal (Plain g)
     goL (ANF.BArr a) = pure $ encodeVal a
     goL (ANF.Char c) = pure $ CharVal c
     goL (ANF.Pos w) =

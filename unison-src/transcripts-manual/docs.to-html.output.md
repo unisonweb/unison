@@ -18,17 +18,14 @@ some.outside = 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + some.ns.direct                   : Nat
+  + some.ns.direct.doc               : Doc2
+  + some.ns.pretty.deeply.nested     : Nat
+  + some.ns.pretty.deeply.nested.doc : Doc2
+  + some.outside                     : Nat
+  + some.outside.doc                 : Doc2
 
-    ⍟ New definitions:
-    
-      some.ns.direct                   : Nat
-      some.ns.direct.doc               : Doc2
-      some.ns.pretty.deeply.nested     : Nat
-      some.ns.pretty.deeply.nested.doc : Doc2
-      some.outside                     : Nat
-      some.outside.doc                 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

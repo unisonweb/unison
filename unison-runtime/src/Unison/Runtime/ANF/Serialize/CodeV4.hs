@@ -8,7 +8,6 @@ import Data.Bytes.Put
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromList, lookup)
-import Data.Primitive.Array (arrayFromListN)
 import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put qualified as SPut
 import Data.Word (Word16, Word64)
@@ -17,9 +16,9 @@ import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Serialize.Tags
-import Unison.Runtime.Canonicalizer qualified as C
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
+import Unison.Runtime.Referenced
 import Unison.Runtime.Serialize hiding
   ( getReferent,
     putReferent,
@@ -99,14 +98,13 @@ getCCs =
 putGroup ::
   (MonadPut m) =>
   (Var v) =>
-  PutRefLookup ->
   Bool ->
-  SuperGroup v ->
+  SuperGroup RefNum v ->
   m ()
-putGroup pref fops (Rec bs e) =
+putGroup fops (Rec bs e) =
   putLength n
-    *> traverse_ (putComb pref fops ctx) cs
-    *> putComb pref fops ctx e
+    *> traverse_ (putComb fops ctx) cs
+    *> putComb fops ctx e
   where
     n = length us
     (us, cs) = unzip bs
@@ -115,34 +113,33 @@ putGroup pref fops (Rec bs e) =
 getGroup ::
   (MonadGet m) =>
   (Var v) =>
-  GetRefLookup ->
-  m (SuperGroup v)
-getGroup gref = do
+  m (SuperGroup RefNum v)
+getGroup = do
   l <- getLength
   let n = fromIntegral l
       vs = getFresh <$> take l [0 ..]
       ctx = pushCtx vs []
-  cs <- replicateM l (getComb gref ctx n)
-  Rec (zip vs cs) <$> getComb gref ctx n
+  cs <- replicateM l (getComb ctx n)
+  Rec (zip vs cs) <$> getComb ctx n
 
-putCode :: (MonadPut m) => PutRefLookup -> Bool -> Code -> m ()
-putCode pref fops (CodeRep g c) =
-  putGroup pref fops g *> putCacheability c
+putCode :: (MonadPut m) => Bool -> (Code RefNum) -> m ()
+putCode fops (CodeRep g c) =
+  putGroup fops g *> putCacheability c
 
-getCode :: (MonadGet m) => GetRefLookup -> m Code
-getCode gref = CodeRep <$> getGroup gref <*> getCacheability
+getCode :: (MonadGet m) => m (Code RefNum)
+getCode = CodeRep <$> getGroup <*> getCacheability
 
 putCodeWithHeader ::
-  (MonadPut m) => [Reference] -> [Reference] -> Bool -> Code -> m ()
+  (MonadPut m) => [Reference] -> [Reference] -> Bool -> Code RefNum -> m ()
 putCodeWithHeader tyrs tmrs fops co =
   putFoldable putReference tyrs
     *> putFoldable putReference tmrs
-    *> putCode (C.fromListByIndex tyrs, C.fromListByIndex tmrs) fops co
+    *> putCode fops co
 {-# SPECIALIZE putCodeWithHeader ::
-  [Reference] -> [Reference] -> Bool -> Code -> BPut.Put
+  [Reference] -> [Reference] -> Bool -> Code RefNum -> BPut.Put
   #-}
 {-# SPECIALIZE putCodeWithHeader ::
-  [Reference] -> [Reference] -> Bool -> Code -> SPut.Put
+  [Reference] -> [Reference] -> Bool -> Code RefNum -> SPut.Put
   #-}
 
 getCodeWithHeader :: (MonadGet m) => m (Referenced Code)
@@ -151,7 +148,7 @@ getCodeWithHeader = do
   tys <- replicateM tyl getReference
   tml <- getLength
   tms <- replicateM tml getReference
-  co <- getCode (arrayFromListN tyl tys, arrayFromListN tml tms)
+  co <- getCode
   pure (WithRefs tys tms co)
 {-# SPECIALIZE getCodeWithHeader :: BGet.Get (Referenced Code) #-}
 {-# SPECIALIZE getCodeWithHeader :: SGet.Get (Referenced Code) #-}
@@ -170,13 +167,12 @@ getCacheability =
 putComb ::
   (MonadPut m) =>
   (Var v) =>
-  PutRefLookup ->
   Bool ->
   [v] ->
-  SuperNormal v ->
+  SuperNormal RefNum v ->
   m ()
-putComb pref fops ctx (Lambda ccs (TAbss us e)) =
-  putCCs ccs *> putNormal pref fops (pushCtx us ctx) e
+putComb fops ctx (Lambda ccs (TAbss us e)) =
+  putCCs ccs *> putNormal fops (pushCtx us ctx) e
 
 getFresh :: (Var v) => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
@@ -184,105 +180,102 @@ getFresh n = freshenId n $ typed ANFBlank
 getComb ::
   (MonadGet m) =>
   (Var v) =>
-  GetRefLookup ->
   [v] ->
   Word64 ->
-  m (SuperNormal v)
-getComb gref ctx frsh0 = do
+  m (SuperNormal RefNum v)
+getComb ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
       frsh = frsh0 + fromIntegral (length ccs)
-  Lambda ccs . TAbss us <$> getNormal gref (pushCtx us ctx) frsh
+  Lambda ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
 putNormal ::
   (MonadPut m) =>
   (Var v) =>
-  PutRefLookup ->
   Bool ->
   [v] ->
-  ANormal v ->
+  ANormal RefNum v ->
   m ()
-putNormal pref@(tys, tms) fops ctx tm = case tm of
+putNormal fops ctx tm = case tm of
   TVar v -> putTag VarT *> putVar ctx v
   TFrc v -> putTag ForceT *> putVar ctx v
-  TApp f as -> putTag AppT *> putFunc pref ctx f *> putArgs ctx as
+  TApp f as -> putTag AppT *> putFunc ctx f *> putArgs ctx as
   THnd rs nh _ah e ->
     putTag HandleT
-      *> putFoldable (putReferenceByNumber tys) rs
+      *> putFoldable putRefNum rs
       *> putVar ctx nh
-      *> putNormal pref fops ctx e
+      *> putNormal fops ctx e
   TShift r v e ->
     putTag ShiftT
-      *> putReferenceByNumber tys r
-      *> putNormal pref fops (v : ctx) e
+      *> putRefNum r
+      *> putNormal fops (v : ctx) e
   TMatch v bs ->
     putTag MatchT
       *> putVar ctx v
-      *> putBranches pref fops ctx bs
-  TLit l -> putTag LitT *> putLit pref l
-  TBLit l -> putTag BxLitT *> putLit pref l
+      *> putBranches fops ctx bs
+  TLit l -> putTag LitT *> putLit l
+  TBLit l -> putTag BxLitT *> putLit l
   TName v (Left r) as e ->
     putTag NameRefT
-      *> putReferenceByNumber tms r
+      *> putRefNum r
       *> putArgs ctx as
-      *> putNormal pref fops (v : ctx) e
+      *> putNormal fops (v : ctx) e
   TName v (Right u) as e ->
     putTag NameVarT
       *> putVar ctx u
       *> putArgs ctx as
-      *> putNormal pref fops (v : ctx) e
+      *> putNormal fops (v : ctx) e
   TLets Direct us ccs l e ->
     putTag LetDirT
       *> putCCs ccs
-      *> putNormal pref fops ctx l
-      *> putNormal pref fops (pushCtx us ctx) e
+      *> putNormal fops ctx l
+      *> putNormal fops (pushCtx us ctx) e
   TLets (Indirect w) us ccs l e ->
     putTag LetIndT
       *> putWord16be w
       *> putCCs ccs
-      *> putNormal pref fops ctx l
-      *> putNormal pref fops (pushCtx us ctx) e
+      *> putNormal fops ctx l
+      *> putNormal fops (pushCtx us ctx) e
   v -> exn $ "putNormal: malformed term\n" ++ show v
 
 getNormal ::
   (MonadGet m) =>
   (Var v) =>
-  GetRefLookup ->
   [v] ->
   Word64 ->
-  m (ANormal v)
-getNormal gref@(tys, tms) ctx frsh0 =
+  m (ANormal RefNum v)
+getNormal ctx frsh0 =
   getTag >>= \case
     VarT -> TVar <$> getVar ctx
     ForceT -> TFrc <$> getVar ctx
-    AppT -> TApp <$> getFunc gref ctx <*> getArgs ctx
+    AppT -> TApp <$> getFunc ctx <*> getArgs ctx
     HandleT ->
       THnd
-        <$> getList (getReferenceByNumber tys)
+        <$> getList getRefNum
         <*> getVar ctx
         <*> pure Nothing
-        <*> getNormal gref ctx frsh0
+        <*> getNormal ctx frsh0
     ShiftT ->
       flip TShift v
-        <$> getReferenceByNumber tys
-        <*> getNormal gref (v : ctx) (frsh0 + 1)
+        <$> getRefNum
+        <*> getNormal (v : ctx) (frsh0 + 1)
       where
         v = getFresh frsh0
-    MatchT -> TMatch <$> getVar ctx <*> getBranches gref ctx frsh0
-    LitT -> TLit <$> getLit gref
-    BxLitT -> TBLit <$> getLit gref
+    MatchT -> TMatch <$> getVar ctx <*> getBranches ctx frsh0
+    LitT -> TLit <$> getLit
+    BxLitT -> TBLit <$> getLit
     NameRefT ->
       TName v . Left
-        <$> getReferenceByNumber tms
+        <$> getRefNum
         <*> getArgs ctx
-        <*> getNormal gref (v : ctx) (frsh0 + 1)
+        <*> getNormal (v : ctx) (frsh0 + 1)
       where
         v = getFresh frsh0
     NameVarT ->
       TName v . Right
         <$> getVar ctx
         <*> getArgs ctx
-        <*> getNormal gref (v : ctx) (frsh0 + 1)
+        <*> getNormal (v : ctx) (frsh0 + 1)
       where
         v = getFresh frsh0
     LetDirT -> do
@@ -291,8 +284,8 @@ getNormal gref@(tys, tms) ctx frsh0 =
           frsh = frsh0 + fromIntegral l
           us = getFresh <$> take l [frsh0 ..]
       TLets Direct us ccs
-        <$> getNormal gref ctx frsh0
-        <*> getNormal gref (pushCtx us ctx) frsh
+        <$> getNormal ctx frsh0
+        <*> getNormal (pushCtx us ctx) frsh
     LetIndT -> do
       w <- getWord16be
       ccs <- getCCs
@@ -300,33 +293,32 @@ getNormal gref@(tys, tms) ctx frsh0 =
           frsh = frsh0 + fromIntegral l
           us = getFresh <$> take l [frsh0 ..]
       TLets (Indirect w) us ccs
-        <$> getNormal gref ctx frsh0
-        <*> getNormal gref (pushCtx us ctx) frsh
+        <$> getNormal ctx frsh0
+        <*> getNormal (pushCtx us ctx) frsh
 
 putFunc ::
   (MonadPut m) =>
   (Var v) =>
-  PutRefLookup ->
   [v] ->
-  Func v ->
+  Func RefNum v ->
   m ()
-putFunc (tys, tms) ctx f = case f of
+putFunc ctx f = case f of
   FVar v -> putTag FVarT *> putVar ctx v
-  FComb r -> putTag FCombT *> putReferenceByNumber tms r
+  FComb r -> putTag FCombT *> putRefNum r
   FCont v -> putTag FContT *> putVar ctx v
-  FCon r c -> putTag FConT *> putReferenceByNumber tys r *> putCTag c
-  FReq r c -> putTag FReqT *> putReferenceByNumber tys r *> putCTag c
+  FCon r c -> putTag FConT *> putRefNum r *> putCTag c
+  FReq r c -> putTag FReqT *> putRefNum r *> putCTag c
   FPrim (Left p) -> putTag FPrimT *> putPOp p
   FPrim (Right f) -> putTag FForeignT *> putFOp f
 
-getFunc :: (MonadGet m, Var v) => GetRefLookup -> [v] -> m (Func v)
-getFunc (tys, tms) ctx =
+getFunc :: (MonadGet m, Var v) => [v] -> m (Func RefNum v)
+getFunc ctx =
   getTag >>= \case
     FVarT -> FVar <$> getVar ctx
-    FCombT -> FComb <$> getReferenceByNumber tms
+    FCombT -> FComb <$> getRefNum
     FContT -> FCont <$> getVar ctx
-    FConT -> FCon <$> getReferenceByNumber tys <*> getCTag
-    FReqT -> FReq <$> getReferenceByNumber tys <*> getCTag
+    FConT -> FCon <$> getRefNum <*> getCTag
+    FReqT -> FReq <$> getRefNum <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
     FForeignT -> FPrim . Right <$> getFOp
 
@@ -513,129 +505,125 @@ word2pop = fromList $ swap <$> pOpAssoc
   where
     swap (x, y) = (y, x)
 
-putLit :: (MonadPut m) => PutRefLookup -> Lit -> m ()
-putLit pref@(tys, _) = \case
+putLit :: (MonadPut m) => Lit RefNum -> m ()
+putLit = \case
   I i -> putTag IT *> putInt i
   N n -> putTag NT *> putNat n
   F f -> putTag FT *> putFloat f
   T t -> putTag TT *> putText (Util.Text.toText t)
   C c -> putTag CT *> putChar c
-  LM r -> putTag LMT *> putReferentByNumber pref r
-  LY r -> putTag LYT *> putReferenceByNumber tys r
+  LM r -> putTag LMT *> putNumberedReferent r
+  LY r -> putTag LYT *> putRefNum r
 
-getLit :: (MonadGet m) => GetRefLookup -> m Lit
-getLit gref@(tys, _) =
+getLit :: (MonadGet m) => m (Lit RefNum)
+getLit =
   getTag >>= \case
     IT -> I <$> getInt
     NT -> N <$> getNat
     FT -> F <$> getFloat
     TT -> T . Util.Text.fromText <$> getText
     CT -> C <$> getChar
-    LMT -> LM <$> getReferentByNumber gref
-    LYT -> LY <$> getReferenceByNumber tys
+    LMT -> LM <$> getNumberedReferent
+    LYT -> LY <$> getRefNum
 
 putBranches ::
   (MonadPut m) =>
   (Var v) =>
-  PutRefLookup ->
   Bool ->
   [v] ->
-  Branched (ANormal v) ->
+  Branched RefNum (ANormal RefNum v) ->
   m ()
-putBranches pref@(tys, _) fops ctx bs = case bs of
+putBranches fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
   MatchIntegral m df -> do
     putTag MIntT
-    putEnumMap putWord64be (putNormal pref fops ctx) m
-    putMaybe df $ putNormal pref fops ctx
+    putEnumMap putWord64be (putNormal fops ctx) m
+    putMaybe df $ putNormal fops ctx
   MatchText m df -> do
     putTag MTextT
-    putMap (putText . Util.Text.toText) (putNormal pref fops ctx) m
-    putMaybe df $ putNormal pref fops ctx
+    putMap (putText . Util.Text.toText) (putNormal fops ctx) m
+    putMaybe df $ putNormal fops ctx
   MatchRequest m (TAbs v df) -> do
     putTag MReqT
-    putMap
-      (putReferenceByNumber tys)
-      (putEnumMap putCTag (putCase pref fops ctx))
+    putMapping
+      putRefNum
+      (putEnumMap putCTag (putCase fops ctx))
       m
-    putNormal pref fops (v : ctx) df
+    putNormal fops (v : ctx) df
   MatchData r m df -> do
     putTag MDataT
-    putReferenceByNumber tys r
-    putEnumMap putCTag (putCase pref fops ctx) m
-    putMaybe df $ putNormal pref fops ctx
+    putRefNum r
+    putEnumMap putCTag (putCase fops ctx) m
+    putMaybe df $ putNormal fops ctx
   MatchSum m -> do
     putTag MSumT
-    putEnumMap putWord64be (putCase pref fops ctx) m
+    putEnumMap putWord64be (putCase fops ctx) m
   MatchNumeric r m df -> do
     putTag MNumT
-    putReferenceByNumber tys r
-    putEnumMap putWord64be (putNormal pref fops ctx) m
-    putMaybe df $ putNormal pref fops ctx
+    putRefNum r
+    putEnumMap putWord64be (putNormal fops ctx) m
+    putMaybe df $ putNormal fops ctx
   _ -> exn "putBranches: malformed intermediate term"
 
 getBranches ::
   (MonadGet m) =>
   (Var v) =>
-  GetRefLookup ->
   [v] ->
   Word64 ->
-  m (Branched (ANormal v))
-getBranches gref@(tys, _) ctx frsh0 =
+  m (Branched RefNum (ANormal RefNum v))
+getBranches ctx frsh0 =
   getTag >>= \case
     MEmptyT -> pure MatchEmpty
     MIntT ->
       MatchIntegral
-        <$> getEnumMap getWord64be (getNormal gref ctx frsh0)
-        <*> getMaybe (getNormal gref ctx frsh0)
+        <$> getEnumMap getWord64be (getNormal ctx frsh0)
+        <*> getMaybe (getNormal ctx frsh0)
     MTextT ->
       MatchText
-        <$> getMap (Util.Text.fromText <$> getText) (getNormal gref ctx frsh0)
-        <*> getMaybe (getNormal gref ctx frsh0)
+        <$> getMap (Util.Text.fromText <$> getText) (getNormal ctx frsh0)
+        <*> getMaybe (getNormal ctx frsh0)
     MReqT ->
       MatchRequest
-        <$> getMap
-          (getReferenceByNumber tys)
-          (getEnumMap getCTag (getCase gref ctx frsh0))
-        <*> (TAbs v <$> getNormal gref (v : ctx) (frsh0 + 1))
+        <$> getMapping
+          getRefNum
+          (getEnumMap getCTag (getCase ctx frsh0))
+        <*> (TAbs v <$> getNormal (v : ctx) (frsh0 + 1))
       where
         v = getFresh frsh0
     MDataT ->
       MatchData
-        <$> getReferenceByNumber tys
-        <*> getEnumMap getCTag (getCase gref ctx frsh0)
-        <*> getMaybe (getNormal gref ctx frsh0)
-    MSumT -> MatchSum <$> getEnumMap getWord64be (getCase gref ctx frsh0)
+        <$> getRefNum
+        <*> getEnumMap getCTag (getCase ctx frsh0)
+        <*> getMaybe (getNormal ctx frsh0)
+    MSumT -> MatchSum <$> getEnumMap getWord64be (getCase ctx frsh0)
     MNumT ->
       MatchNumeric
-        <$> getReferenceByNumber tys
-        <*> getEnumMap getWord64be (getNormal gref ctx frsh0)
-        <*> getMaybe (getNormal gref ctx frsh0)
+        <$> getRefNum
+        <*> getEnumMap getWord64be (getNormal ctx frsh0)
+        <*> getMaybe (getNormal ctx frsh0)
 
 putCase ::
   (MonadPut m) =>
   (Var v) =>
-  PutRefLookup ->
   Bool ->
   [v] ->
-  ([Mem], ANormal v) ->
+  ([Mem], ANormal RefNum v) ->
   m ()
-putCase pref fops ctx (ccs, (TAbss us e)) =
-  putCCs ccs *> putNormal pref fops (pushCtx us ctx) e
+putCase fops ctx (ccs, (TAbss us e)) =
+  putCCs ccs *> putNormal fops (pushCtx us ctx) e
 
 getCase ::
   (MonadGet m) =>
   (Var v) =>
-  GetRefLookup ->
   [v] ->
   Word64 ->
-  m ([Mem], ANormal v)
-getCase gref ctx frsh0 = do
+  m ([Mem], ANormal RefNum v)
+getCase ctx frsh0 = do
   ccs <- getCCs
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0 ..]
-  (,) ccs . TAbss us <$> getNormal gref (pushCtx us ctx) frsh
+  (,) ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
 putCTag :: (MonadPut m) => CTag -> m ()
 putCTag c = putVarInt $ fromEnum c

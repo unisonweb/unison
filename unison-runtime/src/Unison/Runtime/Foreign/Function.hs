@@ -32,6 +32,12 @@ import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
+import Data.Avro qualified as Avro
+import Data.Avro.Encoding.FromAvro qualified as FromAvro
+import Data.Avro.Schema.ReadSchema qualified as ReadSchema
+import Data.Avro.Schema.Schema qualified as AvroSchema
+import Data.Binary.Get qualified as Get
+import Data.Bitraversable (bimapM)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
@@ -39,6 +45,7 @@ import Data.ByteString.Lazy qualified as L
 import Data.Char (chr, digitToInt, isDigit, ord)
 import Data.Default (def)
 import Data.Digest.Murmur64 (asWord64, hash64)
+import Data.HashMap.Strict qualified as HashMap
 import Data.IP (IP)
 import Data.Map.Strict qualified as Map
 import Data.Map.Strict.Internal qualified as Map
@@ -55,10 +62,12 @@ import Data.Time.Clock.POSIX as SYS
     utcTimeToPOSIXSeconds,
   )
 import Data.Time.LocalTime (TimeZone (..), getTimeZone)
+import Data.Vector qualified as Vector
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
 import GHC.Conc qualified as STM
+import GHC.Float (double2Float, float2Double)
 import GHC.IO (IO (IO))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
@@ -162,6 +171,7 @@ import Unison.Runtime.Foreign.Function.Type
     foreignFuncBuiltinName,
   )
 import Unison.Runtime.MCode
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
@@ -495,39 +505,39 @@ foreignCallHelper = \case
   Tls_terminate_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.bye tls.context
   Code_validateLinks -> mkForeignExn $
-    \(lsgs0 :: [(Referent, ANF.Referenced ANF.Code)]) -> do
+    \(lsgs0 :: [(Referent, Referenced ANF.Code)]) -> do
       let f (msg, rs) =
             F.Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
-      pure . first f . checkGroupHashes $ second ANF.dereference <$> lsgs0
+      pure . first f . checkGroupHashes $ second dereference <$> lsgs0
   Code_dependencies -> mkForeign $
-    \(ANF.dereference -> ANF.CodeRep sg _) ->
+    \(dereference -> ANF.CodeRep sg _) ->
       -- note: it's not correct to use the stored references of a
       -- `Referenced Code` because they may over-estimate the actual
       -- occurrences.
       pure $ Ref <$> ANF.groupTermLinks sg
   Code_serialize -> mkForeign $
-    \(co :: ANF.Referenced ANF.Code) ->
+    \(co :: Referenced ANF.Code) ->
       pure . Bytes.fromArray $ ANF.serializeCode False co
   Code_serialize_versioned -> mkForeign $
-    \(ver :: Word64, co :: ANF.Referenced ANF.Code) ->
-      case ANF.serializeCodeWithVersion ver False co of
+    \(ver :: Word64, co :: Referenced ANF.Code) ->
+      ANF.serializeCodeWithVersion ver False co >>= \case
         Left err -> die err
         Right bs -> pure $ Bytes.fromLazyByteString bs
   Code_deserialize ->
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
-    \(nm, (ANF.dereference -> ANF.CodeRep sg _)) ->
+    \(nm, (dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $
-      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . ANF.dereference
+      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . dereference
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
   Value_serialize_versioned ->
     mkForeign $
-      pure . Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
+      fmap Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
   Value_deserialize ->
     mkForeign $
       pure . ANF.deserializeValue . Bytes.toLazyByteString
@@ -558,7 +568,7 @@ foreignCallHelper = \case
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ ANF.dereference x
+       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ dereference x
   Crypto_hmac -> mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
       let hmac ::
@@ -568,7 +578,7 @@ foreignCallHelper = \case
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ ANF.dereference x
+       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ dereference x
   Crypto_Ed25519_sign_impl ->
     mkForeign $
       pure . signEd25519Wrapper
@@ -583,7 +593,7 @@ foreignCallHelper = \case
       pure . verifyRsaWrapper
   Universal_murmurHash ->
     mkForeign $
-      pure . asWord64 . hash64 . ANF.serializeValueForHash . ANF.dereference
+      pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress
@@ -782,6 +792,19 @@ foreignCallHelper = \case
   ImmutableByteArray_length ->
     mkForeign $
       pure . PA.sizeofByteArray
+  ImmutableByteArray_toBytes -> mkForeignExn $ \(ba :: PA.ByteArray, off, len) ->
+    if len == 0
+      then pure (Right Bytes.empty)
+      else
+        checkBoundsPrim
+          "ImmutableByteArray_toBytes"
+          (PA.sizeofByteArray ba)
+          (off + len)
+          0
+          $ pure
+          $ Right
+          $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
+  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -951,6 +974,8 @@ foreignCallHelper = \case
           errv = encodeJsonParseError err
   Json_tryUnconsText -> mkForeign $ \(txt :: Text) ->
     pure . bimap encodeJsonParseError (second encodeVal) $ parseJson txt
+  Avro_decodeBinary -> mkForeign $ \(env :: Closure, readSchema :: Closure, bytes :: Bytes.Bytes) -> do
+    avroDecodeBinary env readSchema bytes
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -983,6 +1008,9 @@ mkHashAlgorithm txt alg =
   let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
    in mkForeign $ \() -> pure (HashAlgorithm algoRef alg)
 
+-- | mkForeign is the most basic helper for implementing a Unison foreign function.
+--   It takes a function from Unison arguments (decoded from the stack) to an IO result,
+--   writes the result back to the stack, and returns a tuple indicating whether an exception occurred (always False here).
 {-# INLINE mkForeign #-}
 mkForeign :: (ForeignConvention a, ForeignConvention b) => (a -> IO b) -> Args -> Stack -> IO (Bool, Stack)
 mkForeign !f !args !stk = do
@@ -990,6 +1018,9 @@ mkForeign !f !args !stk = do
   stk <- bump stk
   (False, stk) <$ writeBack stk r
 
+-- | mkForeignIOF is like mkForeign, but it wraps the IO action in exception handling for IOExceptions.
+--   If an IOException occurs, it returns a Failure value; otherwise, it returns the result.
+--   This is useful for foreign functions that may throw IOExceptions, and you want to propagate those as Unison failures.
 {-# INLINE mkForeignIOF #-}
 mkForeignIOF ::
   (ForeignConvention a, ForeignConvention r) =>
@@ -1005,6 +1036,10 @@ mkForeignIOF f = mkForeign $ \a -> tryIOE (f a)
     handleIOE (Left e) = Left $ F.Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
     handleIOE (Right a) = Right a
 
+-- | mkForeignExn is for foreign functions that may return either a failure or a result (as an Either).
+--   If the function returns a Left (failure), it writes the failure to the stack and returns (True, stack).
+--   If it returns a Right (result), it writes the result and returns (False, stack).
+--   This is for functions that have their own error reporting, not just IOExceptions.
 {-# INLINE mkForeignExn #-}
 mkForeignExn ::
   (ForeignConvention a, ForeignConvention e, ForeignConvention r) =>
@@ -1021,6 +1056,10 @@ mkForeignExn f args stk =
       stk <- bump stk
       (False, stk) <$ writeBack stk r
 
+-- | mkForeignTls is for foreign functions that may throw TLS-specific exceptions or IOExceptions.
+--   It wraps the IO action in two layers of exception handling: first for TLS exceptions, then for IOExceptions.
+--   If an exception occurs, it returns a Failure value with the appropriate type (ioFailureRef or tlsFailureRef).
+--   Otherwise, it returns the result.
 {-# INLINE mkForeignTls #-}
 mkForeignTls ::
   forall a r.
@@ -1040,6 +1079,9 @@ mkForeignTls f = mkForeign $ \a -> fmap flatten (tryIO2 (tryIO1 (f a)))
     flatten (Right (Left e)) = Left (F.Failure Ty.tlsFailureRef (Util.Text.pack (show e)) unitValue)
     flatten (Right (Right a)) = Right a
 
+-- | mkForeignTlsE is like mkForeignTls, but for functions that may return an Either Failure r,
+--   in addition to possibly throwing TLS or IO exceptions.
+--   It flattens all three error sources (IO, TLS, and custom Failure) into a single Either Failure r.
 {-# INLINE mkForeignTlsE #-}
 mkForeignTlsE ::
   forall a r.
@@ -1662,6 +1704,385 @@ emitJson = \case
             | ord c <= 31 = "\\u00" <> hexCode c
             | otherwise = TL.singleton c
 
+-- Avro replacement implementations
+avroNull, avroTrue, avroFalse :: Val
+avroNull = BoxedVal $ Enum Ty.avroRef TT.avroNullTag
+avroTrue = BoxedVal $ Data1 Ty.avroRef TT.avroBooleanTag $ BoolVal True
+avroFalse = BoxedVal $ Data1 Ty.avroRef TT.avroBooleanTag $ BoolVal False
+
+avroDecodeReadSchema :: Closure -> IO Avro.ReadSchema
+avroDecodeReadSchema = \case
+  Enum _ t
+    | TT.avroReadSchemaNullTag == t -> pure ReadSchema.Null
+    | TT.avroReadSchemaBooleanTag == t -> pure ReadSchema.Boolean
+  Data1 _ t v@(BoxedVal c)
+    | TT.avroReadSchemaIntTag == t -> ReadSchema.Int <$> decodeMaybe avroDecodeLogicalInt c
+    | TT.avroReadSchemaFloatTag == t -> ReadSchema.Float <$> avroDecodeReadFloat c
+    | TT.avroReadSchemaDoubleTag == t -> ReadSchema.Double <$> avroDecodeReadDouble c
+    | TT.avroReadSchemaBytesTag == t -> ReadSchema.Bytes <$> decodeMaybe avroDecodeLogicalBytes c
+    | TT.avroReadSchemaStringTag == t -> ReadSchema.String <$> decodeMaybe avroDecodeLogicalString c
+    | TT.avroReadSchemaNamedTypeTag == t -> ReadSchema.NamedType <$> avroDecodeTypeName c
+    | TT.avroReadSchemaUnionTag == t -> ReadSchema.Union . Vector.fromList <$> ((decodeVal v :: IO [(Int, Closure)]) >>= traverse (\case (ix, c) -> (ix,) <$> avroDecodeReadSchema c))
+    | TT.avroReadSchemaRecordTag == t -> avroDecodeReadRecord c
+    | TT.avroReadSchemaEnumTag == t -> do
+        (name, aliases, doc, symbols) <- avroDecodeEnum c
+        pure $ ReadSchema.Enum name aliases doc symbols
+    | TT.avroReadSchemaFixedTag == t -> do
+        (name, aliases, size, logicalType) <- avroDecodeFixed c
+        pure $ ReadSchema.Fixed name aliases size logicalType
+    | TT.avroReadSchemaNullTag == t || TT.avroReadSchemaBooleanTag == t || TT.avroReadSchemaStringTag == t || TT.avroReadSchemaFloatTag == t || TT.avroReadSchemaFixedTag == t || TT.avroReadSchemaDoubleTag == t || TT.avroReadSchemaBytesTag == t || TT.avroReadSchemaNamedTypeTag == t || TT.avroReadSchemaArrayTag == t || TT.avroReadSchemaMapTag == t || TT.avroReadSchemaLongTag == t || TT.avroReadSchemaFreeUnionTag == t || TT.avroReadSchemaEnumTag == t || TT.avroReadSchemaUnionTag == t || TT.avroReadSchemaArrayTag == t ->
+        die $ "avroDecodeReadSchema: type error: mismatched data1 tag " ++ show t ++ " " ++ show v
+    | otherwise -> die $ "avroDecodeReadSchema: type error: unknown data1 tag " ++ show t ++ " " ++ show v ++ " " ++ show (TT.unpackTags t)
+  Data2 _ t (BoxedVal c1) (BoxedVal c2)
+    | TT.avroReadSchemaArrayTag == t -> ReadSchema.Array <$> avroDecodeReadSchema c1
+    | TT.avroReadSchemaMapTag == t -> ReadSchema.Map <$> avroDecodeReadSchema c1
+    | TT.avroReadSchemaLongTag == t -> ReadSchema.Long <$> avroDecodeReadLong c1 <*> decodeMaybe avroDecodeLogicalTypeLong c2
+  Data2 _ t v1 (BoxedVal c2)
+    | TT.avroReadSchemaFreeUnionTag == t -> ReadSchema.FreeUnion <$> decodeVal v1 <*> avroDecodeReadSchema c2
+  d -> die $ "avroDecodeReadSchema: type error: " ++ show d
+
+avroDecodeSchema :: Closure -> IO AvroSchema.Schema
+avroDecodeSchema = \case
+  Enum _ t
+    | TT.avroSchemaNullTag == t -> pure AvroSchema.Null
+    | TT.avroSchemaBooleanTag == t -> pure AvroSchema.Boolean
+    | TT.avroSchemaFloatTag == t -> pure AvroSchema.Float
+    | TT.avroSchemaDoubleTag == t -> pure AvroSchema.Double
+  Data1 _ t v@(BoxedVal c)
+    | TT.avroSchemaIntTag == t -> AvroSchema.Int <$> decodeMaybe avroDecodeLogicalInt c
+    | TT.avroSchemaLongTag == t -> AvroSchema.Long <$> decodeMaybe avroDecodeLogicalTypeLong c
+    | TT.avroSchemaStringTag == t -> AvroSchema.String <$> decodeMaybe avroDecodeLogicalString c
+    | TT.avroSchemaBytesTag == t -> AvroSchema.Bytes <$> decodeMaybe avroDecodeLogicalBytes c
+    | TT.avroSchemaFixedTag == t -> do
+        (name, aliases, size, logicalType) <- avroDecodeFixed c
+        pure $ AvroSchema.Fixed name aliases size logicalType
+    | TT.avroSchemaEnumTag == t -> do
+        (name, aliases, doc, symbols) <- avroDecodeEnum c
+        pure $ AvroSchema.Enum name aliases doc symbols
+    | TT.avroSchemaRecordTag == t -> avroDecodeRecord c
+    | TT.avroSchemaMapTag == t -> AvroSchema.Map <$> avroDecodeSchema c
+    | TT.avroSchemaArrayTag == t -> AvroSchema.Array <$> avroDecodeSchema c
+    | TT.avroSchemaNamedTypeTag == t -> AvroSchema.NamedType <$> avroDecodeTypeName c
+    | TT.avroSchemaUnionTag == t -> AvroSchema.Union . Vector.fromList <$> (traverse avroDecodeSchema =<< decodeVal v)
+  d -> die $ "avroDecodeSchema: type error: " ++ show d
+
+avroDecodeLogicalTypeLong :: Closure -> IO ReadSchema.LogicalTypeLong
+avroDecodeLogicalTypeLong = \case
+  Enum _ t
+    | TT.avroLogicalLongTimeMicrosTag == t -> pure ReadSchema.TimeMicros
+    | TT.avroLogicalLongTimestampMillisTag == t -> pure ReadSchema.TimestampMillis
+    | TT.avroLogicalLongTimestampMicrosTag == t -> pure ReadSchema.TimestampMicros
+    | TT.avroLogicalLongLocalTimestampMillisTag == t -> pure ReadSchema.LocalTimestampMillis
+    | TT.avroLogicalLongLocalTimestampMicrosTag == t -> pure ReadSchema.LocalTimestampMicros
+  Data1 _ _ (BoxedVal c) -> ReadSchema.DecimalL <$> avroDecodeDecimal c
+  d -> die $ "avroDecodeLogicalTypeLong: type error: " ++ show d
+
+avroDecodeReadRecord :: Closure -> IO ReadSchema.ReadSchema
+avroDecodeReadRecord = \case
+  DataC _ _ [BoxedVal name, aliases, doc, fields] -> do
+    name' <- avroDecodeTypeName name
+    aliases' <- traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])
+    doc' <- fmap Util.Text.toText <$> decodeVal doc
+    fields' <- traverse avroDecodeReadField =<< (decodeVal fields :: IO [Closure])
+    pure $ ReadSchema.Record name' aliases' doc' fields'
+  d -> die $ "avroDecodeReadRecord: type error: " ++ show d
+
+avroDecodeRecord :: Closure -> IO AvroSchema.Schema
+avroDecodeRecord = \case
+  DataC _ _ [BoxedVal name, aliases, doc, fields] -> AvroSchema.Record <$> avroDecodeTypeName name <*> (traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> (traverse avroDecodeField =<< (decodeVal fields :: IO [Closure]))
+  d -> die $ "avroDecodeReadRecord: type error: " ++ show d
+
+avroDecodeReadField :: Closure -> IO ReadSchema.ReadField
+avroDecodeReadField = \case
+  DataC _ _ [name, aliases, doc, BoxedVal typ, BoxedVal status, BoxedVal order, BoxedVal def] -> (ReadSchema.ReadField . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeFieldStatus status <*> avroDecodeReadSchema typ <*> decodeMaybe avroDecodeDefaultValue def
+  d -> die $ "avroDecodeReadField: type error: " ++ show d
+
+avroDecodeField :: Closure -> IO AvroSchema.Field
+avroDecodeField = \case
+  DataC _ _ [name, doc, BoxedVal typ, aliases, BoxedVal order, BoxedVal def] -> (AvroSchema.Field . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeSchema typ <*> decodeMaybe avroDecodeDefaultValue def
+  d -> die $ "avroDecodeField: type error: " ++ show d
+
+avroDecodeEnum :: Closure -> IO (AvroSchema.TypeName, [AvroSchema.TypeName], Maybe Data.Text.Text, Vector.Vector Data.Text.Text)
+avroDecodeEnum = \case
+  DataC _ _ [BoxedVal name, doc, aliases, symbols, _] -> do
+    name' <- avroDecodeTypeName name
+    aliases' <- traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])
+    doc' <- fmap Util.Text.toText <$> decodeVal doc
+    symbols' <- Vector.fromList . map Util.Text.toText <$> decodeVal symbols
+    pure (name', aliases', doc', symbols')
+  d -> die $ "avroDecodeEnum: type error: " ++ show d
+
+avroDecodeFixed :: Closure -> IO (Avro.TypeName, [Avro.TypeName], Int, Maybe ReadSchema.LogicalTypeFixed)
+avroDecodeFixed = \case
+  DataC _ _ [BoxedVal name, _, aliases, size, BoxedVal logicalType] -> do
+    name' <- avroDecodeTypeName name
+    aliases' <- traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])
+    size' <- decodeVal size
+    logicalType' <- decodeMaybe avroDecodeLogicalFixed logicalType
+    pure (name', aliases', size', logicalType')
+  d -> die $ "avroDecodeFixed: type error: " ++ show d
+
+avroDecodeLogicalFixed :: Closure -> IO ReadSchema.LogicalTypeFixed
+avroDecodeLogicalFixed = \case
+  Enum _ t | TT.avroLogicalFixedDurationTag == t -> pure ReadSchema.Duration
+  Data1 _ t (BoxedVal v) | TT.avroLogicalFixedDecimalTag == t -> ReadSchema.DecimalF <$> avroDecodeDecimal v
+  d -> die $ "avroDecodeLogicalFixed: type error: " ++ show d
+
+avroDecodeReadLong :: Closure -> IO ReadSchema.ReadLong
+avroDecodeReadLong = \case
+  Enum _ t
+    | TT.avroReadLongInt32Tag == t -> pure ReadSchema.LongFromInt
+    | TT.avroReadLongTag == t -> pure ReadSchema.ReadLong
+  d -> die $ "avroDecodeReadLong: type error: " ++ show d
+
+avroDecodeLogicalInt :: Closure -> IO ReadSchema.LogicalTypeInt
+avroDecodeLogicalInt = \case
+  Enum _ t
+    | TT.avroLogicalIntDateTag == t -> pure ReadSchema.Date
+    | TT.avroLogicalIntTimeTag == t -> pure ReadSchema.TimeMillis
+  Data1 _ t (BoxedVal v) | TT.avroLogicalIntDecimalTag == t -> ReadSchema.DecimalI <$> avroDecodeDecimal v
+  d -> die $ "avroDecodeLogicalInt: type error: " ++ show d
+
+avroDecodeLogicalBytes :: Closure -> IO ReadSchema.LogicalTypeBytes
+avroDecodeLogicalBytes = \case
+  Data1 _ t (BoxedVal v) | TT.avroLogicalBytesDecimalTag == t -> ReadSchema.DecimalB <$> avroDecodeDecimal v
+  d -> die $ "avroDecodeLogicalBytes: type error: " ++ show d
+
+avroDecodeLogicalString :: Closure -> IO ReadSchema.LogicalTypeString
+avroDecodeLogicalString = \case
+  Enum _ t
+    | TT.avroLogicalStringUuidTag == t -> pure ReadSchema.UUID
+  d -> die $ "avroDecodeLogicalString: type error: " ++ show d
+
+avroDecodeTypeName :: Closure -> IO Avro.TypeName
+avroDecodeTypeName = \case
+  Data2 _ _ name namespace -> (Avro.TN . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal namespace)
+  d -> die $ "avroDecodeTypeName: type error: " ++ show d
+
+avroDecodeReadFloat :: Closure -> IO ReadSchema.ReadFloat
+avroDecodeReadFloat = \case
+  Enum _ t
+    | TT.avroReadFloatFromInt32Tag == t -> pure ReadSchema.FloatFromInt
+    | TT.avroReadFloatFromInt64Tag == t -> pure ReadSchema.FloatFromLong
+    | TT.avroReadFloatTag == t -> pure ReadSchema.ReadFloat
+  d -> die $ "avroDecodeReadFloat: type error: " ++ show d
+
+avroDecodeReadDouble :: Closure -> IO ReadSchema.ReadDouble
+avroDecodeReadDouble = \case
+  Enum _ t
+    | TT.avroReadDoubleFromInt32Tag == t -> pure ReadSchema.DoubleFromInt
+    | TT.avroReadDoubleFromInt64Tag == t -> pure ReadSchema.DoubleFromLong
+    | TT.avroReadDoubleFromFloatTag == t -> pure ReadSchema.DoubleFromFloat
+    | TT.avroReadDoubleTag == t -> pure ReadSchema.ReadDouble
+  d -> die $ "avroDecodeReadDouble: type error: " ++ show d
+
+avroDecodeDecimal :: Closure -> IO ReadSchema.Decimal
+avroDecodeDecimal = \case
+  Data2 _ _ precision scale -> ReadSchema.Decimal <$> fmap fromIntegral (decodeVal precision :: IO Int) <*> fmap fromIntegral (decodeVal scale :: IO Int)
+  d -> die $ "avroDecodeDecimal: type error: " ++ show d
+
+avroDecodeFieldStatus :: Closure -> IO ReadSchema.FieldStatus
+avroDecodeFieldStatus = \case
+  Enum _ t
+    | TT.avroFieldStatusIgnoredTag == t -> pure ReadSchema.Ignored
+  Data1 _ _ v -> ReadSchema.AsIs . fromIntegral <$> (decodeVal v :: IO Word64)
+  Data2 _ _ v1 (BoxedVal v2) -> ReadSchema.Defaulted <$> decodeVal v1 <*> avroDecodeDefaultValue v2
+  d -> die $ "avroDecodeFieldStatus: type error: " ++ show d
+
+avroDecodeOrder :: Closure -> IO Avro.Order
+avroDecodeOrder = \case
+  Enum _ t
+    | TT.avroOrderAscendingTag == t -> pure Avro.Ascending
+    | TT.avroOrderDescendingTag == t -> pure Avro.Descending
+    | TT.avroOrderIgnoreTag == t -> pure Avro.Ignore
+  d -> die $ "avroDecodeOrder: type error: " ++ show d
+
+avroDecodeDefaultValue :: Closure -> IO AvroSchema.DefaultValue
+avroDecodeDefaultValue = \case
+  Enum _ t
+    | TT.avroDefaultValueNullTag == t -> pure AvroSchema.DNull
+  Data1 _ t v
+    | TT.avroDefaultValueBooleanTag == t -> AvroSchema.DBoolean <$> decodeVal v
+    | TT.avroDefaultValueArrayTag == t -> AvroSchema.DArray . Vector.fromList <$> (traverse avroDecodeDefaultValue =<< decodeVal v)
+    | TT.avroDefaultValueMapTag == t -> AvroSchema.DMap . HashMap.fromList <$> (traverse (bimapM (pure . Util.Text.toText) avroDecodeDefaultValue) =<< decodeVal v)
+  Data2 _ t (BoxedVal c1) v2
+    | TT.avroDefaultValueIntTag == t -> AvroSchema.DInt <$> avroDecodeSchema c1 <*> (fromIntegral <$> (decodeVal v2 :: IO Int))
+    | TT.avroDefaultValueLongTag == t -> AvroSchema.DLong <$> avroDecodeSchema c1 <*> (fromIntegral <$> (decodeVal v2 :: IO Int))
+    | TT.avroDefaultValueFloatTag == t -> AvroSchema.DFloat <$> avroDecodeSchema c1 <*> (double2Float <$> (decodeVal v2 :: IO Double))
+    | TT.avroDefaultValueDoubleTag == t -> AvroSchema.DDouble <$> avroDecodeSchema c1 <*> decodeVal v2
+    | TT.avroDefaultValueBytesTag == t -> AvroSchema.DBytes <$> avroDecodeSchema c1 <*> (Bytes.toByteString <$> decodeVal v2)
+    | TT.avroDefaultValueStringTag == t -> AvroSchema.DString <$> avroDecodeSchema c1 <*> (Util.Text.toText <$> decodeVal v2)
+    | TT.avroDefaultValueRecordTag == t -> AvroSchema.DRecord <$> avroDecodeSchema c1 <*> fmap HashMap.fromList (traverse (bimapM (pure . Util.Text.toText) avroDecodeDefaultValue) =<< decodeVal v2)
+    | TT.avroDefaultValueFixedTag == t -> AvroSchema.DFixed <$> avroDecodeSchema c1 <*> (Bytes.toByteString <$> decodeVal v2)
+  DataC _ t [schemas, BoxedVal schema, BoxedVal defaultVal] | TT.avroDefaultValueUnionTag == t -> AvroSchema.DUnion <$> fmap Vector.fromList (traverse avroDecodeSchema =<< decodeVal schemas) <*> avroDecodeSchema schema <*> (avroDecodeDefaultValue defaultVal)
+  DataC _ t [BoxedVal schema, ix, symbol] | TT.avroDefaultValueEnumTag == t -> AvroSchema.DEnum <$> avroDecodeSchema schema <*> decodeVal ix <*> (Util.Text.toText <$> decodeVal symbol)
+  d -> die $ "avroDecodeDefaultValue: type error: " ++ show d
+
+avroEncodeLogicalTypeInt :: ReadSchema.LogicalTypeInt -> Val
+avroEncodeLogicalTypeInt = \case
+  ReadSchema.Date -> BoxedVal $ Enum Ty.avroLogicalIntRef TT.avroLogicalIntDateTag
+  ReadSchema.TimeMillis -> BoxedVal $ Enum Ty.avroLogicalIntRef TT.avroLogicalIntTimeTag
+  ReadSchema.DecimalI (ReadSchema.Decimal precision scale) -> BoxedVal $ Data1 Ty.avroLogicalIntRef TT.avroLogicalIntDecimalTag (BoxedVal $ Data2 Ty.avroDecimalRef TT.avroDecimalTag (encodeVal (fromIntegral precision :: Int)) (encodeVal (fromIntegral scale :: Int)))
+
+avroEncodeReadLong :: ReadSchema.ReadLong -> Val
+avroEncodeReadLong = \case
+  ReadSchema.LongFromInt -> BoxedVal $ Enum Ty.avroReadLongRef TT.avroReadLongInt32Tag
+  ReadSchema.ReadLong -> BoxedVal $ Enum Ty.avroReadLongRef TT.avroReadLongTag
+
+avroEncodeReadFloat :: ReadSchema.ReadFloat -> Val
+avroEncodeReadFloat = \case
+  ReadSchema.FloatFromInt -> BoxedVal $ Enum Ty.avroReadFloatRef TT.avroReadFloatFromInt32Tag
+  ReadSchema.FloatFromLong -> BoxedVal $ Enum Ty.avroReadFloatRef TT.avroReadFloatFromInt64Tag
+  ReadSchema.ReadFloat -> BoxedVal $ Enum Ty.avroReadFloatRef TT.avroReadFloatTag
+
+avroEncodeReadDouble :: ReadSchema.ReadDouble -> Val
+avroEncodeReadDouble = \case
+  ReadSchema.DoubleFromInt -> BoxedVal $ Enum Ty.avroReadDoubleRef TT.avroReadDoubleFromInt32Tag
+  ReadSchema.DoubleFromLong -> BoxedVal $ Enum Ty.avroReadDoubleRef TT.avroReadDoubleFromInt64Tag
+  ReadSchema.DoubleFromFloat -> BoxedVal $ Enum Ty.avroReadDoubleRef TT.avroReadDoubleFromFloatTag
+  ReadSchema.ReadDouble -> BoxedVal $ Enum Ty.avroReadDoubleRef TT.avroReadDoubleTag
+
+avroEncodeReadSchema :: Avro.ReadSchema -> Val
+avroEncodeReadSchema = \case
+  ReadSchema.Null -> BoxedVal $ Enum Ty.avroReadSchemaRef TT.avroReadSchemaNullTag
+  ReadSchema.Boolean -> BoxedVal $ Enum Ty.avroReadSchemaRef TT.avroReadSchemaBooleanTag
+  ReadSchema.Int logicalType -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaIntTag (encodeVal (fmap avroEncodeLogicalTypeInt logicalType))
+  ReadSchema.Long readLong logicalType -> BoxedVal $ Data2 Ty.avroReadSchemaRef TT.avroReadSchemaLongTag (avroEncodeReadLong readLong) (encodeVal (fmap avroEncodeLogicalTypeLong logicalType))
+  ReadSchema.Float readFloat -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaFloatTag (avroEncodeReadFloat readFloat)
+  ReadSchema.Double readDouble -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaDoubleTag (avroEncodeReadDouble readDouble)
+  ReadSchema.Bytes logicalType -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaBytesTag (encodeVal (fmap avroEncodeLogicalTypeBytes logicalType))
+  ReadSchema.String logicalType -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaStringTag (encodeVal (fmap avroEncodeLogicalTypeString logicalType))
+  ReadSchema.Array readSchema -> BoxedVal $ Data2 Ty.avroReadSchemaRef TT.avroReadSchemaArrayTag (avroEncodeReadSchema readSchema) (encodeVal (fmap avroEncodeDefaultValue []))
+  ReadSchema.Map readSchema -> BoxedVal $ Data2 Ty.avroReadSchemaRef TT.avroReadSchemaMapTag (avroEncodeReadSchema readSchema) (BoxedVal $ Enum Ty.mapRef TT.mapTipTag)
+  ReadSchema.NamedType tn -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaNamedTypeTag (avroEncodeTypeName tn)
+  ReadSchema.Record name aliases doc fields -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaRecordTag (BoxedVal $ DataG Ty.avroReadRecordRef TT.avroReadRecordTag (boxedSeg [getBoxedVal (avroEncodeTypeName name), getBoxedVal (encodeVal (map avroEncodeTypeName aliases)), getBoxedVal (encodeVal (Util.Text.fromText <$> doc)), getBoxedVal (encodeVal (map avroEncodeReadField fields))]))
+  ReadSchema.Enum name aliases doc symbols -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaEnumTag (BoxedVal $ DataG Ty.avroEnumRef TT.avroEnumTag (boxedSeg [getBoxedVal (avroEncodeTypeName name), getBoxedVal (encodeVal (Util.Text.fromText <$> doc)), getBoxedVal (encodeVal (map avroEncodeTypeName aliases)), getBoxedVal (encodeVal (map Util.Text.fromText (Vector.toList symbols))), getBoxedVal (encodeVal (Nothing :: Maybe Text))]))
+  ReadSchema.Union options -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaUnionTag (encodeVal (map (second avroEncodeReadSchema) (Vector.toList options)))
+  ReadSchema.Fixed name aliases size logicalType -> BoxedVal $ Data1 Ty.avroReadSchemaRef TT.avroReadSchemaFixedTag (BoxedVal $ DataG Ty.avroFixedRef TT.avroFixedTag (boxedSeg [getBoxedVal (avroEncodeTypeName name), getBoxedVal (encodeVal (map avroEncodeTypeName aliases)), getBoxedVal (encodeVal (Nothing :: Maybe Text)), getBoxedVal (encodeVal size), getBoxedVal (encodeVal (fmap avroEncodeLogicalTypeFixed logicalType))]))
+  ReadSchema.FreeUnion pos ty -> BoxedVal $ Data2 Ty.avroReadSchemaRef TT.avroReadSchemaFreeUnionTag (encodeVal pos) (avroEncodeReadSchema ty)
+
+avroEncodeTypeName :: Avro.TypeName -> Val
+avroEncodeTypeName (Avro.TN baseName namespace) = BoxedVal $ Data2 Ty.avroTypeNameRef TT.avroTypeNameTag (encodeVal (Util.Text.fromText baseName)) (encodeVal (map Util.Text.fromText namespace))
+
+avroEncodeReadField :: ReadSchema.ReadField -> Val
+avroEncodeReadField = \case
+  ReadSchema.ReadField name aliases doc order status typ def -> BoxedVal $ DataG Ty.avroReadFieldRef TT.avroReadFieldTag (boxedSeg [getBoxedVal (encodeVal (Util.Text.fromText name)), getBoxedVal (encodeVal (map Util.Text.fromText aliases)), getBoxedVal (encodeVal (Util.Text.fromText <$> doc)), getBoxedVal (avroEncodeReadSchema typ), getBoxedVal (avroEncodeFieldStatus status), getBoxedVal (encodeVal (fmap avroEncodeOrder order)), getBoxedVal (encodeVal (fmap avroEncodeDefaultValue def))])
+
+avroEncodeLogicalTypeString :: ReadSchema.LogicalTypeString -> Val
+avroEncodeLogicalTypeString = \case
+  ReadSchema.UUID -> BoxedVal $ Enum Ty.avroLogicalStringRef TT.avroLogicalStringUuidTag
+
+avroEncodeFieldStatus :: ReadSchema.FieldStatus -> Val
+avroEncodeFieldStatus = \case
+  ReadSchema.AsIs n -> BoxedVal $ Data1 Ty.avroFieldStatusRef TT.avroFieldStatusAsIsTag (encodeVal n)
+  ReadSchema.Ignored -> BoxedVal $ Enum Ty.avroFieldStatusRef TT.avroFieldStatusIgnoredTag
+  ReadSchema.Defaulted n def -> BoxedVal $ Data2 Ty.avroFieldStatusRef TT.avroFieldStatusDefaultedTag (encodeVal n) (avroEncodeDefaultValue def)
+
+avroEncodeOrder :: Avro.Order -> Val
+avroEncodeOrder = \case
+  Avro.Ascending -> BoxedVal $ Enum Ty.avroOrderRef TT.avroOrderAscendingTag
+  Avro.Descending -> BoxedVal $ Enum Ty.avroOrderRef TT.avroOrderDescendingTag
+  Avro.Ignore -> BoxedVal $ Enum Ty.avroOrderRef TT.avroOrderIgnoreTag
+
+avroEncodeLogicalTypeLong :: ReadSchema.LogicalTypeLong -> Val
+avroEncodeLogicalTypeLong = \case
+  ReadSchema.TimeMicros -> BoxedVal $ Enum Ty.avroLogicalLongRef TT.avroLogicalLongTimeMicrosTag
+  ReadSchema.TimestampMillis -> BoxedVal $ Enum Ty.avroLogicalLongRef TT.avroLogicalLongTimestampMillisTag
+  ReadSchema.TimestampMicros -> BoxedVal $ Enum Ty.avroLogicalLongRef TT.avroLogicalLongTimestampMicrosTag
+  ReadSchema.LocalTimestampMillis -> BoxedVal $ Enum Ty.avroLogicalLongRef TT.avroLogicalLongLocalTimestampMillisTag
+  ReadSchema.LocalTimestampMicros -> BoxedVal $ Enum Ty.avroLogicalLongRef TT.avroLogicalLongLocalTimestampMicrosTag
+  ReadSchema.DecimalL (ReadSchema.Decimal precision scale) -> BoxedVal $ Data1 Ty.avroLogicalLongRef TT.avroLogicalLongDecimalTag (BoxedVal $ Data2 Ty.avroDecimalRef TT.avroDecimalTag (encodeVal (fromIntegral precision :: Int)) (encodeVal (fromIntegral scale :: Int)))
+
+avroEncodeLogicalTypeBytes :: ReadSchema.LogicalTypeBytes -> Val
+avroEncodeLogicalTypeBytes = \case
+  ReadSchema.DecimalB (ReadSchema.Decimal precision scale) -> BoxedVal $ Data1 Ty.avroLogicalBytesRef TT.avroLogicalBytesDecimalTag (BoxedVal $ Data2 Ty.avroDecimalRef TT.avroDecimalTag (encodeVal (fromIntegral precision :: Int)) (encodeVal (fromIntegral scale :: Int)))
+
+avroEncodeLogicalTypeFixed :: ReadSchema.LogicalTypeFixed -> Val
+avroEncodeLogicalTypeFixed = \case
+  ReadSchema.DecimalF (ReadSchema.Decimal precision scale) -> BoxedVal $ Data1 Ty.avroLogicalFixedRef TT.avroLogicalFixedDecimalTag (BoxedVal $ Data2 Ty.avroDecimalRef TT.avroDecimalTag (encodeVal (fromIntegral precision :: Int)) (encodeVal (fromIntegral scale :: Int)))
+  ReadSchema.Duration -> BoxedVal $ Enum Ty.avroLogicalFixedRef TT.avroLogicalFixedDurationTag
+
+avroEncodeValue :: FromAvro.Value -> Val
+avroEncodeValue = \case
+  FromAvro.Null -> avroNull
+  FromAvro.Boolean b -> if b then avroTrue else avroFalse
+  FromAvro.Int schema n ->
+    BoxedVal $
+      Data2 Ty.avroRef TT.avroIntTag (avroEncodeReadSchema schema) (encodeVal (fromIntegral n :: Int))
+  FromAvro.Long schema n -> BoxedVal $ Data2 Ty.avroRef TT.avroLongTag (avroEncodeReadSchema schema) (encodeVal (fromIntegral n :: Int))
+  FromAvro.Float schema n ->
+    BoxedVal $ Data2 Ty.avroRef TT.avroFloatTag (avroEncodeReadSchema schema) (encodeVal (float2Double n))
+  FromAvro.Double schema n ->
+    BoxedVal $ Data2 Ty.avroRef TT.avroDoubleTag (avroEncodeReadSchema schema) (encodeVal n)
+  FromAvro.Bytes schema bs ->
+    BoxedVal $ Data2 Ty.avroRef TT.avroBytesTag (avroEncodeReadSchema schema) (encodeVal (Bytes.fromByteString bs))
+  FromAvro.String schema s ->
+    BoxedVal $ Data2 Ty.avroRef TT.avroStringTag (avroEncodeReadSchema schema) (encodeVal (Util.Text.fromText s))
+  FromAvro.Array xs ->
+    BoxedVal $ Data1 Ty.avroRef TT.avroArrayTag (encodeVal (map avroEncodeValue (Vector.toList xs)))
+  FromAvro.Map xs ->
+    let m = HashMap.toList xs
+        encoded = map (second avroEncodeValue) m
+     in BoxedVal $ Data1 Ty.avroRef TT.avroMapTag $ BoxedVal $ Foreign (Wrap Ty.hmapRef (Map.fromList encoded))
+  FromAvro.Record schema fields ->
+    BoxedVal $ Data2 Ty.avroRef TT.avroRecordTag (avroEncodeReadSchema schema) (encodeVal (map avroEncodeValue (Vector.toList fields)))
+  FromAvro.Union schema tag v ->
+    BoxedVal $ DataG Ty.avroRef TT.avroUnionTag (segFromList [avroEncodeReadSchema schema, encodeVal tag, avroEncodeValue v])
+  FromAvro.Fixed schema bytes ->
+    BoxedVal $ Data2 Ty.avroRef TT.avroFixedTag (avroEncodeReadSchema schema) (encodeVal (Bytes.fromByteString bytes))
+  FromAvro.Enum schema ix v ->
+    BoxedVal $ DataG Ty.avroRef TT.avroEnumTag (segFromList [avroEncodeReadSchema schema, encodeVal ix, encodeVal (Util.Text.fromText v)])
+
+avroEncodeDefaultValue :: AvroSchema.DefaultValue -> Val
+avroEncodeDefaultValue = \case
+  AvroSchema.DNull -> BoxedVal $ Enum Ty.avroDefaultValueRef TT.avroDefaultValueNullTag
+  AvroSchema.DBoolean b -> BoxedVal $ Data1 Ty.avroDefaultValueRef TT.avroDefaultValueBooleanTag (encodeVal b)
+  AvroSchema.DInt schema n -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueIntTag (avroEncodeSchema schema) (encodeVal (fromIntegral n :: Int))
+  AvroSchema.DLong schema n -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueLongTag (avroEncodeSchema schema) (encodeVal (fromIntegral n :: Int))
+  AvroSchema.DFloat schema f -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueFloatTag (avroEncodeSchema schema) (encodeVal (float2Double f))
+  AvroSchema.DDouble schema d -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueDoubleTag (avroEncodeSchema schema) (encodeVal d)
+  AvroSchema.DString schema s -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueStringTag (avroEncodeSchema schema) (encodeVal (Util.Text.fromText s))
+  AvroSchema.DBytes schema bs -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueBytesTag (avroEncodeSchema schema) (encodeVal (Bytes.fromByteString bs))
+  AvroSchema.DArray xs -> BoxedVal $ Data1 Ty.avroDefaultValueRef TT.avroDefaultValueArrayTag (encodeVal (map avroEncodeDefaultValue (Vector.toList xs)))
+  AvroSchema.DMap xs -> BoxedVal $ Data1 Ty.avroDefaultValueRef TT.avroDefaultValueMapTag (encodeVal (map (bimap Util.Text.fromText avroEncodeDefaultValue) (HashMap.toList xs)))
+  AvroSchema.DRecord schema fields -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueRecordTag (avroEncodeSchema schema) (encodeVal (map (bimap Util.Text.fromText avroEncodeDefaultValue) (HashMap.toList fields)))
+  AvroSchema.DUnion schemas schema v -> BoxedVal $ DataG Ty.avroDefaultValueRef TT.avroDefaultValueUnionTag (segFromList [encodeVal (map avroEncodeSchema (Vector.toList schemas)), avroEncodeSchema schema, avroEncodeDefaultValue v])
+  AvroSchema.DFixed schema bytes -> BoxedVal $ Data2 Ty.avroDefaultValueRef TT.avroDefaultValueFixedTag (avroEncodeSchema schema) (encodeVal (Bytes.fromByteString bytes))
+  AvroSchema.DEnum schema ix v -> BoxedVal $ DataG Ty.avroDefaultValueRef TT.avroDefaultValueEnumTag (segFromList [avroEncodeSchema schema, encodeVal ix, encodeVal (Util.Text.fromText v)])
+
+avroEncodeSchema :: AvroSchema.Schema -> Val
+avroEncodeSchema = \case
+  AvroSchema.Null -> BoxedVal $ Enum Ty.avroSchemaRef TT.avroSchemaNullTag
+  AvroSchema.Boolean -> BoxedVal $ Enum Ty.avroSchemaRef TT.avroSchemaBooleanTag
+  AvroSchema.Int lt -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaIntTag (encodeVal (fmap avroEncodeLogicalTypeInt lt))
+  AvroSchema.Long lt -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaLongTag (encodeVal (fmap avroEncodeLogicalTypeLong lt))
+  AvroSchema.Float -> BoxedVal $ Enum Ty.avroSchemaRef TT.avroSchemaFloatTag
+  AvroSchema.Double -> BoxedVal $ Enum Ty.avroSchemaRef TT.avroSchemaDoubleTag
+  AvroSchema.Bytes lt -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaBytesTag (encodeVal (fmap avroEncodeLogicalTypeBytes lt))
+  AvroSchema.String lt -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaStringTag (encodeVal (fmap avroEncodeLogicalTypeString lt))
+  AvroSchema.Array schema -> BoxedVal $ Data2 Ty.avroSchemaRef TT.avroSchemaArrayTag (avroEncodeSchema schema) (encodeVal ([] :: [Val]))
+  AvroSchema.Map schema -> BoxedVal $ Data2 Ty.avroSchemaRef TT.avroSchemaMapTag (avroEncodeSchema schema) (BoxedVal $ Enum Ty.mapRef TT.mapTipTag)
+  AvroSchema.NamedType tn -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaNamedTypeTag (avroEncodeTypeName tn)
+  AvroSchema.Record name aliases doc fields -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaRecordTag (BoxedVal $ DataG Ty.avroRecordRef TT.avroRecordTypeTag (segFromList [avroEncodeTypeName name, encodeVal (map avroEncodeTypeName aliases), encodeVal (Util.Text.fromText <$> doc), encodeVal (map avroEncodeField fields)]))
+  AvroSchema.Enum name aliases doc symbols -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaEnumTag (BoxedVal $ DataG Ty.avroEnumRef TT.avroEnumTypeTag (segFromList [avroEncodeTypeName name, encodeVal (Util.Text.fromText <$> doc), encodeVal (map avroEncodeTypeName aliases), encodeVal (map Util.Text.fromText (Vector.toList symbols))]))
+  AvroSchema.Union schemas -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaUnionTag (encodeVal (map avroEncodeSchema (Vector.toList schemas)))
+  AvroSchema.Fixed name aliases size lt -> BoxedVal $ Data1 Ty.avroSchemaRef TT.avroSchemaFixedTag (BoxedVal $ DataG Ty.avroFixedRef TT.avroFixedTypeTag (segFromList [avroEncodeTypeName name, encodeVal (map avroEncodeTypeName aliases), encodeVal (Nothing :: Maybe Text), encodeVal size, encodeVal (fmap avroEncodeLogicalTypeFixed lt)]))
+
+avroEncodeField :: AvroSchema.Field -> Val
+avroEncodeField = \case
+  AvroSchema.Field name aliases doc order typ def -> BoxedVal $ DataG Ty.avroFieldRef TT.avroFieldTag (segFromList [encodeVal (Util.Text.fromText name), encodeVal (map Util.Text.fromText aliases), encodeVal (Util.Text.fromText <$> doc), avroEncodeSchema typ, encodeVal (fmap avroEncodeOrder order), encodeVal (fmap avroEncodeDefaultValue def)])
+
+avroDecodeBinary :: Closure -> Closure -> Bytes.Bytes -> IO Val
+avroDecodeBinary _env readSchema bytes = do
+  -- envVal <- decodeVal @[(Closure, Closure)] (BoxedVal env)
+  -- envDecoded <- traverse (bimapM avroDecodeTypeName avroDecodeReadSchema) envVal
+  readSchemaDecoded <- avroDecodeReadSchema readSchema
+  -- let envMap = (HashMap.fromList envDecoded) <> ReadSchema.extractBindings readSchemaDecoded
+  -- TODO: Modify the avro library to allow us to call getField directly
+  case Get.runGetOrFail (FromAvro.getValue readSchemaDecoded) (L.fromStrict (Bytes.toByteString bytes)) of
+    Left (_, _, err) -> pure $ encodeVal @(Either String Val) (Left err)
+    Right (_, _, value) -> pure $ encodeVal @(Either String Val) (Right (avroEncodeValue value))
+
 -- A ForeignConvention explains how to encode foreign values as
 -- unison types. Depending on the situation, this can take three
 -- forms.
@@ -1701,6 +2122,9 @@ class ForeignConvention a where
   encodeVal :: a -> Val
 
   writeBack stk v = poke stk (encodeVal v)
+
+decodeMaybe :: (Closure -> IO a) -> Closure -> IO (Maybe a)
+decodeMaybe f c = decodeVal (BoxedVal c) >>= traverse f
 
 readsAtError :: String -> Args -> IO a
 readsAtError expect args = throwIO $ Panic msg Nothing
@@ -1771,6 +2195,7 @@ someVal v = BoxedVal (someClo v)
 
 instance ForeignConvention Int where
   decodeVal (IntVal v) = pure v
+  decodeVal (NatVal v) = pure $ fromIntegral v
   decodeVal v = foreignConventionError "Int" v
   encodeVal = IntVal
 
@@ -2470,6 +2895,10 @@ functionReplacementList =
     ( "01pl56v6v0n2labp71cp6darcbftlj7d4h9t718mkfpj6lc905ro4",
       0,
       Json_tryUnconsText
+    ),
+    ( "01csmdujt5ot550j9t0o1gfop4ephtssv358rkfqdo2e01knekgds",
+      0,
+      Avro_decodeBinary
     )
   ]
 

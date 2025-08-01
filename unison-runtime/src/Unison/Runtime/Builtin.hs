@@ -122,15 +122,15 @@ instance (Var v) => Fresh (v, v, v, v, v, v, v, v, v, v, v, v, v, v) where
     where
       [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14] = freshes 14
 
-fls, tru :: (Var v) => ANormal v
+fls, tru :: (Var v) => ANormal Reference v
 fls = TCon Ty.booleanRef 0 []
 tru = TCon Ty.booleanRef 1 []
 
-left, right :: (Var v) => v -> ANormal v
+left, right :: (Var v) => v -> ANormal Reference v
 left x = TCon Ty.eitherRef (fromIntegral Ty.eitherLeftId) [x]
 right x = TCon Ty.eitherRef (fromIntegral Ty.eitherRightId) [x]
 
-unop0 :: (Var v) => Int -> ([v] -> ANormal v) -> SuperNormal v
+unop0 :: (Var v) => Int -> ([v] -> ANormal ref v) -> SuperNormal ref v
 unop0 n f =
   Lambda [BX]
     . TAbss [x0]
@@ -138,7 +138,7 @@ unop0 n f =
   where
     xs@(x0 : _) = freshes (1 + n)
 
-binop0 :: (Var v) => Int -> ([v] -> ANormal v) -> SuperNormal v
+binop0 :: (Var v) => Int -> ([v] -> ANormal ref v) -> SuperNormal ref v
 binop0 n f =
   Lambda [BX, BX]
     . TAbss [x0, y0]
@@ -146,7 +146,7 @@ binop0 n f =
   where
     xs@(x0 : y0 : _) = freshes (2 + n)
 
-unop :: (Var v) => POp -> SuperNormal v
+unop :: (Var v) => POp -> SuperNormal ref v
 unop pop =
   unop0 0 $ \[x] ->
     (TPrm pop [x])
@@ -154,16 +154,16 @@ unop pop =
 binop ::
   (Var v) =>
   POp ->
-  SuperNormal v
+  SuperNormal ref v
 binop pop =
   binop0 0 $ \[x, y] -> TPrm pop [x, y]
 
 -- | Like `binop`, but swaps the arguments.
-binopSwap :: (Var v) => POp -> SuperNormal v
+binopSwap :: (Var v) => POp -> SuperNormal ref v
 binopSwap pop =
   binop0 0 $ \[x, y] -> TPrm pop [y, x]
 
-addi, subi, muli, divi, modi, shli, shri, powi :: (Var v) => SuperNormal v
+addi, subi, muli, divi, modi, shli, shri, powi :: (Var v) => SuperNormal ref v
 addi = binop ADDI
 subi = binop SUBI
 muli = binop MULI
@@ -173,7 +173,7 @@ shli = binop SHLI
 shri = binop SHRI
 powi = binop POWI
 
-addn, subn, muln, divn, modn, shln, shrn, pown, dropn :: (Var v) => SuperNormal v
+addn, subn, muln, divn, modn, shln, shrn, pown, dropn :: (Var v) => SuperNormal ref v
 addn = binop ADDN
 subn = binop SUBN
 muln = binop MULN
@@ -184,7 +184,7 @@ shrn = binop SHRN
 pown = binop POWN
 dropn = binop DRPN
 
-eqi, eqn, lti, ltn, lei, len :: (Var v) => SuperNormal v
+eqi, eqn, lti, ltn, lei, len :: (Var v) => SuperNormal ref v
 eqi = binop EQLI
 lti = binop LESI
 lei = binop LEQI
@@ -192,21 +192,21 @@ eqn = binop EQLN
 ltn = binop LESN
 len = binop LEQN
 
-gti, gtn, gei, gen :: (Var v) => SuperNormal v
+gti, gtn, gei, gen :: (Var v) => SuperNormal ref v
 gti = binopSwap LESI
 gei = binopSwap LEQI
 gtn = binopSwap LESN
 gen = binopSwap LEQN
 
-inci, incn :: (Var v) => SuperNormal v
+inci, incn :: (Var v) => SuperNormal ref v
 inci = unop INCI
 incn = unop INCN
 
-sgni, negi :: (Var v) => SuperNormal v
+sgni, negi :: (Var v) => SuperNormal ref v
 sgni = unop SGNI
 negi = unop NEGI
 
-lzeron, tzeron, lzeroi, tzeroi, popn, popi :: (Var v) => SuperNormal v
+lzeron, tzeron, lzeroi, tzeroi, popn, popi :: (Var v) => SuperNormal ref v
 lzeron = unop LZRO
 tzeron = unop TZRO
 popn = unop POPC
@@ -214,7 +214,7 @@ popi = unop POPC
 lzeroi = unop LZRO
 tzeroi = unop TZRO
 
-andn, orn, xorn, compln, andi, ori, xori, compli :: (Var v) => SuperNormal v
+andn, orn, xorn, compln, andi, ori, xori, compli :: (Var v) => SuperNormal ref v
 andn = binop ANDN
 orn = binop IORN
 xorn = binop XORN
@@ -232,7 +232,7 @@ addf,
   sqrtf,
   logf,
   logbf ::
-    (Var v) => SuperNormal v
+    (Var v) => SuperNormal ref v
 addf = binop ADDF
 subf = binop SUBF
 mulf = binop MULF
@@ -242,11 +242,11 @@ sqrtf = unop SQRT
 logf = unop LOGF
 logbf = binop LOGB
 
-expf, absf :: (Var v) => SuperNormal v
+expf, absf :: (Var v) => SuperNormal ref v
 expf = unop EXPF
 absf = unop ABSF
 
-cosf, sinf, tanf, acosf, asinf, atanf :: (Var v) => SuperNormal v
+cosf, sinf, tanf, acosf, asinf, atanf :: (Var v) => SuperNormal ref v
 cosf = unop COSF
 sinf = unop SINF
 tanf = unop TANF
@@ -261,7 +261,7 @@ coshf,
   asinhf,
   atanhf,
   atan2f ::
-    (Var v) => SuperNormal v
+    (Var v) => SuperNormal ref v
 coshf = unop COSH
 sinhf = unop SINH
 tanhf = unop TANH
@@ -270,7 +270,7 @@ asinhf = unop ASNH
 atanhf = unop ATNH
 atan2f = binop ATN2
 
-ltf, gtf, lef, gef, eqf, neqf :: (Var v) => SuperNormal v
+ltf, gtf, lef, gef, eqf, neqf :: (Var v) => SuperNormal ref v
 ltf = binop LESF
 gtf = binopSwap LESF
 lef = binop LEQF
@@ -278,11 +278,11 @@ gef = binopSwap LEQF
 eqf = binop EQLF
 neqf = binop NEQF
 
-minf, maxf :: (Var v) => SuperNormal v
+minf, maxf :: (Var v) => SuperNormal ref v
 minf = binop MINF
 maxf = binop MAXF
 
-ceilf, floorf, truncf, roundf, i2f, n2f :: (Var v) => SuperNormal v
+ceilf, floorf, truncf, roundf, i2f, n2f :: (Var v) => SuperNormal ref v
 ceilf = unop CEIL
 floorf = unop FLOR
 truncf = unop TRNF
@@ -290,10 +290,10 @@ roundf = unop RNDF
 i2f = unop ITOF
 n2f = unop NTOF
 
-trni :: (Var v) => SuperNormal v
+trni :: (Var v) => SuperNormal ref v
 trni = unop TRNC
 
-modular :: (Var v) => POp -> (Bool -> ANormal v) -> SuperNormal v
+modular :: (Var v) => POp -> (Bool -> ANormal ref v) -> SuperNormal ref v
 modular pop ret =
   unop0 2 $ \[x, m, t] ->
     TLetD t UN (TLit $ I 2)
@@ -303,13 +303,13 @@ modular pop ret =
         (mapSingleton 1 $ ret True)
         (Just $ ret False)
 
-evni, evnn, oddi, oddn :: (Var v) => SuperNormal v
+evni, evnn, oddi, oddn :: (Var v) => SuperNormal Reference v
 evni = modular MODI (\b -> if b then fls else tru)
 oddi = modular MODI (\b -> if b then tru else fls)
 evnn = modular MODN (\b -> if b then fls else tru)
 oddn = modular MODN (\b -> if b then tru else fls)
 
-appendt, taket, dropt, indext, indexb, sizet, unconst, unsnoct :: (Var v) => SuperNormal v
+appendt, taket, dropt, indext, indexb, sizet, unconst, unsnoct :: (Var v) => SuperNormal ref v
 appendt = binop0 0 $ \[x, y] -> TPrm CATT [x, y]
 taket = binop0 0 $ \[x, y] ->
   TPrm TAKT [x, y]
@@ -328,27 +328,27 @@ unconst = unop UCNS
 
 unsnoct = unop USNC
 
-appends, conss, snocs :: (Var v) => SuperNormal v
+appends, conss, snocs :: (Var v) => SuperNormal ref v
 appends = binop0 0 $ \[x, y] -> TPrm CATS [x, y]
 conss = binop0 0 $ \[x, y] -> TPrm CONS [x, y]
 snocs = binop0 0 $ \[x, y] -> TPrm SNOC [x, y]
 
-takes, drops, sizes, ats, emptys :: (Var v) => SuperNormal v
+takes, drops, sizes, ats, emptys :: (Var v) => SuperNormal ref v
 takes = binop0 0 $ \[x, y] -> TPrm TAKS [x, y]
 drops = binop0 0 $ \[x, y] -> TPrm DRPS [x, y]
 sizes = unop0 0 $ \[x] -> (TPrm SIZS [x])
 ats = binop IDXS
 emptys = Lambda [] $ TPrm BLDS []
 
-viewls, viewrs :: (Var v) => SuperNormal v
+viewls, viewrs :: (Var v) => SuperNormal ref v
 viewls = unop VWLS
 viewrs = unop VWRS
 
-splitls, splitrs :: (Var v) => SuperNormal v
+splitls, splitrs :: (Var v) => SuperNormal ref v
 splitls = binop SPLL
 splitrs = binop SPLR
 
-eqt, neqt, leqt, geqt, lesst, great :: SuperNormal Symbol
+eqt, neqt, leqt, geqt, lesst, great :: SuperNormal ref Symbol
 eqt = binop EQLT
 neqt = binop0 1 $ \[x, y, b] ->
   TLetD b UN (TPrm EQLT [x, y]) $
@@ -362,11 +362,11 @@ great = binop0 1 $ \[x, y, b] ->
   TLetD b UN (TPrm LEQT [x, y]) $
     TPrm NOTB [b]
 
-packt, unpackt :: SuperNormal Symbol
+packt, unpackt :: SuperNormal ref Symbol
 packt = unop0 0 $ \[s] -> TPrm PAKT [s]
 unpackt = unop0 0 $ \[t] -> TPrm UPKT [t]
 
-packb, unpackb, emptyb, appendb :: SuperNormal Symbol
+packb, unpackb, emptyb, appendb :: SuperNormal ref Symbol
 packb = unop0 0 $ \[s] -> TPrm PAKB [s]
 unpackb = unop0 0 $ \[b] -> TPrm UPKB [b]
 emptyb =
@@ -377,52 +377,52 @@ emptyb =
     es = fresh1
 appendb = binop0 0 $ \[x, y] -> TPrm CATB [x, y]
 
-takeb, dropb, atb, sizeb, flattenb :: SuperNormal Symbol
+takeb, dropb, atb, sizeb, flattenb :: SuperNormal ref Symbol
 takeb = binop0 0 $ \[n, b] -> TPrm TAKB [n, b]
 dropb = binop0 0 $ \[n, b] -> TPrm DRPB [n, b]
 sizeb = unop0 0 $ \[b] -> (TPrm SIZB [b])
 flattenb = unop0 0 $ \[b] -> TPrm FLTB [b]
 
-i2t, n2t, f2t :: SuperNormal Symbol
+i2t, n2t, f2t :: SuperNormal ref Symbol
 i2t = unop0 0 $ \[n] -> TPrm ITOT [n]
 n2t = unop0 0 $ \[n] -> TPrm NTOT [n]
 f2t = unop0 0 $ \[f] -> TPrm FTOT [f]
 
-t2i, t2n, t2f :: SuperNormal Symbol
+t2i, t2n, t2f :: SuperNormal ref Symbol
 t2i = unop TTOI
 t2n = unop TTON
 t2f = unop TTOF
 
-equ :: SuperNormal Symbol
+equ :: SuperNormal ref Symbol
 equ = binop EQLU
 
-cmpu :: SuperNormal Symbol
+cmpu :: SuperNormal ref Symbol
 cmpu = binop CMPU
 
-ltu :: SuperNormal Symbol
+ltu :: SuperNormal ref Symbol
 ltu = binop LESU
 
-gtu :: SuperNormal Symbol
+gtu :: SuperNormal ref Symbol
 gtu = binopSwap LESU
 
-geu :: SuperNormal Symbol
+geu :: SuperNormal ref Symbol
 geu = binopSwap LEQU
 
-leu :: SuperNormal Symbol
+leu :: SuperNormal ref Symbol
 leu = binop LEQU
 
-notb :: SuperNormal Symbol
+notb :: SuperNormal ref Symbol
 notb = unop NOTB
 
-orb :: SuperNormal Symbol
+orb :: SuperNormal ref Symbol
 orb = binop IORB
 
-andb :: SuperNormal Symbol
+andb :: SuperNormal ref Symbol
 andb = binop ANDB
 
 -- A runtime type-cast. Used to unsafely coerce between unboxed
 -- types at runtime without changing their representation.
-coerceType :: UnboxedTypeTag -> SuperNormal Symbol
+coerceType :: UnboxedTypeTag -> SuperNormal ref Symbol
 coerceType destType =
   unop0 1 $ \[v, tag] ->
     TLetD tag UN (TLit $ I $ fromIntegral $ unboxedTypeTagToInt destType) $
@@ -433,19 +433,19 @@ coerceType destType =
 -- because it keeps the same representation. It is not capable of
 -- e.g. correctly translating between two types with compatible bit
 -- representations, because tagging information will be retained.
-poly'coerce :: SuperNormal Symbol
+poly'coerce :: SuperNormal ref Symbol
 poly'coerce = unop0 0 $ \[x] -> TVar x
 
-jumpk :: SuperNormal Symbol
+jumpk :: SuperNormal ref Symbol
 jumpk = binop0 0 $ \[k, a] -> TKon k [a]
 
-scope'run :: SuperNormal Symbol
+scope'run :: SuperNormal Reference Symbol
 scope'run =
   unop0 1 $ \[e, un] ->
     TLetD un BX (TCon Ty.unitRef 0 []) $
       TApp (FVar e) [un]
 
-fork'comp :: SuperNormal Symbol
+fork'comp :: SuperNormal Reference Symbol
 fork'comp =
   Lambda [BX]
     . TAbs act
@@ -455,7 +455,7 @@ fork'comp =
   where
     (act, unit, lz) = fresh
 
-try'eval :: SuperNormal Symbol
+try'eval :: SuperNormal Reference Symbol
 try'eval =
   Lambda [BX]
     . TAbs act
@@ -471,24 +471,25 @@ try'eval =
   where
     (act, unit, lz, ta, lnk, msg, xtra, any, fail, r) = fresh
 
-bug :: Util.Text.Text -> SuperNormal Symbol
+bug :: Util.Text.Text -> SuperNormal ref Symbol
 bug name =
   unop0 1 $ \[x, n] ->
     TLetD n BX (TLit $ T name) $
       TPrm EROR [n, x]
 
-watch :: SuperNormal Symbol
+watch :: SuperNormal ref Symbol
 watch =
   binop0 0 $ \[t, v] ->
     TLets Direct [] [] (TPrm PRNT [t]) $
       TVar v
 
-raise :: SuperNormal Symbol
+raise :: SuperNormal Reference Symbol
 raise =
   binop0 2 $ \[ah, r, f, n] ->
     TMatch r
       . flip MatchRequest (TAbs f $ TVar f)
-      . Map.singleton Ty.exceptionRef
+      . (: [])
+      . (Ty.exceptionRef,)
       $ mapSingleton
         0
         ( [BX],
@@ -498,32 +499,32 @@ raise =
             $ TPrm EROR [n, f]
         )
 
-gen'trace :: SuperNormal Symbol
+gen'trace :: SuperNormal Reference Symbol
 gen'trace =
   binop0 0 $ \[t, v] ->
     TLets Direct [] [] (TPrm TRCE [t, v]) $
       TCon Ty.unitRef 0 []
 
-debug'text :: SuperNormal Symbol
+debug'text :: SuperNormal ref Symbol
 debug'text = unop DBTX
 
-code'missing :: SuperNormal Symbol
+code'missing :: SuperNormal ref Symbol
 code'missing = unop MISS
 
-code'cache :: SuperNormal Symbol
+code'cache :: SuperNormal ref Symbol
 code'cache = unop0 0 $ \[new] -> TPrm CACH [new]
 
-code'lookup :: SuperNormal Symbol
+code'lookup :: SuperNormal ref Symbol
 code'lookup = unop LKUP
 
-code'validate :: SuperNormal Symbol
+code'validate :: SuperNormal ref Symbol
 code'validate = unop CVLD
 
-term'link'to'text :: SuperNormal Symbol
+term'link'to'text :: SuperNormal ref Symbol
 term'link'to'text =
   unop0 0 $ \[link] -> TPrm TLTT [link]
 
-value'load :: SuperNormal Symbol
+value'load :: SuperNormal Reference Symbol
 value'load =
   unop0 2 $ \[vlu, t, r] ->
     TLetD t UN (TPrm LOAD [vlu])
@@ -534,18 +535,18 @@ value'load =
           (1, ([BX], TAbs r $ right r))
         ]
 
-value'create :: SuperNormal Symbol
+value'create :: SuperNormal ref Symbol
 value'create = unop0 0 $ \[x] -> TPrm VALU [x]
 
-check'sandbox :: SuperNormal Symbol
+check'sandbox :: SuperNormal ref Symbol
 check'sandbox = binop SDBX
 
-sandbox'links :: SuperNormal Symbol
+sandbox'links :: SuperNormal ref Symbol
 sandbox'links = Lambda [BX] . TAbs ln $ TPrm SDBL [ln]
   where
     ln = fresh1
 
-value'sandbox :: SuperNormal Symbol
+value'sandbox :: SuperNormal ref Symbol
 value'sandbox =
   Lambda [BX, BX]
     . TAbss [refs, val]
@@ -553,7 +554,7 @@ value'sandbox =
   where
     (refs, val) = fresh
 
-stm'atomic :: SuperNormal Symbol
+stm'atomic :: SuperNormal Reference Symbol
 stm'atomic =
   Lambda [BX]
     . TAbs act
@@ -563,14 +564,14 @@ stm'atomic =
   where
     (act, unit, lz) = fresh
 
-type ForeignOp = ForeignFunc -> ([Mem], ANormal Symbol)
+type ForeignOp = ForeignFunc -> ([Mem], ANormal Reference Symbol)
 
-any'construct :: SuperNormal Symbol
+any'construct :: SuperNormal Reference Symbol
 any'construct =
   unop0 0 $ \[v] ->
     TCon Ty.anyRef 0 [v]
 
-any'extract :: SuperNormal Symbol
+any'extract :: SuperNormal Reference Symbol
 any'extract =
   unop0 1 $
     \[v, v1] ->
@@ -586,11 +587,11 @@ any'extract =
 -- [1] https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-IORef.html#g:2
 -- [2] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L286
 -- [3] https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L298
-ref'read :: SuperNormal Symbol
+ref'read :: SuperNormal ref Symbol
 ref'read =
   unop0 0 $ \[ref] -> (TPrm REFR [ref])
 
-ref'write :: SuperNormal Symbol
+ref'write :: SuperNormal ref Symbol
 ref'write =
   binop0 0 $ \[ref, val] -> (TPrm REFW [ref, val])
 
@@ -607,7 +608,7 @@ ref'write =
 --
 -- [1]: https://github.com/ghc/ghc/blob/master/rts/PrimOps.cmm#L697
 -- [2]: https://github.com/ghc/ghc/blob/master/compiler/GHC/StgToCmm/Prim.hs#L285
-ref'cas :: SuperNormal Symbol
+ref'cas :: SuperNormal ref Symbol
 ref'cas =
   Lambda [BX, BX, BX]
     . TAbss [x, y, z]
@@ -615,13 +616,13 @@ ref'cas =
   where
     (x, y, z) = fresh
 
-ref'ticket'read :: SuperNormal Symbol
+ref'ticket'read :: SuperNormal ref Symbol
 ref'ticket'read = unop0 0 $ TPrm TIKR
 
-ref'readForCas :: SuperNormal Symbol
+ref'readForCas :: SuperNormal ref Symbol
 ref'readForCas = unop0 0 $ TPrm RRFC
 
-ref'new :: SuperNormal Symbol
+ref'new :: SuperNormal ref Symbol
 ref'new = unop0 0 $ TPrm REFN
 
 crypto'hash :: ForeignOp
@@ -652,7 +653,7 @@ crypto'hmac instr =
     (alg, by, x, vl) = fresh
 
 exnCase ::
-  (Var v) => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal v))
+  (Var v) => v -> v -> v -> v -> v -> (Word64, ([Mem], ANormal Reference v))
 exnCase stack1 stack2 stack3 any fail =
   (0,)
     . ([BX, BX, BX],)
@@ -687,7 +688,8 @@ argNDirect n instr =
 unitDirect :: ForeignOp
 unitDirect instr = ([BX],) . TAbs arg $ TFOp instr [] where arg = fresh1
 
-builtinLookup :: Map.Map Reference (Sandbox, SuperNormal Symbol)
+builtinLookup ::
+  Map.Map Reference (Sandbox, SuperNormal Reference Symbol)
 builtinLookup =
   Map.fromList
     . map (\(t, f) -> (Builtin t, f))
@@ -877,7 +879,7 @@ builtinLookup =
       ]
       ++ foreignWrappers
 
-type FDecl v = State (Map ForeignFunc (Sandbox, SuperNormal v))
+type FDecl v = State (Map ForeignFunc (Sandbox, SuperNormal Reference v))
 
 -- Data type to determine whether a builtin should be tracked for
 -- sandboxing. Untracked means that it can be freely used, and Tracked
@@ -1226,6 +1228,9 @@ declareForeigns = do
 
   declareForeign Untracked 1 ImmutableByteArray_length
 
+  declareForeign Untracked 3 ImmutableByteArray_toBytes
+  declareForeign Untracked 1 ImmutableByteArray_fromBytes
+
   declareForeign Tracked 1 IO_array
   declareForeign Tracked 2 IO_arrayOf
   declareForeign Tracked 1 IO_bytearray
@@ -1302,17 +1307,20 @@ declareForeigns = do
   declareForeign Untracked 1 Json_toText
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
+  declareForeign Untracked 3 Avro_decodeBinary
 
-foreignDeclResults :: (Map ForeignFunc (Sandbox, SuperNormal Symbol))
+foreignDeclResults ::
+  (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))
 foreignDeclResults =
   execState declareForeigns mempty
 
-foreignWrappers :: [(Data.Text.Text, (Sandbox, SuperNormal Symbol))]
+foreignWrappers ::
+  [(Data.Text.Text, (Sandbox, SuperNormal Reference Symbol))]
 foreignWrappers =
   Map.toList foreignDeclResults
     <&> \(ff, (sand, code)) -> (foreignFuncBuiltinName ff, (sand, code))
 
-numberedTermLookup :: EnumMap Word64 (SuperNormal Symbol)
+numberedTermLookup :: EnumMap Word64 (SuperNormal Reference Symbol)
 numberedTermLookup =
   mapFromList . zip [1 ..] . Map.elems . fmap snd $ builtinLookup
 
@@ -1347,7 +1355,7 @@ builtinArities =
   Map.fromList $
     [(r, arity s) | (r, (_, s)) <- Map.toList builtinLookup]
 
-builtinOptInfo :: ANF.OptInfos Symbol
+builtinOptInfo :: ANF.OptInfos Reference Symbol
 builtinOptInfo =
   ANF.buildOptInfos $ fmap (Rec [] . snd) builtinLookup
 

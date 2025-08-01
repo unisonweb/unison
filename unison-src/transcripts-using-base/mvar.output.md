@@ -53,13 +53,10 @@ testMvars _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
+  + testMvars : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      eitherCk  : (a ->{g} Boolean) -> Either e a ->{g} Boolean
-      testMvars : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

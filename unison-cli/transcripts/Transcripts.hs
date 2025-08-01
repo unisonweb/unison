@@ -11,13 +11,12 @@ import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import EasyTest
 import System.Directory
-import System.Environment (getArgs, getExecutablePath)
+import System.Environment (getArgs)
 import System.FilePath
   ( replaceExtension,
     splitFileName,
     takeDirectory,
     takeExtensions,
-    (<.>),
     (</>),
   )
 import System.IO.CodePage (withCP65001)
@@ -32,14 +31,11 @@ import Unison.Prelude
 import UnliftIO.STM qualified as STM
 
 data TestConfig = TestConfig
-  { matchPrefix :: Maybe String,
-    runtimePath :: FilePath
+  { matchPrefix :: Maybe String
   }
   deriving (Show)
 
 type TestBuilder =
-  -- | path to the native runtime
-  FilePath ->
   -- | directory containing prelude & transcript `FilePath`s
   FilePath ->
   -- | directory to write output files to (often the same as the previous argument)
@@ -56,16 +52,15 @@ testBuilder ::
   ((FilePath, Text) -> IO ()) ->
   FilePath ->
   FilePath ->
-  FilePath ->
   [FilePath] ->
   FilePath ->
   Test ()
-testBuilder expectFailure replaceOriginal recordFailure runtimePath inputDir outputDir prelude transcript =
+testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript =
   scope transcript do
     outputs <-
       io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \(codebasePath, codebase) ->
         let isTest = True
-         in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" runtimePath \runTranscript ->
+         in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" \runTranscript ->
               for files \filePath -> do
                 transcriptSrc <- readUtf8 $ inputDir </> filePath
                 out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
@@ -130,7 +125,7 @@ enumerateTests TestConfig {..} testBuilder files = do
     -- EasyTest exits early with "no test results recorded" if you don't give it any tests, this keeps it going till the
     -- end so we can search all transcripts for prefix matches.
     _ ->
-      tests (testBuilder runtimePath "." ("unison-src" </> "transcripts" </> "project-outputs") prelude <$> transcripts)
+      tests (testBuilder "." ("unison-src" </> "transcripts" </> "project-outputs") prelude <$> transcripts)
 
 buildTests :: TestConfig -> TestBuilder -> FilePath -> Maybe FilePath -> Test ()
 buildTests TestConfig {..} testBuilder inputDir outputDir = do
@@ -154,7 +149,7 @@ buildTests TestConfig {..} testBuilder inputDir outputDir = do
     -- if you don't give it any tests, this keeps it going
     -- till the end so we can search all transcripts for
     -- prefix matches.
-    _ -> tests (testBuilder runtimePath inputDir (fromMaybe inputDir outputDir) prelude <$> transcripts)
+    _ -> tests (testBuilder inputDir (fromMaybe inputDir outputDir) prelude <$> transcripts)
 
 -- Transcripts that exit successfully get cleaned-up by the transcript parser.
 -- Any remaining folders matching "transcript-.*" are output directories
@@ -200,16 +195,11 @@ test config = do
   cleanup
 
 handleArgs :: TestConfig -> [String] -> TestConfig
-handleArgs acc ("--runtime-path" : p : rest) = handleArgs (acc {runtimePath = p}) rest
 handleArgs acc [prefix] = acc {matchPrefix = Just prefix}
 handleArgs acc _ = acc
 
-defaultConfig :: IO TestConfig
-defaultConfig = TestConfig Nothing <$> defaultRTP
-  where
-    defaultRTP = do
-      ucm <- getExecutablePath
-      pure (takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension)
+defaultConfig :: TestConfig
+defaultConfig = TestConfig Nothing
 
 main :: IO ()
-main = withCP65001 $ run . test =<< handleArgs <$> defaultConfig <*> getArgs
+main = withCP65001 $ run . test =<< handleArgs defaultConfig <$> getArgs
