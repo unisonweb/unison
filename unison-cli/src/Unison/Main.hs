@@ -4,7 +4,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Unison.Main
   ( main,
@@ -376,7 +375,7 @@ initHTTPClient version = do
 
 -- | Prep the codebase for transcripts, then pass the directory to the action.
 -- After the action the codebase will be deleted/copied/saved as indicated.
-withTranscriptDir :: Verbosity.Verbosity -> _ -> TranscriptCodebaseSetup -> Maybe CodebasePathOption -> (FilePath -> IO r) -> IO r
+withTranscriptDir :: Verbosity.Verbosity -> String -> TranscriptCodebaseSetup -> Maybe CodebasePathOption -> (FilePath -> IO r) -> IO r
 withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
   UnliftIO.bracket setup cleanup (action . fst)
   where
@@ -384,8 +383,8 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
     setup = do
       case codebaseSetup of
         InPlace -> do
-          -- TODO: Do we need this?
-          -- getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
+          -- Create the codebase/migrate it according to codebase path option
+          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
           path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
           unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
             P.lines
