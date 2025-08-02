@@ -83,7 +83,7 @@ accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type Runner =
   String ->
-  Text ->
+  ByteString ->
   (FilePath, Codebase IO Symbol Ann) ->
   IO (Either Error Transcript)
 

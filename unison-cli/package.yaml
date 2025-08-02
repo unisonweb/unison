@@ -45,6 +45,7 @@ library:
     - filepath
     - free
     - friendly-time
+    - frontmatter
     - fsnotify
     - generic-lens
     - haskeline
@@ -143,6 +144,7 @@ executables:
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
     dependencies:
+      - bytestring
       - code-page
       - easytest
       - filepath

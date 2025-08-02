@@ -224,6 +224,7 @@ library
     , filepath
     , free
     , friendly-time
+    , frontmatter
     , fsnotify
     , generic-lens
     , haskeline
@@ -338,6 +339,7 @@ executable transcripts
   ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
       base
+    , bytestring
     , code-page
     , directory
     , easytest

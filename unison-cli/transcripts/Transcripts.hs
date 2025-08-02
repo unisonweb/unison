@@ -6,6 +6,7 @@
 -}
 module Main (main) where
 
+import Data.ByteString qualified as BS
 import Data.List
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -62,7 +63,7 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
         let isTest = True
          in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" \runTranscript ->
               for files \filePath -> do
-                transcriptSrc <- readUtf8 $ inputDir </> filePath
+                transcriptSrc <- BS.readFile $ inputDir </> filePath
                 out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
                 pure (filePath, out)
     for_ outputs \case

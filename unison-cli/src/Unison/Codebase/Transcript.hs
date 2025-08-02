@@ -26,6 +26,8 @@ module Unison.Codebase.Transcript
 where
 
 import CMark qualified
+import Data.Aeson.Types ((.:?), (.=))
+import Data.Aeson.Types qualified as Aeson
 import Data.Functor.Classes (Show1, liftShowsPrec)
 import GHC.Show (showList__)
 import Unison.Core.Project (ProjectBranchName, ProjectName)
@@ -92,6 +94,22 @@ data Settings = Settings
   }
   deriving (Show)
 
+instance Aeson.FromJSON Settings where
+  parseJSON = \case
+    Aeson.Object v ->
+      Settings
+        <$> fmap (resolveType =<<) (v .:? "type")
+        <*> (maybe (pure mempty) (fmap (flip Behaviors Nothing) . Aeson.parseJSON) =<< v .:? "autoupdate")
+    invalid -> Aeson.typeMismatch "Settings" invalid
+
+instance Aeson.ToJSON Settings where
+  toJSON Settings {transcriptType, behaviors} =
+    Aeson.object $
+      catMaybes
+        [ ("type" .=) <$> transcriptType,
+          ("autoupdate" .=) <$> autoupdate behaviors
+        ]
+
 instance Semigroup Settings where
   Settings t b <> Settings t' b' = Settings (t <|> t') $ b <> b'
 
@@ -149,6 +167,17 @@ data TranscriptType
   | -- | Enables auto-update and changes the default hidden value for `Unison` blocks to `HideOutput`.
     Tutorial
   deriving (Eq, Ord, Read, Show)
+
+resolveType :: Text -> Maybe TranscriptType
+resolveType = \case
+  "standard" -> pure Standard
+  "tutorial" -> pure Tutorial
+  _ -> Nothing
+
+instance Aeson.ToJSON TranscriptType where
+  toJSON = \case
+    Standard -> "standard"
+    Tutorial -> "tutorial"
 
 transcriptBehaviors :: TranscriptType -> Behaviors Maybe
 transcriptBehaviors = \case

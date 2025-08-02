@@ -27,6 +27,7 @@ import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Exception (displayException, evaluate, fromException)
 import Data.Bitraversable (bitraverse)
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
@@ -486,7 +487,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
           (Version.gitDescribeWithDate version)
           \runTranscript -> do
             for markdownFiles $ \(MarkdownFile fileName) -> do
-              transcriptSrc <- readUtf8 fileName
+              transcriptSrc <- BS.readFile fileName
               result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
               let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
               output <-
