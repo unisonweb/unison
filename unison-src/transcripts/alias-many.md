@@ -101,7 +101,7 @@ scratch/main> add
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
 The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
-```
+``` ucm
 scratch/main> help alias.many
 
   alias.many (or copy)
