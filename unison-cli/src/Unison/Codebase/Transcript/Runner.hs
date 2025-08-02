@@ -107,7 +107,7 @@ withRunner isTest verbosity ucmVersion action = do
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
   when isTest $ do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
-  withRuntimes \runtime sbRuntime nRuntime ->
+  withRuntimes \runtime sbRuntime ->
     action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
       -- This is just used in output messages
       let workDir = "<workdir>"
