@@ -1,19 +1,7 @@
 -- | Parse and print CommonMark (like Github-flavored Markdown) transcripts.
 module Unison.Codebase.Transcript.Parser
-  ( -- * printing
-    formatAPIRequest,
-    formatUcmLine,
-    formatInfoString,
-    formatStanzas,
-
-    -- * parsing
-    stanzas,
-    ucmLine,
-    apiRequest,
-    fenced,
-    hidden,
-    expectingError,
-    language,
+  ( format,
+    parse,
   )
 where
 
@@ -42,11 +30,15 @@ formatUcmLine = \case
   UcmComment txt -> "--" <> txt <> "\n"
   UcmOutputLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
   where
+    formatContext UcmContextEmpty = ""
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
 formatStanzas :: [Stanza] -> Text
 formatStanzas =
   CMark.nodeToCommonmark [] Nothing . CMark.Node Nothing CMark.DOCUMENT . fmap (either id processedBlockToNode)
+
+format :: Transcript -> Text
+format Transcript {stanzas} = formatStanzas stanzas
 
 processedBlockToNode :: ProcessedBlock -> CMark.Node
 processedBlockToNode = \case
@@ -58,8 +50,11 @@ processedBlockToNode = \case
 
 type P = P.Parsec Void Text
 
-stanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
-stanzas srcName =
+parse :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) Transcript
+parse srcName = fmap (Transcript mempty) . parseStanzas srcName
+
+parseStanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
+parseStanzas srcName =
   -- TODO: Internal warning if `_DOCUMENT` isn’t `CMark.DOCUMENT`.
   (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromNode blocks)
     . CMark.commonmarkToNode [CMark.optSourcePos]
@@ -143,17 +138,18 @@ lineToken p = p <* nonNewlineSpaces
 nonNewlineSpaces :: P ()
 nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch == ' ' || ch == '\t')
 
-formatHidden :: Hidden -> Maybe Text
-formatHidden = \case
-  HideAll -> pure ":hide-all"
-  HideOutput -> pure ":hide"
-  Shown -> Nothing
+formatHidden :: Maybe Hidden -> Maybe Text
+formatHidden = fmap \case
+  HideAll -> ":hide-all"
+  HideOutput -> ":hide"
+  Shown -> ":show"
 
-hidden :: P Hidden
+hidden :: P (Maybe Hidden)
 hidden =
-  (HideAll <$ word ":hide-all")
-    <|> (HideOutput <$ word ":hide")
-    <|> pure Shown
+  (pure HideAll <$ word ":hide-all")
+    <|> (pure HideOutput <$ word ":hide")
+    <|> (pure Shown <$ word ":show")
+    <|> pure Nothing
 
 formatExpectingError :: ExpectingError -> Maybe Text
 formatExpectingError = bool Nothing $ pure ":error"

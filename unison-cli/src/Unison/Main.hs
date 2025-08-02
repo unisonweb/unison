@@ -508,7 +508,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
                       Transcript.RunFailure msg ->
                         ( [ P.indentN 2 $ "An error occurred while running the following file: " <> P.string fileName,
                             "",
-                            P.indentN 2 (P.text . Transcript.formatStanzas $ toList msg),
+                            P.indentN 2 (P.text $ Transcript.format msg),
                             P.string $
                               "Run `"
                                 <> progName
@@ -517,10 +517,10 @@ runTranscripts' version progName transcriptDir markdownFiles = do
                                 <> "` "
                                 <> "to do more work with it."
                           ],
-                          Transcript.formatStanzas $ toList msg
+                          Transcript.format msg
                         )
                   )
-                  (pure . Transcript.formatStanzas . toList)
+                  (pure . Transcript.format)
                   result
               writeUtf8 outputFile output
               putStrLn $ "💾  Wrote " <> outputFile

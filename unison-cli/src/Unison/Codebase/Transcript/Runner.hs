@@ -85,7 +85,7 @@ type Runner =
   String ->
   Text ->
   (FilePath, Codebase IO Symbol Ann) ->
-  IO (Either Error (Seq Stanza))
+  IO (Either Error Transcript)
 
 withRunner ::
   forall m r.
@@ -115,8 +115,10 @@ withRunner isTest verbosity ucmVersion action = do
           Just baseUrl ->
             either
               (pure . Left . ParseError)
-              (run isTest verbosity codebaseDir codebase runtime sbRuntime ucmVersion $ tShow @Server.BaseUrl baseUrl)
-              $ Transcript.stanzas transcriptName transcriptSrc
+              ( run isTest verbosity codebaseDir codebase runtime sbRuntime ucmVersion $
+                  tShow @Server.BaseUrl baseUrl
+              )
+              $ Transcript.parse transcriptName transcriptSrc
   where
     withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
     withRuntimes action =
@@ -125,10 +127,7 @@ withRunner isTest verbosity ucmVersion action = do
           action runtime sbRuntime
 
 isGeneratedBlock :: ProcessedBlock -> Bool
-isGeneratedBlock = \case
-  Ucm InfoTags {generated} _ -> generated
-  Unison InfoTags {generated} _ -> generated
-  API InfoTags {generated} _ -> generated
+isGeneratedBlock = generated . getCommonInfoTags
 
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
@@ -140,9 +139,11 @@ run ::
   Runtime.Runtime Symbol ->
   UCMVersion ->
   Text ->
-  [Stanza] ->
-  IO (Either Error (Seq Stanza))
-run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas = UnliftIO.try do
+  Transcript ->
+  IO (Either Error Transcript)
+run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL transcript = UnliftIO.try do
+  let behaviors = extractBehaviors $ settings transcript
+  let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <-
     Codebase.runTransaction codebase . liftA2 (,) Codebase.expectCurrentProjectPath $ snd <$> Codebase.emptyCausalHash
@@ -166,7 +167,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
   -- e.g. a unison-file update by a command like 'edit'
   inputQueue <-
     Q.prepopulatedIO . Seq.fromList $
-      filter (either (const True) (not . isGeneratedBlock)) stanzas `zip` (Just <$> [1 :: Int ..])
+      filter (either (const True) (not . isGeneratedBlock)) stanzas' `zip` (Just <$> [1 :: Int ..])
   -- Queue of UCM commands to run.
   -- Nothing indicates the end of a ucm block.
   cmdQueue <- Q.newIO @(Maybe UcmLine)
@@ -219,7 +220,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
           (False, False) -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
           (True, True) -> do
             appendFailingStanza
-            fixedBug out $
+            fixedBug (settings transcript) out $
               Text.unlines
                 [ "The stanza above marked with `:error :bug` is now failing with",
                   "",
@@ -271,7 +272,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
           tags <- readIORef currentTags
           ucmOut <- readIORef ucmOutput
           unless (null ucmOut && tags == Nothing) . outputEcho . pure $
-            Ucm (fromMaybe defaultInfoTags' {generated = True} tags) ucmOut
+            Ucm (fromMaybe (defaultInfoTags mempty) {generated = True} tags) ucmOut
           writeIORef ucmOutput []
           dieUnexpectedSuccess
         atomically $ void $ do
@@ -294,6 +295,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
             -- We're either going to run the command now (because we're in the right context), else we'll switch to
             -- the right context first, then run the command next.
             maybeSwitchCommand <- case context of
+              UcmContextEmpty -> pure Nothing
               UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
                 Project {projectId, name = projectName} <-
                   Q.loadProjectByName projectName
@@ -344,20 +346,24 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
 
       startProcessedBlock block = case block of
         Unison infoTags txt -> do
+          -- Open a ucm block which will contain the output from UCM after processing the `UnisonFileChanged` event.
+          -- Close the ucm block after processing the UnisonFileChanged event.
+          atomically $ Q.enqueue cmdQueue Nothing
           liftIO do
-            writeIORef isHidden $ hidden infoTags
+            writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
             outputEcho $ pure block
             writeIORef allowErrors $ expectingError infoTags
             writeIORef expectFailure $ hasBug infoTags
-          -- Open a ucm block which will contain the output from UCM after processing the `UnisonFileChanged` event.
-          -- Close the ucm block after processing the UnisonFileChanged event.
-          atomically . Q.enqueue cmdQueue $ Nothing
           let sourceName = fromMaybe "scratch.u" $ additionalTags infoTags
           liftIO $ updateVirtualFile sourceName txt
+          when (runIdentity (autoupdate behaviors)) do
+            liftIO $ writeIORef isHidden HideAll
+            atomically . Q.enqueue cmdQueue . pure $ UcmCommand UcmContextEmpty "update"
+            atomically $ Q.enqueue cmdQueue Nothing
           pure . Left $ UnisonFileChanged sourceName txt
         API infoTags apiRequests -> do
           liftIO do
-            writeIORef isHidden $ hidden infoTags
+            writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
             writeIORef allowErrors $ expectingError infoTags
             writeIORef expectFailure $ hasBug infoTags
             outputEcho . pure . API infoTags . fold =<< traverse apiRequest apiRequests
@@ -365,7 +371,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
         Ucm infoTags cmds -> do
           liftIO do
             writeIORef currentTags $ pure infoTags
-            writeIORef isHidden $ hidden infoTags
+            writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
             writeIORef allowErrors $ expectingError infoTags
             writeIORef expectFailure $ hasBug infoTags
           traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
@@ -385,7 +391,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
         liftIO . showStatus False "⚙️" $
           maybe
             "Processing UCM-generated stanza."
-            (\idx -> "Processing stanza " <> show idx <> " of " <> show (length stanzas) <> ".")
+            (\idx -> "Processing stanza " <> show idx <> " of " <> show (length stanzas') <> ".")
             midx
         either
           (bypassStanza . Left)
@@ -460,8 +466,12 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
       dieWithMsg :: forall a. String -> IO a
       dieWithMsg msg = do
         appendFailingStanza
-        transcriptFailure out "The transcript failed due to an error in the stanza above. The error is:" . pure $
-          Text.pack msg
+        transcriptFailure
+          (settings transcript)
+          out
+          "The transcript failed due to an error in the stanza above. The error is:"
+          . pure
+          $ Text.pack msg
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -472,11 +482,13 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
           (True, False, False) -> do
             appendFailingStanza
             transcriptFailure
+              (settings transcript)
               out
               "The transcript was expecting an error in the stanza above, but did not encounter one."
               Nothing
           (False, True, False) -> do
             fixedBug
+              (settings transcript)
               out
               "The stanza above with `:bug` is now passing! You can remove `:bug` and close any appropriate Github \
               \issues."
@@ -520,40 +532,38 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
         where
           onHalt = readIORef out
 
-  loop (Cli.loopState0 (PP.toIds initialPP))
+  Transcript (settings transcript) . toList <$> loop (Cli.loopState0 (PP.toIds initialPP))
 
-transcriptFailure :: IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
-transcriptFailure out heading mbody = do
+transcriptFailure :: Settings -> IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
+transcriptFailure settings out heading mbody = do
   texts <- readIORef out
-  UnliftIO.throwIO . RunFailure $
-    texts
-      <> Seq.fromList
-        ( Left
-            <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🛑") []],
-                  CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT heading) []]
-                ]
-              <> foldr ((:) . CMarkCodeBlock Nothing "") [] mbody
-        )
+  UnliftIO.throwIO . RunFailure . Transcript settings $
+    toList texts
+      <> ( Left
+             <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🛑") []],
+                   CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT heading) []]
+                 ]
+               <> foldr ((:) . CMarkCodeBlock Nothing "") [] mbody
+         )
 
-fixedBug :: IORef (Seq Stanza) -> Text -> IO b
-fixedBug out body = do
+fixedBug :: Settings -> IORef (Seq Stanza) -> Text -> IO b
+fixedBug settings out body = do
   texts <- readIORef out
   -- `CMark.commonmarkToNode` returns a @DOCUMENT@, which won’t be rendered inside another document, so we strip the
   -- outer `CMark.Node`.
   let CMark.Node _ _DOCUMENT bodyNodes = CMark.commonmarkToNode [CMark.optNormalize] body
-  UnliftIO.throwIO . RunFailure $
-    texts
-      <> Seq.fromList
-        ( Left
-            <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🎉") []],
-                  CMark.Node Nothing (CMark.HEADING 2) [CMark.Node Nothing (CMark.TEXT "You fixed a bug!") []]
-                ]
-              <> bodyNodes
-        )
+  UnliftIO.throwIO . RunFailure . Transcript settings $
+    toList texts
+      <> ( Left
+             <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🎉") []],
+                   CMark.Node Nothing (CMark.HEADING 2) [CMark.Node Nothing (CMark.TEXT "You fixed a bug!") []]
+                 ]
+               <> bodyNodes
+         )
 
 data Error
   = ParseError (P.ParseErrorBundle Text Void)
-  | RunFailure (Seq Stanza)
+  | RunFailure Transcript
   | PortBindingFailure
   deriving stock (Show)
   deriving anyclass (Exception)

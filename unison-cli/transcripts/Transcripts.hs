@@ -84,7 +84,7 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
               io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
               crash errMsg
           Transcript.RunFailure errOutput -> do
-            let errText = Transcript.formatStanzas $ toList errOutput
+            let errText = Transcript.format errOutput
             io $ writeUtf8 outputFile errText
             when (not expectFailure) $ do
               io $ Text.putStrLn errText
@@ -93,7 +93,7 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
       (filePath, Right out) -> do
         let outputFile = outputDir </> if replaceOriginal then filePath else outputFileForTranscript filePath
         io . createDirectoryIfMissing True $ takeDirectory outputFile
-        io . writeUtf8 outputFile . Transcript.formatStanzas $ toList out
+        io . writeUtf8 outputFile $ Transcript.format out
         when expectFailure $ do
           let errMsg = "Expected a failure, but transcript was successful."
           io $ recordFailure (filePath, Text.pack errMsg)
