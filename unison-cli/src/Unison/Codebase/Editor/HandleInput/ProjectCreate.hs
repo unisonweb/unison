@@ -24,7 +24,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectName, defaultBranchName)
 import Unison.Share.API.Hash qualified as Share.API
 import Unison.Sync.Common qualified as Sync.Common
 import Witch (unsafeFrom)
@@ -57,7 +57,7 @@ import Witch (unsafeFrom)
 -- much time getting everything perfectly correct before we get there.
 projectCreate :: Bool -> Maybe ProjectName -> Cli (ProjectAndBranch ProjectId ProjectBranchId)
 projectCreate tryDownloadingBase maybeProjectName = do
-  let branchName = unsafeFrom @Text "main"
+  let branchName = defaultBranchName
   (_, emptyCausalHashId) <- Cli.runTransaction Codebase.emptyCausalHash
 
   (project, branch) <-

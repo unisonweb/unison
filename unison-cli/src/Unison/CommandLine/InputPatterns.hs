@@ -215,6 +215,7 @@ import Unison.Project
     ProjectName,
     Semver,
     branchWithOptionalProjectParser,
+    defaultBranchName,
   )
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend (ShallowListEntry (..))
@@ -2144,7 +2145,7 @@ mergeCommitInputPattern =
       visibility = I.Visible,
       params = noParams,
       help =
-        let mainBranch = UnsafeProjectBranchName "main"
+        let mainBranch = defaultBranchName
             tempBranch = UnsafeProjectBranchName "merge-topic-into-main"
          in P.wrap
               ( makeExample' mergeCommitInputPattern
@@ -3289,7 +3290,7 @@ upgradeCommitInputPattern =
       visibility = I.Visible,
       params = noParams,
       help =
-        let mainBranch = UnsafeProjectBranchName "main"
+        let mainBranch = defaultBranchName
             tempBranch = UnsafeProjectBranchName "upgrade-foo-to-bar"
          in P.wrap
               ( makeExample' upgradeCommitInputPattern

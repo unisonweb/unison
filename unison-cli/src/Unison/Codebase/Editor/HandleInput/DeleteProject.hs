@@ -17,9 +17,9 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
-import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
+import Unison.Core.Project (ProjectName (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..))
+import Unison.Project (ProjectAndBranch (..), defaultBranchName)
 import Unison.Sqlite qualified as Sqlite
 
 -- | Delete a project
@@ -48,9 +48,9 @@ handleDeleteProject projectName = do
     createDummyProjectExcept :: ProjectName -> Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
     createDummyProjectExcept (UnsafeProjectName "scratch") = do
       (_, emptyCausalHashId) <- Codebase.emptyCausalHash
-      Ops.insertProjectAndBranch (UnsafeProjectName "scratch2") (UnsafeProjectBranchName "main") emptyCausalHashId
+      Ops.insertProjectAndBranch (UnsafeProjectName "scratch2") defaultBranchName emptyCausalHashId
         <&> \(proj, branch) -> ProjectAndBranch proj.projectId branch.branchId
     createDummyProjectExcept _ = do
       (_, emptyCausalHashId) <- Codebase.emptyCausalHash
-      Ops.insertProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main") emptyCausalHashId
+      Ops.insertProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName emptyCausalHashId
         <&> \(proj, branch) -> ProjectAndBranch proj.projectId branch.branchId

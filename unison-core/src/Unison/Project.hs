@@ -25,6 +25,7 @@ module Unison.Project
     projectAndBranchNamesParser2,
     projectNameParser,
     projectBranchNameParser,
+    defaultBranchName,
 
     -- ** Semver
     Semver (..),
@@ -550,3 +551,8 @@ userSlugParser = do
   c1 <- Megaparsec.takeWhileP Nothing (\c -> Char.isAlpha c || Char.isDigit c || c == '-')
   _ <- Megaparsec.char '/'
   pure (Text.Builder.char c0 <> Text.Builder.text c1)
+
+----
+
+defaultBranchName :: ProjectBranchName
+defaultBranchName = UnsafeProjectBranchName "main"

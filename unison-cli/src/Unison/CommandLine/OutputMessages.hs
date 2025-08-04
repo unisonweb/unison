@@ -111,7 +111,7 @@ import Unison.PrintError
     renderCompilerBug,
     renderTypeWarnings,
   )
-import Unison.Project (ProjectAndBranch (..))
+import Unison.Project (ProjectAndBranch (..), defaultBranchName)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -413,7 +413,7 @@ notifyNumbered = \case
           ),
       [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
         SA.ProjectBranch . ProjectAndBranch (pure project) $
-          UnsafeProjectBranchName "main"
+          defaultBranchName
       ]
     )
     where

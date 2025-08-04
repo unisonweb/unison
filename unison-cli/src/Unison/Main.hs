@@ -79,12 +79,13 @@ import Unison.CommandLine.Main qualified as CommandLine
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
-import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
+import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..))
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
+import Unison.Project (defaultBranchName)
 import Unison.Runtime.Exception (RuntimeExn (..))
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
@@ -325,7 +326,7 @@ main version = do
                               [ "I've started the Codebase API server at",
                                 P.text $ Server.urlFor Server.Api baseUrl,
                                 "and the Codebase UI at",
-                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main")) Path.Root Nothing) baseUrl
+                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName) Path.Root Nothing) baseUrl
                               ]
                         PT.putPrettyLn $
                           P.string "Running the codebase manager headless with "

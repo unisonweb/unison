@@ -32,8 +32,7 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName)
-import Witch (unsafeFrom)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName, defaultBranchName)
 
 handlePull :: PullSourceTarget -> PullMode -> Cli ()
 handlePull unresolvedSourceAndTarget pullMode = do
@@ -179,7 +178,7 @@ resolveExplicitSource includeSquashed = \case
   ReadShare'ProjectBranch (This remoteProjectName) -> do
     remoteProject <- ProjectUtils.expectRemoteProjectByName remoteProjectName
     let remoteProjectId = remoteProject.projectId
-    let remoteBranchName = unsafeFrom @Text "main"
+    let remoteBranchName = defaultBranchName
     remoteProjectBranch <-
       ProjectUtils.expectRemoteProjectBranchByName
         includeSquashed

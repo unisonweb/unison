@@ -21,9 +21,8 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, projectNameUserSlug)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, defaultBranchName, projectNameUserSlug)
 import Unison.Sqlite qualified as Sqlite
-import Witch (unsafeFrom)
 
 data LocalProjectKey
   = LocalProjectKey'Name ProjectName
@@ -97,7 +96,7 @@ resolveRemoteNames includeSquashed currentProjectAndBranch = \case
               (Just remoteProject, Nothing) -> do
                 let remoteProjectId = remoteProject.projectId
                 let remoteProjectName = remoteProject.projectName
-                let remoteBranchName = unsafeFrom @Text "main"
+                let remoteBranchName = defaultBranchName
                 remoteBranch <-
                   ProjectUtils.expectRemoteProjectBranchByName
                     includeSquashed
@@ -136,7 +135,7 @@ resolveRemoteNames includeSquashed currentProjectAndBranch = \case
 
     resolveP projectName = do
       assertProjectNameHasUserSlug projectName
-      branch <- expectB (RemoteProjectKey'Name projectName) (unsafeFrom @Text "main")
+      branch <- expectB (RemoteProjectKey'Name projectName) defaultBranchName
       pure ResolvedRemoteNames {branch, from = ResolvedRemoteNamesFrom'Project}
 
     resolvePB projectName branchName = do

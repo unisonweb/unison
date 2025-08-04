@@ -13,8 +13,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName)
-import Witch (unsafeFrom)
+import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (..), ProjectBranchName, ProjectName, defaultBranchName)
 
 -- | Switch to an existing project or project branch, with a flexible syntax that does not require prefixing branch
 -- names with forward slashes (though doing so makes the command unambiguous).
@@ -57,7 +56,7 @@ switchToProjectAndBranchByTheseNames projectAndBranchNames0 = do
             rollback (Output.LocalProjectDoesntExist projectName)
         Queries.loadMostRecentBranch (project ^. #projectId) >>= \case
           Nothing -> do
-            let branchName = unsafeFrom @Text "main"
+            let branchName = defaultBranchName
             branch <-
               Queries.loadProjectBranchByName project.projectId branchName & onNothingM do
                 rollback (Output.LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
