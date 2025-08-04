@@ -1714,7 +1714,6 @@ notifyUser dir = \case
           <> "is already up-to-date."
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
-  InvalidLibName name -> pure (P.wrap (P.text name <> "is not a valid lib name."))
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       "Project" <> prettyProjectName name <> "already exists."

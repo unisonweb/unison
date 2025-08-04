@@ -70,27 +70,29 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
 
   remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase causalHash)
   let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
-  libdepNameSegment <- attachNewLib reflogDescription remoteBranchObject libdepProjectName libdepBranchName
+  libdepNameSegment <- attachNewLib reflogDescription remoteBranchObject libdepProjectName libdepBranchName Nothing
   Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
 -- | Attach a new library to the current project branch, under the `lib` namespace, using a fresh name derived from the
 -- project and branch names.
-attachNewLib :: Text -> Branch.Branch IO -> ProjectName -> ProjectBranchName -> Cli NameSegment
-attachNewLib reflogDescription libBranch libdepProjectName libdepBranchName = do
+attachNewLib :: Text -> Branch.Branch IO -> ProjectName -> ProjectBranchName -> Maybe NameSegment -> Cli NameSegment
+attachNewLib reflogDescription libBranch libdepProjectName libdepBranchName preferredName = do
   -- Find the best available dependency name, starting with the best one (e.g. "unison_base_1_0_0"), and tacking on a
   -- "__2", "__3", etc. suffix.
   --
   -- For example, if the best name is "foo", and libdeps "foo" and "foo__2" already exist, then we'll get "foo__3".
-  libdepNameSegment :: NameSegment <- do
-    currentBranchObject <- Cli.getCurrentProjectRoot0
-    pure $
-      fresh
-        (\i -> NameSegment.unsafeParseText . (<> "__" <> tShow i) . NameSegment.toUnescapedText)
-        ( case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children_) of
-            Nothing -> Set.empty
-            Just libdeps -> Map.keysSet (Branch.head libdeps ^. Branch.children_)
-        )
-        (makeDependencyName libdepProjectName libdepBranchName)
+  libdepNameSegment :: NameSegment <- case preferredName of
+    Just name -> pure name
+    Nothing -> do
+      currentBranchObject <- Cli.getCurrentProjectRoot0
+      pure $
+        fresh
+          (\i -> NameSegment.unsafeParseText . (<> "__" <> tShow i) . NameSegment.toUnescapedText)
+          ( case Map.lookup NameSegment.libSegment (currentBranchObject ^. Branch.children_) of
+              Nothing -> Set.empty
+              Just libdeps -> Map.keysSet (Branch.head libdeps ^. Branch.children_)
+          )
+          (makeDependencyName libdepProjectName libdepBranchName)
 
   let libdepPath :: Path.Absolute
       libdepPath = Path.Absolute $ Path.fromList [NameSegment.libSegment, libdepNameSegment]
@@ -148,16 +150,8 @@ handleInstallLocalLib srcPAB@(ProjectAndBranch projName branchName) mayDestLibNa
   sourcePAB <- ProjectUtils.expectProjectAndBranchByTheseNames (These projName branchName)
   causalBranchToSquash <- Cli.runTransaction $ Codebase.expectProjectBranchRootCausal sourcePAB.branch
   squashResult <- Cli.runTransaction $ UCausal.squashCausal HH.v2HashHandle causalBranchToSquash
-  destLibName <- case mayDestLibName of
-    Just destLibName -> do
-      pure destLibName
-    Nothing -> do
-      case NameSegment.parseText (into @Text projName) of
-        Left _err -> Cli.returnEarly $ Output.InvalidLibName (into @Text projName)
-        Right parsedName -> pure parsedName
-  let destPath = Path.fromList [NameSegment.libSegment, destLibName]
-  let description = "Installed local lib from " <> into @Text srcPAB <> " to " <> into @Text destPath
+  let reflogDescription = "lib.install " <> into @Text srcPAB <> maybe "" (\n -> " " <> NameSegment.toEscapedText n) mayDestLibName
   Cli.Env {codebase} <- ask
   squashedBranchIO <- liftIO $ Codebase.expectBranchForHash codebase squashResult.causalHash
-  libSegmentName <- attachNewLib description squashedBranchIO projName branchName
+  libSegmentName <- attachNewLib reflogDescription squashedBranchIO projName branchName mayDestLibName
   Cli.respond $ Output.InstalledLibdep srcPAB libSegmentName

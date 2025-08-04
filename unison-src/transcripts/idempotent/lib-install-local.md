@@ -31,11 +31,11 @@ scratch/main> update
 
 myproject/main> lib.install.local scratch
 
-  I installed scratch/main into lib.scratch
+  I installed scratch/main into lib.scratch_main
 
 myproject/main> ls lib
 
-  1. scratch/ (584 terms, 101 types)
+  1. scratch_main/ (584 terms, 101 types)
 
 -- Can also specify a custom destination location
 
@@ -46,7 +46,7 @@ myproject/main> lib.install.local scratch/main coolerscratch
 myproject/main> ls lib
 
   1. coolerscratch/ (584 terms, 101 types)
-  2. scratch/       (584 terms, 101 types)
+  2. scratch_main/  (584 terms, 101 types)
 
 -- Installed libs should be squashed.
 
@@ -57,5 +57,5 @@ myproject/main> history lib.scratch
 
 
 
-  □ 1. #0ga4v1i12o (start of history)
+  □ 1. #sg60bvjo91 (start of history)
 ```
