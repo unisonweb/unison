@@ -137,6 +137,7 @@ where
 import Control.Lens.Cons qualified as Cons
 import Data.Bitraversable (bitraverse)
 import Data.Char (isSpace)
+import Data.Generics.Product (HasField (..))
 import Data.List (intercalate)
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NE
@@ -413,14 +414,21 @@ handleProjectMaybeBranchArg =
 
 handleProjectBranchArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch ProjectName ProjectBranchName)
-handleProjectBranchArg =
-  either
-    (\str -> first (const $ expectedButActually' "a project or branch" str) . tryInto $ Text.pack str)
-    \case
+handleProjectBranchArg arg =
+  case arg of
+    Left str ->
+      parseProjBranchName str <|> parseJustProjName str
+        & maybeToEither (P.string $ "Invalid project/branch name: " <> str)
+    Right structured -> case structured of
       SA.Project proj -> pure $ ProjectAndBranch proj defaultBranchName
       SA.ProjectBranch (ProjectAndBranch (Just proj) branch) ->
         pure $ ProjectAndBranch proj branch
       otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
+  where
+    parseProjBranchName str = eitherToMaybe (tryInto @(ProjectAndBranch ProjectName ProjectBranchName) $ Text.pack str)
+    parseJustProjName str = do
+      projMayBranch <- eitherToMaybe (tryInto @(ProjectAndBranch ProjectName (Maybe ProjectBranchName)) $ Text.pack str)
+      pure $ projMayBranch & field @"branch" %~ fromMaybe defaultBranchName
 
 handleHashQualifiedNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
 handleHashQualifiedNameArg =
