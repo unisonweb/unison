@@ -374,6 +374,7 @@ data Output
     RemoteProjectBranchIsUpToDate URI (ProjectAndBranch ProjectName ProjectBranchName)
   | InvalidProjectName Text
   | InvalidProjectBranchName Text
+  | InvalidLibName Text
   | InvalidStructuredFindReplace (HQ.HashQualified Name)
   | InvalidStructuredFind (HQ.HashQualified Name)
   | ProjectNameAlreadyExists ProjectName
@@ -635,6 +636,7 @@ isFailure o = case o of
   CreatedRemoteProjectBranch {} -> False
   InvalidProjectName {} -> True
   InvalidProjectBranchName {} -> True
+  InvalidLibName {} -> True
   InvalidStructuredFindReplace {} -> True
   InvalidStructuredFind {} -> True
   ProjectNameAlreadyExists {} -> True

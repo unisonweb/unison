@@ -872,7 +872,6 @@ notifyUser dir = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -1714,6 +1713,7 @@ notifyUser dir = \case
           <> "is already up-to-date."
   InvalidProjectName name -> pure (P.wrap (P.text name <> "is not a valid project name."))
   InvalidProjectBranchName name -> pure (P.wrap (P.text name <> "is not a valid branch name."))
+  InvalidLibName name -> pure (P.wrap (P.text name <> "is not a valid lib name."))
   ProjectNameAlreadyExists name ->
     pure . P.wrap $
       "Project" <> prettyProjectName name <> "already exists."

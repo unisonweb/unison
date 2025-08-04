@@ -1,6 +1,7 @@
 -- | @lib.install@ input handler
 module Unison.Codebase.Editor.HandleInput.InstallLib
   ( handleInstallLib,
+    handleInstallLocalLib,
   )
 where
 
@@ -10,6 +11,10 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.These (These (..))
+import U.Codebase.Causal qualified as UCausal
+import U.Codebase.Causal.Squash qualified as UCausal
+import U.Codebase.Sqlite.V2.HashHandle qualified as HH
 import Unison.Cli.DownloadUtils
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -35,7 +40,7 @@ import Unison.Project
     classifyProjectBranchName,
     projectNameToUserProjectSlugs,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment (unsafeParseText)
+import Unison.Syntax.NameSegment qualified as NameSegment
 
 handleInstallLib :: Bool -> ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease) -> Cli ()
 handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBranchName) = do
@@ -130,3 +135,26 @@ makeDependencyName projectName branchName =
     semverSegments :: Semver -> [Text]
     semverSegments (Semver x y z) =
       [tShow x, tShow y, tShow z]
+
+---------------------------------
+
+handleInstallLocalLib :: (ProjectAndBranch ProjectName ProjectBranchName) -> Maybe NameSegment -> Cli ()
+handleInstallLocalLib srcPAB@(ProjectAndBranch projName branchName) mayDestLibName = do
+  sourcePAB <- ProjectUtils.expectProjectAndBranchByTheseNames (These projName branchName)
+  causalBranchToSquash <- Cli.runTransaction $ Codebase.expectProjectBranchRootCausal sourcePAB.branch
+  squashResult <- Cli.runTransaction $ UCausal.squashCausal HH.v2HashHandle causalBranchToSquash
+  destLibName <- case mayDestLibName of
+    Just destLibName -> do
+      pure destLibName
+    Nothing -> do
+      case NameSegment.parseText (into @Text projName) of
+        Left _err -> Cli.returnEarly $ Output.InvalidLibName (into @Text projName)
+        Right parsedName -> pure parsedName
+  let destPath = Path.fromList [NameSegment.libSegment, destLibName]
+  let description = "Installed local lib from " <> into @Text srcPAB <> " to " <> into @Text destPath
+  pb <- Cli.getCurrentProjectBranch
+  Cli.Env {codebase} <- ask
+  squashedBranchIO <- liftIO $ Codebase.expectBranchForHash codebase squashResult.causalHash
+  Cli.updateProjectBranchRoot_ pb description \b -> do
+    Branch.modifyAt destPath (const squashedBranchIO) b
+  Cli.respond $ Output.InstalledLibdep srcPAB destLibName
