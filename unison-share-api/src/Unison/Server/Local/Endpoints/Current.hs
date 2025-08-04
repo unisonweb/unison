@@ -12,8 +12,8 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import Unison.Project (defaultBranchName)
 import Unison.Prelude
+import Unison.Project (defaultBranchName)
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
 
