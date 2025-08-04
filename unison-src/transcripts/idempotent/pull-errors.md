@@ -5,8 +5,8 @@ test/main> pull @aryairani/test-almost-empty/main lib.base_latest
   Going forward, you can use
   `lib.install @aryairani/test-almost-empty/main`.
 
-  I installed @aryairani/test-almost-empty/main as
-  aryairani_test_almost_empty_main.
+  I installed @aryairani/test-almost-empty/main into
+  lib.aryairani_test_almost_empty_main
 
 test/main> pull @aryairani/test-almost-empty/main a.b
 

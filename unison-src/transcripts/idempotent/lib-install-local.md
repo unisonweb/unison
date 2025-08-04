@@ -31,7 +31,7 @@ scratch/main> update
 
 myproject/main> lib.install.local scratch
 
-  I installed scratch/main as scratch.
+  I installed scratch/main into lib.scratch
 
 myproject/main> ls lib
 
@@ -41,7 +41,7 @@ myproject/main> ls lib
 
 myproject/main> lib.install.local scratch/main coolerscratch
 
-  I installed scratch/main as coolerscratch.
+  I installed scratch/main into lib.coolerscratch
 
 myproject/main> ls lib
 
