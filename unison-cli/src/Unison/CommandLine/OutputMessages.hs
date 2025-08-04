@@ -2157,7 +2157,7 @@ notifyUser dir = \case
       "I installed"
         <> prettyProjectAndBranchName libdep
         <> "as"
-        <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
+        <> P.group (P.text $ into @Text $ Path.fromList [NameSegment.libSegment, segment])
   NoUpgradeInProgress ->
     pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
   UseLibInstallNotPull libdep ->
