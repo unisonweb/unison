@@ -517,6 +517,62 @@ scratch/main> help
                                               `topic` branch of
                                               `@unison/base`
 
+  lib.install.local (or install.lib.local)
+  The `lib.install.local` command installs a local project
+  branch into the `lib` namespace of the current branch.
+
+  `lib.install.local myproject`                            installs
+                                                           the
+                                                           `main`
+                                                           branch
+                                                           of
+                                                           `myproject`
+                                                           in
+                                                           your
+                                                           codebase
+                                                           into
+                                                           the
+                                                           current
+                                                           branch's
+                                                           lib
+                                                           directory
+                                                           at
+                                                           `lib.myproject`
+  `lib.install.local myproject/feature`                    installs
+                                                           the
+                                                           `feature`
+                                                           branch
+                                                           of
+                                                           `myproject`
+                                                           in
+                                                           your
+                                                           codebase
+                                                           into
+                                                           the
+                                                           current
+                                                           branch's
+                                                           lib
+                                                           directory
+                                                           at
+                                                           `lib.myproject`
+  `lib.install.local myproject/development myproject_dev`  installs
+                                                           the
+                                                           `development`
+                                                           branch
+                                                           of
+                                                           `myproject`
+                                                           in
+                                                           your
+                                                           codebase
+                                                           into
+                                                           the
+                                                           current
+                                                           branch's
+                                                           lib
+                                                           directory
+                                                           at
+                                                           `lib.myproject_dev`
+
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current
                namespace.

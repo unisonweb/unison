@@ -41,6 +41,7 @@ import Unison.Project
     ProjectBranchNameKind (..),
     ProjectName,
     classifyProjectBranchName,
+    defaultBranchName,
     prependUserSlugToProjectName,
     projectNameUserSlug,
   )
@@ -52,7 +53,6 @@ import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Types qualified as Share
-import Witch (unsafeFrom)
 
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
@@ -263,7 +263,7 @@ deriveRemoteBranchName userHandle localBranchName =
     ProjectBranchNameKind'DraftRelease _ -> localBranchName
     ProjectBranchNameKind'Release _ -> localBranchName
     ProjectBranchNameKind'NothingSpecial
-      | localBranchName == unsafeFrom @Text "main" -> localBranchName
+      | localBranchName == defaultBranchName -> localBranchName
       | otherwise ->
           (UnsafeProjectBranchName . Text.Builder.run . fold)
             [ Text.Builder.char '@',

@@ -234,6 +234,11 @@ data Input
   | LibInstallI
       !Bool -- Remind the user to use `lib.install` next time, not `pull`?
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
+  | LibInstallLocalI
+      -- The source local project and branch.
+      !(ProjectAndBranch ProjectName ProjectBranchName)
+      -- The destination lib name
+      (Maybe NameSegment)
   | UpgradeCommitI
   | MergeCommitI
   | DebugSynhashTermI !Name

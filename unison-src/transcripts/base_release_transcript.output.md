@@ -3,8 +3,8 @@
 ``` ucm
 scratch/main> lib.install @unison/base/releases/3.35.0
 
-  I installed @unison/base/releases/3.35.0 as
-  unison_base_3_35_0.
+  I installed @unison/base/releases/3.35.0 into
+  lib.unison_base_3_35_0
 ```
 
 This just verifies that a `Map` prints out nicely, as a call to `Map.fromList`:
