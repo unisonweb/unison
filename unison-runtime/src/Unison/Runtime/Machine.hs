@@ -27,6 +27,7 @@ module Unison.Runtime.Machine
 where
 
 import Control.Concurrent (ThreadId)
+import Control.Concurrent qualified as CNC
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
@@ -113,6 +114,9 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
+yieldSteps :: Int
+yieldSteps = 5000
+
 -- Entry point for evaluating a section
 eval0 :: CCache -> ActiveThreads -> MSection -> IO ()
 eval0 env !activeThreads !co = do
@@ -122,7 +126,7 @@ eval0 env !activeThreads !co = do
     rfTy <- readTVarIO (refTy env)
     rfTm <- readTVarIO (refTm env)
     topHEnv cmbs rfTy rfTm
-  eval env henv activeThreads stk (k KE) dummyRef co
+  eval yieldSteps env henv activeThreads stk (k KE) dummyRef co
 
 mCombVal :: CombIx -> MComb -> Val
 mCombVal cix (RComb (Comb comb)) =
@@ -180,7 +184,7 @@ apply0 !callback env !threadTracker !i = do
   let entryCix = (CIx r i 0)
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
-      apply env henv threadTracker stk (kf k0) True ZArgs . BoxedVal $
+      apply yieldSteps env henv threadTracker stk (kf k0) True ZArgs . BoxedVal $
         PAp entryCix entryComb nullSeg
     -- if it's cached, we can just finish
     CachedVal _ val -> bump stk >>= \stk -> poke stk val
@@ -197,7 +201,7 @@ apply1 ::
   IO ()
 apply1 callback env threadTracker clo = do
   stk <- alloc
-  apply env mempty threadTracker stk k0 True ZArgs clo
+  apply yieldSteps env mempty threadTracker stk k0 True ZArgs clo
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
 {-# INLINE apply1 #-}
@@ -490,6 +494,7 @@ encodeExn stk exc = do
 -- immediately evaluated when created to avoid thunks building up, so
 -- that it doesn't need to be a strict argument.
 eval ::
+  Int ->
   CCache ->
   HEnv ->
   ActiveThreads ->
@@ -499,48 +504,49 @@ eval ::
   MSection ->
   IO ()
 #ifdef STACK_CHECK
-eval _ _ !_ !stk !_ !_ section
+eval !_ _ _ !_ !stk !_ !_ section
   | debugger stk "eval" section = undefined
 #endif
-eval env henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
+eval !yld env henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
-  eval env henv activeThreads stk k r $ selectTextBranch t df cs
-eval env henv !activeThreads !stk !k r (Match i br) = do
+  eval yld env henv activeThreads stk k r $ selectTextBranch t df cs
+eval !yld env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
-  eval env henv activeThreads stk k r $ selectBranch n br
-eval env henv !activeThreads !stk !k r (DMatch mr i br) = do
+  eval yld env henv activeThreads stk k r $ selectBranch n br
+eval !yld env henv !activeThreads !stk !k r (DMatch mr i br) = do
   (nx, stk) <- dataBranch mr stk br =<< bpeekOff stk i
-  eval env henv activeThreads stk k r nx
-eval env henv !activeThreads !stk !k r (NMatch _mr i br) = do
+  eval yld env henv activeThreads stk k r nx
+eval !yld env henv !activeThreads !stk !k r (NMatch _mr i br) = do
   n <- peekOffN stk i
-  eval env henv activeThreads stk k r $ selectBranch n br
-eval env henv !activeThreads !stk !k r (RMatch i pu br) = do
+  eval yld env henv activeThreads stk k r $ selectBranch n br
+eval !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
   (t, stk) <- dumpDataValNoTag stk =<< peekOff stk i
   if t == TT.pureEffectTag
-    then eval env henv activeThreads stk k r pu
+    then eval yld env henv activeThreads stk k r pu
     else case ANF.unpackTags t of
       (ANF.rawTag -> e, ANF.rawTag -> t)
         | Just ebs <- EC.lookup e br ->
-            eval env henv activeThreads stk k r $ selectBranch t ebs
+            eval yld env henv activeThreads stk k r $ selectBranch t ebs
         | otherwise -> unhandledAbilityRequest
-eval env henv !activeThreads !stk !k _ (Yield args)
+eval !yld env henv !activeThreads !stk !k _ (Yield args)
   | asize stk > 0,
     VArg1 i <- args =
-      peekOff stk i >>= apply env henv activeThreads stk k False ZArgs
+      peekOff stk i >>= apply yld env henv activeThreads stk k False ZArgs
   | otherwise = do
       stk <- moveArgs stk args
       stk <- frameArgs stk
-      yield env henv activeThreads stk k
-eval env henv !activeThreads !stk !k _ (App ck r args) =
+      yield yld env henv activeThreads stk k
+eval !yld env henv !activeThreads !stk !k _ (App ck r args) =
   resolve env henv stk r
-    >>= apply env henv activeThreads stk k ck args
-eval env henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
-  enter env henv activeThreads stk k (combRef combIx) ck args rcomb
-eval env henv !activeThreads !stk !k _ (Jump i args) =
-  bpeekOff stk i >>= jump env henv activeThreads stk k args
-eval env henv !activeThreads !stk !k r (Let nw cix f sect) = do
+    >>= apply yld env henv activeThreads stk k ck args
+eval !yld env henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
+  enter yld env henv activeThreads stk k (combRef combIx) ck args rcomb
+eval !yld env henv !activeThreads !stk !k _ (Jump i args) =
+  bpeekOff stk i >>= jump yld env henv activeThreads stk k args
+eval !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
   (stk, fsz, asz) <- saveFrame stk
   eval
+    yld
     env
     henv
     activeThreads
@@ -548,7 +554,7 @@ eval env henv !activeThreads !stk !k r (Let nw cix f sect) = do
     (Push fsz asz cix f sect k)
     r
     nw
-eval env henv !activeThreads !stk !k r (Ins i nx) = do
+eval !yld env henv !activeThreads !stk !k r (Ins i nx) = do
   exec env henv activeThreads stk k r i >>= \case
     (exception, henv, !stk, !k)
       -- In this case, the instruction indicated an exception to
@@ -561,10 +567,10 @@ eval env henv !activeThreads !stk !k r (Ins i nx) = do
           bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
           (stk, fsz, asz) <- saveFrame stk
           let kk = Push fsz asz fakeCix 10 nx k
-          apply env henv activeThreads stk kk False (VArg1 0) eh
-      | otherwise -> eval env henv activeThreads stk k r nx
-eval _ _ !_ !_activeThreads !_ _ Exit = pure ()
-eval _ _ !_ !_activeThreads !_ _ (Die s) = die s
+          apply yld env henv activeThreads stk kk False (VArg1 0) eh
+      | otherwise -> eval yld env henv activeThreads stk k r nx
+eval !_ _ _ !_ !_activeThreads !_ _ Exit = pure ()
+eval !_ _ _ !_ !_activeThreads !_ _ (Die s) = die s
 {-# NOINLINE eval #-}
 
 -- Note: denv shadows aenv always
@@ -621,7 +627,8 @@ atomicEval env activeThreads write val =
 {-# INLINE atomicEval #-}
 
 -- fast path application
-enter ::
+enter' ::
+  Int ->
   CCache ->
   HEnv ->
   ActiveThreads ->
@@ -632,18 +639,38 @@ enter ::
   Args ->
   MComb ->
   IO ()
-enter env henv !activeThreads !stk !k !cref !sck !args = \case
+enter' !yld env henv !activeThreads !stk !k !cref !sck !args = \case
   (RComb (Lam a f entry)) -> do
     -- check for stack check _skip_
     stk <- if sck then pure stk else ensure stk f
     stk <- moveArgs stk args
     stk <- acceptArgs stk a
-    eval env henv activeThreads stk k cref entry
+    eval yld env henv activeThreads stk k cref entry
   (RComb (CachedVal _ val)) -> do
     stk <- discardFrame stk
     stk <- bump stk
     poke stk val
-    yield env henv activeThreads stk k
+    yield yld env henv activeThreads stk k
+{-# INLINE enter' #-}
+
+enter ::
+  Int ->
+  CCache ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  Reference ->
+  Bool ->
+  Args ->
+  MComb ->
+  IO ()
+enter !yld env henv !activeThreads !stk !k !cref !sck !args comb
+  | yld <= 0 = do
+      CNC.yield
+      enter' yieldSteps env henv activeThreads stk k cref sck args comb
+  | otherwise =
+      enter' (yld - 1) env henv activeThreads stk k cref sck args comb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -678,7 +705,8 @@ extendPAp v _ =
 {-# INLINE extendPAp #-}
 
 -- slow path application
-apply ::
+apply' ::
+  Int ->
   CCache ->
   HEnv ->
   ActiveThreads ->
@@ -689,10 +717,10 @@ apply ::
   Val ->
   IO ()
 #ifdef STACK_CHECK
-apply _env _henv !_activeThreads !stk !_k !_ck !args !val
+apply' !yld _env _henv !_activeThreads !stk !_k !_ck !args !val
   | debugger stk "apply" (args, val) = undefined
 #endif
-apply env henv !activeThreads !stk !k !ck !args !val =
+apply' !yld env henv !activeThreads !stk !k !ck !args !val =
   case val of
     BoxedVal (PAp cix@(CIx combRef _ _) comb seg) ->
       case comb of
@@ -702,13 +730,13 @@ apply env henv !activeThreads !stk !k !ck !args !val =
               stk <- moveArgs stk args
               stk <- dumpSeg stk seg A
               stk <- acceptArgs stk a
-              eval env henv activeThreads stk k combRef entry
+              eval yld env henv activeThreads stk k combRef entry
           | otherwise -> do
               seg <- closeArgs C stk seg args
               stk <- discardFrame =<< frameArgs stk
               stk <- bump stk
               bpoke stk $ PAp cix comb seg
-              yield env henv activeThreads stk k
+              yield yld env henv activeThreads stk k
       where
         ac = asize stk + countArgs args + scount seg
     v -> zeroArgClosure v
@@ -720,11 +748,31 @@ apply env henv !activeThreads !stk !k !ck !args !val =
           stk <- discardFrame stk
           stk <- bump stk
           poke stk v
-          yield env henv activeThreads stk k
+          yield yld env henv activeThreads stk k
       | otherwise = die $ "applying non-function: " ++ show v
+{-# INLINE apply' #-}
+
+apply ::
+  Int ->
+  CCache ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  Bool ->
+  Args ->
+  Val ->
+  IO ()
+apply !yld env henv !activeThreads !stk !k !ck !args !val
+  | yld <= 0 = do
+      CNC.yield
+      apply' yieldSteps env henv activeThreads stk k ck args val
+  | otherwise =
+      apply' (yld - 1) env henv activeThreads stk k ck args val
 {-# INLINE apply #-}
 
 jump ::
+  Int ->
   CCache ->
   HEnv ->
   ActiveThreads ->
@@ -733,14 +781,14 @@ jump ::
   Args ->
   Closure ->
   IO ()
-jump env henv !activeThreads !stk !k !args clo = case clo of
+jump !yld env henv !activeThreads !stk !k !args clo = case clo of
   Captured sk0 a seg -> do
     let (p, sk) = adjust sk0
     seg <- closeArgs K stk seg args
     stk <- discardFrame stk
     stk <- dumpSeg stk seg $ F (countArgs args) a
     stk <- adjustArgs stk p
-    repush env activeThreads stk henv sk k
+    repush yld env activeThreads stk henv sk k
   _ -> die "jump: non-cont"
   where
     -- Adjusts a repushed continuation to account for pending arguments. If
@@ -758,6 +806,7 @@ jump env henv !activeThreads !stk !k !args clo = case clo of
 {-# INLINE jump #-}
 
 repush ::
+  Int ->
   CCache ->
   ActiveThreads ->
   Stack ->
@@ -765,9 +814,9 @@ repush ::
   K ->
   K ->
   IO ()
-repush env !activeThreads !stk (HEnv aenv denv0) = go denv0
+repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
   where
-    go !denv KE !k = yield env (HEnv aenv denv) activeThreads stk k
+    go !denv KE !k = yield yld env (HEnv aenv denv) activeThreads stk k
     go !denv (Mark a ps cs sk) !k = go denv' sk $ Mark a ps cs' k
       where
         denv' = cs <> EC.withoutKeys denv ps
@@ -915,13 +964,14 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
           l = fsize stk - i
 
 yield ::
+  Int ->
   CCache ->
   HEnv ->
   ActiveThreads ->
   Stack ->
   K ->
   IO ()
-yield env henv0 !activeThreads !stk = leap
+yield !yld env henv0 !activeThreads !stk = leap
   where
     leap (Mark a ps cs k) | HEnv aenv0 denv0 <- henv0 = do
       denv <- evaluate $ cs <> EC.withoutKeys denv0 ps
@@ -931,7 +981,7 @@ yield env henv0 !activeThreads !stk = leap
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv0 denv
-      apply env henv activeThreads stk k False (VArg1 0) h
+      apply yld env henv activeThreads stk k False (VArg1 0) h
     leap (AMark a aenv (ARef r) k) = do
       v <- peek stk
       h <- BoxedVal <$> readIORef r
@@ -939,14 +989,14 @@ yield env henv0 !activeThreads !stk = leap
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv mempty
-      apply env henv activeThreads stk k False (VArg1 0) h
+      apply yld env henv activeThreads stk k False (VArg1 0) h
     leap (Push fsz asz (CIx ref _ _) f nx k) = do
       stk <- restoreFrame stk fsz asz
       stk <- ensure stk f
-      eval env henv0 activeThreads stk k ref nx
+      eval yld env henv0 activeThreads stk k ref nx
     leap (Local henv asz k) = do
       stk <- restoreFrame stk 0 asz
-      yield env henv activeThreads stk k
+      yield yld env henv activeThreads stk k
     leap (CB (Hook f)) = f (unpackXStack stk)
     leap KE = pure ()
 {-# INLINE yield #-}
