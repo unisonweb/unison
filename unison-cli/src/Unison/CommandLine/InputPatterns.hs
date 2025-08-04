@@ -67,6 +67,7 @@ module Unison.CommandLine.InputPatterns
     ioTest,
     ioTestAll,
     libInstallInputPattern,
+    libInstallLocalInputPattern,
     load,
     makeStandalone,
     mergeBuiltins,
@@ -410,6 +411,17 @@ handleProjectMaybeBranchArg =
         pure . ProjectAndBranch proj . pure $ ProjectBranchNameOrLatestRelease'Name branch
       otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
 
+handleProjectBranchArg ::
+  I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch ProjectName ProjectBranchName)
+handleProjectBranchArg =
+  either
+    (\str -> first (const $ expectedButActually' "a project or branch" str) . tryInto $ Text.pack str)
+    \case
+      SA.Project proj -> pure $ ProjectAndBranch proj defaultBranchName
+      SA.ProjectBranch (ProjectAndBranch (Just proj) branch) ->
+        pure $ ProjectAndBranch proj branch
+      otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
+
 handleHashQualifiedNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
 handleHashQualifiedNameArg =
   either
@@ -649,6 +661,15 @@ handleRelativeNameSegmentArg arg = do
   if Name.isRelative name && null tail
     then pure segment
     else Left $ P.text "Wanted a single relative name segment, but it wasn’t."
+
+-- | Just a single simple name segment. Useful for lib names, etc.
+handleNameSegmentArg :: I.Argument -> Either (P.Pretty CT.ColorText) NameSegment
+handleNameSegmentArg arg = do
+  case arg of
+    Left txt -> mapLeft P.text $ NameSegment.parseText (Text.pack txt)
+    -- There are no valid structured args for a single name segment identifier, and there are no commands that
+    -- output them as numbered output.
+    Right _ -> Left "Expected a name segment"
 
 handleNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) Name
 handleNameArg =
@@ -1619,6 +1640,45 @@ libInstallInputPattern =
         [arg] -> Input.LibInstallI False <$> handleProjectMaybeBranchArg arg
         args -> wrongArgsLength "exactly one argument" args
     }
+
+libInstallLocalInputPattern :: InputPattern
+libInstallLocalInputPattern =
+  InputPattern
+    { patternName = "lib.install.local",
+      aliases = ["install.lib.local"],
+      visibility = I.Visible,
+      params = Parameters [("local branch", projectBranchNameArg suggestionsConfig)] $ Optional [("destination lib name", noCompletionsArg)] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "The"
+                <> makeExample' libInstallLocalInputPattern
+                <> "command installs a local project branch into the `lib` namespace of the current branch.",
+            "",
+            P.wrapColumn2
+              [ ( makeExample libInstallLocalInputPattern ["myproject"],
+                  "installs the `main` branch of `myproject` in your codebase into the current branch's lib directory at `lib.myproject`"
+                ),
+                ( makeExample libInstallLocalInputPattern ["myproject/feature"],
+                  "installs the `feature` branch of `myproject` in your codebase into the current branch's lib directory at `lib.myproject`"
+                ),
+                ( makeExample libInstallLocalInputPattern ["myproject/development", "myproject_dev"],
+                  "installs the `development` branch of `myproject` in your codebase into the current branch's lib directory at `lib.myproject_dev`"
+                )
+              ]
+          ],
+      parse = \case
+        [src] -> Input.LibInstallLocalI <$> handleProjectBranchArg src <*> pure Nothing
+        [src, dest] -> Input.LibInstallLocalI <$> handleProjectBranchArg src <*> (Just <$> handleNameSegmentArg dest)
+        args -> wrongArgsLength "exactly one argument" args
+    }
+  where
+    suggestionsConfig =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = OnlyOutsideCurrentProject,
+          branchInclusion = AllBranches
+        }
 
 reset :: InputPattern
 reset =
@@ -3414,6 +3474,7 @@ validInputs =
       ioTest,
       ioTestAll,
       libInstallInputPattern,
+      libInstallLocalInputPattern,
       load,
       makeStandalone,
       mergeBuiltins,
