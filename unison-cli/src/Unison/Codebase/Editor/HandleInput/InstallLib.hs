@@ -69,7 +69,14 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
       & onLeftM (Cli.returnEarly . Output.ShareError)
 
   remoteBranchObject <- liftIO (Codebase.expectBranchForHash codebase causalHash)
+  let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
+  libdepNameSegment <- attachNewLib reflogDescription remoteBranchObject libdepProjectName libdepBranchName
+  Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
 
+-- | Attach a new library to the current project branch, under the `lib` namespace, using a fresh name derived from the
+-- project and branch names.
+attachNewLib :: Text -> Branch.Branch IO -> ProjectName -> ProjectBranchName -> Cli NameSegment
+attachNewLib reflogDescription libBranch libdepProjectName libdepBranchName = do
   -- Find the best available dependency name, starting with the best one (e.g. "unison_base_1_0_0"), and tacking on a
   -- "__2", "__3", etc. suffix.
   --
@@ -88,12 +95,10 @@ handleInstallLib remind (ProjectAndBranch libdepProjectName unresolvedLibdepBran
   let libdepPath :: Path.Absolute
       libdepPath = Path.Absolute $ Path.fromList [NameSegment.libSegment, libdepNameSegment]
 
-  let reflogDescription = "lib.install " <> into @Text libdepProjectAndBranchNames
   pp <- Cli.getCurrentProjectPath
   let libDepPP = pp & PP.absPath_ .~ libdepPath
-  _didUpdate <- Cli.updateAt reflogDescription libDepPP (\_empty -> remoteBranchObject)
-
-  Cli.respond (Output.InstalledLibdep libdepProjectAndBranchNames libdepNameSegment)
+  _didUpdate <- Cli.updateAt reflogDescription libDepPP (\_empty -> libBranch)
+  pure libdepNameSegment
 
 fresh :: (Ord a) => (Int -> a -> a) -> Set a -> a -> a
 fresh bump taken x =
@@ -152,9 +157,7 @@ handleInstallLocalLib srcPAB@(ProjectAndBranch projName branchName) mayDestLibNa
         Right parsedName -> pure parsedName
   let destPath = Path.fromList [NameSegment.libSegment, destLibName]
   let description = "Installed local lib from " <> into @Text srcPAB <> " to " <> into @Text destPath
-  pb <- Cli.getCurrentProjectBranch
   Cli.Env {codebase} <- ask
   squashedBranchIO <- liftIO $ Codebase.expectBranchForHash codebase squashResult.causalHash
-  Cli.updateProjectBranchRoot_ pb description \b -> do
-    Branch.modifyAt destPath (const squashedBranchIO) b
-  Cli.respond $ Output.InstalledLibdep srcPAB destLibName
+  libSegmentName <- attachNewLib description squashedBranchIO projName branchName
+  Cli.respond $ Output.InstalledLibdep srcPAB libSegmentName
