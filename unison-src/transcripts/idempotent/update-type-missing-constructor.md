@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -15,14 +15,14 @@ unique type Foo = Bar Nat
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.term Foo.Bar
+> delete.term Foo.Bar
 
   Done.
 ```
@@ -44,11 +44,11 @@ unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm :error
-scratch/main> view Foo
+> view Foo
 
   type Foo = #5mod0n8ps2#0 Nat
 
-scratch/main> update
+> update
 
   Sorry, I wasn't able to perform the update:
 

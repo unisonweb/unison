@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison :hide
@@ -86,11 +86,11 @@ Table
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ```` ucm
-scratch/main> debug.doc-to-markdown fulldoc
+> debug.doc-to-markdown fulldoc
 
   Heres some text with a soft line break
 

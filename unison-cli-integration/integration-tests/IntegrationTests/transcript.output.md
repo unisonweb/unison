@@ -1,11 +1,11 @@
 # Integration test: transcript
 
 ``` ucm :hide
-scratch/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
-scratch/main> load ./unison-src/transcripts-using-base/base.u
+> load ./unison-src/transcripts-using-base/base.u
 
-scratch/main> add
+> add
 ```
 
 ``` unison
@@ -48,9 +48,9 @@ main = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Done.
 
-scratch/main> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
+> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 ```

@@ -1,7 +1,7 @@
 # Definition Summary APIs
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison :hide
@@ -24,11 +24,11 @@ structural ability Stream s where
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 
-scratch/main> alias.type ##Nat Nat
+> alias.type ##Nat Nat
 
-scratch/main> alias.term ##IO.putBytes.impl.v3 putBytesImpl
+> alias.term ##IO.putBytes.impl.v3 putBytesImpl
 ```
 
 ## Term Summary APIs

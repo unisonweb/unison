@@ -1,7 +1,7 @@
 # Duplicate names in scratch file.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Term and ability constructor collisions should cause a parse error.
@@ -114,14 +114,14 @@ X = ()
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view X
+> view X
 
   structural type X = Z
 

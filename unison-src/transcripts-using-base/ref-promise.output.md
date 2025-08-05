@@ -35,14 +35,14 @@ casTest = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test casTest
+> io.test casTest
 
     New test results:
 
@@ -96,14 +96,14 @@ promiseConcurrentTest = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test promiseSequentialTest
+> io.test promiseSequentialTest
 
     New test results:
 
@@ -114,7 +114,7 @@ scratch/main> io.test promiseSequentialTest
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test promiseConcurrentTest
+> io.test promiseConcurrentTest
 
     New test results:
 
@@ -144,7 +144,7 @@ atomicUpdate ref f =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -179,7 +179,7 @@ spawnN n fa =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -224,14 +224,14 @@ fullTest = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test fullTest
+> io.test fullTest
 
     New test results:
 

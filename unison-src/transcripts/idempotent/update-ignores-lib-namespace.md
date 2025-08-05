@@ -3,7 +3,7 @@ the project organization convention that dependencies are put in "lib"; it's muc
 one's own code if the "lib" namespace is simply ignored.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -21,7 +21,7 @@ lib.foo = 100
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -45,14 +45,14 @@ foo = 200
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> names foo
+> names foo
 
   'foo':
   Hash          Kind   Names

@@ -13,7 +13,7 @@
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

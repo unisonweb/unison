@@ -260,7 +260,7 @@ swapped name link =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -404,14 +404,14 @@ we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test tests
+> io.test tests
 
     New test results:
 
@@ -455,7 +455,7 @@ scratch/main> io.test tests
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test badLoad
+> io.test badLoad
 
     New test results:
 
@@ -538,14 +538,14 @@ codeTests =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test codeTests
+> io.test codeTests
 
     New test results:
 
@@ -640,14 +640,14 @@ vtests _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test vtests
+> io.test vtests
 
     New test results:
 

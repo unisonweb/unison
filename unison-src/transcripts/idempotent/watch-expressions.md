@@ -1,5 +1,5 @@
 ``` ucm
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
   Done.
 ```
@@ -21,7 +21,7 @@ test> pass = [Ok "Passed"]
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -44,14 +44,14 @@ test> pass = [Ok "Passed"]
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 

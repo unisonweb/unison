@@ -2,7 +2,7 @@ File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -25,14 +25,14 @@ threadEyeDeez _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run threadEyeDeez
+> run threadEyeDeez
 
   (false, true)
 ```

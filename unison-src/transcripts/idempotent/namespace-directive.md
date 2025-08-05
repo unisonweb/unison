@@ -6,7 +6,7 @@ It affects the contents of the file as follows:
     the full bindings' names.
 
 ``` ucm
-scratch/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
   Done.
 ```
@@ -51,14 +51,14 @@ longer.evil.factorial n = n
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view factorial
+> view factorial
 
   foo.factorial : Int -> Int
   foo.factorial = cases
@@ -96,7 +96,7 @@ type longer.foo.Baz = { qux : Nat }
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -142,14 +142,14 @@ hasTypeLink =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
+> view RefersToFoo refersToBar refersToQux hasTypeLink
 
   type foo.RefersToFoo = RefersToFoo foo.Foo
 
@@ -165,7 +165,7 @@ scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
     use foo.Baz qux
     qux baz + qux baz
 
-scratch/main> todo
+> todo
 
   You have no pending todo items. Good work! ✅
 ```

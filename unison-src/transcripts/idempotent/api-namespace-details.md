@@ -1,7 +1,7 @@
 # Namespace Details Test
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison
@@ -24,7 +24,7 @@ Here's a *README*!
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...

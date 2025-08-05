@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -21,14 +21,14 @@ mytest = [Ok "ok"]
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> edit.new foo bar
+> edit.new foo bar
 
   ☝️
 
@@ -37,7 +37,7 @@ scratch/main> edit.new foo bar
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
-scratch/main> edit.new mytest
+> edit.new mytest
 
   ☝️
 
@@ -60,7 +60,7 @@ test> mytest = [Ok "ok"]
 ```
 
 ``` ucm :error
-scratch/main> edit.new missing
+> edit.new missing
 
   ⚠️
 
@@ -69,7 +69,7 @@ scratch/main> edit.new missing
 ```
 
 ``` ucm :hide
-scratch/main> project.delete scratch
+> project.delete scratch
 ```
 
 # `edit`
@@ -105,7 +105,7 @@ baz = 19
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -125,7 +125,7 @@ bar = 18
 ```
 
 ``` ucm
-scratch/main> edit bar baz
+> edit bar baz
 
   ☝️
 
@@ -141,5 +141,5 @@ baz = 19
 ```
 
 ``` ucm :hide
-scratch/main> project.delete scratch
+> project.delete scratch
 ```

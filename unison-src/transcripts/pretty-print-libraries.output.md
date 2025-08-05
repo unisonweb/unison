@@ -3,7 +3,7 @@ This transcript is to detect changes in the pretty-printer for a few major publi
 We clone releases and not dev branches to avoid external changes, and also to reduce the time needed to clone the libraries.
 
 ``` ucm
-scratch/main> clone @unison/base/releases/3.19.0
+> clone @unison/base/releases/3.19.0
 
   Cloned @unison/base/releases/3.19.0.
 
@@ -83165,7 +83165,7 @@ Void.doc =
 ````
 
 ``` ucm
-scratch/main> clone @unison/http/releases/3.3.2
+> clone @unison/http/releases/3.3.2
 
   Cloned @unison/http/releases/3.3.2.
 

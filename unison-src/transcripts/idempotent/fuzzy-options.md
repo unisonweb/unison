@@ -7,7 +7,7 @@ If an argument is required but doesn't have a fuzzy resolver, the command should
 
 -- So it should print the arg parsing error.
 
-scratch/main> move.term
+> move.term
 
   ⚠️
 
@@ -24,7 +24,7 @@ If a fuzzy resolver doesn't have any options available it should print a message
 opening an empty fuzzy-select.
 
 ``` ucm :error
-scratch/empty> view
+> view
 
   ⚠️
 
@@ -44,14 +44,14 @@ nested.optionTwo = 2
 Definition args
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> debug.fuzzy-options view _
+> debug.fuzzy-options view _
 
   Select a definition to view or press <esc> to cancel:
     * optionOne
@@ -61,7 +61,7 @@ scratch/main> debug.fuzzy-options view _
 Namespace args
 
 ``` ucm
-scratch/main> debug.fuzzy-options find-in _
+> debug.fuzzy-options find-in _
 
   Select a namespace or press <esc> to cancel:
     * .

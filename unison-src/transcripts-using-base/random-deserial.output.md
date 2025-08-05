@@ -76,14 +76,14 @@ serialTests = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test serialTests
+> io.test serialTests
 
     New test results:
 

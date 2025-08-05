@@ -1,5 +1,5 @@
 ``` ucm
-test-ls/main> builtins.merge
+> builtins.merge
 
   Done.
 ```
@@ -20,18 +20,18 @@ foo.bar.subtract x y = x Int.- y
 ```
 
 ``` ucm
-test-ls/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-test-ls/main> ls foo
+> ls foo
 
   1. bar/ (2 terms)
 
-test-ls/main> ls 1
+> ls 1
 
   1. add      (Int -> Int -> Int)
   2. subtract (Int -> Int -> Int)

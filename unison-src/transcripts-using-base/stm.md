@@ -28,7 +28,7 @@ body k out v =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 ```
 
 Test case.
@@ -67,6 +67,6 @@ tests = '(map spawn nats)
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test tests
+> add
+> io.test tests
 ```

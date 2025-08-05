@@ -45,14 +45,14 @@ test = 'let
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test test
+> io.test test
 
     New test results:
 

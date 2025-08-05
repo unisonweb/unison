@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 This transcript gives some examples of affine handlers and tests that
@@ -152,14 +152,14 @@ count'test = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test count'test
+> io.test count'test
 
     New test results:
 
@@ -216,14 +216,14 @@ fail'count'test = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test fail'count'test
+> io.test fail'count'test
 
     New test results:
 
@@ -274,14 +274,14 @@ local'count'test = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test local'count'test
+> io.test local'count'test
 
     New test results:
 
@@ -356,14 +356,14 @@ elaborate'test = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test elaborate'test
+> io.test elaborate'test
 
     New test results:
 

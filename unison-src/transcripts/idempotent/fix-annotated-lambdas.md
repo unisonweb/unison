@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Tests an erroneous lambda floating case involving annotations.
@@ -23,7 +23,7 @@ bar k = k (x -> x)
 ```
 
 ``` ucm
-scratch/main> display foo
+> display foo
 
   x -> bar (f -> f x)
 ```

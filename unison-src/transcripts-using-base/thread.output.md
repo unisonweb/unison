@@ -28,9 +28,9 @@ testBasicFork = 'let
 See if we can get another thread to stuff a value into a MVar
 
 ``` ucm :hide
-scratch/main> add
+> add
 
-scratch/main> io.test testBasicFork
+> io.test testBasicFork
 ```
 
 ``` unison
@@ -67,14 +67,14 @@ testBasicMultiThreadMVar = 'let
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testBasicMultiThreadMVar
+> io.test testBasicMultiThreadMVar
 
     New test results:
 
@@ -135,14 +135,14 @@ testTwoThreads = 'let
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testTwoThreads
+> io.test testTwoThreads
 
     New test results:
 

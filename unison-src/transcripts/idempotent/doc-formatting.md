@@ -3,7 +3,7 @@ This transcript explains a few minor details about doc parsing and pretty-printi
 Docs can be used as inline code comments.
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison
@@ -22,11 +22,11 @@ foo n =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view foo
+> view foo
 
   foo : Nat -> Nat
   foo n =
@@ -50,11 +50,11 @@ escaping = {{ Docs look `{{ like {this} }}` }}
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view escaping
+> view escaping
 
   escaping : Doc2
   escaping = {{ Docs look `{{ like {this} }}` }}
@@ -81,11 +81,11 @@ commented = {{
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view commented
+> view commented
 
   commented : Doc2
   commented =
@@ -116,11 +116,11 @@ doc1 = {{   hi   }}
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc1
+> view doc1
 
   doc1 : Doc2
   doc1 = {{ hi }}
@@ -148,11 +148,11 @@ doc2 = {{ hello
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc2
+> view doc2
 
   doc2 : Doc2
   doc2 =
@@ -190,11 +190,11 @@ Note that because of the special treatment of the first line mentioned above, wh
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc3
+> view doc3
 
   doc3 : Doc2
   doc3 =
@@ -235,11 +235,11 @@ doc4 = {{ Here's another example of some paragraphs.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc4
+> view doc4
 
   doc4 : Doc2
   doc4 =
@@ -271,11 +271,11 @@ doc5 = {{   - foo
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc5
+> view doc5
 
   doc5 : Doc2
   doc5 =
@@ -306,11 +306,11 @@ doc6 = {{
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc6
+> view doc6
 
   doc6 : Doc2
   doc6 =
@@ -341,11 +341,11 @@ expr = foo 1
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view empty
+> view empty
 
   empty : Doc2
   empty = {{  }}
@@ -404,11 +404,11 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view test1
+> view test1
 
   test1 : Doc2
   test1 =
@@ -493,11 +493,11 @@ reg1363 = {{ `{List.take} foo` bar
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view reg1363
+> view reg1363
 
   reg1363 : Doc2
   reg1363 = {{ `{List.take} foo` bar baz }}
@@ -523,13 +523,13 @@ test2 = {{
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 View is fine.
 
 ``` ucm
-scratch/main> view test2
+> view test2
 
   test2 : Doc2
   test2 =
@@ -543,7 +543,7 @@ scratch/main> view test2
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
 
 ``` ucm
-scratch/main> display test2
+> display test2
 
   Take a look at this:
 

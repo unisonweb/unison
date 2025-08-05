@@ -11,22 +11,22 @@
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> find
+> find
 
   1. `()`.foo : ##Text
 
-scratch/main> find-in `()`
+> find-in `()`
 
   1. foo : ##Text
 
-scratch/main> delete.namespace `()`
+> delete.namespace `()`
 
   Done.
 ```
