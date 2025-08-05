@@ -12,7 +12,7 @@ where
 
 import ArgParse
   ( CodebasePathOption (..),
-    Command (Init, Launch, PrintVersion, Run, Transcript),
+    Command (..),
     GlobalOptions (..),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
@@ -82,6 +82,7 @@ import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..))
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
+import Unison.MCP qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -147,6 +148,10 @@ main version = do
       case command of
         PrintVersion ->
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
+        MCPServer -> do
+          getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
+            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
         Init -> do
           exitError
             ( P.lines
@@ -160,7 +165,7 @@ main version = do
                 ]
             )
         Run (RunFromSymbol mainName) args -> do
-          getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError err
@@ -172,7 +177,7 @@ main version = do
               case e of
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
-                  getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+                  getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                     withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
@@ -195,7 +200,7 @@ main version = do
           case e of
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
-              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                 withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
@@ -283,7 +288,7 @@ main version = do
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
-          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
               startingProjectPath <- do
                 -- If the user didn't provide a starting path on the command line, put them in the most recent
@@ -387,7 +392,7 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
       case codebaseSetup of
         InPlace -> do
           -- Create the codebase/migrate it according to codebase path option
-          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
           path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
           unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
             P.lines
@@ -434,7 +439,7 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
           case shouldFork of
             UseFork -> do
               -- A forked codebase does not need to Create a codebase, because it already exists
-              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
+              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
               path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
               (absPath, absTmp) <- bitraverse Directory.canonicalizePath Directory.canonicalizePath (path, tmp)
               if (absPath == absTmp)
@@ -477,6 +482,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
   and
     <$> getCodebaseOrExit
       (Just (DontCreateCodebaseWhenMissing transcriptDir))
+      SC.DoLock
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
         let isTest = False
@@ -599,11 +605,11 @@ markdownFile md = case takeExtension md of
 isDotU :: String -> Bool
 isDotU file = takeExtension file == ".u"
 
-getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
-getCodebaseOrExit codebasePathOption migrationStrategy action = do
+getCodebaseOrExit :: Maybe CodebasePathOption -> SC.CodebaseLockOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
+getCodebaseOrExit codebasePathOption locking migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
   let cbInit = SC.init
-  result <- CodebaseInit.withOpenOrCreateCodebase cbInit "main" initOptions SC.DoLock migrationStrategy \case
+  result <- CodebaseInit.withOpenOrCreateCodebase cbInit "main" initOptions locking migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""
