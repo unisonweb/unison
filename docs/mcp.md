@@ -14,7 +14,7 @@ To configure the MCP for use with Claude, edit your Claude Desktop config JSON f
 Add the following as a key in the `mcpServers` mapping there. Replace `<path-to-ucm>` with the path to your `ucm` executable.
 E.g. on Mac this is likely `/opt/homebrew/bin/ucm`.
 
-```json
+``` json
 {
   "mcpServers": {
     "unison": {

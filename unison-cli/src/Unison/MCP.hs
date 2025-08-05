@@ -27,8 +27,8 @@ serverDescription =
         Before doing any work in unison please read the file://unison-guide resource for information on how to write unison.
     |]
 
-runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
-runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
+runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
+runOnStdIO codebase runtime sbRuntime workDir ucmVersion = do
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
       tokenProvider = AuthN.newTokenProvider credMan
@@ -37,7 +37,6 @@ runOnStdIO codebase runtime sbRuntime nRuntime workDir ucmVersion = do
         Env
           { codebase,
             runtime,
-            nRuntime,
             sbRuntime,
             ucmVersion,
             workDir,

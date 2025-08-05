@@ -59,8 +59,6 @@ extra-deps:
   # https://github.com/judah/haskeline/pull/126
   - github: unisonweb/haskeline
     commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
-  # - github: ChrisPenner/hs-mcp
-  #   commit: e903b3e63ec74057d35aa9fe82613f165f2f7b9f
   - github: ChrisPenner/hs-mcp
     commit: 14fe82d086a04e82b1c05d7f5a4bbd30eec22042
 

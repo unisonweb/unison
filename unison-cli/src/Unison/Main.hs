@@ -149,8 +149,8 @@ main version = do
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
         MCPServer -> do
           getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
-            withRuntimes nrtp RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
-              MCP.runOnStdIO theCodebase runtime sbRuntime nRuntime currentDir (Version.gitDescribeWithDate version)
+            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
         Init -> do
           exitError
             ( P.lines
@@ -391,7 +391,7 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
       case codebaseSetup of
         InPlace -> do
           -- Create the codebase/migrate it according to codebase path option
-          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
           path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
           unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
             P.lines
@@ -604,7 +604,7 @@ markdownFile md = case takeExtension md of
 isDotU :: String -> Bool
 isDotU file = takeExtension file == ".u"
 
-getCodebaseOrExit :: Maybe CodebasePathOption -> _ -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
+getCodebaseOrExit :: Maybe CodebasePathOption -> SC.CodebaseLockOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
 getCodebaseOrExit codebasePathOption locking migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
   let cbInit = SC.init
