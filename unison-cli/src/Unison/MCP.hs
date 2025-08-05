@@ -48,6 +48,7 @@ initServer codebase runtime sbRuntime workDir ucmVersion = do
 
   runMCP env $ MCPWrapper.mkServer serverInfo serverDescription staticResources tools prompts
 
+-- | Run the MCP server until we hit EOF.
 runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
 runOnStdIO codebase runtime sbRuntime workDir ucmVersion = do
   server <- initServer codebase runtime sbRuntime workDir ucmVersion
