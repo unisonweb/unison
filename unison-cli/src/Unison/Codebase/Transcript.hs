@@ -42,7 +42,10 @@ data UcmLine
 
 -- | Where a command is run: a project branch (myproject/mybranch>).
 data UcmContext
-  = UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
+  = -- | Use the current project & branch
+    UcmContextEmpty
+  | -- | Explicit project & branch
+    UcmContextProject (ProjectAndBranch ProjectName ProjectBranchName)
   deriving (Eq, Show)
 
 data APIRequest

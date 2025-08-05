@@ -294,6 +294,7 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
             -- We're either going to run the command now (because we're in the right context), else we'll switch to
             -- the right context first, then run the command next.
             maybeSwitchCommand <- case context of
+              UcmContextEmpty -> pure Nothing
               UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
                 Project {projectId, name = projectName} <-
                   Q.loadProjectByName projectName
