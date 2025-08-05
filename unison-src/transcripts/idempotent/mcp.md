@@ -72,7 +72,7 @@ BODY:
         "projectContext": {
           "projectName": "scratch",
           "branchName": "main"
-        }, "code": "> x = 1 + 2"
+        }, "code": {"text": "> x = 1 + 2"}
       }
     }
   }
@@ -84,7 +84,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"outputMessages\":[\"Loading changes detected in scratch.u.\",\"â\\n\\nscratch.u changed.\\n\\nNow evaluating any watch expressions (lines starting with `>`)... Ctrl+C cancels.\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\"],\"sourceCodeUpdates\":[]}",
+                  "text": "{\"outputMessages\":[\"Loading changes detected in scratch.u.\",\"No changes found.\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\"],\"sourceCodeUpdates\":[]}",
                   "type": "text"
               }
           ],
@@ -195,7 +195,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"outputMessages\":[\"1. builtins/ (657 terms, 96 types)\"],\"sourceCodeUpdates\":[]}",
+                  "text": "{\"outputMessages\":[\"1. builtins/ (755 terms, 118 types)\"],\"sourceCodeUpdates\":[]}",
                   "type": "text"
               }
           ],

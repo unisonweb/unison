@@ -6,14 +6,50 @@ for projects and definitions, and more\!
 
 ## Setup
 
-### Connecting to a running UCM executable (recommended)
+### MCP as an independent process (Recommended)
 
-To configure the MCP for use with Claude, edit your Claude Desktop config JSON file, which is found:
+This approach allows agents to connect to UCM's MCP server directly via stdin/stdout.
+
+Note that this causes an additional UCM to run as an entirely independent process for each agent you're using.
+
+To configure the MCP for use with Claude (and any tools which read Claude's json config), edit your Claude Desktop config JSON file, which is found:
 
   - On Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
   - On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
-Add the server config as a key in the `mcpServers` mapping there.
+Configure a `unison` key in your `mcpServers` object as below. Replace `<path-to-ucm>` with the path to your `ucm` executable.
+E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to find your UCM executable path.
+
+``` json
+{
+  "mcpServers": {
+    "unison": {
+      "command": "<path-to-ucm>",
+      "args": ["mcp"]
+    }
+}
+```
+
+E.g. my complete file on Mac looks like this:
+
+``` 
+{
+  "mcpServers": {
+    "unison": {
+      "command": "/opt/homebrew/bin/ucm",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+After saving the file, restart the Claude Desktop app. You should then see a new "unison" option in the MCP server list.
+
+### Connecting to a running UCM executable (not recommended)
+
+If instead you wish to connect an agent to a running UCM executable you can use an HTTP MCP connection.
+This is less consistent than the stdio approach, since some agents have rather poor handling of error states if you close your running UCM, or start
+up an agent without UCM already running.
 
 The following defaults should work if you haven't tweaked things, but ensure you use the correct port and token if you've changed them:
 
@@ -31,38 +67,6 @@ The following defaults should work if you haven't tweaked things, but ensure you
 
 After saving the file, restart the Claude Desktop app. You should now see a new "unison" option in the MCP server list.
 
-### MCP as an independent process
-
-Alternatively you can connect to the MCP using the UCM executable directly via stdin/stdout.
-
-Add the following as a key in the `mcpServers` mapping there. Replace `<path-to-ucm>` with the path to your `ucm` executable.
-E.g. on Mac this is likely `/opt/homebrew/bin/ucm`.
-
-``` json
-{
-  "mcpServers": {
-    "unison": {
-      "command": "<path-to-ucm>",
-      "args": ["mcp"]
-    }
-}
-```
-
-E.g. my complete file on Mac looks like this:
-
-```
-{
-  "mcpServers": {
-    "unison": {
-      "command": "/opt/homebrew/bin/ucm",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Note that this causes the MCP server to run as an entirely separate process.
-If you're also running a UCM instance you may notice that it gets out of sync with changes made by AI agents via MCP.
 
 ## Usage
 
