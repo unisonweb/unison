@@ -363,33 +363,50 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
-{- ORMOLU_DISABLE -}
-{- because ormolu-0.7.2.0 can’t handle CPP used within a declaration. -}
 data GClosure comb
   = GPAp
       !CombIx
       {-# UNPACK #-} !(GCombInfo comb)
-      {-# UNPACK #-} !Seg -- args
+      -- | args
+      {-# UNPACK #-} !Seg
   | GEnum !Reference !PackedTag
   | GData1 !Reference !PackedTag !Val
   | GData2 !Reference !PackedTag !Val !Val
   | GDataG !Reference !PackedTag {-# UNPACK #-} !Seg
-  | -- code cont, arg size, u/b data stacks
-    GCaptured !K !Int {-# UNPACK #-} !Seg
+  | GCaptured
+      -- | code cont
+      !K
+      -- | arg size
+      !Int
+      -- | u/b data stacks
+      {-# UNPACK #-} !Seg
   | GForeign !Foreign
-  | -- The type tag for the value in the corresponding unboxed stack slot.
-    -- We should consider adding separate constructors for common builtin type tags.
-    --  GHC will optimize nullary constructors into singletons.
+  | -- | The type tag for the value in the corresponding unboxed stack slot.
+    --
+    --   We should consider adding separate constructors for common builtin type tags.
+    --   GHC will optimize nullary constructors into singletons.
     GUnboxedTypeTag !UnboxedTypeTag
-  | -- stores associated ability numbers, original handler environment,
-    -- and updateable reference
-    GAffine !(EnumSet Word64) !AEnv !AffineRef
+  | GAffine
+      -- | associated ability numbers
+      !(EnumSet Word64)
+      -- | original handler environment
+      !AEnv
+      -- | updateable reference
+      !AffineRef
   | GBlackHole
 #ifdef STACK_CHECK
   | GUnboxedSentinel
 #endif
-  deriving stock (Show, Functor, Foldable, Traversable)
-{- ORMOLU_ENABLE -}
+
+-- These derived instances are standalone to avoid needing to disable Ormolu for the data declaration above.
+
+deriving stock instance (Show comb) => Show (GClosure comb)
+
+deriving stock instance Functor GClosure
+
+deriving stock instance Foldable GClosure
+
+deriving stock instance Traversable GClosure
 
 -- Wrap IORef to get a trivial `Show` instance
 newtype AffineRef = ARef (IORef Closure) deriving (Eq)
