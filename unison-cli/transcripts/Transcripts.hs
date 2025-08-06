@@ -7,7 +7,6 @@
 module Main (main) where
 
 import Data.List
-import Unison.Util.Timing
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import EasyTest
@@ -29,6 +28,7 @@ import Unison.Codebase.Transcript.Parser as Transcript
 import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
+import Unison.Util.Timing
 import UnliftIO.STM qualified as STM
 
 data TestConfig = TestConfig
