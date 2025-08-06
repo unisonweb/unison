@@ -3258,7 +3258,8 @@ subAbilities want have = do
   have <- expandAbilities have
   (extra, want) <- traverse expandWanted =<< pruneAbilities want have
   have <- expandAbilities have
-  scope (InSubAbilities (snd <$> want) have)
+  scope
+    (InSubAbilities (snd <$> want) have)
     case (want, mapMaybe ex have) of
       ([], _) -> pure extra
       (want@((_, w) : _), [(b, ve, tv)]) ->

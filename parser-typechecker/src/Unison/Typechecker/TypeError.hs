@@ -233,7 +233,8 @@ data EffInst v loc
 instantiation ::
   (Var v, Ord loc) =>
   Ex.ErrorExtractor v loc (v, C.Type v loc, EffInst v loc)
-instantiation = Ex.path >>= \case
+instantiation =
+  Ex.path >>= \case
     C.InInstantiateR ty v : path -> pure $ classify v ty path
     C.InInstantiateL v ty : path -> pure $ classify v ty path
     _ -> mzero
