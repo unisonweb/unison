@@ -7,6 +7,7 @@
 module Main (main) where
 
 import Data.List
+import Unison.Util.Timing
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import EasyTest
@@ -55,7 +56,7 @@ testBuilder ::
   [FilePath] ->
   FilePath ->
   Test ()
-testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript =
+testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time transcript $ do
   scope transcript do
     outputs <-
       io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \(codebasePath, codebase) ->

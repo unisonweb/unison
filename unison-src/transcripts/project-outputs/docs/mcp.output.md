@@ -67,7 +67,6 @@ The following defaults should work if you haven't tweaked things, but ensure you
 
 After saving the file, restart the Claude Desktop app. You should now see a new "unison" option in the MCP server list.
 
-
 ## Usage
 
 By default, Claude will now automatically use the Unison MCP server when it deems it appropriate, however
