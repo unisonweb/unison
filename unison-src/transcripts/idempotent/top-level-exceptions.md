@@ -1,13 +1,13 @@
 A simple transcript to test the use of exceptions that bubble to the top level.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 FYI, here are the `Exception` and `Failure` types:
 
 ``` ucm
-scratch/main> view Exception Failure
+> view Exception Failure
 
   structural ability builtin.Exception where
     raise : Failure ->{Exception} x
@@ -37,18 +37,18 @@ mytest _ = [Ok "Great"]
 ```
 
 ``` ucm
-scratch/main> run main
+> run main
 
   ()
 
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test mytest
+> io.test mytest
 
     New test results:
 
@@ -83,7 +83,7 @@ unique type RuntimeError =
 ```
 
 ``` ucm :error
-scratch/main> run main2
+> run main2
 
   💔💥
 

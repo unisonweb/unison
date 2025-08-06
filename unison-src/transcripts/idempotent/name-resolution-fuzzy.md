@@ -3,7 +3,7 @@
 ## Setup
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ## When given a term with the right name and the right type
@@ -98,7 +98,7 @@ long.fully.qualified.name.foo.bar.biz.bite = 123
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` unison :error

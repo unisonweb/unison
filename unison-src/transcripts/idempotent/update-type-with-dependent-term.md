@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -20,7 +20,7 @@ incrFoo = cases Bar n -> Bar (n+1)
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -43,7 +43,7 @@ unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -17,7 +17,7 @@ unique type Baz = Qux Foo
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -40,7 +40,7 @@ unique type Foo a = Bar Nat a
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

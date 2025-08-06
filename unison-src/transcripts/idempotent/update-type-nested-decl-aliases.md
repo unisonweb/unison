@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -20,7 +20,7 @@ structural type A = B.TheOtherAlias Foo
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -43,7 +43,7 @@ unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   The type A.B is an alias of A. I'm not able to perform an
   update when a type exists nested under an alias of itself.

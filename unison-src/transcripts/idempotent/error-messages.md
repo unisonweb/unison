@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 This file contains programs with parse errors and type errors, for visual inspection of error message quality and to check for regressions or changes to error reporting.

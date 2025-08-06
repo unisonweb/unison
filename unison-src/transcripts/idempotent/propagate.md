@@ -1,7 +1,7 @@
 # Propagating type edits
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 We introduce a type `Foo` with a function dependent `fooToInt`.
@@ -26,14 +26,14 @@ fooToInt _ = +42
 And then we add it.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> find.verbose
+> find.verbose
 
   1. -- #j743idicb1sf7udts85812agaml4rkfi3iss6lstvmvgufibd40blq5qtmoh9ndrtkvkaqkurn7npgc61ob8j2louj04j8slkppsl90
      type Foo
@@ -45,7 +45,7 @@ scratch/main> find.verbose
      fooToInt : Foo -> Int
      
 
-scratch/main> view fooToInt
+> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -70,7 +70,7 @@ unique type Foo = Foo | Bar
 and update the codebase to use the new type `Foo`...
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -85,7 +85,7 @@ scratch/main> update
 ... it should automatically propagate the type to `fooToInt`.
 
 ``` ucm
-scratch/main> view fooToInt
+> view fooToInt
 
   fooToInt : Foo -> Int
   fooToInt _ = +42
@@ -116,7 +116,7 @@ preserve.otherTerm y = someTerm y
 Add that to the codebase:
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -144,7 +144,7 @@ preserve.someTerm _ = None
 Update...
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -160,12 +160,12 @@ Now the type of `someTerm` should be `Optional x -> Optional x` and the
 type of `otherTerm` should remain the same.
 
 ``` ucm
-scratch/main> view preserve.someTerm
+> view preserve.someTerm
 
   preserve.someTerm : Optional x -> Optional x
   preserve.someTerm _ = None
 
-scratch/main> view preserve.otherTerm
+> view preserve.otherTerm
 
   preserve.otherTerm : Optional baz -> Optional baz
   preserve.otherTerm y = someTerm y

@@ -1,5 +1,5 @@
 ``` ucm
-scratch/main> builtins.merge
+> builtins.merge
 
   Done.
 ```
@@ -22,7 +22,7 @@ bar = 5
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -47,14 +47,14 @@ foo = 6
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view foo bar
+> view foo bar
 
   bar : Nat
   bar = 5

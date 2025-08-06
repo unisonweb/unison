@@ -1,15 +1,15 @@
 Since this code block is expecting an error, we still hide it. It seems unusual to want to hide an error, but maybe it’s just too verbose or something. This follows the author’s intent.
 
 ``` ucm :hide :error
-scratch/main> help pull
+> help pull
 
-scratch/main> not.a.command
+> not.a.command
 ```
 
 For comparison, here’s what we get without `:hide`.
 
 ``` ucm :error
-scratch/main> help pull
+> help pull
 
   pull
   The `pull` command merges a remote namespace into a local
@@ -34,7 +34,7 @@ scratch/main> help pull
     Contributor Branch                     `@unison/base/@johnsmith/feature`
     Project Release                        `@unison/base/releases/1.0.0`
 
-scratch/main> not.a.command
+> not.a.command
 
   ⚠️
   I don't know how to not.a.command. Type `help` or `?` to get
@@ -44,8 +44,8 @@ scratch/main> not.a.command
 Even though this code block has `:hide` on it, we should still see the error output, because it wasn’t expecting an error. But we should continue to hide the output *before* the error.
 
 ``` ucm :hide
-scratch/main> help pull
-scratch/main> not.a.command
+> help pull
+> not.a.command
 ```
 
 🛑

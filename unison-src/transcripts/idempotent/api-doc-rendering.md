@@ -1,7 +1,7 @@
 # Doc rendering
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison :hide
@@ -82,11 +82,11 @@ term = 42
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> display term.doc
+> display term.doc
 
   # Heading
 

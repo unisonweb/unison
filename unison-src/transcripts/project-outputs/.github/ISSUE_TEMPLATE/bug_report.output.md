@@ -8,7 +8,7 @@ a = 1
 Here I try to pass an argument to `update`, which fails:
 
 ``` ucm :error
-scratch/main> update a
+> update a
 
   ⚠️
 

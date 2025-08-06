@@ -3,7 +3,7 @@
 Conflicted definitions prevent `update` from succeeding.
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 ``` unison
@@ -21,18 +21,18 @@ temp = 2
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> debug.alias.term.force temp x
+> debug.alias.term.force temp x
 
   Done.
 
-scratch/main> delete.term temp
+> delete.term temp
 
   Done.
 ```
@@ -52,7 +52,7 @@ x = 3
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   This branch has more than one term with the name `x`. Please
   delete or rename all but one of them, then try the update

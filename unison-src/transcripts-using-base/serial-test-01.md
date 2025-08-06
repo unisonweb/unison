@@ -17,6 +17,6 @@ mkTestCase = do
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> run mkTestCase
+> add
+> run mkTestCase
 ```

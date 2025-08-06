@@ -1,7 +1,7 @@
 See [this ticket](https://github.com/unisonweb/unison/issues/873); the point being, this shouldn't crash the runtime. :)
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -17,7 +17,7 @@ scratch/main> builtins.merge
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...

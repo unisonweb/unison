@@ -4,15 +4,15 @@ It turns out that pulling releases is very fast compared to actually running the
 
 ```ucm
 x/base> pull @unison/base/releases/latest
-x/base> test
+> test
 
 x/json> pull @unison/json/releases/latest
-x/json> test
+> test
 
 x/cloud> pull @unison/cloud/releases/latest
-x/cloud> test
-x/cloud> io.test internal.tests.cloud.runAllLocally
+> test
+> io.test internal.tests.cloud.runAllLocally
 
 x/orderator> pull @pchiusano/orderator/releases/latest
-x/orderator> test
-``` 
+> test
+```

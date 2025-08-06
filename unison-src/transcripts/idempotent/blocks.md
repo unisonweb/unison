@@ -1,7 +1,7 @@
 ## Blocks and scoping
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ### Names introduced by a block shadow names introduced in outer scopes

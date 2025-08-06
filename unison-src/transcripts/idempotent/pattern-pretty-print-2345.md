@@ -1,7 +1,7 @@
 Regression test for https://github.com/unisonweb/unison/pull/2377
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -87,101 +87,101 @@ doc = cases
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view dopey
+> view dopey
 
   dopey : Char -> ()
   dopey = cases
     ?0 -> ()
     _  -> ()
 
-scratch/main> view grumpy
+> view grumpy
 
   grumpy : ff284oqf651 -> ()
   grumpy = cases d -> ()
 
-scratch/main> view happy
+> view happy
 
   happy : Boolean -> ()
   happy = cases
     true  -> ()
     false -> ()
 
-scratch/main> view sneezy
+> view sneezy
 
   sneezy : Int -> ()
   sneezy = cases
     +1 -> ()
     _  -> ()
 
-scratch/main> view bashful
+> view bashful
 
   bashful : Optional a -> ()
   bashful = cases
     Some a -> ()
     _      -> ()
 
-scratch/main> view mouthy
+> view mouthy
 
   mouthy : [t] -> ()
   mouthy = cases
     [] -> ()
     _  -> ()
 
-scratch/main> view pokey
+> view pokey
 
   pokey : [t] -> ()
   pokey = cases
     h +: t -> ()
     _      -> ()
 
-scratch/main> view sleepy
+> view sleepy
 
   sleepy : [t] -> ()
   sleepy = cases
     i :+ l -> ()
     _      -> ()
 
-scratch/main> view demure
+> view demure
 
   demure : [Nat] -> ()
   demure = cases
     [0] -> ()
     _   -> ()
 
-scratch/main> view angry
+> view angry
 
   angry : [t] -> ()
   angry = cases a ++ [] -> ()
 
-scratch/main> view tremulous
+> view tremulous
 
   tremulous : (Nat, Nat) -> ()
   tremulous = cases
     (0, 1) -> ()
     _      -> ()
 
-scratch/main> view throaty
+> view throaty
 
   throaty : Request {g, Ab} x -> ()
   throaty = cases
     { Ab.a a -> k } -> ()
     { _ }           -> ()
 
-scratch/main> view agitated
+> view agitated
 
   agitated : Nat -> ()
   agitated = cases
     a | a == 2 -> ()
     _ -> ()
 
-scratch/main> view doc
+> view doc
 
   doc : Nat -> ()
   doc = cases

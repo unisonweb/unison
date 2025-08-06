@@ -5,7 +5,7 @@ This transcript tests the errors printed to the user when a name cannot be resol
 ## Codebase Setup
 
 ``` ucm
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 
   Done.
 ```
@@ -33,7 +33,7 @@ two.ambiguousTerm = "term two"
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...

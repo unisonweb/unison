@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 We had bugs in the calling conventions for both send and terminate which would
@@ -34,14 +34,14 @@ assertRight = cases
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run frank
+> run frank
 
   ()
 ```

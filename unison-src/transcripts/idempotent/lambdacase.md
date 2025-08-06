@@ -1,7 +1,7 @@
 # Lambda case syntax
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 This function takes a single argument and immediately pattern matches on it. As we'll see below, it can be written using `cases` syntax:
@@ -21,7 +21,7 @@ isEmpty x = match x with
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Here's the same function written using `cases` syntax:
@@ -44,7 +44,7 @@ isEmpty2 = cases
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
 ``` ucm
-scratch/main> view isEmpty
+> view isEmpty
 
   isEmpty : [t] -> Boolean
   isEmpty = cases
@@ -69,7 +69,7 @@ merge xs ys = match (xs, ys) with
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -101,7 +101,7 @@ merge2 = cases
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ``` ucm
-scratch/main> view merge
+> view merge
 
   merge : [a] -> [a] -> [a]
   merge = cases
@@ -176,14 +176,14 @@ merge3 = cases
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view merge3
+> view merge3
 
   merge3 : [a] -> [a] -> [a]
   merge3 = cases

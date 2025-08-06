@@ -7,7 +7,7 @@ not the ability `Patterns`; the lexer should see this as a single identifier.
 See https://github.com/unisonweb/unison/issues/2642 for an example.
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison :hide
@@ -28,25 +28,25 @@ docs.example4 = {{A doc that links to the {type Labels} type}}
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Now we check that each doc links to the object of the correct name:
 
 ``` ucm
-scratch/main> display docs.example1
+> display docs.example1
 
   A doc that links to the abilityPatterns term
 
-scratch/main> display docs.example2
+> display docs.example2
 
   A doc that links to the Patterns ability
 
-scratch/main> display docs.example3
+> display docs.example3
 
   A doc that links to the typeLabels term
 
-scratch/main> display docs.example4
+> display docs.example4
 
   A doc that links to the Labels type
 ```

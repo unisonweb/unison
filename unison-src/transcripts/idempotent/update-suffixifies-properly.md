@@ -1,5 +1,5 @@
 ``` ucm :hide
-myproject/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -25,7 +25,7 @@ bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ``` ucm
-myproject/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -48,7 +48,7 @@ foo = +30
 ```
 
 ``` ucm :error
-myproject/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

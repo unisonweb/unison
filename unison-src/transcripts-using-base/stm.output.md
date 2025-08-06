@@ -40,7 +40,7 @@ body k out v =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -95,14 +95,14 @@ tests = '(map spawn nats)
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test tests
+> io.test tests
 
     New test results:
 

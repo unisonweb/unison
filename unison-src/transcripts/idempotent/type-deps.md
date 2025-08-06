@@ -3,7 +3,7 @@
 https://github.com/unisonweb/unison/pull/2821
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Define a type.
@@ -13,7 +13,7 @@ structural type Y = Y
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Now, we update `Y`, and add a new type `Z` which depends on it.
@@ -35,7 +35,7 @@ structural type Y = Y Nat
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -48,7 +48,7 @@ scratch/main> update
 
 -- This shouldn't exist, because it should've been blocked.
 
-scratch/main> view Z
+> view Z
 
   structural type Z = Z Y
 ```

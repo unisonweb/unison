@@ -12,7 +12,7 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 # Using an alternative certificate store
@@ -42,14 +42,14 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test what_should_work
+> io.test what_should_work
 
     New test results:
 
@@ -231,14 +231,14 @@ testCNReject _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testConnectSelfSigned
+> io.test testConnectSelfSigned
 
     New test results:
 
@@ -248,7 +248,7 @@ scratch/main> io.test testConnectSelfSigned
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test testCAReject
+> io.test testCAReject
 
     New test results:
 
@@ -258,7 +258,7 @@ scratch/main> io.test testCAReject
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test testCNReject
+> io.test testCNReject
 
     New test results:
 

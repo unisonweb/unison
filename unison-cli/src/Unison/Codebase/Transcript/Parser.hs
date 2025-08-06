@@ -101,8 +101,8 @@ ucmLine = ucmOutputLine <|> ucmComment <|> ucmCommand
     ucmCommand =
       UcmCommand
         <$> fmap
-          UcmContextProject
-          (fullyQualifiedProjectAndBranchNamesParser <* lineToken (P.chunk ">") <* nonNewlineSpaces)
+          (maybe UcmContextEmpty UcmContextProject)
+          (optional fullyQualifiedProjectAndBranchNamesParser <* lineToken (P.chunk ">") <* nonNewlineSpaces)
         <*> restOfLine
 
     ucmComment :: P UcmLine

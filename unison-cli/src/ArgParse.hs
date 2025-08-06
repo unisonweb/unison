@@ -119,6 +119,7 @@ data Command
       (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
       ShouldWatchFiles
   | PrintVersion
+  | MCPServer
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
   | Run RunSource [String]
@@ -177,6 +178,9 @@ renderUsage programName pInfo preferences subCommand =
 
 versionCommand :: Mod CommandFields Command
 versionCommand = command "version" (info versionParser (fullDesc <> progDesc "Print the version of unison you're running"))
+
+mcpCommand :: Mod CommandFields Command
+mcpCommand = command "mcp" (info mcpParser (fullDesc <> progDesc "Run the MCP server using stdin/stdout"))
 
 initCommand :: Mod CommandFields Command
 initCommand = command "init" (info initParser (progDesc initHelp))
@@ -268,6 +272,7 @@ commandParser envOpts =
     commands =
       fold
         [ versionCommand,
+          mcpCommand,
           initCommand,
           runSymbolCommand,
           runCompiledCommand,
@@ -390,6 +395,9 @@ initParser = pure Init
 
 versionParser :: Parser Command
 versionParser = pure PrintVersion
+
+mcpParser :: Parser Command
+mcpParser = pure MCPServer
 
 runArgumentParser :: Parser [String]
 runArgumentParser = many (strArgument (metavar "RUN-ARGS"))

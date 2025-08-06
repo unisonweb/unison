@@ -1,7 +1,7 @@
 Merge builtins so we get enough names for the testing stuff.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 The `test` command should run all of the tests in the current directory.
@@ -24,11 +24,11 @@ foo.test2 = [Ok "test2"]
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> test
+> test
 
   ✅  
 
@@ -49,7 +49,7 @@ scratch/main> test
 Tests should be cached if unchanged.
 
 ``` ucm
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 
@@ -77,11 +77,11 @@ lib.dep.testInLib = [Ok "testInLib"]
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 
@@ -92,7 +92,7 @@ scratch/main> test
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> test.all
+> test.all
 
     
     Cached test results (`help testcache` to learn more)
@@ -118,7 +118,7 @@ scratch/main> test.all
 `test` WILL run tests within `lib` if specified explicitly.
 
 ``` ucm
-scratch/main> test lib.dep
+> test lib.dep
 
   Cached test results (`help testcache` to learn more)
 
@@ -132,7 +132,7 @@ scratch/main> test lib.dep
 `test` can be given a relative path, in which case it will only run tests found somewhere in that namespace.
 
 ``` ucm
-scratch/main> test foo
+> test foo
 
   Cached test results (`help testcache` to learn more)
 

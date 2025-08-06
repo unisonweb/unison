@@ -10,7 +10,7 @@ socketAccept = compose reraise socketAccept.impl
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 # Tests for network related builtins
@@ -107,14 +107,14 @@ testDefaultPort _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testDefaultPort
+> io.test testDefaultPort
 
     New test results:
 
@@ -189,14 +189,14 @@ testTcpConnect = 'let
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testTcpConnect
+> io.test testTcpConnect
 
     New test results:
 

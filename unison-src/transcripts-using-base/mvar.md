@@ -51,6 +51,6 @@ testMvars _ =
   runTest test
 ```
 ``` ucm
-scratch/main> add
-scratch/main> io.test testMvars
+> add
+> io.test testMvars
 ```

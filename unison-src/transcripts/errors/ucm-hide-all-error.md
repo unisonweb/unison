@@ -7,5 +7,5 @@ then the transcript parser should print the stanza
 and surface a helpful message.
 
 ``` ucm :hide-all :error
-scratch/main> history
+> history
 ```

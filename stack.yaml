@@ -59,6 +59,8 @@ extra-deps:
   # https://github.com/judah/haskeline/pull/126
   - github: unisonweb/haskeline
     commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
+  - github: ChrisPenner/hs-mcp
+    commit: 14fe82d086a04e82b1c05d7f5a4bbd30eec22042
 
   # not in stackage
   - fuzzyfind-3.0.2@sha256:0fcd64eb1016fe0d0232abc26b2b80b32d676707ff41d155a28df8a9572603d4,1921

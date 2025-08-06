@@ -1,7 +1,7 @@
 ``` ucm :hide
-scratch/main> alias.type ##Nat Nat
+> alias.type ##Nat Nat
 
-scratch/main> alias.term ##Any.Any Any
+> alias.term ##Any.Any Any
 ```
 
 ``` unison
