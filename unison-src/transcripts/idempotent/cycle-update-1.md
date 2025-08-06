@@ -1,7 +1,7 @@
 Update a member of a cycle, but retain the cycle.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -22,7 +22,7 @@ pong _ = !ping + 2
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -46,7 +46,7 @@ ping _ = !pong + 3
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -57,7 +57,7 @@ scratch/main> update
 
   Done.
 
-scratch/main> view ping pong
+> view ping pong
 
   ping : 'Nat
   ping _ =

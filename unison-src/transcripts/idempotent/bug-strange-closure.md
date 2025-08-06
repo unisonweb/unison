@@ -1,13 +1,13 @@
 ``` ucm :hide
-scratch/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
-scratch/main> load unison-src/transcripts-using-base/doc.md.files/syntax.u
+> load unison-src/transcripts-using-base/doc.md.files/syntax.u
 ```
 
 We can display the guide before and after adding it to the codebase:
 
 ```` ucm
-scratch/main> display doc.guide
+> display doc.guide
 
   # Unison computable documentation
 
@@ -205,14 +205,14 @@ scratch/main> display doc.guide
                             rendered table.
     Some text   More text   Zounds!
 
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> display doc.guide
+> display doc.guide
 
   # Unison computable documentation
 
@@ -426,7 +426,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
 ```
 
 ```` ucm
-scratch/main> display rendered
+> display rendered
 
   # Unison computable documentation
 
@@ -624,14 +624,14 @@ scratch/main> display rendered
                             rendered table.
     Some text   More text   Zounds!
 
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> display rendered
+> display rendered
 
   # Unison computable documentation
 
@@ -829,7 +829,7 @@ scratch/main> display rendered
                             rendered table.
     Some text   More text   Zounds!
 
-scratch/main> undo
+> undo
 
   Here are the changes I undid
 

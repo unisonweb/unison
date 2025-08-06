@@ -3,7 +3,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ``` ucm
-scratch/main> ls builtin.Bytes
+> ls builtin.Bytes
 ```
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.
 
@@ -43,7 +43,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 And here's the full API:
 
 ``` ucm
-scratch/main> find-in builtin.crypto
+> find-in builtin.crypto
 ```
 
 Note that the universal versions of `hash` and `hmac` are currently unimplemented and will bomb at runtime:
@@ -189,11 +189,11 @@ test> crypto.hash.numTests =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> test
+> test
 ```
 
 ## HMAC tests
@@ -251,9 +251,9 @@ test> md5.tests.ex3 =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> test
+> test
 ```

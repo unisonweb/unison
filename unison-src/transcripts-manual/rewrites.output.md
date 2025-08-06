@@ -1,9 +1,9 @@
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
-scratch/main> load unison-src/transcripts-using-base/base.u
+> load unison-src/transcripts-using-base/base.u
 
-scratch/main> add
+> add
 ```
 
 ## Structural find and replace
@@ -38,7 +38,7 @@ rule2 x = @rewrite signature Optional ==> Optional2
 Let's rewrite these:
 
 ``` ucm
-scratch/main> rewrite rule1
+> rewrite rule1
 
   ☝️
 
@@ -46,7 +46,7 @@ scratch/main> rewrite rule1
 
   The rewritten file has been added to the top of scratch.u
 
-scratch/main> rewrite eitherToOptional
+> rewrite eitherToOptional
 
   ☝️
 
@@ -117,15 +117,15 @@ rule2 x = @rewrite signature Optional ==> Optional2
 ```
 
 ``` ucm :hide
-scratch/main> load
+> load
 
-scratch/main> add
+> add
 ```
 
 After adding to the codebase, here's the rewritten source:
 
 ``` ucm
-scratch/main> view ex1 Either.mapRight rule1
+> view ex1 Either.mapRight rule1
 
   Either.mapRight : (a ->{g} b) -> Optional a ->{g} Optional b
   Either.mapRight f = cases
@@ -171,7 +171,7 @@ blah2 = 456
 Let's apply the rewrite `woot1to2`:
 
 ``` ucm
-scratch/main> rewrite woot1to2
+> rewrite woot1to2
 
   ☝️
 
@@ -207,15 +207,15 @@ blah2 = 456
 ```
 
 ``` ucm :hide
-scratch/main> load
+> load
 
-scratch/main> add
+> add
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten `Woot1` to `Woot2`:
 
 ``` ucm
-scratch/main> view wootEx
+> view wootEx
 
   wootEx : Nat ->{Woot2} Nat
   wootEx a =
@@ -245,17 +245,17 @@ sameFileEx =
 ```
 
 ``` ucm :hide
-scratch/main> rewrite rule
+> rewrite rule
 
-scratch/main> load
+> load
 
-scratch/main> add
+> add
 ```
 
 After adding the rewritten form to the codebase, here's the rewritten definitions:
 
 ``` ucm
-scratch/main> view foo1 foo2 sameFileEx
+> view foo1 foo2 sameFileEx
 
   foo1 : Nat
   foo1 =
@@ -296,7 +296,7 @@ sameFileEx =
 In the above example, `bar2` is locally bound by the rule, so when applied, it should not refer to the `bar2` top level binding.
 
 ``` ucm
-scratch/main> rewrite rule
+> rewrite rule
 
   ☝️
 
@@ -330,7 +330,7 @@ sameFileEx =
 Instead, it should be an unbound free variable, which doesn't typecheck:
 
 ``` ucm :error
-scratch/main> load
+> load
 
   Loading changes detected in scratch.u.
 
@@ -357,7 +357,7 @@ rule a = @rewrite
 ```
 
 ``` ucm
-scratch/main> rewrite rule
+> rewrite rule
 
   ☝️
 
@@ -383,7 +383,7 @@ rule a =
 The `a` introduced will be freshened to not capture the `a` in scope, so it remains as an unbound variable and is a type error:
 
 ``` ucm :error
-scratch/main> load
+> load
 
   Loading changes detected in scratch.u.
 
@@ -406,7 +406,7 @@ eitherEx = Left ("hello", "there")
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` unison :hide
@@ -415,7 +415,7 @@ findEitherFailure = @rewrite signature a . Either Failure a ==> ()
 ```
 
 ``` ucm
-scratch/main> sfind findEitherEx
+> sfind findEitherEx
 
   🔎
 
@@ -425,7 +425,7 @@ scratch/main> sfind findEitherEx
 
   Tip: Try `edit 1` to bring this into your scratch file.
 
-scratch/main> sfind findEitherFailure
+> sfind findEitherFailure
 
   🔎
 
@@ -440,7 +440,7 @@ scratch/main> sfind findEitherFailure
   Tip: Try `edit 1` or `edit 1-5` to bring these into your
        scratch file.
 
-scratch/main> find 1-5
+> find 1-5
 
   1. Exception.catch : '{g, Exception} a ->{g} Either Failure a
   2. Exception.reraise : Either Failure a ->{Exception} a

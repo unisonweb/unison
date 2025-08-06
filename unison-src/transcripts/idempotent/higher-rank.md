@@ -1,11 +1,11 @@
 This transcript does some testing of higher-rank types. Regression tests related to higher-rank types can be added here.
 
 ``` ucm :hide
-scratch/main> alias.type ##Nat Nat
+> alias.type ##Nat Nat
 
-scratch/main> alias.type ##Text Text
+> alias.type ##Text Text
 
-scratch/main> alias.type ##IO IO
+> alias.type ##IO IO
 ```
 
 In this example, a higher-rank function is defined, `f`. No annotation is needed at the call-site of `f`, because the lambda is being checked against the polymorphic type `forall a . a -> a`, rather than inferred:
@@ -126,14 +126,14 @@ structural type HigherRanked = HigherRanked (forall a. a -> a)
 We should be able to add and view records with higher-rank fields.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view HigherRanked
+> view HigherRanked
 
   structural type HigherRanked = HigherRanked (∀ a. a -> a)
 ```

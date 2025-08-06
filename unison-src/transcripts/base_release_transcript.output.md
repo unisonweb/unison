@@ -1,7 +1,7 @@
 # Testing functions that use the base library
 
 ``` ucm
-scratch/main> lib.install @unison/base/releases/3.35.0
+> lib.install @unison/base/releases/3.35.0
 
   I installed @unison/base/releases/3.35.0 into
   lib.unison_base_3_35_0

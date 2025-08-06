@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> alias.type ##Text builtin.Text
+> alias.type ##Text builtin.Text
 ```
 
 ``` unison :hide
@@ -17,29 +17,29 @@ baz = cases
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> find : Text -> A
+> find : Text -> A
 
   1. bar : Text -> A
   2. A.A : Text -> A
 
-scratch/main> find : A -> Text
+> find : A -> Text
 
   1. baz : A -> Text
 
-scratch/main> find : A
+> find : A
 
   1. foo : A
 ```
 
 ``` ucm :error
-scratch/main> find : Text
+> find : Text
 
   ☝️
 

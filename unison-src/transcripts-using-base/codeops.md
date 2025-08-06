@@ -192,7 +192,7 @@ swapped name link =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 ```
 
 ``` unison
@@ -310,9 +310,9 @@ we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test tests
-scratch/main> io.test badLoad
+> add
+> io.test tests
+> io.test badLoad
 ```
 
 ``` unison
@@ -379,8 +379,8 @@ codeTests =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test codeTests
+> add
+> io.test codeTests
 ```
 
 ``` unison
@@ -410,6 +410,6 @@ vtests _ =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test vtests
+> add
+> io.test vtests
 ```

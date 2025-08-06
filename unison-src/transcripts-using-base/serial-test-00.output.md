@@ -92,14 +92,14 @@ mkTestCase = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run mkTestCase
+> run mkTestCase
 
   ()
 ```

@@ -63,6 +63,6 @@ serialTests = do
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test serialTests
+> add
+> io.test serialTests
 ```

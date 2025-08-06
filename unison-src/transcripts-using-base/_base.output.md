@@ -10,11 +10,11 @@ transcripts which contain less boilerplate.
 ## Usage
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
-scratch/main> load unison-src/transcripts-using-base/base.u
+> load unison-src/transcripts-using-base/base.u
 
-scratch/main> add
+> add
 ```
 
 The test shows that `hex (fromHex str) == str` as expected.
@@ -26,7 +26,7 @@ test> hex.tests.ex1 = checks let
 ```
 
 ``` ucm :hide
-scratch/main> test
+> test
 ```
 
 Lets do some basic testing of our test harness to make sure its
@@ -60,14 +60,14 @@ testAutoClean _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testAutoClean
+> io.test testAutoClean
 
     New test results:
 

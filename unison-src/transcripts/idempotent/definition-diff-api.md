@@ -1,13 +1,13 @@
 ``` ucm
-diffs/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
   Done.
 
-diffs/main> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
+> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
 
   Done.
 
-diffs/main> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
+> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
 
   Done.
 ```
@@ -53,14 +53,14 @@ unitCase = id (x -> 1)
 ```
 
 ``` ucm
-diffs/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-diffs/main> branch.create new
+> branch.create new
 
   Done. I've created the new branch based off of main.
 
@@ -112,7 +112,7 @@ unitCase = id (x -> (1, ()))
 ```
 
 ``` ucm
-diffs/new> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -123,7 +123,7 @@ diffs/new> update
 Diff terms
 
 ``` api
-GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
+GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
   {
       "diff": {
           "contents": [
@@ -630,14 +630,14 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=te
               "term"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
 ```
 
 More complex diff
 
 ``` api
-GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
+GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
   {
       "diff": {
           "contents": [
@@ -3342,14 +3342,14 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=ta
               "take"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
 ```
 
 Regression test for weird behavior w/r to unit and parens.
 
 ``` api
-GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=unitCase&newTerm=unitCase
+GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=unitCase&newTerm=unitCase
   {
       "diff": {
           "contents": [
@@ -3970,14 +3970,14 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=un
               "unitCase"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
 ```
 
 Diff types
 
 ``` api
-GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
+GET /api/projects/scratch/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
   {
       "diff": {
           "contents": [
@@ -4218,6 +4218,6 @@ GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Ty
               "Type"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
 ```

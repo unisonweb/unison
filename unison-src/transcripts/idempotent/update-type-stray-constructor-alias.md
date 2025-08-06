@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -15,14 +15,14 @@ unique type Foo = Bar Nat
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> alias.term Foo.Bar Stray.BarAlias
+> alias.term Foo.Bar Stray.BarAlias
 
   Done.
 ```
@@ -42,7 +42,7 @@ unique type Foo = Bar Nat Nat
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   Sorry, I wasn't able to perform the update, because I need all
   constructor names to be nested somewhere beneath the

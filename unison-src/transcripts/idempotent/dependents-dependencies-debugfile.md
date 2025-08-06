@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ### `debug.file`
@@ -21,7 +21,7 @@ inside.r = d
 ```
 
 ``` ucm
-scratch/main> debug.file
+> debug.file
 
   type inside.M#h37a56c5ep
   type outside.A#6l6krl7n4l
@@ -40,18 +40,18 @@ This will help me make progress in some situations when UCM is being deficient o
 But wait, there's more.  I can check the dependencies and dependents of a definition:
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> dependents q
+> dependents q
 
   q has no dependents.
 
-scratch/main> dependencies q
+> dependencies q
 
   Dependencies of: q
 
@@ -68,7 +68,7 @@ scratch/main> dependencies q
   Tip: Try `view 4` to see the source of any numbered item in
        the above list.
 
-scratch/main> dependencies B
+> dependencies B
 
   Dependencies of: type B, B
 
@@ -80,7 +80,7 @@ scratch/main> dependencies B
   Tip: Try `view 2` to see the source of any numbered item in
        the above list.
 
-scratch/main> dependencies d
+> dependencies d
 
   Dependencies of: d
 
@@ -98,7 +98,7 @@ scratch/main> dependencies d
   Tip: Try `view 5` to see the source of any numbered item in
        the above list.
 
-scratch/main> dependents d
+> dependents d
 
   Dependents of: d
 

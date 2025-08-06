@@ -1,7 +1,7 @@
 # An assortment of regression tests that exercise various interesting cases within the runtime.
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 ``` unison

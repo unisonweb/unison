@@ -1,11 +1,11 @@
 # tests for built-in IO functions
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
-scratch/main> load unison-src/transcripts-using-base/base.u
+> load unison-src/transcripts-using-base/base.u
 ```
 
 Tests for IO builtins which wired to foreign haskell calls.
@@ -18,7 +18,7 @@ TempDirs/autoCleaned is an ability/hanlder which allows you to easily
 create a scratch directory which will automatically get cleaned up.
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## Basic File Functions
@@ -68,14 +68,14 @@ testCreateRename _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testCreateRename
+> io.test testCreateRename
 
     New test results:
 
@@ -148,14 +148,14 @@ testOpenClose _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testOpenClose
+> io.test testOpenClose
 
     New test results:
 
@@ -236,14 +236,14 @@ testGetSomeBytes _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testGetSomeBytes
+> io.test testGetSomeBytes
 
     New test results:
 
@@ -351,14 +351,14 @@ testAppend _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testSeek
+> io.test testSeek
 
     New test results:
 
@@ -374,7 +374,7 @@ scratch/main> io.test testSeek
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test testSetEcho
+> io.test testSetEcho
 
     New test results:
 
@@ -384,7 +384,7 @@ scratch/main> io.test testSetEcho
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test testAppend
+> io.test testAppend
 
     New test results:
 
@@ -416,14 +416,14 @@ testSystemTime _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testSystemTime
+> io.test testSystemTime
 
     New test results:
 
@@ -447,14 +447,14 @@ testGetTempDirectory _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testGetTempDirectory
+> io.test testGetTempDirectory
 
     New test results:
 
@@ -479,14 +479,14 @@ testGetCurrentDirectory _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testGetCurrentDirectory
+> io.test testGetCurrentDirectory
 
     New test results:
 
@@ -513,14 +513,14 @@ testDirContents _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testDirContents
+> io.test testDirContents
 
     New test results:
 
@@ -547,14 +547,14 @@ testGetEnv _ =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testGetEnv
+> io.test testGetEnv
 
     New test results:
 
@@ -603,22 +603,22 @@ testGetArgs.runMeWithTwoArgs = 'let
 Test that they can be run with the right number of args.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run runMeWithNoArgs
+> run runMeWithNoArgs
 
   ()
 
-scratch/main> run runMeWithOneArg foo
+> run runMeWithOneArg foo
 
   ()
 
-scratch/main> run runMeWithTwoArgs foo bar
+> run runMeWithTwoArgs foo bar
 
   ()
 ```
@@ -626,7 +626,7 @@ scratch/main> run runMeWithTwoArgs foo bar
 Calling our examples with the wrong number of args will error.
 
 ``` ucm :error
-scratch/main> run runMeWithNoArgs foo
+> run runMeWithNoArgs foo
 
   💔💥
 
@@ -639,7 +639,7 @@ scratch/main> run runMeWithNoArgs foo
 ```
 
 ``` ucm :error
-scratch/main> run runMeWithOneArg
+> run runMeWithOneArg
 
   💔💥
 
@@ -652,7 +652,7 @@ scratch/main> run runMeWithOneArg
 ```
 
 ``` ucm :error
-scratch/main> run runMeWithOneArg foo bar
+> run runMeWithOneArg foo bar
 
   💔💥
 
@@ -666,7 +666,7 @@ scratch/main> run runMeWithOneArg foo bar
 ```
 
 ``` ucm :error
-scratch/main> run runMeWithTwoArgs
+> run runMeWithTwoArgs
 
   💔💥
 
@@ -688,14 +688,14 @@ testTimeZone = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run testTimeZone
+> run testTimeZone
 
   ()
 ```
@@ -712,14 +712,14 @@ testRandom = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testGetEnv
+> io.test testGetEnv
 
     New test results:
 

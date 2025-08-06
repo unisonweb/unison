@@ -1,7 +1,7 @@
 This transcript checks cases for the warning about quadratic handlers.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison

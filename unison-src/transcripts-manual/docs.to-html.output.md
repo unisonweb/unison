@@ -1,5 +1,5 @@
 ``` ucm
-test-html-docs/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
   Done.
 ```
@@ -29,9 +29,9 @@ some.outside = 3
 ```
 
 ``` ucm
-test-html-docs/main> add
+> add
 
   Done.
 
-test-html-docs/main> docs.to-html some.ns unison-src/transcripts-manual/docs.to-html
+> docs.to-html some.ns unison-src/transcripts-manual/docs.to-html
 ```

@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -19,7 +19,7 @@ unique type Foo = { bar : Nat }
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -49,18 +49,18 @@ unique type Foo = { bar : Nat, baz : Int }
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view Foo
+> view Foo
 
   type Foo = { bar : Nat, baz : Int }
 
-scratch/main> find.verbose
+> find.verbose
 
   1. -- #m0tpa159pbsdld5ea0marnq9614dnmjjc72n1evi4bsk45a1hl84qprt6vdvejuuiuc3f5o23olc1t19tk1dt8mjobmr0chqc3svij8
      type Foo

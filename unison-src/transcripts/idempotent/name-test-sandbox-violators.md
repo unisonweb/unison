@@ -1,5 +1,5 @@
 ``` ucm :hide
-fresh/main> builtins.merge
+> builtins.merge
 ```
 
 This passes, because the IO sandbox doesn't seem to apply to `test>` watch expressions.
@@ -24,7 +24,7 @@ test> foo.test =
 ```
 
 ``` ucm
-fresh/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -35,7 +35,7 @@ fresh/main> add
 The `test` command succeeds, because the result of `foo.test` is already cached, which skips the IO sandbox.
 
 ``` ucm
-fresh/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 
@@ -65,7 +65,7 @@ bar.test =
 ```
 
 ``` ucm
-fresh/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -74,7 +74,7 @@ fresh/main> add
 ```
 
 ``` ucm :error
-fresh/main> test
+> test
 
     
     Cached test results (`help testcache` to learn more)

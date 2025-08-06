@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 This transcript shows some syntax for raw text literals.
@@ -82,14 +82,14 @@ lit2 = """"
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view lit1 lit2
+> view lit1 lit2
 
   lit1 : Text
   lit1 =

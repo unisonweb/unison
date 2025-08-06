@@ -8,7 +8,7 @@ X.foo = "a namespace"
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -23,7 +23,7 @@ a = "an update"
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -34,7 +34,7 @@ scratch/main> update
 As of the time of this writing, the history for `X` should be a single node, `#4eeuo5bsfr`;
 
 ``` ucm
-scratch/main> history X
+> history X
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -47,7 +47,7 @@ scratch/main> history X
 however, as of release/M1i, we saw an extraneous node appear.  If your `ucm` is fixed, you won't see it below:
 
 ``` ucm :error
-scratch/main> history #7nl6ppokhg
+> history #7nl6ppokhg
 
   😶
 

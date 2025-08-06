@@ -1,7 +1,7 @@
 # delete.namespace.force
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison :hide
@@ -15,13 +15,13 @@ dependents.usage2 = dependencies.term1 * dependencies.term2
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Deleting a namespace with no external dependencies should succeed.
 
 ``` ucm
-scratch/main> delete.namespace no_dependencies
+> delete.namespace no_dependencies
 
   Done.
 ```
@@ -29,7 +29,7 @@ scratch/main> delete.namespace no_dependencies
 Deleting a namespace with external dependencies should fail and list all dependents.
 
 ``` ucm :error
-scratch/main> delete.namespace dependencies
+> delete.namespace dependencies
 
   ⚠️
 
@@ -50,7 +50,7 @@ scratch/main> delete.namespace dependencies
 Deleting a namespace with external dependencies should succeed when using `delete.namespace.force`
 
 ``` ucm
-scratch/main> delete.namespace.force dependencies
+> delete.namespace.force dependencies
 
   Done.
 
@@ -70,7 +70,7 @@ scratch/main> delete.namespace.force dependencies
 I should be able to view an affected dependency by number
 
 ``` ucm
-scratch/main> view 2
+> view 2
 
   dependents.usage2 : Nat
   dependents.usage2 =
@@ -81,7 +81,7 @@ scratch/main> view 2
 Deleting the root namespace should require confirmation if not forced.
 
 ``` ucm
-scratch/main> delete.namespace .
+> delete.namespace .
 
   ⚠️
 
@@ -89,7 +89,7 @@ scratch/main> delete.namespace .
   You could use `project.create` to switch to a new project
   instead, or delete the current branch with `delete.branch`
 
-scratch/main> delete.namespace .
+> delete.namespace .
 
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
@@ -97,7 +97,7 @@ scratch/main> delete.namespace .
 
 -- Should have an empty history
 
-scratch/main> history .
+> history .
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -110,7 +110,7 @@ scratch/main> history .
 Deleting the root namespace shouldn't require confirmation if forced.
 
 ``` ucm
-scratch/main> delete.namespace.force .
+> delete.namespace.force .
 
   Okay, I deleted everything except the history. Use `undo` to
   undo, or `builtins.merge` to restore the absolute basics to
@@ -118,7 +118,7 @@ scratch/main> delete.namespace.force .
 
 -- Should have an empty history
 
-scratch/main> history .
+> history .
 
   Note: The most recent namespace hash is immediately below this
         message.

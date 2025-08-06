@@ -4,7 +4,7 @@ The `edit.dependents` command is like `edit`, but it adds a definition and all o
 (being careful not to add anything that's already there).
 
 ``` ucm :hide
-scratch/main> builtins.mergeio lib.builtin
+> builtins.mergeio lib.builtin
 ```
 
 ``` unison
@@ -30,7 +30,7 @@ baz x = x
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -60,7 +60,7 @@ type Bar = { bar : Nat }
 ```
 
 ``` ucm
-scratch/main> edit.dependents Foo
+> edit.dependents Foo
 
   Loading branch...
 
@@ -84,5 +84,5 @@ baz x = x
 ```
 
 ``` ucm :hide
-scratch/main> project.delete scratch
+> project.delete scratch
 ```

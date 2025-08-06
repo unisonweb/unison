@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 The `io.test` command should run all of the tests within the current namespace, excluding libs.
@@ -20,13 +20,13 @@ lib.ioAndExceptionTestInLib  = do
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Run a IO tests one by one
 
 ``` ucm
-scratch/main> io.test ioAndExceptionTest
+> io.test ioAndExceptionTest
 
     New test results:
 
@@ -36,7 +36,7 @@ scratch/main> io.test ioAndExceptionTest
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test ioTest
+> io.test ioTest
 
     New test results:
 
@@ -50,7 +50,7 @@ scratch/main> io.test ioTest
 `io.test` doesn't cache results
 
 ``` ucm
-scratch/main> io.test ioAndExceptionTest
+> io.test ioAndExceptionTest
 
     New test results:
 
@@ -64,7 +64,7 @@ scratch/main> io.test ioAndExceptionTest
 `io.test.all` will run all matching tests except those in the `lib` namespace.
 
 ``` ucm
-scratch/main> io.test.all
+> io.test.all
 
 
 

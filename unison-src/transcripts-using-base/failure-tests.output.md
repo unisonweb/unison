@@ -28,7 +28,7 @@ test2 = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -37,7 +37,7 @@ scratch/main> add
 ```
 
 ``` ucm :error
-scratch/main> io.test test1
+> io.test test1
 
   💔💥
 
@@ -53,7 +53,7 @@ scratch/main> io.test test1
 ```
 
 ``` ucm :error
-scratch/main> io.test test2
+> io.test test2
 
   💔💥
 

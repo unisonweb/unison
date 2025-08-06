@@ -42,6 +42,7 @@ formatUcmLine = \case
   UcmComment txt -> "--" <> txt <> "\n"
   UcmOutputLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
   where
+    formatContext UcmContextEmpty = ""
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
 formatStanzas :: [Stanza] -> Text
@@ -77,8 +78,8 @@ ucmLine = ucmOutputLine <|> ucmComment <|> ucmCommand
     ucmCommand =
       UcmCommand
         <$> fmap
-          UcmContextProject
-          (fullyQualifiedProjectAndBranchNamesParser <* lineToken (P.chunk ">") <* nonNewlineSpaces)
+          (maybe UcmContextEmpty UcmContextProject)
+          (optional fullyQualifiedProjectAndBranchNamesParser <* lineToken (P.chunk ">") <* nonNewlineSpaces)
         <*> restOfLine
 
     ucmComment :: P UcmLine

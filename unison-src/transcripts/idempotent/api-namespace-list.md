@@ -1,7 +1,7 @@
 # Namespace list api
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison
@@ -22,7 +22,7 @@ nested.names.readme = {{ I'm a readme! }}
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...

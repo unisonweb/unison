@@ -1,5 +1,5 @@
 ``` ucm :hide
-project/main> builtins.mergeio lib.builtin
+> builtins.mergeio lib.builtin
 ```
 
 ``` unison
@@ -45,7 +45,7 @@ unique type Foo = { bar : Nat, baz : Nat }
 ```
 
 ``` ucm
-project/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -56,7 +56,7 @@ project/main> add
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
 ``` ucm
-project/main> edit.namespace .
+> edit.namespace .
 
   ☝️
 
@@ -98,7 +98,7 @@ toplevel = "hi"
 `edit.namespace` can also accept explicit paths
 
 ``` ucm
-project/main> edit.namespace nested simple
+> edit.namespace nested simple
 
   ☝️
 
