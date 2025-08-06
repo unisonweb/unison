@@ -1,3 +1,6 @@
+-- The Cabal build is unsupported. If this doesn’t work for you, we would welcome a PR, but also consider using the
+-- Stack (or Nix) build if possible.
+
 packages:
   codebase2/codebase
   codebase2/codebase-sqlite
@@ -64,98 +67,21 @@ constraints:
 allow-newer:
   numerals:*
 
--- For now there is no way to apply ghc-options for all local packages
--- See https://cabal.readthedocs.io/en/latest/cabal-project.html#package-configuration-options
-package codebase
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package codebase-sqlite
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package codebase-sqlite-hashing-v2
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package codebase-sync
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package util-serializatio
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package util-term
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package network-uri-orphans-sqlite
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-core-orphans-sqlite
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-hash-orphans-aeson
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-hash-orphans-sqlite
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package uuid-orphans-sqlite
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-hash
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-hashing
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-prelude
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-pretty-printer
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-sqlite
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-base32hex
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-bytes
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-cache
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-relation
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-util-rope
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package parser-typechecker
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-cli
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-core
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-hashing-v2
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-merge
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-share-api
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
--- adding -Wno-deprecations cause jose-0.10 has deprecated Crypto.JWT.addClaim
-package unison-share-projects-api
-  ghc-options: -Wall -Werror -Wno-deprecations -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package unison-syntax
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
-
-package easytest
-  ghc-options: -Wall -Werror -Wno-name-shadowing -Wno-type-defaults -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info
+program-options
+  -- This should generally match the corresponding list in ../stack.yaml.
+  ghc-options:
+    -Wall
+    -Werror
+    -Wno-missing-pattern-synonym-signatures
+    -Wno-name-shadowing
+    -Wno-type-defaults
+    -Wunused-packages
+    -- Don’t error on deprecations, because the Cabal solver may select a newer version than is in Stackage, so we can’t
+    -- necessarily remove uses of deprecated definitions.
+    -Wwarn=deprecations
+    -fprint-expanded-synonyms
+    -funbox-strict-fields
+    -fwrite-ide-info
 
 -- This options are applied to all packages, local ones and also external dependencies.
 package *
