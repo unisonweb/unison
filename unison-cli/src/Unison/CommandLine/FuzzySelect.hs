@@ -17,7 +17,6 @@ import Control.Monad.Trans.Except
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import GHC.IO.Handle (hDuplicateTo)
 import System.Environment (lookupEnv)
 import System.IO (BufferMode (NoBuffering), hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
@@ -126,23 +125,26 @@ fuzzySelect opts selections =
   where
     fzfWithChoices :: FilePath -> [String] -> [Text] -> ExceptT Text IO (Either SomeException [Text])
     fzfWithChoices fzfPath fzfArgs searchTexts = do
+      (inputReadHandle, inputWriteHandle) <- liftIO Proc.createPipe
+      (outputReadHandle, outputWriteHandle) <- liftIO Proc.createPipe
+      -- Generally no-buffering is helpful for highly interactive processes.
+      hSetBuffering stdin UnliftIO.NoBuffering
+      hSetBuffering inputWriteHandle UnliftIO.NoBuffering
+      hSetBuffering inputReadHandle UnliftIO.NoBuffering
+      hSetBuffering outputWriteHandle UnliftIO.NoBuffering
+      hSetBuffering outputReadHandle UnliftIO.NoBuffering
       let fzfProc :: Proc.CreateProcess =
             (Proc.proc fzfPath fzfArgs)
-              { Proc.std_in = Proc.CreatePipe,
-                Proc.std_out = Proc.CreatePipe,
+              { Proc.std_in = Proc.UseHandle inputReadHandle,
+                Proc.std_out = Proc.UseHandle outputWriteHandle,
                 Proc.delegate_ctlc = True
               }
-      (Just stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
-      -- Generally no-buffering is helpful for highly interactive processes.
-      hSetBuffering stdin NoBuffering
-      hSetBuffering stdin' NoBuffering
+      (_stdin, _stdout, _, procHandle) <- Proc.createProcess fzfProc
       liftIO . UnliftIO.tryAny $ do
         -- Dump the search terms into fzf's stdin
-        traverse_ (Text.hPutStrLn stdin') searchTexts
-        -- Wire up the interactive terminal to fzf now that the inputs have been loaded.
-        hDuplicateTo stdin stdin'
+        traverse_ (Text.hPutStrLn inputWriteHandle) searchTexts
         void $ Proc.waitForProcess procHandle
-        Text.lines <$> liftIO (Text.hGetContents stdout')
+        Text.lines <$> liftIO (Text.hGetContents outputReadHandle)
     fzfFileSelector :: FilePath -> [String] -> ExceptT Text IO (Either SomeException [Text])
     fzfFileSelector fzfPath fzfArgs = do
       let fzfProc :: Proc.CreateProcess =
