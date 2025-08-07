@@ -67,6 +67,7 @@ module Unison.Codebase.Branch
 
     -- *** Libdep manipulations
     libdeps_,
+    hasDefnsInLib,
     withoutLib,
     withoutTransitiveLibs,
     deleteLibdep,
@@ -194,6 +195,13 @@ fromNametree nametree =
 libdeps_ :: Traversal' (Branch0 m) (Map NameSegment (Branch m))
 libdeps_ =
   children_ . ix NameSegment.libSegment . head_ . children_
+
+-- | Are there any pesky definitions (terms or types) directly in lib.*, where they shouldn't be?
+hasDefnsInLib :: Branch0 m -> Bool
+hasDefnsInLib branch =
+  case branch ^? children_ . ix NameSegment.libSegment . head_ of
+    Just libdeps -> not (Star2.isEmpty (libdeps ^. terms_)) || not (Star2.isEmpty (libdeps ^. types_))
+    Nothing -> False
 
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.

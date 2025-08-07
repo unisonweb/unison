@@ -7,20 +7,17 @@ where
 
 import Control.Lens.Fold (folded)
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
-import Data.Set.NonEmpty (NESet)
+import Unison.Codebase.Branch (UnconflictedBranchView (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DeclCoherencyCheck (IncoherentDeclReason)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
-import Unison.Merge.DeclNameLookups (makeDeclNameLookups)
 import Unison.Merge.Diff (diffSynhashedDefns', humanizeDiffs, synhashDefns0, synhashLcaDefns)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
-import Unison.Merge.Narrow (narrowDefns)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.Rename (makeRenames', makeSimpleRenames)
 import Unison.Merge.Synhashed (Synhashed)
@@ -49,20 +46,13 @@ import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, zipDefnsWith)
-import Unison.Util.Defns qualified as Defns
-import Unison.Util.Map qualified as Map (foldKeysCommutative, foldValuesCommutative)
-import Unison.Util.Nametree (Nametree, flattenNametrees)
-import Unison.Util.Set qualified as Set (insertMaybe)
 
 data Mergeblob0 libdep = Mergeblob0
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
     declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
-    defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
-    defnsById :: ThreeWay (Defns (Map Referent (NESet Name)) (Map TypeReference (NESet Name))),
-    defnsByName :: ThreeWay (DefnsF (Map Name) Referent TypeReference),
+    defns :: ThreeWay UnconflictedBranchView,
     defnsIds :: ThreeWay (DefnsF Set TermReferenceId TypeReferenceId),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
     diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
@@ -75,7 +65,6 @@ data Mergeblob0 libdep = Mergeblob0
         (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
         (Map TypeReferenceId (Decl Symbol Ann)),
     libdeps :: Updated (Map NameSegment libdep),
-    nametrees :: ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)),
     synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference)),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
@@ -98,19 +87,16 @@ makeMergeblob0 ::
   forall libdep m.
   (Eq libdep, Monad m) =>
   MergeblobDebugLog0 m ->
-  (Set TypeReferenceId -> m (Map TypeReferenceId Int)) ->
   ( DefnsF Set TermReferenceId TypeReferenceId ->
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
   ) ->
   ThreeWay Names ->
-  ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) ->
+  ThreeWay UnconflictedBranchView ->
   ThreeWay (Map NameSegment libdep) ->
+  GThreeWay PartialDeclNameLookup DeclNameLookup ->
   m (Either (EitherWay IncoherentDeclReason) (Mergeblob0 libdep))
-makeMergeblob0 log loadNumConstructors hydrate allNames nametrees libdeps = do
-  -- Flatten nametrees
-  let defns = flattenNametrees <$> nametrees
-  let defnsById = bimap BiMultimap.domain BiMultimap.domain <$> defns
-  let defnsByName = bimap BiMultimap.range BiMultimap.range <$> defns
+makeMergeblob0 log hydrate allNames defns libdeps declNameLookups = do
+  let defnsByName = bimap BiMultimap.range BiMultimap.range . (.defns) <$> defns
 
   log.debugLogDefns defnsByName
 
@@ -124,93 +110,82 @@ makeMergeblob0 log loadNumConstructors hydrate allNames nametrees libdeps = do
       defnsIds =
         toIds <$> defnsByName
 
-  -- Load number of constructors for all type declarations in defns
-  numConstructors <-
-    loadNumConstructors (foldMap (.types) defnsIds)
+  -- Narrow definitions to those that could have different syntactic hashes
+  let narrowedDefns0 =
+        -- narrowDefns declNameLookups defnsByName
+        TwoWay
+          { alice = Updated {old = defnsByName.lca, new = defnsByName.alice},
+            bob = Updated {old = defnsByName.lca, new = defnsByName.bob}
+          }
 
-  -- Try to make decl name lookups
-  case makeDeclNameLookups nametrees numConstructors of
-    Left err -> pure (Left err)
-    Right declNameLookups -> do
-      -- Narrow definitions to those that could have different syntactic hashes
-      let narrowedDefns0 =
-            -- narrowDefns declNameLookups defnsByName
-            TwoWay
-              { alice = Updated {old = defnsByName.lca, new = defnsByName.alice},
-                bob = Updated {old = defnsByName.lca, new = defnsByName.bob}
-              }
+  log.debugLogNarrowedDefns narrowedDefns0
 
-      log.debugLogNarrowedDefns narrowedDefns0
+  let narrowedDefns =
+        TwoWay.updatedToThreeWay narrowedDefns0
 
-      let narrowedDefns =
-            TwoWay.updatedToThreeWay narrowedDefns0
+  -- Hydrate only the narrowed definitions
+  hydratedNarrowedDefns <-
+    hydrate (fold (toIds <$> narrowedDefns))
 
-      -- Hydrate only the narrowed definitions
-      hydratedNarrowedDefns <-
-        hydrate (fold (toIds <$> narrowedDefns))
+  -- Compute the syntactic hashes of the narrowed+hydrated definitions
+  let synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference))
+      synhashedNarrowedDefns =
+        actualHonk fst allNames declNameLookups narrowedDefns0 hydratedNarrowedDefns
 
-      -- Compute the syntactic hashes of the narrowed+hydrated definitions
-      let synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference))
-          synhashedNarrowedDefns =
-            actualHonk fst allNames declNameLookups narrowedDefns0 hydratedNarrowedDefns
+  log.debugLogSynhashedNarrowedDefns synhashedNarrowedDefns
 
-      log.debugLogSynhashedNarrowedDefns synhashedNarrowedDefns
+  -- Identify all renames
+  let renames =
+        makeRenames' . Updated.map (bimap BiMultimap.fromRange BiMultimap.fromRange) <$> synhashedNarrowedDefns
 
-      -- Identify all renames
-      let renames =
-            makeRenames' . Updated.map (bimap BiMultimap.fromRange BiMultimap.fromRange) <$> synhashedNarrowedDefns
+  -- Filter all renames down to just "simple" renames
+  let simpleRenames =
+        makeSimpleRenames <$> renames
 
-      -- Filter all renames down to just "simple" renames
-      let simpleRenames =
-            makeSimpleRenames <$> renames
+  -- Diff LCA->Alice and LCA->Bob
+  let (diffsFromLCA, propagatedUpdates) =
+        diffSynhashedDefns' synhashedNarrowedDefns
 
-      -- Diff LCA->Alice and LCA->Bob
-      let (diffsFromLCA, propagatedUpdates) =
-            diffSynhashedDefns' synhashedNarrowedDefns
+  log.debugLogDiffsFromLCA diffsFromLCA
 
-      log.debugLogDiffsFromLCA diffsFromLCA
+  -- Combine the LCA->Alice and LCA->Bob diffs together
+  let diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference
+      diff =
+        combineDiffs diffsFromLCA
 
-      -- Combine the LCA->Alice and LCA->Bob diffs together
-      let diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference
-          diff =
-            combineDiffs diffsFromLCA
+  log.debugLogDiff diff
 
-      log.debugLogDiff diff
+  -- "Humanize" diffs... this is a bit of tech debt, to remove once we better-represent (& apply) renames
+  let humanDiffsFromLCA =
+        humanizeDiffs allNames diffsFromLCA propagatedUpdates
 
-      -- "Humanize" diffs... this is a bit of tech debt, to remove once we better-represent (& apply) renames
-      let humanDiffsFromLCA =
-            humanizeDiffs allNames diffsFromLCA propagatedUpdates
+  -- Partition the combined diff into the conflicted things and the unconflicted things
+  let (conflicts, unconflicts) =
+        partitionCombinedDiffs ((.defns) <$> ThreeWay.forgetLca defns) (ThreeWay.gforgetLca declNameLookups) diff
 
-      -- Partition the combined diff into the conflicted things and the unconflicted things
-      let (conflicts, unconflicts) =
-            partitionCombinedDiffs (ThreeWay.forgetLca defns) (ThreeWay.gforgetLca declNameLookups) diff
+  -- Diff and merge libdeps
+  let mergedLibdeps :: Map NameSegment libdep
+      mergedLibdeps =
+        applyLibdepsDiff
+          getTwoFreshLibdepNames
+          libdeps
+          (mergeLibdepsDiffs (diffLibdeps libdeps))
 
-      -- Diff and merge libdeps
-      let mergedLibdeps :: Map NameSegment libdep
-          mergedLibdeps =
-            applyLibdepsDiff
-              getTwoFreshLibdepNames
-              libdeps
-              (mergeLibdepsDiffs (diffLibdeps libdeps))
-
-      pure $
-        Right
-          Mergeblob0
-            { conflicts,
-              declNameLookups,
-              defns,
-              defnsById,
-              defnsByName,
-              defnsIds,
-              diff,
-              diffsFromLCA,
-              libdeps = Updated {old = libdeps.lca, new = mergedLibdeps},
-              humanDiffsFromLCA,
-              hydratedNarrowedDefns,
-              nametrees,
-              synhashedNarrowedDefns,
-              unconflicts
-            }
+  pure $
+    Right
+      Mergeblob0
+        { conflicts,
+          declNameLookups,
+          defns,
+          defnsIds,
+          diff,
+          diffsFromLCA,
+          libdeps = Updated {old = libdeps.lca, new = mergedLibdeps},
+          humanDiffsFromLCA,
+          hydratedNarrowedDefns,
+          synhashedNarrowedDefns,
+          unconflicts
+        }
 
 actualHonk ::
   (term -> Term Symbol Ann) ->

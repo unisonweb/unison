@@ -14,6 +14,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
+import Unison.Codebase.Branch.Type (UnconflictedBranchView (..))
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -36,13 +37,9 @@ import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
-import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
-import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -62,7 +59,7 @@ data Mergeblob2 libdep = Mergeblob2
   { conflicts :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
     coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference),
     declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
-    defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
+    defns :: ThreeWay UnconflictedBranchView,
     dependents :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId),
     hasConflicts :: Bool,
     hydratedNarrowedDefns ::
@@ -95,9 +92,9 @@ makeMergeblob2 ::
   m (Either Mergeblob2Error (Mergeblob2 libdep))
 makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.runExceptT do
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
-  whenJust (findConflictedAlias blob.defns.lca blob.diffsFromLCA.alice) \conflict ->
+  whenJust (findConflictedAlias blob.defns.lca.defns blob.diffsFromLCA.alice) \conflict ->
     Except.throwE (Mergeblob2Error'ConflictedAlias (Alice conflict))
-  whenJust (findConflictedAlias blob.defns.lca blob.diffsFromLCA.bob) \conflict ->
+  whenJust (findConflictedAlias blob.defns.lca.defns blob.diffsFromLCA.bob) \conflict ->
     Except.throwE (Mergeblob2Error'ConflictedAlias (Bob conflict))
 
   conflicts <-
@@ -111,7 +108,7 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
   let coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference)
       coreDependencies =
         identifyCoreDependencies
-          (ThreeWay.forgetLca blob.defns)
+          ((.defns) <$> ThreeWay.forgetLca blob.defns)
           (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts)
           blob.unconflicts
 
@@ -142,7 +139,7 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
               (TypeReferenceId, Decl Symbol Ann)
           )
       hydratedDefnsByName =
-        nameHydratedRefs hydratedDefnsById <$> blob.defnsByName
+        nameHydratedRefs hydratedDefnsById . bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns
 
   let dependentsNames :: TwoWay (DefnsF Set Name Name)
       dependentsNames =
@@ -150,9 +147,9 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
             allDependentsNames :: TwoWay (DefnsF Set Name Name)
             allDependentsNames =
               zipDefnsWith
-                (\defns deps -> Map.foldMapWithKey (f deps) defns)
-                (\defns deps -> Map.foldMapWithKey (g deps) defns)
-                <$> ThreeWay.forgetLca blob.defnsById
+                (\defns deps -> Map.foldMapWithKey (f deps) (BiMultimap.domain defns))
+                (\defns deps -> Map.foldMapWithKey (g deps) (BiMultimap.domain defns))
+                <$> ((.defns) <$> ThreeWay.forgetLca blob.defns)
                 <*> dependentsIds
               where
                 f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
@@ -179,7 +176,7 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
         renderUnisonFiles
           authors
           blob.declNameLookups
-          blob.defnsByName
+          (bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns)
           hydratedDefnsByName
           libdepsNames
           conflictsNames
@@ -203,7 +200,7 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
             conflictsNames
             blob.unconflicts
             dependentsNames
-            blob.defnsByName.lca,
+            (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns),
         unconflicts = blob.unconflicts,
         uniqueTypeGuids =
           Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)

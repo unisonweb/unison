@@ -47,6 +47,7 @@ module Unison.Codebase
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
     expectBranchForHash,
+    expectBranchForHashTx,
     putBranch,
     SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
@@ -298,6 +299,13 @@ getBranchAtProjectPath codebase pp = runMaybeT do
 expectBranchForHash :: (Monad m) => Codebase m v a -> CausalHash -> m (Branch m)
 expectBranchForHash codebase hash =
   getBranchForHash codebase hash >>= \case
+    Just branch -> pure branch
+    Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
+
+-- | Like 'getBranchForHashTx', but for when the hash is known to be in the codebase.
+expectBranchForHashTx :: Codebase m v a -> CausalHash -> Sqlite.Transaction (Branch Sqlite.Transaction)
+expectBranchForHashTx codebase hash =
+  getBranchForHashTx codebase hash >>= \case
     Just branch -> pure branch
     Nothing -> error $ reportBug "E412939" ("expectBranchForHash: " ++ show hash ++ " not found in codebase")
 

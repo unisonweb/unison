@@ -3,10 +3,7 @@
 --
 -- This occurs in the `pull`, `merge`, `update`, and `upgrade` commands.
 module Unison.Cli.UpdateUtils
-  ( -- * Loading definitions
-    loadNamespaceDefinitions,
-
-    -- * Getting dependents in a namespace
+  ( -- * Getting dependents in a namespace
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
 
@@ -20,18 +17,12 @@ module Unison.Cli.UpdateUtils
 where
 
 import Control.Monad.Reader (ask)
-import Data.Bifoldable (bifold, bifoldMap)
+import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
-import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Set.NonEmpty (NESet)
-import Data.Set.NonEmpty qualified as Set.NonEmpty
-import U.Codebase.Branch qualified as V2
-import U.Codebase.Causal qualified
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
-import U.Codebase.Referent qualified as V2
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
@@ -40,15 +31,12 @@ import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
-import Unison.Name qualified as Name
-import Unison.NameSegment (NameSegment)
-import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference)
+import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -59,73 +47,14 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Conflicted (Conflicted (..))
-import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
 import Unison.Util.Map qualified as Map (thenInsertPair)
-import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Prelude hiding (unzip, zip, zipWith)
-
-------------------------------------------------------------------------------------------------------------------------
--- Loading definitions
-
--- Load all "namespace definitions" of a branch, which are all terms and type declarations *except* those defined
--- in the "lib" namespace.
---
--- Fails if there is a conflicted name.
-loadNamespaceDefinitions ::
-  forall m.
-  (Monad m) =>
-  (V2.Referent -> m Referent) ->
-  V2.Branch m ->
-  m
-    ( Either
-        (Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
-        (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
-    )
-loadNamespaceDefinitions referent2to1 =
-  fmap assertNamespaceHasNoConflictedNames . go (Map.delete NameSegment.libSegment)
-  where
-    go ::
-      (forall x. Map NameSegment x -> Map NameSegment x) ->
-      V2.Branch m ->
-      m (Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference))
-    go f branch = do
-      terms <- for branch.terms (fmap (Set.NonEmpty.fromList . List.NonEmpty.fromList) . traverse referent2to1 . Map.keys)
-      let types = Map.map (Set.NonEmpty.unsafeFromSet . Map.keysSet) branch.types
-      children <-
-        for (f branch.children) \childCausal -> do
-          child <- childCausal.value
-          go id child
-      pure Nametree {value = Defns {terms, types}, children}
-
--- | Assert that there are no unconflicted names in a namespace.
-assertNamespaceHasNoConflictedNames ::
-  Nametree (DefnsF2 (Map NameSegment) NESet Referent TypeReference) ->
-  Either
-    (Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
-    (Nametree (DefnsF (Map NameSegment) Referent TypeReference))
-assertNamespaceHasNoConflictedNames =
-  traverseNametreeWithName \segments defns -> do
-    let toName segment =
-          Name.fromReverseSegments (segment List.NonEmpty.:| segments)
-    terms <-
-      defns.terms & Map.traverseWithKey \segment ->
-        assertUnconflicted (TermDefn . Conflicted (toName segment))
-    types <-
-      defns.types & Map.traverseWithKey \segment ->
-        assertUnconflicted (TypeDefn . Conflicted (toName segment))
-    pure Defns {terms, types}
-  where
-    assertUnconflicted :: (NESet ref -> x) -> NESet ref -> Either x ref
-    assertUnconflicted conflicted refs
-      | Set.NonEmpty.size refs == 1 = Right (Set.NonEmpty.findMin refs)
-      | otherwise = Left (conflicted refs)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting dependents in a namespace

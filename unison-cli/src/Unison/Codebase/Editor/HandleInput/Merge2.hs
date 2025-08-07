@@ -49,10 +49,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
-import Unison.Cli.UpdateUtils
-  ( hydrateRefs,
-    loadNamespaceDefinitions,
-  )
+import Unison.Cli.UpdateUtils (hydrateRefs)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -72,6 +69,8 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
+import Unison.DeclCoherencyCheck (asOneRandomIncoherentDeclReason)
+import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
 import Unison.Merge.EitherWayI qualified as EitherWayI
@@ -79,8 +78,9 @@ import Unison.Merge.Synhashed qualified as Synhashed
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
+import Unison.Names (Names (..))
 import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude
 import Unison.Project
   ( ProjectAndBranch (..),
@@ -101,13 +101,11 @@ import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Conflicted (Conflicted)
-import Unison.Util.Defn (Defn)
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
-import Unison.Util.Map qualified as Map (fromSetA)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Nametree (Nametree (..))
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation qualified as Relation
 import Unison.WatchKind qualified as WatchKind
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
@@ -204,6 +202,16 @@ doMerge info = do
                   lca = info.lca.causalHash
                 }
 
+        branch1s <-
+          Cli.runTransaction do
+            traverse
+              (Codebase.expectBranchForHashTx env.codebase)
+              Merge.TwoOrThreeWay
+                { alice = info.alice.causalHash,
+                  bob = info.bob.causalHash,
+                  lca = info.lca.causalHash
+                }
+
         -- Load Alice/Bob/LCA branches
         branches <-
           Cli.runTransaction do
@@ -213,29 +221,49 @@ doMerge info = do
             pure Merge.TwoOrThreeWay {lca, alice, bob}
 
         -- Assert that neither Alice nor Bob have defns in lib
-        for_ [(mergeTarget, branches.alice), (mergeSource, branches.bob)] \(who, branch) -> do
-          whenM (Cli.runTransaction (hasDefnsInLib branch)) do
+        for_ [(mergeTarget, Branch.head branch1s.alice), (mergeSource, Branch.head branch1s.bob)] \(who, branch) -> do
+          when (Branch.hasDefnsInLib branch) do
             done (Output.MergeDefnsInLib who)
 
         -- Load Alice/Bob/LCA definitions
         --
         -- FIXME: Oops, if this fails due to a conflicted name, we don't actually say where the conflicted name came from.
         -- We should have a better error message (even though you can't do anything about conflicted names in the LCA).
-        nametrees3 :: Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)) <- do
-          let referent2to1 = Conversions.referent2to1 (Codebase.getDeclType env.codebase)
+        defns <- do
+          let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn "merge")
+          lca <-
+            case branch1s.lca of
+              Just lca -> asUnconflicted (Branch.head lca)
+              Nothing ->
+                pure
+                  Branch.UnconflictedBranchView
+                    { defns = Defns BiMultimap.empty BiMultimap.empty,
+                      nametree = Nametree (Defns Map.empty Map.empty) Map.empty,
+                      names = Names Relation.empty Relation.empty
+                    }
+          alice <- asUnconflicted (Branch.head branch1s.alice)
+          bob <- asUnconflicted (Branch.head branch1s.bob)
+          pure Merge.ThreeWay {lca, alice, bob}
+
+        declNameLookups <- do
           let action ::
-                (forall a. Defn (Conflicted Name Referent) (Conflicted Name TypeReference) -> Transaction a) ->
-                Transaction (Merge.ThreeWay (Nametree (DefnsF (Map NameSegment) Referent TypeReference)))
+                (forall a. Output -> Transaction a) ->
+                Transaction (Merge.GThreeWay PartialDeclNameLookup DeclNameLookup)
               action rollback = do
-                alice <- loadNamespaceDefinitions referent2to1 branches.alice & onLeftM rollback
-                bob <- loadNamespaceDefinitions referent2to1 branches.bob & onLeftM rollback
                 lca <-
-                  case branches.lca of
-                    Nothing -> pure Nametree {value = Defns Map.empty Map.empty, children = Map.empty}
-                    Just lca -> loadNamespaceDefinitions referent2to1 lca & onLeftM rollback
-                pure Merge.ThreeWay {alice, bob, lca}
-          Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))
-            & onLeftM (done . Output.ConflictedDefn "merge")
+                  case branch1s.lca of
+                    Just lca -> Codebase.getBranchPartialDeclNameLookup env.codebase (Branch.namespaceHash lca) defns.lca
+                    Nothing -> pure (PartialDeclNameLookup Map.empty Map.empty)
+                alice <-
+                  Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash branch1s.alice) defns.alice
+                    & onLeftM \reasons ->
+                      rollback (Output.IncoherentDeclDuringMerge mergeTarget (asOneRandomIncoherentDeclReason reasons))
+                bob <-
+                  Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash branch1s.bob) defns.bob
+                    & onLeftM \reasons ->
+                      rollback (Output.IncoherentDeclDuringMerge mergeSource (asOneRandomIncoherentDeclReason reasons))
+                pure Merge.GThreeWay {lca, alice, bob}
+          Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left)) & onLeftM done
 
         libdeps3 <- Cli.runTransaction (loadLibdeps branches)
 
@@ -269,14 +297,11 @@ doMerge info = do
                 debugLogDiffsFromLCA = liftIO . debugFunctions.debugDiffs,
                 debugLogDiff = liftIO . debugFunctions.debugCombinedDiff
               }
-            ( \refs ->
-                Cli.runTransaction do
-                  Map.fromSetA (Codebase.expectDeclNumConstructors env.codebase) refs
-            )
             hydrate
             names3
-            nametrees3
+            defns
             libdeps3
+            declNameLookups
             & onLeftM \case
               Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
               Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)

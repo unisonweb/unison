@@ -5,6 +5,7 @@ module Unison.Util.Star2
     fact,
     insertD1,
     insertD2,
+    isEmpty,
     deleteD1,
     deleteD2,
     deleteFact,
@@ -108,6 +109,10 @@ insertD2 (f, x) s =
     { fact = Set.insert f (fact s),
       d2 = R.insert f x (d2 s)
     }
+
+isEmpty :: Star2 fact d1 d2 -> Bool
+isEmpty =
+  Set.null . fact
 
 memberD1 :: (Ord fact, Ord d1) => (fact, d1) -> Star2 fact d1 d2 -> Bool
 memberD1 (f, x) s = R.member f x (d1 s)
