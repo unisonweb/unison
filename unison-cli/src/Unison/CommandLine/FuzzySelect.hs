@@ -25,7 +25,7 @@ import Unison.Util.Monoid qualified as Monoid
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Exception (bracket)
-import UnliftIO.IO (hGetBuffering, hSetBuffering, stdin)
+import UnliftIO.IO (Handle, hGetBuffering, hSetBuffering, stdin)
 import UnliftIO.Process qualified as Proc
 
 -- | An environment variable that can be set to override the default fzf executable.
@@ -104,7 +104,7 @@ fuzzySelect opts selections =
           let searchTexts :: [Text] =
                 (\(n, ch) -> tShow (n) <> " " <> intoSearchText ch) <$> numberedChoices
 
-          result <- fzfWithChoices fzfPath fzfArgs searchTexts
+          result <- lift $ fzfWithChoices fzfPath fzfArgs searchTexts
           -- Since we prefixed every search term with its number earlier, we know each result
           -- is prefixed with a number, we need to parse it and use it to select the matching
           -- value from our input list.
@@ -121,18 +121,10 @@ fuzzySelect opts selections =
                 & Just
         SelectFiles -> do
           let fzfArgs :: [String] = optsToArgs opts False
-          eitherToMaybe <$> fzfFileSelector fzfPath fzfArgs
+          eitherToMaybe <$> (lift $ fzfFileSelector fzfPath fzfArgs)
   where
-    fzfWithChoices :: FilePath -> [String] -> [Text] -> ExceptT Text IO (Either SomeException [Text])
-    fzfWithChoices fzfPath fzfArgs searchTexts = do
-      (inputReadHandle, inputWriteHandle) <- liftIO Proc.createPipe
-      (outputReadHandle, outputWriteHandle) <- liftIO Proc.createPipe
-      -- Generally no-buffering is helpful for highly interactive processes.
-      hSetBuffering stdin UnliftIO.NoBuffering
-      hSetBuffering inputWriteHandle UnliftIO.NoBuffering
-      hSetBuffering inputReadHandle UnliftIO.NoBuffering
-      hSetBuffering outputWriteHandle UnliftIO.NoBuffering
-      hSetBuffering outputReadHandle UnliftIO.NoBuffering
+    fzfWithChoices :: FilePath -> [String] -> [Text] -> IO (Either SomeException [Text])
+    fzfWithChoices fzfPath fzfArgs searchTexts = withHandles \((inputReadHandle, inputWriteHandle), (outputReadHandle, outputWriteHandle)) -> do
       let fzfProc :: Proc.CreateProcess =
             (Proc.proc fzfPath fzfArgs)
               { Proc.std_in = Proc.UseHandle inputReadHandle,
@@ -143,22 +135,24 @@ fuzzySelect opts selections =
       liftIO . UnliftIO.tryAny $ do
         -- Dump the search terms into fzf's stdin
         traverse_ (Text.hPutStrLn inputWriteHandle) searchTexts
+        UnliftIO.hClose inputWriteHandle
         void $ Proc.waitForProcess procHandle
         Text.lines <$> liftIO (Text.hGetContents outputReadHandle)
-    fzfFileSelector :: FilePath -> [String] -> ExceptT Text IO (Either SomeException [Text])
-    fzfFileSelector fzfPath fzfArgs = do
+    fzfFileSelector :: FilePath -> [String] -> IO (Either SomeException [Text])
+    fzfFileSelector fzfPath fzfArgs = withHandles \((inputReadHandle, inputWriteHandle), (outputReadHandle, outputWriteHandle)) -> do
+      UnliftIO.hClose inputWriteHandle
       let fzfProc :: Proc.CreateProcess =
             (Proc.proc fzfPath fzfArgs)
-              { Proc.std_in = Proc.Inherit,
-                Proc.std_out = Proc.CreatePipe,
+              { Proc.std_in = Proc.UseHandle inputReadHandle,
+                Proc.std_out = Proc.UseHandle outputWriteHandle,
                 Proc.delegate_ctlc = True
               }
-      (_stdin', Just stdout', _, procHandle) <- Proc.createProcess fzfProc
+      (_stdin, _stdout, _, procHandle) <- Proc.createProcess fzfProc
       -- Generally no-buffering is helpful for highly interactive processes.
       hSetBuffering stdin NoBuffering
       liftIO . UnliftIO.tryAny $ do
         void $ Proc.waitForProcess procHandle
-        Text.lines <$> liftIO (Text.hGetContents stdout')
+        Text.lines <$> liftIO (Text.hGetContents outputReadHandle)
     handleException :: SomeException -> IO (Maybe [a])
     handleException err = traceShowM err *> hPutStrLn stderr "Oops, something went wrong. No input selected." *> pure Nothing
     handleError :: IO (Either Text (Maybe [a])) -> IO (Maybe [a])
@@ -169,3 +163,19 @@ fuzzySelect opts selections =
     restoreBuffering :: IO c -> IO c
     restoreBuffering action =
       bracket (hGetBuffering stdin) (hSetBuffering stdin) (const action)
+    withHandles :: (((Handle, Handle), (Handle, Handle)) -> IO r) -> IO r
+    withHandles action = do
+      let acquire = do
+            (inputReadHandle, inputWriteHandle) <- Proc.createPipe
+            (outputReadHandle, outputWriteHandle) <- Proc.createPipe
+            hSetBuffering inputWriteHandle UnliftIO.NoBuffering
+            hSetBuffering inputReadHandle UnliftIO.NoBuffering
+            hSetBuffering outputWriteHandle UnliftIO.NoBuffering
+            hSetBuffering outputReadHandle UnliftIO.NoBuffering
+            pure ((inputReadHandle, inputWriteHandle), (outputReadHandle, outputWriteHandle))
+      let cleanup ((inputReadHandle, inputWriteHandle), (outputReadHandle, outputWriteHandle)) = do
+            UnliftIO.hClose inputReadHandle
+            UnliftIO.hClose inputWriteHandle
+            UnliftIO.hClose outputReadHandle
+            UnliftIO.hClose outputWriteHandle
+      UnliftIO.bracket acquire cleanup action
