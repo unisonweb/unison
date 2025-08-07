@@ -12,8 +12,8 @@ gen seed k =
   a = 6364136223846793005
   (mod seed k, a * seed + c)
 
-shuffle : Nat -> [a] -> [a]
-shuffle =
+shuffle0 : Nat -> [a] -> [a]
+shuffle0 =
   pick acc seed = cases
     l | lteq (List.size l) 1 -> acc ++ l
       | otherwise -> match gen seed (size l) with
@@ -23,43 +23,49 @@ shuffle =
 
   pick []
 
-runTestCase : Text ->{Exception,IO} (Text, Test.Result)
+shuffle : [a] -> [a]
+shuffle xs = shuffle0 (toRepresentation !systemTimeMicroseconds) xs
+
+collectFailures : Text -> Nat -> Text ->{Exception, IO} [Text]
+collectFailures name version target =
+  vname = name ++ ".v" ++ toText version
+  sfile = directory ++ vname ++ ".ser"
+  hfile = directory ++ vname ++ ".hash"
+
+  Stream.toList do
+    when (fileExists sfile) do
+      p@(f, i) = loadSelfContained sfile
+      when (not (f i == target)) do
+        emit (vname ++ " output mismatch")
+      when (fileExists hfile) do
+        h = readFile hfile
+        when (not (h == toBase32 (crypto.hash Sha3_512 p))) do
+          emit (vname ++ " hash mismatch")
+
+runTestCase : Text ->{Exception,IO} (Text, [Test.Result])
 runTestCase name =
-  sfile = directory ++ name ++ ".v4.ser"
-  ls3file = directory ++ name ++ ".v3.ser"
   ofile = directory ++ name ++ ".out"
-  hfile = directory ++ name ++ ".v4.hash"
-  s5file = directory ++ name ++ ".v5.ser"
 
-  p@(f, i) = loadSelfContained sfile
-  pl3@(fl3, il3) =
-    if fileExists ls3file
-    then loadSelfContained ls3file
-    else p
-  p5@(f5, i5) =
-    if fileExists s5file
-    then loadSelfContained s5file
-    else p
-  o = fromUtf8 (readFile ofile)
-  h = readFile hfile
+  target = fromUtf8 (readFile ofile)
 
-  result =
-    if not (f i == o)
-    then Fail (name ++ " output mismatch")
-    else if not (toBase32 (crypto.hash Sha3_512 p) == h)
-    then Fail (name ++ " hash mismatch")
-    else if not (fl3 il3 == f i)
-    then Fail (name ++ " legacy v3 mismatch")
-    else if not (f5 i5 == f i)
-    then Fail (name ++ " v5 mismatch")
-    else Ok name
-  (name, result)
+  test : Nat -> (Nat, [Text])
+  test ver = (ver, collectFailures name ver target)
+
+  failures : [(Nat,[Text])]
+  failures = bSort (List.map test (shuffle [3, 4, 5]))
+
+  result : (Nat, [Text]) -> [Test.Result]
+  result = cases
+    (ver, []) -> [Ok (name ++ " v" ++ toText ver)]
+    (_, fails) -> List.map Fail fails
+
+  (name, foldMap result failures)
 
 serialTests : '{IO,Exception} [Test.Result]
 serialTests = do
   l = !availableCases
-  cs = shuffle (toRepresentation !systemTimeMicroseconds) l
-  List.map snd (bSort (List.map runTestCase cs))
+  cs = shuffle l
+  List.foldMap snd (bSort (List.map runTestCase cs))
 ```
 
 ``` ucm
