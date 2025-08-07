@@ -10,6 +10,7 @@ module Unison.ReferentPrime
 
     -- * Lenses
     reference_,
+    termReference_,
 
     -- * Conversions
     toReference',
@@ -18,7 +19,7 @@ module Unison.ReferentPrime
   )
 where
 
-import Control.Lens (Lens, lens)
+import Control.Lens (Lens, Prism', lens, prism)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
@@ -44,6 +45,13 @@ reference_ =
     case rt of
       Ref' _ -> Ref' rc
       Con' (ConstructorReference _ cid) ct -> Con' (ConstructorReference rc cid) ct
+
+-- | A prism onto the term reference in a referent.
+termReference_ :: Prism' (Referent' r) r
+termReference_ =
+  prism Ref' \case
+    Ref' r -> Right r
+    Con' r t -> Left (Con' r t)
 
 isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True

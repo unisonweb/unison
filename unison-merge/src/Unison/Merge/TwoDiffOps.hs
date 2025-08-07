@@ -8,7 +8,7 @@ import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
-import Unison.Merge.Updated (Updated (..))
+import Unison.Merge.Updated (GUpdated (..), Updated)
 
 data TwoDiffOps a
   = TwoDiffOps'Add !(EitherWay a)

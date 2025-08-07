@@ -8,6 +8,7 @@ module Unison.Merge.TwoWay
     swap,
     twoWay,
     unzipMap,
+    updatedToThreeWay,
     who_,
   )
 where
@@ -18,6 +19,8 @@ import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (These))
 import Data.Zip (Unzip, Zip, unzipWith, zipWith)
 import Unison.Merge.EitherWay (EitherWay (..))
+import Unison.Merge.Internal.Types (ThreeWay (..))
+import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Prelude
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Prelude hiding (or, zipWith)
@@ -83,6 +86,14 @@ twoWay f TwoWay {alice, bob} =
 unzipMap :: (Ord k) => Map k (TwoWay v) -> TwoWay (Map k v)
 unzipMap =
   fromPair . unzipWith (\TwoWay {alice, bob} -> (alice, bob))
+
+updatedToThreeWay :: (Semigroup a) => TwoWay (Updated a) -> ThreeWay a
+updatedToThreeWay TwoWay {alice, bob} =
+  ThreeWay
+    { lca = alice.old <> bob.old,
+      alice = alice.new,
+      bob = bob.new
+    }
 
 who_ :: EitherWay x -> Lens' (TwoWay a) a
 who_ = \case

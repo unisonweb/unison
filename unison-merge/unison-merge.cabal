@@ -19,6 +19,7 @@ library
   exposed-modules:
       Unison.Merge
       Unison.Merge.CombineDiffs
+      Unison.Merge.DeclNameLookups
       Unison.Merge.Diff
       Unison.Merge.DiffOp
       Unison.Merge.EitherWay
@@ -33,8 +34,10 @@ library
       Unison.Merge.Mergeblob3
       Unison.Merge.Mergeblob4
       Unison.Merge.Mergeblob5
+      Unison.Merge.Narrow
       Unison.Merge.PartitionCombinedDiffs
       Unison.Merge.Rename
+      Unison.Merge.Render
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay
@@ -90,6 +93,7 @@ library
     , semigroups
     , text
     , these
+    , transformers
     , unison-core
     , unison-core1
     , unison-hash

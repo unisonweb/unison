@@ -13,6 +13,7 @@ dependencies:
   - semigroups
   - text
   - these
+  - transformers
   - unison-core
   - unison-core1
   - unison-hash

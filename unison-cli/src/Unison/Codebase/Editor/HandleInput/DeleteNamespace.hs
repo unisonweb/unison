@@ -25,7 +25,7 @@ import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Referent qualified as Referent
 import Unison.Sqlite qualified as Sqlite
 

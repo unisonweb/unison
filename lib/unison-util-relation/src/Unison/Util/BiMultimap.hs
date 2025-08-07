@@ -167,6 +167,7 @@ withoutRan :: (Ord a, Ord b) => Set b -> BiMultimap a b -> BiMultimap a b
 withoutRan ys m =
   fromRange (Map.withoutKeys (range m) ys)
 
+-- | /O(1)/.
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap
 

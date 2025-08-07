@@ -29,7 +29,12 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (getNamespaceDependentsOf2, hydrateDefns, parseAndTypecheck)
+import Unison.Cli.UpdateUtils
+  ( getNamespaceDependentsOf2,
+    hydrateRefs,
+    nameHydratedRefIds,
+    parseAndTypecheck,
+  )
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -59,7 +64,6 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
@@ -144,10 +148,14 @@ handleUpdate2 = do
 
             -- Hydrate the dependents for rendering
             hydratedDependents <-
-              hydrateDefns
-                (Codebase.unsafeGetTermComponent env.codebase)
-                Operations.expectDeclComponent
-                dependents1
+              let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
+                  dependentsRefs =
+                    bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents1
+               in nameHydratedRefIds dependents1
+                    <$> hydrateRefs
+                      (Codebase.unsafeGetTermComponent env.codebase)
+                      Operations.expectDeclComponent
+                      dependentsRefs
 
             pure (dependents1, hydratedDependents)
 

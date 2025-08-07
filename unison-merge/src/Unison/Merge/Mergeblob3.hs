@@ -37,7 +37,7 @@ import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -63,12 +63,11 @@ data Mergeblob3 = Mergeblob3
 
 makeMergeblob3 ::
   Mergeblob2 libdep ->
-  TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
   Names ->
   Names ->
   TwoWay Text ->
   Mergeblob3
-makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
+makeMergeblob3 blob libdeps lcaLibdeps authors =
   let -- Project out just the name->ref mapping of defns, since we need it a few times
       defnsByName :: ThreeWay (DefnsF (Map Name) Referent TypeReference)
       defnsByName =
@@ -85,7 +84,7 @@ makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
           (\defns deps -> Map.foldMapWithKey (f deps) (BiMultimap.domain defns))
           (\defns deps -> Map.foldMapWithKey (g deps) (BiMultimap.domain defns))
           <$> ThreeWay.forgetLca blob.defns
-          <*> dependentsIds
+          <*> blob.dependents
         where
           f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
           f deps defn0 names
@@ -118,8 +117,8 @@ makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
       renderedDependents :: TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText))
       (renderedConflicts, renderedDependents) =
         renderConflictsAndDependents
-          blob.declNameLookups
-          (ThreeWay.forgetLca blob.hydratedDefns)
+          (ThreeWay.gforgetLca blob.declNameLookups)
+          (ThreeWay.forgetLca wundefined {-blob.hydratedDefns-})
           conflictsNames
           dependents
           ppe
@@ -127,14 +126,20 @@ makeMergeblob3 blob dependentsIds libdeps lcaLibdeps authors =
       renderedLcaConflicts :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
       renderedLcaConflicts =
         renderLcaConflicts
-          blob.lcaDeclNameLookup
-          blob.hydratedDefns.lca
+          blob.declNameLookups.lca
+          wundefined {-blob.hydratedDefns.lca-}
           conflictsNames
           ppe
    in Mergeblob3
         { libdeps,
-          stageOne = makeStageOne blob.declNameLookups conflictsNames blob.unconflicts dependents defnsByName.lca,
-          uniqueTypeGuids = makeUniqueTypeGuids (ThreeWay.forgetLca blob.hydratedDefns),
+          stageOne =
+            makeStageOne
+              (ThreeWay.gforgetLca blob.declNameLookups)
+              conflictsNames
+              blob.unconflicts
+              dependents
+              defnsByName.lca,
+          uniqueTypeGuids = makeUniqueTypeGuids (ThreeWay.forgetLca wundefined {-blob.hydratedDefns-}),
           unparsedFile = makePrettyUnisonFile authors renderedConflicts renderedDependents,
           unparsedSoloFiles =
             ThreeWay

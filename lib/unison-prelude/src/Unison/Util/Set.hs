@@ -1,6 +1,9 @@
 module Unison.Util.Set
   ( asSingleton,
     difference1,
+    differenceMap,
+    foldCommutativeM,
+    insertMaybe,
     intersects,
     mapMaybe,
     symmetricDifference,
@@ -9,14 +12,19 @@ module Unison.Util.Set
     flatMap,
     filterM,
     forMaybe,
+    thenInsert,
+    thenInsertMaybe,
   )
 where
 
 import Data.Function ((&))
 import Data.Functor ((<&>))
+import Data.Map.Internal qualified as Map.Internal (Map (..))
+import Data.Map.Strict (Map)
 import Data.Maybe qualified as Maybe
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Set.Internal qualified as Set.Internal (Set (..), merge)
 import Unison.Util.Monoid (foldMapM)
 
 -- | Get the only member of a set, iff it's a singleton.
@@ -30,6 +38,36 @@ difference1 xs ys =
   if null zs then Nothing else Just zs
   where
     zs = Set.difference xs ys
+
+-- | Like 'Set.difference', but the second argument is a map.
+differenceMap :: (Ord k) => Set k -> Map k a -> Set k
+differenceMap Set.Internal.Tip _ = Set.Internal.Tip
+differenceMap x Map.Internal.Tip = x
+differenceMap x (Map.Internal.Bin _ k _ yl yr)
+  | Set.size zl + Set.size zr == Set.size x = x
+  | otherwise = Set.Internal.merge zl zr
+  where
+    (xl, xr) = Set.split k x
+    !zl = differenceMap xl yl
+    !zr = differenceMap xr yr
+
+-- | Fold a set strictly with a monadic "commutative" combining function that doesn't receive the elements in any
+-- particular order.
+foldCommutativeM :: (Monad m) => (a -> b -> m b) -> b -> Set a -> m b
+foldCommutativeM f =
+  let go !acc = \case
+        Set.Internal.Bin _ x l r : xs -> do
+          !acc1 <- f x acc
+          go acc1 (l : r : xs)
+        Set.Internal.Tip : xs -> go acc xs
+        [] -> pure acc
+   in \z xs -> go z [xs]
+
+insertMaybe :: (Ord a) => Maybe a -> Set a -> Set a
+insertMaybe mx xs =
+  case mx of
+    Just x -> Set.insert x xs
+    Nothing -> xs
 
 -- | Get whether two sets intersect.
 intersects :: (Ord a) => Set a -> Set a -> Bool
@@ -64,3 +102,12 @@ filterM p =
     p x <&> \case
       False -> Set.empty
       True -> Set.singleton x
+
+thenInsert :: (Ord a) => Set a -> a -> Set a
+thenInsert xs x =
+  Set.insert x xs
+
+thenInsertMaybe :: (Ord a) => Set a -> Maybe a -> Set a
+thenInsertMaybe xs = \case
+  Just x -> Set.insert x xs
+  Nothing -> xs

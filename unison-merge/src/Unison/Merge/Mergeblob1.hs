@@ -10,25 +10,25 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Unison.DataDeclaration (Decl)
-import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DataDeclaration.Dependencies qualified as Decl
-import Unison.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
+import Unison.DeclCoherencyCheck (IncoherentDeclReason, lenientCheckDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
-import Unison.Merge.Diff (diffSynhashedDefns, humanizeDiffs, synhashDefns)
+import Unison.Merge.Diff (diffSynhashedDefns, diffSynhashedDefns', humanizeDiffs, synhashDefns)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
 import Unison.Merge.Mergeblob0 (Mergeblob0 (..))
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
-import Unison.Merge.Rename (Rename, SimpleRenames, makeRenames, makeSimpleRenames)
+import Unison.Merge.Rename (Rename, SimpleRenames, makeRenames, makeRenames', makeSimpleRenames)
 import Unison.Merge.Synhashed (Synhashed (..))
-import Unison.Merge.ThreeWay (ThreeWay)
+import Unison.Merge.ThreeWay (GThreeWay, ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Unconflicts (Unconflicts)
+import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -37,7 +37,6 @@ import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -49,10 +48,11 @@ import Unison.Type qualified as Type
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3)
+import Unison.Util.Nametree (Nametree)
 
 data Mergeblob1 libdep = Mergeblob1
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
-    declNameLookups :: TwoWay DeclNameLookup,
+    declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
     defns :: ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
     diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
@@ -64,7 +64,6 @@ data Mergeblob1 libdep = Mergeblob1
             (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
             (TypeReferenceId, Decl Symbol Ann)
         ),
-    lcaDeclNameLookup :: PartialDeclNameLookup,
     lcaLibdeps :: Map NameSegment libdep,
     libdeps :: Map NameSegment libdep,
     libdepsDiffs :: TwoWay (Map NameSegment (DiffOp libdep)),
@@ -101,8 +100,9 @@ hydratedDefnsLabeledDependencies defns =
 makeMergeblob1 ::
   forall libdep.
   (Eq libdep) =>
-  Mergeblob0 libdep ->
   ThreeWay Names {- Names for _at least_ every reference in 'hydratedDefnDependencies' -} ->
+  Mergeblob0 libdep ->
+  ThreeWay (Map NameSegment libdep) ->
   ThreeWay
     ( DefnsF
         (Map Name)
@@ -110,61 +110,16 @@ makeMergeblob1 ::
         (TypeReferenceId, Decl Symbol Ann)
     ) ->
   Either (EitherWay IncoherentDeclReason) (Mergeblob1 libdep)
-makeMergeblob1 blob names3 hydratedDefns = do
-  let ppeds3 :: ThreeWay PPED.PrettyPrintEnvDecl
-      ppeds3 = names3 <&> \names -> PPED.makePPED (PPE.namer names) (PPE.suffixifyByHash names)
-  -- Make one big constructor count lookup for all type decls
-  let numConstructors =
-        Map.empty
-          & f (Map.elems hydratedDefns.alice.types)
-          & f (Map.elems hydratedDefns.bob.types)
-          & f (Map.elems hydratedDefns.lca.types)
-        where
-          f :: [(TypeReferenceId, Decl Symbol Ann)] -> Map TypeReferenceId Int -> Map TypeReferenceId Int
-          f types acc =
-            List.foldl'
-              ( \acc (ref, decl) ->
-                  Map.insert ref (DataDeclaration.constructorCount (DataDeclaration.asDataDecl decl)) acc
-              )
-              acc
-              types
-
-  -- Make Alice/Bob decl name lookups, which can fail if either have an incoherent decl
-  declNameLookups <- do
-    alice <- checkDeclCoherency blob.nametrees.alice numConstructors & mapLeft Alice
-    bob <- checkDeclCoherency blob.nametrees.bob numConstructors & mapLeft Bob
-    pure TwoWay {alice, bob}
-
-  -- Make LCA decl name lookup
-  let lcaDeclNameLookup =
-        lenientCheckDeclCoherency blob.nametrees.lca numConstructors
-
-  -- Synhash all the defns
-  let synhashedDefns =
-        synhashDefns
-          (declNameLookups, lcaDeclNameLookup)
-          ppeds3
-          (bimap BiMultimap.range BiMultimap.range <$> blob.defns)
-          Defns
-            { terms =
-                foldMap
-                  (List.foldl' (\acc (ref, (term, _)) -> Map.insert ref term acc) Map.empty . Map.elems . (.terms))
-                  hydratedDefns,
-              types =
-                foldMap
-                  (List.foldl' (\acc (ref, typ) -> Map.insert ref typ acc) Map.empty . Map.elems . (.types))
-                  hydratedDefns
-            }
-
+makeMergeblob1 names3 blob libdeps3 hydratedDefns = do
   let renames =
-        makeRenames (bimap BiMultimap.fromRange BiMultimap.fromRange <$> synhashedDefns)
+        makeRenames' . Updated.map (bimap BiMultimap.fromRange BiMultimap.fromRange) <$> wundefined -- blob.synhashedDefns
 
   let simpleRenames =
         makeSimpleRenames <$> renames
 
   -- Diff LCA->Alice and LCA->Bob
   let (diffsFromLCA, propagatedUpdates) =
-        diffSynhashedDefns synhashedDefns
+        diffSynhashedDefns' wundefined -- blob.synhashedDefns
 
   -- Combine the LCA->Alice and LCA->Bob diffs together
   let diff =
@@ -175,28 +130,27 @@ makeMergeblob1 blob names3 hydratedDefns = do
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
-        partitionCombinedDiffs (ThreeWay.forgetLca blob.defns) declNameLookups diff
+        partitionCombinedDiffs (ThreeWay.forgetLca blob.defns) (ThreeWay.gforgetLca blob.declNameLookups) diff
 
   -- Diff and merge libdeps
   let libdepsDiffs :: TwoWay (Map NameSegment (DiffOp libdep))
       libdepsDiffs =
-        diffLibdeps blob.libdeps
+        diffLibdeps libdeps3
 
   let libdeps :: Map NameSegment libdep
       libdeps =
-        applyLibdepsDiff getTwoFreshLibdepNames blob.libdeps (mergeLibdepsDiffs libdepsDiffs)
+        applyLibdepsDiff getTwoFreshLibdepNames libdeps3 (mergeLibdepsDiffs libdepsDiffs)
 
   pure
     Mergeblob1
       { conflicts,
-        declNameLookups,
+        declNameLookups = blob.declNameLookups,
         defns = blob.defns,
         diff,
         diffsFromLCA,
         humanDiffsFromLCA,
         hydratedDefns,
-        lcaDeclNameLookup,
-        lcaLibdeps = blob.libdeps.lca,
+        lcaLibdeps = libdeps3.lca,
         libdeps,
         libdepsDiffs,
         renames,

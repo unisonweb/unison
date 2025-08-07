@@ -49,9 +49,7 @@ import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -98,7 +96,7 @@ loadUnisonFile sourceName text = do
   unisonFile <- parseAndTypecheckUnisonFile oldNames sourceName text
   let sr = Slurp.slurpFile unisonFile mempty Slurp.CheckOp oldNames
   let newNames = UF.addNamesFromTypeCheckedUnisonFile unisonFile oldNames
-  let newPpe = PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
+  let newPpe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
   if useUpdateV2
     then do
       pp <- Cli.getCurrentProjectPath
@@ -221,7 +219,7 @@ loadUnisonFile sourceName text = do
 
           let updateBranchParentNames = Branch.toNames updateBranchParent0
           let oldPpe =
-                PPE.suffixifiedPPE $
+                PPED.suffixifiedPPE $
                   PPED.makePPED
                     (PPE.hqNamer 10 updateBranchParentNames)
                     (PPE.suffixifyByHash updateBranchParentNames)

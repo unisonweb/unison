@@ -9,10 +9,10 @@ module Unison.Cli.UpdateUtils
     -- * Getting dependents in a namespace
     getNamespaceDependentsOf,
     getNamespaceDependentsOf2,
-    getNamespaceDependentsOf3,
 
     -- * Hydrating definitions
-    hydrateDefns,
+    hydrateRefs,
+    nameHydratedRefIds,
 
     -- * Parsing and typechecking
     parseAndTypecheck,
@@ -22,7 +22,6 @@ where
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifold, bifoldMap)
 import Data.Bitraversable (bitraverse)
-import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
@@ -62,7 +61,8 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, zipDefnsWith)
+import Unison.Util.Map qualified as Map (thenInsertPair)
 import Unison.Util.Nametree (Nametree (..), traverseNametreeWithName)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -171,65 +171,55 @@ getNamespaceDependentsOf2 defns dependencies = do
       let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 
--- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
--- (transitive) dependents of the dependencies.
-getNamespaceDependentsOf3 ::
-  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  DefnsF Set TermReference TypeReference ->
-  Transaction (DefnsF Set TermReferenceId TypeReferenceId)
-getNamespaceDependentsOf3 defns dependencies = do
-  let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
-  let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
-  let scope = bifoldMap toTermScope toTypeScope defns
-  Operations.transitiveDependentsWithinScope scope (bifold dependencies)
+-- -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
+-- -- (transitive) dependents of the dependencies.
+-- getNamespaceDependentsOf3 ::
+--   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+--   DefnsF Set TermReference TypeReference ->
+--   Transaction (DefnsF Set TermReferenceId TypeReferenceId)
+-- getNamespaceDependentsOf3 defns dependencies = do
+--   let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
+--   let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
+--   let scope = bifoldMap toTermScope toTypeScope defns
+--   Operations.transitiveDependentsWithinScope scope (bifold dependencies)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Hydrating definitions
 
 -- | Hydrate term/type references to actual terms/types.
-hydrateDefns ::
-  forall m name term typ.
-  (Monad m, Ord name) =>
+hydrateRefs ::
+  (Monad m) =>
   (Hash -> m [term]) ->
   (Hash -> m [typ]) ->
+  DefnsF Set TermReferenceId TypeReferenceId ->
+  m (Defns (Map TermReferenceId term) (Map TypeReferenceId typ))
+hydrateRefs getTermComponent getTypeComponent =
+  bitraverse (hydrateRefs1 getTermComponent) (hydrateRefs1 getTypeComponent)
+
+hydrateRefs1 ::
+  forall defn m.
+  (Monad m) =>
+  (Hash -> m [defn]) ->
+  Set Reference.Id ->
+  m (Map Reference.Id defn)
+hydrateRefs1 getComponent =
+  Set.foldCommutativeM f Map.empty . Set.map Reference.idToHash
+  where
+    f :: Hash -> Map Reference.Id defn -> m (Map Reference.Id defn)
+    f hash acc =
+      List.foldl' Map.thenInsertPair acc . Reference.componentFor hash <$> getComponent hash
+
+-- | Associate names with hydrated terms/types.
+nameHydratedRefIds ::
   DefnsF (Map name) TermReferenceId TypeReferenceId ->
-  m (DefnsF (Map name) (TermReferenceId, term) (TypeReferenceId, typ))
-hydrateDefns getTermComponent getTypeComponent = do
-  bitraverse hydrateTerms hydrateTypes
+  Defns (Map TermReferenceId term) (Map TypeReferenceId typ) ->
+  DefnsF (Map name) (TermReferenceId, term) (TypeReferenceId, typ)
+nameHydratedRefIds =
+  zipDefnsWith f f
   where
-    hydrateTerms :: Map name TermReferenceId -> m (Map name (TermReferenceId, term))
-    hydrateTerms terms =
-      hydrateDefns_ getTermComponent terms \_ -> (,)
-
-    hydrateTypes :: Map name TypeReferenceId -> m (Map name (TypeReferenceId, typ))
-    hydrateTypes types =
-      hydrateDefns_ getTypeComponent types \_ -> (,)
-
-hydrateDefns_ ::
-  forall a b name m.
-  (Monad m, Ord name) =>
-  (Hash -> m [a]) ->
-  Map name Reference.Id ->
-  (name -> Reference.Id -> a -> b) ->
-  m (Map name b)
-hydrateDefns_ getComponent defns modify =
-  Foldable.foldlM f Map.empty (foldMap (Set.singleton . Reference.idToHash) defns)
-  where
-    f :: Map name b -> Hash -> m (Map name b)
-    f acc hash =
-      List.foldl' g acc . Reference.componentFor hash <$> getComponent hash
-
-    g :: Map name b -> (Reference.Id, a) -> Map name b
-    g acc (ref, thing) =
-      Set.foldl' (h ref thing) acc (BiMultimap.lookupDom ref defns2)
-
-    h :: Reference.Id -> a -> Map name b -> name -> Map name b
-    h ref thing acc name =
-      Map.insert name (modify name ref thing) acc
-
-    defns2 :: BiMultimap Reference.Id name
-    defns2 =
-      BiMultimap.fromRange defns
+    f :: Map name Reference.Id -> Map Reference.Id defn -> Map name (Reference.Id, defn)
+    f nameToRef refToDefn =
+      Map.mapMaybe (\ref -> (ref,) <$> Map.lookup ref refToDefn) nameToRef
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Parsing and typechecking

@@ -12,6 +12,7 @@ module Unison.Util.Defns
     fromTypes,
     hoistDefnsF,
     mapDefns,
+    toPair,
     unzipDefns,
     unzipDefnsWith,
     zipDefns,
@@ -87,6 +88,10 @@ fromTypes types =
 hoistDefnsF :: (forall x. f x -> g x) -> DefnsF f a b -> DefnsF g a b
 hoistDefnsF f (Defns x y) =
   Defns (f x) (f y)
+
+toPair :: Defns a b -> (a, b)
+toPair (Defns x y) =
+  (x, y)
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =

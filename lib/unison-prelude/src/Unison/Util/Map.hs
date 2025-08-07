@@ -7,14 +7,18 @@ module Unison.Util.Map
     deleteLookup,
     deleteLookupJust,
     elemsSet,
+    foldKeysCommutative,
+    foldValuesCommutative,
     foldM,
     foldMapM,
     for_,
+    fromSetA,
     insertLookup,
     invert,
     mergeMap,
     unionWithM,
     remap,
+    thenInsertPair,
     traverseKeys,
     traverseKeysWith,
     swap,
@@ -35,6 +39,7 @@ import Data.Map.Internal qualified as Map (Map (Bin, Tip))
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Set.Internal qualified as Set (Set (..))
 import Data.These (These (..))
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
@@ -117,6 +122,26 @@ elemsSet :: (Ord v) => Map k v -> Set v
 elemsSet =
   Set.fromList . Map.elems
 
+-- | Fold the keys of a map strictly with a "commutative" combining function that doesn't receive the elements in any
+-- particular order.
+foldKeysCommutative :: (k -> acc -> acc) -> acc -> Map k v -> acc
+foldKeysCommutative f =
+  let go !acc = \case
+        Map.Bin _ k _ l r : xs -> go (f k acc) (l : r : xs)
+        Map.Tip : xs -> go acc xs
+        [] -> acc
+   in \z xs -> go z [xs]
+
+-- | Fold the values of a map strictly with a "commutative" combining function that doesn't receive the elements in any
+-- particular order.
+foldValuesCommutative :: (v -> acc -> acc) -> acc -> Map k v -> acc
+foldValuesCommutative f =
+  let go !acc = \case
+        Map.Bin _ _ v l r : xs -> go (f v acc) (l : r : xs)
+        Map.Tip : xs -> go acc xs
+        [] -> acc
+   in \z xs -> go z [xs]
+
 -- | Like 'Map.foldlWithKey'', but with a monadic accumulator.
 foldM :: (Monad m) => (acc -> k -> v -> m acc) -> acc -> Map k v -> m acc
 foldM f acc0 =
@@ -152,6 +177,15 @@ for_ m f =
         f k v
         go ys
 
+-- | Like 'Map.fromSet', but in an applicative functor.
+fromSetA :: (Applicative m) => (k -> m a) -> Set k -> m (Map k a)
+fromSetA f =
+  go
+  where
+    go = \case
+      Set.Tip -> pure Map.Tip
+      Set.Bin n k l r -> (\v l' r' -> Map.Bin n k v l' r') <$> f k <*> go l <*> go r
+
 unionWithM ::
   forall m k a.
   (Monad m, Ord k) =>
@@ -175,6 +209,11 @@ unionWithM f m1 m2 =
 remap :: (Ord k1) => ((k0, v0) -> (k1, v1)) -> Map k0 v0 -> Map k1 v1
 remap f =
   Map.fromList . map f . Map.toList
+
+-- | Insert a pair in postfix-style.
+thenInsertPair :: (Ord k) => Map k v -> (k, v) -> Map k v
+thenInsertPair m (k, v) =
+  Map.insert k v m
 
 traverseKeys :: (Applicative f, Ord k') => (k -> f k') -> Map k v -> f (Map k' v)
 traverseKeys f = bitraverse f pure

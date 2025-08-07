@@ -4,8 +4,12 @@ module Unison.Merge.Mergeblob4
   )
 where
 
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
-import Unison.Merge.Mergeblob3 (Mergeblob3 (..))
+import Unison.Merge.Mergeblob2 (Mergeblob2 (..))
+import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.Updated (GUpdated (..))
+import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
@@ -25,10 +29,20 @@ data Mergeblob4 = Mergeblob4
     file :: UnisonFile Symbol Ann
   }
 
-makeMergeblob4 :: Mergeblob3 -> Either (Parser.Err Symbol) Mergeblob4
+makeMergeblob4 :: Mergeblob2 libdep -> Either (Parser.Err Symbol) Mergeblob4
 makeMergeblob4 blob = do
   let stageOneNames =
-        Names (Relation.fromMap blob.stageOne.terms) (Relation.fromMap blob.stageOne.types) <> blob.libdeps
+        Names (Relation.fromMap blob.stageOne.terms) (Relation.fromMap blob.stageOne.types) <> blob.libdepsNames.new
+
+      -- Prefer Alice's GUID if they both have one.
+      uniqueTypeGuids :: Map Name Text
+      uniqueTypeGuids =
+        Map.merge
+          Map.preserveMissing
+          Map.preserveMissing
+          (Map.zipWithMatched \_ aliceGuid _ -> aliceGuid)
+          blob.uniqueTypeGuids.alice
+          blob.uniqueTypeGuids.bob
 
       parsingEnv =
         ParsingEnv
@@ -36,8 +50,7 @@ makeMergeblob4 blob = do
             -- cover all name in the merged file we're about to parse and typecheck. So, this might be more correct as a
             -- call to `error`.
             uniqueNames = Parser.UniqueName \_ _ -> Nothing,
-            -- FIXME we don't need this, right? After the switch to always render unique type guids? Guess it doesn't hurt.
-            uniqueTypeGuid = \name -> Identity (Map.lookup name blob.uniqueTypeGuids),
+            uniqueTypeGuid = \name -> Identity (Map.lookup name uniqueTypeGuids),
             names = stageOneNames,
             maybeNamespace = Nothing,
             localNamespacePrefixedTypesAndConstructors = mempty
