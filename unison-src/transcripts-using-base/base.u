@@ -121,6 +121,14 @@ List.reverse =
     x +: xs -> loop (x +: acc) xs
   loop []
 
+List.foldMap0 : (a ->{e} [b]) -> [b] -> [a] ->{e} [b]
+List.foldMap0 f acc = cases
+  [] -> acc
+  x +: xs -> foldMap0 f (acc ++ f x) xs
+
+List.foldMap : (a ->{e} [b]) -> [a] ->{e} [b]
+List.foldMap f xs = foldMap0 f [] xs
+
 Optional.getOrBug msg = cases
   None -> bug msg
   Some a -> a
@@ -155,6 +163,8 @@ isNone = cases
   Some _ -> false
   None -> true
 
+when : Boolean -> '{e} () ->{e} ()
+when b th = if b then !th else ()
 
 structural ability Stream a where
    emit: a -> ()
@@ -168,7 +178,7 @@ Stream.toList.handler =
 
   go []
 
-Stream.toList : '{Stream a} r -> [a]
+Stream.toList : '{e, Stream a} r ->{e} [a]
 Stream.toList s = handle !s with toList.handler
 
 Stream.collect.handler : Request {Stream a} r -> ([a],r)
