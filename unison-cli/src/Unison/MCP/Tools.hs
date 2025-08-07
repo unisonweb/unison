@@ -28,6 +28,7 @@ import Unison.MCP.Types
 import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.NameSegment qualified as NameSegment
+import Unison.Prelude (readUtf8)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Relation qualified as R
@@ -53,7 +54,9 @@ tools =
     listProjectBranchesTool,
     getCurrentProjectContextTool,
     searchDefinitionsTool,
-    searchByTypeTool
+    searchByTypeTool,
+    dependenciesTool,
+    dependentsTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -125,15 +128,28 @@ typecheckCodeTool =
           If you would like to test the behaviour of any pure functions, you may prefix a code snippet with an angle bracket.
 
           e.g.
+
           ```
           > 1 + 2
           ```
 
           Or
+
           ```
           > let
               isGreaterThan3 x = x > 3
               isGreaterThan3 4
+          ```
+
+          If you wish to write unit tests, you may do so like this:
+
+          ```
+          test> Nat.tests.additionIsCommutative = test.verify do
+            Each.repeat 100
+            n = Random.natIn 0 1000
+            m = Random.natIn 0 1000
+            ensureEqual (n + m) (m + n)
+          ```
         |],
       toolAnnotations =
         ToolAnnotations
@@ -145,7 +161,10 @@ typecheckCodeTool =
           },
       toolArgType = Proxy,
       toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> handleToolError do
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" code]
+        source <- case code of
+          Left filePath -> liftIO $ readUtf8 filePath
+          Right codeSnippet -> pure codeSnippet
+        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" source]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
@@ -388,6 +407,46 @@ searchByTypeTool =
       toolHandler = \(SearchByTypeToolArguments {projectContext, query}) -> handleToolError $ do
         definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [":", Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+        pure $ textToolResult outputJSON
+    }
+
+dependenciesTool :: Tool MCP
+dependenciesTool =
+  Tool
+    { toolName = toToolName DependenciesTool,
+      toolDescription = "List the dependencies of a definition.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "List all definitions a given term or type depends on.",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
+        output <- handleInputMCP projectContext [Right $ Input.ListDependenciesI (HQ.NameOnly definitionName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+dependentsTool :: Tool MCP
+dependentsTool =
+  Tool
+    { toolName = toToolName DependentsTool,
+      toolDescription = "List the dependents of a definition.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "List all definitions that depend on a given term or type.",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
+        output <- handleInputMCP projectContext [Right $ Input.ListDependentsI (HQ.NameOnly definitionName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
 

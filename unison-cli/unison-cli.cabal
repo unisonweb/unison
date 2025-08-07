@@ -155,6 +155,7 @@ library
       Unison.MCP
       Unison.MCP.Cli
       Unison.MCP.Prompts
+      Unison.MCP.Server
       Unison.MCP.Share.API
       Unison.MCP.StaticResources
       Unison.MCP.Tools

@@ -16,6 +16,7 @@ nested.names.x = 42
 ``` api
 -- Should NOT find names by suffix
 GET /api/projects/scratch/branches/main/getDefinition?names=x
+RESPONSE:
   {
       "missingDefinitions": [
           "x"
@@ -23,8 +24,10 @@ GET /api/projects/scratch/branches/main/getDefinition?names=x
       "termDefinitions": {},
       "typeDefinitions": {}
   }
+
 -- Term names should strip relativeTo prefix.
 GET /api/projects/scratch/branches/main/getDefinition?names=names.x&relativeTo=nested
+RESPONSE:
   {
       "missingDefinitions": [],
       "termDefinitions": {
@@ -118,8 +121,10 @@ GET /api/projects/scratch/branches/main/getDefinition?names=names.x&relativeTo=n
       },
       "typeDefinitions": {}
   }
+
 -- Should find definitions by hash, names should be relative
 GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relativeTo=nested
+RESPONSE:
   {
       "missingDefinitions": [],
       "termDefinitions": {
@@ -213,6 +218,7 @@ GET /api/projects/scratch/branches/main/getDefinition?names=%23qkhkl0n238&relati
       },
       "typeDefinitions": {}
   }
+
 ```
 
 ``` unison :hide
@@ -232,6 +238,7 @@ Only docs for the term we request should be returned, even if there are other te
 
 ``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doctest
+RESPONSE:
   {
       "missingDefinitions": [],
       "termDefinitions": {
@@ -346,12 +353,14 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing&relativeTo=doc
       },
       "typeDefinitions": {}
   }
+
 ```
 
 If we request a doc, the api should return the source, but also the rendered doc should appear in the 'termDocs' list.
 
 ``` api
 GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo=doctest
+RESPONSE:
   {
       "missingDefinitions": [],
       "termDefinitions": {
@@ -523,4 +532,5 @@ GET /api/projects/scratch/branches/main/getDefinition?names=thing.doc&relativeTo
       },
       "typeDefinitions": {}
   }
+
 ```

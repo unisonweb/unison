@@ -28,6 +28,7 @@ import Unison.Codebase.Transcript.Parser as Transcript
 import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
+import Unison.Util.Timing
 import UnliftIO.STM qualified as STM
 
 data TestConfig = TestConfig
@@ -55,7 +56,7 @@ testBuilder ::
   [FilePath] ->
   FilePath ->
   Test ()
-testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript =
+testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time transcript $ do
   scope transcript do
     outputs <-
       io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \(codebasePath, codebase) ->

@@ -83,6 +83,7 @@ import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..))
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
+import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -320,7 +321,8 @@ main version = do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
-              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \mayBaseUrl -> do
+              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
+              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase (MCP.mcpServer mcpServerConfig) $ \mayBaseUrl -> do
                 case exitOption of
                   DoNotExit -> do
                     case isHeadless of

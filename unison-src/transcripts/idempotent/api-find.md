@@ -30,6 +30,7 @@ joey.yaml.zz = 45
 ``` api
 -- Namespace segment prefix search
 GET /api/projects/scratch/branches/main/find?query=http
+RESPONSE:
   [
       [
           {
@@ -114,8 +115,10 @@ GET /api/projects/scratch/branches/main/find?query=http
           }
       ]
   ]
+
 -- Namespace segment suffix search
 GET /api/projects/scratch/branches/main/find?query=Server
+RESPONSE:
   [
       [
           {
@@ -159,8 +162,10 @@ GET /api/projects/scratch/branches/main/find?query=Server
           }
       ]
   ]
+
 -- Substring search
 GET /api/projects/scratch/branches/main/find?query=lesys
+RESPONSE:
   [
       [
           {
@@ -204,8 +209,10 @@ GET /api/projects/scratch/branches/main/find?query=lesys
           }
       ]
   ]
+
 -- Cross-segment search
 GET /api/projects/scratch/branches/main/find?query=joey.http
+RESPONSE:
   [
       [
           {
@@ -245,4 +252,5 @@ GET /api/projects/scratch/branches/main/find?query=joey.http
           }
       ]
   ]
+
 ```

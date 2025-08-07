@@ -13,12 +13,14 @@ import Control.Lens (use, (?~))
 import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.IORef
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
@@ -53,6 +55,9 @@ import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
+import Unison.Debug qualified as Debug
+import Unison.MCP qualified as MCP
+import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -103,13 +108,17 @@ withRunner isTest verbosity ucmVersion action = do
   when isTest $ do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
   withRuntimes \runtime sbRuntime ->
-    action \transcriptName transcriptSrc (codebaseDir, codebase) ->
+    action \transcriptName transcriptSrc (codebaseDir, codebase) -> do
+      -- This is just used in output messages
+      let workDir = "<workdir>"
+      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion
       Server.startServer
         isTest
         Backend.BackendEnv {Backend.useNamesIndex = False}
         Server.defaultCodebaseServerOpts
         runtime
         codebase
+        (MCP.mcpServer mcpServerConfig)
         \case
           Nothing -> pure $ Left PortBindingFailure
           Just baseUrl ->
@@ -232,39 +241,45 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL stanzas =
                 ]
           (_, _) -> pure ()
 
+      doHttpRequest :: HTTP.Request -> IO Text
+      doHttpRequest req = do
+        resp <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
+        case Aeson.eitherDecode @Aeson.Value resp of
+          Left err -> dieWithMsg $ "Error decoding response from " <> BSC.unpack (HTTP.method req) <> ": " <> err
+          Right v -> do
+            let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+            pure $ Text.pack . BL.unpack $ prettyBytes
       apiRequest :: APIRequest -> IO [APIRequest]
       apiRequest req = do
         hide <- hideOutput False
         case req of
           -- We just discard this, because the runner will produce new output lines.
-          APIResponseLine {} -> pure []
+          APIResponse {} -> pure []
           APIComment {} -> pure $ pure req
-          GetRequest path ->
-            either
-              (([] <$) . maybeDieWithMsg . Pretty.string . show)
-              ( either
-                  ( ([] <$)
-                      . maybeDieWithMsg
-                      . (("Error decoding response from " <> Pretty.text path <> ": ") <>)
-                      . Pretty.string
-                  )
-                  ( \(v :: Aeson.Value) ->
-                      pure $
-                        if hide
-                          then [req]
-                          else
-                            [ req,
-                              APIResponseLine . Text.pack . BL.unpack $
-                                Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
-                            ]
-                  )
-                  . Aeson.eitherDecode
-                  . HTTP.responseBody
-                  <=< flip HTTP.httpLbs httpManager
-              )
-              . HTTP.parseRequest
-              . Text.unpack
-              $ baseURL <> path
+          GetRequest path -> do
+            httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right r -> pure r
+            respTxt <- doHttpRequest httpReq
+            if hide
+              then pure [req]
+              else pure [req, APIResponse respTxt]
+          PostRequest path body -> do
+            httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right r ->
+                pure $
+                  r
+                    { HTTP.method = "POST",
+                      HTTP.requestBody = HTTP.RequestBodyBS (Text.encodeUtf8 body),
+                      HTTP.requestHeaders = [("Content-Type", "application/json"), ("Accept", "application/json")]
+                    }
+            Debug.debugM Debug.Temp "POST REQUEST" httpReq
+            respTxt <- doHttpRequest httpReq
+            Debug.debugM Debug.Temp "RESPONSE" respTxt
+            if hide
+              then pure [req]
+              else pure [req, APIResponse respTxt]
 
       endUcmBlock = do
         liftIO $ do

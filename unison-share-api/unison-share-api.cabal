@@ -103,6 +103,7 @@ library
     , extra
     , filepath
     , fuzzyfind
+    , hs-mcp
     , http-media
     , http-types
     , lens

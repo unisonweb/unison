@@ -36,6 +36,7 @@ structural ability Stream s where
 ``` api
 -- term
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary?name=nat
+RESPONSE:
   {
       "displayName": "nat",
       "hash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
@@ -53,8 +54,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1e
       },
       "tag": "Plain"
   }
+
 -- term without name uses hash
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8/summary
+RESPONSE:
   {
       "displayName": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
       "hash": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
@@ -72,8 +75,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@qkhkl0n238s1e
       },
       "tag": "Plain"
   }
+
 -- doc
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo/summary?name=doc
+RESPONSE:
   {
       "displayName": "doc",
       "hash": "#icfnhas71n8q5rm7rmpe51hh7bltsr7rb4lv7qadc4cbsifu1mhonlqj2d7836iar2ptc648q9p4u7hf40ijvld574421b6u8gpu0lo",
@@ -91,8 +96,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@icfnhas71n8q5
       },
       "tag": "Doc"
   }
+
 -- test
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8/summary?name=mytest
+RESPONSE:
   {
       "displayName": "mytest",
       "hash": "#u17p9803hdibisou6rlr1sjbccdossgh7vtkd03ovlvnsl2n91lq94sqhughc62tnrual2jlrfk922sebp4nm22o7m5u9j40emft8r8",
@@ -122,8 +129,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@u17p9803hdibi
       },
       "tag": "Test"
   }
+
 -- function
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o/summary?name=func
+RESPONSE:
   {
       "displayName": "func",
       "hash": "#6ee6j48hk3eovokflkgbmpbfr3oqj4hedqn8ocg3i4i0ko8j7nls7njjirmnh4k2bg8h95seaot798uuloqk62u2ttiqoceulkbmq2o",
@@ -162,8 +171,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@6ee6j48hk3eov
       },
       "tag": "Plain"
   }
+
 -- constructor
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0@d0/summary?name=Thing.This
+RESPONSE:
   {
       "displayName": "Thing.This",
       "hash": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0#0",
@@ -202,8 +213,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@altimqs66j3dh
       },
       "tag": "DataConstructor"
   }
+
 -- Long type signature
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?name=funcWithLongType
+RESPONSE:
   {
       "displayName": "funcWithLongType",
       "hash": "#ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8",
@@ -389,8 +402,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@ieskgcjjvuegp
       },
       "tag": "Plain"
   }
+
 -- Long type signature with render width
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8/summary?renderWidth=20&name=funcWithLongType
+RESPONSE:
   {
       "displayName": "funcWithLongType",
       "hash": "#ieskgcjjvuegpecq9pbha59ttonke7pf31keeq0jlh31ijkfq00e06fdi36ae90u24pjva6ucqdbedropjgi3g3b75nu76ll5ls8ke8",
@@ -576,8 +591,10 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@ieskgcjjvuegp
       },
       "tag": "Plain"
   }
+
 -- Builtin Term
 GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@@IO.putBytes.impl.v3/summary?name=putBytesImpl
+RESPONSE:
   {
       "displayName": "putBytesImpl",
       "hash": "##IO.putBytes.impl.v3",
@@ -679,6 +696,7 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@@IO.putBytes.
       },
       "tag": "Plain"
   }
+
 ```
 
 ## Type Summary APIs
@@ -686,6 +704,7 @@ GET /api/projects/scratch/branches/main/definitions/terms/by-hash/@@IO.putBytes.
 ``` api
 -- data
 GET /api/projects/scratch/branches/main/definitions/types/by-hash/@altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0/summary?name=Thing
+RESPONSE:
   {
       "displayName": "Thing",
       "hash": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0",
@@ -723,8 +742,10 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@altimqs66j3dh
       },
       "tag": "Data"
   }
+
 -- data with type args
 GET /api/projects/scratch/branches/main/definitions/types/by-hash/@nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg/summary?name=Maybe
+RESPONSE:
   {
       "displayName": "Maybe",
       "hash": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
@@ -772,8 +793,10 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@nirp5os0q69o4
       },
       "tag": "Data"
   }
+
 -- ability
 GET /api/projects/scratch/branches/main/definitions/types/by-hash/@rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8/summary?name=Stream
+RESPONSE:
   {
       "displayName": "Stream",
       "hash": "#rfi1v9429f9qluv533l2iba77aadttilrpmnhljfapfnfa6sru2nr8ibpqvib9nc4s4nb9s1as45upsfqfqe6ivqi2p82b2vd866it8",
@@ -821,8 +844,10 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@rfi1v9429f9ql
       },
       "tag": "Ability"
   }
+
 -- builtin type
 GET /api/projects/scratch/branches/main/definitions/types/by-hash/@@Nat/summary?name=Nat
+RESPONSE:
   {
       "displayName": "Nat",
       "hash": "##Nat",
@@ -837,4 +862,5 @@ GET /api/projects/scratch/branches/main/definitions/types/by-hash/@@Nat/summary?
       },
       "tag": "Data"
   }
+
 ```
