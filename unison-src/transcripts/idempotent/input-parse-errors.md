@@ -22,7 +22,7 @@ todo:
 aliasTerm
 
 ``` 
-scratch/main> alias.term ##Nat.+ Nat.+
+> alias.term ##Nat.+ Nat.+
 ```
 
 aliasTermForce,

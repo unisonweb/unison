@@ -1,7 +1,7 @@
 # Lambda case syntax
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 This function takes a single argument and immediately pattern matches on it. As we'll see below, it can be written using `cases` syntax:
@@ -15,16 +15,13 @@ isEmpty x = match x with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + isEmpty : [t] -> Boolean
 
-    ⍟ New definitions:
-    
-      isEmpty : [t] -> Boolean
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Here's the same function written using `cases` syntax:
@@ -38,19 +35,16 @@ isEmpty2 = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + isEmpty2 : [t] -> Boolean
+      (also named isEmpty)
 
-    ⍟ New definitions:
-    
-      isEmpty2 : [t] -> Boolean
-        (also named isEmpty)
+  Run `update` to apply these changes to your codebase.
 ```
 
 Notice that Unison detects this as an alias of `isEmpty`, and if we view `isEmpty`
 
 ``` ucm
-scratch/main> view isEmpty
+> view isEmpty
 
   isEmpty : [t] -> Boolean
   isEmpty = cases
@@ -75,7 +69,7 @@ merge xs ys = match (xs, ys) with
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -98,19 +92,16 @@ merge2 = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + merge2 : [a] -> [a] -> [a]
+      (also named merge)
 
-    ⍟ New definitions:
-    
-      merge2 : [a] -> [a] -> [a]
-        (also named merge)
+  Run `update` to apply these changes to your codebase.
 ```
 
 Notice that Unison detects this as an alias of `merge`, and if we view `merge`
 
 ``` ucm
-scratch/main> view merge
+> view merge
 
   merge : [a] -> [a] -> [a]
   merge = cases
@@ -145,17 +136,12 @@ blorf = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type B
 
-    ⍟ New definitions:
-    
-      structural type B
-      blah  : B -> B -> Text
-      blorf : B -> B -> B
+  + blah  : B -> B -> Text
+  + blorf : B -> B -> B
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     12 | > blah T F
            ⧩
@@ -184,23 +170,20 @@ merge3 = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + merge3 : [a] -> [a] -> [a]
 
-    ⍟ New definitions:
-    
-      merge3 : [a] -> [a] -> [a]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view merge3
+> view merge3
 
   merge3 : [a] -> [a] -> [a]
   merge3 = cases
@@ -225,11 +208,8 @@ merge4 a b = match (a,b) with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + merge4 : [a] -> [a] -> [a]
+      (also named merge3)
 
-    ⍟ New definitions:
-    
-      merge4 : [a] -> [a] -> [a]
-        (also named merge3)
+  Run `update` to apply these changes to your codebase.
 ```

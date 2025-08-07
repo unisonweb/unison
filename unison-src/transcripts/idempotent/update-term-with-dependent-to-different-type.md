@@ -1,5 +1,5 @@
 ``` ucm
-scratch/main> builtins.merge
+> builtins.merge
 
   Done.
 ```
@@ -15,17 +15,14 @@ bar = foo + 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar : Nat
+  + foo : Nat
 
-    ⍟ New definitions:
-    
-      bar : Nat
-      foo : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -41,17 +38,15 @@ foo = +5
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ foo : Int
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Int
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

@@ -21,12 +21,9 @@ x = ()
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + x : ()
 
-    ⍟ New definitions:
-    
-      x : ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
@@ -950,7 +947,7 @@ scratch/regressions> load
 
   Loading changes detected in scratch.u.
 
-  I loaded scratch.u and didn't find anything.
+  No changes found.
 ```
 
 ``` unison :added-by-ucm scratch.u

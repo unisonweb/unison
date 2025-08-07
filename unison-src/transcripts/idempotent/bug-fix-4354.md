@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -15,10 +15,7 @@ bonk x =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bonk : a -> a
 
-    ⍟ New definitions:
-    
-      bonk : a -> a
+  Run `update` to apply these changes to your codebase.
 ```

@@ -171,6 +171,7 @@ import Unison.Runtime.Foreign.Function.Type
     foreignFuncBuiltinName,
   )
 import Unison.Runtime.MCode
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
@@ -504,21 +505,21 @@ foreignCallHelper = \case
   Tls_terminate_impl_v3 -> mkForeignTls $
     \(tls :: Tls) -> TLS.bye tls.context
   Code_validateLinks -> mkForeignExn $
-    \(lsgs0 :: [(Referent, ANF.Referenced ANF.Code)]) -> do
+    \(lsgs0 :: [(Referent, Referenced ANF.Code)]) -> do
       let f (msg, rs) =
             F.Failure Ty.miscFailureRef (Util.Text.fromText msg) rs
-      pure . first f . checkGroupHashes $ second ANF.dereference <$> lsgs0
+      pure . first f . checkGroupHashes $ second dereference <$> lsgs0
   Code_dependencies -> mkForeign $
-    \(ANF.dereference -> ANF.CodeRep sg _) ->
+    \(dereference -> ANF.CodeRep sg _) ->
       -- note: it's not correct to use the stored references of a
       -- `Referenced Code` because they may over-estimate the actual
       -- occurrences.
       pure $ Ref <$> ANF.groupTermLinks sg
   Code_serialize -> mkForeign $
-    \(co :: ANF.Referenced ANF.Code) ->
+    \(co :: Referenced ANF.Code) ->
       pure . Bytes.fromArray $ ANF.serializeCode False co
   Code_serialize_versioned -> mkForeign $
-    \(ver :: Word64, co :: ANF.Referenced ANF.Code) ->
+    \(ver :: Word64, co :: Referenced ANF.Code) ->
       ANF.serializeCodeWithVersion ver False co >>= \case
         Left err -> die err
         Right bs -> pure $ Bytes.fromLazyByteString bs
@@ -526,11 +527,11 @@ foreignCallHelper = \case
     mkForeign $
       pure . ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
-    \(nm, (ANF.dereference -> ANF.CodeRep sg _)) ->
+    \(nm, (dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $
-      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . ANF.dereference
+      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . dereference
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
@@ -567,7 +568,7 @@ foreignCallHelper = \case
             L.ByteString ->
             Hash.Digest a
           hashlazy _ l = Hash.hashlazy l
-       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ ANF.dereference x
+       in pure . Bytes.fromArray . hashlazy alg . ANF.serializeValueForHash $ dereference x
   Crypto_hmac -> mkForeign $
     \(HashAlgorithm _ alg, key, x) ->
       let hmac ::
@@ -577,7 +578,7 @@ foreignCallHelper = \case
               . HMAC.updates
                 (HMAC.initialize $ Bytes.toArray @BA.Bytes key)
               $ L.toChunks s
-       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ ANF.dereference x
+       in pure . Bytes.fromArray . hmac alg . ANF.serializeValueForHash $ dereference x
   Crypto_Ed25519_sign_impl ->
     mkForeign $
       pure . signEd25519Wrapper
@@ -592,7 +593,7 @@ foreignCallHelper = \case
       pure . verifyRsaWrapper
   Universal_murmurHash ->
     mkForeign $
-      pure . asWord64 . hash64 . ANF.serializeValueForHash . ANF.dereference
+      pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress

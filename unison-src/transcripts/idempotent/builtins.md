@@ -1,11 +1,11 @@
 # Unit tests for builtin functions
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
-scratch/main> load unison-src/transcripts-using-base/base.u
+> load unison-src/transcripts-using-base/base.u
 
-scratch/main> add
+> add
 ```
 
 This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
@@ -90,7 +90,7 @@ test> Int.tests.conversions =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Nat` functions
@@ -165,7 +165,7 @@ test> Nat.tests.conversions =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Boolean` functions
@@ -193,7 +193,7 @@ test> Boolean.tests.notTable =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Text` functions
@@ -294,7 +294,7 @@ test> Text.tests.indexOfEmoji =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Bytes` functions
@@ -355,7 +355,7 @@ test> Bytes.tests.indexOf =
 
    ]
 
-test> Bytes.tests.byteArray = 
+test> Bytes.tests.byteArray =
   bs = 0xs0102030405
   checks [
     ImmutableByteArray.toBytes (ImmutableByteArray.fromBytes bs) 0 5 == bs
@@ -364,7 +364,7 @@ test> Bytes.tests.byteArray =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `List` comparison
@@ -383,7 +383,7 @@ test> checks [
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Other list functions
@@ -407,16 +407,10 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + Any.test1 : [Result]
+  + Any.test2 : [Result]
 
-    ⍟ New definitions:
-    
-      Any.test1 : [Result]
-      Any.test2 : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | > [Any "hi", Any (41 + 1)]
           ⧩
@@ -432,7 +426,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## Sandboxing functions
@@ -461,27 +455,19 @@ openFile]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + openFile1              : Text
+                             -> FileMode
+                             ->{IO, Exception} Handle
+  + openFile2              : Text
+                             -> FileMode
+                             ->{IO, Exception} Handle
+  + openFiles              : [Boolean]
+  + Sandbox.test1          : [Result]
+  + Sandbox.test2          : [Result]
+  + Sandbox.test3          : [Result]
+  + validateSandboxedSimpl : [Link.Term] -> Value ->{IO} Boolean
 
-    ⍟ New definitions:
-    
-      Sandbox.test1          : [Result]
-      Sandbox.test2          : [Result]
-      Sandbox.test3          : [Result]
-      openFile1              : Text
-                               -> FileMode
-                               ->{IO, Exception} Handle
-      openFile2              : Text
-                               -> FileMode
-                               ->{IO, Exception} Handle
-      openFiles              : [Boolean]
-      validateSandboxedSimpl : [Link.Term]
-                               -> Value
-                               ->{IO} Boolean
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
@@ -497,7 +483,7 @@ openFile]
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` unison
@@ -516,23 +502,20 @@ openFilesIO = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + openFilesIO : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      openFilesIO : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test openFilesIO
+> io.test openFilesIO
 
     New test results:
 
@@ -555,15 +538,9 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + Universal.murmurHash.tests : [Result]
 
-    ⍟ New definitions:
-    
-      Universal.murmurHash.tests : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | > Universal.murmurHash 1
           ⧩
@@ -575,7 +552,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## Run the tests
@@ -583,7 +560,7 @@ scratch/main> add
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ``` ucm
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 

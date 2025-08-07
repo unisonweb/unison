@@ -2,7 +2,7 @@ File for test cases making sure that universal equality/comparison
 cases exist for built-in types. Just making sure they don't crash.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -17,24 +17,22 @@ threadEyeDeez _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type A
 
-    ⍟ New definitions:
-    
-      type A
-      threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
+  + threadEyeDeez : ∀ _. _ ->{IO} (Boolean, Boolean)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run threadEyeDeez
+> run threadEyeDeez
 
   (false, true)
 ```
@@ -49,12 +47,7 @@ scratch/main> run threadEyeDeez
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > typeLink A == typeLink A
           ⧩

@@ -18,15 +18,13 @@ unique type Foo.T = T
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
+  + type Foo.T
 
-    ⍟ New definitions:
-    
-      type Foo
-      type Foo.T
-      Foo         : Nat
-      Foo.termInA : Nat
+  + Foo         : Nat
+  + Foo.termInA : Nat
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -46,15 +44,14 @@ unique type Foo.T = T1 | T2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo.T
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo.T
-      Foo.termInA : Nat
-        (also named Foo)
+  ~ Foo.termInA : Nat
+      (also named Foo)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -114,12 +111,9 @@ bonk = 5
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bonk : Nat
 
-    ⍟ New definitions:
-    
-      bonk : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -153,13 +147,10 @@ bonk.zonk = 5
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bonk.zonk : Nat
+      (also named zonk)
 
-    ⍟ New definitions:
-    
-      bonk.zonk : Nat
-        (also named zonk)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

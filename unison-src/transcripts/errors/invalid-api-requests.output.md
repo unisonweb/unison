@@ -1,6 +1,6 @@
 :2:1:
   |
 2 | DELETE /something/important
-  | ^^^
-unexpected "DEL"
-expecting "  ", " <newline>", "--", "GET", end of input, or newline
+  | ^^^^^^^^^
+unexpected "DELETE /s"
+expecting "--", "GET", "POST", "RESPONSE:", or end of input

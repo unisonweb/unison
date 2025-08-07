@@ -194,77 +194,73 @@ swapped name link =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type Three a b c
 
-    ⍟ New definitions:
-    
-      structural type Three a b c
-      Code.crossVersion      : Nat
-                               -> Nat
-                               -> Text
-                               -> Link.Term
-                               ->{IO} Result
-      Code.get               : Link.Term ->{IO, Throw Text} Code
-      Code.load              : Bytes ->{IO, Throw Text} Code
-      Code.save              : Code -> Bytes
-      Code.save.versioned    : Nat -> Code -> Bytes
-      Value.crossVersion     : Nat
-                               -> Nat
-                               -> Text
-                               -> a
-                               ->{IO} Result
-      Value.deser            : Bytes ->{IO, Throw Text} Value
-      concatMap              : (a ->{g} [b]) -> [a] ->{g} [b]
-      expectFailure          : Text
-                               -> Request {Throw Text} a
-                               -> Result
-      extensionality         : Text
-                               -> (Three Nat Nat Nat
-                               -> Nat
-                               -> b)
-                               ->{IO} Result
-      extensionals           : (a -> b -> Text)
-                               -> (a -> b -> c)
-                               -> (a -> b -> c)
-                               -> [(a, b)]
-                               ->{Throw Text} ()
-      fib10                  : [Nat]
-      handleTest             : Text
-                               -> Request {Throw Text} a
-                               -> Result
-      idempotence            : Text -> Link.Term ->{IO} Result
-      idempotence.versioned  : Nat
-                               -> Text
-                               -> Link.Term
-                               ->{IO} Result
-      identical              : Text -> a -> a ->{Throw Text} ()
-      identicality           : Text -> a ->{IO} Result
-      identicality.versioned : Nat -> Text -> a ->{IO} Result
-      load                   : Bytes ->{IO, Throw Text} a
-      missed                 : Text -> Link.Term ->{IO} Result
-      mutual0                : Nat -> Nat
-      mutual1                : Nat -> Nat
-      mutual2                : Nat -> Nat
-      prod                   : [a] -> [b] -> [(a, b)]
-      rejected               : Text
-                               -> [(Link.Term, Code)]
-                               ->{IO} Result
-      roundtrip              : a ->{IO, Throw Text} a
-      roundtrip.versioned    : Nat -> a ->{IO, Throw Text} a
-      save                   : a -> Bytes
-      save.versioned         : Nat -> a -> Bytes
-      showThree              : Three Nat Nat Nat -> Text
-      swapped                : Text -> Link.Term ->{IO} Result
-      threes                 : [Three Nat Nat Nat]
-      verified               : Text -> Link.Term ->{IO} Result
-      verify                 : Text
-                               -> [(Link.Term, Code)]
-                               ->{Throw Text} ()
+  + Code.crossVersion      : Nat
+                             -> Nat
+                             -> Text
+                             -> Link.Term
+                             ->{IO} Result
+  + Code.get               : Link.Term ->{IO, Throw Text} Code
+  + Code.load              : Bytes ->{IO, Throw Text} Code
+  + Code.save              : Code -> Bytes
+  + Code.save.versioned    : Nat -> Code -> Bytes
+  + concatMap              : (a ->{g} [b]) -> [a] ->{g} [b]
+  + expectFailure          : Text
+                             -> Request {Throw Text} a
+                             -> Result
+  + extensionality         : Text
+                             -> (Three Nat Nat Nat -> Nat -> b)
+                             ->{IO} Result
+  + extensionals           : (a -> b -> Text)
+                             -> (a -> b -> c)
+                             -> (a -> b -> c)
+                             -> [(a, b)]
+                             ->{Throw Text} ()
+  + fib10                  : [Nat]
+  + handleTest             : Text
+                             -> Request {Throw Text} a
+                             -> Result
+  + idempotence            : Text -> Link.Term ->{IO} Result
+  + idempotence.versioned  : Nat
+                             -> Text
+                             -> Link.Term
+                             ->{IO} Result
+  + identical              : Text -> a -> a ->{Throw Text} ()
+  + identicality           : Text -> a ->{IO} Result
+  + identicality.versioned : Nat -> Text -> a ->{IO} Result
+  + load                   : Bytes ->{IO, Throw Text} a
+  + missed                 : Text -> Link.Term ->{IO} Result
+  + mutual0                : Nat -> Nat
+  + mutual1                : Nat -> Nat
+  + mutual2                : Nat -> Nat
+  + prod                   : [a] -> [b] -> [(a, b)]
+  + rejected               : Text
+                             -> [(Link.Term, Code)]
+                             ->{IO} Result
+  + roundtrip              : a ->{IO, Throw Text} a
+  + roundtrip.versioned    : Nat -> a ->{IO, Throw Text} a
+  + save                   : a -> Bytes
+  + save.versioned         : Nat -> a -> Bytes
+  + showThree              : Three Nat Nat Nat -> Text
+  + swapped                : Text -> Link.Term ->{IO} Result
+  + threes                 : [Three Nat Nat Nat]
+  + Value.crossVersion     : Nat
+                             -> Nat
+                             -> Text
+                             -> a
+                             ->{IO} Result
+  + Value.deser            : Bytes ->{IO, Throw Text} Value
+  + verified               : Text -> Link.Term ->{IO} Result
+  + verify                 : Text
+                             -> [(Link.Term, Code)]
+                             ->{Throw Text} ()
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -275,6 +271,9 @@ scratch/main> add
 ``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
+
+structural ability Zep where
+  harp : Nat
 
 h : Three Nat Nat Nat -> Nat -> Nat
 h y x = match y with
@@ -304,6 +303,12 @@ zapper : Three Nat Nat Nat -> Request {Zap} r -> r
 zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
+
+zaeper : Request {Zap,Zep} r -> Nat
+zaeper = cases
+ { r } -> 1
+ { zap -> _ } -> 2
+ { harp -> _ } -> 3
 
 bigFun : Nat -> Nat -> Nat -> Nat
 bigFun i j k = let
@@ -376,22 +381,22 @@ badLoad _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Zap
+  + structural ability Zep
 
-    ⍟ New definitions:
-    
-      structural ability Zap
-      badLoad : '{IO} [Result]
-      bigFun  : Nat -> Nat -> Nat -> Nat
-      f       : Nat ->{Zap} Nat
-      fDeps   : [Link.Term]
-      fSer    : Bytes
-      fVal    : Value
-      h       : Three Nat Nat Nat -> Nat -> Nat
-      rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
-      tests   : '{IO} [Result]
-      zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
+  + badLoad : '{IO} [Result]
+  + bigFun  : Nat -> Nat -> Nat -> Nat
+  + f       : Nat ->{Zap} Nat
+  + fDeps   : [Link.Term]
+  + fSer    : Bytes
+  + fVal    : Value
+  + h       : Three Nat Nat Nat -> Nat -> Nat
+  + rotate  : Three Nat Nat Nat -> Three Nat Nat Nat
+  + tests   : '{IO} [Result]
+  + zaeper  : Request {Zap, Zep} r -> Nat
+  + zapper  : Three Nat Nat Nat -> Request {Zap} r -> r
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 This simply runs some functions to make sure there isn't a crash. Once
@@ -399,14 +404,14 @@ we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test tests
+> io.test tests
 
     New test results:
 
@@ -450,7 +455,7 @@ scratch/main> io.test tests
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test badLoad
+> io.test badLoad
 
     New test results:
 
@@ -473,6 +478,10 @@ codeTests =
    , idempotence "idem big" (termLink bigFun)
    , idempotence "idem extensionality" (termLink extensionality)
    , idempotence "idem identicality" (termLink identicality)
+
+   -- actually tests that code serialization works on this previously
+   -- problem term
+   , idempotence "idem zaeper" (termLink zaeper)
 
    , idempotence.versioned 4 "idem f v4" (termLink f)
    , idempotence.versioned 4 "idem h v4" (termLink h)
@@ -523,23 +532,20 @@ codeTests =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + codeTests : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      codeTests : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test codeTests
+> io.test codeTests
 
     New test results:
 
@@ -552,6 +558,7 @@ scratch/main> io.test codeTests
                    ◉ (idem big) passed
                    ◉ (idem extensionality) passed
                    ◉ (idem identicality) passed
+                   ◉ (idem zaeper) passed
                    ◉ (idem f v4) passed
                    ◉ (idem h v4) passed
                    ◉ (idem rotate v4) passed
@@ -592,7 +599,7 @@ scratch/main> io.test codeTests
                    ◉ (rejected swapped mututal1) passed
                    ◉ (rejected swapped mututal2) passed
 
-  ✅ 48 test(s) passing
+  ✅ 49 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```
@@ -626,24 +633,21 @@ vtests _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + validateTest : Link.Term ->{IO} Result
+  + vtests       : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      validateTest : Link.Term ->{IO} Result
-      vtests       : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test vtests
+> io.test vtests
 
     New test results:
 

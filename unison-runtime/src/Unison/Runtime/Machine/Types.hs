@@ -3,7 +3,6 @@ module Unison.Runtime.Machine.Types where
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
-import Control.Monad.State.Strict
 import Data.IORef (IORef)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -17,19 +16,17 @@ import Unison.Runtime.ANF
   ( Cacheability (..),
     Code (..),
     CompileExn (..),
-    Referenced (..),
     SuperGroup (..),
     Value,
     foldGroupLinks,
-    traverseGroupLinks,
     valueLinks,
   )
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
-import Unison.Runtime.Canonicalizer as C
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
+import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
@@ -94,11 +91,11 @@ data CCache = CCache
     combRefs :: TVar (EnumMap Word64 Reference),
     -- Combs which we're allowed to cache after evaluating
     cacheableCombs :: TVar (EnumSet Word64),
-    optInfos :: TVar (OptInfos Symbol),
+    optInfos :: TVar (OptInfos Reference Symbol),
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
-    intermed :: TVar (M.Map Reference (SuperGroup Symbol)),
+    intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
     sandbox :: TVar (M.Map Reference (Set Reference))
@@ -162,28 +159,16 @@ lookupCode _ _ = die "lookupCode: Expected Ref"
 
 -- Traverses a `Code`, calculating the used references within, and
 -- canonicalizing them in memory.
-canonicalizeCodeRefs :: Code -> IO (Referenced Code)
-canonicalizeCodeRefs (CodeRep sg ch) =
-  finalize <$> runStateT (traverseGroupLinks f sg) (C.empty, [], [])
-  where
-    finalize (sg, (_, tys, tms)) = WithRefs tys tms (CodeRep sg ch)
-    f isTy r = StateT \st@(canon, tys, tms) ->
-      categorize canon r >>= \case
-        Canonical -> pure (r, st)
-        Equivalent r canon -> pure (r, (canon, tys, tms))
-        Novel canon ->
-          pure . (r,) $
-            ( canon,
-              if isTy then r : tys else tys,
-              if isTy then tms else r : tms
-            )
+canonicalizeCodeRefs ::
+  Code Reference -> IO (Referenced Code)
+canonicalizeCodeRefs = toReferenced . canonicalizeRefs
 
 resolveCode ::
   Reference ->
-  Map Reference (SuperGroup Symbol) ->
+  Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   EnumSet Word64 ->
-  Maybe Code
+  Maybe (Code Reference)
 resolveCode link m rfn cach
   | Just sg <- M.lookup link m,
     ch <- cacheability rfn cach link =
@@ -225,7 +210,7 @@ checkSandboxing cc allowed0 c = do
 checkValueSandboxing ::
   CCache ->
   [Reference] ->
-  Value ->
+  Value Reference ->
   IO (Either [Referent] [Referent])
 checkValueSandboxing cc allowed0 v = do
   sands <- readTVarIO $ sandbox cc
@@ -246,7 +231,7 @@ checkValueSandboxing cc allowed0 v = do
 
 codeValidate ::
   CCache ->
-  [(Reference, SuperGroup Symbol)] ->
+  [(Reference, SuperGroup Reference Symbol)] ->
   IO (Maybe (Failure UText.Text))
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)

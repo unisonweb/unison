@@ -3,4 +3,4 @@
 4 | .> ls .
   | ^^
 unexpected ".>"
-expecting "  ", " <newline>", '@', comment (delimited with “--”), end of input, or newline
+expecting "  ", " <newline>", '>', '@', comment (delimited with “--”), end of input, or newline

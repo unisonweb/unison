@@ -10,7 +10,7 @@ socketAccept = compose reraise socketAccept.impl
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 # Tests for network related builtins
@@ -99,25 +99,22 @@ testDefaultPort _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testDefaultHost  : '{IO} [Result]
+  + testDefaultPort  : '{IO} [Result]
+  + testExplicitHost : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testDefaultHost  : '{IO} [Result]
-      testDefaultPort  : '{IO} [Result]
-      testExplicitHost : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testDefaultPort
+> io.test testDefaultPort
 
     New test results:
 
@@ -184,25 +181,22 @@ testTcpConnect = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + clientThread   : MVar Nat -> MVar Text -> '{IO} ()
+  + serverThread   : MVar Nat -> Text -> '{IO} ()
+  + testTcpConnect : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      clientThread   : MVar Nat -> MVar Text -> '{IO} ()
-      serverThread   : MVar Nat -> Text -> '{IO} ()
-      testTcpConnect : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testTcpConnect
+> io.test testTcpConnect
 
     New test results:
 

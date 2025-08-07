@@ -1,7 +1,7 @@
 Regression test for https://github.com/unisonweb/unison/issues/763
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -12,27 +12,24 @@ scratch/main> builtins.merge
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + (+-+) : Nat -> Nat -> Nat
 
-    ⍟ New definitions:
-    
-      +-+ : Nat -> Nat -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> move.term +-+ boppitybeep
+> move.term +-+ boppitybeep
 
   Done.
 
-scratch/main> move.term boppitybeep +-+
+> move.term boppitybeep +-+
 
   Done.
 ```

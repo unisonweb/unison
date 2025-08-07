@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -18,11 +18,8 @@ pecan = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + oldRight : (b ->{e} a ->{e} b) -> [a] ->{e} [b]
+  + pecan    : '[Text]
 
-    ⍟ New definitions:
-    
-      oldRight : (b ->{e} a ->{e} b) -> [a] ->{e} [b]
-      pecan    : '[Text]
+  Run `update` to apply these changes to your codebase.
 ```

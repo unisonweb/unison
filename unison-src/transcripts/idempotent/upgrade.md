@@ -13,14 +13,11 @@ thingy = lib.old.foo + 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.new.foo : Nat
+  + lib.old.foo : Nat
+  + thingy      : Nat
 
-    ⍟ New definitions:
-    
-      lib.new.foo : Nat
-      lib.old.foo : Nat
-      thingy      : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -91,14 +88,11 @@ thingy = lib.old.foo + 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.new.foo : Int
+  + lib.old.foo : Nat
+  + thingy      : Nat
 
-    ⍟ New definitions:
-    
-      lib.new.foo : Int
-      lib.old.foo : Nat
-      thingy      : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -146,13 +140,11 @@ thingy = foo + +10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ thingy : Int
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      thingy : Int
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -198,19 +190,14 @@ thingy = lib.old.foo + 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.old.foo : Nat
+  ~ thingy : Nat
 
-    ⊡ Previously added definitions will be ignored: lib.new.foo
-    
-    ⍟ New definitions:
-    
-      lib.old.foo : Nat
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      thingy : Nat
+  (and 1 unchanged term)
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -258,13 +245,11 @@ thingy = foo + +10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ thingy : Int
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      thingy : Int
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -317,15 +302,12 @@ mything = lib.old.foo + 100
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar         : Nat
+  + lib.new.foo : Nat
+  + lib.old.foo : Nat
+  + mything     : Nat
 
-    ⍟ New definitions:
-    
-      bar         : Nat
-      lib.new.foo : Nat
-      lib.old.foo : Nat
-      mything     : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -376,18 +358,15 @@ bar = a.x.x.x.x + c.y.y.y.y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + a.x.x.x.x   : Nat
+  + b.x.x.x.x   : Nat
+  + bar         : Nat
+  + c.y.y.y.y   : Nat
+  + d.y.y.y.y   : Nat
+  + lib.new.foo : Int
+  + lib.old.foo : Nat
 
-    ⍟ New definitions:
-    
-      a.x.x.x.x   : Nat
-      b.x.x.x.x   : Nat
-      bar         : Nat
-      c.y.y.y.y   : Nat
-      d.y.y.y.y   : Nat
-      lib.new.foo : Int
-      lib.old.foo : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -459,15 +438,12 @@ mything = lib.old.foo + lib.old.foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.new.foo   : Nat
+  + lib.new.other : Nat
+  + lib.old.foo   : Nat
+  + mything       : Nat
 
-    ⍟ New definitions:
-    
-      lib.new.foo   : Nat
-      lib.new.other : Nat
-      lib.old.foo   : Nat
-      mything       : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -512,13 +488,10 @@ lib.dep__2.foo = 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.dep.foo    : Nat
+  + lib.dep__2.foo : Nat
 
-    ⍟ New definitions:
-    
-      lib.dep.foo    : Nat
-      lib.dep__2.foo : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -559,14 +532,11 @@ lib.dep__2.foo = 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + lib.dep.foo    : Nat
+  + lib.dep__2.foo : Nat
+  + lib.hello.foo  : Nat
 
-    ⍟ New definitions:
-    
-      lib.dep.foo    : Nat
-      lib.dep__2.foo : Nat
-      lib.hello.foo  : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm

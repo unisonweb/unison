@@ -12,7 +12,7 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 # Using an alternative certificate store
@@ -32,8 +32,8 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test what_should_work
+> add
+> io.test what_should_work
 ```
 
 Test handshaking a client/server a local TCP connection using our
@@ -191,8 +191,8 @@ testCNReject _ =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test testConnectSelfSigned
-scratch/main> io.test testCAReject
-scratch/main> io.test testCNReject
+> add
+> io.test testConnectSelfSigned
+> io.test testCAReject
+> io.test testCNReject
 ```

@@ -54,6 +54,6 @@ testABunchOfNats _ =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test testABunchOfNats
+> add
+> io.test testABunchOfNats
 ```

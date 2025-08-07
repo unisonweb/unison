@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Checks a case that was resulting in variable capture when compiling
@@ -30,23 +30,18 @@ xyzzy box decoy =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Decoy a
+  + type NatBox
+  + type Tres
 
-    ⍟ New definitions:
-    
-      type Decoy a
-      type NatBox
-      type Tres
-      Decoy.confuser        : Decoy a -> Tres
-      Decoy.confuser.modify : (Tres ->{g} Tres)
-                              -> Decoy a1
-                              ->{g} Decoy a
-      Decoy.confuser.set    : Tres -> Decoy a1 -> Decoy a
-      xyzzy                 : NatBox -> Decoy a -> Nat
+  + Decoy.confuser        : Decoy a -> Tres
+  + Decoy.confuser.modify : (Tres ->{g} Tres)
+                            -> Decoy a1
+                            ->{g} Decoy a
+  + Decoy.confuser.set    : Tres -> Decoy a1 -> Decoy a
+  + xyzzy                 : NatBox -> Decoy a -> Nat
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     16 | > xyzzy (NatBox 1) (Decoy One)
            ⧩

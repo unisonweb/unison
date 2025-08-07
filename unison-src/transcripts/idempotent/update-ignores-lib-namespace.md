@@ -3,7 +3,7 @@ the project organization convention that dependencies are put in "lib"; it's muc
 one's own code if the "lib" namespace is simply ignored.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -14,17 +14,14 @@ lib.foo = 100
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo     : Nat
+  + lib.foo : Nat
 
-    ⍟ New definitions:
-    
-      foo     : Nat
-      lib.foo : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -39,25 +36,23 @@ foo = 200
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ foo : Nat
+      (was also named lib.foo)
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : Nat
-        (The old definition is also named lib.foo.)
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> names foo
+> names foo
 
   'foo':
   Hash          Kind   Names

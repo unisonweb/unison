@@ -33,8 +33,10 @@ padIfNonEmpty line = if Text.null line then line else "  " <> line
 formatAPIRequest :: APIRequest -> Text
 formatAPIRequest = \case
   GetRequest txt -> "GET " <> txt <> "\n"
+  PostRequest url body ->
+    "POST " <> url <> "\n" <> Text.unlines ("BODY:" : fmap padIfNonEmpty (Text.lines body)) <> "\n"
   APIComment txt -> "--" <> txt <> "\n"
-  APIResponseLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
+  APIResponse txt -> Text.unlines ("RESPONSE:" : fmap padIfNonEmpty (Text.lines txt)) <> "\n"
 
 formatUcmLine :: UcmLine -> Text
 formatUcmLine = \case
@@ -42,6 +44,7 @@ formatUcmLine = \case
   UcmComment txt -> "--" <> txt <> "\n"
   UcmOutputLine txt -> Text.unlines . fmap padIfNonEmpty $ Text.lines txt
   where
+    formatContext UcmContextEmpty = ""
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
 formatStanzas :: [Stanza] -> Text
@@ -77,8 +80,8 @@ ucmLine = ucmOutputLine <|> ucmComment <|> ucmCommand
     ucmCommand =
       UcmCommand
         <$> fmap
-          UcmContextProject
-          (fullyQualifiedProjectAndBranchNamesParser <* lineToken (P.chunk ">") <* nonNewlineSpaces)
+          (maybe UcmContextEmpty UcmContextProject)
+          (optional fullyQualifiedProjectAndBranchNamesParser <* lineToken (P.chunk ">") <* nonNewlineSpaces)
         <*> restOfLine
 
     ucmComment :: P UcmLine
@@ -94,9 +97,33 @@ restOfLine = P.takeWhileP Nothing (/= '\n') <* P.single '\n'
 
 apiRequest :: P APIRequest
 apiRequest =
-  GetRequest <$> (word "GET" *> spaces *> restOfLine)
-    <|> APIComment <$> (P.chunk "--" *> restOfLine)
-    <|> APIResponseLine <$> (P.chunk "  " *> restOfLine <|> "" <$ P.single '\n' <|> "" <$ P.chunk " \n")
+  ( getRequest
+      <|> postRequest
+      <|> apiComment
+      <|> apiResponse
+  )
+    <* spaces
+  where
+    getRequest = do
+      _ <- word "GET"
+      spaces
+      url <- restOfLine
+      pure $ GetRequest url
+    postRequest = do
+      _ <- word "POST"
+      spaces
+      url <- restOfLine
+      _ <- word "BODY:" *> P.many (P.single ' ') *> P.single '\n'
+      body <- Text.unlines <$> some (P.chunk "  " *> restOfLine)
+      pure $ PostRequest url body
+    apiComment = do
+      _ <- P.chunk "--"
+      comment <- restOfLine
+      pure $ APIComment comment
+    apiResponse = do
+      _ <- word "RESPONSE:" <* P.many (P.single ' ') *> P.single '\n'
+      response <- Text.unlines <$> some (P.chunk "  " *> restOfLine)
+      pure $ APIResponse response
 
 formatInfoString :: (a -> Maybe Text) -> Text -> InfoTags a -> Text
 formatInfoString formatA language infoTags =

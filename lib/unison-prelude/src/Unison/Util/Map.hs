@@ -15,6 +15,7 @@ module Unison.Util.Map
     fromSetA,
     insertLookup,
     invert,
+    lookupJust,
     mergeMap,
     unionWithM,
     remap,
@@ -87,6 +88,11 @@ insertLookup k v =
 invert :: (Ord v) => Map k v -> Map v k
 invert =
   Map.foldlWithKey' (\m k v -> Map.insert v k m) Map.empty
+
+-- | Like 'Map.lookup', but asserts the key is in the map.
+lookupJust :: (Ord k, Show k) => k -> Map k v -> v
+lookupJust k =
+  Map.findWithDefault (error (reportBug "E147567" ("Missing key: " ++ show k))) k
 
 -- | Upsert an element into a map.
 upsert :: (Ord k) => (Maybe v -> v) -> k -> Map k v -> Map k v

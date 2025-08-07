@@ -3,7 +3,7 @@
 ## Setup
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ## When given a term with the right name and the right type
@@ -18,12 +18,9 @@ myFunction = truncate
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + myFunction : Float -> Int
 
-    ⍟ New definitions:
-    
-      myFunction : Float -> Int
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## When given a term with the right name but wrong type
@@ -101,7 +98,7 @@ long.fully.qualified.name.foo.bar.biz.bite = 123
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` unison :error

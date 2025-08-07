@@ -1,5 +1,5 @@
 ``` ucm
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
   Done.
 ```
@@ -11,15 +11,9 @@ test> pass = [Ok "Passed"]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + pass : [Result]
 
-    ⍟ New definitions:
-    
-      pass : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | test> pass = [Ok "Passed"]
     
@@ -27,7 +21,7 @@ test> pass = [Ok "Passed"]
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -42,11 +36,7 @@ test> pass = [Ok "Passed"]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | test> pass = [Ok "Passed"]
     
@@ -54,14 +44,14 @@ test> pass = [Ok "Passed"]
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 
@@ -80,12 +70,7 @@ scratch/main> test
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > ImmutableArray.fromList [?a, ?b, ?c]
           ⧩

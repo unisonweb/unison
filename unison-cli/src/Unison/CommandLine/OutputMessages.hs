@@ -12,13 +12,14 @@ import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (stripPrefix)
 import Data.List qualified as List
-import Data.List.Extra (notNull, nubOrd, nubOrdOn)
+import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.List.NonEmpty qualified as NEList
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.Nonempty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as TL
@@ -110,7 +111,7 @@ import Unison.PrintError
     renderCompilerBug,
     renderTypeWarnings,
   )
-import Unison.Project (ProjectAndBranch (..))
+import Unison.Project (ProjectAndBranch (..), defaultBranchName)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -133,6 +134,7 @@ import Unison.Syntax.NamePrinter
     prettyHashQualified',
     prettyHashQualifiedFull,
     prettyName,
+    prettyNameParens,
     prettyNamedReference,
     prettyNamedReferent,
     prettyReference,
@@ -145,11 +147,10 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
-import Unison.UnisonFile qualified as UF
-import Unison.Util.Alphabetical (sortAlphabeticallyOn)
+import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), defnsAreEmpty)
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -412,7 +413,7 @@ notifyNumbered = \case
           ),
       [ SA.ProjectBranch $ ProjectAndBranch Nothing branch,
         SA.ProjectBranch . ProjectAndBranch (pure project) $
-          UnsafeProjectBranchName "main"
+          defaultBranchName
       ]
     )
     where
@@ -915,57 +916,7 @@ notifyUser dir = \case
   LoadingFile sourceName -> do
     fileName <- renderFileName $ Text.unpack sourceName
     pure $ P.wrap $ "Loading changes detected in " <> P.group (fileName <> ".")
-  Typechecked sourceName ppe slurpResult uf -> do
-    let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
-    let containsWatchExpressions = notNull $ UF.watchComponents uf
-    if UF.nonEmpty uf
-      then do
-        fileName <- renderFileName $ Text.unpack sourceName
-        pure $
-          P.linesNonEmpty
-            ( [ if fileStatusMsg == mempty
-                  then P.okCallout $ fileName <> " changed."
-                  else
-                    if SlurpResult.isAllDuplicates slurpResult
-                      then
-                        P.wrap $
-                          "I found and"
-                            <> P.bold "typechecked"
-                            <> "the definitions in "
-                            <> P.group (fileName <> ".")
-                            <> "This file "
-                            <> P.bold "has been previously added"
-                            <> "to the codebase."
-                      else
-                        P.linesSpaced $
-                          [ P.wrap $
-                              "I found and"
-                                <> P.bold "typechecked"
-                                <> "these definitions in "
-                                <> P.group (fileName <> ".")
-                                <> "If you do an "
-                                <> P.group (IP.makeExample' IP.update <> ",")
-                                <> "here's how your codebase would change:",
-                            P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
-                          ]
-              ]
-                ++ if containsWatchExpressions
-                  then
-                    [ "",
-                      P.wrap $
-                        "Now evaluating any watch expressions"
-                          <> "(lines starting with `>`)... "
-                          <> P.group (P.hiBlack "Ctrl+C cancels.")
-                    ]
-                  else []
-            )
-      else
-        if (null $ UF.watchComponents uf)
-          then
-            pure . P.wrap $
-              "I loaded " <> P.text sourceName <> " and didn't find anything."
-          else pure mempty
-  Typechecked2 oldPpe newPpe slurpEntries -> do
+  Typechecked oldPpe newPpe slurpEntries aliases -> do
     let newTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
         updatedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann, DeclOrBuiltin Symbol Ann)]
         deletedTypes0 :: [(Name, DeclOrBuiltin Symbol Ann)]
@@ -988,27 +939,37 @@ notifyUser dir = \case
         deletedTypes :: [(Name, DeclOrBuiltin Symbol Ann)]
         deletedTypes = sortAlphabeticallyOn (view _1) deletedTypes0
 
-    let newTerms0 :: [(Name, Type Symbol Ann)]
-        updatedTerms0 :: [(Name, Type Symbol Ann, Type Symbol Ann)]
-        deletedTerms0 :: [(Name, Type Symbol Ann)]
+    let toAliases :: Referent -> [Name]
+        toAliases ref =
+          maybe [] (sortAlphabetically . NEList.toList . Set.Nonempty.toList) (Map.lookup ref aliases)
+
+    let newTerms0 :: [(Name, Type Symbol Ann, [Name])]
+        updatedTerms0 :: [(Name, Type Symbol Ann, [Name], Type Symbol Ann, [Name])]
+        deletedTerms0 :: [(Name, Type Symbol Ann, [Name])]
         numUnchangedTerms :: Int
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.SlurpEntry'Add ty -> over _1 ((name, ty) :) acc
-                SlurpResult.SlurpEntry'Update oldTy newTy -> over _2 ((name, oldTy, newTy) :) acc
-                SlurpResult.SlurpEntry'Delete ty -> over _3 ((name, ty) :) acc
-                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Update oldRef oldTy newRef newTy ->
+                  over _2 ((name, oldTy, toAliases oldRef, newTy, toAliases newRef) :) acc
+                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
             slurpEntries.terms
 
-    let newTerms :: [(Name, Type Symbol Ann)]
+    let newTerms :: [(Name, Type Symbol Ann, [Name])]
         newTerms = sortAlphabeticallyOn (view _1) newTerms0
-        updatedTerms :: [(Name, Type Symbol Ann, Type Symbol Ann)]
+        updatedTerms :: [(Name, Type Symbol Ann, [Name], Type Symbol Ann, [Name])]
         updatedTerms = sortAlphabeticallyOn (view _1) updatedTerms0
-        deletedTerms :: [(Name, Type Symbol Ann)]
+        deletedTerms :: [(Name, Type Symbol Ann, [Name])]
         deletedTerms = sortAlphabeticallyOn (view _1) deletedTerms0
+
+    let existAdds = not (List.null newTypes && List.null newTerms)
+        existUpdates = not (List.null updatedTypes && List.null updatedTerms)
+        existDeletes = not (List.null deletedTypes && List.null deletedTerms)
+        existChanges = existAdds || existUpdates || existDeletes
 
     let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
         renderType name decl =
@@ -1017,7 +978,7 @@ notifyUser dir = \case
 
     let renderTerm :: PPE.PrettyPrintEnv -> (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
         renderTerm ppe colored name ty =
-          (colored (prettyName name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+          (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
 
     let renderedNewTypes :: Pretty
         renderedNewTypes =
@@ -1031,64 +992,124 @@ notifyUser dir = \case
         renderedDeletedTypes =
           P.lines (map (\(name, decl) -> P.red ("- " <> renderType name decl)) deletedTypes)
 
+    let mentionAliases old = \case
+          [] -> mempty
+          aliases ->
+            P.indentN 4 $
+              P.wrap $
+                P.hiBlack (if old then "(was also named" else "(also named")
+                  <> P.oxfordCommasWith (P.hiBlack ")") (map prettyNameParens aliases)
+
     let renderedNewTerms :: Pretty
         renderedNewTerms =
-          P.column2 (map (\(name, ty) -> renderTerm newPpe (P.green . ("+ " <>)) name ty) newTerms)
+          newTerms
+            & map (\(name, ty, _aliases) -> renderTerm newPpe (P.green . ("+ " <>)) name ty)
+            & P.align
+            & map P.group
+            & zipWith
+              ( \(_name, _ty, aliases) doc ->
+                  P.linesNonEmpty
+                    [ doc,
+                      mentionAliases False aliases
+                    ]
+              )
+              newTerms
+            & P.lines
 
     let renderedUpdatedTerms :: Pretty
         renderedUpdatedTerms =
-          P.column2 (map (\(name, _oldTy, newTy) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy) updatedTerms)
+          updatedTerms
+            & map (\(name, _oldTy, _oldAliases, newTy, _newAliases) -> renderTerm newPpe (P.yellow . ("~ " <>)) name newTy)
+            & P.align
+            & map P.group
+            & zipWith
+              ( \(_name, _oldTy, oldAliases, _newTy, newAliases) doc ->
+                  P.linesNonEmpty
+                    [ doc,
+                      mentionAliases True oldAliases,
+                      mentionAliases False newAliases
+                    ]
+              )
+              updatedTerms
+            & P.lines
 
     let renderedDeletedTerms :: Pretty
         renderedDeletedTerms =
-          P.column2 (map (\(name, ty) -> renderTerm oldPpe (P.red . ("- " <>)) name ty) deletedTerms)
+          deletedTerms
+            & map (\(name, ty, _aliases) -> renderTerm oldPpe (P.red . ("- " <>)) name ty)
+            & P.align
+            & map P.group
+            & zipWith
+              ( \(_name, _ty, aliases) doc ->
+                  P.linesNonEmpty
+                    [ doc,
+                      mentionAliases True aliases
+                    ]
+              )
+              deletedTerms
+            & P.lines
 
     pure $
-      P.sepNonEmpty
-        "\n\n"
-        [ P.linesNonEmpty
-            [ renderedNewTypes,
-              renderedUpdatedTypes,
-              renderedDeletedTypes
-            ],
-          P.linesNonEmpty
-            [ renderedNewTerms,
-              renderedUpdatedTerms,
-              renderedDeletedTerms
-            ],
-          if defnsAreEmpty slurpEntries then "No changes found." else mempty,
-          P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
-            (0, 0) -> mempty
-            (0, _) ->
-              "(and "
-                <> P.num numUnchangedTerms
-                <> " unchanged term"
-                <> if numUnchangedTerms == 1 then ")" else "s)"
-            (_, 0) ->
-              "(and "
-                <> P.num numUnchangedTypes
-                <> " unchanged type"
-                <> if numUnchangedTypes == 1 then ")" else "s)"
-            _ ->
-              "(and "
-                <> P.num numUnchangedTypes
-                <> " unchanged type"
-                <> (if numUnchangedTypes == 1 then " and " else "s and ")
-                <> P.num numUnchangedTerms
-                <> " unchanged term"
-                <> (if numUnchangedTerms == 1 then ")" else "s)"),
-          if defnsAreEmpty slurpEntries
-            then mempty
-            else
-              P.lines
-                [ P.green "+" <> " (added), " <> P.yellow "~" <> " (modified), " <> P.red "-" <> " (deleted)",
-                  "",
-                  P.wrap $
-                    "Run"
-                      <> makeExample' IP.update
-                      <> "to apply these changes to your codebase."
-                ]
-        ]
+      if existChanges
+        then
+          P.sepNonEmpty
+            "\n\n"
+            [ P.linesNonEmpty
+                [ renderedNewTypes,
+                  renderedUpdatedTypes,
+                  renderedDeletedTypes
+                ],
+              P.linesNonEmpty
+                [ renderedNewTerms,
+                  renderedUpdatedTerms,
+                  renderedDeletedTerms
+                ],
+              P.hiBlack case (numUnchangedTypes, numUnchangedTerms) of
+                (0, 0) -> mempty
+                (0, _) ->
+                  "(and "
+                    <> P.num numUnchangedTerms
+                    <> " unchanged term"
+                    <> if numUnchangedTerms == 1 then ")" else "s)"
+                (_, 0) ->
+                  "(and "
+                    <> P.num numUnchangedTypes
+                    <> " unchanged type"
+                    <> if numUnchangedTypes == 1 then ")" else "s)"
+                _ ->
+                  "(and "
+                    <> P.num numUnchangedTypes
+                    <> " unchanged type"
+                    <> (if numUnchangedTypes == 1 then " and " else "s and ")
+                    <> P.num numUnchangedTerms
+                    <> " unchanged term"
+                    <> (if numUnchangedTerms == 1 then ")" else "s)"),
+              let legendAdded = P.green "+" <> " (added)"
+                  legendModified = P.yellow "~" <> " (modified)"
+                  legendDeleted = P.red "-" <> " (deleted)"
+               in ( if not existUpdates && not existDeletes
+                      then mempty
+                      else
+                        mconcat
+                          ( List.intersperse
+                              ", "
+                              ( catMaybes
+                                  [ if existAdds then Just legendAdded else Nothing,
+                                    if existUpdates then Just legendModified else Nothing,
+                                    if existDeletes then Just legendDeleted else Nothing
+                                  ]
+                              )
+                          )
+                          <> P.newline
+                          <> P.newline
+                  )
+                    <> P.wrap
+                      ( "Run"
+                          <> makeExample' IP.update
+                          <> "to apply these changes to your codebase."
+                      )
+            ]
+        else "No changes found."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -2135,8 +2156,8 @@ notifyUser dir = \case
     pure . P.wrap $
       "I installed"
         <> prettyProjectAndBranchName libdep
-        <> "as"
-        <> P.group (P.text (NameSegment.toEscapedText segment) <> ".")
+        <> "into"
+        <> P.group (P.text $ into @Text $ Path.fromList [NameSegment.libSegment, segment])
   NoUpgradeInProgress ->
     pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
   UseLibInstallNotPull libdep ->

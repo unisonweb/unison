@@ -9,18 +9,16 @@ unique type Foo = { bar : Nat, baz : Int }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      Foo.bar        : Foo -> Nat
-      Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
-      Foo.bar.set    : Nat -> Foo -> Foo
-      Foo.baz        : Foo -> Int
-      Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
-      Foo.baz.set    : Int -> Foo -> Foo
+  + Foo.bar        : Foo -> Nat
+  + Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
+  + Foo.bar.set    : Nat -> Foo -> Foo
+  + Foo.baz        : Foo -> Int
+  + Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
+  + Foo.baz.set    : Int -> Foo -> Foo
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -50,16 +48,15 @@ unique type Foo = { bar : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
-      Foo.bar        : Foo -> Nat
-      Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
-      Foo.bar.set    : Nat -> Foo -> Foo
+  ~ Foo.bar        : Foo -> Nat
+  ~ Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
+  ~ Foo.bar.set    : Nat -> Foo -> Foo
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 We want the field accessors to go away; but for now they are here, causing the update to fail.
@@ -124,7 +121,7 @@ type Foo = { bar : Nat }
   - Foo.baz.modify : (Int ->{g} Int) -> Foo ->{g} Foo
   - Foo.baz.set    : Int -> Foo -> Foo
 
-  + (added), ~ (modified), - (deleted)
+  ~ (modified), - (deleted)
 
   Run `update` to apply these changes to your codebase.
 ```

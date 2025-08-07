@@ -1,7 +1,7 @@
 # Destructuring binds
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Here's a couple examples:
@@ -21,24 +21,21 @@ ex1 tup =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex0 : Nat -> Nat
+  + ex1 : (a, b, (Nat, Nat)) -> Nat
 
-    ⍟ New definitions:
-    
-      ex0 : Nat -> Nat
-      ex1 : (a, b, (Nat, Nat)) -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view ex0 ex1
+> view ex0 ex1
 
   ex0 : Nat -> Nat
   ex0 n =
@@ -63,13 +60,10 @@ ex2 tup = match tup with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex2 : (a, b, (Nat, Nat)) -> Nat
+      (also named ex1)
 
-    ⍟ New definitions:
-    
-      ex2 : (a, b, (Nat, Nat)) -> Nat
-        (also named ex1)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Corner cases
@@ -114,24 +108,21 @@ ex5a _ = match (99 + 1, "hi") with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex5  : 'Text
+  + ex5a : 'Text
 
-    ⍟ New definitions:
-    
-      ex5  : 'Text
-      ex5a : 'Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view ex5 ex5a
+> view ex5 ex5a
 
   ex5 : 'Text
   ex5 _ = match 99 Nat.+ 1 with
@@ -156,14 +147,14 @@ ex6 x = match x with
 For clarity, the pretty-printer leaves this alone, even though in theory it could be written `(x,y) = x; x + y`:
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view ex6
+> view ex6
 
   ex6 : (Nat, Nat) -> Nat
   ex6 = cases (x, y) -> x Nat.+ y

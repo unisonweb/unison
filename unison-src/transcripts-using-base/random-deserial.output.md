@@ -65,28 +65,25 @@ serialTests = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + availableCases : '{IO, Exception} [Text]
+  + directory      : Text
+  + gen            : Nat -> Nat -> (Nat, Nat)
+  + runTestCase    : Text ->{IO, Exception} (Text, Result)
+  + serialTests    : '{IO, Exception} [Result]
+  + shuffle        : Nat -> [a] -> [a]
 
-    ⍟ New definitions:
-    
-      availableCases : '{IO, Exception} [Text]
-      directory      : Text
-      gen            : Nat -> Nat -> (Nat, Nat)
-      runTestCase    : Text ->{IO, Exception} (Text, Result)
-      serialTests    : '{IO, Exception} [Result]
-      shuffle        : Nat -> [a] -> [a]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test serialTests
+> io.test serialTests
 
     New test results:
 

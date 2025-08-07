@@ -1,5 +1,5 @@
 ``` ucm :hide
-project/main> builtins.mergeio lib.builtin
+> builtins.mergeio lib.builtin
 ```
 
 ``` unison
@@ -24,30 +24,28 @@ unique type Foo = { bar : Nat, baz : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      Foo.bar               : Foo -> Nat
-      Foo.bar.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
-      Foo.bar.set           : Nat -> Foo -> Foo
-      Foo.baz               : Foo -> Nat
-      Foo.baz.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
-      Foo.baz.set           : Nat -> Foo -> Foo
-      lib.project.ignoreMe  : Nat
-      nested.cycle.ping     : Nat -> Nat
-      nested.cycle.ping.doc : Doc2
-      nested.cycle.pong     : Nat -> Nat
-      nested.cycle.pong.doc : Doc2
-      simple.x              : Nat
-      simple.y              : Nat
-      toplevel              : Text
+  + Foo.bar               : Foo -> Nat
+  + Foo.bar.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
+  + Foo.bar.set           : Nat -> Foo -> Foo
+  + Foo.baz               : Foo -> Nat
+  + Foo.baz.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
+  + Foo.baz.set           : Nat -> Foo -> Foo
+  + lib.project.ignoreMe  : Nat
+  + nested.cycle.ping     : Nat -> Nat
+  + nested.cycle.ping.doc : Doc2
+  + nested.cycle.pong     : Nat -> Nat
+  + nested.cycle.pong.doc : Doc2
+  + simple.x              : Nat
+  + simple.y              : Nat
+  + toplevel              : Text
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-project/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -58,7 +56,7 @@ project/main> add
 `edit.namespace` edits the whole namespace (minus the top-level `lib`).
 
 ``` ucm
-project/main> edit.namespace .
+> edit.namespace .
 
   ☝️
 
@@ -100,7 +98,7 @@ toplevel = "hi"
 `edit.namespace` can also accept explicit paths
 
 ``` ucm
-project/main> edit.namespace nested simple
+> edit.namespace nested simple
 
   ☝️
 

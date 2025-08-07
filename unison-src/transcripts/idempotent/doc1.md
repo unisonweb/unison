@@ -1,13 +1,13 @@
 # Documenting Unison code
 
 ``` ucm :hide
-scratch/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 ```
 
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
 ``` ucm
-scratch/main> view lib.builtins.Doc
+> view lib.builtins.Doc
 
   type lib.builtins.Doc
     = Blob Text
@@ -33,12 +33,9 @@ Can link to definitions like {List.drop} or {type List}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc1 : Doc2
 
-    ⍟ New definitions:
-    
-      doc1 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 Syntax:
@@ -74,18 +71,15 @@ take 2 [1,2,3,4,5]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + List.take.doc : Doc2
 
-    ⍟ New definitions:
-    
-      List.take.doc : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 Let's add it to the codebase.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -96,7 +90,7 @@ scratch/main> add
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
 ``` ucm
-scratch/main> docs List.take
+> docs List.take
 
   `List.take n xs` returns the first `n` elements of `xs`. (No
   need to add line breaks manually. The display command will do
@@ -117,7 +111,7 @@ scratch/main> docs List.take
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
 ``` ucm
-scratch/main> view List.take
+> view List.take
 
   builtin lib.builtins.List.take :
     lib.builtins.Nat -> [a] -> [a]

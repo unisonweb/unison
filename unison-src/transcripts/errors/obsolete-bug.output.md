@@ -1,7 +1,7 @@
 This transcript will error, because we’re claiming that the stanza has a bug, but `help` works as expected.
 
 ``` ucm :bug
-scratch/main> help edit
+> help edit
 
   edit
   `edit foo` prepends the definition of `foo` to the top of the most recently saved file.

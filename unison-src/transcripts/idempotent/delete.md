@@ -1,7 +1,7 @@
 # Delete
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 The delete command can delete both terms and types.
@@ -10,7 +10,7 @@ First, let's make sure it complains when we try to delete a name that doesn't
 exist.
 
 ``` ucm :error
-scratch/main> delete.verbose foo
+> delete.verbose foo
 
   ⚠️
 
@@ -27,14 +27,14 @@ structural type Foo = Foo ()
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose foo
+> delete.verbose foo
 
   Removed definitions:
 
@@ -43,7 +43,7 @@ scratch/main> delete.verbose foo
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> delete.verbose Foo
+> delete.verbose Foo
 
   Removed definitions:
 
@@ -52,7 +52,7 @@ scratch/main> delete.verbose Foo
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> delete.verbose Foo.Foo
+> delete.verbose Foo.Foo
 
   Removed definitions:
 
@@ -70,14 +70,14 @@ a.bar = 2
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> debug.alias.term.force a.bar a.foo
+> debug.alias.term.force a.bar a.foo
 
   Done.
 ```
@@ -85,7 +85,7 @@ scratch/main> debug.alias.term.force a.bar a.foo
 A delete should remove both versions of the term.
 
 ``` ucm
-scratch/main> delete.verbose a.foo
+> delete.verbose a.foo
 
   Removed definitions:
 
@@ -100,7 +100,7 @@ scratch/main> delete.verbose a.foo
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> ls a
+> ls a
 
   1. bar (Nat)
 ```
@@ -113,18 +113,18 @@ structural type a.Bar = Bar
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> debug.alias.type.force a.Bar a.Foo
+> debug.alias.type.force a.Bar a.Foo
 
   Done.
 
-scratch/main> delete.verbose a.Foo
+> delete.verbose a.Foo
 
   Removed definitions:
 
@@ -140,7 +140,7 @@ scratch/main> delete.verbose a.Foo
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> delete.verbose a.Foo.Foo
+> delete.verbose a.Foo.Foo
 
   Removed definitions:
 
@@ -158,14 +158,14 @@ structural type foo = Foo ()
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose foo
+> delete.verbose foo
 
   Removed definitions:
 
@@ -175,7 +175,7 @@ scratch/main> delete.verbose foo
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> delete foo.Foo
+> delete foo.Foo
 
   Done.
 ```
@@ -189,14 +189,14 @@ c = "c"
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose a b c
+> delete.verbose a b c
 
   Removed definitions:
 
@@ -218,14 +218,14 @@ c = "c"
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose a b c Foo
+> delete.verbose a b c Foo
 
   Removed definitions:
 
@@ -237,7 +237,7 @@ scratch/main> delete.verbose a b c Foo
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> delete.verbose Foo.Foo
+> delete.verbose Foo.Foo
 
   Removed definitions:
 
@@ -254,14 +254,14 @@ structural type Foo = Foo ()
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose Foo Foo.Foo
+> delete.verbose Foo Foo.Foo
 
   Removed definitions:
 
@@ -282,14 +282,14 @@ d = a + b + c
 ```
 
 ``` ucm :error
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose a b c
+> delete.verbose a b c
 
   ⚠️
 
@@ -312,14 +312,14 @@ h = e + f + g
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose e f g h
+> delete.verbose e f g h
 
   Removed definitions:
 
@@ -343,14 +343,14 @@ incrementFoo = cases
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose Foo Foo.Foo incrementFoo
+> delete.verbose Foo Foo.Foo incrementFoo
 
   Removed definitions:
 
@@ -372,14 +372,14 @@ h = e + f + g
 ```
 
 ``` ucm :error
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose e f gg
+> delete.verbose e f gg
 
   ⚠️
 
@@ -395,14 +395,14 @@ pong _ = 4 Nat.+ !ping
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.verbose ping
+> delete.verbose ping
 
   Removed definitions:
 
@@ -411,7 +411,7 @@ scratch/main> delete.verbose ping
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> view pong
+> view pong
 
   pong : 'Nat
   pong _ =

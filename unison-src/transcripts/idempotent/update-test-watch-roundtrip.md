@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Given a test that depends on another definition,
@@ -13,7 +13,7 @@ test> mynamespace.foo.test =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -30,17 +30,15 @@ foo n = "hello, world!"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ foo : n -> Text
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      foo : n -> Text
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

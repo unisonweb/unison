@@ -1,7 +1,7 @@
 # Shows `help` output
 
 ``` ucm
-scratch/main> help
+> help
 
   add.run
   `add.run name` adds to the codebase the result of the most recent `run` command as `name`.
@@ -517,6 +517,62 @@ scratch/main> help
                                               `topic` branch of
                                               `@unison/base`
 
+  lib.install.local (or install.lib.local)
+  The `lib.install.local` command installs a local project
+  branch into the `lib` namespace of the current branch.
+
+  `lib.install.local myproject`                            installs
+                                                           the
+                                                           `main`
+                                                           branch
+                                                           of
+                                                           `myproject`
+                                                           in
+                                                           your
+                                                           codebase
+                                                           into
+                                                           the
+                                                           current
+                                                           branch's
+                                                           lib
+                                                           directory
+                                                           at
+                                                           `lib.myproject`
+  `lib.install.local myproject/feature`                    installs
+                                                           the
+                                                           `feature`
+                                                           branch
+                                                           of
+                                                           `myproject`
+                                                           in
+                                                           your
+                                                           codebase
+                                                           into
+                                                           the
+                                                           current
+                                                           branch's
+                                                           lib
+                                                           directory
+                                                           at
+                                                           `lib.myproject`
+  `lib.install.local myproject/development myproject_dev`  installs
+                                                           the
+                                                           `development`
+                                                           branch
+                                                           of
+                                                           `myproject`
+                                                           in
+                                                           your
+                                                           codebase
+                                                           into
+                                                           the
+                                                           current
+                                                           branch's
+                                                           lib
+                                                           directory
+                                                           at
+                                                           `lib.myproject_dev`
+
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current
                namespace.
@@ -905,7 +961,7 @@ scratch/main> help
   `view.global foo` prints definitions of `foo` within your codebase.
   `view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.
 
-scratch/main> help-topics
+> help-topics
 
   🌻
 
@@ -920,7 +976,7 @@ scratch/main> help-topics
 
   Example: use `help-topics filestatus` to learn more about that topic.
 
-scratch/main> help-topic filestatus
+> help-topic filestatus
 
   📓
 
@@ -950,7 +1006,7 @@ scratch/main> help-topic filestatus
                        a dependency of a definition explicitly
                        selected.
 
-scratch/main> help-topic messages.disallowedAbsolute
+> help-topic messages.disallowedAbsolute
 
   🤖
 
@@ -962,7 +1018,7 @@ scratch/main> help-topic messages.disallowedAbsolute
   As a workaround, you can give definitions with a relative name
   temporarily (like `exports.blah.foo`) and then use `move.*`.
 
-scratch/main> help-topic namespaces
+> help-topic namespaces
 
   🧐
 
@@ -988,7 +1044,7 @@ scratch/main> help-topic namespaces
 
     answerToLifeTheUniverseAndEverything = .foo.bar.x + 1
 
-scratch/main> help-topic projects
+> help-topic projects
 
   A project is a versioned collection of code that can be
   edited, published, and depended on other projects. Unison
@@ -1009,7 +1065,7 @@ scratch/main> help-topic projects
   For full documentation, see
   https://unison-lang.org/learn/projects
 
-scratch/main> help-topic remotes
+> help-topic remotes
 
   🤖
 
@@ -1024,7 +1080,7 @@ scratch/main> help-topic remotes
   created by `clone`. If the project was created locally then
   the relationship will be established on the first `push`.
 
-scratch/main> help-topic testcache
+> help-topic testcache
 
   🎈
 

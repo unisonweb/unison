@@ -7,7 +7,7 @@ then the transcript parser should print the stanza
 and surface a helpful message.
 
 ``` ucm :hide
-scratch/main> move.namespace foo bar
+> move.namespace foo bar
 ```
 
 🛑

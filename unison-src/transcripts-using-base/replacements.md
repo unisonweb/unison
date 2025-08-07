@@ -1,4 +1,3 @@
-
 Tests related to automatic replacement of unison types/functions by
 builtins.
 
@@ -20,6 +19,6 @@ mapTests = do [!testIt]
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test mapTests
+> add
+> io.test mapTests
 ```

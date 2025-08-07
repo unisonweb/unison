@@ -10,6 +10,7 @@
       - [`UNISON_READONLY`](#unison_readonly)
       - [`UNISON_ENTITY_VALIDATION`](#unison_entity_validation)
       - [`UNISON_SYNC_VERSION`](#unison_sync_version)
+      - [`UNISON_MIGRATION`](#unison_migration)
       - [`UNISON_FZF_PATH`](#unison_fzf_path)
       - [Local Codebase Server](#local-codebase-server)
   - [Codebase Configuration](#codebase-configuration)
@@ -125,6 +126,16 @@ Allows regressing to sync version 1 when interacting with Share.
 ``` sh
 $ UNISON_SYNC_VERSION="1" ucm
 ```
+
+### `UNISON_MIGRATION`
+
+Setting:
+
+``` sh
+$ UNISON_MIGRATION="auto" ucm
+```
+
+will cause ucm to automatically migrate the codebase to the latest version, without prompting for confirmation.
 
 ### `UNISON_FZF_PATH`
 

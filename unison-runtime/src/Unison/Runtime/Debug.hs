@@ -67,8 +67,8 @@ tracePrettyDefs ppe True tms = map f tms
 tracePrettyNormal ::
   (Var v) =>
   Bool ->
-  ANormal v ->
-  ANormal v
+  ANormal Reference v ->
+  ANormal Reference v
 tracePrettyNormal False tm = tm
 tracePrettyNormal True tm = trace (prettyANF False 0 tm "") tm
 
@@ -76,8 +76,8 @@ tracePrettyGroup ::
   (Var v) =>
   String ->
   Bool ->
-  SuperGroup v ->
-  SuperGroup v
+  SuperGroup Reference v ->
+  SuperGroup Reference v
 tracePrettyGroup _ False g = g
 tracePrettyGroup w True g = trace (prettyGroup w g "") g
 
@@ -85,23 +85,23 @@ tracePrettyRGroup ::
   (Var v) =>
   Reference ->
   Bool ->
-  SuperGroup v ->
-  SuperGroup v
+  SuperGroup Reference v ->
+  SuperGroup Reference v
 tracePrettyRGroup = tracePrettyGroup . prettyRefStr
 
 tracePrettyRPGroup ::
   (Var v) =>
   Reference ->
-  (SuperGroup v -> Bool) ->
-  SuperGroup v ->
-  SuperGroup v
+  (SuperGroup Reference v -> Bool) ->
+  SuperGroup Reference v ->
+  SuperGroup Reference v
 tracePrettyRPGroup r p g = tracePrettyRGroup r (p g) g
 
 tracePrettyGroups ::
   (Var v) =>
   Bool ->
-  Map.Map Reference (SuperGroup v) ->
-  Map.Map Reference (SuperGroup v)
+  Map.Map Reference (SuperGroup Reference v) ->
+  Map.Map Reference (SuperGroup Reference v)
 tracePrettyGroups False gs = gs
 tracePrettyGroups True gs =
   trace (appEndo (foldMap f (Map.toList gs)) "") gs
@@ -114,7 +114,8 @@ prettyRef = prettyShortHash . shortenTo 10 . toShortHash
 prettyRefStr :: Reference -> String
 prettyRefStr = toAnsiUnbroken . prettyRef
 
-tracePrettyCodes :: Bool -> [(Reference, Code)] -> [(Reference, Code)]
+tracePrettyCodes ::
+  Bool -> [(Reference, Code Reference)] -> [(Reference, Code Reference)]
 tracePrettyCodes False = id
 tracePrettyCodes True = map f
   where

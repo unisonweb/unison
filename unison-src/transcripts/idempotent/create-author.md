@@ -1,11 +1,11 @@
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 Demonstrating `create.author`:
 
 ``` ucm
-scratch/main> create.author alicecoder "Alice McGee"
+> create.author alicecoder "Alice McGee"
 
   Added definitions:
 
@@ -15,7 +15,7 @@ scratch/main> create.author alicecoder "Alice McGee"
 
   Tip: Add License values for alicecoder under metadata.
 
-scratch/main> find alicecoder
+> find alicecoder
 
   1. metadata.authors.alicecoder : Author
   2. metadata.copyrightHolders.alicecoder : CopyrightHolder

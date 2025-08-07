@@ -5,7 +5,7 @@ This transcript tests the errors printed to the user when a name cannot be resol
 ## Codebase Setup
 
 ``` ucm
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 
   Done.
 ```
@@ -23,19 +23,17 @@ two.ambiguousTerm = "term two"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type one.AmbiguousType
+  + type two.AmbiguousType
 
-    ⍟ New definitions:
-    
-      type one.AmbiguousType
-      type two.AmbiguousType
-      one.ambiguousTerm : Text
-      two.ambiguousTerm : Text
+  + one.ambiguousTerm : Text
+  + two.ambiguousTerm : Text
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...

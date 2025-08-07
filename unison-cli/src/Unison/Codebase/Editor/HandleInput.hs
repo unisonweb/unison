@@ -65,7 +65,7 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Global qualified as Global
-import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
+import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib, handleInstallLocalLib)
 import Unison.Codebase.Editor.HandleInput.LSPDebug qualified as LSPDebug
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.Ls (handleLs)
@@ -762,6 +762,7 @@ loop e = do
         UpgradeI old new -> handleUpgrade old new
         UpgradeCommitI -> handleCommitUpgrade
         LibInstallI remind libdep -> handleInstallLib remind libdep
+        LibInstallLocalI src destLibName -> handleInstallLocalLib src destLibName
         DebugSynhashTermI name -> handleDebugSynhashTerm name
         EditDependentsI name -> handleEditDependents name
 
@@ -890,6 +891,8 @@ inputDescription input =
     FindShallowI {} -> wat
     HistoryI {} -> wat
     LibInstallI {} -> wat
+    LibInstallLocalI src mayDest ->
+      pure $ "lib.install.local " <> into @Text src <> " " <> maybe "" NameSegment.toEscapedText mayDest
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     LoadI {} -> wat

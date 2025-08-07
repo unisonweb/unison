@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -12,17 +12,15 @@ incrFoo = cases Bar n -> Bar (n+1)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      incrFoo : Foo -> Foo
+  + incrFoo : Foo -> Foo
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -37,17 +35,15 @@ unique type Foo = Bar Nat Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...

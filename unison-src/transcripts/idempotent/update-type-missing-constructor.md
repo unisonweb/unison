@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -9,23 +9,20 @@ unique type Foo = Bar Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.term Foo.Bar
+> delete.term Foo.Bar
 
   Done.
 ```
@@ -39,21 +36,19 @@ unique type Foo = Bar Nat Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-scratch/main> view Foo
+> view Foo
 
   type Foo = #5mod0n8ps2#0 Nat
 
-scratch/main> update
+> update
 
   Sorry, I wasn't able to perform the update:
 

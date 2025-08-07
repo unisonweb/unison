@@ -192,12 +192,15 @@ swapped name link =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 ```
 
 ``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
+
+structural ability Zep where
+  harp : Nat
 
 h : Three Nat Nat Nat -> Nat -> Nat
 h y x = match y with
@@ -227,6 +230,12 @@ zapper : Three Nat Nat Nat -> Request {Zap} r -> r
 zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
+
+zaeper : Request {Zap,Zep} r -> Nat
+zaeper = cases
+ { r } -> 1
+ { zap -> _ } -> 2
+ { harp -> _ } -> 3
 
 bigFun : Nat -> Nat -> Nat -> Nat
 bigFun i j k = let
@@ -301,9 +310,9 @@ we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test tests
-scratch/main> io.test badLoad
+> add
+> io.test tests
+> io.test badLoad
 ```
 
 ``` unison
@@ -318,6 +327,10 @@ codeTests =
    , idempotence "idem big" (termLink bigFun)
    , idempotence "idem extensionality" (termLink extensionality)
    , idempotence "idem identicality" (termLink identicality)
+
+   -- actually tests that code serialization works on this previously
+   -- problem term
+   , idempotence "idem zaeper" (termLink zaeper)
 
    , idempotence.versioned 4 "idem f v4" (termLink f)
    , idempotence.versioned 4 "idem h v4" (termLink h)
@@ -366,8 +379,8 @@ codeTests =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test codeTests
+> add
+> io.test codeTests
 ```
 
 ``` unison
@@ -397,6 +410,6 @@ vtests _ =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test vtests
+> add
+> io.test vtests
 ```

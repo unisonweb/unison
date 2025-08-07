@@ -1,7 +1,7 @@
 # Duplicate names in scratch file.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Term and ability constructor collisions should cause a parse error.
@@ -106,25 +106,22 @@ X = ()
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type X
 
-    ⍟ New definitions:
-    
-      structural type X
-        (also named builtin.Unit)
-      X : ()
+  + X : ()
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view X
+> view X
 
   structural type X = Z
 

@@ -1,7 +1,7 @@
 # namespace.dependencies command
 
 ``` ucm
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 
   Done.
 ```
@@ -13,14 +13,14 @@ mynamespace.dependsOnText = const external.mynat 10
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> namespace.dependencies mynamespace
+> namespace.dependencies mynamespace
 
   External dependency   Dependents in scratch/main:.mynamespace
   lib.builtins.Nat      1. dependsOnText

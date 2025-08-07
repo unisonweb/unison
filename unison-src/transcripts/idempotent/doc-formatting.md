@@ -3,7 +3,7 @@ This transcript explains a few minor details about doc parsing and pretty-printi
 Docs can be used as inline code comments.
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 ```
 
 ``` unison
@@ -16,20 +16,17 @@ foo n =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      foo : Nat -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view foo
+> view foo
 
   foo : Nat -> Nat
   foo n =
@@ -47,20 +44,17 @@ escaping = {{ Docs look `{{ like {this} }}` }}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + escaping : Doc2
 
-    ⍟ New definitions:
-    
-      escaping : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view escaping
+> view escaping
 
   escaping : Doc2
   escaping = {{ Docs look `{{ like {this} }}` }}
@@ -81,20 +75,17 @@ commented = {{
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + commented : Doc2
 
-    ⍟ New definitions:
-    
-      commented : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view commented
+> view commented
 
   commented : Doc2
   commented =
@@ -119,20 +110,17 @@ doc1 = {{   hi   }}
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc1 : Doc2
 
-    ⍟ New definitions:
-    
-      doc1 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc1
+> view doc1
 
   doc1 : Doc2
   doc1 = {{ hi }}
@@ -154,20 +142,17 @@ doc2 = {{ hello
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc2 : Doc2
 
-    ⍟ New definitions:
-    
-      doc2 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc2
+> view doc2
 
   doc2 : Doc2
   doc2 =
@@ -199,20 +184,17 @@ Note that because of the special treatment of the first line mentioned above, wh
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc3 : Doc2
 
-    ⍟ New definitions:
-    
-      doc3 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc3
+> view doc3
 
   doc3 : Doc2
   doc3 =
@@ -247,20 +229,17 @@ doc4 = {{ Here's another example of some paragraphs.
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc4 : Doc2
 
-    ⍟ New definitions:
-    
-      doc4 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc4
+> view doc4
 
   doc4 : Doc2
   doc4 =
@@ -286,20 +265,17 @@ doc5 = {{   - foo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc5 : Doc2
 
-    ⍟ New definitions:
-    
-      doc5 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc5
+> view doc5
 
   doc5 : Doc2
   doc5 =
@@ -323,21 +299,18 @@ doc6 = {{
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc6 : Doc2
+      (also named doc5)
 
-    ⍟ New definitions:
-    
-      doc6 : Doc2
-        (also named doc5)
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view doc6
+> view doc6
 
   doc6 : Doc2
   doc6 =
@@ -361,21 +334,18 @@ expr = foo 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + empty : Doc2
+  + expr  : Nat
 
-    ⍟ New definitions:
-    
-      empty : Doc2
-      expr  : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view empty
+> view empty
 
   empty : Doc2
   empty = {{  }}
@@ -428,20 +398,17 @@ para line lorem ipsum dolor lorem ipsum dolor lorem ipsum dolor lorem ipsum dolo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test1 : Doc2
 
-    ⍟ New definitions:
-    
-      test1 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view test1
+> view test1
 
   test1 : Doc2
   test1 =
@@ -520,20 +487,17 @@ reg1363 = {{ `{List.take} foo` bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + reg1363 : Doc2
 
-    ⍟ New definitions:
-    
-      reg1363 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> view reg1363
+> view reg1363
 
   reg1363 : Doc2
   reg1363 = {{ `{List.take} foo` bar baz }}
@@ -553,22 +517,19 @@ test2 = {{
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test2 : Doc2
 
-    ⍟ New definitions:
-    
-      test2 : Doc2
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 View is fine.
 
 ``` ucm
-scratch/main> view test2
+> view test2
 
   test2 : Doc2
   test2 =
@@ -582,7 +543,7 @@ scratch/main> view test2
 But note it's not obvious how display should best be handling this.  At the moment it just does the simplest thing:
 
 ``` ucm
-scratch/main> display test2
+> display test2
 
   Take a look at this:
 

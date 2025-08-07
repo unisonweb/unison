@@ -1,12 +1,12 @@
 ``` ucm :hide
-scratch/main> lib.install @runarorama/avroSpeedTest/releases/1.0.1
+> lib.install @runarorama/avroSpeedTest/releases/1.0.1
 ```
 
 This transcript checks that the function replacements are improving the
 performance of Avro decoding.
 
 ``` ucm
-scratch/main> test.io checkRuntimeOptimizations
+> test.io checkRuntimeOptimizations
 
     New test results:
 

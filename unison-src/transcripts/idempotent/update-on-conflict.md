@@ -3,7 +3,7 @@
 Conflicted definitions prevent `update` from succeeding.
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 ``` unison
@@ -14,28 +14,25 @@ temp = 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + temp : Nat
+  + x    : Nat
 
-    ⍟ New definitions:
-    
-      temp : Nat
-      x    : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> debug.alias.term.force temp x
+> debug.alias.term.force temp x
 
   Done.
 
-scratch/main> delete.term temp
+> delete.term temp
 
   Done.
 ```
@@ -47,17 +44,15 @@ x = 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ x : Nat
 
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      x : Nat
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-scratch/main> update
+> update
 
   This branch has more than one term with the name `x`. Please
   delete or rename all but one of them, then try the update

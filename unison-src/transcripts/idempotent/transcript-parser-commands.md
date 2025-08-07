@@ -1,7 +1,7 @@
 ### Transcript parser operations
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 The transcript parser is meant to parse `ucm` and `unison` blocks.
@@ -13,16 +13,13 @@ x = 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + x : Nat
 
-    ⍟ New definitions:
-    
-      x : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -35,7 +32,7 @@ z
 ```
 
 ``` ucm :error
-scratch/main> delete foo
+> delete foo
 
   ⚠️
 
@@ -44,7 +41,7 @@ scratch/main> delete foo
 ```
 
 ``` ucm :error
-scratch/main> delete lineToken.call
+> delete lineToken.call
 
   ⚠️
 

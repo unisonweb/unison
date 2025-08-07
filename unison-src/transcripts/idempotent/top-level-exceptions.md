@@ -1,13 +1,13 @@
 A simple transcript to test the use of exceptions that bubble to the top level.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 FYI, here are the `Exception` and `Failure` types:
 
 ``` ucm
-scratch/main> view Exception Failure
+> view Exception Failure
 
   structural ability builtin.Exception where
     raise : Failure ->{Exception} x
@@ -30,28 +30,25 @@ mytest _ = [Ok "Great"]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + main   : '{IO, Exception} ()
+  + mytest : '{IO, Exception} [Result]
 
-    ⍟ New definitions:
-    
-      main   : '{IO, Exception} ()
-      mytest : '{IO, Exception} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> run main
+> run main
 
   ()
 
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test mytest
+> io.test mytest
 
     New test results:
 
@@ -77,18 +74,16 @@ unique type RuntimeError =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type RuntimeError
 
-    ⍟ New definitions:
-    
-      type RuntimeError
-      error : Text -> a ->{Exception} x
-      main2 : '{Exception} r
+  + error : Text -> a ->{Exception} x
+  + main2 : '{Exception} r
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-scratch/main> run main2
+> run main2
 
   💔💥
 

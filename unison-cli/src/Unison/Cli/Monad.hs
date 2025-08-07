@@ -169,7 +169,7 @@ data Env = Env
     loadSource :: SourceName -> IO LoadSourceResult,
     -- | Notify the LSP that this ProjectPathIds might be different from the last (e.g. on branch update, switch, etc).
     lspCheckForChanges :: PP.ProjectPathIds -> IO (),
-    -- | How to write source code. Bool = make new fold?
+    -- | How to prepend source code. Bool = make new fold?
     writeSource :: SourceName -> Text -> Bool -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),

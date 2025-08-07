@@ -19,13 +19,13 @@ test2 = do
 ```
 
 ``` ucm
-scratch/main> add
+> add
 ```
 
 ``` ucm :error
-scratch/main> io.test test1
+> io.test test1
 ```
 
 ``` ucm :error
-scratch/main> io.test test2
+> io.test test2
 ```
