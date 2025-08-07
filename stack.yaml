@@ -50,6 +50,9 @@ packages:
   - unison-syntax
   - yaks/easytest
 
+# When changing this, also update the Cabal freeze file with
+#
+# > curl https://www.stackage.org/<resolver>/cabal.config > contrib/cabal.project.freeze
 resolver: lts-22.26 # GHC 9.6.5
 
 extra-deps:

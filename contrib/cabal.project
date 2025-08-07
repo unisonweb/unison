@@ -52,17 +52,8 @@ source-repository-package
   location: https://github.com/ChrisPenner/hs-mcp.git
   tag: 14fe82d086a04e82b1c05d7f5a4bbd30eec22042
 
--- Version constraints here should use the version from the resolver listed in ../stack.yaml. You can find the versions
--- at https://www.stackage.org/<resolver>/package/<package>.
 constraints:
-  crypton-x509-store == 1.6.9,
-  fsnotify == 0.4.1.0,
   haskeline -terminfo,
-  lsp == 2.3.0.0,
-  optparse-applicative == 0.18.1.0,
-  servant == 0.20.1,
-  text-builder == 0.6.7.2,
-  tls == 1.8.0
 
 -- Use scoped wildcards to match the corresponding `allow-newer-deps` behavior from ../stack.yaml.
 allow-newer:
