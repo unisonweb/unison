@@ -1,11 +1,9 @@
+resolver: lts-22.26 # GHC 9.6.5
+
 ## We intentionally disable Nix integration when running in a Nix shell.
 notify-if-nix-on-path: false
 ## We pin a specific Stack version when possible. We shouldn’t then tell contributors to upgrade from there.
 recommend-stack-upgrade: false
-
-flags:
-  haskeline:
-    terminfo: false
 
 allow-different-user: true
 
@@ -50,11 +48,6 @@ packages:
   - unison-syntax
   - yaks/easytest
 
-# When changing this, also update the Cabal freeze file with
-#
-# > curl https://www.stackage.org/<resolver>/cabal.config > contrib/cabal.project.freeze
-resolver: lts-22.26 # GHC 9.6.5
-
 extra-deps:
   # This custom Haskeline alters ANSI rendering on Windows.
   # If changing the haskeline dependency, please ensure color renders properly in a
@@ -72,6 +65,10 @@ extra-deps:
   - recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
   - numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
   - network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
+
+flags:
+  haskeline:
+    terminfo: false
 
 allow-newer: true
 allow-newer-deps:
