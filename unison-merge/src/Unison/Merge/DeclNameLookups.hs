@@ -1,6 +1,7 @@
 module Unison.Merge.DeclNameLookups
-  ( makeDeclNameLookups
-  ) where
+  ( makeDeclNameLookups,
+  )
+where
 
 import Unison.DeclCoherencyCheck (IncoherentDeclReason, checkDeclCoherency, lenientCheckDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup)

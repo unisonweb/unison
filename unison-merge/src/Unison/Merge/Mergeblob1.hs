@@ -113,7 +113,6 @@ makeMergeblob1 ::
 makeMergeblob1 names3 blob libdeps3 hydratedDefns = do
   let renames =
         makeRenames' . Updated.map (bimap BiMultimap.fromRange BiMultimap.fromRange) <$> wundefined -- blob.synhashedDefns
-
   let simpleRenames =
         makeSimpleRenames <$> renames
 
