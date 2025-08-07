@@ -32,6 +32,7 @@ packages:
   parser-typechecker
   unison-core
   unison-cli
+  unison-cli-integration
   unison-cli-main
   unison-hashing-v2
   unison-merge
