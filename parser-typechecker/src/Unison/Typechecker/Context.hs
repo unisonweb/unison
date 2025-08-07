@@ -319,6 +319,7 @@ data CompilerBug v loc
 data PathElement v loc
   = InSynthesize (Term v loc)
   | InSubtype (Type v loc) (Type v loc)
+  | InSubAbilities [Type v loc] [Type v loc] -- want, have
   | InEquate (Type v loc) (Type v loc)
   | InCheck (Term v loc) (Type v loc)
   | InInstantiateL v (Type v loc)
@@ -3257,11 +3258,13 @@ subAbilities want have = do
   have <- expandAbilities have
   (extra, want) <- traverse expandWanted =<< pruneAbilities want have
   have <- expandAbilities have
-  case (want, mapMaybe ex have) of
-    ([], _) -> pure extra
-    (want@((_, w) : _), [(b, ve, tv)]) ->
-      extra <$ refineEffectVar (loc w) (snd <$> want) b ve tv -- `orElse` die src w
-    ((src, w) : _, _) -> die src w
+  scope
+    (InSubAbilities (snd <$> want) have)
+    case (want, mapMaybe ex have) of
+      ([], _) -> pure extra
+      (want@((_, w) : _), [(b, ve, tv)]) ->
+        extra <$ refineEffectVar (loc w) (snd <$> want) b ve tv
+      ((src, w) : _, _) -> die src w
   where
     ex t@(Type.Var' (TypeVar.Existential b v)) = Just (b, v, t)
     ex _ = Nothing
