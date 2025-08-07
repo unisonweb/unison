@@ -1,6 +1,6 @@
 module Unison.Merge.Mergeblob3
   ( -- Mergeblob3 (..),
-    -- makeMergeblob3,
+  -- makeMergeblob3,
   )
 where
 
@@ -52,7 +52,7 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Prelude hiding (unzip)
 
---data Mergeblob3 = Mergeblob3
+-- data Mergeblob3 = Mergeblob3
 --  { libdeps :: Names,
 --    stageOne :: DefnsF (Map Name) Referent TypeReference,
 --    uniqueTypeGuids :: Map Name Text,
@@ -61,13 +61,13 @@ import Prelude hiding (unzip)
 --    unparsedSoloFiles :: ThreeWay (Pretty ColorText)
 --  }
 
---makeMergeblob3 ::
+-- makeMergeblob3 ::
 --  Mergeblob2 libdep ->
 --  Names ->
 --  Names ->
 --  TwoWay Text ->
 --  Mergeblob3
---makeMergeblob3 blob libdeps lcaLibdeps authors =
+-- makeMergeblob3 blob libdeps lcaLibdeps authors =
 --  let -- Project out just the name->ref mapping of defns, since we need it a few times
 --      defnsByName :: ThreeWay (DefnsF (Map Name) Referent TypeReference)
 --      defnsByName =
@@ -150,13 +150,13 @@ import Prelude hiding (unzip)
 --              <&> \conflicts -> makePrettySoloUnisonFile conflicts renderedDependents
 --        }
 
---mergeDependents ::
+-- mergeDependents ::
 --  forall term typ.
 --  TwoWay (DefnsF Set Name Name) ->
 --  DefnsF Unconflicts typ term ->
 --  TwoWay (DefnsF Set Name Name) ->
 --  TwoWay (DefnsF Set Name Name)
---mergeDependents conflicts unconflicts dependents =
+-- mergeDependents conflicts unconflicts dependents =
 --  let merge = zipDefnsWith4 mergeDependentsV mergeDependentsV
 --      split = bitraverse splitV splitV
 --   in split $
@@ -184,7 +184,7 @@ import Prelude hiding (unzip)
 ----   3. Otherwise, if Bob updated it, use Bob's version.
 ----   4. Otherwise, either Alice updated it (so use her version) or neither party updated it (so it's synhash-equal, and
 ----      we can therefore arbitrarily use Alice's).
---mergeDependentsV ::
+-- mergeDependentsV ::
 --  forall name.
 --  (Ord name) =>
 --  TwoWay (Set name) ->
@@ -192,7 +192,7 @@ import Prelude hiding (unzip)
 --  TwoWay (Set name) ->
 --  TwoWay (Map name ()) ->
 --  Map name (EitherWay ())
---mergeDependentsV conflicts deletes updates =
+-- mergeDependentsV conflicts deletes updates =
 --  TwoWay.twoWay $
 --    Map.merge
 --      (Map.mapMaybeMissing onlyAlice)
@@ -220,22 +220,22 @@ import Prelude hiding (unzip)
 --      | Set.member name updates.bob = Just (EitherWay.Bob ())
 --      | otherwise = Just (EitherWay.Alice ())
 
---makeStageOne ::
+-- makeStageOne ::
 --  TwoWay DeclNameLookup ->
 --  TwoWay (DefnsF Set Name Name) ->
 --  DefnsF Unconflicts term typ ->
 --  TwoWay (DefnsF Set Name Name) ->
 --  DefnsF (Map Name) term typ ->
 --  DefnsF (Map Name) term typ
---makeStageOne declNameLookups conflicts unconflicts dependents =
+-- makeStageOne declNameLookups conflicts unconflicts dependents =
 --  zipDefnsWith3 makeStageOneV makeStageOneV unconflicts (f conflicts <> f dependents)
 --  where
 --    f :: TwoWay (DefnsF Set Name Name) -> DefnsF Set Name Name
 --    f defns =
 --      fold (refIdsToNames <$> declNameLookups <*> defns)
 
---makeStageOneV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
---makeStageOneV unconflicts namesToDelete =
+-- makeStageOneV :: Unconflicts v -> Set Name -> Map Name v -> Map Name v
+-- makeStageOneV unconflicts namesToDelete =
 --  (`Map.withoutKeys` namesToDelete) . Unconflicts.apply unconflicts
 
 ---- Given just named term/type reference ids, fill out all names that occupy the term and type namespaces. This is simply
@@ -257,8 +257,8 @@ import Prelude hiding (unzip)
 ----     terms = { "foo", "Maybe.Nothing", "Maybe.Just" }
 ----     types = { "Maybe" }
 ----   }
---refIdsToNames :: DeclNameLookup -> DefnsF Set Name Name -> DefnsF Set Name Name
---refIdsToNames declNameLookup =
+-- refIdsToNames :: DeclNameLookup -> DefnsF Set Name Name -> DefnsF Set Name Name
+-- refIdsToNames declNameLookup =
 --  bifoldMap goTerms goTypes
 --  where
 --    goTerms :: Set Name -> DefnsF Set Name Name
@@ -272,7 +272,7 @@ import Prelude hiding (unzip)
 --          types
 --        }
 
---renderConflictsAndDependents ::
+-- renderConflictsAndDependents ::
 --  TwoWay DeclNameLookup ->
 --  TwoWay (DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann)) ->
 --  TwoWay (DefnsF Set Name Name) ->
@@ -281,7 +281,7 @@ import Prelude hiding (unzip)
 --  ( TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)),
 --    TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText))
 --  )
---renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents ppe =
+-- renderConflictsAndDependents declNameLookups hydratedDefns conflicts dependents ppe =
 --  unzip $
 --    ( \declNameLookup (conflicts, dependents) ->
 --        let render needsGuid = renderDefnsForUnisonFile declNameLookup ppe needsGuid . over (#terms . mapped) snd
@@ -328,13 +328,13 @@ import Prelude hiding (unzip)
 --        )
 --        hydratedConflictsAndDependents
 
---renderLcaConflicts ::
+-- renderLcaConflicts ::
 --  PartialDeclNameLookup ->
 --  DefnsF (Map Name) (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann) ->
 --  TwoWay (DefnsF Set Name Name) ->
 --  PrettyPrintEnvDecl ->
 --  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
---renderLcaConflicts partialDeclNameLookup hydratedDefns conflicts ppe =
+-- renderLcaConflicts partialDeclNameLookup hydratedDefns conflicts ppe =
 --  let hydratedConflicts = zipDefnsWith Map.restrictKeys Map.restrictKeys hydratedDefns (fold conflicts)
 --   in renderDefnsForUnisonFile
 --        declNameLookup
@@ -393,8 +393,8 @@ import Prelude hiding (unzip)
 ----
 ---- Note that LCA names can make name quality slightly worse. For example, "foo.bar" might exist in the LCA, but deleted
 ---- in Alice and Bob, and nonetheless prevent some "qux.bar" from rendering as "bar". That seems fine.
---makePrettyPrintEnv :: ThreeWay Names -> Names -> Names -> PrettyPrintEnvDecl
---makePrettyPrintEnv names libdepsNames lcaLibdeps =
+-- makePrettyPrintEnv :: ThreeWay Names -> Names -> Names -> PrettyPrintEnvDecl
+-- makePrettyPrintEnv names libdepsNames lcaLibdeps =
 --  PPED.makePPED
 --    ( PPE.namer
 --        ( Names.preferring
@@ -409,12 +409,12 @@ import Prelude hiding (unzip)
 --    )
 --    (PPE.suffixifyByName (fold names <> libdepsNames))
 
---makePrettyUnisonFile ::
+-- makePrettyUnisonFile ::
 --  TwoWay Text ->
 --  TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
 --  TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
 --  Pretty ColorText
---makePrettyUnisonFile authors conflicts dependents =
+-- makePrettyUnisonFile authors conflicts dependents =
 --  fold
 --    [ conflicts
 --        -- Merge the two maps together into one, remembering who authored what
@@ -455,11 +455,11 @@ import Prelude hiding (unzip)
 --          "\n\n"
 --        ]
 
---makePrettySoloUnisonFile ::
+-- makePrettySoloUnisonFile ::
 --  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) ->
 --  TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) ->
 --  Pretty ColorText
---makePrettySoloUnisonFile conflicts dependents =
+-- makePrettySoloUnisonFile conflicts dependents =
 --  fold
 --    [ conflicts
 --        & inAlphabeticalOrder
@@ -478,8 +478,8 @@ import Prelude hiding (unzip)
 --      makePrettyDependents dependents
 --    ]
 
---makePrettyDependents :: TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) -> Pretty ColorText
---makePrettyDependents =
+-- makePrettyDependents :: TwoWay (DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)) -> Pretty ColorText
+-- makePrettyDependents =
 --  -- Merge dependents together into one map (they are disjoint)
 --  TwoWay.twoWay (zipDefnsWith Map.union Map.union)
 --    >>>
@@ -488,15 +488,15 @@ import Prelude hiding (unzip)
 --    -- Render each dependent, types then terms, without bothering to comment attribution
 --    >>> (let f = foldMap (<> "\n\n") in bifoldMap f f)
 
---inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
---inAlphabeticalOrder =
+-- inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
+-- inAlphabeticalOrder =
 --  bimap f f
 --  where
 --    f = map snd . List.sortOn (Name.toText . fst) . Map.toList
 
 ---- Given Alice's and Bob's hydrated defns, make a mapping from unique type name to unique type GUID, preferring Alice's
 ---- GUID if they both have one.
---makeUniqueTypeGuids ::
+-- makeUniqueTypeGuids ::
 --  TwoWay
 --    ( DefnsF
 --        (Map Name)
@@ -504,7 +504,7 @@ import Prelude hiding (unzip)
 --        (TypeReferenceId, Decl Symbol Ann)
 --    ) ->
 --  Map Name Text
---makeUniqueTypeGuids hydratedDefns =
+-- makeUniqueTypeGuids hydratedDefns =
 --  let -- Start off with just Alice's GUIDs
 --      aliceGuids :: Map Name Text
 --      aliceGuids =
