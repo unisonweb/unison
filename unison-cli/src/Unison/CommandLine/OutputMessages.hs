@@ -534,14 +534,7 @@ notifyUser dir = \case
         <> "to evaluate something before attempting"
         <> "to save it."
   Success -> pure $ P.bold "Done."
-  PrintMessage pretty -> do
-    pure pretty
-  CouldntLoadBranch h ->
-    pure . P.fatalCallout . P.wrap $
-      "I have reason to believe that"
-        <> P.shown h
-        <> "exists in the codebase, but there was a failure"
-        <> "when I tried to load it."
+  PrintMessage pretty -> pure pretty
   NamespaceEmpty p ->
     case p of
       (p0 NEList.:| []) ->

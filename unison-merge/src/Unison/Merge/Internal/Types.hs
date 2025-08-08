@@ -2,12 +2,15 @@
 module Unison.Merge.Internal.Types
   ( ThreeWay (..),
     TwoOrThreeWay (..),
+    TwoWay (..),
   )
 where
 
-import Data.Semialign (Semialign (alignWith), Unzip (unzipWith), Zip (zipWith))
+import Data.Semialign (Semialign, Unzip, Zip, alignWith, unzipWith, zipWith)
+import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..))
 import Unison.Prelude
+import Prelude hiding (zipWith)
 
 data ThreeWay a = ThreeWay
   { lca :: !a,
@@ -58,3 +61,31 @@ instance Applicative TwoOrThreeWay where
   (<*>) :: TwoOrThreeWay (a -> b) -> TwoOrThreeWay a -> TwoOrThreeWay b
   TwoOrThreeWay f g h <*> TwoOrThreeWay x y z =
     TwoOrThreeWay (f <*> x) (g y) (h z)
+
+data TwoWay a = TwoWay
+  { alice :: a,
+    bob :: a
+  }
+  deriving stock (Foldable, Functor, Generic, Show, Traversable)
+  deriving (Monoid, Semigroup) via (GenericSemigroupMonoid (TwoWay a))
+
+instance Applicative TwoWay where
+  pure x = TwoWay x x
+  TwoWay f g <*> TwoWay x y = TwoWay (f x) (g y)
+
+instance Semialign TwoWay where
+  alignWith :: (These a b -> c) -> TwoWay a -> TwoWay b -> TwoWay c
+  alignWith f =
+    zipWith \x y -> f (These x y)
+
+instance Unzip TwoWay where
+  unzipWith :: (c -> (a, b)) -> TwoWay c -> (TwoWay a, TwoWay b)
+  unzipWith f (TwoWay cx cy) =
+    let (ax, bx) = f cx
+        (ay, by) = f cy
+     in (TwoWay ax ay, TwoWay bx by)
+
+instance Zip TwoWay where
+  zipWith :: (a -> b -> c) -> TwoWay a -> TwoWay b -> TwoWay c
+  zipWith f (TwoWay x1 x2) (TwoWay y1 y2) =
+    TwoWay (f x1 y1) (f x2 y2)

@@ -1,7 +1,7 @@
-module Unison.Merge.Mergeblob0
-  ( Mergeblob0 (..),
-    makeMergeblob0,
-    MergeblobDebugLog0 (..),
+module Unison.Merge.Diffblob
+  ( Diffblob (..),
+    makeDiffblob,
+    DiffblobLog (..),
   )
 where
 
@@ -10,16 +10,14 @@ import Data.Map.Strict qualified as Map
 import Data.Set.Lens (setOf)
 import Unison.Codebase.Branch (UnconflictedBranchView (..))
 import Unison.DataDeclaration (Decl)
-import Unison.DeclCoherencyCheck (IncoherentDeclReason)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.Diff (diffSynhashedDefns', humanizeDiffs, synhashDefns0, synhashLcaDefns)
 import Unison.Merge.DiffOp (DiffOp)
-import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
-import Unison.Merge.Rename (makeRenames', makeSimpleRenames)
+import Unison.Merge.Rename (SimpleRenames, makeRenames', makeSimpleRenames)
 import Unison.Merge.Synhashed (Synhashed)
 import Unison.Merge.ThreeWay (GThreeWay (..), ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
@@ -49,7 +47,7 @@ import Unison.Type (Type)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, zipDefnsWith)
 
-data Mergeblob0 libdep = Mergeblob0
+data Diffblob libdep = Diffblob
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
     declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
     defns :: ThreeWay UnconflictedBranchView,
@@ -65,46 +63,44 @@ data Mergeblob0 libdep = Mergeblob0
         (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
         (Map TypeReferenceId (Decl Symbol Ann)),
     libdeps :: Updated (Map NameSegment libdep),
-    synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference)),
+    simpleRenames :: TwoWay (Defns SimpleRenames SimpleRenames),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
 
-data MergeblobDebugLog0 m = MergeblobDebugLog0
-  { debugLogDefns :: ThreeWay (DefnsF (Map Name) Referent TypeReference) -> m (),
-    debugLogNarrowedDefns :: TwoWay (Updated (DefnsF (Map Name) Referent TypeReference)) -> m (),
-    debugLogSynhashedNarrowedDefns ::
+data DiffblobLog m = DiffblobLog
+  { logDefns :: ThreeWay (DefnsF (Map Name) Referent TypeReference) -> m (),
+    logNarrowedDefns :: TwoWay (Updated (DefnsF (Map Name) Referent TypeReference)) -> m (),
+    logSynhashedNarrowedDefns ::
       TwoWay
         ( GUpdated
             (DefnsF2 (Map Name) Synhashed Referent TypeReference)
             (DefnsF2 (Map Name) Synhashed Referent TypeReference)
         ) ->
       m (),
-    debugLogDiffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> m (),
-    debugLogDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> m ()
+    logDiffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> m (),
+    logDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> m ()
   }
 
-makeMergeblob0 ::
+makeDiffblob ::
   forall libdep m.
   (Eq libdep, Monad m) =>
-  MergeblobDebugLog0 m ->
+  DiffblobLog m ->
   ( DefnsF Set TermReferenceId TypeReferenceId ->
-    m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
+    m
+      ( Defns
+          (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
+          (Map TypeReferenceId (Decl Symbol Ann))
+      )
   ) ->
   ThreeWay Names ->
   ThreeWay UnconflictedBranchView ->
   ThreeWay (Map NameSegment libdep) ->
   GThreeWay PartialDeclNameLookup DeclNameLookup ->
-  m (Either (EitherWay IncoherentDeclReason) (Mergeblob0 libdep))
-makeMergeblob0 log hydrate allNames defns libdeps declNameLookups = do
+  m (Diffblob libdep)
+makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
   let defnsByName = bimap BiMultimap.range BiMultimap.range . (.defns) <$> defns
 
-  log.debugLogDefns defnsByName
-
-  let toIds :: DefnsF (Map Name) Referent TypeReference -> DefnsF Set TermReferenceId TypeReferenceId
-      toIds =
-        bimap
-          (setOf (folded @(Map Name) . Referent.termReference_ . Reference._DerivedId))
-          (setOf (folded @(Map Name) . Reference._DerivedId))
+  logger.logDefns defnsByName
 
   let defnsIds :: ThreeWay (DefnsF Set TermReferenceId TypeReferenceId)
       defnsIds =
@@ -118,7 +114,7 @@ makeMergeblob0 log hydrate allNames defns libdeps declNameLookups = do
             bob = Updated {old = defnsByName.lca, new = defnsByName.bob}
           }
 
-  log.debugLogNarrowedDefns narrowedDefns0
+  logger.logNarrowedDefns narrowedDefns0
 
   let narrowedDefns =
         TwoWay.updatedToThreeWay narrowedDefns0
@@ -132,7 +128,7 @@ makeMergeblob0 log hydrate allNames defns libdeps declNameLookups = do
       synhashedNarrowedDefns =
         actualHonk fst allNames declNameLookups narrowedDefns0 hydratedNarrowedDefns
 
-  log.debugLogSynhashedNarrowedDefns synhashedNarrowedDefns
+  logger.logSynhashedNarrowedDefns synhashedNarrowedDefns
 
   -- Identify all renames
   let renames =
@@ -146,14 +142,14 @@ makeMergeblob0 log hydrate allNames defns libdeps declNameLookups = do
   let (diffsFromLCA, propagatedUpdates) =
         diffSynhashedDefns' synhashedNarrowedDefns
 
-  log.debugLogDiffsFromLCA diffsFromLCA
+  logger.logDiffsFromLCA diffsFromLCA
 
   -- Combine the LCA->Alice and LCA->Bob diffs together
   let diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference
       diff =
         combineDiffs diffsFromLCA
 
-  log.debugLogDiff diff
+  logger.logDiff diff
 
   -- "Humanize" diffs... this is a bit of tech debt, to remove once we better-represent (& apply) renames
   let humanDiffsFromLCA =
@@ -171,21 +167,26 @@ makeMergeblob0 log hydrate allNames defns libdeps declNameLookups = do
           libdeps
           (mergeLibdepsDiffs (diffLibdeps libdeps))
 
-  pure $
-    Right
-      Mergeblob0
-        { conflicts,
-          declNameLookups,
-          defns,
-          defnsIds,
-          diff,
-          diffsFromLCA,
-          libdeps = Updated {old = libdeps.lca, new = mergedLibdeps},
-          humanDiffsFromLCA,
-          hydratedNarrowedDefns,
-          synhashedNarrowedDefns,
-          unconflicts
-        }
+  pure
+    Diffblob
+      { conflicts,
+        declNameLookups,
+        defns,
+        defnsIds,
+        diff,
+        diffsFromLCA,
+        libdeps = Updated {old = libdeps.lca, new = mergedLibdeps},
+        humanDiffsFromLCA,
+        hydratedNarrowedDefns,
+        simpleRenames,
+        unconflicts
+      }
+
+toIds :: DefnsF (Map Name) Referent TypeReference -> DefnsF Set TermReferenceId TypeReferenceId
+toIds =
+  bimap
+    (setOf (folded @(Map Name) . Referent.termReference_ . Reference._DerivedId))
+    (setOf (folded @(Map Name) . Reference._DerivedId))
 
 actualHonk ::
   (term -> Term Symbol Ann) ->

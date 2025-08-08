@@ -20,10 +20,11 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.DeclNameLookup qualified as DeclNameLookup
+import Unison.FileParsers qualified as FileParsers
+import Unison.Merge.Diffblob (Diffblob (..))
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
-import Unison.Merge.Mergeblob0 (Mergeblob0 (..))
 import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins)
 import Unison.Merge.Render (renderUnisonFiles)
 import Unison.Merge.ThreeWay (GThreeWay, ThreeWay)
@@ -32,26 +33,36 @@ import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
-import Unison.Merge.Updated (Updated)
+import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
+import Unison.Parsers qualified as Parsers
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
+import Unison.Syntax.Parser (ParsingEnv (..))
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.UnisonFile (TypecheckedUnisonFile)
+import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defn (Defn)
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith, zipDefnsWith3, zipDefnsWith4)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Pretty (ColorText, Pretty)
+import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
 
 data Mergeblob2 libdep = Mergeblob2
@@ -60,15 +71,14 @@ data Mergeblob2 libdep = Mergeblob2
     declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
     defns :: ThreeWay UnconflictedBranchView,
     dependents :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId),
-    hasConflicts :: Bool,
     hydratedNarrowedDefns ::
       Defns
         (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
         (Map TypeReferenceId (Decl Symbol Ann)),
     libdeps :: Updated (Map NameSegment libdep),
     libdepsNames :: Updated Names,
-    stageOne :: DefnsF (Map Name) Referent TypeReference,
-    unconflicts :: DefnsF Unconflicts Referent TypeReference,
+    typecheckedFile :: Maybe (TypecheckedUnisonFile Symbol Ann),
+    unconflictedDefns :: DefnsF (Map Name) Referent TypeReference,
     uniqueTypeGuids :: TwoWay (Map Name Text),
     -- `unparsedFile` (no mergetool) xor `unparsedSoloFiles` (yes mergetool) are ultimately given to the user
     unparsedFile :: Pretty ColorText,
@@ -86,10 +96,11 @@ makeMergeblob2 ::
   ) ->
   (Set Reference.Id -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
   m (Updated Names) ->
-  Mergeblob0 libdep ->
+  (DefnsF Set TermReference TypeReference -> m (TypeLookup Symbol Ann)) ->
+  Diffblob libdep ->
   TwoWay Text ->
   m (Either Mergeblob2Error (Mergeblob2 libdep))
-makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.runExceptT do
+makeMergeblob2 hydrate loadDependents loadLibdepsNames loadTypeLookup blob authors = Except.runExceptT do
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
   whenJust (findConflictedAlias blob.defns.lca.defns blob.diffsFromLCA.alice) \conflict ->
     Except.throwE (Mergeblob2Error'ConflictedAlias (Alice conflict))
@@ -181,6 +192,61 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
           conflictsNames
           dependentsNames
 
+  typecheckedFile <-
+    if defnsAreEmpty conflicts.alice
+      then
+        let uniqueTypeGuids =
+              Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
+                <$> ThreeWay.forgetLca hydratedDefnsByName
+
+            unconflictedDefns =
+              makeUnconflictedDefns
+                (ThreeWay.gforgetLca blob.declNameLookups)
+                conflictsNames
+                blob.unconflicts
+                dependentsNames
+                (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns)
+
+            parsingEnv =
+              ParsingEnv
+                { -- We don't expect to have to generate any new GUIDs, since the uniqueTypeGuid lookup function below should
+                  -- cover all name in the merged file we're about to parse and typecheck. So, this might be more correct as a
+                  -- call to `error`.
+                  uniqueNames = Parser.UniqueName \_ _ -> Nothing,
+                  uniqueTypeGuid =
+                    let -- Prefer Alice's GUID if they both have one.
+                        guids :: Map Name Text
+                        guids =
+                          Map.merge
+                            Map.preserveMissing
+                            Map.preserveMissing
+                            (Map.zipWithMatched \_ aliceGuid _ -> aliceGuid)
+                            uniqueTypeGuids.alice
+                            uniqueTypeGuids.bob
+                     in \name -> Identity (Map.lookup name guids),
+                  names = Names.fromUnconflicted unconflictedDefns <> libdepsNames.new,
+                  maybeNamespace = Nothing,
+                  localNamespacePrefixedTypesAndConstructors = mempty
+                }
+         in case runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 unparsedFile) parsingEnv) of
+              Left _err -> pure Nothing
+              Right file -> do
+                typeLookup <- lift (loadTypeLookup (UnisonFile.dependencies file))
+                let typecheckingEnv =
+                      Typechecker.Env
+                        { ambientAbilities = [],
+                          termsByShortname = Map.empty,
+                          typeLookup,
+                          freeNameToFuzzyTermsByShortName = Map.empty,
+                          topLevelComponents = Map.empty
+                        }
+                FileParsers.synthesizeFile typecheckingEnv file
+                  & Result.runResultT
+                  & runIdentity
+                  & fst
+                  & pure
+      else pure Nothing
+
   pure $
     Mergeblob2
       { conflicts,
@@ -188,25 +254,37 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
         declNameLookups = blob.declNameLookups,
         defns = blob.defns,
         dependents = dependentsIds,
-        -- Eh, they'd either both be null, or neither, but just check both maps anyway
-        hasConflicts = not (defnsAreEmpty conflicts.alice) || not (defnsAreEmpty conflicts.bob),
         hydratedNarrowedDefns = blob.hydratedNarrowedDefns,
         libdeps = blob.libdeps,
         libdepsNames,
-        stageOne =
-          makeStageOne
+        typecheckedFile,
+        unconflictedDefns =
+          makeUnconflictedDefns
             (ThreeWay.gforgetLca blob.declNameLookups)
             conflictsNames
             blob.unconflicts
             dependentsNames
             (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns),
-        unconflicts = blob.unconflicts,
         uniqueTypeGuids =
           Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
             <$> ThreeWay.forgetLca hydratedDefnsByName,
         unparsedFile,
         unparsedSoloFiles
       }
+
+-- maybeBlob5 <-
+--   if hasConflicts
+--     then pure Nothing
+--     else case Merge.parseMergeblob blob2 of
+--       Left _parseErr -> pure Nothing
+--       Right file -> do
+--         respondRegion (Output.Literal "Typechecking Unison file...")
+--         typeLookup <-
+--           Cli.runTransaction do
+--             Codebase.typeLookupForDependencies env.codebase (UnisonFile.dependencies file)
+--         pure case Merge.makeMergeblob5 file typeLookup of
+--           Left _typecheckErr -> Nothing
+--           Right blob5 -> Just blob5
 
 identifyCoreDependencies ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -345,14 +423,14 @@ nameHydratedRefs =
     f toId refToDefn nameToRef =
       Map.mapMaybe (toId >=> \ref -> (ref,) <$> Map.lookup ref refToDefn) nameToRef
 
-makeStageOne ::
+makeUnconflictedDefns ::
   TwoWay DeclNameLookup ->
   TwoWay (DefnsF Set Name Name) ->
   DefnsF Unconflicts term typ ->
   TwoWay (DefnsF Set Name Name) ->
   DefnsF (Map Name) term typ ->
   DefnsF (Map Name) term typ
-makeStageOne declNameLookups conflicts unconflicts dependents =
+makeUnconflictedDefns declNameLookups conflicts unconflicts dependents =
   zipDefnsWith3 makeStageOneV makeStageOneV unconflicts (f conflicts <> f dependents)
   where
     f :: TwoWay (DefnsF Set Name Name) -> DefnsF Set Name Name

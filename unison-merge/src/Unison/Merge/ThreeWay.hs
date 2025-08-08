@@ -5,6 +5,7 @@ module Unison.Merge.ThreeWay
     toUpdated,
     GThreeWay (..),
     gforgetLca,
+    gfromTwoWay,
     gtoUpdated,
   )
 where
@@ -41,6 +42,10 @@ toG ThreeWay {lca, alice, bob} =
 gforgetLca :: GThreeWay a b -> TwoWay b
 gforgetLca GThreeWay {alice, bob} =
   TwoWay {alice, bob}
+
+gfromTwoWay :: a -> TwoWay b -> GThreeWay a b
+gfromTwoWay lca TwoWay {alice, bob} =
+  GThreeWay {lca, alice, bob}
 
 gtoUpdated :: GThreeWay a b -> TwoWay (GUpdated a b)
 gtoUpdated GThreeWay {lca, alice, bob} =

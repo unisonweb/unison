@@ -9,6 +9,7 @@ module Unison.Names
     conflicts,
     contains,
     difference,
+    Unison.Names.empty,
     filter,
     filterBySHs,
     filterTypes,
@@ -109,7 +110,7 @@ instance Semigroup (Names) where
     Names (e1 <> e2) (t1 <> t2)
 
 instance Monoid (Names) where
-  mempty = Names mempty mempty
+  mempty = Unison.Names.empty
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null n.terms && R.null n.types
@@ -452,6 +453,10 @@ difference a b =
   Names
     (R.difference a.terms b.terms)
     (R.difference a.types b.types)
+
+empty :: Names
+empty =
+  Names R.empty R.empty
 
 contains :: Names -> Reference -> Bool
 contains names =

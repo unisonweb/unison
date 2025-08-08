@@ -1,5 +1,6 @@
 module Unison.PartialDeclNameLookup
   ( PartialDeclNameLookup (..),
+    Unison.PartialDeclNameLookup.empty,
     expectDeclName,
     expectConstructorNames,
   )
@@ -16,6 +17,10 @@ data PartialDeclNameLookup = PartialDeclNameLookup
     declToConstructors :: !(Map Name [Maybe Name])
   }
   deriving stock (Generic)
+
+empty :: PartialDeclNameLookup
+empty =
+  PartialDeclNameLookup Map.empty Map.empty
 
 expectDeclName :: (HasCallStack) => PartialDeclNameLookup -> Name -> Name
 expectDeclName PartialDeclNameLookup {constructorToDecl} x =
