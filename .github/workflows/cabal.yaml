@@ -13,6 +13,7 @@ on:
     paths:
       - '**.cabal'
       - '**/cabal.project'
+      # stack.yaml is included, because if it changed, it indicates that cabal.project probably needs to change.
       - '**/stack.yaml'
   # Allow manual runs
   workflow_dispatch:
@@ -38,7 +39,6 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          # stack.yaml is included, because if it changed, it indicates that cabal.project probably needs to change.
           key: cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}
           restore-keys: |
             cabal-freeze
