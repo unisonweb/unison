@@ -440,4 +440,3 @@ refIdsToNames declNameLookup =
         { terms = foldMap (Set.fromList . DeclNameLookup.expectConstructorNames declNameLookup) types,
           types
         }
-
