@@ -209,7 +209,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               else return Cli.InvalidSourceNameError
       let notify :: Output -> IO ()
           notify =
-            notifyUser dir
+            notifyUser (pure dir)
               >=> ( \o ->
                       ifM
                         (readIORef pageOutput)

@@ -74,9 +74,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
       result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
         Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
         let transcriptSrc = Text.Enc.encodeUtf8 . stripMargin . Text.pack $ unTranscript transcript
-        output <-
-          either err (Text.unpack . Transcript.format)
-            <$> runner "transcript" transcriptSrc (codebasePath, codebase)
+        output <- either err (Text.unpack . Transcript.format) <$> runner "transcript" transcriptSrc codebase
         when debugTranscriptOutput $ traceM output
         pure output
       either (fail . P.toANSI 80 . P.shown) pure result

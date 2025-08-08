@@ -494,7 +494,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
           \runTranscript -> do
             for markdownFiles $ \(MarkdownFile fileName) -> do
               transcriptSrc <- BS.readFile fileName
-              result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
+              result <- runTranscript fileName transcriptSrc theCodebase
               let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
               output <-
                 either

@@ -82,9 +82,11 @@ accessTokenEnvVarKey :: String
 accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
 
 type Runner =
+  -- | The name of the transcript to run.
   String ->
+  -- | The contents of the transcript to run.
   ByteString ->
-  (FilePath, Codebase IO Symbol Ann) ->
+  Codebase IO Symbol Ann ->
   IO (Either Error Transcript)
 
 withRunner ::
@@ -103,7 +105,7 @@ withRunner isTest verbosity ucmVersion action = do
   when isTest $ do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
   withRuntimes \runtime sbRuntime ->
-    action \transcriptName transcriptSrc (codebaseDir, codebase) ->
+    action \transcriptName transcriptSrc codebase ->
       Server.startServer
         isTest
         Backend.BackendEnv {Backend.useNamesIndex = False}
@@ -115,7 +117,7 @@ withRunner isTest verbosity ucmVersion action = do
           Just baseUrl ->
             either
               (pure . Left . ParseError)
-              ( run isTest verbosity codebaseDir codebase runtime sbRuntime ucmVersion $
+              ( run isTest verbosity codebase runtime sbRuntime ucmVersion $
                   tShow @Server.BaseUrl baseUrl
               )
               $ Transcript.parse transcriptName transcriptSrc
@@ -133,7 +135,6 @@ run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
   Bool ->
   Verbosity ->
-  FilePath ->
   Codebase IO Symbol Ann ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
@@ -141,7 +142,7 @@ run ::
   Text ->
   Transcript ->
   IO (Either Error Transcript)
-run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL transcript = UnliftIO.try do
+run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -441,7 +442,9 @@ run isTest verbosity dir codebase runtime sbRuntime ucmVersion baseURL transcrip
 
       print :: Output.Output -> IO ()
       print o = do
-        msg <- notifyUser dir o
+        -- NB: We have a directory, but we don’t pass it to the notifier because it’s a temp dir, and if it ends up in
+        --     transcript output, it makes transcripts non-reproducible.
+        msg <- notifyUser Nothing o
         outputUcmResult msg
         when (Output.isFailure o) $ maybeDieWithMsg msg
 
