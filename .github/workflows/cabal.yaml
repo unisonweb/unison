@@ -12,7 +12,7 @@ on:
   pull_request:
     paths:
       - '**.cabal'
-      - '**/cabal.project'
+      - '**/cabal.project*'
       # stack.yaml is included, because if it changed, it indicates that cabal.project probably needs to change.
       - '**/stack.yaml'
   # Allow manual runs
