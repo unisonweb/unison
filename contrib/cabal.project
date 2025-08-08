@@ -47,7 +47,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/ChrisPenner/hs-mcp.git
-  tag: 14fe82d086a04e82b1c05d7f5a4bbd30eec22042
+  tag: d8564c70ca09e333b7ce1717d1ac97a62d62966c
 
 constraints:
   fuzzyfind ==3.0.2,
