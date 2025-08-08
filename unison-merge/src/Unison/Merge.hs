@@ -2,9 +2,9 @@ module Unison.Merge
   ( Diffblob (..),
     makeDiffblob,
     DiffblobLog (..),
-    Mergeblob2 (..),
-    Mergeblob2Error (..),
-    makeMergeblob2,
+    Mergeblob (..),
+    MergeblobError (..),
+    makeMergeblob,
 
     -- * Types
     CombinedDiffOp (..),
@@ -34,7 +34,7 @@ import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.HumanDiffOp (HumanDiffOp (..))
 import Unison.Merge.Libdeps (LibdepDiffOp (..))
-import Unison.Merge.Mergeblob2 (Mergeblob2 (..), Mergeblob2Error (..), makeMergeblob2)
+import Unison.Merge.Mergeblob (Mergeblob (..), MergeblobError (..), makeMergeblob)
 import Unison.Merge.Rename (Rename (..), SimpleRenames (..))
 import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Merge.ThreeWay (GThreeWay (..), ThreeWay (..))

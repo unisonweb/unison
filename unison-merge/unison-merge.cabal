@@ -28,9 +28,8 @@ library
       Unison.Merge.HumanDiffOp
       Unison.Merge.Internal.Types
       Unison.Merge.Libdeps
+      Unison.Merge.Mergeblob
       Unison.Merge.Mergeblob1
-      Unison.Merge.Mergeblob2
-      Unison.Merge.Mergeblob3
       Unison.Merge.Narrow
       Unison.Merge.PartitionCombinedDiffs
       Unison.Merge.Rename

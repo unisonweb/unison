@@ -1,7 +1,7 @@
-module Unison.Merge.Mergeblob2
-  ( Mergeblob2 (..),
-    Mergeblob2Error (..),
-    makeMergeblob2,
+module Unison.Merge.Mergeblob
+  ( Mergeblob (..),
+    MergeblobError (..),
+    makeMergeblob,
   )
 where
 
@@ -27,7 +27,7 @@ import Unison.Merge.EitherWay qualified as EitherWay
 import Unison.Merge.FindConflictedAlias (findConflictedAlias)
 import Unison.Merge.PartitionCombinedDiffs (narrowConflictsToNonBuiltins)
 import Unison.Merge.Render (renderUnisonFiles)
-import Unison.Merge.ThreeWay (GThreeWay, ThreeWay)
+import Unison.Merge.ThreeWay (ThreeWay)
 import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.TwoWay qualified as TwoWay
@@ -35,12 +35,10 @@ import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Name (Name)
-import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
-import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
 import Unison.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
@@ -65,18 +63,8 @@ import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
 
-data Mergeblob2 libdep = Mergeblob2
+data Mergeblob libdep = Mergeblob
   { conflicts :: TwoWay (DefnsF (Map Name) TermReferenceId TypeReferenceId),
-    coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference),
-    declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
-    defns :: ThreeWay UnconflictedBranchView,
-    dependents :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId),
-    hydratedNarrowedDefns ::
-      Defns
-        (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
-        (Map TypeReferenceId (Decl Symbol Ann)),
-    libdeps :: Updated (Map NameSegment libdep),
-    libdepsNames :: Updated Names,
     typecheckedFile :: Maybe (TypecheckedUnisonFile Symbol Ann),
     unconflictedDefns :: DefnsF (Map Name) Referent TypeReference,
     uniqueTypeGuids :: TwoWay (Map Name Text),
@@ -85,11 +73,11 @@ data Mergeblob2 libdep = Mergeblob2
     unparsedSoloFiles :: ThreeWay (Pretty ColorText)
   }
 
-data Mergeblob2Error
-  = Mergeblob2Error'ConflictedAlias (EitherWay (Defn (Name, Name) (Name, Name)))
-  | Mergeblob2Error'ConflictedBuiltin (Defn Name Name)
+data MergeblobError
+  = MergeblobError'ConflictedAlias (EitherWay (Defn (Name, Name) (Name, Name)))
+  | MergeblobError'ConflictedBuiltin (Defn Name Name)
 
-makeMergeblob2 ::
+makeMergeblob ::
   (Monad m) =>
   ( DefnsF Set TermReferenceId TypeReferenceId ->
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
@@ -99,192 +87,170 @@ makeMergeblob2 ::
   (DefnsF Set TermReference TypeReference -> m (TypeLookup Symbol Ann)) ->
   Diffblob libdep ->
   TwoWay Text ->
-  m (Either Mergeblob2Error (Mergeblob2 libdep))
-makeMergeblob2 hydrate loadDependents loadLibdepsNames loadTypeLookup blob authors = Except.runExceptT do
+  m (Either MergeblobError (Mergeblob libdep))
+makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob authors = Except.runExceptT do
   -- Bail early if it looks like we can't proceed with the merge, because Alice or Bob has one or more conflicted alias
   whenJust (findConflictedAlias blob.defns.lca.defns blob.diffsFromLCA.alice) \conflict ->
-    Except.throwE (Mergeblob2Error'ConflictedAlias (Alice conflict))
+    Except.throwE (MergeblobError'ConflictedAlias (Alice conflict))
   whenJust (findConflictedAlias blob.defns.lca.defns blob.diffsFromLCA.bob) \conflict ->
-    Except.throwE (Mergeblob2Error'ConflictedAlias (Bob conflict))
+    Except.throwE (MergeblobError'ConflictedAlias (Bob conflict))
 
   conflicts <-
     Except.except (narrowConflictsToNonBuiltins blob.conflicts)
-      & Except.withExceptT Mergeblob2Error'ConflictedBuiltin
+      & Except.withExceptT MergeblobError'ConflictedBuiltin
 
-  let conflictsNames :: TwoWay (DefnsF Set Name Name)
-      conflictsNames =
-        bimap Map.keysSet Map.keysSet <$> conflicts
+  lift do
+    let conflictsNames :: TwoWay (DefnsF Set Name Name)
+        conflictsNames =
+          bimap Map.keysSet Map.keysSet <$> conflicts
 
-  let coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference)
-      coreDependencies =
-        identifyCoreDependencies
-          ((.defns) <$> ThreeWay.forgetLca blob.defns)
-          (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts)
-          blob.unconflicts
+    let coreDependencies :: TwoWay (DefnsF Set TermReference TypeReference)
+        coreDependencies =
+          identifyCoreDependencies
+            ((.defns) <$> ThreeWay.forgetLca blob.defns)
+            (bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) <$> conflicts)
+            blob.unconflicts
 
-  dependentsIds <- do
-    lift do
+    dependentsIds <- do
       for ((,) <$> ThreeWay.forgetLca blob.defnsIds <*> coreDependencies) \(defns, deps) ->
         loadDependents (bifold defns) (bifold deps)
 
-  hydratedDefnsById <- do
-    let unhydratedConflictsAndDependentsIds :: DefnsF Set TermReferenceId TypeReferenceId
-        unhydratedConflictsAndDependentsIds =
-          zipDefnsWith
-            Set.differenceMap
-            Set.differenceMap
-            (foldMap (bimap Map.elemsSet Map.elemsSet) conflicts <> fold dependentsIds)
-            blob.hydratedNarrowedDefns
+    hydratedDefnsById <- do
+      let unhydratedConflictsAndDependentsIds :: DefnsF Set TermReferenceId TypeReferenceId
+          unhydratedConflictsAndDependentsIds =
+            zipDefnsWith
+              Set.differenceMap
+              Set.differenceMap
+              (foldMap (bimap Map.elemsSet Map.elemsSet) conflicts <> fold dependentsIds)
+              blob.hydratedNarrowedDefns
 
-    hydratedConflictsAndDependents <- lift (hydrate unhydratedConflictsAndDependentsIds)
+      hydratedConflictsAndDependents <- hydrate unhydratedConflictsAndDependentsIds
 
-    -- Left-biased map union is ok here since the maps are disjoint
-    pure (blob.hydratedNarrowedDefns <> hydratedConflictsAndDependents)
+      -- Left-biased map union is ok here since the maps are disjoint
+      pure (blob.hydratedNarrowedDefns <> hydratedConflictsAndDependents)
 
-  let hydratedDefnsByName ::
-        ThreeWay
-          ( DefnsF
-              (Map Name)
-              (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
-              (TypeReferenceId, Decl Symbol Ann)
-          )
-      hydratedDefnsByName =
-        nameHydratedRefs hydratedDefnsById . bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns
+    let hydratedDefnsByName ::
+          ThreeWay
+            ( DefnsF
+                (Map Name)
+                (TermReferenceId, (Term Symbol Ann, Type Symbol Ann))
+                (TypeReferenceId, Decl Symbol Ann)
+            )
+        hydratedDefnsByName =
+          nameHydratedRefs hydratedDefnsById . bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns
 
-  let dependentsNames :: TwoWay (DefnsF Set Name Name)
-      dependentsNames =
-        let -- Compute the set of dependents names
-            allDependentsNames :: TwoWay (DefnsF Set Name Name)
-            allDependentsNames =
-              zipDefnsWith
-                (\defns deps -> Map.foldMapWithKey (f deps) (BiMultimap.domain defns))
-                (\defns deps -> Map.foldMapWithKey (g deps) (BiMultimap.domain defns))
-                <$> ((.defns) <$> ThreeWay.forgetLca blob.defns)
-                <*> dependentsIds
-              where
-                f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
-                f deps defn0 names
-                  | Just defn <- Referent.toTermReferenceId defn0,
-                    Set.member defn deps =
-                      Set.NonEmpty.toSet names
-                  | otherwise = Set.empty
-                g :: Set TypeReferenceId -> TypeReference -> NESet Name -> Set Name
-                g deps defn0 names
-                  | ReferenceDerived defn <- defn0,
-                    Set.member defn deps =
-                      Set.NonEmpty.toSet names
-                  | otherwise = Set.empty
-         in -- Filter it down by identifying the unconflicted dependents we need to pull into the Unison file (either
-            -- first for typechecking, if there aren't conflicts, or else for manual conflict resolution without a
-            -- typechecking step, if there are)
-            mergeDependents conflictsNames blob.unconflicts allDependentsNames
+    let dependentsNames :: TwoWay (DefnsF Set Name Name)
+        dependentsNames =
+          let -- Compute the set of dependents names
+              allDependentsNames :: TwoWay (DefnsF Set Name Name)
+              allDependentsNames =
+                zipDefnsWith
+                  (\defns deps -> Map.foldMapWithKey (f deps) (BiMultimap.domain defns))
+                  (\defns deps -> Map.foldMapWithKey (g deps) (BiMultimap.domain defns))
+                  <$> ((.defns) <$> ThreeWay.forgetLca blob.defns)
+                  <*> dependentsIds
+                where
+                  f :: Set TermReferenceId -> Referent -> NESet Name -> Set Name
+                  f deps defn0 names
+                    | Just defn <- Referent.toTermReferenceId defn0,
+                      Set.member defn deps =
+                        Set.NonEmpty.toSet names
+                    | otherwise = Set.empty
+                  g :: Set TypeReferenceId -> TypeReference -> NESet Name -> Set Name
+                  g deps defn0 names
+                    | ReferenceDerived defn <- defn0,
+                      Set.member defn deps =
+                        Set.NonEmpty.toSet names
+                    | otherwise = Set.empty
+           in -- Filter it down by identifying the unconflicted dependents we need to pull into the Unison file (either
+              -- first for typechecking, if there aren't conflicts, or else for manual conflict resolution without a
+              -- typechecking step, if there are)
+              mergeDependents conflictsNames blob.unconflicts allDependentsNames
 
-  libdepsNames <-
-    lift loadLibdepsNames
+    libdepsNames <- loadLibdepsNames
 
-  let (unparsedFile, unparsedSoloFiles) =
-        renderUnisonFiles
-          authors
-          blob.declNameLookups
-          (bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns)
-          hydratedDefnsByName
-          libdepsNames
-          conflictsNames
-          dependentsNames
-
-  typecheckedFile <-
-    if defnsAreEmpty conflicts.alice
-      then
-        let uniqueTypeGuids =
-              Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
-                <$> ThreeWay.forgetLca hydratedDefnsByName
-
-            unconflictedDefns =
-              makeUnconflictedDefns
-                (ThreeWay.gforgetLca blob.declNameLookups)
-                conflictsNames
-                blob.unconflicts
-                dependentsNames
-                (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns)
-
-            parsingEnv =
-              ParsingEnv
-                { -- We don't expect to have to generate any new GUIDs, since the uniqueTypeGuid lookup function below should
-                  -- cover all name in the merged file we're about to parse and typecheck. So, this might be more correct as a
-                  -- call to `error`.
-                  uniqueNames = Parser.UniqueName \_ _ -> Nothing,
-                  uniqueTypeGuid =
-                    let -- Prefer Alice's GUID if they both have one.
-                        guids :: Map Name Text
-                        guids =
-                          Map.merge
-                            Map.preserveMissing
-                            Map.preserveMissing
-                            (Map.zipWithMatched \_ aliceGuid _ -> aliceGuid)
-                            uniqueTypeGuids.alice
-                            uniqueTypeGuids.bob
-                     in \name -> Identity (Map.lookup name guids),
-                  names = Names.fromUnconflicted unconflictedDefns <> libdepsNames.new,
-                  maybeNamespace = Nothing,
-                  localNamespacePrefixedTypesAndConstructors = mempty
-                }
-         in case runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 unparsedFile) parsingEnv) of
-              Left _err -> pure Nothing
-              Right file -> do
-                typeLookup <- lift (loadTypeLookup (UnisonFile.dependencies file))
-                let typecheckingEnv =
-                      Typechecker.Env
-                        { ambientAbilities = [],
-                          termsByShortname = Map.empty,
-                          typeLookup,
-                          freeNameToFuzzyTermsByShortName = Map.empty,
-                          topLevelComponents = Map.empty
-                        }
-                FileParsers.synthesizeFile typecheckingEnv file
-                  & Result.runResultT
-                  & runIdentity
-                  & fst
-                  & pure
-      else pure Nothing
-
-  pure $
-    Mergeblob2
-      { conflicts,
-        coreDependencies,
-        declNameLookups = blob.declNameLookups,
-        defns = blob.defns,
-        dependents = dependentsIds,
-        hydratedNarrowedDefns = blob.hydratedNarrowedDefns,
-        libdeps = blob.libdeps,
-        libdepsNames,
-        typecheckedFile,
-        unconflictedDefns =
-          makeUnconflictedDefns
-            (ThreeWay.gforgetLca blob.declNameLookups)
+    let (unparsedFile, unparsedSoloFiles) =
+          renderUnisonFiles
+            authors
+            blob.declNameLookups
+            (bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns)
+            hydratedDefnsByName
+            libdepsNames
             conflictsNames
-            blob.unconflicts
             dependentsNames
-            (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns),
-        uniqueTypeGuids =
-          Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
-            <$> ThreeWay.forgetLca hydratedDefnsByName,
-        unparsedFile,
-        unparsedSoloFiles
-      }
 
--- maybeBlob5 <-
---   if hasConflicts
---     then pure Nothing
---     else case Merge.parseMergeblob blob2 of
---       Left _parseErr -> pure Nothing
---       Right file -> do
---         respondRegion (Output.Literal "Typechecking Unison file...")
---         typeLookup <-
---           Cli.runTransaction do
---             Codebase.typeLookupForDependencies env.codebase (UnisonFile.dependencies file)
---         pure case Merge.makeMergeblob5 file typeLookup of
---           Left _typecheckErr -> Nothing
---           Right blob5 -> Just blob5
+    typecheckedFile <-
+      if defnsAreEmpty conflicts.alice
+        then
+          let uniqueTypeGuids =
+                Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
+                  <$> ThreeWay.forgetLca hydratedDefnsByName
+
+              unconflictedDefns =
+                makeUnconflictedDefns
+                  (ThreeWay.gforgetLca blob.declNameLookups)
+                  conflictsNames
+                  blob.unconflicts
+                  dependentsNames
+                  (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns)
+
+              parsingEnv =
+                ParsingEnv
+                  { -- We don't expect to have to generate any new GUIDs, since the uniqueTypeGuid lookup function below should
+                    -- cover all name in the merged file we're about to parse and typecheck. So, this might be more correct as a
+                    -- call to `error`.
+                    uniqueNames = Parser.UniqueName \_ _ -> Nothing,
+                    uniqueTypeGuid =
+                      let -- Prefer Alice's GUID if they both have one.
+                          guids :: Map Name Text
+                          guids =
+                            Map.merge
+                              Map.preserveMissing
+                              Map.preserveMissing
+                              (Map.zipWithMatched \_ aliceGuid _ -> aliceGuid)
+                              uniqueTypeGuids.alice
+                              uniqueTypeGuids.bob
+                       in \name -> Identity (Map.lookup name guids),
+                    names = Names.fromUnconflicted unconflictedDefns <> libdepsNames.new,
+                    maybeNamespace = Nothing,
+                    localNamespacePrefixedTypesAndConstructors = mempty
+                  }
+           in case runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 unparsedFile) parsingEnv) of
+                Left _err -> pure Nothing
+                Right file -> do
+                  typeLookup <- loadTypeLookup (UnisonFile.dependencies file)
+                  let typecheckingEnv =
+                        Typechecker.Env
+                          { ambientAbilities = [],
+                            termsByShortname = Map.empty,
+                            typeLookup,
+                            freeNameToFuzzyTermsByShortName = Map.empty,
+                            topLevelComponents = Map.empty
+                          }
+                  FileParsers.synthesizeFile typecheckingEnv file
+                    & Result.runResultT
+                    & runIdentity
+                    & fst
+                    & pure
+        else pure Nothing
+
+    pure $
+      Mergeblob
+        { conflicts,
+          typecheckedFile,
+          unconflictedDefns =
+            makeUnconflictedDefns
+              (ThreeWay.gforgetLca blob.declNameLookups)
+              conflictsNames
+              blob.unconflicts
+              dependentsNames
+              (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns),
+          uniqueTypeGuids =
+            Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
+              <$> ThreeWay.forgetLca hydratedDefnsByName,
+          unparsedFile,
+          unparsedSoloFiles
+        }
 
 identifyCoreDependencies ::
   TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
@@ -474,3 +440,4 @@ refIdsToNames declNameLookup =
         { terms = foldMap (Set.fromList . DeclNameLookup.expectConstructorNames declNameLookup) types,
           types
         }
+

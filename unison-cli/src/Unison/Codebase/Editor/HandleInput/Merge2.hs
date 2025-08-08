@@ -299,7 +299,7 @@ doMerge info = do
                       Branch.empty0 & Branch.children_ .~ libdeps
 
               mergeblob <-
-                Merge.makeMergeblob2
+                Merge.makeMergeblob
                   hydrate
                   Operations.transitiveDependentsWithinScope
                   (pure (Updated.map Branch.toNames libdepsBranches))
@@ -323,16 +323,13 @@ doMerge info = do
                     }
                   & onLeftM \err ->
                     rollback case err of
-                      Merge.Mergeblob2Error'ConflictedAlias defn0 ->
+                      Merge.MergeblobError'ConflictedAlias defn0 ->
                         case defn0 of
                           Merge.Alice defn -> Output.MergeConflictedAliases mergeTarget defn
                           Merge.Bob defn -> Output.MergeConflictedAliases mergeSource defn
-                      Merge.Mergeblob2Error'ConflictedBuiltin defn -> Output.MergeConflictInvolvingBuiltin defn
+                      Merge.MergeblobError'ConflictedBuiltin defn -> Output.MergeConflictInvolvingBuiltin defn
 
               pure (mergeblob, libdepsBranches)
-
-        let hasConflicts =
-              not (defnsAreEmpty mergeblob.conflicts.alice)
 
         let unconflictedBranch =
               Branch.fromUnconflictedDefns mergeblob.unconflictedDefns
@@ -378,7 +375,7 @@ doMerge info = do
             --                Yes                    Yes                                              Run that cool tool
 
             maybeMergetool <-
-              if hasConflicts
+              if not (defnsAreEmpty mergeblob.conflicts.alice)
                 then liftIO (lookupEnv "UCM_MERGETOOL")
                 else pure Nothing
 
