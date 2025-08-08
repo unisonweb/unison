@@ -631,6 +631,23 @@ renderTypeError e env src = case e of
         "\n\n",
         debugSummary note
       ]
+  AbilityInstantiationFailure _v want site _ ->
+    mconcat
+      [ "I wasn't able to solve for an implicit effect variable when checking\n",
+        "the definition:",
+        "\n\n",
+        showSourceMaybes src [(,Type1) <$> rangeForAnnotated site],
+        "\n\n",
+        "This is likely due to a recursive function using abilities where the\n",
+        "signature does not specify the abilities used.",
+        "\n\n",
+        "I think the abilities should be similar to\n\n",
+        Pr.indentN 4 . style Type1 $
+          "{" <> commas (renderType' env) want <> "}",
+        "\n\n",
+        "Please adjust the signature to include the ability annotation on the\n",
+        "arrow."
+      ]
   UnguardedLetRecCycle vs locs _ ->
     mconcat
       [ "These definitions depend on each other cyclically but aren't guarded ",

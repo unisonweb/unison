@@ -1658,9 +1658,8 @@ reifyValue cc val = do
   where
     f False r = (mempty, S.singleton r)
     f True r = (S.singleton r, mempty)
-    (tyLinks, tmLinks) = case val of
-      WithRefs tys tms _ -> (Set.fromList tys, Set.fromList tms)
-      Plain val -> valueLinks f val
+
+    (tyLinks, tmLinks) = valueLinks f (dereference val)
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->

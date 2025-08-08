@@ -289,6 +289,8 @@ analyseNotes fileUri ppe src notes = do
                 let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
                 (r, rs) <- withNeighbours (locs >>= aToR)
                 pure (r, ("mismatch",) <$> rs)
+              TypeError.AbilityInstantiationFailure _ _ site _ ->
+                singleRange $ ABT.annotation site
               TypeError.UnguardedLetRecCycle {cycleLocs} -> do
                 let ranges :: [Range]
                     ranges = cycleLocs >>= aToR
