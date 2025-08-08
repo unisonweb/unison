@@ -12,12 +12,13 @@ import Unison.Codebase.Branch (UnconflictedBranchView (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
-import Unison.Merge.Diff (diffSynhashedDefns', humanizeDiffs, synhashDefns0, synhashLcaDefns)
+import Unison.Merge.Diff (diffSynhashedDefns, humanizeDiffs)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
-import Unison.Merge.Rename (SimpleRenames, makeRenames', makeSimpleRenames)
+import Unison.Merge.Rename (SimpleRenames, makeRenames, makeSimpleRenames)
+import Unison.Merge.Synhash (synhashDefns, synhashLcaDefns)
 import Unison.Merge.Synhashed (Synhashed)
 import Unison.Merge.ThreeWay (GThreeWay (..), ThreeWay (..))
 import Unison.Merge.ThreeWay qualified as ThreeWay
@@ -107,32 +108,29 @@ makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
         toIds <$> defnsByName
 
   -- Narrow definitions to those that could have different syntactic hashes
-  let narrowedDefns0 =
+  let narrowedDefns =
         -- narrowDefns declNameLookups defnsByName
         TwoWay
           { alice = Updated {old = defnsByName.lca, new = defnsByName.alice},
             bob = Updated {old = defnsByName.lca, new = defnsByName.bob}
           }
 
-  logger.logNarrowedDefns narrowedDefns0
-
-  let narrowedDefns =
-        TwoWay.updatedToThreeWay narrowedDefns0
+  logger.logNarrowedDefns narrowedDefns
 
   -- Hydrate only the narrowed definitions
   hydratedNarrowedDefns <-
-    hydrate (fold (toIds <$> narrowedDefns))
+    hydrate (foldMap (Updated.foldMap toIds) narrowedDefns)
 
   -- Compute the syntactic hashes of the narrowed+hydrated definitions
   let synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference))
       synhashedNarrowedDefns =
-        actualHonk fst allNames declNameLookups narrowedDefns0 hydratedNarrowedDefns
+        makeSynhashedNarrowedDefns fst allNames declNameLookups narrowedDefns hydratedNarrowedDefns
 
   logger.logSynhashedNarrowedDefns synhashedNarrowedDefns
 
   -- Identify all renames
   let renames =
-        makeRenames' . Updated.map (bimap BiMultimap.fromRange BiMultimap.fromRange) <$> synhashedNarrowedDefns
+        makeRenames . Updated.map (bimap BiMultimap.fromRange BiMultimap.fromRange) <$> synhashedNarrowedDefns
 
   -- Filter all renames down to just "simple" renames
   let simpleRenames =
@@ -140,7 +138,7 @@ makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
 
   -- Diff LCA->Alice and LCA->Bob
   let (diffsFromLCA, propagatedUpdates) =
-        diffSynhashedDefns' synhashedNarrowedDefns
+        diffSynhashedDefns synhashedNarrowedDefns
 
   logger.logDiffsFromLCA diffsFromLCA
 
@@ -188,14 +186,14 @@ toIds =
     (setOf (folded @(Map Name) . Referent.termReference_ . Reference._DerivedId))
     (setOf (folded @(Map Name) . Reference._DerivedId))
 
-actualHonk ::
+makeSynhashedNarrowedDefns ::
   (term -> Term Symbol Ann) ->
   ThreeWay Names ->
   GThreeWay PartialDeclNameLookup DeclNameLookup ->
   TwoWay (Updated (DefnsF (Map Name) Referent TypeReference)) ->
   Defns (Map TermReferenceId term) (Map TypeReferenceId (Decl Symbol Ann)) ->
   TwoWay (GUpdated (DefnsF2 (Map Name) Synhashed Referent TypeReference) (DefnsF2 (Map Name) Synhashed Referent TypeReference))
-actualHonk toTerm allNames declNameLookups defns hydratedDefns =
+makeSynhashedNarrowedDefns toTerm allNames declNameLookups defns hydratedDefns =
   Updated
     <$> ( zipDefnsWith
             Map.intersection
@@ -209,7 +207,7 @@ actualHonk toTerm allNames declNameLookups defns hydratedDefns =
             )
             <$> oldDefns
         )
-    <*> ( synhashDefns0 toTerm ppe hydratedDefns
+    <*> ( synhashDefns toTerm ppe hydratedDefns
             <$> ThreeWay.gforgetLca declNameLookups
             <*> newDefns
         )

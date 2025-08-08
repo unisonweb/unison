@@ -251,11 +251,10 @@ doMerge info = do
               pure (ThreeWay.gfromTwoWay lca aliceAndBob)
 
         (mergeblob, libdepsBranches) <- do
-          let hydrate refs =
+          let hydrate =
                 hydrateRefs
                   (Codebase.unsafeGetTermComponent env.codebase)
                   Operations.expectDeclComponent
-                  refs
 
           onLeftM done do
             Cli.runTransactionWithRollbackE \rollback -> do

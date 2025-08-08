@@ -26,10 +26,6 @@ dependencies:
   - witherable
 
 library:
-  # exposed-modules:
-  #   # TODO probably whittle this down to one
-  #   - Unison.Merge
-  #   - Unison.Merge2
   source-dirs: src
   when:
     - condition: false

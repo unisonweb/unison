@@ -1,7 +1,6 @@
 module Unison.Merge.Rename
   ( Rename (..),
     makeRenames,
-    makeRenames',
     SimpleRenames (..),
     makeSimpleRenames,
   )
@@ -15,9 +14,6 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Merge.Synhashed (Synhashed (..))
-import Unison.Merge.ThreeWay (ThreeWay)
-import Unison.Merge.ThreeWay qualified as ThreeWay
-import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Name (Name)
 import Unison.Prelude
@@ -39,30 +35,9 @@ data Rename = Rename
   }
 
 makeRenames ::
-  ThreeWay (Defns (BiMultimap (Synhashed Referent) Name) (BiMultimap (Synhashed TypeReference) Name)) ->
-  TwoWay (DefnsF [] Rename Rename)
-makeRenames defns =
-  zipDefnsWith (f termNamingsToRename) (f \_ -> namingsToRename) defns.lca <$> ThreeWay.forgetLca defns
-  where
-    f ::
-      (Ord ref) =>
-      (ref -> NESet Name -> NESet Name -> Maybe Rename) ->
-      BiMultimap ref Name ->
-      BiMultimap ref Name ->
-      [Rename]
-    f g old new =
-      Map.elems $
-        Map.merge
-          Map.dropMissing
-          Map.dropMissing
-          (Map.zipWithMaybeMatched g)
-          (BiMultimap.domain old)
-          (BiMultimap.domain new)
-
-makeRenames' ::
   Updated (Defns (BiMultimap (Synhashed Referent) Name) (BiMultimap (Synhashed TypeReference) Name)) ->
   DefnsF [] Rename Rename
-makeRenames' defns =
+makeRenames defns =
   zipDefnsWith (f termNamingsToRename) (f \_ -> namingsToRename) defns.old defns.new
   where
     f ::
