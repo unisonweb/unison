@@ -66,6 +66,9 @@ extra-deps:
   - numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
   - network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
 
+  # The version in lts-22.26 (1.3.1) doesn’t work with newer GCC releases
+  - hashtables-1.4.2@65107f0c970351b971ea1f676a5e00b61e37c298a4c83c867d937f2a774501eb
+
 flags:
   haskeline:
     terminfo: false

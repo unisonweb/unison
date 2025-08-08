@@ -56,6 +56,7 @@ constraints:
   recover-rtti ==0.4.3,
   numerals ==0.4.1,
   network-udp ==0.0.0,
+  hashtables ==1.4.2,
 
 package haskeline
   flags: -terminfo

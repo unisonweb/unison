@@ -1365,7 +1365,8 @@ constraints: abstract-deque ==0.3,
              hashids ==1.1.1.0,
              hashing ==0.1.1.0,
              hashmap ==1.3.3,
-             hashtables ==1.3.1,
+             -- NB: We pull a newer version because of improved GCC support
+             -- hashtables ==1.3.1,
              -- NB: We get haskeline via a repo specified in ./cabal.project
              -- haskeline installed,
              haskell-gi ==0.26.9,
