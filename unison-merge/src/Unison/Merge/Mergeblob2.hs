@@ -33,7 +33,6 @@ import Unison.Merge.TwoWay qualified as TwoWay
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
 import Unison.Merge.Updated (Updated)
-import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -86,7 +85,7 @@ makeMergeblob2 ::
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
   ) ->
   (Set Reference.Id -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
-  (Map NameSegment libdep -> m Names) ->
+  m (Updated Names) ->
   Mergeblob0 libdep ->
   TwoWay Text ->
   m (Either Mergeblob2Error (Mergeblob2 libdep))
@@ -170,7 +169,7 @@ makeMergeblob2 hydrate loadDependents loadLibdepsNames blob authors = Except.run
             mergeDependents conflictsNames blob.unconflicts allDependentsNames
 
   libdepsNames <-
-    lift (Updated.traverse loadLibdepsNames blob.libdeps)
+    lift loadLibdepsNames
 
   let (unparsedFile, unparsedSoloFiles) =
         renderUnisonFiles

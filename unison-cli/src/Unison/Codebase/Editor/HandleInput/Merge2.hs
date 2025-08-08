@@ -63,8 +63,6 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.SqliteCodebase.Branch.Cache (newBranchCache)
-import Unison.Codebase.SqliteCodebase.Conversions qualified as Conversions
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -75,8 +73,8 @@ import Unison.Hash qualified as Hash
 import Unison.Merge qualified as Merge
 import Unison.Merge.EitherWayI qualified as EitherWayI
 import Unison.Merge.Synhashed qualified as Synhashed
+import Unison.Merge.Updated qualified as Merge.Updated
 import Unison.Name (Name)
-import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Parser.Ann (Ann)
@@ -94,6 +92,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
 import Unison.Sqlite (Transaction)
+import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile (TypecheckedUnisonFile)
@@ -202,7 +201,8 @@ doMerge info = do
                   lca = info.lca.causalHash
                 }
 
-        branch1s <-
+        -- Load Alice/Bob/LCA branches
+        branches <-
           Cli.runTransaction do
             traverse
               (Codebase.expectBranchForHashTx env.codebase)
@@ -212,27 +212,19 @@ doMerge info = do
                   lca = info.lca.causalHash
                 }
 
-        -- Load Alice/Bob/LCA branches
-        branches <-
-          Cli.runTransaction do
-            alice <- causals.alice.value
-            bob <- causals.bob.value
-            lca <- for causals.lca \causal -> causal.value
-            pure Merge.TwoOrThreeWay {lca, alice, bob}
-
         -- Assert that neither Alice nor Bob have defns in lib
-        for_ [(mergeTarget, Branch.head branch1s.alice), (mergeSource, Branch.head branch1s.bob)] \(who, branch) -> do
+        for_ [(mergeTarget, Branch.head branches.alice), (mergeSource, Branch.head branches.bob)] \(who, branch) -> do
           when (Branch.hasDefnsInLib branch) do
             done (Output.MergeDefnsInLib who)
 
-        -- Load Alice/Bob/LCA definitions
+        -- Derive unconflicted defns views
         --
         -- FIXME: Oops, if this fails due to a conflicted name, we don't actually say where the conflicted name came from.
         -- We should have a better error message (even though you can't do anything about conflicted names in the LCA).
         defns <- do
           let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn "merge")
           lca <-
-            case branch1s.lca of
+            case branches.lca of
               Just lca -> asUnconflicted (Branch.head lca)
               Nothing ->
                 pure
@@ -241,8 +233,8 @@ doMerge info = do
                       nametree = Nametree (Defns Map.empty Map.empty) Map.empty,
                       names = Names Relation.empty Relation.empty
                     }
-          alice <- asUnconflicted (Branch.head branch1s.alice)
-          bob <- asUnconflicted (Branch.head branch1s.bob)
+          alice <- asUnconflicted (Branch.head branches.alice)
+          bob <- asUnconflicted (Branch.head branches.bob)
           pure Merge.ThreeWay {lca, alice, bob}
 
         declNameLookups <- do
@@ -251,21 +243,27 @@ doMerge info = do
                 Transaction (Merge.GThreeWay PartialDeclNameLookup DeclNameLookup)
               action rollback = do
                 lca <-
-                  case branch1s.lca of
+                  case branches.lca of
                     Just lca -> Codebase.getBranchPartialDeclNameLookup env.codebase (Branch.namespaceHash lca) defns.lca
                     Nothing -> pure (PartialDeclNameLookup Map.empty Map.empty)
                 alice <-
-                  Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash branch1s.alice) defns.alice
+                  Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash branches.alice) defns.alice
                     & onLeftM \reasons ->
                       rollback (Output.IncoherentDeclDuringMerge mergeTarget (asOneRandomIncoherentDeclReason reasons))
                 bob <-
-                  Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash branch1s.bob) defns.bob
+                  Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash branches.bob) defns.bob
                     & onLeftM \reasons ->
                       rollback (Output.IncoherentDeclDuringMerge mergeSource (asOneRandomIncoherentDeclReason reasons))
                 pure Merge.GThreeWay {lca, alice, bob}
           Cli.runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left)) & onLeftM done
 
-        libdeps3 <- Cli.runTransaction (loadLibdeps branches)
+        let libdeps3 =
+              let f = view (Branch.head_ . Branch.libdeps_)
+               in Merge.ThreeWay
+                    { lca = maybe Map.empty f branches.lca,
+                      alice = f branches.alice,
+                      bob = f branches.bob
+                    }
 
         names3 :: Merge.ThreeWay Names <- do
           let causalHashes =
@@ -282,26 +280,27 @@ doMerge info = do
           pure Merge.ThreeWay {alice = names.alice, bob = names.bob, lca = fromMaybe mempty names.lca}
 
         let hydrate refs =
-              Cli.runTransaction do
-                hydrateRefs
-                  (Codebase.unsafeGetTermComponent env.codebase)
-                  Operations.expectDeclComponent
-                  refs
+              hydrateRefs
+                (Codebase.unsafeGetTermComponent env.codebase)
+                Operations.expectDeclComponent
+                refs
 
         blob0 <-
-          Merge.makeMergeblob0
-            Merge.MergeblobDebugLog0
-              { debugLogDefns = liftIO . debugFunctions.debugDefns,
-                debugLogNarrowedDefns = liftIO . debugFunctions.debugNarrowedDefns,
-                debugLogSynhashedNarrowedDefns = liftIO . debugFunctions.debugSynhashedNarrowedDefns,
-                debugLogDiffsFromLCA = liftIO . debugFunctions.debugDiffs,
-                debugLogDiff = liftIO . debugFunctions.debugCombinedDiff
-              }
-            hydrate
-            names3
-            defns
-            libdeps3
-            declNameLookups
+          Cli.runTransaction
+            ( Merge.makeMergeblob0
+                Merge.MergeblobDebugLog0
+                  { debugLogDefns = Sqlite.unsafeIO . debugFunctions.debugDefns,
+                    debugLogNarrowedDefns = Sqlite.unsafeIO . debugFunctions.debugNarrowedDefns,
+                    debugLogSynhashedNarrowedDefns = Sqlite.unsafeIO . debugFunctions.debugSynhashedNarrowedDefns,
+                    debugLogDiffsFromLCA = Sqlite.unsafeIO . debugFunctions.debugDiffs,
+                    debugLogDiff = Sqlite.unsafeIO . debugFunctions.debugCombinedDiff
+                  }
+                hydrate
+                names3
+                defns
+                libdeps3
+                declNameLookups
+            )
             & onLeftM \case
               Merge.Alice reason -> done (Output.IncoherentDeclDuringMerge mergeTarget reason)
               Merge.Bob reason -> done (Output.IncoherentDeclDuringMerge mergeSource reason)
@@ -310,41 +309,35 @@ doMerge info = do
           debugFunctions.debugDiffs blob0.diffsFromLCA
           debugFunctions.debugCombinedDiff blob0.diff
 
-        -- We make a fresh branch cache to load the branch of libdeps.
-        -- It would probably be better to reuse the codebase's branch cache.
-        -- FIXME how slow/bad is this without that branch cache?
-        branchCache <- newBranchCache
-        let loadLibdeps :: Map NameSegment (V2.Branch.CausalBranch Transaction) -> Transaction (Branch0 Transaction)
-            loadLibdeps children =
-              Conversions.branch2to1
-                branchCache
-                (Codebase.getDeclType env.codebase)
-                V2.Branch {terms = Map.empty, types = Map.empty, patches = Map.empty, children}
+        let libdepsBranches =
+              blob0.libdeps & Merge.Updated.map \libdeps ->
+                Branch.empty0 & Branch.children_ .~ libdeps
 
         blob2 <-
-          Merge.makeMergeblob2
-            hydrate
-            ( \scope dependencies -> Cli.runTransaction do
-                Operations.transitiveDependentsWithinScope scope dependencies
+          Cli.runTransaction
+            ( Merge.makeMergeblob2
+                hydrate
+                ( \scope dependencies -> Operations.transitiveDependentsWithinScope scope dependencies
+                )
+                (pure (Merge.Updated.map Branch.toNames libdepsBranches))
+                blob0
+                Merge.TwoWay
+                  { alice = into @Text aliceBranchNames,
+                    bob =
+                      case info.bob.source of
+                        MergeSource'LocalProjectBranch bobBranch -> into @Text (ProjectUtils.justTheNames bobBranch)
+                        MergeSource'RemoteProjectBranch bobBranch
+                          | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
+                          | otherwise -> into @Text bobBranchNames
+                          where
+                            bobBranchNames =
+                              ProjectAndBranch bobBranch.projectName bobBranch.branchName
+                        MergeSource'RemoteLooseCode info ->
+                          case Path.toName info.path of
+                            Nothing -> "<root>"
+                            Just name -> Name.toText name
+                  }
             )
-            (fmap Branch.toNames . Cli.runTransaction . loadLibdeps)
-            blob0
-            Merge.TwoWay
-              { alice = into @Text aliceBranchNames,
-                bob =
-                  case info.bob.source of
-                    MergeSource'LocalProjectBranch bobBranch -> into @Text (ProjectUtils.justTheNames bobBranch)
-                    MergeSource'RemoteProjectBranch bobBranch
-                      | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
-                      | otherwise -> into @Text bobBranchNames
-                      where
-                        bobBranchNames =
-                          ProjectAndBranch bobBranch.projectName bobBranch.branchName
-                    MergeSource'RemoteLooseCode info ->
-                      case Path.toName info.path of
-                        Nothing -> "<root>"
-                        Just name -> Name.toText name
-              }
             & onLeftM \err ->
               done case err of
                 Merge.Mergeblob2Error'ConflictedAlias defn0 ->
@@ -368,10 +361,10 @@ doMerge info = do
                   Left _typecheckErr -> Nothing
                   Right blob5 -> Just blob5
 
-        mergedLibdeps <- Cli.runTransaction (loadLibdeps blob2.libdeps.new)
+        -- mergedLibdeps <- Cli.runTransaction (loadLibdeps blob2.libdeps.new)
         let stageOneBranch =
               Branch.fromUnconflictedDefns blob2.stageOne
-                & Branch.setLibdeps mergedLibdeps
+                & Branch.setLibdeps libdepsBranches.new
                 -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
                 & Branch.transform0 (Codebase.runTransaction env.codebase)
 
@@ -508,29 +501,6 @@ doMergeLocalBranch branches = do
             },
         description = "merge " <> into @Text (ProjectUtils.justTheNames branches.bob)
       }
-
-------------------------------------------------------------------------------------------------------------------------
--- Loading basic info out of the database
-
-loadLibdeps ::
-  Merge.TwoOrThreeWay (V2.Branch Transaction) ->
-  Transaction (Merge.ThreeWay (Map NameSegment (V2.CausalBranch Transaction)))
-loadLibdeps branches = do
-  lca <-
-    case branches.lca of
-      Nothing -> pure Map.empty
-      Just lcaBranch -> load lcaBranch
-  alice <- load branches.alice
-  bob <- load branches.bob
-  pure Merge.ThreeWay {lca, alice, bob}
-  where
-    load :: V2.Branch Transaction -> Transaction (Map NameSegment (V2.CausalBranch Transaction))
-    load branch =
-      case Map.lookup NameSegment.libSegment branch.children of
-        Nothing -> pure Map.empty
-        Just libdepsCausal -> do
-          libdepsBranch <- libdepsCausal.value
-          pure libdepsBranch.children
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Merge precondition violation checks

@@ -13,6 +13,7 @@ module Unison.Util.Star2
     d1,
     d2,
     difference,
+    Unison.Util.Star2.empty,
     lookupD1,
     mapD2,
     memberD1,
@@ -84,6 +85,10 @@ deleteD1 x s =
         newFacts
         d1'
         d2'
+
+empty :: Star2 fact d1 d2
+empty =
+  Star2 Set.empty R.empty R.empty
 
 lookupD1 :: (Ord fact, Ord d1) => d1 -> Star2 fact d1 d2 -> Set fact
 lookupD1 x s = R.lookupRan x (d1 s)
