@@ -37,6 +37,7 @@ packages:
   - lib/unison-util-recursion
   - lib/unison-util-relation
   - lib/unison-util-rope
+  - lib/unison-util-array
   - parser-typechecker
   - unison-cli
   - unison-cli-integration
