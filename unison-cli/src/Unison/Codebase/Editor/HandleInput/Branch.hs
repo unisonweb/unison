@@ -43,7 +43,7 @@ data CreateFrom
     CreateFrom'MergeParents
       (CreateFromMergeSource, CausalHash, Map Name Text {- unique type name to guid -}) -- source
       (Sqlite.ProjectBranch, CausalHash, Map Name Text {- unique type name to guid -}) -- target
-      (Branch IO) -- merge branch
+      (Branch Sqlite.Transaction) -- merge branch
   | -- An update failed, and we're making a branch for the user to complete the update on
     CreateFrom'Update
       (Sqlite.ProjectBranch, CausalHash, Map Name Text {- unique type name to guid -})
@@ -139,8 +139,8 @@ createBranch description createFrom project getNewBranchName = do
         let parentBranchId = if parentBranch.projectId == projectId then Just parentBranch.branchId else Nothing
         pure (parentBranchId, newBranchCausalHashId)
     CreateFrom'MergeParents _ (targetBranch, _, _) namespace -> do
-      liftIO $ Codebase.putBranch codebase namespace
       Cli.runTransaction do
+        Codebase.putBranchTx codebase namespace
         newBranchCausalHashId <- Q.expectCausalHashIdByCausalHash (Branch.headHash namespace)
         pure (Just targetBranch.branchId, newBranchCausalHashId)
     CreateFrom'Update (parentBranch, _, _) namespace -> do

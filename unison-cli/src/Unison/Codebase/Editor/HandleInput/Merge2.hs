@@ -51,7 +51,7 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UpdateUtils (hydrateRefs)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
@@ -166,11 +166,11 @@ doMerge info = do
           else fakeDebugFunctions
 
   -- When debugging, don't bother with progress messages, so debug output is cleaner and doesn't disappear
-  let withRespondRegion :: ((Output -> Cli ()) -> Cli a) -> Cli a
+  let withRespondRegion :: ((Output -> IO ()) -> Cli a) -> Cli a
       withRespondRegion =
         if Debug.shouldDebug Debug.Merge
           then \f -> f \_output -> pure ()
-          else Cli.withRespondRegion
+          else Cli.withRespondRegionIO
 
   let aliceBranchNames = ProjectUtils.justTheNames info.alice.projectAndBranch
   let mergeSource = MergeSourceOrTarget'Source info.bob.source
@@ -192,17 +192,7 @@ doMerge info = do
         done (Output.MergeSuccessFastForward mergeSourceAndTarget)
 
       withRespondRegion \respondRegion -> do
-        -- Load Alice/Bob/LCA causals
-        -- TODO don't do this, use branches instead
-        causals <-
-          Cli.runTransaction do
-            traverse
-              Operations.expectCausalBranchByCausalHash
-              Merge.TwoOrThreeWay
-                { alice = info.alice.causalHash,
-                  bob = info.bob.causalHash,
-                  lca = info.lca.causalHash
-                }
+        liftIO (respondRegion (Output.Literal "Loading definitions..."))
 
         -- Load Alice/Bob/LCA branches
         branches <-
@@ -269,6 +259,8 @@ doMerge info = do
 
           onLeftM done do
             Cli.runTransactionWithRollbackE \rollback -> do
+              Sqlite.unsafeIO (respondRegion (Output.Literal "Computing diff..."))
+
               diffblob <-
                 Merge.makeDiffblob
                   Merge.DiffblobLog
@@ -297,6 +289,8 @@ doMerge info = do
               let libdepsBranches =
                     diffblob.libdeps & Updated.map \libdeps ->
                       Branch.empty0 & Branch.children_ .~ libdeps
+
+              Sqlite.unsafeIO (respondRegion (Output.Literal "Computing merge..."))
 
               mergeblob <-
                 Merge.makeMergeblob
@@ -331,14 +325,16 @@ doMerge info = do
 
               pure (mergeblob, libdepsBranches)
 
-        let unconflictedBranch =
-              Branch.fromUnconflictedDefns mergeblob.unconflictedDefns
-                & Branch.setLibdeps libdepsBranches.new
-                -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
-                & Branch.transform0 (Codebase.runTransaction env.codebase)
-
-        let parents =
-              causals <&> \causal -> (causal.causalHash, Codebase.expectBranchForHash env.codebase causal.causalHash)
+        let makeMergeNode :: (Branch0 Transaction -> Branch0 Transaction) -> Branch Transaction
+            makeMergeNode =
+              let unconflictedBranch =
+                    Branch.fromUnconflictedDefns mergeblob.unconflictedDefns
+                      & Branch.setLibdeps libdepsBranches.new
+               in \f ->
+                    Branch.mergeNode
+                      (f unconflictedBranch)
+                      (Branch.headHash branches.alice, pure branches.alice)
+                      (Branch.headHash branches.bob, pure branches.bob)
 
         typecheckedFile <-
           mergeblob.typecheckedFile & onNothing do
@@ -361,7 +357,7 @@ doMerge info = do
                           info.alice.causalHash,
                           mergeblob.uniqueTypeGuids.alice
                         )
-                      mergeStuff = Branch.mergeNode unconflictedBranch parents.alice parents.bob
+                      mergeStuff = makeMergeNode id
                    in HandleInput.Branch.CreateFrom'MergeParents sourceStuff targetStuff mergeStuff
                 )
                 info.alice.projectAndBranch.project
@@ -401,11 +397,13 @@ doMerge info = do
                     tmpdir2 <- Temporary.createTempDirectory tmpdir1 "unison-merge"
                     pure \filename -> Text.pack (tmpdir2 </> Text.unpack (Text.Builder.run filename))
                 let filenames =
-                      Merge.ThreeWay
-                        { lca = makeTempFilename (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-base.u"),
-                          alice = makeTempFilename (aliceFilenameSlug <> ".u"),
-                          bob = makeTempFilename (bobFilenameSlug <> ".u")
-                        }
+                      fmap
+                        makeTempFilename
+                        Merge.ThreeWay
+                          { lca = aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-base.u",
+                            alice = aliceFilenameSlug <> ".u",
+                            bob = bobFilenameSlug <> ".u"
+                          }
                 let mergedFilename = Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-merged.u")
                 let mergetool =
                       mergetool0
@@ -437,10 +435,12 @@ doMerge info = do
           info.alice.projectAndBranch.branch
           info.description
           \_aliceBranch ->
-            Branch.mergeNode
-              (Branch.batchUpdates (typecheckedUnisonFileToBranchAdds typecheckedFile) unconflictedBranch)
-              parents.alice
-              parents.bob
+            typecheckedFile
+              & typecheckedUnisonFileToBranchAdds
+              & Branch.batchUpdates
+              & makeMergeNode
+              -- Awkward: we have a Branch Transaction but we need a Branch IO (because reasons)
+              & Branch.transform (Codebase.runTransaction env.codebase)
         pure (Output.MergeSuccess mergeSourceAndTarget)
 
   Cli.respond finalOutput

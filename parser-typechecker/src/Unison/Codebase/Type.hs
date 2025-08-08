@@ -71,6 +71,7 @@ data Codebase m v a = Codebase
     --
     -- The terms and type declarations that a branch references must already exist in the codebase.
     putBranch :: Branch m -> m (),
+    putBranchTx :: Branch Sqlite.Transaction -> Sqlite.Transaction (),
     -- | @getWatch k r@ returns watch result @t@ that was previously put by @putWatch k r t@.
     getWatch :: WK.WatchKind -> TermReferenceId -> Sqlite.Transaction (Maybe (Term v a)),
     -- | Get the set of user-defined terms-or-constructors that have the given type.

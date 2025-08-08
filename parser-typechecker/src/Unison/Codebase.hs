@@ -49,6 +49,7 @@ module Unison.Codebase
     expectBranchForHash,
     expectBranchForHashTx,
     putBranch,
+    putBranchTx,
     SqliteCodebase.Operations.causalHashesByPrefix,
     lca,
     SqliteCodebase.Operations.before,

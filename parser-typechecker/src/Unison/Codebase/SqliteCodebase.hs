@@ -304,6 +304,11 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   Cache.insert rootBranchCache (Branch.headHash branch) branch
                   runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
+            putBranchTx :: Branch Sqlite.Transaction -> Sqlite.Transaction ()
+            putBranchTx branch = do
+              Sqlite.unsafeIO (Cache.insert rootBranchCacheTx (Branch.headHash branch) branch)
+              CodebaseOps.putBranch branch
+
             preloadBranch :: CausalHash -> m ()
             preloadBranch h = do
               void . UnliftIO.forkIO $ void $ do
@@ -355,6 +360,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getBranchPartialDeclNameLookup,
                   getBranchDeclNameLookup,
                   putBranch,
+                  putBranchTx,
                   getWatch,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,
