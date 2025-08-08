@@ -192,7 +192,7 @@ doMerge info = do
         done (Output.MergeSuccessFastForward mergeSourceAndTarget)
 
       withRespondRegion \respondRegion -> do
-        liftIO (respondRegion (Output.Literal "Loading definitions..."))
+        liftIO (respondRegion (Output.Literal "Loading namespaces..."))
 
         -- Load Alice/Bob/LCA branches
         branches <-
@@ -251,10 +251,14 @@ doMerge info = do
               pure (ThreeWay.gfromTwoWay lca aliceAndBob)
 
         (mergeblob, libdepsBranches) <- do
-          let hydrate =
-                hydrateRefs
-                  (Codebase.unsafeGetTermComponent env.codebase)
-                  Operations.expectDeclComponent
+          let hydrate message refs
+                | defnsAreEmpty refs = pure (Defns Map.empty Map.empty)
+                | otherwise = do
+                    Sqlite.unsafeIO (respondRegion (Output.Literal message))
+                    hydrateRefs
+                      (Codebase.unsafeGetTermComponent env.codebase)
+                      Operations.expectDeclComponent
+                      refs
 
           onLeftM done do
             Cli.runTransactionWithRollbackE \rollback -> do
@@ -269,7 +273,7 @@ doMerge info = do
                       logDiffsFromLCA = Sqlite.unsafeIO . debugFunctions.debugDiffs,
                       logDiff = Sqlite.unsafeIO . debugFunctions.debugCombinedDiff
                     }
-                  hydrate
+                  (hydrate "Loading definitions...")
                   (TwoOrThreeWay.toThreeWay Names.empty (Branch.toNames . view Branch.head_ <$> branches))
                   defns
                   ( let f = view (Branch.head_ . Branch.libdeps_)
@@ -291,36 +295,37 @@ doMerge info = do
 
               Sqlite.unsafeIO (respondRegion (Output.Literal "Computing merge..."))
 
-              mergeblob <-
-                Merge.makeMergeblob
-                  hydrate
-                  Operations.transitiveDependentsWithinScope
-                  (pure (Updated.map Branch.toNames libdepsBranches))
-                  (Codebase.typeLookupForDependencies env.codebase)
-                  diffblob
-                  Merge.TwoWay
-                    { alice = into @Text aliceBranchNames,
-                      bob =
-                        case info.bob.source of
-                          MergeSource'LocalProjectBranch bobBranch -> into @Text (ProjectUtils.justTheNames bobBranch)
-                          MergeSource'RemoteProjectBranch bobBranch
-                            | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
-                            | otherwise -> into @Text bobBranchNames
-                            where
-                              bobBranchNames =
-                                ProjectAndBranch bobBranch.projectName bobBranch.branchName
-                          MergeSource'RemoteLooseCode info ->
-                            case Path.toName info.path of
-                              Nothing -> "<root>"
-                              Just name -> Name.toText name
-                    }
-                  & onLeftM \err ->
-                    rollback case err of
-                      Merge.MergeblobError'ConflictedAlias defn0 ->
-                        case defn0 of
-                          Merge.Alice defn -> Output.MergeConflictedAliases mergeTarget defn
-                          Merge.Bob defn -> Output.MergeConflictedAliases mergeSource defn
-                      Merge.MergeblobError'ConflictedBuiltin defn -> Output.MergeConflictInvolvingBuiltin defn
+              mergeblob <- do
+                let handleMergeblobError err =
+                      rollback case err of
+                        Merge.MergeblobError'ConflictedAlias defn0 ->
+                          case defn0 of
+                            Merge.Alice defn -> Output.MergeConflictedAliases mergeTarget defn
+                            Merge.Bob defn -> Output.MergeConflictedAliases mergeSource defn
+                        Merge.MergeblobError'ConflictedBuiltin defn -> Output.MergeConflictInvolvingBuiltin defn
+                onLeftM handleMergeblobError do
+                  Merge.makeMergeblob
+                    (hydrate "Loading more definitions...")
+                    Operations.transitiveDependentsWithinScope
+                    (pure (Updated.map Branch.toNames libdepsBranches))
+                    (Codebase.typeLookupForDependencies env.codebase)
+                    diffblob
+                    Merge.TwoWay
+                      { alice = into @Text aliceBranchNames,
+                        bob =
+                          case info.bob.source of
+                            MergeSource'LocalProjectBranch bobBranch -> into @Text (ProjectUtils.justTheNames bobBranch)
+                            MergeSource'RemoteProjectBranch bobBranch
+                              | aliceBranchNames == bobBranchNames -> "remote " <> into @Text bobBranchNames
+                              | otherwise -> into @Text bobBranchNames
+                              where
+                                bobBranchNames =
+                                  ProjectAndBranch bobBranch.projectName bobBranch.branchName
+                            MergeSource'RemoteLooseCode info ->
+                              case Path.toName info.path of
+                                Nothing -> "<root>"
+                                Just name -> Name.toText name
+                      }
 
               pure (mergeblob, libdepsBranches)
 
