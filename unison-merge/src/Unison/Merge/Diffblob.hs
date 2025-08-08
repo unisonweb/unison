@@ -16,6 +16,7 @@ import Unison.Merge.Diff (diffSynhashedDefns, humanizeDiffs)
 import Unison.Merge.DiffOp (DiffOp)
 import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
+import Unison.Merge.Narrow (narrowDefns)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
 import Unison.Merge.Rename (SimpleRenames, makeRenames, makeSimpleRenames)
 import Unison.Merge.Synhash (synhashDefns, synhashLcaDefns)
@@ -109,11 +110,7 @@ makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
 
   -- Narrow definitions to those that could have different syntactic hashes
   let narrowedDefns =
-        -- narrowDefns declNameLookups defnsByName
-        TwoWay
-          { alice = Updated {old = defnsByName.lca, new = defnsByName.alice},
-            bob = Updated {old = defnsByName.lca, new = defnsByName.bob}
-          }
+        narrowDefns declNameLookups defnsByName
 
   logger.logNarrowedDefns narrowedDefns
 

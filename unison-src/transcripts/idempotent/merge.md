@@ -3178,6 +3178,8 @@ scratch/alice> merge /bob
 
   Computing merge...
 
+  Loading more definitions...
+
   I couldn't automatically merge scratch/bob into scratch/alice.
   However, I've added the definitions that need attention to the
   top of scratch.u.
