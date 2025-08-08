@@ -39,16 +39,16 @@ formatUcmLine = \case
     formatContext UcmContextEmpty = ""
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
-formatSettings :: Settings -> Text
-formatSettings settings =
-  if settingsIsEmpty settings then "" else Text.Enc.decodeUtf8 $ encodeFrontmatter settings <> "\n"
+formatSettings :: Aeson.Value -> Text
+formatSettings frontmatter =
+  if frontmatter == Aeson.Null then "" else Text.Enc.decodeUtf8 $ encodeFrontmatter frontmatter <> "\n"
 
 formatStanzas :: [Stanza] -> Text
 formatStanzas =
   CMark.nodeToCommonmark [] Nothing . CMark.Node Nothing CMark.DOCUMENT . fmap (either id processedBlockToNode)
 
 format :: Transcript -> Text
-format Transcript {settings, stanzas} = formatSettings settings <> formatStanzas stanzas
+format Transcript {frontmatter, stanzas} = formatSettings frontmatter <> formatStanzas stanzas
 
 processedBlockToNode :: ProcessedBlock -> CMark.Node
 processedBlockToNode = \case
@@ -63,24 +63,17 @@ type P = P.Parsec Void Text
 parse :: FilePath -> ByteString -> Either (P.ParseErrorBundle Text Void) Transcript
 parse srcName =
   fmap (uncurry Transcript)
-    . bitraverse (pure . either (const mempty) id) (parseStanzas srcName . Text.Enc.decodeUtf8)
+    . bitraverse (pure . either (const Aeson.Null) id) (parseStanzas srcName . Text.Enc.decodeUtf8)
     . parseSettings
 
-handleFrontmatterResult :: Frontmatter.Result Aeson.Value -> (Either String Settings, Maybe ByteString)
+handleFrontmatterResult :: Frontmatter.Result Aeson.Value -> Either String (Aeson.Value, ByteString)
 handleFrontmatterResult = \case
-  Frontmatter.Fail _remainder _contexts message -> (Left message, Nothing)
+  Frontmatter.Fail _remainder _contexts message -> Left message
   Frontmatter.Partial fn -> handleFrontmatterResult $ fn mempty
-  Frontmatter.Done remainder frontmatter ->
-    ( -- NB: This calls `Aeson.fromJSON` explicitly to distinguish between failures to parse frontmatter at all (in
-      --     which case we shouldn’t return a partial @remainder@) and legit frontmatter that doesn’t represent `Settings`.
-      case Aeson.fromJSON frontmatter of
-        Aeson.Error e -> Left e
-        Aeson.Success r -> pure r,
-      Just remainder
-    )
+  Frontmatter.Done remainder frontmatter -> pure (frontmatter, remainder)
 
-parseSettings :: ByteString -> (Either String Settings, ByteString)
-parseSettings input = fmap (fromMaybe input) . handleFrontmatterResult $ parseYamlFrontmatter input
+parseSettings :: ByteString -> (Either String Aeson.Value, ByteString)
+parseSettings input = either ((,input) . Left) (first pure) . handleFrontmatterResult $ parseYamlFrontmatter input
 
 parseStanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
 parseStanzas srcName =

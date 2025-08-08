@@ -221,7 +221,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
           (False, False) -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
           (True, True) -> do
             appendFailingStanza
-            fixedBug (settings transcript) out $
+            fixedBug (frontmatter transcript) out $
               Text.unlines
                 [ "The stanza above marked with `:error :bug` is now failing with",
                   "",
@@ -470,7 +470,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
       dieWithMsg msg = do
         appendFailingStanza
         transcriptFailure
-          (settings transcript)
+          (frontmatter transcript)
           out
           "The transcript failed due to an error in the stanza above. The error is:"
           . pure
@@ -485,13 +485,13 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
           (True, False, False) -> do
             appendFailingStanza
             transcriptFailure
-              (settings transcript)
+              (frontmatter transcript)
               out
               "The transcript was expecting an error in the stanza above, but did not encounter one."
               Nothing
           (False, True, False) -> do
             fixedBug
-              (settings transcript)
+              (frontmatter transcript)
               out
               "The stanza above with `:bug` is now passing! You can remove `:bug` and close any appropriate Github \
               \issues."
@@ -535,12 +535,12 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
         where
           onHalt = readIORef out
 
-  Transcript (settings transcript) . toList <$> loop (Cli.loopState0 (PP.toIds initialPP))
+  Transcript (frontmatter transcript) . toList <$> loop (Cli.loopState0 (PP.toIds initialPP))
 
-transcriptFailure :: Settings -> IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
-transcriptFailure settings out heading mbody = do
+transcriptFailure :: Aeson.Value -> IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
+transcriptFailure frontmatter out heading mbody = do
   texts <- readIORef out
-  UnliftIO.throwIO . RunFailure . Transcript settings $
+  UnliftIO.throwIO . RunFailure . Transcript frontmatter $
     toList texts
       <> ( Left
              <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🛑") []],
@@ -549,13 +549,13 @@ transcriptFailure settings out heading mbody = do
                <> foldr ((:) . CMarkCodeBlock Nothing "") [] mbody
          )
 
-fixedBug :: Settings -> IORef (Seq Stanza) -> Text -> IO b
-fixedBug settings out body = do
+fixedBug :: Aeson.Value -> IORef (Seq Stanza) -> Text -> IO b
+fixedBug frontmatter out body = do
   texts <- readIORef out
   -- `CMark.commonmarkToNode` returns a @DOCUMENT@, which won’t be rendered inside another document, so we strip the
   -- outer `CMark.Node`.
   let CMark.Node _ _DOCUMENT bodyNodes = CMark.commonmarkToNode [CMark.optNormalize] body
-  UnliftIO.throwIO . RunFailure . Transcript settings $
+  UnliftIO.throwIO . RunFailure . Transcript frontmatter $
     toList texts
       <> ( Left
              <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🎉") []],

@@ -14,11 +14,11 @@ module Unison.Codebase.Transcript
     InfoTags (..),
     getCommonInfoTags,
     Transcript (..),
+    settings,
     TranscriptType (..),
     Behaviors (..),
     extractBehaviors,
     Settings (..),
-    settingsIsEmpty,
     defaultInfoTags,
     ProcessedBlock (..),
     CMark.Node,
@@ -38,7 +38,7 @@ import Unison.Project (ProjectAndBranch)
 --
 --  __NB__: This is effectively the AST. It needs to preserve anything we want to be able to serialize into transcript
 --          output.
-data Transcript = Transcript {settings :: Settings, stanzas :: [Stanza]}
+data Transcript = Transcript {frontmatter :: Aeson.Value, stanzas :: [Stanza]}
   deriving (Show)
 
 type ExpectingError = Bool
@@ -116,10 +116,8 @@ instance Semigroup Settings where
 instance Monoid Settings where
   mempty = Settings Nothing mempty
 
-settingsIsEmpty :: Settings -> Bool
-settingsIsEmpty = \case
-  Settings Nothing behaviors -> behaviorsIsEmpty behaviors
-  Settings (Just _) _ -> False
+settings :: Transcript -> Settings
+settings = foldMap id . Aeson.fromJSON . frontmatter
 
 -- | The atomic behaviors that can be controlled by settings. They may be set individually, or implied by some aggregate
 --   setting.
@@ -144,11 +142,6 @@ instance Semigroup (Behaviors Maybe) where
 
 instance Monoid (Behaviors Maybe) where
   mempty = Behaviors Nothing Nothing
-
-behaviorsIsEmpty :: Behaviors Maybe -> Bool
-behaviorsIsEmpty = \case
-  Behaviors Nothing Nothing -> True
-  Behaviors _ _ -> False
 
 extractBehaviors :: Settings -> Behaviors Identity
 extractBehaviors Settings {transcriptType, behaviors} =
