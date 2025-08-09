@@ -9,7 +9,7 @@ ormolu_version="0.7.2.0"
 
 if command -v ormolu >/dev/null; then
     if ormolu --version | grep -q "${ormolu_version}"; then
-        find . -name '*.hs' -not -path "*/.stack-work/*" -print0 \
+        find . -name '*.hs' -not -path "*/dist-newstyle/*" -not -path "*/.stack-work/*" -print0 \
             | xargs -0 ormolu --check-idempotence --mode "${mode}"
     else
         >&2 echo "Found Ormolu, but the version isn’t ${ormolu_version}:"
