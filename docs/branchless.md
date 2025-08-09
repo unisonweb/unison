@@ -1,4 +1,4 @@
----
+-----
 
 ### Dependents
 
@@ -10,7 +10,7 @@ When adding type `A` that depends on type `B`, a change to `B` affects `A`, so w
 
 We don't do anything for constructors, because constructors don't change.  Depending on the constructor really means you depend on the type that constructor comes from. (i.e. a constructor doesn't have dependents.)  Similarly, constructor doesn't have dependencies, but its declaring type may depend on other types.
 
----
+-----
 
 Commands
 
