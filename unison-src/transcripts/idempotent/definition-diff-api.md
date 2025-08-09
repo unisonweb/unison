@@ -124,6 +124,7 @@ Diff terms
 
 ``` api
 GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -632,12 +633,14 @@ GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=
       },
       "project": "scratch"
   }
+
 ```
 
 More complex diff
 
 ``` api
 GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -3344,12 +3347,14 @@ GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=
       },
       "project": "scratch"
   }
+
 ```
 
 Regression test for weird behavior w/r to unit and parens.
 
 ``` api
 GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=unitCase&newTerm=unitCase
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -3972,12 +3977,14 @@ GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=
       },
       "project": "scratch"
   }
+
 ```
 
 Diff types
 
 ``` api
 GET /api/projects/scratch/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -4220,4 +4227,5 @@ GET /api/projects/scratch/diff/types?oldBranchRef=main&newBranchRef=new&oldType=
       },
       "project": "scratch"
   }
+
 ```

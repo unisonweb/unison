@@ -1,6 +1,8 @@
-module Unison.MCP (runOnStdIO) where
+module Unison.MCP (runOnStdIO, initServer) where
 
+import Network.MCP.Server qualified as MCP
 import Network.MCP.Server.StdIO qualified as MCP
+import Network.MCP.Types
 import Text.RawString.QQ (r)
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -11,7 +13,6 @@ import Unison.MCP.Prompts (prompts)
 import Unison.MCP.StaticResources (staticResources)
 import Unison.MCP.Tools (tools)
 import Unison.MCP.Types
-import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -27,8 +28,8 @@ serverDescription =
         Before doing any work in unison please read the file://unison-guide resource for information on how to write unison.
     |]
 
-runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
-runOnStdIO codebase runtime sbRuntime workDir ucmVersion = do
+initServer :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Maybe FilePath -> Text -> IO MCP.Server
+initServer codebase runtime sbRuntime workDir ucmVersion = do
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
       tokenProvider = AuthN.newTokenProvider credMan
@@ -45,7 +46,11 @@ runOnStdIO codebase runtime sbRuntime workDir ucmVersion = do
   -- Create server
   let serverInfo = Implementation "unison-mcp" "0.0.1"
 
-  server <- runMCP env $ MCPWrapper.mkServer serverInfo serverDescription staticResources tools prompts
+  runMCP env $ MCPWrapper.mkServer serverInfo serverDescription staticResources tools prompts
 
+-- | Run the MCP server until we hit EOF.
+runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
+runOnStdIO codebase runtime sbRuntime workDir ucmVersion = do
+  server <- initServer codebase runtime sbRuntime (pure workDir) ucmVersion
   -- Start the server with StdIO transport
   MCP.runServerWithSTDIO server

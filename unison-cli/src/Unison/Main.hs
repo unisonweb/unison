@@ -84,6 +84,7 @@ import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..))
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
+import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
@@ -321,43 +322,56 @@ main version = do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
-              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \mayBaseUrl -> do
-                case exitOption of
-                  DoNotExit -> do
-                    case isHeadless of
-                      Headless -> do
-                        whenJust mayBaseUrl \baseUrl -> do
-                          PT.putPrettyLn $
-                            P.lines
-                              [ "I've started the Codebase API server at",
-                                P.text $ Server.urlFor Server.Api baseUrl,
-                                "and the Codebase UI at",
-                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName) Path.Root Nothing) baseUrl
-                              ]
-                        PT.putPrettyLn $
-                          P.string "Running the codebase manager headless with "
-                            <> P.shown GHC.Conc.numCapabilities
-                            <> " "
-                            <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                            <> "."
-                        mvar <- newEmptyMVar
-                        takeMVar mvar
-                      WithCLI -> do
-                        PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+              mcpServerConfig <-
+                MCP.initServer theCodebase runtime sbRuntime (pure currentDir) $ Version.gitDescribeWithDate version
+              Server.startServer
+                isTest
+                Backend.BackendEnv {Backend.useNamesIndex = False}
+                codebaseServerOpts
+                sbRuntime
+                theCodebase
+                (MCP.mcpServer mcpServerConfig)
+                \mayBaseUrl -> case exitOption of
+                  DoNotExit -> case isHeadless of
+                    Headless -> whenJust mayBaseUrl \baseUrl -> do
+                      PT.putPrettyLn $
+                        P.lines
+                          [ "I've started the Codebase API server at",
+                            P.text $ Server.urlFor Server.Api baseUrl,
+                            "and the Codebase UI at",
+                            P.text $
+                              Server.urlFor
+                                ( Server.ProjectBranchUI
+                                    (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName)
+                                    Path.Root
+                                    Nothing
+                                )
+                                baseUrl
+                          ]
+                      PT.putPrettyLn $
+                        P.string "Running the codebase manager headless with "
+                          <> P.shown GHC.Conc.numCapabilities
+                          <> " "
+                          <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                          <> "."
+                      mvar <- newEmptyMVar
+                      takeMVar mvar
+                    WithCLI -> do
+                      PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
 
-                        launch
-                          version
-                          currentDir
-                          runtime
-                          sbRuntime
-                          theCodebase
-                          []
-                          mayBaseUrl
-                          (PP.toIds startingProjectPath)
-                          initRes
-                          lspCheckForChanges
-                          shouldWatchFiles
-                  Exit -> do Exit.exitSuccess
+                      launch
+                        version
+                        currentDir
+                        runtime
+                        sbRuntime
+                        theCodebase
+                        []
+                        mayBaseUrl
+                        (PP.toIds startingProjectPath)
+                        initRes
+                        lspCheckForChanges
+                        shouldWatchFiles
+                  Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
     withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
