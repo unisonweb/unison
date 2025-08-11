@@ -5,14 +5,99 @@ copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 ghc-options: -Wall
 
 dependencies:
+  - Diff
+  - IntervalMap
+  - ListLike
+  - aeson >= 2.0.0.0
+  - aeson-pretty
+  - ansi-terminal
+  - attoparsec
   - base
+  - bytestring
+  - cmark
+  - co-log-core
+  - code-page
+  - concurrent-output
+  - conduit
+  - conduit-extra
+  - containers >= 0.6.3
+  - cryptonite
+  - directory
+  - either
+  - errors
+  - extra
+  - filepath
+  - free
+  - friendly-time
+  - frontmatter
+  - fsnotify
+  - generic-lens
+  - haskeline
+  - hs-mcp
+  - http-client >= 0.7.6
+  - http-client-tls
+  - http-types
+  - ki
+  - lens
+  - lock-file
+  - lsp >= 2.2.0.0
+  - lsp-types >= 2.0.2.0
+  - megaparsec
+  - memory
+  - mtl
+  - network-simple
+  - network-uri
+  - nonempty-containers
+  - numerals
+  - open-browser
+  - optparse-applicative >= 0.16.1.0
+  - pretty-simple
+  - process
+  - random-shuffle
+  - raw-strings-qq
+  - recover-rtti
+  - regex-tdfa
+  - semialign
+  - serialise
+  - servant
+  - servant-client
+  - servant-conduit
+  - stm
+  - stm-chans
+  - temporary
   - text
+  - text-ansi
+  - text-builder
+  - text-rope
+  - these
+  - time
+  - transformers
+  - unison-codebase
+  - unison-codebase-sqlite
+  - unison-codebase-sqlite-hashing-v2
+  - unison-core
+  - unison-core1
+  - unison-hash
+  - unison-merge
   - unison-parser-typechecker
   - unison-prelude
-  - megaparsec
+  - unison-pretty-printer
+  - unison-runtime
+  - unison-share-api
+  - unison-share-projects-api
+  - unison-sqlite
+  - unison-syntax
+  - unison-util-base32hex
+  - unison-util-file-embed
+  - unison-util-recursion
+  - unison-util-relation
   - unliftio
-  - directory
-  - deepseq
+  - uuid
+  - vector
+  - wai
+  - warp
+  - witch
+  - witherable
 
 library:
   source-dirs: src
@@ -21,95 +106,6 @@ library:
       other-modules: Paths_unison_cli
     - condition: "!os(windows)"
       dependencies: unix
-  dependencies:
-    - attoparsec
-    - Diff
-    - IntervalMap
-    - ListLike
-    - aeson >= 2.0.0.0
-    - aeson-pretty
-    - ansi-terminal
-    - bytestring
-    - cmark
-    - co-log-core
-    - code-page
-    - concurrent-output
-    - conduit
-    - containers >= 0.6.3
-    - conduit
-    - conduit-extra
-    - hs-mcp
-    - stm-chans
-    - cryptonite
-    - either
-    - errors
-    - extra
-    - filepath
-    - free
-    - friendly-time
-    - frontmatter
-    - fsnotify
-    - generic-lens
-    - haskeline
-    - http-client >= 0.7.6
-    - http-client-tls
-    - http-types
-    - ki
-    - lens
-    - lock-file
-    - lsp >= 2.2.0.0
-    - lsp-types >= 2.0.2.0
-    - memory
-    - mtl
-    - network-simple
-    - network-uri
-    - nonempty-containers
-    - numerals
-    - open-browser
-    - optparse-applicative >= 0.16.1.0
-    - pretty-simple
-    - process
-    - random-shuffle
-    - raw-strings-qq
-    - recover-rtti
-    - regex-tdfa
-    - semialign
-    - serialise
-    - servant
-    - servant-client
-    - servant-conduit
-    - stm
-    - temporary
-    - text-ansi
-    - text-builder
-    - text-rope
-    - these
-    - time
-    - transformers
-    - unison-codebase
-    - unison-codebase-sqlite
-    - unison-codebase-sqlite-hashing-v2
-    - unison-core
-    - unison-core1
-    - unison-hash
-    - unison-merge
-    - unison-parser-typechecker
-    - unison-pretty-printer
-    - unison-runtime
-    - unison-share-api
-    - unison-share-projects-api
-    - unison-sqlite
-    - unison-syntax
-    - unison-util-base32hex
-    - unison-util-recursion
-    - unison-util-relation
-    - unison-util-file-embed
-    - uuid
-    - vector
-    - wai
-    - warp
-    - witch
-    - witherable
 
 tests:
   cli-tests:
@@ -117,25 +113,9 @@ tests:
       - condition: false
         other-modules: Paths_unison_cli
     dependencies:
-      - code-page
-      - containers
-      - cryptonite
       - easytest
-      - extra
       - here
-      - lens
-      - lsp
-      - lsp-types
-      - mtl
-      - temporary
-      - these
       - unison-cli
-      - unison-core
-      - unison-core1
-      - unison-parser-typechecker
-      - unison-pretty-printer
-      - unison-syntax
-      - unison-util-recursion
     main: Main.hs
     source-dirs: tests
 
@@ -148,13 +128,9 @@ executables:
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
     dependencies:
-      - bytestring
-      - code-page
       - easytest
-      - filepath
       - silently
       - unison-cli
-      - unliftio
 
 default-extensions:
   - BangPatterns
