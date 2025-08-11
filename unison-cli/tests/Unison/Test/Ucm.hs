@@ -16,6 +16,7 @@ where
 
 import Control.Monad (when)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.Enc
 import System.Directory (removeDirectoryRecursive)
 import System.IO.Temp qualified as Temp
 import U.Util.Text (stripMargin)
@@ -28,7 +29,7 @@ import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Parser.Ann (Ann)
-import Unison.Prelude (toList, traceM)
+import Unison.Prelude (traceM)
 import Unison.PrettyTerminal qualified as PT
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
@@ -72,10 +73,8 @@ runTranscript (Codebase codebasePath fmt) transcript = do
     \runner -> do
       result <- Codebase.Init.withOpenCodebase cbInit "transcript" codebasePath SC.DoLock SC.DontMigrate \codebase -> do
         Codebase.runTransaction codebase (Codebase.installUcmDependencies codebase)
-        let transcriptSrc = stripMargin . Text.pack $ unTranscript transcript
-        output <-
-          either err (Text.unpack . Transcript.formatStanzas . toList)
-            <$> runner "transcript" transcriptSrc (codebasePath, codebase)
+        let transcriptSrc = Text.Enc.encodeUtf8 . stripMargin . Text.pack $ unTranscript transcript
+        output <- either err (Text.unpack . Transcript.format) <$> runner "transcript" transcriptSrc codebase
         when debugTranscriptOutput $ traceM output
         pure output
       either (fail . P.toANSI 80 . P.shown) pure result

@@ -28,7 +28,7 @@ serverDescription =
         Before doing any work in unison please read the file://unison-guide resource for information on how to write unison.
     |]
 
-initServer :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO MCP.Server
+initServer :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> Maybe FilePath -> Text -> IO MCP.Server
 initServer codebase runtime sbRuntime workDir ucmVersion = do
   credMan <- AuthN.newCredentialManager
   let tokenProvider :: AuthN.TokenProvider
@@ -51,6 +51,6 @@ initServer codebase runtime sbRuntime workDir ucmVersion = do
 -- | Run the MCP server until we hit EOF.
 runOnStdIO :: Codebase IO Symbol Ann -> Runtime Symbol -> Runtime Symbol -> FilePath -> Text -> IO ()
 runOnStdIO codebase runtime sbRuntime workDir ucmVersion = do
-  server <- initServer codebase runtime sbRuntime workDir ucmVersion
+  server <- initServer codebase runtime sbRuntime (pure workDir) ucmVersion
   -- Start the server with StdIO transport
   MCP.runServerWithSTDIO server

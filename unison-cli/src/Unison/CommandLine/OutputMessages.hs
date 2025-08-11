@@ -515,7 +515,13 @@ undoTip =
       <> IP.makeExample' IP.branchReflog
       <> "to undo this change."
 
-notifyUser :: FilePath -> Output -> IO Pretty
+notifyUser ::
+  -- | The directory being watched for .u files. If a `FilePath` isn’t provided, it uses a constant string. This is
+  --   useful in contexts like transcripts, where we need the output to be consistent, and not vary because of a temp
+  --   directory.
+  Maybe FilePath ->
+  Output ->
+  IO Pretty
 notifyUser dir = \case
   SaveTermNameConflict name ->
     pure
@@ -656,8 +662,7 @@ notifyUser dir = \case
           P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
   NoUnisonFile -> do
-    dir' <- canonicalizePath dir
-    fileName <- renderFileName dir'
+    fileName <- maybe (pure . P.group $ P.blue "〈redacted〉") (renderFileName <=< canonicalizePath) dir
     pure . P.callout "😶" $
       P.lines
         [ P.wrap "There's nothing for me to add right now.",

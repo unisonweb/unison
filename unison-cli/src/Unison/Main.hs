@@ -27,6 +27,7 @@ import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Exception (displayException, evaluate, fromException)
 import Data.Bitraversable (bitraverse)
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
@@ -321,44 +322,56 @@ main version = do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
-              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
-              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase (MCP.mcpServer mcpServerConfig) $ \mayBaseUrl -> do
-                case exitOption of
-                  DoNotExit -> do
-                    case isHeadless of
-                      Headless -> do
-                        whenJust mayBaseUrl \baseUrl -> do
-                          PT.putPrettyLn $
-                            P.lines
-                              [ "I've started the Codebase API server at",
-                                P.text $ Server.urlFor Server.Api baseUrl,
-                                "and the Codebase UI at",
-                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName) Path.Root Nothing) baseUrl
-                              ]
-                        PT.putPrettyLn $
-                          P.string "Running the codebase manager headless with "
-                            <> P.shown GHC.Conc.numCapabilities
-                            <> " "
-                            <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                            <> "."
-                        mvar <- newEmptyMVar
-                        takeMVar mvar
-                      WithCLI -> do
-                        PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+              mcpServerConfig <-
+                MCP.initServer theCodebase runtime sbRuntime (pure currentDir) $ Version.gitDescribeWithDate version
+              Server.startServer
+                isTest
+                Backend.BackendEnv {Backend.useNamesIndex = False}
+                codebaseServerOpts
+                sbRuntime
+                theCodebase
+                (MCP.mcpServer mcpServerConfig)
+                \mayBaseUrl -> case exitOption of
+                  DoNotExit -> case isHeadless of
+                    Headless -> whenJust mayBaseUrl \baseUrl -> do
+                      PT.putPrettyLn $
+                        P.lines
+                          [ "I've started the Codebase API server at",
+                            P.text $ Server.urlFor Server.Api baseUrl,
+                            "and the Codebase UI at",
+                            P.text $
+                              Server.urlFor
+                                ( Server.ProjectBranchUI
+                                    (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName)
+                                    Path.Root
+                                    Nothing
+                                )
+                                baseUrl
+                          ]
+                      PT.putPrettyLn $
+                        P.string "Running the codebase manager headless with "
+                          <> P.shown GHC.Conc.numCapabilities
+                          <> " "
+                          <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                          <> "."
+                      mvar <- newEmptyMVar
+                      takeMVar mvar
+                    WithCLI -> do
+                      PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
 
-                        launch
-                          version
-                          currentDir
-                          runtime
-                          sbRuntime
-                          theCodebase
-                          []
-                          mayBaseUrl
-                          (PP.toIds startingProjectPath)
-                          initRes
-                          lspCheckForChanges
-                          shouldWatchFiles
-                  Exit -> do Exit.exitSuccess
+                      launch
+                        version
+                        currentDir
+                        runtime
+                        sbRuntime
+                        theCodebase
+                        []
+                        mayBaseUrl
+                        (PP.toIds startingProjectPath)
+                        initRes
+                        lspCheckForChanges
+                        shouldWatchFiles
+                  Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
     withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
@@ -494,8 +507,8 @@ runTranscripts' version progName transcriptDir markdownFiles = do
           (Version.gitDescribeWithDate version)
           \runTranscript -> do
             for markdownFiles $ \(MarkdownFile fileName) -> do
-              transcriptSrc <- readUtf8 fileName
-              result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
+              transcriptSrc <- BS.readFile fileName
+              result <- runTranscript fileName transcriptSrc theCodebase
               let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
               output <-
                 either
@@ -516,7 +529,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
                       Transcript.RunFailure msg ->
                         ( [ P.indentN 2 $ "An error occurred while running the following file: " <> P.string fileName,
                             "",
-                            P.indentN 2 (P.text . Transcript.formatStanzas $ toList msg),
+                            P.indentN 2 (P.text $ Transcript.format msg),
                             P.string $
                               "Run `"
                                 <> progName
@@ -525,10 +538,10 @@ runTranscripts' version progName transcriptDir markdownFiles = do
                                 <> "` "
                                 <> "to do more work with it."
                           ],
-                          Transcript.formatStanzas $ toList msg
+                          Transcript.format msg
                         )
                   )
-                  (pure . Transcript.formatStanzas . toList)
+                  (pure . Transcript.format)
                   result
               writeUtf8 outputFile output
               putStrLn $ "💾  Wrote " <> outputFile

@@ -24,6 +24,7 @@ module Unison.Server.Backend
     definitionsByName,
     displayType,
     docsInBranchToHtmlFiles,
+    encodeFrontmatter,
     expandShortCausalHash,
     findDocInBranch,
     formatSuffixedType,
@@ -89,7 +90,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextE
 import Data.Text.Lazy (toStrict)
-import Data.Yaml qualified as Yaml
+import Data.Yaml.Aeson qualified as Yaml
 import Lucid qualified
 import System.Directory
 import System.FilePath
@@ -187,6 +188,12 @@ import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 import UnliftIO qualified
 import UnliftIO.Environment qualified as Env
+
+-- |
+--
+--  __TODO__: Submit this to [frontmatter](https://github.com/yamadapc/haskell-frontmatter).
+encodeFrontmatter :: (Yaml.ToJSON a) => a -> ByteString
+encodeFrontmatter frontmatter = "---\n" <> Yaml.encode frontmatter <> "---\n"
 
 type SyntaxText = UST.SyntaxText' Reference
 
@@ -932,16 +939,14 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
           (DocHtml.FrontMatterData frontmatter, html) =
             DocHtml.toHtml docNamesByRef doc
 
-          go [v] = Yaml.String v
-          go vs = Yaml.array $ map Yaml.String vs
-
-          frontMatterToYaml fm =
-            fmap go fm
+          frontMatterToYaml = fmap \case
+            [v] -> Yaml.String v
+            vs -> Yaml.array $ Yaml.String <$> vs
 
           frontmatterTxt =
             if Map.null frontmatter
               then ""
-              else "---\n" <> TextE.decodeUtf8 (Yaml.encode $ frontMatterToYaml frontmatter) <> "---\n"
+              else TextE.decodeUtf8 . encodeFrontmatter $ frontMatterToYaml frontmatter
 
           htmlAsText =
             Lucid.renderText html

@@ -6,6 +6,7 @@
 -}
 module Main (main) where
 
+import Data.ByteString qualified as BS
 import Data.List
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
@@ -59,12 +60,12 @@ testBuilder ::
 testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time transcript $ do
   scope transcript do
     outputs <-
-      io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \(codebasePath, codebase) ->
+      io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \codebase ->
         let isTest = True
          in Transcript.withRunner isTest Verbosity.Silent "TODO: pass version here" \runTranscript ->
               for files \filePath -> do
-                transcriptSrc <- readUtf8 $ inputDir </> filePath
-                out <- silence $ runTranscript filePath transcriptSrc (codebasePath, codebase)
+                transcriptSrc <- BS.readFile $ inputDir </> filePath
+                out <- silence $ runTranscript filePath transcriptSrc codebase
                 pure (filePath, out)
     for_ outputs \case
       (filePath, Left err) -> do
@@ -85,7 +86,7 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
               io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
               crash errMsg
           Transcript.RunFailure errOutput -> do
-            let errText = Transcript.formatStanzas $ toList errOutput
+            let errText = Transcript.format errOutput
             io $ writeUtf8 outputFile errText
             when (not expectFailure) $ do
               io $ Text.putStrLn errText
@@ -94,7 +95,7 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
       (filePath, Right out) -> do
         let outputFile = outputDir </> if replaceOriginal then filePath else outputFileForTranscript filePath
         io . createDirectoryIfMissing True $ takeDirectory outputFile
-        io . writeUtf8 outputFile . Transcript.formatStanzas $ toList out
+        io . writeUtf8 outputFile $ Transcript.format out
         when expectFailure $ do
           let errMsg = "Expected a failure, but transcript was successful."
           io $ recordFailure (filePath, Text.pack errMsg)
