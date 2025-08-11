@@ -350,102 +350,19 @@ executable transcripts
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
-      Diff
-    , IntervalMap
-    , ListLike
-    , aeson >=2.0.0.0
-    , aeson-pretty
-    , ansi-terminal
-    , attoparsec
-    , base
+      base
     , bytestring
-    , cmark
-    , co-log-core
     , code-page
-    , concurrent-output
-    , conduit
-    , conduit-extra
-    , containers >=0.6.3
-    , cryptonite
     , directory
     , easytest
-    , either
-    , errors
-    , extra
     , filepath
-    , free
-    , friendly-time
-    , frontmatter
-    , fsnotify
-    , generic-lens
-    , haskeline
-    , hs-mcp
-    , http-client >=0.7.6
-    , http-client-tls
-    , http-types
-    , ki
-    , lens
-    , lock-file
-    , lsp >=2.2.0.0
-    , lsp-types >=2.0.2.0
     , megaparsec
-    , memory
-    , mtl
-    , network-simple
-    , network-uri
-    , nonempty-containers
-    , numerals
-    , open-browser
-    , optparse-applicative >=0.16.1.0
-    , pretty-simple
-    , process
-    , random-shuffle
-    , raw-strings-qq
-    , recover-rtti
-    , regex-tdfa
-    , semialign
-    , serialise
-    , servant
-    , servant-client
-    , servant-conduit
     , silently
-    , stm
-    , stm-chans
-    , temporary
     , text
-    , text-ansi
-    , text-builder
-    , text-rope
-    , these
-    , time
-    , transformers
     , unison-cli
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
-    , unison-core
-    , unison-core1
-    , unison-hash
-    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
-    , unison-pretty-printer
-    , unison-runtime
-    , unison-share-api
-    , unison-share-projects-api
-    , unison-sqlite
-    , unison-syntax
-    , unison-util-base32hex
-    , unison-util-file-embed
-    , unison-util-recursion
-    , unison-util-relation
     , unliftio
-    , uuid
-    , vector
-    , wai
-    , warp
-    , witch
-    , witherable
   default-language: Haskell2010
 
 test-suite cli-tests
@@ -498,100 +415,29 @@ test-suite cli-tests
       ViewPatterns
   ghc-options: -Wall
   build-depends:
-      Diff
-    , IntervalMap
-    , ListLike
-    , aeson >=2.0.0.0
-    , aeson-pretty
-    , ansi-terminal
-    , attoparsec
-    , base
-    , bytestring
-    , cmark
-    , co-log-core
+      base
     , code-page
-    , concurrent-output
-    , conduit
-    , conduit-extra
-    , containers >=0.6.3
+    , containers
     , cryptonite
     , directory
     , easytest
-    , either
-    , errors
     , extra
-    , filepath
-    , free
-    , friendly-time
-    , frontmatter
-    , fsnotify
-    , generic-lens
-    , haskeline
     , here
-    , hs-mcp
-    , http-client >=0.7.6
-    , http-client-tls
-    , http-types
-    , ki
     , lens
-    , lock-file
-    , lsp >=2.2.0.0
-    , lsp-types >=2.0.2.0
+    , lsp
+    , lsp-types
     , megaparsec
-    , memory
     , mtl
-    , network-simple
-    , network-uri
-    , nonempty-containers
-    , numerals
-    , open-browser
-    , optparse-applicative >=0.16.1.0
-    , pretty-simple
-    , process
-    , random-shuffle
-    , raw-strings-qq
-    , recover-rtti
-    , regex-tdfa
-    , semialign
-    , serialise
-    , servant
-    , servant-client
-    , servant-conduit
-    , stm
-    , stm-chans
     , temporary
     , text
-    , text-ansi
-    , text-builder
-    , text-rope
     , these
-    , time
-    , transformers
     , unison-cli
-    , unison-codebase
-    , unison-codebase-sqlite
-    , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
-    , unison-hash
-    , unison-merge
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
-    , unison-runtime
-    , unison-share-api
-    , unison-share-projects-api
-    , unison-sqlite
     , unison-syntax
-    , unison-util-base32hex
-    , unison-util-file-embed
     , unison-util-recursion
-    , unison-util-relation
     , unliftio
-    , uuid
-    , vector
-    , wai
-    , warp
-    , witch
-    , witherable
   default-language: Haskell2010
