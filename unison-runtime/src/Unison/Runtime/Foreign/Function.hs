@@ -805,6 +805,7 @@ foreignCallHelper = \case
           $ Right
           $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
   ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
+  PinnedArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -815,6 +816,12 @@ foreignCallHelper = \case
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
+  IO_pinnedArray -> mkForeign $ PA.newPinnedByteArray
+  IO_pinnedArrayOf -> mkForeign $
+    \(init, sz) -> do
+      arr <- PA.newPinnedByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
   Scope_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   Scope_arrayOf -> mkForeign $
@@ -823,6 +830,12 @@ foreignCallHelper = \case
   Scope_bytearrayOf -> mkForeign $
     \(init, sz) -> do
       arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+  Scope_pinnedArray -> mkForeign $ PA.newPinnedByteArray
+  Scope_pinnedArrayOf -> mkForeign $
+    \(init, sz) -> do
+      arr <- PA.newPinnedByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
   Text_patterns_literal -> mkForeign $

@@ -681,6 +681,7 @@ builtinsSrc =
       ibytearrayt --> nat --> nat --> bytes,
     B "ImmutableByteArray.fromBytes" $
       bytes --> ibytearrayt,
+    B "PinnedArray.cast" $ forall1 "g" $ \g -> pinnedArrayt g --> mbytearrayt g,
     B "Scope.array" . forall2 "s" "a" $ \s a ->
       nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
     B "Scope.arrayOf" . forall2 "s" "a" $ \s a ->
@@ -689,6 +690,10 @@ builtinsSrc =
       nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
       nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+    B "Scope.pinnedArray" . forall1 "s" $ \s ->
+      nat --> Type.effect1 () (scopet s) (pinnedArrayt (scopet s)),
+    B "Scope.pinnedArrayOf" . forall1 "s" $ \s ->
+      nat --> nat --> Type.effect1 () (scopet s) (pinnedArrayt (scopet s)),
     B "Char.Class.any" charClass,
     B "Char.Class.not" $ charClass --> charClass,
     B "Char.Class.and" $ charClass --> charClass --> charClass,
@@ -923,6 +928,12 @@ ioBuiltins =
     ( "IO.bytearrayOf",
       nat --> nat --> io (mbytearrayt iot)
     ),
+    ( "IO.pinnedArray",
+      nat --> io (pinnedArrayt iot)
+    ),
+    ( "IO.pinnedArrayOf",
+      nat --> nat --> io (pinnedArrayt iot)
+    ),
     ( "IO.tryEval",
       forall1 "a" $ \a ->
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
@@ -1081,6 +1092,9 @@ ibytearrayt = Type.ibytearrayType ()
 
 mbytearrayt :: Type -> Type
 mbytearrayt g = Type.mbytearrayType () `app` g
+
+pinnedArrayt :: Type -> Type
+pinnedArrayt a = Type.pinnedArrayType () `app` a
 
 iarrayt :: Type -> Type
 iarrayt a = Type.iarrayType () `app` a
