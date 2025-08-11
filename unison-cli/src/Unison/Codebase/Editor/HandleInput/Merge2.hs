@@ -267,7 +267,9 @@ doMerge info = do
               diffblob <-
                 Merge.makeDiffblob
                   Merge.DiffblobLog
-                    { logDefns = Sqlite.unsafeIO . debugFunctions.debugDefns,
+                    { logDefns =
+                        -- Sqlite.unsafeIO . debugFunctions.debugDefns
+                        mempty,
                       logNarrowedDefns = Sqlite.unsafeIO . debugFunctions.debugNarrowedDefns,
                       logSynhashedNarrowedDefns = Sqlite.unsafeIO . debugFunctions.debugSynhashedNarrowedDefns,
                       logDiffsFromLCA = Sqlite.unsafeIO . debugFunctions.debugDiffs,
@@ -284,10 +286,6 @@ doMerge info = do
                           }
                   )
                   declNameLookups
-
-              Sqlite.unsafeIO do
-                debugFunctions.debugDiffs diffblob.diffsFromLCA
-                debugFunctions.debugCombinedDiff diffblob.diff
 
               let libdepsBranches =
                     diffblob.libdeps & Updated.map \libdeps ->
