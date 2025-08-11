@@ -5,6 +5,7 @@ module Unison.Merge.CombineDiffs
   )
 where
 
+import Control.DeepSeq (NFData)
 import Data.Semialign (alignWith)
 import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))
@@ -31,7 +32,8 @@ data CombinedDiffOp a
   | CombinedDiffOp'Update !(EitherWayI (Updated a))
   | -- An add-add or an update-update conflict. We don't consider update-delete a conflict; the delete gets ignored.
     CombinedDiffOp'Conflict !(TwoWay a)
-  deriving stock (Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (NFData)
 
 -- | Combine LCA->Alice diff and LCA->Bob diff.
 combineDiffs ::

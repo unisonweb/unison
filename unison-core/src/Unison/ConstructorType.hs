@@ -1,7 +1,11 @@
-{-# LANGUAGE DeriveGeneric #-}
+module Unison.ConstructorType
+  ( ConstructorType (..),
+  )
+where
 
-module Unison.ConstructorType where
-
+import Control.DeepSeq (NFData)
 import Unison.Prelude
 
-data ConstructorType = Data | Effect deriving (Eq, Ord, Show, Enum, Generic)
+data ConstructorType = Data | Effect
+  deriving stock (Enum, Eq, Generic, Ord, Show)
+  deriving anyclass (NFData)

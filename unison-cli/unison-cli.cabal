@@ -226,6 +226,7 @@ library
     , conduit-extra
     , containers >=0.6.3
     , cryptonite
+    , deepseq
     , directory
     , either
     , errors
@@ -353,6 +354,7 @@ executable transcripts
       base
     , bytestring
     , code-page
+    , deepseq
     , directory
     , easytest
     , filepath
@@ -419,6 +421,7 @@ test-suite cli-tests
     , code-page
     , containers
     , cryptonite
+    , deepseq
     , directory
     , easytest
     , extra

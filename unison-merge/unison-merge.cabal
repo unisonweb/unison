@@ -83,6 +83,7 @@ library
   build-depends:
       base
     , containers
+    , deepseq
     , lens
     , nonempty-containers
     , semialign

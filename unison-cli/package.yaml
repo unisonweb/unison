@@ -12,6 +12,7 @@ dependencies:
   - megaparsec
   - unliftio
   - directory
+  - deepseq
 
 library:
   source-dirs: src

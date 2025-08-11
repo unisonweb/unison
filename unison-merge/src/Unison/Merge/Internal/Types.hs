@@ -6,6 +6,7 @@ module Unison.Merge.Internal.Types
   )
 where
 
+import Control.DeepSeq (NFData)
 import Data.Semialign (Semialign, Unzip, Zip, alignWith, unzipWith, zipWith)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..))
@@ -67,6 +68,7 @@ data TwoWay a = TwoWay
     bob :: a
   }
   deriving stock (Foldable, Functor, Generic, Show, Traversable)
+  deriving anyclass (NFData)
   deriving (Monoid, Semigroup) via (GenericSemigroupMonoid (TwoWay a))
 
 instance Applicative TwoWay where

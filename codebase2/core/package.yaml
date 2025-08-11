@@ -10,6 +10,7 @@ library:
 dependencies:
   - base
   - containers
+  - deepseq
   - lens
   - mtl
   - recover-rtti

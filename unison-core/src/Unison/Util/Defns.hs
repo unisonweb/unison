@@ -22,6 +22,7 @@ module Unison.Util.Defns
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens (Lens)
 import Data.Align (Semialign, alignWith)
 import Data.Bifoldable (Bifoldable, bifoldMap)
@@ -36,6 +37,7 @@ data Defns terms types = Defns
     types :: types
   }
   deriving stock (Generic, Functor, Show, Eq, Ord)
+  deriving anyclass (NFData)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
 instance Bifoldable Defns where

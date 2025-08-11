@@ -14,6 +14,7 @@ module Unison.Merge.Updated
   )
 where
 
+import Control.DeepSeq (NFData)
 import Unison.Prelude hiding (bimap)
 import Unison.Util.Defns (Defns (..))
 
@@ -26,6 +27,7 @@ data GUpdated a b = Updated
     new :: b
   }
   deriving stock (Generic, Show)
+  deriving anyclass (NFData)
 
 bimap :: (a -> b) -> (c -> d) -> GUpdated a c -> GUpdated b d
 bimap f g (Updated x y) =
