@@ -369,7 +369,11 @@ foreignCallHelper = \case
     \(hs, n) ->
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
   IO_socketSendBuf_impl_v1 -> mkForeignIOF $
-    \(sk, buf) -> SYS.sendBuf sk (PA.mutableByteArrayContents buf) (PA.sizeofMutableByteArray buf)
+    \(sk, buf, n) -> do
+      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      case r of
+        Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+        Right _ -> SYS.sendBuf sk (PA.mutableByteArrayContents buf) (fromIntegral n)
   IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
       r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
@@ -781,8 +785,7 @@ foreignCallHelper = \case
     mkForeignExn $
       checkedIndex64 "ImmutableByteArray.read64be"
   MutableByteArray_freeze_force ->
-    mkForeign $
-      PA.unsafeFreezeByteArray
+    mkForeign PA.unsafeFreezeByteArray
   MutableArray_freeze_force ->
     mkForeign $
       PA.unsafeFreezeArray @IO @Val
@@ -826,7 +829,7 @@ foreignCallHelper = \case
           $ Right
           $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
   ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
-  PinnedArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
+  PinnedByteArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -837,8 +840,8 @@ foreignCallHelper = \case
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
-  IO_pinnedArray -> mkForeign $ PA.newPinnedByteArray
-  IO_pinnedArrayOf -> mkForeign $
+  IO_pinnedByteArray -> mkForeign $ PA.newPinnedByteArray
+  IO_pinnedByteArrayOf -> mkForeign $
     \(init, sz) -> do
       arr <- PA.newPinnedByteArray sz
       PA.fillByteArray arr 0 sz init
@@ -853,8 +856,8 @@ foreignCallHelper = \case
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
-  Scope_pinnedArray -> mkForeign $ PA.newPinnedByteArray
-  Scope_pinnedArrayOf -> mkForeign $
+  Scope_pinnedByteArray -> mkForeign $ PA.newPinnedByteArray
+  Scope_pinnedByteArrayOf -> mkForeign $
     \(init, sz) -> do
       arr <- PA.newPinnedByteArray sz
       PA.fillByteArray arr 0 sz init

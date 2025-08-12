@@ -12,7 +12,7 @@
 > ls .
 
   1. foo  (a -> b)
-  2. lib/ (755 terms, 118 types)
+  2. lib/ (765 terms, 119 types)
 ```
 
 It won't create a conflicted name, though.
@@ -29,7 +29,7 @@ It won't create a conflicted name, though.
 > ls .
 
   1. foo  (a -> b)
-  2. lib/ (755 terms, 118 types)
+  2. lib/ (765 terms, 119 types)
 ```
 
 You can use `debug.alias.term.force` for that.
@@ -43,5 +43,5 @@ You can use `debug.alias.term.force` for that.
 
   1. foo  (a -> b)
   2. foo  (a -> b)
-  3. lib/ (755 terms, 118 types)
+  3. lib/ (765 terms, 119 types)
 ```

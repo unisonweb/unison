@@ -215,19 +215,19 @@ data ForeignFunc
   | ImmutableByteArray_length
   | ImmutableByteArray_toBytes
   | ImmutableByteArray_fromBytes
-  | PinnedArray_cast
+  | PinnedByteArray_cast
   | IO_array
   | IO_arrayOf
   | IO_bytearray
   | IO_bytearrayOf
-  | IO_pinnedArray
-  | IO_pinnedArrayOf
+  | IO_pinnedByteArray
+  | IO_pinnedByteArrayOf
   | Scope_array
   | Scope_arrayOf
   | Scope_bytearray
   | Scope_bytearrayOf
-  | Scope_pinnedArray
-  | Scope_pinnedArrayOf
+  | Scope_pinnedByteArray
+  | Scope_pinnedByteArrayOf
   | Text_patterns_literal
   | Text_patterns_digit
   | Text_patterns_letter
@@ -503,19 +503,19 @@ foreignFuncBuiltinName = \case
   ImmutableByteArray_length -> "ImmutableByteArray.length"
   ImmutableByteArray_toBytes -> "ImmutableByteArray.toBytes"
   ImmutableByteArray_fromBytes -> "ImmutableByteArray.fromBytes"
-  PinnedArray_cast -> "PinnedArray.cast"
+  PinnedByteArray_cast -> "PinnedByteArray.cast"
   IO_array -> "IO.array"
   IO_arrayOf -> "IO.arrayOf"
   IO_bytearray -> "IO.bytearray"
   IO_bytearrayOf -> "IO.bytearrayOf"
-  IO_pinnedArray -> "IO.pinnedArray"
-  IO_pinnedArrayOf -> "IO.pinnedArrayOf"
+  IO_pinnedByteArray -> "IO.pinnedByteArray"
+  IO_pinnedByteArrayOf -> "IO.pinnedByteArrayOf"
   Scope_array -> "Scope.array"
   Scope_arrayOf -> "Scope.arrayOf"
   Scope_bytearray -> "Scope.bytearray"
   Scope_bytearrayOf -> "Scope.bytearrayOf"
-  Scope_pinnedArray -> "Scope.pinnedArray"
-  Scope_pinnedArrayOf -> "Scope.pinnedArrayOf"
+  Scope_pinnedByteArray -> "Scope.pinnedByteArray"
+  Scope_pinnedByteArrayOf -> "Scope.pinnedByteArrayOf"
   Text_patterns_literal -> "Text.patterns.literal"
   Text_patterns_digit -> "Text.patterns.digit"
   Text_patterns_letter -> "Text.patterns.letter"

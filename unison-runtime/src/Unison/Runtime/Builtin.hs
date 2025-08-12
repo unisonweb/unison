@@ -1046,7 +1046,7 @@ declareForeigns = do
 
   declareForeign Tracked 2 IO_socketReceive_impl_v3
 
-  declareForeign Tracked 2 IO_socketSendBuf_impl_v1
+  declareForeign Tracked 3 IO_socketSendBuf_impl_v1
   declareForeign Tracked 3 IO_socketReceiveBuf_impl_v1
 
   declareForeign Tracked 1 IO_kill_impl_v3
@@ -1239,21 +1239,21 @@ declareForeigns = do
   declareForeign Untracked 3 ImmutableByteArray_toBytes
   declareForeign Untracked 1 ImmutableByteArray_fromBytes
 
-  declareForeign Untracked 1 PinnedArray_cast
+  declareForeign Untracked 1 PinnedByteArray_cast
 
   declareForeign Tracked 1 IO_array
   declareForeign Tracked 2 IO_arrayOf
   declareForeign Tracked 1 IO_bytearray
   declareForeign Tracked 2 IO_bytearrayOf
-  declareForeign Tracked 1 IO_pinnedArray
-  declareForeign Tracked 2 IO_pinnedArrayOf
+  declareForeign Tracked 1 IO_pinnedByteArray
+  declareForeign Tracked 2 IO_pinnedByteArrayOf
 
   declareForeign Untracked 1 Scope_array
   declareForeign Untracked 2 Scope_arrayOf
   declareForeign Untracked 1 Scope_bytearray
   declareForeign Untracked 2 Scope_bytearrayOf
-  declareForeign Untracked 1 Scope_pinnedArray
-  declareForeign Untracked 2 Scope_pinnedArrayOf
+  declareForeign Untracked 1 Scope_pinnedByteArray
+  declareForeign Untracked 2 Scope_pinnedByteArrayOf
 
   declareForeign Untracked 1 Text_patterns_literal
   declareForeignWrap Untracked direct Text_patterns_digit
