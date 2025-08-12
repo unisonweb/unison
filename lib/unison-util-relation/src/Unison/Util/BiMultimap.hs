@@ -218,8 +218,10 @@ ran =
 
 -- | Convert a left-unique relation to a relation (forgetting its left-uniqueness).
 toRelation :: (Ord a, Ord b) => BiMultimap a b -> Relation a b
-toRelation =
-  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . domain
+toRelation m =
+  Relation.unsafeFromMultimaps
+    (Set.NonEmpty.toSet <$> domain m)
+    (Set.singleton <$> range m)
 
 -- | Insert a pair into a left-unique relation, maintaining left-uniqueness, preferring the latest inserted element.
 --
