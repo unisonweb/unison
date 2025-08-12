@@ -8,7 +8,6 @@ where
 import Control.Lens.Fold (folded)
 import Data.Map.Strict qualified as Map
 import Data.Set.Lens (setOf)
-import Unison.Codebase.Branch (UnconflictedBranchView (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
@@ -46,13 +45,14 @@ import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, zipDefnsWith)
 
 data Diffblob libdep = Diffblob
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
     declNameLookups :: GThreeWay PartialDeclNameLookup DeclNameLookup,
-    defns :: ThreeWay UnconflictedBranchView,
+    defns :: ThreeWay UnconflictedLocalDefnsView,
     defnsIds :: ThreeWay (DefnsF Set TermReferenceId TypeReferenceId),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
     diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
@@ -95,7 +95,7 @@ makeDiffblob ::
       )
   ) ->
   ThreeWay Names ->
-  ThreeWay UnconflictedBranchView ->
+  ThreeWay UnconflictedLocalDefnsView ->
   ThreeWay (Map NameSegment libdep) ->
   GThreeWay PartialDeclNameLookup DeclNameLookup ->
   m (Diffblob libdep)

@@ -6,7 +6,7 @@ module Unison.Codebase.Type
 where
 
 import U.Codebase.HashTags (BranchHash, CausalHash)
-import Unison.Codebase.Branch (Branch, UnconflictedBranchView)
+import Unison.Codebase.Branch (Branch)
 import Unison.CodebasePath (CodebasePath)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (Decl)
@@ -22,6 +22,7 @@ import Unison.ShortHash (ShortHash)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
 import Unison.WatchKind qualified as WK
 
 -- | Abstract interface to a user's codebase.
@@ -60,11 +61,11 @@ data Codebase m v a = Codebase
     getBranchForHashTx :: CausalHash -> Sqlite.Transaction (Maybe (Branch Sqlite.Transaction)),
     getBranchDeclNumConstructors :: BranchHash -> Set TypeReference -> Sqlite.Transaction (Map TypeReferenceId Int),
     -- | Get a partial decl name lookup for a branch.
-    getBranchPartialDeclNameLookup :: BranchHash -> UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup,
+    getBranchPartialDeclNameLookup :: BranchHash -> UnconflictedLocalDefnsView -> Sqlite.Transaction PartialDeclNameLookup,
     -- | Get a decl name lookup for a branch (or an error, if there's an incoherent decl)
     getBranchDeclNameLookup ::
       BranchHash ->
-      UnconflictedBranchView ->
+      UnconflictedLocalDefnsView ->
       Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup),
     -- | Put a branch into the codebase, which includes its children, its patches, and the branch itself, if they don't
     -- already exist.

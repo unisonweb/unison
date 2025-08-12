@@ -61,14 +61,15 @@ import Prelude hiding (filter)
 --
 -- "Left-unique" means that for all @(x, y)@ in the relation, @y@ is related only to @x@.
 data BiMultimap a b = BiMultimap
-  { toMultimap :: (Map a (NESet b)), -- intentionally lazy in case it's not used after `fromRange`
-    toMapR :: (Map b a)
+  { toMultimap :: Map a (NESet b), -- intentionally lazy in case it's not used after `fromRange`
+    toMapR :: Map b a
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | An empty left-unique relation.
 empty :: (Ord a, Ord b) => BiMultimap a b
-empty = BiMultimap mempty mempty
+empty =
+  BiMultimap Map.empty Map.empty
 
 -- | Is a left-unique relation empty?
 isEmpty :: BiMultimap a b -> Bool

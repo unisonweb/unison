@@ -77,7 +77,6 @@ import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
 import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
@@ -97,6 +96,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.UnconflictedLocalDefnsView qualified as UnconflictedLocalDefnsView
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Alphabetical (sortAlphabeticallyOn)
@@ -104,9 +104,7 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree (..))
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Relation qualified as Relation
 import Unison.WatchKind qualified as WatchKind
 import Witch (unsafeFrom)
 import Prelude hiding (unzip, zip, zipWith)
@@ -216,16 +214,7 @@ doMerge info = do
         -- We should have a better error message (even though you can't do anything about conflicted names in the LCA).
         defns <- do
           let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn "merge")
-          lca <-
-            case branches.lca of
-              Just lca -> asUnconflicted (Branch.head lca)
-              Nothing ->
-                pure
-                  Branch.UnconflictedBranchView
-                    { defns = Defns BiMultimap.empty BiMultimap.empty,
-                      nametree = Nametree (Defns Map.empty Map.empty) Map.empty,
-                      names = Names Relation.empty Relation.empty
-                    }
+          lca <- maybe (pure UnconflictedLocalDefnsView.empty) (asUnconflicted . Branch.head) branches.lca
           alice <- asUnconflicted (Branch.head branches.alice)
           bob <- asUnconflicted (Branch.head branches.bob)
           pure Merge.ThreeWay {lca, alice, bob}

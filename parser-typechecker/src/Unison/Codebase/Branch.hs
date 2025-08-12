@@ -91,7 +91,6 @@ module Unison.Codebase.Branch
     deepTypeReferences,
     deepTypeReferenceIds,
     asUnconflicted,
-    UnconflictedBranchView (..),
     consBranchSnapshot,
   )
 where
@@ -108,7 +107,6 @@ import Unison.Codebase.Branch.Type
     Branch0 (asUnconflicted),
     NamespaceHash,
     Star,
-    UnconflictedBranchView (..),
     UnwrappedBranch,
     branch0,
     children_,

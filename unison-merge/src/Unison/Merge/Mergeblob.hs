@@ -14,7 +14,6 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
-import Unison.Codebase.Branch.Type (UnconflictedBranchView (..))
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -52,6 +51,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.BiMultimap (BiMultimap)
