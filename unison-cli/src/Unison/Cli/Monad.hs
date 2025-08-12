@@ -451,7 +451,7 @@ withRespondRegion action = do
         with (Console.Regions.withConsoleRegion Console.Regions.Linear) \region ->
           action \output ->
             liftIO do
-              string <- (OutputMessages.notifyUser "." output)
+              string <- (OutputMessages.notifyUser (pure ".") output)
               width <- PrettyTerminal.getAvailableWidth
               Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
     True -> action respond

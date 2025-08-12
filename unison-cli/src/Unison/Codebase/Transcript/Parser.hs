@@ -1,31 +1,25 @@
 -- | Parse and print CommonMark (like Github-flavored Markdown) transcripts.
 module Unison.Codebase.Transcript.Parser
-  ( -- * printing
-    formatAPIRequest,
-    formatUcmLine,
-    formatInfoString,
-    formatStanzas,
-
-    -- * parsing
-    stanzas,
-    ucmLine,
-    apiRequest,
-    fenced,
-    hidden,
-    expectingError,
-    language,
+  ( format,
+    parse,
   )
 where
 
 import CMark qualified
+import Data.Aeson qualified as Aeson
+import Data.Bitraversable (bitraverse)
 import Data.Bool (bool)
 import Data.Char qualified as Char
+import Data.Frontmatter (parseYamlFrontmatter)
+import Data.Frontmatter qualified as Frontmatter
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.Enc
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as P
 import Unison.Codebase.Transcript hiding (expectingError, generated, hasBug, hidden)
 import Unison.Prelude
 import Unison.Project (fullyQualifiedProjectAndBranchNamesParser)
+import Unison.Server.Backend (encodeFrontmatter)
 
 padIfNonEmpty :: Text -> Text
 padIfNonEmpty line = if Text.null line then line else "  " <> line
@@ -47,9 +41,16 @@ formatUcmLine = \case
     formatContext UcmContextEmpty = ""
     formatContext (UcmContextProject projectAndBranch) = into @Text projectAndBranch
 
+formatSettings :: Aeson.Value -> Text
+formatSettings frontmatter =
+  if frontmatter == Aeson.Null then "" else Text.Enc.decodeUtf8 $ encodeFrontmatter frontmatter <> "\n"
+
 formatStanzas :: [Stanza] -> Text
 formatStanzas =
   CMark.nodeToCommonmark [] Nothing . CMark.Node Nothing CMark.DOCUMENT . fmap (either id processedBlockToNode)
+
+format :: Transcript -> Text
+format Transcript {frontmatter, stanzas} = formatSettings frontmatter <> formatStanzas stanzas
 
 processedBlockToNode :: ProcessedBlock -> CMark.Node
 processedBlockToNode = \case
@@ -61,8 +62,23 @@ processedBlockToNode = \case
 
 type P = P.Parsec Void Text
 
-stanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
-stanzas srcName =
+parse :: FilePath -> ByteString -> Either (P.ParseErrorBundle Text Void) Transcript
+parse srcName =
+  fmap (uncurry Transcript)
+    . bitraverse (pure . either (const Aeson.Null) id) (parseStanzas srcName . Text.Enc.decodeUtf8)
+    . parseSettings
+
+handleFrontmatterResult :: Frontmatter.Result Aeson.Value -> Either String (Aeson.Value, ByteString)
+handleFrontmatterResult = \case
+  Frontmatter.Fail _remainder _contexts message -> Left message
+  Frontmatter.Partial fn -> handleFrontmatterResult $ fn mempty
+  Frontmatter.Done remainder frontmatter -> pure (frontmatter, remainder)
+
+parseSettings :: ByteString -> (Either String Aeson.Value, ByteString)
+parseSettings input = either ((,input) . Left) (first pure) . handleFrontmatterResult $ parseYamlFrontmatter input
+
+parseStanzas :: FilePath -> Text -> Either (P.ParseErrorBundle Text Void) [Stanza]
+parseStanzas srcName =
   -- TODO: Internal warning if `_DOCUMENT` isn’t `CMark.DOCUMENT`.
   (\(CMark.Node _ _DOCUMENT blocks) -> traverse stanzaFromNode blocks)
     . CMark.commonmarkToNode [CMark.optSourcePos]
@@ -170,17 +186,18 @@ lineToken p = p <* nonNewlineSpaces
 nonNewlineSpaces :: P ()
 nonNewlineSpaces = void $ P.takeWhileP Nothing (\ch -> ch == ' ' || ch == '\t')
 
-formatHidden :: Hidden -> Maybe Text
-formatHidden = \case
-  HideAll -> pure ":hide-all"
-  HideOutput -> pure ":hide"
-  Shown -> Nothing
+formatHidden :: Maybe Hidden -> Maybe Text
+formatHidden = fmap \case
+  HideAll -> ":hide-all"
+  HideOutput -> ":hide"
+  Shown -> ":show"
 
-hidden :: P Hidden
+hidden :: P (Maybe Hidden)
 hidden =
-  (HideAll <$ word ":hide-all")
-    <|> (HideOutput <$ word ":hide")
-    <|> pure Shown
+  (pure HideAll <$ word ":hide-all")
+    <|> (pure HideOutput <$ word ":hide")
+    <|> (pure Shown <$ word ":show")
+    <|> pure Nothing
 
 formatExpectingError :: ExpectingError -> Maybe Text
 formatExpectingError = bool Nothing $ pure ":error"

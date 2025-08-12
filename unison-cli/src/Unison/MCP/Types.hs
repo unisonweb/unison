@@ -46,7 +46,7 @@ data Env = Env
     runtime :: Runtime Symbol,
     sbRuntime :: Runtime Symbol,
     ucmVersion :: UCMVersion,
-    workDir :: FilePath,
+    workDir :: Maybe FilePath,
     authenticatedHTTPClient :: AuthenticatedHttpClient
   }
 

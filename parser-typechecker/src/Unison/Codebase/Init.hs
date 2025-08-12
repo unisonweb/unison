@@ -192,9 +192,8 @@ withTemporaryUcmCodebase ::
   Verbosity ->
   DebugName ->
   CodebaseLockOption ->
-  ((CodebasePath, Codebase m Symbol Ann) -> m r) ->
+  (Codebase m Symbol Ann -> m r) ->
   m r
-withTemporaryUcmCodebase cbInit verbosity debugName lockOption action = do
-  UnliftIO.withSystemTempDirectory debugName $ \tempDir -> do
-    withNewUcmCodebaseOrExit cbInit verbosity debugName tempDir lockOption $ \codebase -> do
-      action (tempDir, codebase)
+withTemporaryUcmCodebase cbInit verbosity debugName lockOption action =
+  UnliftIO.withSystemTempDirectory debugName \tempDir ->
+    withNewUcmCodebaseOrExit cbInit verbosity debugName tempDir lockOption action
