@@ -632,22 +632,33 @@ renderTypeError e env src = case e of
         debugSummary note
       ]
   AbilityInstantiationFailure _v want site _ ->
-    mconcat
-      [ "I wasn't able to solve for an implicit effect variable when checking\n",
-        "the definition:",
+    mconcat $
+      [ Pr.wrap . mconcat $
+          [ "I wasn't able to solve for an implicit effect variable ",
+            "when checking the definition:"
+          ],
         "\n\n",
         showSourceMaybes src [(,Type1) <$> rangeForAnnotated site],
+        "\n",
+        Pr.wrap . mconcat $
+          [ "This is likely due to a recursive function using ",
+            "abilities where the signature does not specify the ",
+            "abilities used. It may also be from a variable ",
+            "introduced by an ability match escaping its scope."
+          ],
         "\n\n",
-        "This is likely due to a recursive function using abilities where the\n",
-        "signature does not specify the abilities used. It may also be from a\n",
-        "variable introduced by an ability match escaping its scope.",
+        Pr.wrap . mconcat $
+          [ "In the first case, I think the abilities should be",
+            "similar to"
+          ],
         "\n\n",
-        "In the first case, I think the abilities should be similar to\n\n",
         Pr.indentN 4 . style Type1 $
           "{" <> commas (renderType' env) want <> "}",
         "\n\n",
-        "Please adjust the signature to include the ability annotation on the\n",
-        "arrow."
+        Pr.wrap . mconcat $
+          [ "Please adjust the signature to include the ability ",
+            "annotation on the arrow."
+          ]
       ]
   UnguardedLetRecCycle vs locs _ ->
     mconcat
