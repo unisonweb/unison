@@ -36,6 +36,9 @@ data ForeignFunc
   | IO_getBytes_impl_v3
   | IO_getSomeBytes_impl_v1
   | IO_putBytes_impl_v3
+  | IO_fillBuf_impl_v1
+  | IO_putBuf_impl_v1
+  | IO_getBufSome_impl_v1
   | IO_systemTime_impl_v3
   | IO_systemTimeMicroseconds_v1
   | Clock_internals_monotonic_v1
@@ -72,6 +75,8 @@ data ForeignFunc
   | IO_socketAccept_impl_v3
   | IO_socketSend_impl_v3
   | IO_socketReceive_impl_v3
+  | IO_socketSendBuf_impl_v1
+  | IO_socketReceiveBuf_impl_v1
   | IO_kill_impl_v3
   | IO_delay_impl_v3
   | IO_stdHandle
@@ -319,6 +324,9 @@ foreignFuncBuiltinName = \case
   IO_getBytes_impl_v3 -> "IO.getBytes.impl.v3"
   IO_getSomeBytes_impl_v1 -> "IO.getSomeBytes.impl.v1"
   IO_putBytes_impl_v3 -> "IO.putBytes.impl.v3"
+  IO_fillBuf_impl_v1 -> "IO.fillBuf.impl.v1"
+  IO_putBuf_impl_v1 -> "IO.putBuf.impl.v1"
+  IO_getBufSome_impl_v1 -> "IO.getBufSome.impl.v1"
   IO_systemTime_impl_v3 -> "IO.systemTime.impl.v3"
   IO_systemTimeMicroseconds_v1 -> "IO.systemTimeMicroseconds.v1"
   Clock_internals_monotonic_v1 -> "Clock.internals.monotonic.v1"
@@ -355,6 +363,8 @@ foreignFuncBuiltinName = \case
   IO_socketAccept_impl_v3 -> "IO.socketAccept.impl.v3"
   IO_socketSend_impl_v3 -> "IO.socketSend.impl.v3"
   IO_socketReceive_impl_v3 -> "IO.socketReceive.impl.v3"
+  IO_socketSendBuf_impl_v1 -> "IO.socketSendBuf.impl.v1"
+  IO_socketReceiveBuf_impl_v1 -> "IO.socketReceiveBuf.impl.v1"
   IO_kill_impl_v3 -> "IO.kill.impl.v3"
   IO_delay_impl_v3 -> "IO.delay.impl.v3"
   IO_stdHandle -> "IO.stdHandle"

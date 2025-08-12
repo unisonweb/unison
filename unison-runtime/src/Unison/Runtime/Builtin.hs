@@ -967,6 +967,11 @@ declareForeigns = do
   declareForeign Tracked 2 IO_getBytes_impl_v3
   declareForeign Tracked 2 IO_getSomeBytes_impl_v1
   declareForeign Tracked 2 IO_putBytes_impl_v3
+
+  declareForeign Tracked 2 IO_fillBuf_impl_v1
+  declareForeign Tracked 3 IO_putBuf_impl_v1
+  declareForeign Tracked 2 IO_getBufSome_impl_v1
+
   declareForeign Tracked 0 IO_systemTime_impl_v3
 
   declareForeign Tracked 0 IO_systemTimeMicroseconds_v1
@@ -1040,6 +1045,9 @@ declareForeigns = do
   declareForeign Tracked 2 IO_socketSend_impl_v3
 
   declareForeign Tracked 2 IO_socketReceive_impl_v3
+
+  declareForeign Tracked 2 IO_socketSendBuf_impl_v1
+  declareForeign Tracked 3 IO_socketReceiveBuf_impl_v1
 
   declareForeign Tracked 1 IO_kill_impl_v3
 
