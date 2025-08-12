@@ -391,7 +391,7 @@ builtinConstraintTree =
         [flip Type.ref Type.scopeRef],
       traverse
         (constrain (Ability :-> Type))
-        [Type.mbytearrayType],
+        [Type.mbytearrayType, Type.pinnedArrayType],
       traverse
         (constrain (Ability :-> Type :-> Type))
         [Type.effectType, Type.marrayType, Type.refType]

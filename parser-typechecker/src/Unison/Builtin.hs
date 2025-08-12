@@ -252,7 +252,8 @@ builtinTypesSrc =
     B' "Char.Class" CT.Data,
     B' "UDPSocket" CT.Data,
     B' "ListenSocket" CT.Data,
-    B' "ClientSockAddr" CT.Data
+    B' "ClientSockAddr" CT.Data,
+    B' "PinnedArray" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
