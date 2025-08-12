@@ -17,7 +17,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Unison.ABT (Term (Term), ABT (Tm))
+import Unison.ABT (ABT (Tm), Term (Term))
 import Unison.KindInference.Constraint.Provenance (Provenance)
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.UVar (UVar (..))
@@ -81,10 +81,10 @@ lookupType t = do
   GenState {typeMap} <- get
   pure (NonEmpty.head <$> lookups t typeMap)
   where
-  lookups t typeMap
-    | r@(Just _) <- Map.lookup t typeMap = r
-  lookups (Term _ _ (Tm (T.Effects [v]))) typeMap = lookups v typeMap
-  lookups _ _ = Nothing
+    lookups t typeMap
+      | r@(Just _) <- Map.lookup t typeMap = r
+    lookups (Term _ _ (Tm (T.Effects [v]))) typeMap = lookups v typeMap
+    lookups _ _ = Nothing
 
 -- | Remove a @Type@ from the context
 popType :: (Var v) => T.Type v loc -> Gen v loc ()
