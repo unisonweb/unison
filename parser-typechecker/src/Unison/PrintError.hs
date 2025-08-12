@@ -639,9 +639,10 @@ renderTypeError e env src = case e of
         showSourceMaybes src [(,Type1) <$> rangeForAnnotated site],
         "\n\n",
         "This is likely due to a recursive function using abilities where the\n",
-        "signature does not specify the abilities used.",
+        "signature does not specify the abilities used. It may also be from a\n",
+        "variable introduced by an ability match escaping its scope.",
         "\n\n",
-        "I think the abilities should be similar to\n\n",
+        "In the first case, I think the abilities should be similar to\n\n",
         Pr.indentN 4 . style Type1 $
           "{" <> commas (renderType' env) want <> "}",
         "\n\n",
