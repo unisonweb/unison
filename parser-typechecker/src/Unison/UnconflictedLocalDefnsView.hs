@@ -8,7 +8,7 @@ where
 import Data.Map.Strict qualified as Map
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
-import Unison.Names (Names)
+import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -37,9 +37,13 @@ empty =
     }
 
 fromDefns :: DefnsF (Map Name) Referent TypeReference -> UnconflictedLocalDefnsView
-fromDefns defns =
+fromDefns defns0 =
   UnconflictedLocalDefnsView
-    { defns = bimap BiMultimap.fromRange BiMultimap.fromRange defns,
-      nametree = unflattenNametrees defns,
-      names = Names.fromUnconflicted defns
+    { defns = bimap BiMultimap.fromRange BiMultimap.fromRange defns0,
+      nametree = unflattenNametrees defns0,
+      names = Names.fromUnconflictedRelation defns
     }
+  where
+    defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)
+    defns =
+      bimap BiMultimap.fromRange BiMultimap.fromRange defns0
