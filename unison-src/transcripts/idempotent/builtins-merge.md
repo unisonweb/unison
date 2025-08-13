@@ -31,7 +31,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   22. ImmutableArray      (builtin type)
   23. ImmutableArray/     (3 terms)
   24. ImmutableByteArray  (builtin type)
-  25. ImmutableByteArray/ (10 terms)
+  25. ImmutableByteArray/ (15 terms)
   26. Int                 (builtin type)
   27. Int/                (31 terms)
   28. IsPropagated        (type)

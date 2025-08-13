@@ -692,6 +692,14 @@ ByteArray.tests.allOperations = do
   ]
 ```
 
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + ByteArray.tests.allOperations : '{IO, Exception} [Result]
+
+  Run `update` to apply these changes to your codebase.
+```
+
 ``` ucm
 > add
 
@@ -704,7 +712,7 @@ ByteArray.tests.allOperations = do
 
     New test results:
 
-    1. operations   ◉ Passed
+    1. allOperations   ◉ Passed
 
   ✅ 1 test(s) passing
 
