@@ -1325,6 +1325,25 @@ synthesizeWanted (Term.Handle' h body) = do
       let (oes, o') = Type.stripEffect o
       want <- checkWanted Nothing (fmap (Just h,) oes) body rt
       pure (o', want)
+    -- another degenerate case, handler has completely unknown type
+    v0@(Type.Var' (TypeVar.Existential _ _)) -> do
+      r <- extendExistential Var.inferInput
+      e <- extendExistential Var.inferAbility
+      o <- extendExistential Var.inferOutput
+      let lo = loc v0
+          rt = existentialp lo r
+          ot = existentialp lo o
+          et = existentialp lo e
+          eff =
+            Type.apps
+              (Type.ref lo Type.effectRef)
+              [(lo, Type.effects lo [et]), (lo, rt)]
+          hndt = Type.arrow lo eff ot
+      subtype hndt v0
+      ot <- applyM ot
+      let (oes, ot') = Type.stripEffect ot
+      want <- checkWanted Nothing (fmap (Just h,) oes) body rt
+      pure (ot', want)
     _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
 synthesizeWanted (Term.Ann' e t) = checkScoped e t
 synthesizeWanted tm@(Term.Apps' f args) = do
