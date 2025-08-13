@@ -50,7 +50,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   41. MutableArray        (builtin type)
   42. MutableArray/       (6 terms)
   43. MutableByteArray    (builtin type)
-  44. MutableByteArray/   (14 terms)
+  44. MutableByteArray/   (22 terms)
   45. Nat                 (builtin type)
   46. Nat/                (28 terms)
   47. Optional            (type)
