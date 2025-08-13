@@ -36,6 +36,9 @@ data ForeignFunc
   | IO_getBytes_impl_v3
   | IO_getSomeBytes_impl_v1
   | IO_putBytes_impl_v3
+  | IO_fillBuf_impl_v1
+  | IO_putBuf_impl_v1
+  | IO_getBufSome_impl_v1
   | IO_systemTime_impl_v3
   | IO_systemTimeMicroseconds_v1
   | Clock_internals_monotonic_v1
@@ -72,6 +75,8 @@ data ForeignFunc
   | IO_socketAccept_impl_v3
   | IO_socketSend_impl_v3
   | IO_socketReceive_impl_v3
+  | IO_socketSendBuf_impl_v1
+  | IO_socketReceiveBuf_impl_v1
   | IO_kill_impl_v3
   | IO_delay_impl_v3
   | IO_stdHandle
@@ -210,14 +215,19 @@ data ForeignFunc
   | ImmutableByteArray_length
   | ImmutableByteArray_toBytes
   | ImmutableByteArray_fromBytes
+  | PinnedByteArray_cast
   | IO_array
   | IO_arrayOf
   | IO_bytearray
   | IO_bytearrayOf
+  | IO_pinnedByteArray
+  | IO_pinnedByteArrayOf
   | Scope_array
   | Scope_arrayOf
   | Scope_bytearray
   | Scope_bytearrayOf
+  | Scope_pinnedByteArray
+  | Scope_pinnedByteArrayOf
   | Text_patterns_literal
   | Text_patterns_digit
   | Text_patterns_letter
@@ -314,6 +324,9 @@ foreignFuncBuiltinName = \case
   IO_getBytes_impl_v3 -> "IO.getBytes.impl.v3"
   IO_getSomeBytes_impl_v1 -> "IO.getSomeBytes.impl.v1"
   IO_putBytes_impl_v3 -> "IO.putBytes.impl.v3"
+  IO_fillBuf_impl_v1 -> "IO.fillBuf.impl.v1"
+  IO_putBuf_impl_v1 -> "IO.putBuf.impl.v1"
+  IO_getBufSome_impl_v1 -> "IO.getBufSome.impl.v1"
   IO_systemTime_impl_v3 -> "IO.systemTime.impl.v3"
   IO_systemTimeMicroseconds_v1 -> "IO.systemTimeMicroseconds.v1"
   Clock_internals_monotonic_v1 -> "Clock.internals.monotonic.v1"
@@ -350,6 +363,8 @@ foreignFuncBuiltinName = \case
   IO_socketAccept_impl_v3 -> "IO.socketAccept.impl.v3"
   IO_socketSend_impl_v3 -> "IO.socketSend.impl.v3"
   IO_socketReceive_impl_v3 -> "IO.socketReceive.impl.v3"
+  IO_socketSendBuf_impl_v1 -> "IO.socketSendBuf.impl.v1"
+  IO_socketReceiveBuf_impl_v1 -> "IO.socketReceiveBuf.impl.v1"
   IO_kill_impl_v3 -> "IO.kill.impl.v3"
   IO_delay_impl_v3 -> "IO.delay.impl.v3"
   IO_stdHandle -> "IO.stdHandle"
@@ -488,14 +503,19 @@ foreignFuncBuiltinName = \case
   ImmutableByteArray_length -> "ImmutableByteArray.length"
   ImmutableByteArray_toBytes -> "ImmutableByteArray.toBytes"
   ImmutableByteArray_fromBytes -> "ImmutableByteArray.fromBytes"
+  PinnedByteArray_cast -> "PinnedByteArray.cast"
   IO_array -> "IO.array"
   IO_arrayOf -> "IO.arrayOf"
   IO_bytearray -> "IO.bytearray"
   IO_bytearrayOf -> "IO.bytearrayOf"
+  IO_pinnedByteArray -> "IO.pinnedByteArray"
+  IO_pinnedByteArrayOf -> "IO.pinnedByteArrayOf"
   Scope_array -> "Scope.array"
   Scope_arrayOf -> "Scope.arrayOf"
   Scope_bytearray -> "Scope.bytearray"
   Scope_bytearrayOf -> "Scope.bytearrayOf"
+  Scope_pinnedByteArray -> "Scope.pinnedByteArray"
+  Scope_pinnedByteArrayOf -> "Scope.pinnedByteArrayOf"
   Text_patterns_literal -> "Text.patterns.literal"
   Text_patterns_digit -> "Text.patterns.digit"
   Text_patterns_letter -> "Text.patterns.letter"
