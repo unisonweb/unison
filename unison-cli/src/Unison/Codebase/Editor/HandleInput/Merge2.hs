@@ -265,7 +265,10 @@ doMerge info = do
                       logDiff = Sqlite.unsafeIO . debugFunctions.debugCombinedDiff
                     }
                   (hydrate "Loading definitions...")
-                  (TwoOrThreeWay.toThreeWay Names.empty (Branch.toNames . view Branch.head_ <$> branches))
+                  -- Ignore the input (dependencies whose names we need), because we already have all names in memory
+                  -- in the Branch object. That isn't true on Share, for example, where we load these names from the
+                  -- database in a separate follow-up query.
+                  (\_ -> pure (TwoOrThreeWay.toThreeWay Names.empty (Branch.toNames . view Branch.head_ <$> branches)))
                   defns
                   ( let f = view (Branch.head_ . Branch.libdeps_)
                      in Merge.ThreeWay

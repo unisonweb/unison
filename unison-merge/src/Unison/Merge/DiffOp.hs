@@ -2,6 +2,7 @@ module Unison.Merge.DiffOp
   ( DiffOp (..),
     DiffOp2 (..),
     Unison.Merge.DiffOp.map,
+    Unison.Merge.DiffOp.traverse,
   )
 where
 
@@ -24,6 +25,12 @@ map f = \case
   DiffOp'Add x -> DiffOp'Add (f x)
   DiffOp'Delete x -> DiffOp'Delete (f x)
   DiffOp'Update x -> DiffOp'Update (Updated.map f x)
+
+traverse :: (Applicative f) => (a -> f b) -> DiffOp a -> f (DiffOp b)
+traverse f = \case
+  DiffOp'Add x -> DiffOp'Add <$> f x
+  DiffOp'Delete x -> DiffOp'Delete <$> f x
+  DiffOp'Update x -> DiffOp'Update <$> Updated.traverse f x
 
 -- | Like 'DiffOp', but updates are tagged as propagated (True) or not (False).
 --

@@ -48,6 +48,7 @@ import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, zipDefnsWith)
+import Unison.Util.Map qualified as Map
 
 data Diffblob libdep = Diffblob
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
@@ -65,6 +66,7 @@ data Diffblob libdep = Diffblob
         (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
         (Map TypeReferenceId (Decl Symbol Ann)),
     libdeps :: Updated (Map NameSegment libdep),
+    propagatedUpdates :: TwoWay (DefnsF (Map Name) (Updated Referent) (Updated TypeReference)),
     simpleRenames :: TwoWay (Defns SimpleRenames SimpleRenames),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
   }
@@ -94,12 +96,12 @@ makeDiffblob ::
           (Map TypeReferenceId (Decl Symbol Ann))
       )
   ) ->
-  ThreeWay Names ->
+  (ThreeWay (DefnsF Set Referent TypeReference) -> m (ThreeWay Names)) ->
   ThreeWay UnconflictedLocalDefnsView ->
   ThreeWay (Map NameSegment libdep) ->
   GThreeWay PartialDeclNameLookup DeclNameLookup ->
   m (Diffblob libdep)
-makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
+makeDiffblob logger hydrate loadNames defns libdeps declNameLookups = do
   let defnsByName = bimap BiMultimap.range BiMultimap.range . (.defns) <$> defns
 
   logger.logDefns defnsByName
@@ -118,10 +120,18 @@ makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
   hydratedNarrowedDefns <-
     hydrate (foldMap (Updated.foldMap toIds) narrowedDefns)
 
+  dependencyNames <-
+    loadNames (bimap Map.elemsSet Map.elemsSet <$> TwoWay.updatedToThreeWay narrowedDefns)
+
   -- Compute the syntactic hashes of the narrowed+hydrated definitions
   let synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference))
       synhashedNarrowedDefns =
-        makeSynhashedNarrowedDefns fst allNames declNameLookups narrowedDefns hydratedNarrowedDefns
+        makeSynhashedNarrowedDefns
+          fst
+          dependencyNames
+          declNameLookups
+          narrowedDefns
+          hydratedNarrowedDefns
 
   logger.logSynhashedNarrowedDefns synhashedNarrowedDefns
 
@@ -148,7 +158,7 @@ makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
 
   -- "Humanize" diffs... this is a bit of tech debt, to remove once we better-represent (& apply) renames
   let humanDiffsFromLCA =
-        humanizeDiffs allNames diffsFromLCA propagatedUpdates
+        humanizeDiffs dependencyNames diffsFromLCA propagatedUpdates
 
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
@@ -173,6 +183,7 @@ makeDiffblob logger hydrate allNames defns libdeps declNameLookups = do
         libdeps = Updated {old = libdeps.lca, new = mergedLibdeps},
         humanDiffsFromLCA,
         hydratedNarrowedDefns,
+        propagatedUpdates,
         simpleRenames,
         unconflicts
       }
@@ -199,7 +210,7 @@ makeSynhashedNarrowedDefns toTerm allNames declNameLookups defns hydratedDefns =
                 toTerm
                 ppe
                 declNameLookups.lca
-                (TwoWay.updatedToThreeWay defns).lca
+                (fold oldDefns) -- left-biased map union is fine, the maps have equal values at equal keys
                 hydratedDefns
             )
             <$> oldDefns
