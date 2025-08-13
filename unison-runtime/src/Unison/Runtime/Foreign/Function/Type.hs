@@ -215,6 +215,11 @@ data ForeignFunc
   | ImmutableByteArray_read32be
   | ImmutableByteArray_read40be
   | ImmutableByteArray_read64be
+  | ImmutableByteArray_read16le
+  | ImmutableByteArray_read24le
+  | ImmutableByteArray_read32le
+  | ImmutableByteArray_read40le
+  | ImmutableByteArray_read64le
   | MutableByteArray_freeze_force
   | MutableArray_freeze_force
   | MutableByteArray_freeze
@@ -511,6 +516,11 @@ foreignFuncBuiltinName = \case
   ImmutableByteArray_read32be -> "ImmutableByteArray.read32be"
   ImmutableByteArray_read40be -> "ImmutableByteArray.read40be"
   ImmutableByteArray_read64be -> "ImmutableByteArray.read64be"
+  ImmutableByteArray_read16le -> "ImmutableByteArray.read16le"
+  ImmutableByteArray_read24le -> "ImmutableByteArray.read24le"
+  ImmutableByteArray_read32le -> "ImmutableByteArray.read32le"
+  ImmutableByteArray_read40le -> "ImmutableByteArray.read40le"
+  ImmutableByteArray_read64le -> "ImmutableByteArray.read64le"
   MutableByteArray_freeze_force -> "MutableByteArray.freeze!"
   MutableArray_freeze_force -> "MutableArray.freeze!"
   MutableByteArray_freeze -> "MutableByteArray.freeze"

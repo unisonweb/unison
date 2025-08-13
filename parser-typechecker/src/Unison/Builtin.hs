@@ -686,6 +686,16 @@ builtinsSrc =
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read64be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read16le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read24le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read32le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read40le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read64le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> Type.effect1 () g (iarrayt a),
     B "MutableByteArray.freeze!" . forall1 "g" $ \g ->

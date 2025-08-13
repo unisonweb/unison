@@ -818,6 +818,21 @@ foreignCallHelper = \case
   ImmutableByteArray_read64be ->
     mkForeignExn $
       checkedIndex64 BigEndian "ImmutableByteArray.read64be"
+  ImmutableByteArray_read16le ->
+    mkForeignExn $
+      checkedIndex16 LittleEndian "ImmutableByteArray.read16le"
+  ImmutableByteArray_read24le ->
+    mkForeignExn $
+      checkedIndex24 LittleEndian "ImmutableByteArray.read24le"
+  ImmutableByteArray_read32le ->
+    mkForeignExn $
+      checkedIndex32 LittleEndian "ImmutableByteArray.read32le"
+  ImmutableByteArray_read40le ->
+    mkForeignExn $
+      checkedIndex40 LittleEndian "ImmutableByteArray.read40le"
+  ImmutableByteArray_read64le ->
+    mkForeignExn $
+      checkedIndex64 LittleEndian "ImmutableByteArray.read64le"
   MutableByteArray_freeze_force ->
     mkForeign PA.unsafeFreezeByteArray
   MutableArray_freeze_force ->
