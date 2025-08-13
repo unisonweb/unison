@@ -1406,14 +1406,14 @@ checkedRead32 byteOrder name (arr, iW) =
 
 checkedRead40 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
 checkedRead40 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 6 $ do
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 5 $ do
     let !off = fromIntegral iW :: Int
     w32 <- uncheckedRead32 byteOrder arr off
-    w16 <- uncheckedRead16 byteOrder arr (off + 4)
+    w8 <- PA.readByteArray @Word8 arr (off + 4)
     let result =
           if byteOrder == BigEndian
-            then (fromIntegral w32 `shiftL` 16) .|. fromIntegral w16
-            else (fromIntegral w16 `shiftL` 32) .|. fromIntegral w32
+            then (fromIntegral w32 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 32) .|. fromIntegral w32
     pure $ Right result
 
 checkedRead64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
