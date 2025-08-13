@@ -69,7 +69,7 @@ import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Conc qualified as STM
-import GHC.Exts (Int (..), readWord8ArrayAsWord16#, readWord8ArrayAsWord32#, readWord8ArrayAsWord64#, writeWord8ArrayAsWord16#, writeWord8ArrayAsWord32#, writeWord8ArrayAsWord64#)
+import GHC.Exts (Int (..), indexWord8ArrayAsWord16#, indexWord8ArrayAsWord32#, indexWord8ArrayAsWord64#, readWord8ArrayAsWord16#, readWord8ArrayAsWord32#, readWord8ArrayAsWord64#, writeWord8ArrayAsWord16#, writeWord8ArrayAsWord32#, writeWord8ArrayAsWord64#)
 import GHC.Float (double2Float, float2Double)
 import GHC.IO (IO (IO))
 import GHC.Ptr (Ptr (..))
@@ -805,19 +805,19 @@ foreignCallHelper = \case
       checkedIndex8 "ImmutableByteArray.read8"
   ImmutableByteArray_read16be ->
     mkForeignExn $
-      checkedIndex16 "ImmutableByteArray.read16be"
+      checkedIndex16 BigEndian "ImmutableByteArray.read16be"
   ImmutableByteArray_read24be ->
     mkForeignExn $
-      checkedIndex24 "ImmutableByteArray.read24be"
+      checkedIndex24 BigEndian "ImmutableByteArray.read24be"
   ImmutableByteArray_read32be ->
     mkForeignExn $
-      checkedIndex32 "ImmutableByteArray.read32be"
+      checkedIndex32 BigEndian "ImmutableByteArray.read32be"
   ImmutableByteArray_read40be ->
     mkForeignExn $
-      checkedIndex40 "ImmutableByteArray.read40be"
+      checkedIndex40 BigEndian "ImmutableByteArray.read40be"
   ImmutableByteArray_read64be ->
     mkForeignExn $
-      checkedIndex64 "ImmutableByteArray.read64be"
+      checkedIndex64 BigEndian "ImmutableByteArray.read64be"
   MutableByteArray_freeze_force ->
     mkForeign PA.unsafeFreezeByteArray
   MutableArray_freeze_force ->
@@ -1417,45 +1417,6 @@ checkedRead64 byteOrder name (arr, i) =
                 (# s1, w64# #) -> (# s1, W64# w64# #)
     pure $ Right (fromIntegral (fixEndianness w))
 
-mk16 :: Word8 -> Word8 -> Either Failure Word64
-mk16 b0 b1 = Right $ (fromIntegral b0 `shiftL` 8) .|. (fromIntegral b1)
-
-mk24 :: Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk24 b0 b1 b2 =
-  Right $
-    (fromIntegral b0 `shiftL` 16)
-      .|. (fromIntegral b1 `shiftL` 8)
-      .|. (fromIntegral b2)
-
-mk32 :: Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk32 b0 b1 b2 b3 =
-  Right $
-    (fromIntegral b0 `shiftL` 24)
-      .|. (fromIntegral b1 `shiftL` 16)
-      .|. (fromIntegral b2 `shiftL` 8)
-      .|. (fromIntegral b3)
-
-mk40 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk40 b0 b1 b2 b3 b4 =
-  Right $
-    (fromIntegral b0 `shiftL` 32)
-      .|. (fromIntegral b1 `shiftL` 24)
-      .|. (fromIntegral b2 `shiftL` 16)
-      .|. (fromIntegral b3 `shiftL` 8)
-      .|. (fromIntegral b4)
-
-mk64 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk64 b0 b1 b2 b3 b4 b5 b6 b7 =
-  Right $
-    (fromIntegral b0 `shiftL` 56)
-      .|. (fromIntegral b1 `shiftL` 48)
-      .|. (fromIntegral b2 `shiftL` 40)
-      .|. (fromIntegral b3 `shiftL` 32)
-      .|. (fromIntegral b4 `shiftL` 24)
-      .|. (fromIntegral b5 `shiftL` 16)
-      .|. (fromIntegral b6 `shiftL` 8)
-      .|. (fromIntegral b7)
-
 checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
 checkedWrite8 name (arr, i, v) =
   checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $ do
@@ -1525,60 +1486,94 @@ checkedIndex8 name (arr, i) =
     let j = fromIntegral i
      in Right . fromIntegral $ PA.indexByteArray @Word8 arr j
 
+uncheckedIndex16 ::
+  ByteOrder -> -- desired byte order
+  PA.ByteArray ->
+  Int -> -- byte offset
+  IO Word16
+uncheckedIndex16 byteOrder arr off = do
+  let fixEndianness :: Word16 -> Word16
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap16 w
+  let w = case arr of
+        PA.ByteArray ba# ->
+          case off of
+            I# off# ->
+              W16# (indexWord8ArrayAsWord16# ba# off#)
+  pure (fixEndianness w)
+
 -- index 16 big-endian
-checkedIndex16 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex16 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 2 . pure $
-    let j = fromIntegral i
-     in mk16 (PA.indexByteArray arr j) (PA.indexByteArray arr (j + 1))
+checkedIndex16 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex16 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedIndex16 byteOrder arr off
+    pure $ Right (fromIntegral w)
+
+-- index 24 big-endian
+checkedIndex24 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex24 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 $ do
+    let !off = fromIntegral i :: Int
+    w16 <- uncheckedIndex16 byteOrder arr off
+    let w8 = PA.indexByteArray @Word8 arr (off + 2)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w16 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 16) .|. fromIntegral w16
+    pure $ Right result
+
+uncheckedIndex32 ::
+  ByteOrder -> -- desired byte order
+  PA.ByteArray ->
+  Int -> -- byte offset
+  IO Word32
+uncheckedIndex32 byteOrder arr off = do
+  let fixEndianness :: Word32 -> Word32
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap32 w
+  let w = case arr of
+        PA.ByteArray ba# ->
+          case off of
+            I# off# ->
+              W32# (indexWord8ArrayAsWord32# ba# off#)
+  pure (fixEndianness w)
 
 -- index 32 big-endian
-checkedIndex24 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex24 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 . pure $
-    let j = fromIntegral i
-     in mk24
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-
--- index 32 big-endian
-checkedIndex32 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex32 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 4 . pure $
-    let j = fromIntegral i
-     in mk32
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
+checkedIndex32 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex32 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedIndex32 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
 -- index 40 big-endian
-checkedIndex40 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex40 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 . pure $
-    let j = fromIntegral i
-     in mk40
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
-          (PA.indexByteArray arr (j + 4))
+checkedIndex40 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex40 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 $ do
+    let !off = fromIntegral i :: Int
+    w32 <- uncheckedIndex32 byteOrder arr off
+    let w8 = PA.indexByteArray @Word8 arr (off + 4)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w32 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 32) .|. fromIntegral w32
+    pure $ Right result
 
 -- index 64 big-endian
-checkedIndex64 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex64 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 . pure $
-    let j = fromIntegral i
-     in mk64
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
-          (PA.indexByteArray arr (j + 4))
-          (PA.indexByteArray arr (j + 5))
-          (PA.indexByteArray arr (j + 6))
-          (PA.indexByteArray arr (j + 7))
+checkedIndex64 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex64 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 $ do
+    let !off = fromIntegral i :: Int
+        fixEndianness :: Word64 -> Word64
+        fixEndianness w =
+          if targetByteOrder == byteOrder then w else byteSwap64 w
+    let w = case arr of
+          PA.ByteArray ba# ->
+            case off of
+              I# off# ->
+                W64# (indexWord8ArrayAsWord64# ba# off#)
+    pure $ Right (fromIntegral (fixEndianness w))
 
 -- JSON replacement implementations
 jsonNull, jsonTrue, jsonFalse :: Val
