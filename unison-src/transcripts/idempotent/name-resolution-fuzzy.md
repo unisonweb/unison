@@ -36,8 +36,8 @@ myFunction = truncate
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found a value  of type:  Int
-  where I expected to find:  Nat
+  I found a value  of type:  Float -> Int
+  where I expected to find:  Float ->{𝕖} Nat
 
       2 | myFunction : Float -> Nat
       3 | myFunction = truncate

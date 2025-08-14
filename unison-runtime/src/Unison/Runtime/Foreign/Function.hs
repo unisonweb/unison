@@ -83,6 +83,8 @@ import Network.Socket as SYS
   ( PortNumber,
     Socket,
     accept,
+    recvBuf,
+    sendBuf,
     socketPort,
   )
 import Network.TLS as TLS
@@ -127,12 +129,15 @@ import System.IO (BufferMode (..), Handle, IOMode, SeekMode (..))
 import System.IO as SYS
   ( IOMode (..),
     hClose,
+    hGetBuf,
+    hGetBufSome,
     hGetBuffering,
     hGetChar,
     hGetEcho,
     hIsEOF,
     hIsOpen,
     hIsSeekable,
+    hPutBuf,
     hReady,
     hSeek,
     hSetBuffering,
@@ -270,6 +275,14 @@ foreignCallHelper = \case
   IO_getSomeBytes_impl_v1 -> mkForeignIOF $
     \(h, n) -> Bytes.fromArray <$> hGetSome h n
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
+  -- TODO: Use `withMutableByteArrayContents` here once we have Data.Primitive v9.
+  IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr) -> hGetBuf h (PA.mutableByteArrayContents arr) (PA.sizeofMutableByteArray arr)
+  IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
+    r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    case r of
+      Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+      Right _ -> hPutBuf h (PA.mutableByteArrayContents arr) (fromIntegral n)
+  IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr) -> hGetBufSome h (PA.mutableByteArrayContents arr) (PA.sizeofMutableByteArray arr)
   IO_systemTime_impl_v3 -> mkForeignIOF $
     \() -> getPOSIXTime
   IO_systemTimeMicroseconds_v1 -> mkForeign $
@@ -355,6 +368,18 @@ foreignCallHelper = \case
   IO_socketReceive_impl_v3 -> mkForeignIOF $
     \(hs, n) ->
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
+  IO_socketSendBuf_impl_v1 -> mkForeignIOF $
+    \(sk, buf, n) -> do
+      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      case r of
+        Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+        Right _ -> SYS.sendBuf sk (PA.mutableByteArrayContents buf) (fromIntegral n)
+  IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
+    \(sk, buf, n) -> do
+      r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      case r of
+        Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+        Right _ -> SYS.recvBuf sk (PA.mutableByteArrayContents buf) (fromIntegral n)
   IO_kill_impl_v3 -> mkForeignIOF killThread
   IO_delay_impl_v3 -> mkForeignIOF customDelay
   IO_stdHandle -> mkForeign $
@@ -760,8 +785,7 @@ foreignCallHelper = \case
     mkForeignExn $
       checkedIndex64 "ImmutableByteArray.read64be"
   MutableByteArray_freeze_force ->
-    mkForeign $
-      PA.unsafeFreezeByteArray
+    mkForeign PA.unsafeFreezeByteArray
   MutableArray_freeze_force ->
     mkForeign $
       PA.unsafeFreezeArray @IO @Val
@@ -805,6 +829,7 @@ foreignCallHelper = \case
           $ Right
           $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
   ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
+  PinnedByteArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -815,6 +840,12 @@ foreignCallHelper = \case
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
+  IO_pinnedByteArray -> mkForeign $ PA.newPinnedByteArray
+  IO_pinnedByteArrayOf -> mkForeign $
+    \(init, sz) -> do
+      arr <- PA.newPinnedByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
   Scope_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   Scope_arrayOf -> mkForeign $
@@ -823,6 +854,12 @@ foreignCallHelper = \case
   Scope_bytearrayOf -> mkForeign $
     \(init, sz) -> do
       arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+  Scope_pinnedByteArray -> mkForeign $ PA.newPinnedByteArray
+  Scope_pinnedByteArrayOf -> mkForeign $
+    \(init, sz) -> do
+      arr <- PA.newPinnedByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
   Text_patterns_literal -> mkForeign $

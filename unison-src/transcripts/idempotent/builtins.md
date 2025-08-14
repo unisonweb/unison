@@ -555,6 +555,70 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 > add
 ```
 
+## Pinned Array and Mutable Byte Array tests
+
+Test the pinned array and mutable byte array functionality
+
+``` unison
+-- Test PinnedArray.cast functionality with real operations
+PinnedByteArray.tests.cast.operations = do
+  -- Create a pinned array using IO.pinnedByteArray
+  pinned = IO.pinnedByteArray 10
+  
+  -- Cast the pinned array to a mutable byte array
+  mutable = PinnedByteArray.cast pinned
+  
+  -- Write some test data to the mutable array
+  write8 mutable 0 42
+  write8 mutable 1 123
+  write8 mutable 2 255
+  write16be mutable 3 12345
+  write32be mutable 5 987654321
+  
+  -- Read the data back and verify it's correct
+  read8_0 = read8 mutable 0
+  read8_1 = read8 mutable 1
+  read8_2 = read8 mutable 2
+  read16be_3 = read16be mutable 3
+  read32be_5 = read32be mutable 5
+  
+  -- Verify all the values are correct
+  checks [
+    read8_0 == 42,
+    read8_1 == 123,
+    read8_2 == 255,
+    read16be_3 == 12345,
+    read32be_5 == 987654321
+  ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + PinnedByteArray.tests.cast.operations : '{IO, Exception} [Result]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test PinnedByteArray.tests.cast.operations
+
+    New test results:
+
+    1. operations   ◉ Passed
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
 ## Run the tests
 
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.

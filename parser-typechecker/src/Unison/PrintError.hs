@@ -446,8 +446,8 @@ renderTypeError e env src = case e of
   Mismatch {..} ->
     mconcat
       [ Pr.lines
-          [ "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
-            "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf)
+          [ "I found a value  of type:  " <> style Type1 (renderType' env foundType),
+            "where I expected to find:  " <> style Type2 (renderType' env expectedType)
           ],
         "\n\n",
         showSourceMaybes

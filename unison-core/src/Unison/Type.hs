@@ -309,6 +309,9 @@ ibytearrayRef, mbytearrayRef :: TypeReference
 ibytearrayRef = Reference.Builtin "ImmutableByteArray"
 mbytearrayRef = Reference.Builtin "MutableByteArray"
 
+pinnedByteArrayRef :: TypeReference
+pinnedByteArrayRef = Reference.Builtin "PinnedByteArray"
+
 mvarRef, tvarRef :: TypeReference
 mvarRef = Reference.Builtin "MVar"
 tvarRef = Reference.Builtin "TVar"
@@ -407,11 +410,12 @@ scopeType a = ref a scopeRef
 refType :: (Ord v) => a -> Type v a
 refType a = ref a refRef
 
-iarrayType, marrayType, ibytearrayType, mbytearrayType :: (Ord v) => a -> Type v a
+iarrayType, marrayType, ibytearrayType, mbytearrayType, pinnedByteArrayType :: (Ord v) => a -> Type v a
 iarrayType a = ref a iarrayRef
 marrayType a = ref a marrayRef
 ibytearrayType a = ref a ibytearrayRef
 mbytearrayType a = ref a mbytearrayRef
+pinnedByteArrayType a = ref a pinnedByteArrayRef
 
 socket :: (Ord v) => a -> Type v a
 socket a = ref a socketRef
