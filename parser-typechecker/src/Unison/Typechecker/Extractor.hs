@@ -189,6 +189,11 @@ inCheck = asPathExtractor $ \case
 -- inInstantiateL
 -- inInstantiateR
 
+inActionRestriction :: SubseqExtractor v loc ()
+inActionRestriction = asPathExtractor $ \case
+  C.InActionRestriction -> Just ()
+  _ -> Nothing
+
 inSynthesizeApp :: SubseqExtractor v loc (C.Type v loc, C.Term v loc, Int)
 inSynthesizeApp = asPathExtractor $ \case
   C.InSynthesizeApp t e n -> Just (t, e, n)
