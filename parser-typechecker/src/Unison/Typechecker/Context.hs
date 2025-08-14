@@ -334,6 +334,7 @@ data PathElement v loc
   | InMatch loc -- location of 1st case body
   | InMatchGuard
   | InMatchBody
+  | InActionRestriction
   deriving (Show)
 
 type ExpectedArgCount = Int
@@ -1275,7 +1276,7 @@ synthesizeWanted tm@(Term.Request' r) =
 synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
-  when (Var.isAction (ABT.variable e)) $
+  when (Var.isAction (ABT.variable e)) . scope InActionRestriction $
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
   appendContext [Ann v' boundVarAnn tbinding]
@@ -1428,7 +1429,9 @@ synthesizeWanted e
       outputTypev <- freshenVar (Var.named "match-output")
       let outputType = existential' l B.Blank outputTypev
       appendContext [existential outputTypev]
-      cwant <- checkCases scrutineeType outputType cases
+      cwant <-
+        scope (InMatch (ABT.annotation outputType)) $
+          checkCases scrutineeType outputType cases
       want <- coalesceWanted cwant swant
       ctx <- getContext
       let matchType = apply ctx outputType
@@ -1625,13 +1628,12 @@ checkCases ::
   [Term.MatchCase loc (Term v loc)] ->
   M v loc (Wanted v loc)
 checkCases _ _ [] = pure []
-checkCases scrutType outType cases@(Term.MatchCase _ _ t : _) =
-  scope (InMatch (ABT.annotation t)) $ do
-    mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
-    for_ mes $ \es ->
-      applyM scrutType >>= \sty -> ensureReqEffects sty es
-    scrutType' <- applyM =<< ungeneralize scrutType
-    coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
+checkCases scrutType outType cases = do
+  mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
+  for_ mes $ \es ->
+    applyM scrutType >>= \sty -> ensureReqEffects sty es
+  scrutType' <- applyM =<< ungeneralize scrutType
+  coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 -- Checks a scrutinee type against a list of effects from e.g. a list of cases
 -- from a handler.
@@ -1970,8 +1972,10 @@ annotateLetRecBindings isTop letrec =
         Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
+
           -- ensure actions in blocks have type ()
-          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
+          when (Var.isAction v) . scope InActionRestriction $
+            subtype t (DDB.unitType (ABT.annotation b))
           insideDef v $ checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes, vlocs)
@@ -2569,7 +2573,7 @@ checkWanted exact want (Term.Let1Top' top binding boundVarAnn m) t = do
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
   markThenRetractWanted v $ do
-    when (Var.isAction (ABT.variable m)) $
+    when (Var.isAction (ABT.variable m)) . scope InActionRestriction $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v boundVarAnn tbinding)

@@ -339,6 +339,26 @@ renderTypeError e env src = case e of
         annotatedAsStyle Type1 src f,
         debugSummary note
       ]
+  ActionRestrictionFailure {..} ->
+    mconcat
+      [ Pr.lines
+          [ "I found an action in a block with a type of:",
+            "",
+            Pr.indentN 4 . style Type1 $ renderType' env foundType,
+            "",
+            showSourceMaybes src
+              [(,Type1) <$> rangeForAnnotated mismatchSite],
+            Pr.wrap . mconcat $
+            [ "All actions are expected to have a type of",
+              style Type2 "Unit",
+              "to catch accidental delayed values. To explicitly",
+              "ignore a result, use:"
+            ],
+            "",
+            Pr.indentN 4 $ style Type1 "_ = <expr>"
+          ],
+        debugSummary note
+      ]
   FunctionApplication {..} ->
     let fte = Type.removePureEffects False ft
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
