@@ -346,14 +346,15 @@ renderTypeError e env src = case e of
             "",
             Pr.indentN 4 . style Type1 $ renderType' env foundType,
             "",
-            showSourceMaybes src
+            showSourceMaybes
+              src
               [(,Type1) <$> rangeForAnnotated mismatchSite],
             Pr.wrap . mconcat $
-            [ "All actions are expected to have a type of",
-              style Type2 "Unit",
-              "to catch accidental delayed values. To explicitly",
-              "ignore a result, use:"
-            ],
+              [ "All actions are expected to have a type of",
+                style Type2 "Unit",
+                "to catch accidental delayed values. To explicitly",
+                "ignore a result, use:"
+              ],
             "",
             Pr.indentN 4 $ style Type1 "_ = <expr>"
           ],

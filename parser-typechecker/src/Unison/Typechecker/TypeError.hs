@@ -361,7 +361,7 @@ actionRestriction = do
   note <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   path <- Ex.path
-  let subtypes = [ t1 | C.InSubtype t1 _ <- path ]
+  let subtypes = [t1 | C.InSubtype t1 _ <- path]
   guard . not $ null subtypes
   let foundType = Type.cleanup $ last subtypes
   pure $ ActionRestrictionFailure foundType mismatchSite note
