@@ -10,7 +10,7 @@ module Unison.Merge.ThreeWay
   )
 where
 
-import Unison.Merge.Internal.Types (GThreeWay(..), ThreeWay (..))
+import Unison.Merge.Internal.Types (GThreeWay (..), ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Updated (GUpdated (..), Updated)
