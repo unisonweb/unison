@@ -1,6 +1,7 @@
 -- | Internal types module to house types that would require mutual recursion at the module level if defined separately
 module Unison.Merge.Internal.Types
-  ( ThreeWay (..),
+  ( GThreeWay (..),
+    ThreeWay (..),
     TwoOrThreeWay (..),
     TwoWay (..),
   )
@@ -12,6 +13,13 @@ import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.These (These (..))
 import Unison.Prelude
 import Prelude hiding (zipWith)
+
+data GThreeWay a b = GThreeWay
+  { lca :: a,
+    alice :: b,
+    bob :: b
+  }
+  deriving stock (Generic)
 
 data ThreeWay a = ThreeWay
   { lca :: !a,

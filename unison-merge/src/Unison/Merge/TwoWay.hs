@@ -1,11 +1,13 @@
 module Unison.Merge.TwoWay
   ( TwoWay (..),
     bothWays,
+    gtoThreeWay,
     justTheTerms,
     justTheTypes,
     or,
     sequenceDefns,
     swap,
+    toThreeWay,
     twoWay,
     unzipMap,
     updatedToThreeWay,
@@ -16,7 +18,7 @@ where
 import Control.Lens (Lens')
 import Data.Zip (unzipWith)
 import Unison.Merge.EitherWay (EitherWay (..))
-import Unison.Merge.Internal.Types (ThreeWay (..), TwoWay (..))
+import Unison.Merge.Internal.Types (GThreeWay (..), ThreeWay (..), TwoWay (..))
 import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Prelude
 import Unison.Util.Defns (Defns (..), DefnsF)
@@ -25,6 +27,10 @@ import Prelude hiding (or, zipWith)
 bothWays :: a -> TwoWay a
 bothWays x =
   TwoWay x x
+
+gtoThreeWay :: a -> TwoWay b -> GThreeWay a b
+gtoThreeWay lca TwoWay {alice, bob} =
+  GThreeWay {lca, alice, bob}
 
 justTheTerms :: TwoWay (Defns terms types) -> TwoWay terms
 justTheTerms =
@@ -46,6 +52,10 @@ sequenceDefns defns =
 swap :: TwoWay a -> TwoWay a
 swap (TwoWay x y) =
   TwoWay y x
+
+toThreeWay :: a -> TwoWay a -> ThreeWay a
+toThreeWay lca TwoWay {alice, bob} =
+  ThreeWay {lca, alice, bob}
 
 twoWay :: (a -> a -> b) -> TwoWay a -> b
 twoWay f TwoWay {alice, bob} =

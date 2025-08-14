@@ -79,7 +79,7 @@ data MergeblobError
 
 makeMergeblob ::
   (Monad m) =>
-  ( DefnsF Set TermReferenceId TypeReferenceId ->
+  ( ThreeWay (DefnsF Set TermReferenceId TypeReferenceId) ->
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
   ) ->
   (Set Reference.Id -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
@@ -116,15 +116,16 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
         loadDependents (bifold defns) (bifold deps)
 
     hydratedDefnsById <- do
-      let unhydratedConflictsAndDependentsIds :: DefnsF Set TermReferenceId TypeReferenceId
+      let unhydratedConflictsAndDependentsIds :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId)
           unhydratedConflictsAndDependentsIds =
             zipDefnsWith
               Set.differenceMap
               Set.differenceMap
-              (foldMap (bimap Map.elemsSet Map.elemsSet) conflicts <> fold dependentsIds)
-              blob.hydratedNarrowedDefns
+              <$> ((bimap Map.elemsSet Map.elemsSet <$> conflicts) <> dependentsIds)
+              <*> TwoWay.bothWays blob.hydratedNarrowedDefns
 
-      hydratedConflictsAndDependents <- hydrate unhydratedConflictsAndDependentsIds
+      hydratedConflictsAndDependents <-
+        hydrate (TwoWay.toThreeWay (Defns Set.empty Set.empty) unhydratedConflictsAndDependentsIds)
 
       -- Left-biased map union is ok here since the maps are disjoint
       pure (blob.hydratedNarrowedDefns <> hydratedConflictsAndDependents)

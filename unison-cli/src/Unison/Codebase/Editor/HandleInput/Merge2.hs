@@ -69,6 +69,7 @@ import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
 import Unison.DeclCoherencyCheck (asOneRandomIncoherentDeclReason)
 import Unison.Hash qualified as Hash
+import Unison.LabeledDependency (LabeledDependency)
 import Unison.Merge qualified as Merge
 import Unison.Merge.EitherWayI qualified as EitherWayI
 import Unison.Merge.Synhashed qualified as Synhashed
@@ -77,6 +78,7 @@ import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
 import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
@@ -96,6 +98,8 @@ import Unison.Sqlite (Transaction)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView qualified as UnconflictedLocalDefnsView
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
@@ -104,6 +108,7 @@ import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.WatchKind qualified as WatchKind
 import Witch (unsafeFrom)
@@ -240,7 +245,17 @@ doMerge info = do
               pure (ThreeWay.gfromTwoWay lca aliceAndBob)
 
         (mergeblob, libdepsBranches) <- do
-          let hydrate message refs
+          let -- Hydrate definitions. Since we don't have to get them from separate codebases like Share does, we
+              -- combine the three-way sets together.
+              hydrate ::
+                Pretty ColorText ->
+                Merge.ThreeWay (DefnsF Set TermReferenceId TypeReferenceId) ->
+                Transaction
+                  ( Defns
+                      (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
+                      (Map TypeReferenceId (Decl Symbol Ann))
+                  )
+              hydrate message refs0
                 | defnsAreEmpty refs = pure (Defns Map.empty Map.empty)
                 | otherwise = do
                     Sqlite.unsafeIO (respondRegion (Output.Literal message))
@@ -248,6 +263,15 @@ doMerge info = do
                       (Codebase.unsafeGetTermComponent env.codebase)
                       Operations.expectDeclComponent
                       refs
+                where
+                  refs = fold refs0
+
+              -- Ignore the input (dependencies whose names we need), because we already have all names in memory
+              -- in the Branch object. That isn't true on Share, for example, where we load these names from the
+              -- database in a separate follow-up query.
+              loadNames :: Merge.ThreeWay (Set LabeledDependency) -> Transaction (Merge.ThreeWay Names)
+              loadNames _ =
+                pure (TwoOrThreeWay.toThreeWay Names.empty (Branch.toNames . view Branch.head_ <$> branches))
 
           onLeftM done do
             Cli.runTransactionWithRollbackE \rollback -> do
@@ -265,10 +289,7 @@ doMerge info = do
                       logDiff = Sqlite.unsafeIO . debugFunctions.debugCombinedDiff
                     }
                   (hydrate "Loading definitions...")
-                  -- Ignore the input (dependencies whose names we need), because we already have all names in memory
-                  -- in the Branch object. That isn't true on Share, for example, where we load these names from the
-                  -- database in a separate follow-up query.
-                  (\_ -> pure (TwoOrThreeWay.toThreeWay Names.empty (Branch.toNames . view Branch.head_ <$> branches)))
+                  loadNames
                   defns
                   ( let f = view (Branch.head_ . Branch.libdeps_)
                      in Merge.ThreeWay

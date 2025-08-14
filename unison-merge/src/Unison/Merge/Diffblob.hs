@@ -6,10 +6,15 @@ module Unison.Merge.Diffblob
 where
 
 import Control.Lens.Fold (folded)
+import Data.List qualified as List
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
 import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration.Dependencies qualified as Decl
 import Unison.DeclNameLookup (DeclNameLookup)
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency qualified as LabeledDependency
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
 import Unison.Merge.Diff (diffSynhashedDefns, humanizeDiffs)
 import Unison.Merge.DiffOp (DiffOp)
@@ -44,11 +49,12 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, zipDefnsWith)
-import Unison.Util.Map qualified as Map
 
 data Diffblob libdep = Diffblob
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
@@ -89,14 +95,14 @@ makeDiffblob ::
   forall libdep m.
   (Eq libdep, Monad m) =>
   DiffblobLog m ->
-  ( DefnsF Set TermReferenceId TypeReferenceId ->
+  ( ThreeWay (DefnsF Set TermReferenceId TypeReferenceId) ->
     m
       ( Defns
           (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
           (Map TypeReferenceId (Decl Symbol Ann))
       )
   ) ->
-  (ThreeWay (DefnsF Set Referent TypeReference) -> m (ThreeWay Names)) ->
+  (ThreeWay (Set LabeledDependency) -> m (ThreeWay Names)) ->
   ThreeWay UnconflictedLocalDefnsView ->
   ThreeWay (Map NameSegment libdep) ->
   GThreeWay PartialDeclNameLookup DeclNameLookup ->
@@ -114,14 +120,25 @@ makeDiffblob logger hydrate loadNames defns libdeps declNameLookups = do
   let narrowedDefns =
         narrowDefns declNameLookups defnsByName
 
+  let narrowedDefns3 =
+        TwoWay.updatedToThreeWay narrowedDefns
+
+  let narrowedDefnsIds3 =
+        toIds <$> narrowedDefns3
+
   logger.logNarrowedDefns narrowedDefns
 
   -- Hydrate only the narrowed definitions
   hydratedNarrowedDefns <-
-    hydrate (foldMap (Updated.foldMap toIds) narrowedDefns)
+    hydrate narrowedDefnsIds3
 
+  -- Load the names of all dependencies hydrated definitions
   dependencyNames <-
-    loadNames (bimap Map.elemsSet Map.elemsSet <$> TwoWay.updatedToThreeWay narrowedDefns)
+    let hydratedNarrowedDefnsList = bimap Map.toList Map.toList hydratedNarrowedDefns
+        f refs = List.filter (\(ref, _) -> Set.member ref refs)
+     in loadNames $
+          (\defns -> toLabeledDependencies (zipDefnsWith f f defns hydratedNarrowedDefnsList))
+            <$> narrowedDefnsIds3
 
   -- Compute the syntactic hashes of the narrowed+hydrated definitions
   let synhashedNarrowedDefns :: TwoWay (Updated (DefnsF2 (Map Name) Synhashed Referent TypeReference))
@@ -232,3 +249,18 @@ makeSynhashedNarrowedDefns toTerm allNames declNameLookups defns hydratedDefns =
       ppeds.alice.unsuffixifiedPPE
         `PPE.addFallback` ppeds.bob.unsuffixifiedPPE
         `PPE.addFallback` ppeds.lca.unsuffixifiedPPE
+
+toLabeledDependencies ::
+  (Foldable f) =>
+  DefnsF f (TermReferenceId, (Term Symbol Ann, Type Symbol Ann)) (TypeReferenceId, Decl Symbol Ann) ->
+  Set LabeledDependency
+toLabeledDependencies defns =
+  Set.union
+    ( defns.terms & foldMap \(ref, (term, typ)) ->
+        Set.insert
+          (LabeledDependency.derivedTerm ref)
+          (Term.labeledDependencies term <> Type.labeledDependencies typ)
+    )
+    ( defns.types & foldMap \(ref, decl) ->
+        Decl.labeledDeclDependenciesIncludingSelfAndFieldAccessors (Reference.DerivedId ref) decl
+    )

@@ -10,11 +10,10 @@ module Unison.Merge.ThreeWay
   )
 where
 
-import Unison.Merge.Internal.Types (ThreeWay (..))
+import Unison.Merge.Internal.Types (GThreeWay(..), ThreeWay (..))
 import Unison.Merge.TwoOrThreeWay (TwoOrThreeWay (..))
 import Unison.Merge.TwoWay (TwoWay (..))
 import Unison.Merge.Updated (GUpdated (..), Updated)
-import Unison.Prelude
 
 forgetLca :: ThreeWay a -> TwoWay a
 forgetLca ThreeWay {alice, bob} =
@@ -27,13 +26,6 @@ toTwoOrThreeWay ThreeWay {alice, bob, lca} =
 toUpdated :: ThreeWay a -> TwoWay (Updated a)
 toUpdated =
   gtoUpdated . toG
-
-data GThreeWay a b = GThreeWay
-  { lca :: a,
-    alice :: b,
-    bob :: b
-  }
-  deriving stock (Generic)
 
 toG :: ThreeWay a -> GThreeWay a a
 toG ThreeWay {lca, alice, bob} =
