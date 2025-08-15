@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -38,7 +39,7 @@ import Data.Avro.Schema.ReadSchema qualified as ReadSchema
 import Data.Avro.Schema.Schema qualified as AvroSchema
 import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bimapM)
-import Data.Bits (shiftL, shiftR, (.|.))
+import Data.Bits (shiftL, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
@@ -66,9 +67,13 @@ import Data.Vector qualified as Vector
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
+import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Conc qualified as STM
+import GHC.Exts (Int (..), indexWord8ArrayAsWord16#, indexWord8ArrayAsWord32#, indexWord8ArrayAsWord64#, readWord8ArrayAsWord16#, readWord8ArrayAsWord32#, readWord8ArrayAsWord64#, writeWord8ArrayAsWord16#, writeWord8ArrayAsWord32#, writeWord8ArrayAsWord64#)
 import GHC.Float (double2Float, float2Double)
 import GHC.IO (IO (IO))
+import GHC.Ptr (Ptr (..))
+import GHC.Word (Word16 (W16#), Word32 (W32#), Word64 (W64#))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
     bindSock,
@@ -83,6 +88,8 @@ import Network.Socket as SYS
   ( PortNumber,
     Socket,
     accept,
+    recvBuf,
+    sendBuf,
     socketPort,
   )
 import Network.TLS as TLS
@@ -127,12 +134,15 @@ import System.IO (BufferMode (..), Handle, IOMode, SeekMode (..))
 import System.IO as SYS
   ( IOMode (..),
     hClose,
+    hGetBuf,
+    hGetBufSome,
     hGetBuffering,
     hGetChar,
     hGetEcho,
     hIsEOF,
     hIsOpen,
     hIsSeekable,
+    hPutBuf,
     hReady,
     hSeek,
     hSetBuffering,
@@ -194,6 +204,11 @@ import Unison.Util.Text (Text, fromLazyText, pack, toLazyText, unpack)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
+
+withMutableByteArrayContents :: (PA.PrimBase m) => PA.MutableByteArray (PA.PrimState m) -> (Ptr Word8 -> m a) -> m a
+{-# INLINE withMutableByteArrayContents #-}
+withMutableByteArrayContents mba =
+  PA.keepAlive (PA.mutableByteArrayContents mba)
 
 -- foreignCall is explicitly NOINLINE'd because it's a _huge_ chunk of code and negatively affects code caching.
 -- Because we're not inlining it, we need a wrapper using an explicitly unboxed Stack so we don't block the
@@ -270,6 +285,14 @@ foreignCallHelper = \case
   IO_getSomeBytes_impl_v1 -> mkForeignIOF $
     \(h, n) -> Bytes.fromArray <$> hGetSome h n
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
+  -- TODO: Use `PA.withMutableByteArrayContents` here once we have Data.Primitive v9.
+  IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr) -> let !sz = PA.sizeofMutableByteArray arr in withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr sz)
+  IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
+    r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    case r of
+      Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+      Right _ -> hPutBuf h (PA.mutableByteArrayContents arr) (fromIntegral n)
+  IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr) -> let !sz = PA.sizeofMutableByteArray arr in withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr sz)
   IO_systemTime_impl_v3 -> mkForeignIOF $
     \() -> getPOSIXTime
   IO_systemTimeMicroseconds_v1 -> mkForeign $
@@ -355,6 +378,18 @@ foreignCallHelper = \case
   IO_socketReceive_impl_v3 -> mkForeignIOF $
     \(hs, n) ->
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
+  IO_socketSendBuf_impl_v1 -> mkForeignIOF $
+    \(sk, buf, n) -> do
+      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      case r of
+        Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
+  IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
+    \(sk, buf, n) -> do
+      r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      case r of
+        Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
   IO_kill_impl_v3 -> mkForeignIOF killThread
   IO_delay_impl_v3 -> mkForeignIOF customDelay
   IO_stdHandle -> mkForeign $
@@ -710,19 +745,34 @@ foreignCallHelper = \case
       checkedRead8 "MutableByteArray.read8"
   MutableByteArray_read16be ->
     mkForeignExn $
-      checkedRead16 "MutableByteArray.read16be"
+      checkedRead16 BigEndian "MutableByteArray.read16be"
   MutableByteArray_read24be ->
     mkForeignExn $
-      checkedRead24 "MutableByteArray.read24be"
+      checkedRead24 BigEndian "MutableByteArray.read24be"
   MutableByteArray_read32be ->
     mkForeignExn $
-      checkedRead32 "MutableByteArray.read32be"
+      checkedRead32 BigEndian "MutableByteArray.read32be"
   MutableByteArray_read40be ->
     mkForeignExn $
-      checkedRead40 "MutableByteArray.read40be"
+      checkedRead40 BigEndian "MutableByteArray.read40be"
   MutableByteArray_read64be ->
     mkForeignExn $
-      checkedRead64 "MutableByteArray.read64be"
+      checkedRead64 BigEndian "MutableByteArray.read64be"
+  MutableByteArray_read16le ->
+    mkForeignExn $
+      checkedRead16 LittleEndian "MutableByteArray.read16le"
+  MutableByteArray_read24le ->
+    mkForeignExn $
+      checkedRead24 LittleEndian "MutableByteArray.read24le"
+  MutableByteArray_read32le ->
+    mkForeignExn $
+      checkedRead32 LittleEndian "MutableByteArray.read32le"
+  MutableByteArray_read40le ->
+    mkForeignExn $
+      checkedRead40 LittleEndian "MutableByteArray.read40le"
+  MutableByteArray_read64le ->
+    mkForeignExn $
+      checkedRead64 LittleEndian "MutableByteArray.read64le"
   MutableArray_write ->
     mkForeignExn $
       checkedWrite "MutableArray.write"
@@ -731,13 +781,22 @@ foreignCallHelper = \case
       checkedWrite8 "MutableByteArray.write8"
   MutableByteArray_write16be ->
     mkForeignExn $
-      checkedWrite16 "MutableByteArray.write16be"
+      checkedWrite16 BigEndian "MutableByteArray.write16be"
   MutableByteArray_write32be ->
     mkForeignExn $
-      checkedWrite32 "MutableByteArray.write32be"
+      checkedWrite32 BigEndian "MutableByteArray.write32be"
   MutableByteArray_write64be ->
     mkForeignExn $
-      checkedWrite64 "MutableByteArray.write64be"
+      checkedWrite64 BigEndian "MutableByteArray.write64be"
+  MutableByteArray_write16le ->
+    mkForeignExn $
+      checkedWrite16 LittleEndian "MutableByteArray.write16le"
+  MutableByteArray_write32le ->
+    mkForeignExn $
+      checkedWrite32 LittleEndian "MutableByteArray.write32le"
+  MutableByteArray_write64le ->
+    mkForeignExn $
+      checkedWrite64 LittleEndian "MutableByteArray.write64le"
   ImmutableArray_read ->
     mkForeignExn $
       checkedIndex "ImmutableArray.read"
@@ -746,22 +805,36 @@ foreignCallHelper = \case
       checkedIndex8 "ImmutableByteArray.read8"
   ImmutableByteArray_read16be ->
     mkForeignExn $
-      checkedIndex16 "ImmutableByteArray.read16be"
+      checkedIndex16 BigEndian "ImmutableByteArray.read16be"
   ImmutableByteArray_read24be ->
     mkForeignExn $
-      checkedIndex24 "ImmutableByteArray.read24be"
+      checkedIndex24 BigEndian "ImmutableByteArray.read24be"
   ImmutableByteArray_read32be ->
     mkForeignExn $
-      checkedIndex32 "ImmutableByteArray.read32be"
+      checkedIndex32 BigEndian "ImmutableByteArray.read32be"
   ImmutableByteArray_read40be ->
     mkForeignExn $
-      checkedIndex40 "ImmutableByteArray.read40be"
+      checkedIndex40 BigEndian "ImmutableByteArray.read40be"
   ImmutableByteArray_read64be ->
     mkForeignExn $
-      checkedIndex64 "ImmutableByteArray.read64be"
+      checkedIndex64 BigEndian "ImmutableByteArray.read64be"
+  ImmutableByteArray_read16le ->
+    mkForeignExn $
+      checkedIndex16 LittleEndian "ImmutableByteArray.read16le"
+  ImmutableByteArray_read24le ->
+    mkForeignExn $
+      checkedIndex24 LittleEndian "ImmutableByteArray.read24le"
+  ImmutableByteArray_read32le ->
+    mkForeignExn $
+      checkedIndex32 LittleEndian "ImmutableByteArray.read32le"
+  ImmutableByteArray_read40le ->
+    mkForeignExn $
+      checkedIndex40 LittleEndian "ImmutableByteArray.read40le"
+  ImmutableByteArray_read64le ->
+    mkForeignExn $
+      checkedIndex64 LittleEndian "ImmutableByteArray.read64le"
   MutableByteArray_freeze_force ->
-    mkForeign $
-      PA.unsafeFreezeByteArray
+    mkForeign PA.unsafeFreezeByteArray
   MutableArray_freeze_force ->
     mkForeign $
       PA.unsafeFreezeArray @IO @Val
@@ -805,6 +878,7 @@ foreignCallHelper = \case
           $ Right
           $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
   ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
+  PinnedByteArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   IO_arrayOf -> mkForeign $
@@ -815,6 +889,12 @@ foreignCallHelper = \case
       arr <- PA.newByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
+  IO_pinnedByteArray -> mkForeign $ PA.newPinnedByteArray
+  IO_pinnedByteArrayOf -> mkForeign $
+    \(init, sz) -> do
+      arr <- PA.newPinnedByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
   Scope_array -> mkForeign $
     \n -> PA.newArray n emptyVal
   Scope_arrayOf -> mkForeign $
@@ -823,6 +903,12 @@ foreignCallHelper = \case
   Scope_bytearrayOf -> mkForeign $
     \(init, sz) -> do
       arr <- PA.newByteArray sz
+      PA.fillByteArray arr 0 sz init
+      pure arr
+  Scope_pinnedByteArray -> mkForeign $ PA.newPinnedByteArray
+  Scope_pinnedByteArrayOf -> mkForeign $
+    \(init, sz) -> do
+      arr <- PA.newPinnedByteArray sz
       PA.fillByteArray arr 0 sz init
       pure arr
   Text_patterns_literal -> mkForeign $
@@ -1244,105 +1330,107 @@ checkedIndex name (arr, w) =
 checkedRead8 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
 checkedRead8 name (arr, i) =
   checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $
-    (Right . fromIntegral) <$> PA.readByteArray @Word8 arr j
+    Right . fromIntegral <$> PA.readByteArray @Word8 arr j
   where
     j = fromIntegral i
 
-checkedRead16 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead16 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $
-    mk16
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-  where
-    j = fromIntegral i
+uncheckedRead16 ::
+  ByteOrder -> -- desired byte order
+  PA.MutableByteArray RW ->
+  Int -> -- byte offset
+  IO Word16
+uncheckedRead16 byteOrder arr off = do
+  let fixEndianness :: Word16 -> Word16
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap16 w
+  w <- PA.primitive $ \s0 ->
+    case arr of
+      PA.MutableByteArray mba# ->
+        case off of
+          I# off# ->
+            case readWord8ArrayAsWord16# mba# off# s0 of
+              (# s1, w16# #) -> (# s1, W16# w16# #)
+  pure (fixEndianness w)
 
-checkedRead24 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead24 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 3 $
-    mk24
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-  where
-    j = fromIntegral i
+checkedRead16 ::
+  ByteOrder -> -- desired byte order
+  Text ->
+  (PA.MutableByteArray RW, Word64) -> -- (array, byte offset)
+  IO (Either Failure Word64)
+checkedRead16 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedRead16 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
-checkedRead32 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead32 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $
-    mk32
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-      <*> PA.readByteArray @Word8 arr (j + 3)
-  where
-    j = fromIntegral i
+checkedRead24 ::
+  ByteOrder ->
+  Text ->
+  (PA.MutableByteArray RW, Word64) ->
+  IO (Either Failure Word64)
+checkedRead24 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 3 $ do
+    let !off = fromIntegral iW :: Int
+    w16 <- uncheckedRead16 byteOrder arr off
+    w8 <- PA.readByteArray @Word8 arr (off + 2)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w16 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 16) .|. fromIntegral w16
+    pure $ Right result
 
-checkedRead40 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead40 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 6 $
-    mk40
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-      <*> PA.readByteArray @Word8 arr (j + 3)
-      <*> PA.readByteArray @Word8 arr (j + 4)
-  where
-    j = fromIntegral i
+uncheckedRead32 ::
+  ByteOrder -> -- desired byte order
+  PA.MutableByteArray RW ->
+  Int -> -- byte offset
+  IO Word32
+uncheckedRead32 byteOrder arr off = do
+  let fixEndianness :: Word32 -> Word32
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap32 w
+  w <- PA.primitive $ \s0 ->
+    case arr of
+      PA.MutableByteArray mba# ->
+        case off of
+          I# off# ->
+            case readWord8ArrayAsWord32# mba# off# s0 of
+              (# s1, w32# #) -> (# s1, W32# w32# #)
+  pure (fixEndianness w)
 
-checkedRead64 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead64 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $
-    mk64
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-      <*> PA.readByteArray @Word8 arr (j + 3)
-      <*> PA.readByteArray @Word8 arr (j + 4)
-      <*> PA.readByteArray @Word8 arr (j + 5)
-      <*> PA.readByteArray @Word8 arr (j + 6)
-      <*> PA.readByteArray @Word8 arr (j + 7)
-  where
-    j = fromIntegral i
+checkedRead32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead32 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedRead32 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
-mk16 :: Word8 -> Word8 -> Either Failure Word64
-mk16 b0 b1 = Right $ (fromIntegral b0 `shiftL` 8) .|. (fromIntegral b1)
+checkedRead40 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead40 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 5 $ do
+    let !off = fromIntegral iW :: Int
+    w32 <- uncheckedRead32 byteOrder arr off
+    w8 <- PA.readByteArray @Word8 arr (off + 4)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w32 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 32) .|. fromIntegral w32
+    pure $ Right result
 
-mk24 :: Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk24 b0 b1 b2 =
-  Right $
-    (fromIntegral b0 `shiftL` 16)
-      .|. (fromIntegral b1 `shiftL` 8)
-      .|. (fromIntegral b2)
-
-mk32 :: Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk32 b0 b1 b2 b3 =
-  Right $
-    (fromIntegral b0 `shiftL` 24)
-      .|. (fromIntegral b1 `shiftL` 16)
-      .|. (fromIntegral b2 `shiftL` 8)
-      .|. (fromIntegral b3)
-
-mk40 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk40 b0 b1 b2 b3 b4 =
-  Right $
-    (fromIntegral b0 `shiftL` 32)
-      .|. (fromIntegral b1 `shiftL` 24)
-      .|. (fromIntegral b2 `shiftL` 16)
-      .|. (fromIntegral b3 `shiftL` 8)
-      .|. (fromIntegral b4)
-
-mk64 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk64 b0 b1 b2 b3 b4 b5 b6 b7 =
-  Right $
-    (fromIntegral b0 `shiftL` 56)
-      .|. (fromIntegral b1 `shiftL` 48)
-      .|. (fromIntegral b2 `shiftL` 40)
-      .|. (fromIntegral b3 `shiftL` 32)
-      .|. (fromIntegral b4 `shiftL` 24)
-      .|. (fromIntegral b5 `shiftL` 16)
-      .|. (fromIntegral b6 `shiftL` 8)
-      .|. (fromIntegral b7)
+checkedRead64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead64 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
+    let !off = fromIntegral i :: Int
+        fixEndianness :: Word64 -> Word64
+        fixEndianness w =
+          if targetByteOrder == byteOrder then w else byteSwap64 w
+    w <- PA.primitive $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case readWord8ArrayAsWord64# mba# off# s0 of
+                (# s1, w64# #) -> (# s1, W64# w64# #)
+    pure $ Right (fromIntegral (fixEndianness w))
 
 checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
 checkedWrite8 name (arr, i, v) =
@@ -1352,40 +1440,59 @@ checkedWrite8 name (arr, i, v) =
   where
     j = fromIntegral i
 
-checkedWrite16 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite16 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $ do
-    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 8 :: Word8)
-    PA.writeByteArray arr (j + 1) (fromIntegral v :: Word8)
+checkedWrite16 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite16 byteOrder name (arr, iW, v0) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+        !vBE =
+          if targetByteOrder == byteOrder
+            then fromIntegral v0 :: Word16
+            else byteSwap16 (fromIntegral v0 :: Word16)
+    PA.primitive_ $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case vBE of
+                W16# w# ->
+                  writeWord8ArrayAsWord16# mba# off# w# s0
     pure (Right ())
-  where
-    j = fromIntegral i
 
-checkedWrite32 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite32 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $ do
-    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 24 :: Word8)
-    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 16 :: Word8)
-    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 8 :: Word8)
-    PA.writeByteArray arr (j + 3) (fromIntegral v :: Word8)
+checkedWrite32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite32 byteOrder name (arr, iW, v0) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+        !vBE =
+          if targetByteOrder == byteOrder
+            then fromIntegral v0 :: Word32
+            else byteSwap32 (fromIntegral v0 :: Word32)
+    PA.primitive_ $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case vBE of
+                W32# w# ->
+                  writeWord8ArrayAsWord32# mba# off# w# s0
     pure (Right ())
-  where
-    j = fromIntegral i
 
-checkedWrite64 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite64 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
-    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 56 :: Word8)
-    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 48 :: Word8)
-    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 40 :: Word8)
-    PA.writeByteArray arr (j + 3) (fromIntegral $ v `shiftR` 32 :: Word8)
-    PA.writeByteArray arr (j + 4) (fromIntegral $ v `shiftR` 24 :: Word8)
-    PA.writeByteArray arr (j + 5) (fromIntegral $ v `shiftR` 16 :: Word8)
-    PA.writeByteArray arr (j + 6) (fromIntegral $ v `shiftR` 8 :: Word8)
-    PA.writeByteArray arr (j + 7) (fromIntegral v :: Word8)
+checkedWrite64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite64 byteOrder name (arr, iW, v0) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 8 $ do
+    let !off = fromIntegral iW :: Int
+        !vBE =
+          if targetByteOrder == byteOrder
+            then fromIntegral v0 :: Word64
+            else byteSwap64 (fromIntegral v0 :: Word64)
+    PA.primitive_ $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case vBE of
+                W64# w# ->
+                  writeWord8ArrayAsWord64# mba# off# w# s0
     pure (Right ())
-  where
-    j = fromIntegral i
 
 -- index single byte
 checkedIndex8 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
@@ -1394,60 +1501,94 @@ checkedIndex8 name (arr, i) =
     let j = fromIntegral i
      in Right . fromIntegral $ PA.indexByteArray @Word8 arr j
 
+uncheckedIndex16 ::
+  ByteOrder -> -- desired byte order
+  PA.ByteArray ->
+  Int -> -- byte offset
+  IO Word16
+uncheckedIndex16 byteOrder arr off = do
+  let fixEndianness :: Word16 -> Word16
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap16 w
+  let w = case arr of
+        PA.ByteArray ba# ->
+          case off of
+            I# off# ->
+              W16# (indexWord8ArrayAsWord16# ba# off#)
+  pure (fixEndianness w)
+
 -- index 16 big-endian
-checkedIndex16 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex16 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 2 . pure $
-    let j = fromIntegral i
-     in mk16 (PA.indexByteArray arr j) (PA.indexByteArray arr (j + 1))
+checkedIndex16 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex16 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedIndex16 byteOrder arr off
+    pure $ Right (fromIntegral w)
+
+-- index 24 big-endian
+checkedIndex24 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex24 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 $ do
+    let !off = fromIntegral i :: Int
+    w16 <- uncheckedIndex16 byteOrder arr off
+    let w8 = PA.indexByteArray @Word8 arr (off + 2)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w16 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 16) .|. fromIntegral w16
+    pure $ Right result
+
+uncheckedIndex32 ::
+  ByteOrder -> -- desired byte order
+  PA.ByteArray ->
+  Int -> -- byte offset
+  IO Word32
+uncheckedIndex32 byteOrder arr off = do
+  let fixEndianness :: Word32 -> Word32
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap32 w
+  let w = case arr of
+        PA.ByteArray ba# ->
+          case off of
+            I# off# ->
+              W32# (indexWord8ArrayAsWord32# ba# off#)
+  pure (fixEndianness w)
 
 -- index 32 big-endian
-checkedIndex24 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex24 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 . pure $
-    let j = fromIntegral i
-     in mk24
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-
--- index 32 big-endian
-checkedIndex32 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex32 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 4 . pure $
-    let j = fromIntegral i
-     in mk32
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
+checkedIndex32 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex32 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedIndex32 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
 -- index 40 big-endian
-checkedIndex40 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex40 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 . pure $
-    let j = fromIntegral i
-     in mk40
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
-          (PA.indexByteArray arr (j + 4))
+checkedIndex40 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex40 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 $ do
+    let !off = fromIntegral i :: Int
+    w32 <- uncheckedIndex32 byteOrder arr off
+    let w8 = PA.indexByteArray @Word8 arr (off + 4)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w32 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 32) .|. fromIntegral w32
+    pure $ Right result
 
 -- index 64 big-endian
-checkedIndex64 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex64 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 . pure $
-    let j = fromIntegral i
-     in mk64
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
-          (PA.indexByteArray arr (j + 4))
-          (PA.indexByteArray arr (j + 5))
-          (PA.indexByteArray arr (j + 6))
-          (PA.indexByteArray arr (j + 7))
+checkedIndex64 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex64 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 $ do
+    let !off = fromIntegral i :: Int
+        fixEndianness :: Word64 -> Word64
+        fixEndianness w =
+          if targetByteOrder == byteOrder then w else byteSwap64 w
+    let w = case arr of
+          PA.ByteArray ba# ->
+            case off of
+              I# off# ->
+                W64# (indexWord8ArrayAsWord64# ba# off#)
+    pure $ Right (fromIntegral (fixEndianness w))
 
 -- JSON replacement implementations
 jsonNull, jsonTrue, jsonFalse :: Val

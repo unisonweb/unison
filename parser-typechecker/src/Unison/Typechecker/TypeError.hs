@@ -44,6 +44,11 @@ data TypeError v loc
         mismatchSite :: C.Term v loc,
         note :: C.ErrorNote v loc
       }
+  | ActionRestrictionFailure
+      { foundType :: C.Type v loc,
+        mismatchSite :: C.Term v loc,
+        note :: C.ErrorNote v loc
+      }
   | FunctionApplication
       { f :: C.Term v loc,
         ft :: C.Type v loc,
@@ -143,6 +148,7 @@ allErrors =
     [ and,
       or,
       cond,
+      actionRestriction,
       matchGuard,
       ifBody,
       listBody,
@@ -346,6 +352,19 @@ existentialMismatch0 em getExpectedLoc = do
       mismatchSite
       -- todo : save type leaves too
       n
+
+actionRestriction ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+actionRestriction = do
+  Ex.unique Ex.inActionRestriction
+  note <- Ex.errorNote
+  mismatchSite <- Ex.innermostTerm
+  path <- Ex.path
+  let subtypes = [t1 | C.InSubtype t1 _ <- path]
+  guard . not $ null subtypes
+  let foundType = Type.cleanup $ last subtypes
+  pure $ ActionRestrictionFailure foundType mismatchSite note
 
 ifBody,
   listBody,

@@ -285,6 +285,8 @@ analyseNotes fileUri ppe src notes = do
               TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
               TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+              TypeError.ActionRestrictionFailure {mismatchSite} ->
+                singleRange $ ABT.annotation mismatchSite
               TypeError.AbilityEqFailureFromAp {expectedSite, mismatchSite} -> do
                 let locs = [ABT.annotation expectedSite, ABT.annotation mismatchSite]
                 (r, rs) <- withNeighbours (locs >>= aToR)
