@@ -21,10 +21,9 @@ import System.Console.Haskeline.History qualified as Line
 import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
-import Unison.Auth.CredentialManager (newCredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
-import Unison.Auth.Tokens qualified as AuthN
+import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Pretty qualified as P
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
@@ -143,10 +142,12 @@ main ::
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
+main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion authHTTPClient credentialManager lspCheckForChanges shouldWatchFiles = do
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
   let config = FSNotify.defaultConfig
@@ -175,9 +176,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
       initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
       pageOutput <- newIORef True
 
-      credentialManager <- newCredentialManager
-      let tokenProvider = AuthN.newTokenProvider credentialManager
-      authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
       initialEcho <- hGetEcho stdin
       let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
       let getInput :: Cli.LoopState -> IO Input
