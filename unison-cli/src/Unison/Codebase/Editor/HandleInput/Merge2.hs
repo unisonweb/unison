@@ -18,7 +18,6 @@ where
 import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Data.Algorithm.Diff qualified as Diff
-import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
