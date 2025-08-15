@@ -207,8 +207,8 @@ import UnliftIO qualified
 
 withMutableByteArrayContents :: (PA.PrimBase m) => PA.MutableByteArray (PA.PrimState m) -> (Ptr Word8 -> m a) -> m a
 {-# INLINE withMutableByteArrayContents #-}
-withMutableByteArrayContents mba =
-  PA.keepAlive (PA.mutableByteArrayContents mba)
+withMutableByteArrayContents mba f =
+  PA.keepAlive mba (f . PA.mutableByteArrayContents)
 
 -- foreignCall is explicitly NOINLINE'd because it's a _huge_ chunk of code and negatively affects code caching.
 -- Because we're not inlining it, we need a wrapper using an explicitly unboxed Stack so we don't block the
@@ -286,13 +286,21 @@ foreignCallHelper = \case
     \(h, n) -> Bytes.fromArray <$> hGetSome h n
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
   -- TODO: Use `PA.withMutableByteArrayContents` here once we have Data.Primitive v9.
-  IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr) -> let !sz = PA.sizeofMutableByteArray arr in withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr sz)
+  IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
+    r <- checkBoundsPrim "IO.fillBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    case r of
+      Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
   IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
     r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> hPutBuf h (PA.mutableByteArrayContents arr) (fromIntegral n)
-  IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr) -> let !sz = PA.sizeofMutableByteArray arr in withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr sz)
+      Right _ -> withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
+  IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
+    r <- checkBoundsPrim "IO.getBufSome.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    case r of
+      Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
   IO_systemTime_impl_v3 -> mkForeignIOF $
     \() -> getPOSIXTime
   IO_systemTimeMicroseconds_v1 -> mkForeign $
