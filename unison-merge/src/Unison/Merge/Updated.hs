@@ -7,6 +7,7 @@ module Unison.Merge.Updated
     fromPair,
     Unison.Merge.Updated.map,
     sequenceDefns,
+    toPair,
     Unison.Merge.Updated.traverse,
     Unison.Merge.Updated.unzip,
     unzipWith,
@@ -52,6 +53,10 @@ map f =
 sequenceDefns :: Updated (Defns terms types) -> Defns (Updated terms) (Updated types)
 sequenceDefns (Updated (Defns oldTerms oldTypes) (Defns newTerms newTypes)) =
   Defns (Updated oldTerms newTerms) (Updated oldTypes newTypes)
+
+toPair :: GUpdated a b -> (a, b)
+toPair (Updated x y) =
+  (x, y)
 
 traverse :: (Applicative f) => (a -> f b) -> Updated a -> f (Updated b)
 traverse f =

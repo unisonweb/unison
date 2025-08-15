@@ -16,9 +16,8 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LabeledDependency
 import Unison.Merge.CombineDiffs (CombinedDiffOp, combineDiffs)
-import Unison.Merge.Diff (diffSynhashedDefns, humanizeDiffs)
+import Unison.Merge.Diff (diffSynhashedDefns)
 import Unison.Merge.DiffOp (DiffOp)
-import Unison.Merge.HumanDiffOp (HumanDiffOp)
 import Unison.Merge.Libdeps (applyLibdepsDiff, diffLibdeps, getTwoFreshLibdepNames, mergeLibdepsDiffs)
 import Unison.Merge.Narrow (narrowDefns)
 import Unison.Merge.PartitionCombinedDiffs (partitionCombinedDiffs)
@@ -63,7 +62,6 @@ data Diffblob libdep = Diffblob
     defnsIds :: ThreeWay (DefnsF Set TermReferenceId TypeReferenceId),
     diff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference,
     diffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference),
-    humanDiffsFromLCA :: TwoWay (DefnsF2 (Map Name) HumanDiffOp Referent TypeReference),
     -- Hydrated narrowed definitions. These are not necessarily all of the definitions needed for actually rendering
     -- a file, e.g. it doesn't contain dependents. It's included here because we did some work to hydrate these, and if
     -- we need to hydrate more *later*, we ought to look in this map first (to save duplicate work).
@@ -72,6 +70,7 @@ data Diffblob libdep = Diffblob
         (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
         (Map TypeReferenceId (Decl Symbol Ann)),
     libdeps :: Updated (Map NameSegment libdep),
+    libdepsDiffs :: TwoWay (Map NameSegment (DiffOp libdep)),
     propagatedUpdates :: TwoWay (DefnsF (Map Name) (Updated Referent) (Updated TypeReference)),
     simpleRenames :: TwoWay (Defns SimpleRenames SimpleRenames),
     unconflicts :: DefnsF Unconflicts Referent TypeReference
@@ -173,21 +172,21 @@ makeDiffblob logger hydrate loadNames defns libdeps declNameLookups = do
 
   logger.logDiff diff
 
-  -- "Humanize" diffs... this is a bit of tech debt, to remove once we better-represent (& apply) renames
-  let humanDiffsFromLCA =
-        humanizeDiffs dependencyNames diffsFromLCA propagatedUpdates
-
   -- Partition the combined diff into the conflicted things and the unconflicted things
   let (conflicts, unconflicts) =
         partitionCombinedDiffs ((.defns) <$> ThreeWay.forgetLca defns) (ThreeWay.gforgetLca declNameLookups) diff
 
   -- Diff and merge libdeps
+  let libdepsDiffs :: TwoWay (Map NameSegment (DiffOp libdep))
+      libdepsDiffs =
+        diffLibdeps libdeps
+
   let mergedLibdeps :: Map NameSegment libdep
       mergedLibdeps =
         applyLibdepsDiff
           getTwoFreshLibdepNames
           libdeps
-          (mergeLibdepsDiffs (diffLibdeps libdeps))
+          (mergeLibdepsDiffs libdepsDiffs)
 
   pure
     Diffblob
@@ -198,7 +197,7 @@ makeDiffblob logger hydrate loadNames defns libdeps declNameLookups = do
         diff,
         diffsFromLCA,
         libdeps = Updated {old = libdeps.lca, new = mergedLibdeps},
-        humanDiffsFromLCA,
+        libdepsDiffs,
         hydratedNarrowedDefns,
         propagatedUpdates,
         simpleRenames,

@@ -13,7 +13,6 @@ module Unison.Merge
     EitherWayI (..),
     GThreeWay (..),
     GUpdated (..),
-    HumanDiffOp (..),
     LibdepDiffOp (..),
     Rename (..),
     SimpleRenames (..),
@@ -32,7 +31,6 @@ import Unison.Merge.DiffOp (DiffOp (..))
 import Unison.Merge.Diffblob (Diffblob (..), DiffblobLog (..), makeDiffblob)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
-import Unison.Merge.HumanDiffOp (HumanDiffOp (..))
 import Unison.Merge.Libdeps (LibdepDiffOp (..))
 import Unison.Merge.Mergeblob (Mergeblob (..), MergeblobError (..), makeMergeblob)
 import Unison.Merge.Rename (Rename (..), SimpleRenames (..))

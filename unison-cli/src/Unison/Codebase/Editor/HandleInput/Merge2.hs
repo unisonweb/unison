@@ -624,7 +624,6 @@ data DebugFunctions = DebugFunctions
     debugDefns :: Merge.ThreeWay (DefnsF (Map Name) Referent TypeReference) -> IO (),
     debugDiffs :: Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference) -> IO (),
     debugCombinedDiff :: DefnsF2 (Map Name) Merge.CombinedDiffOp Referent TypeReference -> IO (),
-    debugHumanDiffs :: Merge.TwoWay (DefnsF2 (Map Name) Merge.HumanDiffOp Referent TypeReference) -> IO (),
     debugInitialDependents ::
       Merge.TwoWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name)) ->
       Merge.TwoWay (DefnsF Set TermReferenceId TypeReferenceId) ->
@@ -649,7 +648,6 @@ realDebugFunctions =
       debugDefns = realDebugDefns,
       debugDiffs = realDebugDiffs,
       debugCombinedDiff = realDebugCombinedDiff,
-      debugHumanDiffs = realDebugHumanDiffs,
       debugInitialDependents = realDebugInitialDependents,
       debugNarrowedDefns = realDebugNarrowedDefns,
       debugPartitionedDiff = realDebugPartitionedDiff,
@@ -661,7 +659,6 @@ realDebugFunctions =
 fakeDebugFunctions :: DebugFunctions
 fakeDebugFunctions =
   DebugFunctions
-    mempty
     mempty
     mempty
     mempty
@@ -738,87 +735,6 @@ realDebugDiffs diffs = do
                 Merge.DiffOp'Add x -> go Text.green "+" x
                 Merge.DiffOp'Delete x -> go Text.red "-" x
                 Merge.DiffOp'Update x -> go Text.yellow "%" x.new
-
-realDebugHumanDiffs :: Merge.TwoWay (DefnsF2 (Map Name) Merge.HumanDiffOp Referent TypeReference) -> IO ()
-realDebugHumanDiffs diffs = do
-  Text.putStrLn (Text.bold "\n=== LCA→Alice diff (humanized) ===")
-  renderDiff diffs.alice
-  Text.putStrLn (Text.bold "\n=== LCA→Bob diff (humanized) ===")
-  renderDiff diffs.bob
-  where
-    renderDiff :: DefnsF2 (Map Name) Merge.HumanDiffOp Referent TypeReference -> IO ()
-    renderDiff diff = do
-      renderThings referentLabel Referent.toText diff.terms
-      renderThings (const "type") Reference.toText diff.types
-
-    renderThings :: (ref -> Text) -> (ref -> Text) -> Map Name (Merge.HumanDiffOp ref) -> IO ()
-    renderThings label textify things =
-      for_ (Map.toList things) \(name, op) ->
-        Text.putStrLn case op of
-          Merge.HumanDiffOp'Add x ->
-            Text.green $
-              "add "
-                <> Text.italic (label x)
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> textify x
-          Merge.HumanDiffOp'Delete x ->
-            Text.red $
-              "delete "
-                <> Text.italic (label x)
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> textify x
-          Merge.HumanDiffOp'Update x ->
-            Text.yellow $
-              "update "
-                <> Text.italic (label x.old)
-                <> " "
-                <> Name.toText name
-                <> "\n  "
-                <> textify x.old
-                <> "\n  → "
-                <> textify x.new
-          Merge.HumanDiffOp'PropagatedUpdate x ->
-            Text.brightBlack $
-              "update (propagated) "
-                <> Text.italic (label x.old)
-                <> " "
-                <> Name.toText name
-                <> "\n  "
-                <> textify x.old
-                <> "\n  → "
-                <> textify x.new
-          Merge.HumanDiffOp'AliasOf x _ ->
-            Text.brightBlack $
-              "add (alias) "
-                <> Text.italic (label x)
-                <> " "
-                <> Name.toText name
-                <> " "
-                <> textify x
-          Merge.HumanDiffOp'RenamedFrom x oldNames ->
-            Text.magenta $
-              "rename "
-                <> Text.italic (label x)
-                <> " "
-                <> textify x
-                <> "\n  "
-                <> Name.toText name
-                <> " ← "
-                <> Text.unwords (map Name.toText (Foldable.toList oldNames))
-          Merge.HumanDiffOp'RenamedTo x newNames ->
-            Text.magenta $
-              "rename "
-                <> Text.italic (label x)
-                <> " "
-                <> textify x
-                <> "\n  "
-                <> Name.toText name
-                <> " → "
-                <> Text.unwords (map Name.toText (Foldable.toList newNames))
 
 realDebugCombinedDiff :: DefnsF2 (Map Name) Merge.CombinedDiffOp Referent TypeReference -> IO ()
 realDebugCombinedDiff diff = do
