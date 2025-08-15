@@ -1211,12 +1211,20 @@ declareForeigns = do
   declareForeign Untracked 2 MutableByteArray_read32be
   declareForeign Untracked 2 MutableByteArray_read40be
   declareForeign Untracked 2 MutableByteArray_read64be
+  declareForeign Untracked 2 MutableByteArray_read16le
+  declareForeign Untracked 2 MutableByteArray_read24le
+  declareForeign Untracked 2 MutableByteArray_read32le
+  declareForeign Untracked 2 MutableByteArray_read40le
+  declareForeign Untracked 2 MutableByteArray_read64le
 
   declareForeign Untracked 3 MutableArray_write
   declareForeign Untracked 3 MutableByteArray_write8
   declareForeign Untracked 3 MutableByteArray_write16be
   declareForeign Untracked 3 MutableByteArray_write32be
   declareForeign Untracked 3 MutableByteArray_write64be
+  declareForeign Untracked 3 MutableByteArray_write16le
+  declareForeign Untracked 3 MutableByteArray_write32le
+  declareForeign Untracked 3 MutableByteArray_write64le
 
   declareForeign Untracked 2 ImmutableArray_read
   declareForeign Untracked 2 ImmutableByteArray_read8
@@ -1225,6 +1233,11 @@ declareForeigns = do
   declareForeign Untracked 2 ImmutableByteArray_read32be
   declareForeign Untracked 2 ImmutableByteArray_read40be
   declareForeign Untracked 2 ImmutableByteArray_read64be
+  declareForeign Untracked 2 ImmutableByteArray_read16le
+  declareForeign Untracked 2 ImmutableByteArray_read24le
+  declareForeign Untracked 2 ImmutableByteArray_read32le
+  declareForeign Untracked 2 ImmutableByteArray_read40le
+  declareForeign Untracked 2 ImmutableByteArray_read64le
 
   declareForeign Untracked 1 MutableByteArray_freeze_force
   declareForeign Untracked 1 MutableArray_freeze_force

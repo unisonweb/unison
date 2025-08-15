@@ -195,11 +195,19 @@ data ForeignFunc
   | MutableByteArray_read32be
   | MutableByteArray_read40be
   | MutableByteArray_read64be
+  | MutableByteArray_read16le
+  | MutableByteArray_read24le
+  | MutableByteArray_read32le
+  | MutableByteArray_read40le
+  | MutableByteArray_read64le
   | MutableArray_write
   | MutableByteArray_write8
   | MutableByteArray_write16be
   | MutableByteArray_write32be
   | MutableByteArray_write64be
+  | MutableByteArray_write16le
+  | MutableByteArray_write32le
+  | MutableByteArray_write64le
   | ImmutableArray_read
   | ImmutableByteArray_read8
   | ImmutableByteArray_read16be
@@ -207,6 +215,11 @@ data ForeignFunc
   | ImmutableByteArray_read32be
   | ImmutableByteArray_read40be
   | ImmutableByteArray_read64be
+  | ImmutableByteArray_read16le
+  | ImmutableByteArray_read24le
+  | ImmutableByteArray_read32le
+  | ImmutableByteArray_read40le
+  | ImmutableByteArray_read64le
   | MutableByteArray_freeze_force
   | MutableArray_freeze_force
   | MutableByteArray_freeze
@@ -483,11 +496,19 @@ foreignFuncBuiltinName = \case
   MutableByteArray_read32be -> "MutableByteArray.read32be"
   MutableByteArray_read40be -> "MutableByteArray.read40be"
   MutableByteArray_read64be -> "MutableByteArray.read64be"
+  MutableByteArray_read16le -> "MutableByteArray.read16le"
+  MutableByteArray_read24le -> "MutableByteArray.read24le"
+  MutableByteArray_read32le -> "MutableByteArray.read32le"
+  MutableByteArray_read40le -> "MutableByteArray.read40le"
+  MutableByteArray_read64le -> "MutableByteArray.read64le"
   MutableArray_write -> "MutableArray.write"
   MutableByteArray_write8 -> "MutableByteArray.write8"
   MutableByteArray_write16be -> "MutableByteArray.write16be"
   MutableByteArray_write32be -> "MutableByteArray.write32be"
   MutableByteArray_write64be -> "MutableByteArray.write64be"
+  MutableByteArray_write16le -> "MutableByteArray.write16le"
+  MutableByteArray_write32le -> "MutableByteArray.write32le"
+  MutableByteArray_write64le -> "MutableByteArray.write64le"
   ImmutableArray_read -> "ImmutableArray.read"
   ImmutableByteArray_read8 -> "ImmutableByteArray.read8"
   ImmutableByteArray_read16be -> "ImmutableByteArray.read16be"
@@ -495,6 +516,11 @@ foreignFuncBuiltinName = \case
   ImmutableByteArray_read32be -> "ImmutableByteArray.read32be"
   ImmutableByteArray_read40be -> "ImmutableByteArray.read40be"
   ImmutableByteArray_read64be -> "ImmutableByteArray.read64be"
+  ImmutableByteArray_read16le -> "ImmutableByteArray.read16le"
+  ImmutableByteArray_read24le -> "ImmutableByteArray.read24le"
+  ImmutableByteArray_read32le -> "ImmutableByteArray.read32le"
+  ImmutableByteArray_read40le -> "ImmutableByteArray.read40le"
+  ImmutableByteArray_read64le -> "ImmutableByteArray.read64le"
   MutableByteArray_freeze_force -> "MutableByteArray.freeze!"
   MutableArray_freeze_force -> "MutableArray.freeze!"
   MutableByteArray_freeze -> "MutableByteArray.freeze"
