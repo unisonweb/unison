@@ -8,6 +8,7 @@ import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Network.HTTP.Types qualified as Network
+import System.Environment (lookupEnv)
 import Unison.Auth.CredentialManager
 import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
@@ -15,7 +16,6 @@ import Unison.Auth.UserInfo (getUserInfo)
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
 import UnliftIO qualified
-import System.Environment (lookupEnv)
 
 -- | Given a 'CodeserverId', provide a valid 'AccessToken' for the associated host.
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.

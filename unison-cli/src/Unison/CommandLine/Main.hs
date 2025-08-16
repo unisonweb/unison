@@ -21,9 +21,9 @@ import System.Console.Haskeline.History qualified as Line
 import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
+import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
-import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Pretty qualified as P
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
