@@ -342,7 +342,7 @@ main version = do
               let ucmVersion = Version.gitDescribeWithDate version
               credMan <- liftIO $ AuthN.newCredentialManager
               authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
-              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
+              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
               Server.startServer
                 isTest
                 Backend.BackendEnv {Backend.useNamesIndex = False}
