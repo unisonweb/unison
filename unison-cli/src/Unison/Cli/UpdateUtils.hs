@@ -100,18 +100,6 @@ getNamespaceDependentsOf2 defns dependencies = do
       let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
 
--- -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
--- -- (transitive) dependents of the dependencies.
--- getNamespaceDependentsOf3 ::
---   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
---   DefnsF Set TermReference TypeReference ->
---   Transaction (DefnsF Set TermReferenceId TypeReferenceId)
--- getNamespaceDependentsOf3 defns dependencies = do
---   let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
---   let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
---   let scope = bifoldMap toTermScope toTypeScope defns
---   Operations.transitiveDependentsWithinScope scope (bifold dependencies)
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Hydrating definitions
 
