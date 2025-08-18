@@ -1725,6 +1725,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   477.  -- ##IO.fillBuf.impl.v1
         builtin.io2.IO.fillBuf.impl : Handle
         -> PinnedByteArray g
+        -> Nat
         ->{IO} Either Failure Nat
         
   478.  -- ##IO.forkComp.v2
@@ -1741,6 +1742,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   481.  -- ##IO.getBufSome.impl.v1
         builtin.io2.IO.getBufSome.impl : Handle
         -> PinnedByteArray g
+        -> Nat
         ->{IO} Either Failure Nat
         
   482.  -- ##IO.getBytes.impl.v3
