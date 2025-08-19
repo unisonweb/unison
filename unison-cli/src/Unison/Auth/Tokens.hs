@@ -8,6 +8,7 @@ import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Network.HTTP.Types qualified as Network
+import System.Environment (lookupEnv)
 import Unison.Auth.CredentialManager
 import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
@@ -20,21 +21,34 @@ import UnliftIO qualified
 -- The TokenProvider may automatically refresh access tokens if we have a refresh token.
 type TokenProvider = CodeserverId -> IO (Either CredentialFailure AccessToken)
 
+-- | If provided, this access token will be used on all
+-- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
+--
+-- It's useful in scripted contexts or when running transcripts against a codeserver.
+accessTokenEnvVarKey :: String
+accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
+
 -- | Creates a 'TokenProvider' using the given 'CredentialManager'
 newTokenProvider :: CredentialManager -> TokenProvider
 newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
-  creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
-  let Tokens {accessToken = currentAccessToken} = tokens
-  expired <- isExpired creds
-  if expired
-    then do
-      discoveryDoc <- throwEitherM $ fetchDiscoveryDoc discoveryURI
-      fetchTime <- getCurrentTime
-      newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ performTokenRefresh discoveryDoc tokens
-      userInfo <- throwEitherM $ getUserInfo discoveryDoc newAccessToken
-      saveCredentials manager host (codeserverCredentials discoveryURI newTokens fetchTime userInfo)
-      pure $ newAccessToken
-    else pure currentAccessToken
+  mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
+  case mayShareAccessToken of
+    Just accessToken -> do
+      -- If the access token is provided via environment variable, we don't need to refresh it.
+      pure accessToken
+    Nothing -> do
+      creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
+      let Tokens {accessToken = currentAccessToken} = tokens
+      expired <- isExpired creds
+      if expired
+        then do
+          discoveryDoc <- throwEitherM $ fetchDiscoveryDoc discoveryURI
+          fetchTime <- getCurrentTime
+          newTokens@(Tokens {accessToken = newAccessToken}) <- throwEitherM $ performTokenRefresh discoveryDoc tokens
+          userInfo <- throwEitherM $ getUserInfo discoveryDoc newAccessToken
+          saveCredentials manager host (codeserverCredentials discoveryURI newTokens fetchTime userInfo)
+          pure newAccessToken
+        else pure currentAccessToken
 
 -- | Don't yet support automatically refreshing tokens.
 --
