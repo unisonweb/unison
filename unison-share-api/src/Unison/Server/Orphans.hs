@@ -391,11 +391,17 @@ instance FromHttpApiData (HQ.HashQualified Name) where
       & HQ.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name, @hash") Right
 
+instance ToHttpApiData (HQ.HashQualified Name) where
+  toQueryParam = HQ.toTextWith Name.toText
+
 instance FromHttpApiData (HQ'.HashQualified Name) where
   parseQueryParam txt =
     Text.replace "@" "#" txt
       & HQ'.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name") Right
+
+instance ToHttpApiData (HQ'.HashQualified Name) where
+  toQueryParam = HQ'.toTextWith Name.toText
 
 instance ToParamSchema (HQ.HashQualified n) where
   toParamSchema _ =
@@ -423,6 +429,9 @@ deriving via Text instance Sqlite.FromField ProjectName
 instance FromHttpApiData ProjectName where
   parseQueryParam = mapLeft tShow . tryInto @ProjectName
 
+instance ToHttpApiData ProjectName where
+  toQueryParam name = into @Text name
+
 instance ToParamSchema ProjectName where
   toParamSchema _ =
     mempty
@@ -445,6 +454,9 @@ deriving via Text instance Sqlite.FromField ProjectBranchName
 
 instance FromHttpApiData ProjectBranchName where
   parseQueryParam = mapLeft tShow . tryInto @ProjectBranchName
+
+instance ToHttpApiData ProjectBranchName where
+  toQueryParam name = into @Text name
 
 instance ToSchema ProjectBranchName
 
