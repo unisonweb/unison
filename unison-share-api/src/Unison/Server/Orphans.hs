@@ -196,8 +196,19 @@ instance ToJSON Name where
   toEncoding = toEncoding . Name.toText
   toJSON = toJSON . Name.toText
 
+instance FromJSON Name where
+  parseJSON = Aeson.withText "Name" \txt -> case Name.parseTextEither txt of
+    Left err -> fail $ "Invalid Name: " <> Text.unpack err
+    Right name -> pure name
+
 instance ToJSONKey Name where
   toJSONKey = contramap Name.toText (toJSONKey @Text)
+
+instance FromJSONKey Name where
+  fromJSONKey =
+    Aeson.FromJSONKeyTextParser \txt -> case Name.parseTextEither txt of
+      Left err -> fail $ "Invalid Name: " <> Text.unpack err
+      Right name -> pure name
 
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -207,6 +218,11 @@ instance ToJSON NameSegment where
 
 instance ToJSONKey NameSegment where
   toJSONKey = contramap NameSegment.toEscapedText (toJSONKey @Text)
+
+instance FromJSON NameSegment where
+  parseJSON = Aeson.withText "NameSegment" \txt -> case NameSegment.parseText txt of
+    Left err -> fail $ "Invalid NameSegment: " <> Text.unpack err
+    Right ns -> pure ns
 
 deriving anyclass instance ToParamSchema ShortCausalHash
 
@@ -268,6 +284,12 @@ instance ToJSON ConstructorType where
     CT.Data -> String "Data"
     CT.Effect -> String "Effect"
 
+instance FromJSON ConstructorType where
+  parseJSON = Aeson.withText "ConstructorType" \txt -> case txt of
+    "Data" -> pure CT.Data
+    "Effect" -> pure CT.Effect
+    _ -> fail $ "Invalid ConstructorType: " <> Text.unpack txt
+
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
     Left s -> Left s
@@ -297,6 +319,9 @@ instance FromHttpApiData Path.Path where
     Left s -> Left s
     Right (Path.RelativePath' p) -> Right (Path.unrelative p)
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
+instance ToHttpApiData Path.Path where
+  toUrlPiece = tShow
 
 instance ToCapture (Capture "hash" ShortHash) where
   toCapture _ =
