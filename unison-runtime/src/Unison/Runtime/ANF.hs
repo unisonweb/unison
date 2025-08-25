@@ -2340,6 +2340,9 @@ instance Referential Cont where
 
 blitLinks :: (Monoid a) => (Bool -> ref -> a) -> BLit ref -> a
 blitLinks f (List s) = foldMap (valueLinks f) s
+blitLinks f (Arr a) = foldMap (valueLinks f) a
+blitLinks f (Map m) =
+  foldMap (\(k, v) -> valueLinks f k <> valueLinks f v) m
 blitLinks _ _ = mempty
 
 instance Referential BLit where
