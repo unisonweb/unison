@@ -77,7 +77,6 @@ library
     , safe
     , text
     , these
-    , time
     , transformers
     , unliftio
     , vector

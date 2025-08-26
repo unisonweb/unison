@@ -24,7 +24,6 @@ dependencies:
   - safe
   - text
   - these
-  - time
   - transformers
   - unliftio
   - vector
