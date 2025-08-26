@@ -50,6 +50,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       NamedFieldPuns
+      NumericUnderscores
       OverloadedLabels
       OverloadedStrings
       PatternSynonyms
