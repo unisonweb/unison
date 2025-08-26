@@ -29,13 +29,15 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils
+  (EvalMode (..), modeProfSpec)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..), TermSlurp (..))
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -179,7 +181,7 @@ loadUnisonFile sourceName text = do
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
-      evalUnisonFile Permissive newPpe unisonFile [] >>= \case
+      evalUnisonFile (Permissive NoProf) newPpe unisonFile [] >>= \case
         Right (bindings, e) -> do
           when (not (null e)) do
             let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
@@ -435,7 +437,8 @@ evalUnisonFile mode ppe unisonFile args = do
 
   let theRuntime = case mode of
         Sandboxed -> env.sandboxedRuntime
-        Permissive -> env.runtime
+        Permissive _ -> env.runtime
+      prof = modeProfSpec mode
 
   let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache ref = do
@@ -444,12 +447,18 @@ evalUnisonFile mode ppe unisonFile args = do
 
   Cli.with_ (withArgs args) do
     let codeLookup = Codebase.codebaseToCodeLookup env.codebase
-    liftIO (Runtime.evaluateWatches codeLookup ppe watchCache theRuntime unisonFile) >>= \case
-      Right (nts, errs, map) -> do
-        when (not $ null errs) (RuntimeUtils.displayDecompileErrors errs)
+    liftIO (Runtime.evaluateWatches codeLookup ppe prof watchCache theRuntime unisonFile) >>= \case
+      Right (nts, resp, map) -> do
+        cache <- case resp of
+          Runtime.DecompErrs errs
+            | not $ null errs ->
+                False <$ RuntimeUtils.displayDecompileErrors errs
+          Runtime.Profile prof ->
+            True <$ Cli.respond (Output.PrintMessage prof)
+          _ -> pure True
         for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
           -- only update the watch cache when there are no errors
-          when (not isHit && null errs) do
+          when (not isHit && cache) do
             let value' = Term.amap (\() -> Ann.External) value
             Cli.runTransaction (Codebase.putWatch kind hash value')
         pure (Right (nts, map))

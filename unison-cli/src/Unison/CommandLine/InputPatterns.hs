@@ -52,6 +52,8 @@ module Unison.CommandLine.InputPatterns
     editDependents,
     editNamespace,
     execute,
+    execProfiled,
+    execProfiledTo,
     find,
     findAll,
     findGlobal,
@@ -184,6 +186,7 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..), parseBranchRelativePath, parseIncrementalBranchRelativePath)
@@ -2946,10 +2949,69 @@ execute =
     )
     \case
       main : args ->
-        Input.ExecuteI
+        Input.ExecuteI NoProf
           <$> handleHashQualifiedNameArg main
           <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
       [] -> wrongArgsLength "at least one argument" []
+
+execProfiled :: InputPattern
+execProfiled =
+  InputPattern
+    "run.profiled"
+    []
+    I.Visible
+    (Parameters
+      [("definition to execute", exactDefinitionTermQueryArg)]
+      . Optional [] $ Just ("argument", noCompletionsArg))
+    ( P.wrapColumn2
+        [ ( "`run.profiled mymain args ...`",
+            "Runs `!mymain`, where `mymain` is searched for in the most"
+              <> "recent typechecked file, or in the codebase."
+              <> "After running, some profiling information will be"
+              <> "displayed in addition to the result value."
+              <> "Any provided arguments will be passed as program"
+              <> "arguments as though they were provided at the command"
+              <> "line when running `mymain` as an executable."
+          )
+        ]
+    )
+    \case
+      main : args ->
+        Input.ExecuteI MiniProf
+          <$> handleHashQualifiedNameArg main
+          <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
+      [] -> wrongArgsLength "at least one argument" []
+
+execProfiledTo :: InputPattern
+execProfiledTo =
+  InputPattern
+    "run.profiled-to"
+    []
+    I.Visible
+    (Parameters
+      [ ("definition to execute", exactDefinitionTermQueryArg),
+        ("profiling output file", filePathArg)
+      ]
+      . Optional [] $ Just ("argument", noCompletionsArg))
+    ( P.wrapColumn2
+        [ ( "`run.profiled-to mymain outFile args ...`",
+            "Runs `!mymain`, where `mymain` is searched for in the most"
+              <> "recent typechecked file, or in the codebase."
+              <> "After running, profiling information will be"
+              <> "logged to the specified file."
+              <> "Any provided arguments will be passed as program"
+              <> "arguments as though they were provided at the command"
+              <> "line when running `mymain` as an executable."
+          )
+        ]
+    )
+    \case
+      main : file : args ->
+        Input.ExecuteI . FullProf
+          <$> unsupportedStructuredArgument execProfiledTo "profile file name" file
+          <*> handleHashQualifiedNameArg main
+          <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
+      args -> wrongArgsLength "at least two arguments" args
 
 saveExecuteResult :: InputPattern
 saveExecuteResult =
@@ -3462,6 +3524,8 @@ validInputs =
       editNamespace,
       editNew,
       execute,
+      execProfiled,
+      execProfiledTo,
       find,
       findIn,
       findAll,

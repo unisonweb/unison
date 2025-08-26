@@ -26,6 +26,7 @@ import Unison.Runtime.Builtin
 import Unison.Runtime.Exception hiding (die)
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
+import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Symbol
@@ -85,6 +86,7 @@ die s = do
 data CCache = CCache
   { sandboxed :: Bool,
     tracer :: Bool -> Val -> Tracer,
+    profiler :: !(Maybe ProfileComm),
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
     combs :: TVar (EnumMap Word64 MCombs),
@@ -115,7 +117,7 @@ refNumTm cc r =
 
 baseCCache :: Bool -> IO CCache
 baseCCache sandboxed = do
-  CCache sandboxed noTrace
+  CCache sandboxed noTrace Nothing
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref

@@ -36,6 +36,7 @@ import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List qualified as List
+import Data.Bits ((.&.))
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -87,6 +88,7 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
@@ -114,8 +116,11 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
-yieldSteps :: Int
-yieldSteps = 5000
+yieldMask :: Int
+yieldMask = 0xfff
+
+profileMask :: Int
+profileMask = 0x1ff
 
 -- Entry point for evaluating a section
 eval0 :: CCache -> ActiveThreads -> MSection -> IO ()
@@ -126,7 +131,7 @@ eval0 env !activeThreads !co = do
     rfTy <- readTVarIO (refTy env)
     rfTm <- readTVarIO (refTm env)
     topHEnv cmbs rfTy rfTm
-  eval yieldSteps env henv activeThreads stk (k KE) dummyRef co
+  eval 1 env henv activeThreads stk (k KE) dummyRef co
 
 mCombVal :: CombIx -> MComb -> Val
 mCombVal cix (RComb (Comb comb)) =
@@ -184,7 +189,7 @@ apply0 !callback env !threadTracker !i = do
   let entryCix = (CIx r i 0)
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
-      apply yieldSteps env henv threadTracker stk (kf k0) True ZArgs . BoxedVal $
+      apply 1 env henv threadTracker stk (kf k0) True ZArgs . BoxedVal $
         PAp entryCix entryComb nullSeg
     -- if it's cached, we can just finish
     CachedVal _ val -> bump stk >>= \stk -> poke stk val
@@ -201,7 +206,7 @@ apply1 ::
   IO ()
 apply1 callback env threadTracker clo = do
   stk <- alloc
-  apply yieldSteps env mempty threadTracker stk k0 True ZArgs clo
+  apply 1 env mempty threadTracker stk k0 True ZArgs clo
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
 {-# INLINE apply1 #-}
@@ -539,8 +544,15 @@ eval !yld env henv !activeThreads !stk !k _ (Yield args)
 eval !yld env henv !activeThreads !stk !k _ (App ck r args) =
   resolve env henv stk r
     >>= apply yld env henv activeThreads stk k ck args
-eval !yld env henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
-  enter yld env henv activeThreads stk k (combRef combIx) ck args rcomb
+eval !yld env henv !activeThreads !stk !k _ (Call ck combIx rcomb args)
+  | yld .&. profileMask == 0,
+    Just (PC pf _ _) <- profiler env = do
+      pf combIx k
+      enter yld env henv activeThreads stk k rf ck args rcomb
+  | otherwise =
+      enter yld env henv activeThreads stk k rf ck args rcomb
+  where
+    rf = combRef combIx
 eval !yld env henv !activeThreads !stk !k _ (Jump i args) =
   bpeekOff stk i >>= jump yld env henv activeThreads stk k args
 eval !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
@@ -666,11 +678,11 @@ enter ::
   MComb ->
   IO ()
 enter !yld env henv !activeThreads !stk !k !cref !sck !args comb
-  | yld <= 0 = do
+  | yld .&. yieldMask == 0 = do
       CNC.yield
-      enter' yieldSteps env henv activeThreads stk k cref sck args comb
+      enter' (yld + 1) env henv activeThreads stk k cref sck args comb
   | otherwise =
-      enter' (yld - 1) env henv activeThreads stk k cref sck args comb
+      enter' (yld + 1) env henv activeThreads stk k cref sck args comb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -725,6 +737,14 @@ apply' !yld env henv !activeThreads !stk !k !ck !args !val =
     BoxedVal (PAp cix@(CIx combRef _ _) comb seg) ->
       case comb of
         LamI a f entry
+          | a <= ac, yld .&. profileMask == 0,
+            Just (PC pf _ _ ) <- profiler env -> do
+              pf cix k
+              stk <- ensure stk f
+              stk <- moveArgs stk args
+              stk <- dumpSeg stk seg A
+              stk <- acceptArgs stk a
+              eval yld env henv activeThreads stk k combRef entry
           | ck || a <= ac -> do
               stk <- ensure stk f
               stk <- moveArgs stk args
@@ -764,11 +784,11 @@ apply ::
   Val ->
   IO ()
 apply !yld env henv !activeThreads !stk !k !ck !args !val
-  | yld <= 0 = do
+  | yld .&. yieldMask == 0 = do
       CNC.yield
-      apply' yieldSteps env henv activeThreads stk k ck args val
+      apply' (yld + 1) env henv activeThreads stk k ck args val
   | otherwise =
-      apply' (yld - 1) env henv activeThreads stk k ck args val
+      apply' (yld + 1) env henv activeThreads stk k ck args val
 {-# INLINE apply #-}
 
 jump ::

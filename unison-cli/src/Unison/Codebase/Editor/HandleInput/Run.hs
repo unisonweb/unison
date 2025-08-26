@@ -14,10 +14,11 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Permissive), evalUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Load (EvalMode (..), evalUnisonFile)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Hash qualified as Hash
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -46,8 +47,8 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Recursion
 import Unison.Var qualified as Var
 
-handleRun :: HQ.HashQualified Name -> [String] -> Cli ()
-handleRun main args = do
+handleRun :: ProfileSpec -> HQ.HashQualified Name -> [String] -> Cli ()
+handleRun prof main args = do
   (unisonFile, mainResType) <- do
     (sym, term, typ, otyp) <- getTerm main
     uf <- createWatcherFile sym term typ
@@ -56,7 +57,7 @@ handleRun main args = do
   let namesWithFileDefinitions = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
   let pped = PPED.makePPED (PPE.hqNamer 10 namesWithFileDefinitions) (PPE.suffixifyByHash namesWithFileDefinitions)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
-  let mode = Permissive
+  let mode = Permissive prof
   (_, xs) <-
     evalUnisonFile mode suffixifiedPPE unisonFile args & onLeftM \err ->
       Cli.returnEarly (Output.EvaluationFailure err)

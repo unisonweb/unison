@@ -54,6 +54,7 @@ library
       Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
       Unison.Codebase.Runtime
+      Unison.Codebase.Runtime.Profile
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
