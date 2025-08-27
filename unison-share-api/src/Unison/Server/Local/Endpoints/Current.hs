@@ -13,6 +13,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
+import Unison.Project (defaultBranchName)
 import Unison.Server.Backend
 import Unison.Server.Types (APIGet)
 
@@ -33,7 +34,7 @@ instance ToSample Current where
     [ ( "Current ucm state",
         Current
           (Just $ UnsafeProjectName "@unison/base")
-          (Just $ UnsafeProjectBranchName "main")
+          (Just $ defaultBranchName)
           (Path.Absolute $ Path.unsafeParseText "my.path")
       )
     ]

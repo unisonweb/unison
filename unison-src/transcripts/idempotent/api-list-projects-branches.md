@@ -22,6 +22,7 @@ project-apple/a-branch-banana> branch a-branch-apple
 ``` api
 -- Should list all projects
 GET /api/projects
+RESPONSE:
   [
       {
           "activeBranchRef": "a-branch-apple",
@@ -40,16 +41,20 @@ GET /api/projects
           "projectName": "scratch"
       }
   ]
+
 -- Can query for some infix of the project name
 GET /api/projects?query=bana
+RESPONSE:
   [
       {
           "activeBranchRef": "main",
           "projectName": "project-banana"
       }
   ]
+
 -- Should list all branches
 GET /api/projects/project-apple/branches
+RESPONSE:
   [
       {
           "branchName": "a-branch-apple"
@@ -64,11 +69,14 @@ GET /api/projects/project-apple/branches
           "branchName": "main"
       }
   ]
+
 -- Can query for some  infix of the project name
 GET /api/projects/project-apple/branches?query=bana
+RESPONSE:
   [
       {
           "branchName": "a-branch-banana"
       }
   ]
+
 ```

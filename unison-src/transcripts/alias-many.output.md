@@ -1,27 +1,29 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 The `alias.many` command can be used to copy definitions from the current namespace into your curated one.
 The names that will be used in the target namespace are the names you specify, relative to the current namespace:
 
-``` 
-scratch/main> help alias.many
+``` ucm
+> help alias.many
 
   alias.many (or copy)
-  `alias.many <relative1> [relative2...] <namespace>` creates aliases `relative1`, `relative2`, ...
-  in the namespace `namespace`.
-  `alias.many foo.foo bar.bar .quux` creates aliases `.quux.foo.foo` and `.quux.bar.bar`.
+  `alias.many <relative1> [relative2...] <namespace>` creates
+  aliases `relative1`, `relative2`, ... in the namespace
+  `namespace`.
+  `alias.many foo.foo bar.bar .quux` creates aliases
+  `.quux.foo.foo` and `.quux.bar.bar`.
 ```
 
 Let's try it\!
 
 ``` ucm
-scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.chunksOf List.dropWhile List.first List.init List.intersperse List.isEmpty List.last List.replicate List.splitAt List.tail List.takeWhile mylib
+> alias.many List.adjacentPairs List.all List.any List.chunk List.chunksOf List.dropWhile List.first List.init List.intersperse List.isEmpty List.last List.replicate List.splitAt List.tail List.takeWhile mylib
 
   Here's what changed in mylib :
 
@@ -50,7 +52,7 @@ scratch/main> alias.many List.adjacentPairs List.all List.any List.chunk List.ch
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> find-in mylib
+> find-in mylib
 
   1.  List.adjacentPairs : [a] -> [(a, a)]
   2.  List.all : (a ->{g} Boolean) -> [a] ->{g} Boolean

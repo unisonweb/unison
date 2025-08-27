@@ -5,21 +5,21 @@ mynamespace.x = 1
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 
-scratch/main> delete.namespace mynamespace
+> delete.namespace mynamespace
 ```
 
 The deleted namespace shouldn't appear in `ls` output.
 
 ``` ucm :error
-scratch/main> ls .
+> ls .
 
   nothing to show
 ```
 
 ``` ucm :error
-scratch/main> find.verbose
+> find.verbose
 
   ☝️
 
@@ -36,7 +36,7 @@ scratch/main> find.verbose
 ```
 
 ``` ucm :error
-scratch/main> find mynamespace
+> find mynamespace
 
   ☝️
 
@@ -57,7 +57,7 @@ scratch/main> find mynamespace
 The history of the namespace should be empty.
 
 ``` ucm
-scratch/main> history mynamespace
+> history mynamespace
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -75,9 +75,9 @@ stuff.thing = 2
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 
-scratch/main> delete.namespace deleted
+> delete.namespace deleted
 ```
 
 ## fork
@@ -85,7 +85,7 @@ scratch/main> delete.namespace deleted
 I should be allowed to fork over a deleted namespace
 
 ``` ucm
-scratch/main> fork stuff deleted
+> fork stuff deleted
 
   Done.
 ```
@@ -93,7 +93,7 @@ scratch/main> fork stuff deleted
 The history from the `deleted` namespace should have been overwritten by the history from `stuff`.
 
 ``` ucm
-scratch/main> history stuff
+> history stuff
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -102,7 +102,7 @@ scratch/main> history stuff
 
   □ 1. #q2dq4tsno1 (start of history)
 
-scratch/main> history deleted
+> history deleted
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -120,18 +120,18 @@ moveme.y = 2
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 I should be able to move a namespace over-top of a deleted namespace.
 The history should be that of the moved namespace.
 
 ``` ucm
-scratch/main> delete.namespace moveoverme
+> delete.namespace moveoverme
 
   Done.
 
-scratch/main> history moveme
+> history moveme
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -140,11 +140,11 @@ scratch/main> history moveme
 
   □ 1. #c5uisu4kll (start of history)
 
-scratch/main> move.namespace moveme moveoverme
+> move.namespace moveme moveoverme
 
   Done.
 
-scratch/main> history moveoverme
+> history moveoverme
 
   Note: The most recent namespace hash is immediately below this
         message.

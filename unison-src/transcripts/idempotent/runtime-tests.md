@@ -1,7 +1,7 @@
 # An assortment of regression tests that exercise various interesting cases within the runtime.
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 ```
 
 ``` unison
@@ -72,27 +72,18 @@ casting = (Nat.toInt 100,
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + casting                        : ( Int,
+                                       Nat,
+                                       Float,
+                                       Int,
+                                       Nat,
+                                       Nat)
+  + funcWithMixedArgTypes          : Nat -> Text -> Nat -> Text
+  + funcWithMoreThanTwoUnboxedArgs : Nat -> Nat -> Nat -> Nat
+  + negativeCaseMatch              : Text
+  + unboxedAndBoxedArgsInSequences : ([Nat], [Text])
 
-    ⍟ New definitions:
-    
-      casting                        : ( Int,
-                                         Nat,
-                                         Float,
-                                         Int,
-                                         Nat,
-                                         Nat)
-      funcWithMixedArgTypes          : Nat
-                                       -> Text
-                                       -> Nat
-                                       -> Text
-      funcWithMoreThanTwoUnboxedArgs : Nat -> Nat -> Nat -> Nat
-      negativeCaseMatch              : Text
-      unboxedAndBoxedArgsInSequences : ([Nat], [Text])
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     6 | > negativeCaseMatch
           ⧩

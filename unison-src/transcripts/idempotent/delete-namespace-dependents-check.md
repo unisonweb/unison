@@ -5,7 +5,7 @@
 This is a regression test, previously `delete.namespace` allowed a delete as long as the deletions had a name *anywhere* in your codebase, it should only check the current project branch.
 
 ``` ucm :hide
-myproject/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -17,31 +17,28 @@ dependent = dependency + 99
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + dependent      : Nat
+  + sub.dependency : Nat
 
-    ⍟ New definitions:
-    
-      dependent      : Nat
-      sub.dependency : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :error
-myproject/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-myproject/main> branch /new
+> branch /new
 
   Done. I've created the new branch based off of main.
 
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /new`.
 
-myproject/new> delete.namespace sub
+> delete.namespace sub
 
   ⚠️
 
@@ -54,7 +51,7 @@ myproject/new> delete.namespace sub
   If you want to proceed anyways and leave those definitions
   without names, use delete.namespace.force
 
-myproject/new> view dependent
+> view dependent
 
   dependent : Nat
   dependent =

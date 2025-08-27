@@ -37,6 +37,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (Code, Value)
 import Unison.Runtime.Array
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Text (Text)
@@ -135,8 +136,8 @@ charClassCmp :: CharPattern -> CharPattern -> Ordering
 charClassCmp = compare
 {-# NOINLINE charClassCmp #-}
 
-codeEq :: Code -> Code -> Bool
-codeEq co1 co2 = co1 == co2
+codeEq :: Referenced Code -> Referenced Code -> Bool
+codeEq co1 co2 = dereference co1 == dereference co2
 {-# NOINLINE codeEq #-}
 
 tylEq :: Reference -> Reference -> Bool
@@ -313,11 +314,11 @@ instance BuiltinForeign Tls where
   foreignName = Tagged "Tls"
   foreignRef = Tagged Ty.tlsRef
 
-instance BuiltinForeign Code where
+instance BuiltinForeign (Referenced Code) where
   foreignName = Tagged "Code"
   foreignRef = Tagged Ty.codeRef
 
-instance BuiltinForeign Value where
+instance BuiltinForeign (Referenced Value) where
   foreignName = Tagged "Value"
   foreignRef = Tagged Ty.valueRef
 

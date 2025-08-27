@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -9,16 +9,13 @@ unique type Foo = Nat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -33,34 +30,30 @@ unique type Foo = { bar : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Foo
 
-    ⍟ New definitions:
-    
-      Foo.bar        : Foo -> Nat
-      Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
-      Foo.bar.set    : Nat -> Foo -> Foo
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Foo
+  + Foo.bar        : Foo -> Nat
+  + Foo.bar.modify : (Nat ->{g} Nat) -> Foo ->{g} Foo
+  + Foo.bar.set    : Nat -> Foo -> Foo
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view Foo
+> view Foo
 
   type Foo = { bar : Nat }
 
-scratch/main> find.verbose
+> find.verbose
 
   1. -- #5mod0n8ps2emue478fdroo6adp4ovt41qogtmduta8vgv1v8mi8ep2ho0rc1mg699j1feojmv0oe9ndbul5t64menchhnklpgji45o0
      type Foo

@@ -3,7 +3,6 @@ module Unison.Runtime.Exception
     RuntimeExn (BU, PE),
     bugMsg,
     die,
-    dieP,
     exn,
     listErrors,
     tabulateErrors,
@@ -187,10 +186,6 @@ die issues s = do
   -- like we prefer.
   error "unreachable"
 {-# INLINE die #-}
-
-dieP :: (HasCallStack) => [Word] -> P.Pretty P.ColorText -> IO a
-dieP issues = throwIO . PE callStack issues
-{-# INLINE dieP #-}
 
 exn :: (HasCallStack) => [Word] -> String -> a
 exn issues = throw . peStr issues

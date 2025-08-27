@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtin
+> builtins.merge lib.builtin
 ```
 
 ``` unison
@@ -12,17 +12,15 @@ makeFoo n = Bar (n+10)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Foo
 
-    ⍟ New definitions:
-    
-      type Foo
-      makeFoo : Nat -> Foo
+  + makeFoo : Nat -> Foo
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -40,18 +38,17 @@ Foo.Bar n = internal.Bar n
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ Foo.Bar : Nat -> Foo
 
-    ⊡ Previously added definitions will be ignored: Foo
-    
-    ⍟ New definitions:
-    
-      Foo.Bar : Nat -> Foo
+  (and 1 unchanged type)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -62,11 +59,11 @@ scratch/main> update
 
   Done.
 
-scratch/main> view Foo
+> view Foo
 
   type Foo = internal.Bar Nat
 
-scratch/main> find.verbose
+> find.verbose
 
   1. -- #oebc8v8v9lob5bnq7go1pjhfjbtnh8dmfhontua90t3mji0cl91t1dqaece9quofrk1vsbq6g0ukfigoi0vmvc01v8roceppejlgbs8
      type Foo

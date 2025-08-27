@@ -1,11 +1,11 @@
 # Unit tests for builtin functions
 
 ``` ucm :hide
-scratch/main> builtins.mergeio
+> builtins.mergeio
 
-scratch/main> load unison-src/transcripts-using-base/base.u
+> load unison-src/transcripts-using-base/base.u
 
-scratch/main> add
+> add
 ```
 
 This transcript defines unit tests for builtin functions. There's a single `scratch/main> test` execution at the end that will fail the transcript with a nice report if any of the tests fail.
@@ -90,7 +90,7 @@ test> Int.tests.conversions =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Nat` functions
@@ -165,7 +165,7 @@ test> Nat.tests.conversions =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Boolean` functions
@@ -193,7 +193,7 @@ test> Boolean.tests.notTable =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Text` functions
@@ -294,7 +294,7 @@ test> Text.tests.indexOfEmoji =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `Bytes` functions
@@ -355,10 +355,16 @@ test> Bytes.tests.indexOf =
 
    ]
 
+test> Bytes.tests.byteArray =
+  bs = 0xs0102030405
+  checks [
+    ImmutableByteArray.toBytes (ImmutableByteArray.fromBytes bs) 0 5 == bs
+  ]
+
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## `List` comparison
@@ -377,7 +383,7 @@ test> checks [
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Other list functions
@@ -401,16 +407,10 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + Any.test1 : [Result]
+  + Any.test2 : [Result]
 
-    ⍟ New definitions:
-    
-      Any.test1 : [Result]
-      Any.test2 : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | > [Any "hi", Any (41 + 1)]
           ⧩
@@ -426,7 +426,7 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ## Sandboxing functions
@@ -455,27 +455,19 @@ openFile]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + openFile1              : Text
+                             -> FileMode
+                             ->{IO, Exception} Handle
+  + openFile2              : Text
+                             -> FileMode
+                             ->{IO, Exception} Handle
+  + openFiles              : [Boolean]
+  + Sandbox.test1          : [Result]
+  + Sandbox.test2          : [Result]
+  + Sandbox.test3          : [Result]
+  + validateSandboxedSimpl : [Link.Term] -> Value ->{IO} Boolean
 
-    ⍟ New definitions:
-    
-      Sandbox.test1          : [Result]
-      Sandbox.test2          : [Result]
-      Sandbox.test3          : [Result]
-      openFile1              : Text
-                               -> FileMode
-                               ->{IO, Exception} Handle
-      openFile2              : Text
-                               -> FileMode
-                               ->{IO, Exception} Handle
-      openFiles              : [Boolean]
-      validateSandboxedSimpl : [Link.Term]
-                               -> Value
-                               ->{IO} Boolean
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
     
@@ -491,7 +483,7 @@ openFile]
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` unison
@@ -510,23 +502,20 @@ openFilesIO = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + openFilesIO : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      openFilesIO : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test openFilesIO
+> io.test openFilesIO
 
     New test results:
 
@@ -549,15 +538,9 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + Universal.murmurHash.tests : [Result]
 
-    ⍟ New definitions:
-    
-      Universal.murmurHash.tests : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     1 | > Universal.murmurHash 1
           ⧩
@@ -569,7 +552,171 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
+```
+
+## Pinned Array and Mutable Byte Array tests
+
+Test the pinned array and mutable byte array functionality
+
+``` unison
+-- Test PinnedArray.cast functionality with real operations
+PinnedByteArray.tests.cast.operations = do
+  -- Create a pinned array using IO.pinnedByteArray
+  pinned = IO.pinnedByteArray 10
+  
+  -- Cast the pinned array to a mutable byte array
+  mutable = PinnedByteArray.cast pinned
+  
+  -- Write some test data to the mutable array
+  write8 mutable 0 42
+  write8 mutable 1 123
+  write8 mutable 2 255
+  write16be mutable 3 12345
+  write32be mutable 5 987654321
+  
+  -- Read the data back and verify it's correct
+  read8_0 = read8 mutable 0
+  read8_1 = read8 mutable 1
+  read8_2 = read8 mutable 2
+  read16be_3 = read16be mutable 3
+  read32be_5 = read32be mutable 5
+  
+  -- Verify all the values are correct
+  checks [
+    read8_0 == 42,
+    read8_1 == 123,
+    read8_2 == 255,
+    read16be_3 == 12345,
+    read32be_5 == 987654321
+  ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + PinnedByteArray.tests.cast.operations : '{IO, Exception} [Result]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test PinnedByteArray.tests.cast.operations
+
+    New test results:
+
+    1. operations   ◉ Passed
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
+## Test comprehensive byte array operations
+
+Now let's add comprehensive tests for all the byte array read/write functions
+
+``` unison
+-- Test all byte array read/write operations
+ByteArray.tests.allOperations = do
+  mutable = IO.bytearray 100
+  
+  -- Write test data using all available functions
+  write8 mutable 0 0x12
+  write8 mutable 1 0x34
+  write16be mutable 2 0x5678
+  write16le mutable 4 0x5678
+  -- For 24-bit values, we need to write them manually since there's no write24be/write24le
+  write16be mutable 6 0x1234
+  write8 mutable 8 0x56
+
+  write16le mutable 9 0x3456
+  write8 mutable 11 0x12
+
+  write32be mutable 12 0x12345678
+  write32le mutable 16 0x12345678
+  write64be mutable 20 0x0123456789abcdef
+  write64le mutable 28 0x0123456789abcdef
+  
+  -- Read the data back and verify it's correct
+  read8_0 = read8 mutable 0
+  read8_1 = read8 mutable 1
+  read16be_2 = read16be mutable 2
+  read16le_4 = read16le mutable 4
+  read24be_6 = read24be mutable 6
+  read24le_9 = read24le mutable 9
+  read32be_12 = read32be mutable 12
+  read32le_16 = read32le mutable 16
+  read64be_20 = read64be mutable 20
+  read64le_28 = read64le mutable 28
+
+  -- Read 40-bit value
+  read40be_20 = read40be mutable 20
+  read40le_20 = read40le mutable 20
+
+  -- Read in reverse byte order
+  read16le_2 = read16le mutable 2
+  read16be_4 = read16be mutable 4
+  read32le_12 = read32le mutable 12
+  read32be_16 = read32be mutable 16
+  read64le_20 = read64le mutable 20
+  read64be_28 = read64be mutable 28
+
+  -- Verify all the values are correct
+  checks [
+    read8_0 == 0x12,  
+    read8_1 == 0x34,
+    read16be_2 == 0x5678,
+    read16le_4 == 0x5678,
+    read24be_6 == 0x123456,
+    read24le_9 == 0x123456,
+    read32be_12 == 0x12345678,
+    read32le_16 == 0x12345678,
+    read64be_20 == 0x0123456789abcdef,
+    read64le_28 == 0x0123456789abcdef,
+    read40be_20 == 0x0123456789,
+    read40le_20 == 0x8967452301,
+    read16le_2 == 0x7856,
+    read16be_4 == 0x7856,
+    read32le_12 == 0x78563412,
+    read32be_16 == 0x78563412,
+    read64le_20 == 0xefcdab8967452301,
+    read64be_28 == 0xefcdab8967452301
+  ]
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + ByteArray.tests.allOperations : '{IO, Exception} [Result]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test ByteArray.tests.allOperations
+
+    New test results:
+
+    1. allOperations   ◉ Passed
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
 ```
 
 ## Run the tests
@@ -577,7 +724,7 @@ scratch/main> add
 Now that all the tests have been added to the codebase, let's view the test report. This will fail the transcript (with a nice message) if any of the tests are failing.
 
 ``` ucm
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 
@@ -587,29 +734,30 @@ scratch/main> test
     4.  Boolean.tests.notTable              ◉ Passed
     5.  Boolean.tests.orTable               ◉ Passed
     6.  Bytes.tests.at                      ◉ Passed
-    7.  Bytes.tests.compression             ◉ Passed
-    8.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
-    9.  Bytes.tests.indexOf                 ◉ Passed
-    10. Int.tests.arithmetic                ◉ Passed
-    11. Int.tests.bitTwiddling              ◉ Passed
-    12. Int.tests.conversions               ◉ Passed
-    13. Nat.tests.arithmetic                ◉ Passed
-    14. Nat.tests.bitTwiddling              ◉ Passed
-    15. Nat.tests.conversions               ◉ Passed
-    16. Sandbox.test1                       ◉ Passed
-    17. Sandbox.test2                       ◉ Passed
-    18. Sandbox.test3                       ◉ Passed
-    19. test.rtjqan7bcs                     ◉ Passed
-    20. Text.tests.alignment                ◉ Passed
-    21. Text.tests.indexOf                  ◉ Passed
-    22. Text.tests.indexOfEmoji             ◉ Passed
-    23. Text.tests.literalsEq               ◉ Passed
-    24. Text.tests.patterns                 ◉ Passed
-    25. Text.tests.repeat                   ◉ Passed
-    26. Text.tests.takeDropAppend           ◉ Passed
-    27. Universal.murmurHash.tests          ◉ Passed
+    7.  Bytes.tests.byteArray               ◉ Passed
+    8.  Bytes.tests.compression             ◉ Passed
+    9.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
+    10. Bytes.tests.indexOf                 ◉ Passed
+    11. Int.tests.arithmetic                ◉ Passed
+    12. Int.tests.bitTwiddling              ◉ Passed
+    13. Int.tests.conversions               ◉ Passed
+    14. Nat.tests.arithmetic                ◉ Passed
+    15. Nat.tests.bitTwiddling              ◉ Passed
+    16. Nat.tests.conversions               ◉ Passed
+    17. Sandbox.test1                       ◉ Passed
+    18. Sandbox.test2                       ◉ Passed
+    19. Sandbox.test3                       ◉ Passed
+    20. test.rtjqan7bcs                     ◉ Passed
+    21. Text.tests.alignment                ◉ Passed
+    22. Text.tests.indexOf                  ◉ Passed
+    23. Text.tests.indexOfEmoji             ◉ Passed
+    24. Text.tests.literalsEq               ◉ Passed
+    25. Text.tests.patterns                 ◉ Passed
+    26. Text.tests.repeat                   ◉ Passed
+    27. Text.tests.takeDropAppend           ◉ Passed
+    28. Universal.murmurHash.tests          ◉ Passed
 
-  ✅ 27 test(s) passing
+  ✅ 28 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

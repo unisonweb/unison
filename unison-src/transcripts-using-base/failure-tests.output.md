@@ -21,17 +21,14 @@ test2 = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test1 : '{IO, Exception} [Result]
+  + test2 : '{IO, Exception} [Result]
 
-    ⍟ New definitions:
-
-      test1 : '{IO, Exception} [Result]
-      test2 : '{IO, Exception} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -40,7 +37,7 @@ scratch/main> add
 ```
 
 ``` ucm :error
-scratch/main> io.test test1
+> io.test test1
 
   💔💥
 
@@ -56,7 +53,7 @@ scratch/main> io.test test1
 ```
 
 ``` ucm :error
-scratch/main> io.test test2
+> io.test test2
 
   💔💥
 
@@ -64,7 +61,7 @@ scratch/main> io.test test2
 
     Failure
       (typeLink RuntimeFailure)
-      "💔💥\n\nI've encountered a call to builtin.bug with the following value:\n\n  \"whoa\"\n\nStack trace:\n  ##bug"
+      "💔💥\n\nI've encountered a call to builtin.bug with the following value:\n\n  \"whoa\"\n\nStack trace:\n  #00b3gl0n7k"
       (Any "whoa")
 
   Stack trace:

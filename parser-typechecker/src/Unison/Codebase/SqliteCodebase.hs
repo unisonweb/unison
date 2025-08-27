@@ -12,6 +12,7 @@ module Unison.Codebase.SqliteCodebase
   )
 where
 
+import Data.Char qualified as Char
 import Data.Either.Extra ()
 import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
@@ -57,6 +58,7 @@ import UnliftIO (finally)
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
+import UnliftIO.Environment (lookupEnv)
 import UnliftIO.STM
 
 debug :: Bool
@@ -179,7 +181,10 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         case migrationStrategy of
           DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
           MigrateAfterPrompt backupStrategy vacuumStrategy -> do
-            let shouldPrompt = True
+            shouldPrompt <-
+              lookupEnv "UNISON_MIGRATION" >>= \case
+                Just (fmap Char.toLower -> "auto") -> pure False
+                _ -> pure True
             Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
           MigrateAutomatically backupStrategy vacuumStrategy -> do
             let shouldPrompt = False

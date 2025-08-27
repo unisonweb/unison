@@ -6,7 +6,7 @@ It affects the contents of the file as follows:
     the full bindings' names.
 
 ``` ucm
-scratch/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
   Done.
 ```
@@ -21,12 +21,9 @@ baz = 17
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo.baz : Nat
 
-    ⍟ New definitions:
-    
-      foo.baz : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 2.  Free variables whose names exactly match bindings in the file are rewritten to refer to the prefixed binder instead.
@@ -47,24 +44,21 @@ longer.evil.factorial n = n
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + foo.factorial             : Int -> Int
+  + foo.longer.evil.factorial : Int -> Int
 
-    ⍟ New definitions:
-    
-      foo.factorial             : Int -> Int
-      foo.longer.evil.factorial : Int -> Int
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view factorial
+> view factorial
 
   foo.factorial : Int -> Int
   foo.factorial = cases
@@ -91,22 +85,18 @@ type longer.foo.Baz = { qux : Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type longer.foo.Baz
+  + type longer.foo.Foo
 
-    ⍟ New definitions:
-    
-      type longer.foo.Baz
-      type longer.foo.Foo
-      longer.foo.Baz.qux        : Baz -> Nat
-      longer.foo.Baz.qux.modify : (Nat ->{g} Nat)
-                                  -> Baz
-                                  ->{g} Baz
-      longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
+  + longer.foo.Baz.qux        : Baz -> Nat
+  + longer.foo.Baz.qux.modify : (Nat ->{g} Nat) -> Baz ->{g} Baz
+  + longer.foo.Baz.qux.set    : Nat -> Baz -> Baz
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -135,33 +125,31 @@ hasTypeLink =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type foo.Baz
+  + type foo.Foo
+  + type foo.RefersToFoo
 
-    ⍟ New definitions:
-    
-      type foo.Baz
-      type foo.Foo
-      type foo.RefersToFoo
-      foo.Baz.qux        : foo.Baz -> Nat
-      foo.Baz.qux.modify : (Nat ->{g} Nat)
-                           -> foo.Baz
-                           ->{g} foo.Baz
-      foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
-      foo.hasTypeLink    : Doc2
-      foo.refersToBar    : foo.Foo -> Nat
-      foo.refersToQux    : foo.Baz -> Nat
+  + foo.Baz.qux        : foo.Baz -> Nat
+  + foo.Baz.qux.modify : (Nat ->{g} Nat)
+                         -> foo.Baz
+                         ->{g} foo.Baz
+  + foo.Baz.qux.set    : Nat -> foo.Baz -> foo.Baz
+  + foo.hasTypeLink    : Doc2
+  + foo.refersToBar    : foo.Foo -> Nat
+  + foo.refersToQux    : foo.Baz -> Nat
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
+> view RefersToFoo refersToBar refersToQux hasTypeLink
 
   type foo.RefersToFoo = RefersToFoo foo.Foo
 
@@ -177,7 +165,7 @@ scratch/main> view RefersToFoo refersToBar refersToQux hasTypeLink
     use foo.Baz qux
     qux baz + qux baz
 
-scratch/main> todo
+> todo
 
   You have no pending todo items. Good work! ✅
 ```

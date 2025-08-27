@@ -64,10 +64,11 @@ mkTestCase = do
   f = evaluate balancedSum catenate
   tup = (tree0, tree1, tree2, tree3)
 
-  saveTestCase "case-00" "v4" f tup
+  saveTestCase None "case-00" "v4" f tup
+  saveTestCase (Some 5) "case-00" "v5" f tup
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> run mkTestCase
+> add
+> run mkTestCase
 ```

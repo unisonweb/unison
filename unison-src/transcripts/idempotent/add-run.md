@@ -3,7 +3,7 @@
 ## Basic usage
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison :hide
@@ -20,7 +20,7 @@ is2even = '(even 2)
 it errors if there isn't a previous run
 
 ``` ucm :error
-scratch/main> add.run foo
+> add.run foo
 
   ⚠️
 
@@ -29,7 +29,7 @@ scratch/main> add.run foo
 ```
 
 ``` ucm
-scratch/main> run is2even
+> run is2even
 
   true
 ```
@@ -38,7 +38,7 @@ it errors if the desired result name conflicts with a name in the
 unison file
 
 ``` ucm :error
-scratch/main> add.run is2even
+> add.run is2even
 
   ⚠️
 
@@ -49,7 +49,7 @@ scratch/main> add.run is2even
 otherwise, the result is successfully persisted
 
 ``` ucm
-scratch/main> add.run foo.bar.baz
+> add.run foo.bar.baz
 
   ⍟ I've added these definitions:
 
@@ -57,7 +57,7 @@ scratch/main> add.run foo.bar.baz
 ```
 
 ``` ucm
-scratch/main> view foo.bar.baz
+> view foo.bar.baz
 
   foo.bar.baz : Boolean
   foo.bar.baz = true
@@ -79,22 +79,19 @@ main _ = y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + main : '{IO, Exception} (Nat -> Nat -> Nat)
+  + y    : Nat -> Nat -> Nat
+  + z    : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      main : '{IO, Exception} (Nat -> Nat -> Nat)
-      y    : Nat -> Nat -> Nat
-      z    : Nat -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> run main
+> run main
 
   a b -> a Nat.+ b Nat.+ z 10
 
-scratch/main> add.run result
+> add.run result
 
   ⍟ I've added these definitions:
 
@@ -112,16 +109,13 @@ inc x = x + 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + inc : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      inc : Nat -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -135,17 +129,17 @@ main _ x = inc x
 ```
 
 ``` ucm
-scratch/main> run main
+> run main
 
   inc
 
-scratch/main> add.run natfoo
+> add.run natfoo
 
   ⍟ I've added these definitions:
 
     natfoo : Nat -> Nat
 
-scratch/main> view natfoo
+> view natfoo
 
   natfoo : Nat -> Nat
   natfoo = inc
@@ -162,18 +156,15 @@ main = 'y
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + main : 'Nat
+  + x    : Nat
+  + y    : Nat
 
-    ⍟ New definitions:
-    
-      main : 'Nat
-      x    : Nat
-      y    : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> run main
+> run main
 
   2
 ```
@@ -185,13 +176,13 @@ x = 50
 this saves 2 to xres, rather than 100
 
 ``` ucm
-scratch/main> add.run xres
+> add.run xres
 
   ⍟ I've added these definitions:
 
     xres : Nat
 
-scratch/main> view xres
+> view xres
 
   xres : Nat
   xres = 2
@@ -204,11 +195,11 @@ main = '5
 ```
 
 ``` ucm :error
-scratch/main> run main
+> run main
 
   5
 
-scratch/main> add.run xres
+> add.run xres
 
   x These definitions failed:
 
@@ -225,17 +216,17 @@ main = '5
 ```
 
 ``` ucm
-scratch/main> run main
+> run main
 
   5
 
-scratch/main> add.run .an.absolute.name
+> add.run .an.absolute.name
 
   ⍟ I've added these definitions:
 
     .an.absolute.name : Nat
 
-scratch/main> view .an.absolute.name
+> view .an.absolute.name
 
   .an.absolute.name : Nat
   .an.absolute.name = 5

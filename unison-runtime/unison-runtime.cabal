@@ -44,9 +44,13 @@ library
       Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
+      Unison.Runtime.ANF.Serialize.CodeV4
+      Unison.Runtime.ANF.Serialize.Tags
+      Unison.Runtime.ANF.Serialize.ValueV5
       Unison.Runtime.Array
       Unison.Runtime.Builtin
       Unison.Runtime.Builtin.Types
+      Unison.Runtime.Canonicalizer
       Unison.Runtime.Crypto.Rsa
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
@@ -63,6 +67,7 @@ library
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Referenced
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
@@ -105,6 +110,7 @@ library
       asn1-encoding
     , asn1-types
     , atomic-primops
+    , avro
     , base
     , binary
     , bytes
@@ -123,6 +129,7 @@ library
     , exceptions
     , filepath
     , github
+    , hashable
     , inspection-testing
     , iproute
     , lens
@@ -156,6 +163,7 @@ library
     , unison-util-bytes
     , unison-util-recursion
     , unliftio
+    , unordered-containers
     , vector
   default-language: Haskell2010
   if flag(arraychecks)

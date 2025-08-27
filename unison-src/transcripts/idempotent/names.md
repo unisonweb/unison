@@ -39,28 +39,26 @@ xyz.baz = 100.1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type a.baz
+  + type z.baz
 
-    ⍟ New definitions:
-    
-      type a.baz
-      type z.baz
-      a.baz             : Nat
-      aa.baz            : Boolean
-      another.Boolean   : Boolean
-      b.baz             : Nat
-      bb.baz            : Boolean
-      c.baz             : Nat
-      cc.baz            : Boolean
-      d.baz             : Nat
-      dd.baz            : Boolean
-      some.otherplace.x : Nat
-      some.otherplace.y : Nat
-      some.place.x      : Nat
-      somewhere.y       : Nat
-      somewhere.z       : Nat
-      xyz.baz           : Float
+  + a.baz             : Nat
+  + aa.baz            : Boolean
+  + another.Boolean   : Boolean
+  + b.baz             : Nat
+  + bb.baz            : Boolean
+  + c.baz             : Nat
+  + cc.baz            : Boolean
+  + d.baz             : Nat
+  + dd.baz            : Boolean
+  + some.otherplace.x : Nat
+  + some.otherplace.y : Nat
+  + some.place.x      : Nat
+  + somewhere.y       : Nat
+  + somewhere.z       : Nat
+  + xyz.baz           : Float
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -209,16 +207,18 @@ scratch/main> names max /invalid1 /invalid2 + Boolean foo baz
   ##Nat.+     Term   lib.builtins.Nat.+
 
   'Boolean':
-  Hash            Kind   Names
-  #idl63c82kf#0   Term   a.baz.Boolean
-  #56fi1cmq3u     Term   aa.baz,
-                         another.Boolean,
-                         bb.baz,
-                         cc.baz,
-                         dd.baz
-  ##Boolean       Type   lib.builtins.Boolean
-  #j0uel16uhe#1   Term   lib.builtins.Json.Boolean
-  #cmihlkoddu#0   Term   z.baz.Boolean
+  Hash               Kind   Names
+  #idl63c82kf#0      Term   a.baz.Boolean
+  #56fi1cmq3u        Term   aa.baz,
+                            another.Boolean,
+                            bb.baz,
+                            cc.baz,
+                            dd.baz
+  #e2fe3rltiv.2#1    Term   lib.builtins.avro.schema.deconflicted.ReadSchema.Boolean
+  #m58o4h906i.1#10   Term   lib.builtins.avro.schema.Schema.Boolean
+  ##Boolean          Type   lib.builtins.Boolean
+  #j0uel16uhe#1      Term   lib.builtins.Json.Boolean
+  #cmihlkoddu#0      Term   z.baz.Boolean
 
   'foo':
   😶

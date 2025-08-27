@@ -1,7 +1,7 @@
 # Duplicate Term Detection
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Trivial duplicate terms should be detected:

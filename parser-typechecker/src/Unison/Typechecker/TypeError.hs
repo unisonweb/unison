@@ -44,6 +44,11 @@ data TypeError v loc
         mismatchSite :: C.Term v loc,
         note :: C.ErrorNote v loc
       }
+  | ActionRestrictionFailure
+      { foundType :: C.Type v loc,
+        mismatchSite :: C.Term v loc,
+        note :: C.ErrorNote v loc
+      }
   | FunctionApplication
       { f :: C.Term v loc,
         ft :: C.Type v loc,
@@ -81,6 +86,12 @@ data TypeError v loc
         trhs :: C.Type v loc,
         expectedSite :: C.Term v loc,
         mismatchSite :: C.Term v loc,
+        note :: C.ErrorNote v loc
+      }
+  | AbilityInstantiationFailure
+      { var :: v,
+        inst :: [C.Type v loc],
+        instSite :: C.Term v loc,
         note :: C.ErrorNote v loc
       }
   | UnguardedLetRecCycle
@@ -137,6 +148,7 @@ allErrors =
     [ and,
       or,
       cond,
+      actionRestriction,
       matchGuard,
       ifBody,
       listBody,
@@ -146,6 +158,7 @@ allErrors =
       generalMismatch,
       abilityCheckFailure,
       abilityEqFailure,
+      badEffectInstantiation,
       unguardedCycle,
       unknownType,
       unknownTerm,
@@ -216,6 +229,37 @@ unknownTerm = do
   (loc, v, suggs, typ) <- Ex.unknownTerm
   n <- Ex.errorNote
   pure $ UnknownTerm v loc suggs (Type.cleanup typ) n
+
+data EffInst v loc
+  = Eff [C.Type v loc] [C.Type v loc] -- want, have
+  | Normal
+
+-- checks if the top of the path was an instantiation, and indicates
+-- whether it was from an ability variable.
+instantiation ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (v, C.Type v loc, EffInst v loc)
+instantiation =
+  Ex.path >>= \case
+    C.InInstantiateR ty v : path -> pure $ classify v ty path
+    C.InInstantiateL v ty : path -> pure $ classify v ty path
+    _ -> mzero
+  where
+    classify v ty (C.InSubAbilities want have : _) =
+      (v, ty, Eff want have)
+    classify v ty _ = (v, ty, Normal)
+
+badEffectInstantiation ::
+  (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
+badEffectInstantiation = do
+  ctx <- Ex.typeMismatch
+  let sub t = C.apply ctx t
+  (v, _ty, isEff) <- instantiation
+  Eff want _ <- pure isEff
+  n <- Ex.errorNote
+  site <- Ex.innermostTerm
+  pure $
+    AbilityInstantiationFailure v (Type.cleanups $ sub <$> want) site n
 
 generalMismatch :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 generalMismatch = do
@@ -308,6 +352,19 @@ existentialMismatch0 em getExpectedLoc = do
       mismatchSite
       -- todo : save type leaves too
       n
+
+actionRestriction ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+actionRestriction = do
+  Ex.unique Ex.inActionRestriction
+  note <- Ex.errorNote
+  mismatchSite <- Ex.innermostTerm
+  path <- Ex.path
+  let subtypes = [t1 | C.InSubtype t1 _ <- path]
+  guard . not $ null subtypes
+  let foundType = Type.cleanup $ last subtypes
+  pure $ ActionRestrictionFailure foundType mismatchSite note
 
 ifBody,
   listBody,

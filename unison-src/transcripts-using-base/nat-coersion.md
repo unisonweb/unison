@@ -33,6 +33,6 @@ test = 'let
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test test
+> add
+> io.test test
 ```

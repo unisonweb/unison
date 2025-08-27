@@ -7,10 +7,12 @@ clientSocket = compose2 reraise IO.clientSocket.impl
 socketSend = compose2 reraise socketSend.impl
 socketReceive = compose2 reraise socketReceive.impl
 socketAccept = compose reraise socketAccept.impl
+socketReceiveBuf sock buf n = reraise (socketReceiveBuf.impl sock buf n)
+socketSendBuf sock buf n = reraise (socketSendBuf.impl sock buf n)
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 # Tests for network related builtins
@@ -99,25 +101,22 @@ testDefaultPort _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + testDefaultHost  : '{IO} [Result]
+  + testDefaultPort  : '{IO} [Result]
+  + testExplicitHost : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      testDefaultHost  : '{IO} [Result]
-      testDefaultPort  : '{IO} [Result]
-      testExplicitHost : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testDefaultPort
+> io.test testDefaultPort
 
     New test results:
 
@@ -184,29 +183,114 @@ testTcpConnect = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + clientThread   : MVar Nat -> MVar Text -> '{IO} ()
+  + serverThread   : MVar Nat -> Text -> '{IO} ()
+  + testTcpConnect : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      clientThread   : MVar Nat -> MVar Text -> '{IO} ()
-      serverThread   : MVar Nat -> Text -> '{IO} ()
-      testTcpConnect : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testTcpConnect
+> io.test testTcpConnect
 
     New test results:
 
     1. testTcpConnect   ◉ should have reaped what we've sown
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
+This example demonstrates a buffer-based send and receive. Same as the previous example, but using a pinned buffer to send and receive the message.
+
+``` unison
+
+bufServerThread: MVar Nat -> Text -> '{io2.IO}()
+bufServerThread portVar toSend = 'let
+  go : '{io2.IO, Exception}()
+  go = 'let
+    sock = serverSocket (Some "127.0.0.1") "0"
+    port = socketPort sock
+    put portVar port
+    listen sock
+    sock' = socketAccept sock
+    buf = IO.pinnedByteArray 100
+    arr = PinnedByteArray.cast buf
+    bs = ImmutableByteArray.fromBytes (toUtf8 toSend)
+    ImmutableByteArray.copyTo! arr 0 bs 0 5
+    _ = socketSendBuf sock' buf 5
+    closeSocket sock'
+
+  match (toEither go) with
+    Left (Failure _ t _) -> watch t ()
+    _ -> ()
+
+bufClientThread : MVar Nat -> MVar Text -> '{io2.IO}()
+bufClientThread portVar resultVar = 'let
+  go = 'let
+    port = take portVar
+    sock = clientSocket "127.0.0.1" (Nat.toText port)
+    buf = IO.pinnedByteArray 5
+    arr = PinnedByteArray.cast buf
+    n = socketReceiveBuf sock buf 5
+    frz = MutableByteArray.freeze arr 0 n
+    msg = Text.fromUtf8 (ImmutableByteArray.toBytes frz 0 n)
+    put resultVar msg
+
+  match (toEither go) with
+    Left (Failure _ t _) -> watch t ()
+    _ -> ()
+
+testBufTcpConnect : '{io2.IO}[Result]
+testBufTcpConnect = 'let
+  test = 'let
+    portVar = !MVar.newEmpty
+    resultVar = !MVar.newEmpty
+
+    toSend = "12345"
+
+    void (forkComp (bufServerThread portVar toSend))
+    void (forkComp (bufClientThread portVar resultVar))
+
+    received = take resultVar
+
+    expectU "should have reaped what we've sown" toSend received
+
+  runTest test
+
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + bufClientThread   : MVar Nat -> MVar Text -> '{IO} ()
+  + bufServerThread   : MVar Nat -> Text -> '{IO} ()
+  + testBufTcpConnect : '{IO} [Result]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test testBufTcpConnect
+
+    New test results:
+
+    1. testBufTcpConnect   ◉ should have reaped what we've sown
 
   ✅ 1 test(s) passing
 

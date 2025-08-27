@@ -339,6 +339,27 @@ renderTypeError e env src = case e of
         annotatedAsStyle Type1 src f,
         debugSummary note
       ]
+  ActionRestrictionFailure {..} ->
+    mconcat
+      [ Pr.lines
+          [ "I found an action in a block with a type of:",
+            "",
+            Pr.indentN 4 . style Type1 $ renderType' env foundType,
+            "",
+            showSourceMaybes
+              src
+              [(,Type1) <$> rangeForAnnotated mismatchSite],
+            Pr.wrap . mconcat $
+              [ "All actions are expected to have a type of",
+                style Type2 "Unit",
+                "to catch accidental delayed values. To explicitly",
+                "ignore a result, use:"
+              ],
+            "",
+            Pr.indentN 4 $ style Type1 "_ = <expr>"
+          ],
+        debugSummary note
+      ]
   FunctionApplication {..} ->
     let fte = Type.removePureEffects False ft
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
@@ -426,8 +447,8 @@ renderTypeError e env src = case e of
   Mismatch {..} ->
     mconcat
       [ Pr.lines
-          [ "I found a value  of type:  " <> style Type1 (renderType' env foundLeaf),
-            "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf)
+          [ "I found a value  of type:  " <> style Type1 (renderType' env foundType),
+            "where I expected to find:  " <> style Type2 (renderType' env expectedType)
           ],
         "\n\n",
         showSourceMaybes
@@ -630,6 +651,35 @@ renderTypeError e env src = case e of
             ],
         "\n\n",
         debugSummary note
+      ]
+  AbilityInstantiationFailure _v want site _ ->
+    mconcat $
+      [ Pr.wrap . mconcat $
+          [ "I wasn't able to solve for an implicit effect variable ",
+            "when checking the definition:"
+          ],
+        "\n\n",
+        showSourceMaybes src [(,Type1) <$> rangeForAnnotated site],
+        "\n",
+        Pr.wrap . mconcat $
+          [ "This is likely due to a recursive function using ",
+            "abilities where the signature does not specify the ",
+            "abilities used. It may also be from a variable ",
+            "introduced by an ability match escaping its scope."
+          ],
+        "\n\n",
+        Pr.wrap . mconcat $
+          [ "In the first case, I think the abilities should be",
+            "similar to"
+          ],
+        "\n\n",
+        Pr.indentN 4 . style Type1 $
+          "{" <> commas (renderType' env) want <> "}",
+        "\n\n",
+        Pr.wrap . mconcat $
+          [ "Please adjust the signature to include the ability ",
+            "annotation on the arrow."
+          ]
       ]
   UnguardedLetRecCycle vs locs _ ->
     mconcat

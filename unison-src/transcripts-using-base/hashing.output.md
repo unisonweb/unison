@@ -3,7 +3,7 @@
 Unison has cryptographic builtins for hashing and computing [HMACs](https://en.wikipedia.org/wiki/HMAC) (hash-based message authentication codes). This transcript shows their usage and has some test cases.
 
 ``` ucm
-scratch/main> ls builtin.Bytes
+> ls builtin.Bytes
 
   1.  ++                    (Bytes -> Bytes -> Bytes)
   2.  at                    (Nat -> Bytes -> Optional Nat)
@@ -77,22 +77,16 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex1      : Text
+  + ex2      : Text
+  + ex3      : Text
+  + ex4      : Text
+  + ex5      : Text
+  + f        : x -> x
+      (also named id)
+  + mysecret : Bytes
 
-    ⍟ New definitions:
-    
-      ex1      : Text
-      ex2      : Text
-      ex3      : Text
-      ex4      : Text
-      ex5      : Text
-      f        : x -> x
-        (also named id)
-      mysecret : Bytes
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     22 | > ex1
            ⧩
@@ -118,7 +112,7 @@ ex5 = crypto.hmac Sha2_256 mysecret f |> hex
 And here's the full API:
 
 ``` ucm
-scratch/main> find-in builtin.crypto
+> find-in builtin.crypto
 
   1.  type CryptoFailure
   2.  Ed25519.sign.impl : Bytes
@@ -159,12 +153,7 @@ Note that the universal versions of `hash` and `hmac` are currently unimplemente
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > hash Sha3_256 (fromHex "3849238492")
           ⧩
@@ -308,11 +297,11 @@ test> crypto.hash.numTests =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 
@@ -381,23 +370,17 @@ test> hmac_sha2_512.tests.ex2 =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ex'                     : HashAlgorithm
+                              -> Text
+                              -> Text
+                              -> Text
+                              -> [Result]
+  + hmac_sha2_256.tests.ex1 : [Result]
+  + hmac_sha2_256.tests.ex2 : [Result]
+  + hmac_sha2_512.tests.ex1 : [Result]
+  + hmac_sha2_512.tests.ex2 : [Result]
 
-    ⍟ New definitions:
-    
-      ex'                     : HashAlgorithm
-                                -> Text
-                                -> Text
-                                -> Text
-                                -> [Result]
-      hmac_sha2_256.tests.ex1 : [Result]
-      hmac_sha2_256.tests.ex2 : [Result]
-      hmac_sha2_512.tests.ex1 : [Result]
-      hmac_sha2_512.tests.ex2 : [Result]
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     4 |   ex' Sha2_256
     
@@ -442,19 +425,13 @@ test> md5.tests.ex3 =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + md5.tests.ex1 : [Result]
+  + md5.tests.ex2 : [Result]
+  + md5.tests.ex3 : [Result]
 
-    ⊡ Previously added definitions will be ignored: ex
-    
-    ⍟ New definitions:
-    
-      md5.tests.ex1 : [Result]
-      md5.tests.ex2 : [Result]
-      md5.tests.ex3 : [Result]
+  (and 1 unchanged term)
 
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     4 |   ex Md5
     
@@ -470,11 +447,11 @@ test> md5.tests.ex3 =
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 ``` ucm
-scratch/main> test
+> test
 
   Cached test results (`help testcache` to learn more)
 

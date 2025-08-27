@@ -63,13 +63,8 @@ import Control.Monad.State.Strict qualified as State
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
-import Data.Time.Clock.System (getSystemTime, systemToTAITime)
-import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Unique (Unique, newUnique)
-import System.CPUTime (getCPUTime)
 import System.Console.Regions qualified as Console.Regions
-import Text.Printf (printf)
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (CredentialManager)
@@ -96,6 +91,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Timing qualified as Timing
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The main command-line app monad.
@@ -168,7 +164,7 @@ data Env = Env
     loadSource :: SourceName -> IO LoadSourceResult,
     -- | Notify the LSP that this ProjectPathIds might be different from the last (e.g. on branch update, switch, etc).
     lspCheckForChanges :: PP.ProjectPathIds -> IO (),
-    -- | How to write source code. Bool = make new fold?
+    -- | How to prepend source code. Bool = make new fold?
     writeSource :: SourceName -> Text -> Bool -> IO (),
     -- | What to do with output for the user.
     notify :: Output -> IO (),
@@ -176,7 +172,6 @@ data Env = Env
     notifyNumbered :: NumberedOutput -> IO NumberedArgs,
     runtime :: Runtime Symbol,
     sandboxedRuntime :: Runtime Symbol,
-    nativeRuntime :: Runtime Symbol,
     serverBaseUrl :: Maybe Server.BaseUrl,
     ucmVersion :: UCMVersion,
     -- | Whether we're running in a transcript test or not.
@@ -341,45 +336,11 @@ time :: String -> Cli a -> Cli a
 time label action =
   if Debug.shouldDebug Debug.Timing
     then Cli \env k s -> do
-      systemStart <- getSystemTime
-      cpuPicoStart <- getCPUTime
+      startTime <- Timing.startTiming
       a <- unCli action env (\a loopState -> pure (Success a, loopState)) s
-      cpuPicoEnd <- getCPUTime
-      systemEnd <- getSystemTime
-      let systemDiff =
-            diffTimeToNanos
-              (diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart))
-      let cpuDiff = picosToNanos (cpuPicoEnd - cpuPicoStart)
-      printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
+      Timing.stopTiming label startTime
       feed k a
     else action
-  where
-    diffTimeToNanos :: DiffTime -> Double
-    diffTimeToNanos =
-      picosToNanos . diffTimeToPicoseconds
-
-    picosToNanos :: Integer -> Double
-    picosToNanos =
-      (/ 1_000) . realToFrac
-
-    -- Render nanoseconds, trying to fit into 4 characters.
-    renderNanos :: Double -> String
-    renderNanos ns
-      | ns < 0.5 = "0 ns"
-      | ns < 995 = printf "%.0f ns" ns
-      | ns < 9_950 = printf "%.2f µs" us
-      | ns < 99_500 = printf "%.1f µs" us
-      | ns < 995_000 = printf "%.0f µs" us
-      | ns < 9_950_000 = printf "%.2f ms" ms
-      | ns < 99_500_000 = printf "%.1f ms" ms
-      | ns < 995_000_000 = printf "%.0f ms" ms
-      | ns < 9_950_000_000 = printf "%.2f s" s
-      | ns < 99_500_000_000 = printf "%.1f s" s
-      | otherwise = printf "%.0f s" s
-      where
-        us = ns / 1_000
-        ms = ns / 1_000_000
-        s = ns / 1_000_000_000
 
 getProjectPathIds :: Cli PP.ProjectPathIds
 getProjectPathIds = do
@@ -452,7 +413,7 @@ withRespondRegion action = do
         with (Console.Regions.withConsoleRegion Console.Regions.Linear) \region ->
           action \output ->
             liftIO do
-              string <- (OutputMessages.notifyUser "." output)
+              string <- (OutputMessages.notifyUser (pure ".") output)
               width <- PrettyTerminal.getAvailableWidth
               Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
     True -> action respond

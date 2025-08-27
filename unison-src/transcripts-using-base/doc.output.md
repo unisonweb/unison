@@ -31,17 +31,15 @@ unique type time.DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type time.DayOfWeek
 
-    ⍟ New definitions:
-    
-      type time.DayOfWeek
-      ImportantConstant     : Nat
-      ImportantConstant.doc : Doc2
-      d1                    : Doc2
-      name                  : Doc2
-      time.DayOfWeek.doc    : Doc2
+  + d1                    : Doc2
+  + ImportantConstant     : Nat
+  + ImportantConstant.doc : Doc2
+  + name                  : Doc2
+  + time.DayOfWeek.doc    : Doc2
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 Notice that an anonymous documentation block `{{ ... }}` before a definition `ImportantConstant` is just syntax sugar for `ImportantConstant.doc = {{ ... }}`.
@@ -49,15 +47,15 @@ Notice that an anonymous documentation block `{{ ... }}` before a definition `Im
 You can preview what docs will look like when rendered to the console using the `display` or `docs` commands:
 
 ``` ucm
-scratch/main> display d1
+> display d1
 
   Hello there Alice!
 
-scratch/main> docs ImportantConstant
+> docs ImportantConstant
 
   An important constant, equal to `42`
 
-scratch/main> docs DayOfWeek
+> docs DayOfWeek
 
   The 7 days of the week, defined as:
 
@@ -71,29 +69,25 @@ The `docs ImportantConstant` command will look for `ImportantConstant.doc` in th
 First, we'll load the `syntax.u` file which has examples of all the syntax:
 
 ``` ucm
-scratch/main> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
+> load ./unison-src/transcripts-using-base/doc.md.files/syntax.u
 
   Loading changes detected in
   ./unison-src/transcripts-using-base/doc.md.files/syntax.u.
 
-  I found and typechecked these definitions in
-  ./unison-src/transcripts-using-base/doc.md.files/syntax.u. If
-  you do an `update`, here's how your codebase would change:
+  + basicFormatting     : Doc2
+  + doc.guide           : Doc2
+  + evaluation          : Doc2
+  + includingSource     : Doc2
+  + lists               : Doc2
+  + nonUnisonCodeBlocks : Doc2
+  + otherElements       : Doc2
+  + sqr                 : Nat -> Nat
 
-    ⍟ New definitions:
-    
-      basicFormatting     : Doc2
-      doc.guide           : Doc2
-      evaluation          : Doc2
-      includingSource     : Doc2
-      lists               : Doc2
-      nonUnisonCodeBlocks : Doc2
-      otherElements       : Doc2
-      sqr                 : Nat -> Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 Now we can review different portions of the guide.
@@ -101,7 +95,7 @@ we'll show both the pretty-printed source using `view`
 and the rendered output using `display`:
 
 ```` ucm
-scratch/main> view basicFormatting
+> view basicFormatting
 
   basicFormatting : Doc2
   basicFormatting =
@@ -131,7 +125,7 @@ scratch/main> view basicFormatting
       __Next up:__ {lists}
     }}
 
-scratch/main> display basicFormatting
+> display basicFormatting
 
   # Basic formatting
 
@@ -156,7 +150,7 @@ scratch/main> display basicFormatting
 
     *Next up:* lists
 
-scratch/main> view lists
+> view lists
 
   lists : Doc2
   lists =
@@ -199,7 +193,7 @@ scratch/main> view lists
          3. Get dressed.
     }}
 
-scratch/main> display lists
+> display lists
 
   # Lists
 
@@ -238,7 +232,7 @@ scratch/main> display lists
       2. Take shower.
       3. Get dressed.
 
-scratch/main> view evaluation
+> view evaluation
 
   evaluation : Doc2
   evaluation =
@@ -273,7 +267,7 @@ scratch/main> view evaluation
       ```
     }}
 
-scratch/main> display evaluation
+> display evaluation
 
   # Evaluation
 
@@ -301,7 +295,7 @@ scratch/main> display evaluation
         cube : Nat -> Nat
         cube x = x * x * x
 
-scratch/main> view includingSource
+> view includingSource
 
   includingSource : Doc2
   includingSource =
@@ -342,7 +336,7 @@ scratch/main> view includingSource
            {{ docExample 1 do x -> sqr x }}.
     }}
 
-scratch/main> display includingSource
+> display includingSource
 
   # Including Unison source code
 
@@ -388,7 +382,7 @@ scratch/main> display includingSource
         application, you can put it in double backticks, like
         so: `sqr x`. This is equivalent to `sqr x`.
 
-scratch/main> view nonUnisonCodeBlocks
+> view nonUnisonCodeBlocks
 
   nonUnisonCodeBlocks : Doc2
   nonUnisonCodeBlocks =
@@ -421,7 +415,7 @@ scratch/main> view nonUnisonCodeBlocks
       ```
     }}
 
-scratch/main> display nonUnisonCodeBlocks
+> display nonUnisonCodeBlocks
 
   # Non-Unison code blocks
 
@@ -450,7 +444,7 @@ scratch/main> display nonUnisonCodeBlocks
       xs.foldLeft(Nil : List[A])((acc,a) => a +: acc)
     ```
 
-scratch/main> view otherElements
+> view otherElements
 
   otherElements : Doc2
   otherElements =
@@ -507,7 +501,7 @@ scratch/main> view otherElements
       ] }}
     }}
 
-scratch/main> display otherElements
+> display otherElements
 
   There are also asides, callouts, tables, tooltips, and more.
   These don't currently have special syntax; just use the
@@ -550,7 +544,7 @@ scratch/main> display otherElements
 Lastly, it's common to build longer documents including subdocuments via `{{ subdoc }}`. We can stitch together the full syntax guide in this way:
 
 ```` ucm
-scratch/main> view doc.guide
+> view doc.guide
 
   doc.guide : Doc2
   doc.guide =
@@ -570,7 +564,7 @@ scratch/main> view doc.guide
       {{ otherElements }}
     }}
 
-scratch/main> display doc.guide
+> display doc.guide
 
   # Unison computable documentation
 

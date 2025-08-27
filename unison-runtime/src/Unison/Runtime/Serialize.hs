@@ -3,17 +3,22 @@
 module Unison.Runtime.Serialize where
 
 import Control.Monad (replicateM)
-import Data.Bits (Bits)
+import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString qualified as B
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Get qualified as Ser
 import Data.Bytes.Put
 import Data.Bytes.Serial
-import Data.Bytes.Signed (Unsigned)
-import Data.Bytes.VarInt
+import Data.Bytes.Signed (Unsigned, unsigned)
 import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
+import Data.Primitive.Array
+  ( Array,
+    indexArray,
+    sizeofArray,
+  )
+import Data.Sequence (Seq, (|>))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Primitive qualified as BA
@@ -25,12 +30,15 @@ import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
+import Unison.ReferentPrime (Referent' (..))
 import Unison.Runtime.Array qualified as PA
+import Unison.Runtime.Canonicalizer
 import Unison.Runtime.Exception (exn)
 import Unison.Runtime.MCode
   ( Prim1 (..),
     Prim2 (..),
   )
+import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 
@@ -52,16 +60,38 @@ class Tag t where
 
 putTag :: (MonadPut m) => (Tag t) => t -> m ()
 putTag = putWord8 . tag2word
+{-# INLINE putTag #-}
 
 getTag :: (MonadGet m) => (Tag t) => m t
 getTag = word2tag =<< getWord8
+{-# INLINE getTag #-}
+
+getVarInt :: (MonadGet m, Num b, Bits b) => m b
+getVarInt = getWord8 >>= go
+  where
+    go n
+      | testBit n 7 = do
+          m <- getWord8 >>= go
+          return $ shiftL m 7 .|. clearBit (fromIntegral n) 7
+      | otherwise = return $ fromIntegral n
+{-# INLINE getVarInt #-}
+
+putVarInt :: (MonadPut m, Integral a, Integral (Unsigned a), Bits (Unsigned a)) => a -> m ()
+putVarInt = go . unsigned
+  where
+    go n
+      | n < 0x80 = putWord8 $ fromIntegral n
+      | otherwise = do
+          putWord8 $ setBit (fromIntegral n) 7
+          go $ shiftR n 7
+{-# INLINE putVarInt #-}
 
 -- Some basics, moved over from V1 serialization
 putChar :: (MonadPut m) => Char -> m ()
-putChar = serialize . VarInt . fromEnum
+putChar = putVarInt . fromEnum
 
 getChar :: (MonadGet m) => m Char
-getChar = toEnum . unVarInt <$> deserialize
+getChar = toEnum <$> getVarInt
 
 putFloat :: (MonadPut m) => Double -> m ()
 putFloat = serializeBE
@@ -100,7 +130,8 @@ putLength ::
   ) =>
   n ->
   m ()
-putLength = serialize . VarInt
+putLength = putVarInt
+{-# INLINE putLength #-}
 
 getLength ::
   ( MonadGet m,
@@ -110,7 +141,8 @@ getLength ::
     Bits (Unsigned n)
   ) =>
   m n
-getLength = unVarInt <$> deserialize
+getLength = getVarInt
+{-# INLINE getLength #-}
 
 -- Checks for negatives, in case you put an Integer, which does not
 -- behave properly for negative numbers.
@@ -120,12 +152,13 @@ putPositive ::
   m ()
 putPositive n
   | n < 0 = exn [] $ "putPositive: negative number: " ++ show (toInteger n)
-  | otherwise = serialize (VarInt n)
+  | otherwise = putVarInt n
+{-# INLINE putPositive #-}
 
 -- Reads as an Integer, then checks that the result will fit in the
 -- result type.
 getPositive :: forall m n. (Bounded n, Integral n, MonadGet m) => m n
-getPositive = validate . unVarInt =<< deserialize
+getPositive = validate =<< getVarInt
   where
     mx0 :: n
     mx0 = maxBound
@@ -136,21 +169,41 @@ getPositive = validate . unVarInt =<< deserialize
     validate n
       | n <= mx = pure $ fromIntegral n
       | otherwise = fail $ "getPositive: overflow: " ++ show n
+{-# INLINE getPositive #-}
 
 putFoldable ::
   (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
 putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
+{-# INLINE putFoldable #-}
 
 putMap :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
-putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+putMap putA putB = putMapping putA putB . Map.toList
 
 getList :: (MonadGet m) => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
+{-# INLINE getList #-}
+
+getSeq :: (MonadGet m) => m a -> m (Seq a)
+getSeq a = getLength >>= pull mempty
+  where
+    pull !acc (n :: Int)
+      | n <= 0 = pure acc
+      | otherwise = a >>= \x -> pull (acc |> x) (n - 1)
+{-# INLINE getSeq #-}
 
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
-getMap getA getB = Map.fromList <$> getList (getPair getA getB)
+getMap getA getB = Map.fromList <$> getMapping getA getB
+
+putMapping ::
+  (MonadPut m) => (a -> m ()) -> (b -> m ()) -> [(a, b)] -> m ()
+putMapping putA putB = putFoldable (putPair putA putB)
+{-# INLINE putMapping #-}
+
+getMapping :: (MonadGet m) => m a -> m b -> m [(a, b)]
+getMapping getA getB = getList (getPair getA getB)
+{-# INLINE getMapping #-}
 
 putEnumMap ::
   (MonadPut m) =>
@@ -216,12 +269,14 @@ putHash h = do
   let bs = Hash.toByteString h
   putLength (B.length bs)
   putByteString bs
+{-# INLINE putHash #-}
 
 getHash :: (MonadGet m) => m Hash
 getHash = do
   len <- getLength
-  bs <- B.copy <$> Ser.getBytes len
+  bs <- Ser.getBytes len
   pure $ Hash.fromByteString bs
+{-# INLINE getHash #-}
 
 putReferent :: (MonadPut m) => Referent -> m ()
 putReferent = \case
@@ -241,6 +296,51 @@ getReferent = do
     1 -> Con <$> getConstructorReference <*> getConstructorType
     _ -> unknownTag "getReferent" tag
 
+-- Arguments for getting/putting references by numbering rather than
+-- inline. For getting, the format is numbered, so we just need an
+-- array of references. For putting, the assumption is that every
+-- `Reference` has been resolved to a unique object in memory, so that
+-- we can look them up by stable name.
+type GetRefLookup = (Array Reference, Array Reference)
+
+type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
+
+putReferentByNumber ::
+  (MonadPut m) => PutRefLookup -> Referent -> m ()
+putReferentByNumber (tys, tms) = \case
+  Ref r -> do
+    putWord8 0
+    putReferenceByNumber tms r
+  Con r ct -> do
+    putWord8 1
+    putConstructorReferenceByNumber tys r
+    putConstructorType ct
+
+putNumberedReferent :: (MonadPut m) => Referent' RefNum -> m ()
+putNumberedReferent = \case
+  Ref' r -> do
+    putWord8 0
+    putRefNum r
+  Con' r ct -> do
+    putWord8 1
+    putNumberedConstructorReference r
+    putConstructorType ct
+
+getReferentByNumber :: (MonadGet m) => GetRefLookup -> m Referent
+getReferentByNumber (tys, tms) = do
+  tag <- getWord8
+  case tag of
+    0 -> Ref <$> getReferenceByNumber tms
+    1 -> Con <$> getConstructorReferenceByNumber tys <*> getConstructorType
+    _ -> unknownTag "getReferent" tag
+
+getNumberedReferent :: (MonadGet m) => m (Referent' RefNum)
+getNumberedReferent =
+  getWord8 >>= \case
+    0 -> Ref' <$> getRefNum
+    1 -> Con' <$> getNumberedConstructorReference <*> getConstructorType
+    tag -> unknownTag "getNumberedReferent" tag
+
 getConstructorType :: (MonadGet m) => m CT.ConstructorType
 getConstructorType =
   getWord8 >>= \case
@@ -253,17 +353,41 @@ putConstructorType = \case
   CT.Data -> putWord8 0
   CT.Effect -> putWord8 1
 
+putConstructorReferenceByNumber ::
+  (MonadPut m) => CanonMap Reference Int -> ConstructorReference -> m ()
+putConstructorReferenceByNumber tys (ConstructorReference r i) = do
+  putReferenceByNumber tys r
+  putLength i
+
+getConstructorReferenceByNumber ::
+  (MonadGet m) => Array Reference -> m ConstructorReference
+getConstructorReferenceByNumber tys =
+  ConstructorReference <$> getReferenceByNumber tys <*> getLength
+
+putNumberedConstructorReference ::
+  (MonadPut m) => GConstructorReference RefNum -> m ()
+putNumberedConstructorReference (ConstructorReference r i) = do
+  putRefNum r
+  putLength i
+
+getNumberedConstructorReference ::
+  (MonadGet m) => m (GConstructorReference RefNum)
+getNumberedConstructorReference =
+  ConstructorReference <$> getRefNum <*> getLength
+
 putText :: (MonadPut m) => Text -> m ()
 putText text = do
   let bs = encodeUtf8 text
   putLength $ B.length bs
   putByteString bs
+{-# INLINE putText #-}
 
 getText :: (MonadGet m) => m Text
 getText = do
   len <- getLength
   bs <- B.copy <$> Ser.getBytes len
   pure $ decodeUtf8 bs
+{-# INLINE getText #-}
 
 putReference :: (MonadPut m) => Reference -> m ()
 putReference r = case r of
@@ -274,6 +398,18 @@ putReference r = case r of
     putWord8 1
     putHash hash
     putLength i
+{-# INLINE putReference #-}
+
+putReferenceByNumber ::
+  (MonadPut m) => CanonMap Reference Int -> Reference -> m ()
+putReferenceByNumber cm r
+  | Just i <- unsafeLookup r cm = putVarInt i
+  | otherwise = exn [] $ "could not serialize reference: " ++ show r
+{-# INLINE putReferenceByNumber #-}
+
+putRefNum :: (MonadPut m) => RefNum -> m ()
+putRefNum (RefNum i) = putVarInt i
+{-# INLINE putRefNum #-}
 
 getReference :: (MonadGet m) => m Reference
 getReference = do
@@ -282,6 +418,21 @@ getReference = do
     0 -> Builtin <$> getText
     1 -> DerivedId <$> (Id <$> getHash <*> getLength)
     _ -> unknownTag "Reference" tag
+{-# INLINE getReference #-}
+
+getReferenceByNumber :: (MonadGet m) => Array Reference -> m Reference
+getReferenceByNumber refm = getVarInt >>= lookupRef refm
+{-# INLINE getReferenceByNumber #-}
+
+lookupRef :: (Monad m) => Array Reference -> Int -> m Reference
+lookupRef arr i
+  | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
+  | otherwise = exn [] $ "lookupRef: index out of bounds: " ++ show i
+{-# INLINE lookupRef #-}
+
+getRefNum :: (MonadGet m) => m RefNum
+getRefNum = RefNum <$> getVarInt
+{-# INLINE getRefNum #-}
 
 putConstructorReference :: (MonadPut m) => ConstructorReference -> m ()
 putConstructorReference (ConstructorReference r i) = do

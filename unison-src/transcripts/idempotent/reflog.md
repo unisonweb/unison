@@ -11,12 +11,9 @@ x = 1
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + x : Nat
 
-    ⍟ New definitions:
-    
-      x : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -35,12 +32,9 @@ y = 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + y : Nat
 
-    ⍟ New definitions:
-    
-      y : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
@@ -84,9 +78,9 @@ scratch/main> reflog
        history.
 
        Branch         Hash          Description
-  1.   scratch/main   #q6hn6o6ko5   update
-  2.   scratch/main   #rln1cnmdtn   update
-  3.   scratch/main   #h1hqblg747   builtins.merge scratch/main:lib.builtins
+  1.   scratch/main   #j2kf4kntnj   update
+  2.   scratch/main   #stllmahou0   update
+  3.   scratch/main   #5ajg982rnh   builtins.merge scratch/main:lib.builtins
   4.   scratch/main   #sg60bvjo91   Project Created
 ```
 
@@ -103,11 +97,11 @@ scratch/main> project.reflog
        history.
 
        Branch          Hash          Description
-  1.   scratch/other   #puj83ii6li   alias.term y scratch/other:z
-  2.   scratch/other   #q6hn6o6ko5   Branch created from scratch/main
-  3.   scratch/main    #q6hn6o6ko5   update
-  4.   scratch/main    #rln1cnmdtn   update
-  5.   scratch/main    #h1hqblg747   builtins.merge scratch/main:lib.builtins
+  1.   scratch/other   #bcu5k6cpnq   alias.term y scratch/other:z
+  2.   scratch/other   #j2kf4kntnj   Branch created from scratch/main
+  3.   scratch/main    #j2kf4kntnj   update
+  4.   scratch/main    #stllmahou0   update
+  5.   scratch/main    #5ajg982rnh   builtins.merge scratch/main:lib.builtins
   6.   scratch/main    #sg60bvjo91   Project Created
 ```
 
@@ -124,13 +118,13 @@ scratch/main> reflog.global
        history.
 
        Branch            Hash          Description
-  1.   newproject/main   #e6rjp9oat6   alias.term lib.builtins.Nat newproject/main:MyNat
-  2.   newproject/main   #h1hqblg747   builtins.merge newproject/main:lib.builtins
+  1.   newproject/main   #78aprirb3a   alias.term lib.builtins.Nat newproject/main:MyNat
+  2.   newproject/main   #5ajg982rnh   builtins.merge newproject/main:lib.builtins
   3.   newproject/main   #sg60bvjo91   Branch Created
-  4.   scratch/other     #puj83ii6li   alias.term y scratch/other:z
-  5.   scratch/other     #q6hn6o6ko5   Branch created from scratch/main
-  6.   scratch/main      #q6hn6o6ko5   update
-  7.   scratch/main      #rln1cnmdtn   update
-  8.   scratch/main      #h1hqblg747   builtins.merge scratch/main:lib.builtins
+  4.   scratch/other     #bcu5k6cpnq   alias.term y scratch/other:z
+  5.   scratch/other     #j2kf4kntnj   Branch created from scratch/main
+  6.   scratch/main      #j2kf4kntnj   update
+  7.   scratch/main      #stllmahou0   update
+  8.   scratch/main      #5ajg982rnh   builtins.merge scratch/main:lib.builtins
   9.   scratch/main      #sg60bvjo91   Project Created
 ```

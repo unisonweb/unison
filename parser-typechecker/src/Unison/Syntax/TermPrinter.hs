@@ -125,7 +125,7 @@ data InfixContext
   deriving (Eq, Show)
 
 data DocLiteralContext
-  = -- We won't try and render this ABT node or anything under it as a [: @Doc literal :]
+  = -- We won't try and render this ABT node or anything under it as a {{ {type Doc} literal }}
     NoDoc
   | -- We'll keep checking as we recurse down
     MaybeDoc
@@ -1110,36 +1110,35 @@ isDocLiteral term = case term of
 prettyDoc :: (Var v) => PrettyPrintEnv -> Imports -> Term3 v a -> Pretty SyntaxText
 prettyDoc n im term =
   mconcat
-    [ fmt S.DocDelimiter $ l "[: ",
+    [ fmt S.DocDelimiter $ l "{{ ",
       go term,
       spaceUnlessBroken,
-      fmt S.DocDelimiter $ l ":]"
+      fmt S.DocDelimiter $ l "}}"
     ]
   where
     go (DD.DocJoin segs) = foldMap go segs
     go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
     go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
-      fmt S.DocDelimiter (l "@") <> (fmt $ S.TermReference r) (fmtTerm r)
+      curlyRef . fmt (S.TermReference r) $ fmtTerm r
     go (DD.DocLink (DD.LinkType (TypeLink' r))) =
-      fmt S.DocDelimiter (l "@") <> (fmt $ S.TypeReference r) (fmtType r)
+      curlyRef $ fmt S.DocKeyword (l "type ") <> fmt (S.TypeReference r) (fmtType r)
     go (DD.DocSource (DD.LinkTerm (TermLink' r))) =
-      atKeyword "source" <> fmtTerm r
+      atKeyword "source" $ fmtTerm r
     go (DD.DocSource (DD.LinkType (TypeLink' r))) =
-      atKeyword "source" <> fmtType r
+      atKeyword "source" $ fmtType r
     go (DD.DocSignature (TermLink' r)) =
-      atKeyword "signature" <> fmtTerm r
+      atKeyword "signature" $ fmtTerm r
     go (DD.DocEvaluate (TermLink' r)) =
-      atKeyword "evaluate" <> fmtTerm r
-    go (Ref' r) = atKeyword "include" <> fmtTerm (Referent.Ref r)
+      atKeyword "eval" $ fmtTerm r
+    go (Ref' r) = curlyRef . curlyRef . fmtTerm $ Referent.Ref r
     go _ = l $ "(invalid doc literal: " ++ show term ++ ")"
     fmtName s = styleHashQualified'' (fmt $ S.HashQualifier s) $ elideFQN im s
     fmtTerm r = fmtName $ PrettyPrintEnv.termName n r
     fmtType r = fmtName $ PrettyPrintEnv.typeName n r
-    atKeyword w =
-      fmt S.DocDelimiter (l "@[")
-        <> fmt S.DocKeyword (l w)
-        <> fmt S.DocDelimiter (l "] ")
-    escaped = Text.replace "@" "\\@" . Text.replace ":]" "\\:]"
+    atKeyword w content =
+      fmt S.DocDelimiter (l "@") <> fmt S.DocKeyword (l w) <> curlyRef content
+    curlyRef content = fmt S.DocDelimiter (l "{") <> content <> fmt S.DocDelimiter (l "}")
+    escaped = Text.replace "{{" "`{{`" . Text.replace "}}" "`}}`"
     spaceUnlessBroken = PP.orElse " " ""
 
 paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText

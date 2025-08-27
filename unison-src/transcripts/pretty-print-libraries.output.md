@@ -3,7 +3,7 @@ This transcript is to detect changes in the pretty-printer for a few major publi
 We clone releases and not dev branches to avoid external changes, and also to reduce the time needed to clone the libraries.
 
 ``` ucm
-scratch/main> clone @unison/base/releases/3.19.0
+> clone @unison/base/releases/3.19.0
 
   Cloned @unison/base/releases/3.19.0.
 
@@ -48192,8 +48192,8 @@ Doc.Deprecated.example e =
 
 Doc.Deprecated.example.doc : Deprecated
 Doc.Deprecated.example.doc =
-  [: Given a `termRef` reference, constructs an example that shows the source 
-  of that term as well as the result of evaluating it.:]
+  {{ Given a `termRef` reference, constructs an example that shows the source 
+  of that term as well as the result of evaluating it.}}
 
 Doc.doc : Doc
 Doc.doc =
@@ -83165,7 +83165,7 @@ Void.doc =
 ````
 
 ``` ucm
-scratch/main> clone @unison/http/releases/3.3.2
+> clone @unison/http/releases/3.3.2
 
   Cloned @unison/http/releases/3.3.2.
 

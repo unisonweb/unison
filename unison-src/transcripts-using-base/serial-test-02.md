@@ -25,11 +25,12 @@ products = cases (x, y, z) ->
   "(" ++ toText px ++ ", " ++ toText py ++ ", \"" ++ toText pz ++ "\")"
 
 mkTestCase = do
-  saveTestCase "case-02" "v4" products (l1, l2, l3)
+  saveTestCase None "case-02" "v4" products (l1, l2, l3)
+  saveTestCase (Some 5) "case-02" "v5" products (l1, l2, l3)
 
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> run mkTestCase
+> add
+> run mkTestCase
 ```

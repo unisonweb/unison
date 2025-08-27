@@ -1,120 +1,85 @@
 # Documenting Unison code
 
 ``` ucm :hide
-scratch/main> builtins.merge lib.builtins
+> builtins.mergeio lib.builtins
 ```
 
 Unison documentation is written in Unison. Documentation is a value of the following type:
 
 ``` ucm
-scratch/main> view lib.builtins.Doc
+> view lib.builtins.Doc
 
   type lib.builtins.Doc
     = Blob Text
     | Link Link
     | Source Link
-    | Signature Term
-    | Evaluate Term
+    | Signature Link.Term
+    | Evaluate Link.Term
     | Join [Doc]
 ```
 
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
 
 ``` unison
-doc1 = [: This is some documentation.
+doc1 = {{ This is some documentation.
 
 It can span multiple lines.
 
-Can link to definitions like @List.drop or @List
+Can link to definitions like {List.drop} or {type List}
 
-:]
+}}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + doc1 : Doc2
 
-    ⍟ New definitions:
-    
-      doc1 : Doc
+  Run `update` to apply these changes to your codebase.
 ```
 
 Syntax:
 
-`[:` starts a documentation block; `:]` finishes it. Within the block:
+`{{` starts a documentation block; `}}` finishes it. Within the block:
 
-  - Links to definitions are done with `@List`. `\@` (and `\:]`) if you want to escape.
-  - `@[signature] List.take` expands to the type signature of `List.take`
-  - `@[source] List.map` expands to the full source of `List.map`
-  - `@[include] someOtherDoc`, inserts a value `someOtherDoc : Doc` here.
-  - `@[evaluate] someDefinition` expands to the result of evaluating `someDefinition`, which must be a pre-existing definition in the codebase (can't be an arbitrary expression).
+  - Links to definitions are done with `{List.take}` or `{type List}`.
+  - `@signature{List.take}` expands to the type signature of `List.take`
+  - `@source{List.map}` expands to the full source of `List.map`
+  - `{{someOtherDoc}}`, inserts a value `someOtherDoc : Doc2` here.
+  - `@eval{someDefinition}` expands to the result of evaluating `someDefinition`, which can be an arbitrary expression.
 
 ### An example
 
-We are going to document `List.take` using some verbiage and a few examples. First we have to add the examples to the codebase:
+We are going to document `List.take` using some verbiage and a few examples.
 
-``` unison
-List.take.ex1 = take 0 [1,2,3,4,5]
-List.take.ex2 = take 2 [1,2,3,4,5]
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
-
-    ⍟ New definitions:
-    
-      List.take.ex1 : [Nat]
-      List.take.ex2 : [Nat]
-```
-
-``` ucm
-scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-```
-
-And now let's write our docs and reference these examples:
-
-``` unison
-List.take.doc = [:
-`@List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.  Indent any lines where you don't want it to do this.)
+```` unison
+List.take.doc = {{
+`List.take n xs` returns the first `n` elements of `xs`. (No need to add line breaks manually. The display command will do wrapping of text for you.  Indent any lines where you don't want it to do this.)
 
 ## Examples:
 
-  @[source] List.take.ex1
-  🔽
-  @List.take.ex1 = @[evaluate] List.take.ex1
-
-
-  @[source] List.take.ex2
-  🔽
-  @List.take.ex2 = @[evaluate] List.take.ex2
-:]
 ```
+take 0 [1,2,3,4,5]
+```
+
+```
+take 2 [1,2,3,4,5]
+```
+}}
+````
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + List.take.doc : Doc2
 
-    ⍟ New definitions:
-    
-      List.take.doc : Doc
+  Run `update` to apply these changes to your codebase.
 ```
 
 Let's add it to the codebase.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -125,31 +90,28 @@ scratch/main> add
 We can view it with `docs`, which shows the `Doc` value that is associated with a definition.
 
 ``` ucm
-scratch/main> docs List.take
+> docs List.take
 
-  `List.take n xs` returns the first `n` elements of `xs`. (No 
-  need to add line breaks manually. The display command will do 
-  wrapping of text for you.  Indent any lines where you don't 
+  `List.take n xs` returns the first `n` elements of `xs`. (No
+  need to add line breaks manually. The display command will do
+  wrapping of text for you. Indent any lines where you don't
   want it to do this.)
 
-  ## Examples:
+  # Examples:
 
-    List.take.ex1 : [Nat]
-  List.take.ex1 = List.take 0 [1, 2, 3, 4, 5]
-    🔽
-    ex1 = []
+        List.take 0 [1, 2, 3, 4, 5]
+        ⧨
+        []
 
-
-    List.take.ex2 : [Nat]
-  List.take.ex2 = List.take 2 [1, 2, 3, 4, 5]
-    🔽
-    ex2 = [1, 2]
+        List.take 2 [1, 2, 3, 4, 5]
+        ⧨
+        [1, 2]
 ```
 
 Note that if we view the source of the documentation, the various references are *not* expanded.
 
 ``` ucm
-scratch/main> view List.take
+> view List.take
 
   builtin lib.builtins.List.take :
     lib.builtins.Nat -> [a] -> [a]

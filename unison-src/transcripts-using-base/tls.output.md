@@ -12,7 +12,7 @@ not_a_cert = "-----BEGIN SCHERMIFICATE-----\n-----END SCHERMIFICATE-----"
 ```
 
 ``` ucm :hide
-scratch/main> add
+> add
 ```
 
 # Using an alternative certificate store
@@ -34,25 +34,22 @@ what_should_work _ = this_should_work ++ this_should_not_work
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + this_should_not_work : [Result]
+  + this_should_work     : [Result]
+  + what_should_work     : ∀ _. _ -> [Result]
 
-    ⍟ New definitions:
-    
-      this_should_not_work : [Result]
-      this_should_work     : [Result]
-      what_should_work     : ∀ _. _ -> [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test what_should_work
+> io.test what_should_work
 
     New test results:
 
@@ -221,30 +218,27 @@ testCNReject _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + serverThread          : MVar Nat -> Text -> '{IO} ()
+  + testCAReject          : '{IO} [Result]
+  + testClient            : Optional SignedCert
+                            -> Text
+                            -> MVar Nat
+                            -> '{IO, Exception} Text
+  + testCNReject          : '{IO} [Result]
+  + testConnectSelfSigned : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      serverThread          : MVar Nat -> Text -> '{IO} ()
-      testCAReject          : '{IO} [Result]
-      testCNReject          : '{IO} [Result]
-      testClient            : Optional SignedCert
-                              -> Text
-                              -> MVar Nat
-                              -> '{IO, Exception} Text
-      testConnectSelfSigned : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testConnectSelfSigned
+> io.test testConnectSelfSigned
 
     New test results:
 
@@ -254,7 +248,7 @@ scratch/main> io.test testConnectSelfSigned
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test testCAReject
+> io.test testCAReject
 
     New test results:
 
@@ -264,7 +258,7 @@ scratch/main> io.test testCAReject
 
   Tip: Use view 1 to view the source of a test.
 
-scratch/main> io.test testCNReject
+> io.test testCNReject
 
     New test results:
 

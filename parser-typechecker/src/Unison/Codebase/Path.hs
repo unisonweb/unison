@@ -73,6 +73,9 @@ newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord, Show)
   deriving newtype (Semigroup, Monoid)
 
+instance From Path Text where
+  from = toText
+
 instance Recursive Path (XNor NameSegment) where
   cata φ = cata φ . toSeq
   embed = Path . embed . fmap toSeq
@@ -87,6 +90,9 @@ instance GHC.IsList Path where
 -- | An absolute from the current project root
 newtype Absolute = Absolute {unabsolute :: Path} deriving (Eq, Ord, Show)
 
+instance From Absolute Text where
+  from = toText
+
 instance Recursive Absolute (XNor NameSegment) where
   cata φ = cata φ . unabsolute
   embed = Absolute . embed . fmap unabsolute
@@ -100,6 +106,9 @@ newtype Relative = Relative {unrelative :: Path}
   deriving stock (Eq, Ord, Show)
   deriving newtype (Semigroup, Monoid)
 
+instance From Relative Text where
+  from = toText
+
 relPath_ :: Lens' Relative Path
 relPath_ = lens unrelative (\_ new -> Relative new)
 
@@ -108,6 +117,9 @@ data Path'
   = AbsolutePath' Absolute
   | RelativePath' Relative
   deriving (Eq, Ord, Show)
+
+instance From Path' Text where
+  from = toText
 
 isAbsolute :: Path' -> Bool
 isAbsolute (AbsolutePath' _) = True

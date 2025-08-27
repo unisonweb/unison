@@ -12,28 +12,26 @@ structural type a.b.Baz = Boo
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural type a.b.Baz
+  + structural type a.x.Foo
 
-    ⍟ New definitions:
-    
-      structural type a.b.Baz
-      structural type a.x.Foo
-      a.b.one   : ##Nat
-      a.two     : ##Nat
-      a.x.four  : ##Nat
-      a.x.three : ##Nat
+  + a.b.one   : ##Nat
+  + a.two     : ##Nat
+  + a.x.four  : ##Nat
+  + a.x.three : ##Nat
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.term.verbose a.b.one
+> delete.term.verbose a.b.one
 
   Removed definitions:
 
@@ -42,15 +40,15 @@ scratch/main> delete.term.verbose a.b.one
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
-scratch/main> alias.term a.two a.newtwo
+> alias.term a.two a.newtwo
 
   Done.
 
-scratch/main> move.namespace a.x a.y
+> move.namespace a.x a.y
 
   Done.
 
-scratch/main> history
+> history
 
   Note: The most recent namespace hash is immediately below this
         message.
@@ -85,7 +83,7 @@ scratch/main> history
 
   □ 4. #gss5s88mo3 (start of history)
 
-scratch/main> debug.name-diff 4 1
+> debug.name-diff 4 1
 
   Kind   Name          Change    Ref
   Term   a.newtwo      Added     #dcgdua2lj6upd1ah5v0qp09gjsej0d77d87fu6qn8e2qrssnlnmuinoio46hiu53magr7qn8vnqke8ndt0v76700o5u8gcvo7st28jg

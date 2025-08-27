@@ -7,20 +7,29 @@ function. Also ask for its dependencies for display later.
 save : a -> Bytes
 save x = Value.serialize (Value.value x)
 
+save.versioned : Nat -> a -> Bytes
+save.versioned v x = Value.serialize.versioned v (Value.value x)
+
 Code.save : Code -> Bytes
 Code.save = Code.serialize
+
+Code.save.versioned : Nat -> Code -> Bytes
+Code.save.versioned = Code.serialize.versioned
 
 Code.get : Link.Term -> Code
 Code.get tl = match Code.lookup tl with
   Some co -> co
   None -> throw "could not look up code"
 
-load : Bytes ->{io2.IO, Throw Text} a
-load b = match Value.deserialize b with
+Value.deser : Bytes ->{io2.IO, Throw Text} Value
+Value.deser b = match Value.deserialize b with
   Left _ -> throw "could not deserialize value"
-  Right v -> match Value.load v with
-    Left _ -> throw "could not load value"
-    Right x -> x
+  Right v -> v
+
+load : Bytes ->{io2.IO, Throw Text} a
+load b = match Value.load (deser b) with
+  Left _ -> throw "could not load value"
+  Right x -> x
 
 Code.load : Bytes ->{io2.IO, Throw Text} Code
 Code.load b = match Code.deserialize b with
@@ -29,6 +38,23 @@ Code.load b = match Code.deserialize b with
 
 roundtrip : a ->{io2.IO, Throw Text} a
 roundtrip x = load (save x)
+
+roundtrip.versioned : Nat -> a ->{io2.IO, Throw Text} a
+roundtrip.versioned v x = load (save.versioned v x)
+
+Code.crossVersion : Nat -> Nat -> Text -> Link.Term ->{io2.IO} Result
+Code.crossVersion v0 v1 txt ln =
+  handle
+    Code.serialize.versioned v1
+      (Code.load (Code.serialize.versioned v0 (Code.get ln)))
+  with handleTest txt
+
+-- tests that you can load a v0 saved value and save it as v1
+Value.crossVersion : Nat -> Nat -> Text -> a ->{io2.IO} Result
+Value.crossVersion v0 v1 txt a =
+  handle
+    Value.serialize.versioned v1 (Value.deser (save.versioned v0 a))
+  with handleTest txt
 
 handleTest : Text -> Request {Throw Text} a -> Result
 handleTest t = let
@@ -104,6 +130,10 @@ identicality : Text -> a ->{io2.IO} Result
 identicality t x
   = handle identical "" x (roundtrip x) with handleTest t
 
+identicality.versioned : Nat -> Text -> a ->{io2.IO} Result
+identicality.versioned v t x
+  = handle identical "" x (roundtrip.versioned v x) with handleTest t
+
 idempotence : Text -> Link.Term ->{io2.IO} Result
 idempotence t tl =
   handle let
@@ -111,6 +141,16 @@ idempotence t tl =
     b1 = Code.save co1
     co2 = Code.load b1
     b2 = Code.save co2
+    identical "" b1 b2
+  with handleTest t
+
+idempotence.versioned : Nat -> Text -> Link.Term ->{io2.IO} Result
+idempotence.versioned v t tl =
+  handle let
+    co1 = Code.get tl
+    b1 = Code.save.versioned v co1
+    co2 = Code.load b1
+    b2 = Code.save.versioned v co2
     identical "" b1 b2
   with handleTest t
 
@@ -152,12 +192,15 @@ swapped name link =
 ```
 
 ``` ucm
-scratch/main> add
+> add
 ```
 
 ``` unison
 structural ability Zap where
   zap : Three Nat Nat Nat
+
+structural ability Zep where
+  harp : Nat
 
 h : Three Nat Nat Nat -> Nat -> Nat
 h y x = match y with
@@ -168,7 +211,7 @@ h y x = match y with
 f : Nat ->{Zap} Nat
 f x = h zap x
 
-fVal : Value
+fVal : builtin.Value
 fVal = Value.value f
 
 fDeps : [Link.Term]
@@ -188,6 +231,12 @@ zapper t = cases
   { r } -> r
   { zap -> k } -> handle k t with zapper (rotate t)
 
+zaeper : Request {Zap,Zep} r -> Nat
+zaeper = cases
+ { r } -> 1
+ { zap -> _ } -> 2
+ { harp -> _ } -> 3
+
 bigFun : Nat -> Nat -> Nat -> Nat
 bigFun i j k = let
   f x y = i + x + y
@@ -204,12 +253,38 @@ tests =
    , identicality "ident effect" (_ -> zap)
    , identicality "ident zero" zero
    , identicality "ident h" h
-   , identicality "ident text" "hello"
+   , identicality "ident text v5" "hello"
    , identicality "ident int" +5
    , identicality "ident float" 0.5
    , identicality "ident termlink" fDeps
    , identicality "ident bool" false
    , identicality "ident bytes" [fSer, Bytes.empty]
+
+   , identicality.versioned 5 "ident compound v5"
+       (x -> handle f x with zapper (zero 5))
+   , identicality.versioned 5 "ident fib10 v5" fib10
+   , identicality.versioned 5 "ident effect v5" (_ -> zap)
+   , identicality.versioned 5 "ident zero v5" zero
+   , identicality.versioned 5 "ident h v5" h
+   , identicality.versioned 5 "ident text v5" "hello"
+   , identicality.versioned 5 "ident int v5" +5
+   , identicality.versioned 5 "ident float v5" 0.5
+   , identicality.versioned 5 "ident termlink v5" fDeps
+   , identicality.versioned 5 "ident bool v5" false
+   , identicality.versioned 5 "ident bytes v5" [fSer, Bytes.empty]
+
+   , Value.crossVersion 4 5 "cross version compound"
+       (x -> handle f x with zapper (zero 5))
+   , Value.crossVersion 4 5 "cross version fib10" fib10
+   , Value.crossVersion 4 5 "cross version effect" (_ -> zap)
+   , Value.crossVersion 4 5 "cross version zero" zero
+   , Value.crossVersion 4 5 "cross version h" h
+   , Value.crossVersion 4 5 "cross version text" "hello"
+   , Value.crossVersion 4 5 "cross version int" +5
+   , Value.crossVersion 4 5 "cross version float" 0.5
+   , Value.crossVersion 4 5 "cross version termlink" fDeps
+   , Value.crossVersion 4 5 "cross version bool" false
+   , Value.crossVersion 4 5 "cross version bytes" [fSer, Bytes.empty]
    ]
 
 badLoad : '{IO} [Result]
@@ -235,9 +310,9 @@ we gain the ability to capture output in a transcript, it can be modified
 to actual show that the serialization works.
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test tests
-scratch/main> io.test badLoad
+> add
+> io.test tests
+> io.test badLoad
 ```
 
 ``` unison
@@ -252,6 +327,31 @@ codeTests =
    , idempotence "idem big" (termLink bigFun)
    , idempotence "idem extensionality" (termLink extensionality)
    , idempotence "idem identicality" (termLink identicality)
+
+   -- actually tests that code serialization works on this previously
+   -- problem term
+   , idempotence "idem zaeper" (termLink zaeper)
+
+   , idempotence.versioned 4 "idem f v4" (termLink f)
+   , idempotence.versioned 4 "idem h v4" (termLink h)
+   , idempotence.versioned 4 "idem rotate v4" (termLink rotate)
+   , idempotence.versioned 4 "idem zapper v4" (termLink zapper)
+   , idempotence.versioned 4 "idem showThree v4" (termLink showThree)
+   , idempotence.versioned 4 "idem concatMap v4" (termLink concatMap)
+   , idempotence.versioned 4 "idem big v4" (termLink bigFun)
+   , idempotence.versioned 4 "idem extensionality v4" (termLink extensionality)
+   , idempotence.versioned 4 "idem identicality v4" (termLink identicality)
+
+   , Code.crossVersion 3 4 "cross version idem f" (termLink f)
+   , Code.crossVersion 3 4 "cross version idem h" (termLink h)
+   , Code.crossVersion 3 4 "cross version idem rotate" (termLink rotate)
+   , Code.crossVersion 3 4 "cross version idem zapper" (termLink zapper)
+   , Code.crossVersion 3 4 "cross version idem showThree" (termLink showThree)
+   , Code.crossVersion 3 4 "cross version idem concatMap" (termLink concatMap)
+   , Code.crossVersion 3 4 "cross version idem big" (termLink bigFun)
+   , Code.crossVersion 3 4 "cross version idem extensionality" (termLink extensionality)
+   , Code.crossVersion 3 4 "cross version idem identicality" (termLink identicality)
+
    , verified "f" (termLink f)
    , verified "h" (termLink h)
    , verified "rotate" (termLink rotate)
@@ -264,9 +364,11 @@ codeTests =
    , verified "mutual0" (termLink mutual0)
    , verified "mutual1" (termLink mutual0)
    , verified "mutual2" (termLink mutual0)
+
    , missed "mutual0" (termLink mutual0)
    , missed "mutual1" (termLink mutual1)
    , missed "mutual2" (termLink mutual2)
+
    , swapped "zapper" (termLink zapper)
    , swapped "extensionality" (termLink extensionality)
    , swapped "identicality" (termLink identicality)
@@ -277,8 +379,8 @@ codeTests =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test codeTests
+> add
+> io.test codeTests
 ```
 
 ``` unison
@@ -308,6 +410,6 @@ vtests _ =
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> io.test vtests
+> add
+> io.test vtests
 ```

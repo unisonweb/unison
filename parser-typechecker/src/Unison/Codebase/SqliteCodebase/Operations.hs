@@ -61,6 +61,7 @@ import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project (defaultBranchName)
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -105,7 +106,7 @@ createSchema = do
   Q.setCurrentProjectPath projectId branchId []
   where
     scratchProjectName = UnsafeProjectName "scratch"
-    scratchBranchName = UnsafeProjectBranchName "main"
+    scratchBranchName = defaultBranchName
     currentSchemaVersion = Q.currentSchemaVersion
     insertSchemaVersionSql =
       [Sqlite.sql|

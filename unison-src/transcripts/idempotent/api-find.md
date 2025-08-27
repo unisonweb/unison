@@ -10,19 +10,16 @@ joey.yaml.zz = 45
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + joey.httpServer.z   : ##Nat
+  + joey.yaml.zz        : ##Nat
+  + rachel.filesystem.x : ##Nat
+  + ross.httpClient.y   : ##Nat
 
-    ⍟ New definitions:
-    
-      joey.httpServer.z   : ##Nat
-      joey.yaml.zz        : ##Nat
-      rachel.filesystem.x : ##Nat
-      ross.httpClient.y   : ##Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -33,6 +30,7 @@ scratch/main> add
 ``` api
 -- Namespace segment prefix search
 GET /api/projects/scratch/branches/main/find?query=http
+RESPONSE:
   [
       [
           {
@@ -117,8 +115,10 @@ GET /api/projects/scratch/branches/main/find?query=http
           }
       ]
   ]
+
 -- Namespace segment suffix search
 GET /api/projects/scratch/branches/main/find?query=Server
+RESPONSE:
   [
       [
           {
@@ -162,8 +162,10 @@ GET /api/projects/scratch/branches/main/find?query=Server
           }
       ]
   ]
+
 -- Substring search
 GET /api/projects/scratch/branches/main/find?query=lesys
+RESPONSE:
   [
       [
           {
@@ -207,8 +209,10 @@ GET /api/projects/scratch/branches/main/find?query=lesys
           }
       ]
   ]
+
 -- Cross-segment search
 GET /api/projects/scratch/branches/main/find?query=joey.http
+RESPONSE:
   [
       [
           {
@@ -248,4 +252,5 @@ GET /api/projects/scratch/branches/main/find?query=joey.http
           }
       ]
   ]
+
 ```

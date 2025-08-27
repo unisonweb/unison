@@ -1,11 +1,11 @@
 This transcript does some testing of higher-rank types. Regression tests related to higher-rank types can be added here.
 
 ``` ucm :hide
-scratch/main> alias.type ##Nat Nat
+> alias.type ##Nat Nat
 
-scratch/main> alias.type ##Text Text
+> alias.type ##Text Text
 
-scratch/main> alias.type ##IO IO
+> alias.type ##IO IO
 ```
 
 In this example, a higher-rank function is defined, `f`. No annotation is needed at the call-site of `f`, because the lambda is being checked against the polymorphic type `forall a . a -> a`, rather than inferred:
@@ -20,15 +20,9 @@ f id = (id 1, id "hi")
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
 
-    ⍟ New definitions:
-    
-      f : (∀ a. a ->{g} a) ->{g} (Nat, Text)
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     4 | > f (x -> x)
           ⧩
@@ -47,12 +41,9 @@ f id _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
 
-    ⍟ New definitions:
-    
-      f : (∀ a g. '{g} a ->{h} '{g} a) -> '{h} ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 Here's an example, showing that polymorphic functions can be fields of a constructor, and the functions remain polymorphic even when the field is bound to a name during pattern matching:
@@ -73,15 +64,12 @@ Functor.blah = cases Functor f ->
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Functor f
 
-    ⍟ New definitions:
-    
-      type Functor f
-      Functor.blah : Functor f -> ()
-      Functor.map  : Functor f
-                     -> (∀ a b. (a -> b) -> f a -> f b)
+  + Functor.blah : Functor f -> ()
+  + Functor.map  : Functor f -> (∀ a b. (a -> b) -> f a -> f b)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 This example is similar, but involves abilities:
@@ -115,20 +103,18 @@ Loc.transform2 nt = cases Loc f ->
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type Loc
+  + ability Remote t
 
-    ⍟ New definitions:
-    
-      type Loc
-      ability Remote t
-      Loc.blah       : Loc -> ()
-      Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
-                       -> Loc
-                       -> Loc
-      Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
-                       -> Loc
-                       -> Loc
+  + Loc.blah       : Loc -> ()
+  + Loc.transform  : (∀ t a. '{Remote t} a -> '{Remote t} a)
+                     -> Loc
+                     -> Loc
+  + Loc.transform2 : (∀ t a. '{Remote t} a -> '{Remote t} a)
+                     -> Loc
+                     -> Loc
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ## Types with polymorphic fields
@@ -140,14 +126,14 @@ structural type HigherRanked = HigherRanked (forall a. a -> a)
 We should be able to add and view records with higher-rank fields.
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view HigherRanked
+> view HigherRanked
 
   structural type HigherRanked = HigherRanked (∀ a. a -> a)
 ```

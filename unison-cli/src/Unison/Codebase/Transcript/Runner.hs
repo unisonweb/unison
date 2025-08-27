@@ -13,16 +13,17 @@ import Control.Lens (use, (?~))
 import Crypto.Random qualified as Random
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.IORef
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
-import System.Environment (lookupEnv)
 import System.IO qualified as IO
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
@@ -53,6 +54,9 @@ import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
 import Unison.CommandLine.Welcome (asciiartUnison)
+import Unison.Debug qualified as Debug
+import Unison.MCP qualified as MCP
+import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
@@ -74,18 +78,13 @@ import Prelude hiding (readFile, writeFile)
 terminalWidth :: Pretty.Width
 terminalWidth = 65
 
--- | If provided, this access token will be used on all
--- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
---
--- It's useful in scripted contexts or when running transcripts against a codeserver.
-accessTokenEnvVarKey :: String
-accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
-
 type Runner =
+  -- | The name of the transcript to run.
   String ->
-  Text ->
-  (FilePath, Codebase IO Symbol Ann) ->
-  IO (Either Error (Seq Stanza))
+  -- | The contents of the transcript to run.
+  ByteString ->
+  Codebase IO Symbol Ann ->
+  IO (Either Error Transcript)
 
 withRunner ::
   forall m r.
@@ -94,58 +93,77 @@ withRunner ::
   Bool ->
   Verbosity ->
   UCMVersion ->
-  FilePath ->
   (Runner -> m r) ->
   m r
-withRunner isTest verbosity ucmVersion nrtp action = do
+withRunner isTest verbosity ucmVersion action = do
+  credMan <- AuthN.newCredentialManager
+  authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
+
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
   -- so that errors are consistent.
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
   when isTest $ do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
-  withRuntimes nrtp \runtime sbRuntime nRuntime ->
-    action \transcriptName transcriptSrc (codebaseDir, codebase) ->
+  withRuntimes \runtime sbRuntime ->
+    action \transcriptName transcriptSrc codebase -> do
+      let workDir = Nothing
+      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
       Server.startServer
         isTest
         Backend.BackendEnv {Backend.useNamesIndex = False}
         Server.defaultCodebaseServerOpts
         runtime
         codebase
+        (MCP.mcpServer mcpServerConfig)
         \case
           Nothing -> pure $ Left PortBindingFailure
-          Just baseUrl ->
-            either
-              (pure . Left . ParseError)
-              (run isTest verbosity codebaseDir codebase runtime sbRuntime nRuntime ucmVersion $ tShow @Server.BaseUrl baseUrl)
-              $ Transcript.stanzas transcriptName transcriptSrc
+          Just baseUrl -> do
+            let baseUrlText = tShow @Server.BaseUrl baseUrl
+            case (Transcript.parse transcriptName transcriptSrc) of
+              Left parseError -> pure $ Left (ParseError parseError)
+              Right stanzas ->
+                run
+                  isTest
+                  verbosity
+                  codebase
+                  runtime
+                  sbRuntime
+                  ucmVersion
+                  baseUrlText
+                  authenticatedHTTPClient
+                  credMan
+                  stanzas
   where
-    withRuntimes ::
-      FilePath -> (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
-    withRuntimes nrtp action =
+    withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
+    withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
-          action runtime sbRuntime =<< liftIO (RTI.startNativeRuntime ucmVersion nrtp)
+          action runtime sbRuntime
+    initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
+    initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do
+      let tokenProvider :: AuthN.TokenProvider
+          tokenProvider = AuthN.newTokenProvider credMan
+      AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
 isGeneratedBlock :: ProcessedBlock -> Bool
-isGeneratedBlock = \case
-  Ucm InfoTags {generated} _ -> generated
-  Unison InfoTags {generated} _ -> generated
-  API InfoTags {generated} _ -> generated
+isGeneratedBlock = generated . getCommonInfoTags
 
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
   Bool ->
   Verbosity ->
-  FilePath ->
   Codebase IO Symbol Ann ->
-  Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   UCMVersion ->
   Text ->
-  [Stanza] ->
-  IO (Either Error (Seq Stanza))
-run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL stanzas = UnliftIO.try do
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
+  Transcript ->
+  IO (Either Error Transcript)
+run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
+  let behaviors = extractBehaviors $ settings transcript
+  let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
   (initialPP, emptyCausalHashId) <-
     Codebase.runTransaction codebase . liftA2 (,) Codebase.expectCurrentProjectPath $ snd <$> Codebase.emptyCausalHash
@@ -157,19 +175,11 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         "Running the provided transcript file...",
         ""
       ]
-  mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
-  credMan <- AuthN.newCredentialManager
-  let tokenProvider :: AuthN.TokenProvider
-      tokenProvider =
-        maybe
-          (AuthN.newTokenProvider credMan)
-          (\accessToken _codeserverID -> pure $ Right accessToken)
-          mayShareAccessToken
   -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
   -- e.g. a unison-file update by a command like 'edit'
   inputQueue <-
     Q.prepopulatedIO . Seq.fromList $
-      filter (either (const True) (not . isGeneratedBlock)) stanzas `zip` (Just <$> [1 :: Int ..])
+      filter (either (const True) (not . isGeneratedBlock)) stanzas' `zip` (Just <$> [1 :: Int ..])
   -- Queue of UCM commands to run.
   -- Nothing indicates the end of a ucm block.
   cmdQueue <- Q.newIO @(Maybe UcmLine)
@@ -222,7 +232,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           (False, False) -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
           (True, True) -> do
             appendFailingStanza
-            fixedBug out $
+            fixedBug (frontmatter transcript) out $
               Text.unlines
                 [ "The stanza above marked with `:error :bug` is now failing with",
                   "",
@@ -235,46 +245,52 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
                 ]
           (_, _) -> pure ()
 
+      doHttpRequest :: HTTP.Request -> IO Text
+      doHttpRequest req = do
+        resp <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
+        case Aeson.eitherDecode @Aeson.Value resp of
+          Left err -> dieWithMsg $ "Error decoding response from " <> BSC.unpack (HTTP.method req) <> ": " <> err
+          Right v -> do
+            let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
+            pure $ Text.pack . BL.unpack $ prettyBytes
       apiRequest :: APIRequest -> IO [APIRequest]
       apiRequest req = do
         hide <- hideOutput False
         case req of
           -- We just discard this, because the runner will produce new output lines.
-          APIResponseLine {} -> pure []
+          APIResponse {} -> pure []
           APIComment {} -> pure $ pure req
-          GetRequest path ->
-            either
-              (([] <$) . maybeDieWithMsg . Pretty.string . show)
-              ( either
-                  ( ([] <$)
-                      . maybeDieWithMsg
-                      . (("Error decoding response from " <> Pretty.text path <> ": ") <>)
-                      . Pretty.string
-                  )
-                  ( \(v :: Aeson.Value) ->
-                      pure $
-                        if hide
-                          then [req]
-                          else
-                            [ req,
-                              APIResponseLine . Text.pack . BL.unpack $
-                                Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
-                            ]
-                  )
-                  . Aeson.eitherDecode
-                  . HTTP.responseBody
-                  <=< flip HTTP.httpLbs httpManager
-              )
-              . HTTP.parseRequest
-              . Text.unpack
-              $ baseURL <> path
+          GetRequest path -> do
+            httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right r -> pure r
+            respTxt <- doHttpRequest httpReq
+            if hide
+              then pure [req]
+              else pure [req, APIResponse respTxt]
+          PostRequest path body -> do
+            httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
+              Left err -> dieWithMsg (show err)
+              Right r ->
+                pure $
+                  r
+                    { HTTP.method = "POST",
+                      HTTP.requestBody = HTTP.RequestBodyBS (Text.encodeUtf8 body),
+                      HTTP.requestHeaders = [("Content-Type", "application/json"), ("Accept", "application/json")]
+                    }
+            Debug.debugM Debug.Temp "POST REQUEST" httpReq
+            respTxt <- doHttpRequest httpReq
+            Debug.debugM Debug.Temp "RESPONSE" respTxt
+            if hide
+              then pure [req]
+              else pure [req, APIResponse respTxt]
 
       endUcmBlock = do
         liftIO $ do
           tags <- readIORef currentTags
           ucmOut <- readIORef ucmOutput
           unless (null ucmOut && tags == Nothing) . outputEcho . pure $
-            Ucm (fromMaybe defaultInfoTags' {generated = True} tags) ucmOut
+            Ucm (fromMaybe (defaultInfoTags mempty) {generated = True} tags) ucmOut
           writeIORef ucmOutput []
           dieUnexpectedSuccess
         atomically $ void $ do
@@ -297,6 +313,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
             -- We're either going to run the command now (because we're in the right context), else we'll switch to
             -- the right context first, then run the command next.
             maybeSwitchCommand <- case context of
+              UcmContextEmpty -> pure Nothing
               UcmContextProject (ProjectAndBranch projectName branchName) -> Cli.runTransaction do
                 Project {projectId, name = projectName} <-
                   Q.loadProjectByName projectName
@@ -347,20 +364,24 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
 
       startProcessedBlock block = case block of
         Unison infoTags txt -> do
+          -- Open a ucm block which will contain the output from UCM after processing the `UnisonFileChanged` event.
+          -- Close the ucm block after processing the UnisonFileChanged event.
+          atomically $ Q.enqueue cmdQueue Nothing
           liftIO do
-            writeIORef isHidden $ hidden infoTags
+            writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
             outputEcho $ pure block
             writeIORef allowErrors $ expectingError infoTags
             writeIORef expectFailure $ hasBug infoTags
-          -- Open a ucm block which will contain the output from UCM after processing the `UnisonFileChanged` event.
-          -- Close the ucm block after processing the UnisonFileChanged event.
-          atomically . Q.enqueue cmdQueue $ Nothing
           let sourceName = fromMaybe "scratch.u" $ additionalTags infoTags
           liftIO $ updateVirtualFile sourceName txt
+          when (runIdentity (autoupdate behaviors)) do
+            liftIO $ writeIORef isHidden HideAll
+            atomically . Q.enqueue cmdQueue . pure $ UcmCommand UcmContextEmpty "update"
+            atomically $ Q.enqueue cmdQueue Nothing
           pure . Left $ UnisonFileChanged sourceName txt
         API infoTags apiRequests -> do
           liftIO do
-            writeIORef isHidden $ hidden infoTags
+            writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
             writeIORef allowErrors $ expectingError infoTags
             writeIORef expectFailure $ hasBug infoTags
             outputEcho . pure . API infoTags . fold =<< traverse apiRequest apiRequests
@@ -368,7 +389,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         Ucm infoTags cmds -> do
           liftIO do
             writeIORef currentTags $ pure infoTags
-            writeIORef isHidden $ hidden infoTags
+            writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
             writeIORef allowErrors $ expectingError infoTags
             writeIORef expectFailure $ hasBug infoTags
           traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
@@ -388,7 +409,7 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         liftIO . showStatus False "⚙️" $
           maybe
             "Processing UCM-generated stanza."
-            (\idx -> "Processing stanza " <> show idx <> " of " <> show (length stanzas) <> ".")
+            (\idx -> "Processing stanza " <> show idx <> " of " <> show (length stanzas') <> ".")
             midx
         either
           (bypassStanza . Left)
@@ -438,7 +459,9 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
 
       print :: Output.Output -> IO ()
       print o = do
-        msg <- notifyUser dir o
+        -- NB: We have a directory, but we don’t pass it to the notifier because it’s a temp dir, and if it ends up in
+        --     transcript output, it makes transcripts non-reproducible.
+        msg <- notifyUser Nothing o
         outputUcmResult msg
         when (Output.isFailure o) $ maybeDieWithMsg msg
 
@@ -463,8 +486,12 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
       dieWithMsg :: forall a. String -> IO a
       dieWithMsg msg = do
         appendFailingStanza
-        transcriptFailure out "The transcript failed due to an error in the stanza above. The error is:" . pure $
-          Text.pack msg
+        transcriptFailure
+          (frontmatter transcript)
+          out
+          "The transcript failed due to an error in the stanza above. The error is:"
+          . pure
+          $ Text.pack msg
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -475,17 +502,17 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
           (True, False, False) -> do
             appendFailingStanza
             transcriptFailure
+              (frontmatter transcript)
               out
               "The transcript was expecting an error in the stanza above, but did not encounter one."
               Nothing
           (False, True, False) -> do
             fixedBug
+              (frontmatter transcript)
               out
               "The stanza above with `:bug` is now passing! You can remove `:bug` and close any appropriate Github \
               \issues."
           (_, _, _) -> pure ()
-
-  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   seedRef <- newIORef (0 :: Int)
 
@@ -504,7 +531,6 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
             notifyNumbered = printNumbered,
             runtime,
             sandboxedRuntime = sbRuntime,
-            nativeRuntime = nRuntime,
             serverBaseUrl = Nothing,
             ucmVersion,
             isTranscriptTest = isTest
@@ -524,40 +550,38 @@ run isTest verbosity dir codebase runtime sbRuntime nRuntime ucmVersion baseURL 
         where
           onHalt = readIORef out
 
-  loop (Cli.loopState0 (PP.toIds initialPP))
+  Transcript (frontmatter transcript) . toList <$> loop (Cli.loopState0 (PP.toIds initialPP))
 
-transcriptFailure :: IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
-transcriptFailure out heading mbody = do
+transcriptFailure :: Aeson.Value -> IORef (Seq Stanza) -> Text -> Maybe Text -> IO b
+transcriptFailure frontmatter out heading mbody = do
   texts <- readIORef out
-  UnliftIO.throwIO . RunFailure $
-    texts
-      <> Seq.fromList
-        ( Left
-            <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🛑") []],
-                  CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT heading) []]
-                ]
-              <> foldr ((:) . CMarkCodeBlock Nothing "") [] mbody
-        )
+  UnliftIO.throwIO . RunFailure . Transcript frontmatter $
+    toList texts
+      <> ( Left
+             <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🛑") []],
+                   CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT heading) []]
+                 ]
+               <> foldr ((:) . CMarkCodeBlock Nothing "") [] mbody
+         )
 
-fixedBug :: IORef (Seq Stanza) -> Text -> IO b
-fixedBug out body = do
+fixedBug :: Aeson.Value -> IORef (Seq Stanza) -> Text -> IO b
+fixedBug frontmatter out body = do
   texts <- readIORef out
   -- `CMark.commonmarkToNode` returns a @DOCUMENT@, which won’t be rendered inside another document, so we strip the
   -- outer `CMark.Node`.
   let CMark.Node _ _DOCUMENT bodyNodes = CMark.commonmarkToNode [CMark.optNormalize] body
-  UnliftIO.throwIO . RunFailure $
-    texts
-      <> Seq.fromList
-        ( Left
-            <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🎉") []],
-                  CMark.Node Nothing (CMark.HEADING 2) [CMark.Node Nothing (CMark.TEXT "You fixed a bug!") []]
-                ]
-              <> bodyNodes
-        )
+  UnliftIO.throwIO . RunFailure . Transcript frontmatter $
+    toList texts
+      <> ( Left
+             <$> [ CMark.Node Nothing CMark.PARAGRAPH [CMark.Node Nothing (CMark.TEXT "🎉") []],
+                   CMark.Node Nothing (CMark.HEADING 2) [CMark.Node Nothing (CMark.TEXT "You fixed a bug!") []]
+                 ]
+               <> bodyNodes
+         )
 
 data Error
   = ParseError (P.ParseErrorBundle Text Void)
-  | RunFailure (Seq Stanza)
+  | RunFailure Transcript
   | PortBindingFailure
   deriving stock (Show)
   deriving anyclass (Exception)

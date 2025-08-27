@@ -4,7 +4,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Unison.Main
   ( main,
@@ -13,19 +12,22 @@ where
 
 import ArgParse
   ( CodebasePathOption (..),
-    Command (Init, Launch, PrintVersion, Run, Transcript),
+    Command (..),
     GlobalOptions (..),
     IsHeadless (Headless, WithCLI),
     RunSource (..),
     ShouldExit (DoNotExit, Exit),
     ShouldForkCodebase (..),
     ShouldSaveCodebase (..),
+    TranscriptCodebaseSetup (..),
     UsageRenderer,
     parseCLIArgs,
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
 import Control.Exception (displayException, evaluate, fromException)
+import Data.Bitraversable (bitraverse)
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
@@ -40,19 +42,16 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
 import System.Directory
   ( canonicalizePath,
-    exeExtension,
     getCurrentDirectory,
     removeDirectoryRecursive,
   )
-import System.Environment (getExecutablePath, getProgName, withArgs)
+import System.Environment (getProgName, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
 import System.FilePath
   ( replaceExtension,
-    takeDirectory,
     takeExtension,
-    (<.>),
     (</>),
   )
 import System.IO (stderr)
@@ -61,10 +60,14 @@ import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
 import Text.Megaparsec qualified as MP
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Auth.CredentialManager qualified as AuthN
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
 import Unison.Codebase.Init qualified as CodebaseInit
@@ -81,12 +84,15 @@ import Unison.CommandLine.Main qualified as CommandLine
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
-import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName (..), ProjectName (..))
+import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..))
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
+import Unison.MCP qualified as MCP
+import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
+import Unison.Project (defaultBranchName)
 import Unison.Runtime.Exception (prettyRuntimeExnSansCtx)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
@@ -97,15 +103,9 @@ import Unison.Version (Version)
 import Unison.Version qualified as Version
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Directory (getHomeDirectory)
+import UnliftIO.Directory qualified as Directory
 
-type Runtimes =
-  (RTI.Runtime Symbol, RTI.Runtime Symbol, RTI.Runtime Symbol)
-
-fixNativeRuntimePath :: Maybe FilePath -> IO FilePath
-fixNativeRuntimePath override = do
-  ucm <- getExecutablePath
-  let ucr = takeDirectory ucm </> "runtime" </> "unison-runtime" <.> exeExtension
-  pure $ maybe ucr id override
+type Runtimes = (RTI.Runtime Symbol, RTI.Runtime Symbol)
 
 main :: Version -> IO ()
 main version = do
@@ -149,12 +149,18 @@ main version = do
       progName <- getProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
-      nrtp <- fixNativeRuntimePath (nativeRuntimePath globalOptions)
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
       currentDir <- getCurrentDirectory
       case command of
         PrintVersion ->
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
+        MCPServer -> do
+          let ucmVersion = Version.gitDescribeWithDate version
+          credMan <- AuthN.newCredentialManager
+          authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
+          getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
+            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
         Init -> do
           exitError
             ( P.lines
@@ -168,7 +174,7 @@ main version = do
                 ]
             )
         Run (RunFromSymbol mainName) args -> do
-          getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError err
@@ -180,20 +186,24 @@ main version = do
               case e of
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
-                  getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                    withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
+                  getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+                    withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
+                      let ucmVersion = Version.gitDescribeWithDate version
+                      credMan <- liftIO $ AuthN.newCredentialManager
+                      authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
                       startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                       launch
                         version
                         currentDir
                         rt
                         sbrt
-                        nrt
                         theCodebase
                         [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                        authenticatedHTTPClient
+                        credMan
                         serverUrl
                         (PP.toIds startProjectPath)
                         initRes
@@ -204,20 +214,24 @@ main version = do
           case e of
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
-              getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-                withRuntimes nrtp RTI.OneOff \(rt, sbrt, nrt) -> do
+              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+                withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
+                  let ucmVersion = Version.gitDescribeWithDate version
+                  credMan <- liftIO $ AuthN.newCredentialManager
+                  authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
                   startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                   launch
                     version
                     currentDir
                     rt
                     sbrt
-                    nrt
                     theCodebase
                     [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                    authenticatedHTTPClient
+                    credMan
                     serverUrl
                     (PP.toIds startProjectPath)
                     initRes
@@ -284,14 +298,14 @@ main version = do
                           "to produce a new compiled program \
                           \that matches your version of Unison."
                       ]
-        Transcript shouldFork shouldSaveCodebase mrtsStatsFp transcriptFiles -> do
-          let action = runTranscripts version Verbosity.Verbose renderUsageInfo shouldFork shouldSaveCodebase mCodePathOption nrtp transcriptFiles
+        Transcript codebaseSetup mrtsStatsFp transcriptFiles -> do
+          let action = runTranscripts version Verbosity.Verbose renderUsageInfo codebaseSetup mCodePathOption transcriptFiles
           case mrtsStatsFp of
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
-          getCodebaseOrExit mCodePathOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-            withRuntimes nrtp RTI.Persistent \(runtime, sbRuntime, nRuntime) -> do
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
               startingProjectPath <- do
                 -- If the user didn't provide a starting path on the command line, put them in the most recent
                 -- path they cd'd to
@@ -322,53 +336,69 @@ main version = do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
-              Server.startServer isTest (Backend.BackendEnv {Backend.useNamesIndex = False}) codebaseServerOpts sbRuntime theCodebase $ \mayBaseUrl -> do
-                case exitOption of
-                  DoNotExit -> do
-                    case isHeadless of
-                      Headless -> do
-                        whenJust mayBaseUrl \baseUrl -> do
-                          PT.putPrettyLn $
-                            P.lines
-                              [ "I've started the Codebase API server at",
-                                P.text $ Server.urlFor Server.Api baseUrl,
-                                "and the Codebase UI at",
-                                P.text $ Server.urlFor (Server.ProjectBranchUI (ProjectAndBranch (UnsafeProjectName "scratch") (UnsafeProjectBranchName "main")) Path.Root Nothing) baseUrl
-                              ]
-                        PT.putPrettyLn $
-                          P.string "Running the codebase manager headless with "
-                            <> P.shown GHC.Conc.numCapabilities
-                            <> " "
-                            <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
-                            <> "."
-                        mvar <- newEmptyMVar
-                        takeMVar mvar
-                      WithCLI -> do
-                        PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-
-                        launch
-                          version
-                          currentDir
-                          runtime
-                          sbRuntime
-                          nRuntime
-                          theCodebase
-                          []
-                          mayBaseUrl
-                          (PP.toIds startingProjectPath)
-                          initRes
-                          lspCheckForChanges
-                          shouldWatchFiles
-                  Exit -> do Exit.exitSuccess
+              let ucmVersion = Version.gitDescribeWithDate version
+              credMan <- liftIO $ AuthN.newCredentialManager
+              authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
+              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
+              Server.startServer
+                isTest
+                Backend.BackendEnv {Backend.useNamesIndex = False}
+                codebaseServerOpts
+                sbRuntime
+                theCodebase
+                (MCP.mcpServer mcpServerConfig)
+                \mayBaseUrl -> case exitOption of
+                  DoNotExit -> case isHeadless of
+                    Headless -> whenJust mayBaseUrl \baseUrl -> do
+                      PT.putPrettyLn $
+                        P.lines
+                          [ "I've started the Codebase API server at",
+                            P.text $ Server.urlFor Server.Api baseUrl,
+                            "and the Codebase UI at",
+                            P.text $
+                              Server.urlFor
+                                ( Server.ProjectBranchUI
+                                    (ProjectAndBranch (UnsafeProjectName "scratch") defaultBranchName)
+                                    Path.Root
+                                    Nothing
+                                )
+                                baseUrl
+                          ]
+                      PT.putPrettyLn $
+                        P.string "Running the codebase manager headless with "
+                          <> P.shown GHC.Conc.numCapabilities
+                          <> " "
+                          <> plural' GHC.Conc.numCapabilities "cpu" "cpus"
+                          <> "."
+                      mvar <- newEmptyMVar
+                      takeMVar mvar
+                    WithCLI -> do
+                      PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
+                      launch
+                        version
+                        currentDir
+                        runtime
+                        sbRuntime
+                        theCodebase
+                        []
+                        authenticatedHTTPClient
+                        credMan
+                        mayBaseUrl
+                        (PP.toIds startingProjectPath)
+                        initRes
+                        lspCheckForChanges
+                        shouldWatchFiles
+                  Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
-    withRuntimes :: FilePath -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
-    withRuntimes nrtp mode action =
+    withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
+    withRuntimes mode action =
       RTI.withRuntime False mode (Version.gitDescribeWithDate version) \runtime -> do
         RTI.withRuntime True mode (Version.gitDescribeWithDate version) \sbRuntime ->
-          action . (runtime,sbRuntime,)
-            -- startNativeRuntime saves the path to `unison-runtime`
-            =<< RTI.startNativeRuntime (Version.gitDescribeWithDate version) nrtp
+          action (runtime, sbRuntime)
+    initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
+    initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do
+      AuthN.newAuthenticatedHTTPClient (AuthN.newTokenProvider credMan) ucmVersion
 
 isExitSuccess :: SomeException -> Bool
 isExitSuccess =
@@ -386,42 +416,108 @@ initHTTPClient version = do
   manager <- HTTP.newTlsManagerWith managerSettings
   HTTP.setGlobalManager manager
 
-prepareTranscriptDir :: Verbosity.Verbosity -> ShouldForkCodebase -> Maybe CodebasePathOption -> ShouldSaveCodebase -> IO FilePath
-prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveCodebase = do
-  tmp <- case shouldSaveCodebase of
-    SaveCodebase (Just path) -> pure path
-    _ -> Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
-  let cbInit = SC.init
-  case shouldFork of
-    UseFork -> do
-      -- A forked codebase does not need to Create a codebase, because it already exists
-      getCodebaseOrExit mCodePathOption (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
-      path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
-      unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
-        P.lines
-          [ P.wrap "Transcript will be run on a copy of the codebase at: ",
-            "",
-            P.indentN 2 (P.string path)
-          ]
-      Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
-    DontFork -> do
-      PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-      CodebaseInit.withNewUcmCodebaseOrExit cbInit verbosity "main.transcript" tmp SC.DoLock (const $ pure ())
-  pure tmp
+-- | Prep the codebase for transcripts, then pass the directory to the action.
+-- After the action the codebase will be deleted/copied/saved as indicated.
+withTranscriptDir :: Verbosity.Verbosity -> String -> TranscriptCodebaseSetup -> Maybe CodebasePathOption -> (FilePath -> IO r) -> IO (Maybe r)
+withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
+  UnliftIO.bracket setup cleanup (\(mayDir, _cleanup) -> for mayDir action)
+  where
+    setup :: IO (Maybe FilePath, IO ())
+    setup = do
+      case codebaseSetup of
+        InPlace -> do
+          -- Create the codebase/migrate it according to codebase path option
+          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
+          path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
+          unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
+            P.lines
+              [ P.wrap "Transcript will be run in-place on the codebase at: ",
+                "",
+                P.indentN 2 (P.string path)
+              ]
+          let after =
+                do
+                  PT.putPrettyLn
+                  $ P.callout
+                    "🌸"
+                    ( P.lines
+                        [ "I've finished running the transcript(s) on the provided codebase:",
+                          "",
+                          P.indentN 2 (P.string path)
+                        ]
+                    )
+          pure (Just path, after)
+        UseTempCodebase shouldFork shouldSaveCodebase -> do
+          (tmp, cleanup) <- case shouldSaveCodebase of
+            SaveCodebase (Just path) -> do
+              let after = do
+                    PT.putPrettyLn $
+                      P.callout
+                        "🌸"
+                        ( P.lines
+                            [ "I've finished running the transcript(s) in this codebase:",
+                              "",
+                              P.indentN 2 (P.string path),
+                              "",
+                              P.wrap $
+                                "You can run"
+                                  <> P.backticked (P.string progName <> " --codebase " <> P.string path)
+                                  <> "to do more work with it."
+                            ]
+                        )
+              pure (path, after)
+            _ -> do
+              path <- Temp.getCanonicalTemporaryDirectory >>= (`Temp.createTempDirectory` "transcript")
+              let cleanup = removeDirectoryRecursive path
+              pure (path, cleanup)
+          let cbInit = SC.init
+          case shouldFork of
+            UseFork -> do
+              -- A forked codebase does not need to Create a codebase, because it already exists
+              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
+              path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
+              (absPath, absTmp) <- bitraverse Directory.canonicalizePath Directory.canonicalizePath (path, tmp)
+              if (absPath == absTmp)
+                then do
+                  unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
+                    P.hang "⚠️" $
+                      P.lines
+                        [ "I noticed that you're forking from and saving to the same path at: " <> P.string path,
+                          "",
+                          "I'll skip running the transcript for now in case this was a mistake.",
+                          "If this is what you meant to do, use `transcript.in-place` instead."
+                        ]
+                  pure (Nothing, pure ())
+                else do
+                  unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
+                    P.lines
+                      [ P.wrap "Transcript will be run on a copy of the codebase at: ",
+                        "",
+                        P.indentN 2 (P.string path)
+                      ]
+                  Path.copyDir (CodebaseInit.codebasePath cbInit path) (CodebaseInit.codebasePath cbInit tmp)
+                  pure (Just tmp, cleanup)
+            DontFork -> do
+              PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
+              CodebaseInit.withNewUcmCodebaseOrExit cbInit verbosity "main.transcript" tmp SC.DoLock (const $ pure ())
+              pure (Just tmp, cleanup)
+    cleanup :: (Maybe FilePath, IO ()) -> IO ()
+    cleanup (_transcriptDir, cleanupAction) = do
+      cleanupAction
 
 runTranscripts' ::
   Version ->
   String ->
   FilePath ->
-  FilePath ->
   NonEmpty MarkdownFile ->
   IO Bool
-runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
+runTranscripts' version progName transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and
     <$> getCodebaseOrExit
       (Just (DontCreateCodebaseWhenMissing transcriptDir))
+      SC.DoLock
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
         let isTest = False
@@ -429,11 +525,10 @@ runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
           isTest
           Verbosity.Verbose
           (Version.gitDescribeWithDate version)
-          nativeRtp
           \runTranscript -> do
             for markdownFiles $ \(MarkdownFile fileName) -> do
-              transcriptSrc <- readUtf8 fileName
-              result <- runTranscript fileName transcriptSrc (codebasePath, theCodebase)
+              transcriptSrc <- BS.readFile fileName
+              result <- runTranscript fileName transcriptSrc theCodebase
               let outputFile = replaceExtension (currentDir </> fileName) ".output.md"
               output <-
                 either
@@ -454,7 +549,7 @@ runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
                       Transcript.RunFailure msg ->
                         ( [ P.indentN 2 $ "An error occurred while running the following file: " <> P.string fileName,
                             "",
-                            P.indentN 2 (P.text . Transcript.formatStanzas $ toList msg),
+                            P.indentN 2 (P.text $ Transcript.format msg),
                             P.string $
                               "Run `"
                                 <> progName
@@ -463,10 +558,10 @@ runTranscripts' version progName nativeRtp transcriptDir markdownFiles = do
                                 <> "` "
                                 <> "to do more work with it."
                           ],
-                          Transcript.formatStanzas $ toList msg
+                          Transcript.format msg
                         )
                   )
-                  (pure . Transcript.formatStanzas . toList)
+                  (pure . Transcript.format)
                   result
               writeUtf8 outputFile output
               putStrLn $ "💾  Wrote " <> outputFile
@@ -476,13 +571,11 @@ runTranscripts ::
   Version ->
   Verbosity.Verbosity ->
   UsageRenderer ->
-  ShouldForkCodebase ->
-  ShouldSaveCodebase ->
+  TranscriptCodebaseSetup ->
   Maybe CodebasePathOption ->
-  FilePath ->
   NonEmpty String ->
   IO ()
-runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodebase mCodePathOption nativeRtp args = do
+runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption args = do
   markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
     Failure invalidArgs -> do
       PT.putPrettyLn $
@@ -498,27 +591,9 @@ runTranscripts version verbosity renderUsageInfo shouldFork shouldSaveTempCodeba
       Exit.exitWith (Exit.ExitFailure 1)
     Success markdownFiles -> pure markdownFiles
   progName <- getProgName
-  transcriptDir <- prepareTranscriptDir verbosity shouldFork mCodePathOption shouldSaveTempCodebase
   completed <-
-    runTranscripts' version progName nativeRtp transcriptDir markdownFiles
-  case shouldSaveTempCodebase of
-    DontSaveCodebase -> removeDirectoryRecursive transcriptDir
-    SaveCodebase _ ->
-      when completed $ do
-        PT.putPrettyLn $
-          P.callout
-            "🌸"
-            ( P.lines
-                [ "I've finished running the transcript(s) in this codebase:",
-                  "",
-                  P.indentN 2 (P.string transcriptDir),
-                  "",
-                  P.wrap $
-                    "You can run"
-                      <> P.backticked (P.string progName <> " --codebase " <> P.string transcriptDir)
-                      <> "to do more work with it."
-                ]
-            )
+    fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
+      runTranscripts' version progName transcriptDir markdownFiles
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
 launch ::
@@ -526,16 +601,17 @@ launch ::
   FilePath ->
   Rt.Runtime Symbol ->
   Rt.Runtime Symbol ->
-  Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
   Maybe Server.BaseUrl ->
   PP.ProjectPathIds ->
   InitResult ->
   (PP.ProjectPathIds -> IO ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir runtime sbRuntime nRuntime codebase inputs serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
+launch version dir runtime sbRuntime codebase inputs authenticatedHTTPClient credMan serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -549,10 +625,11 @@ launch version dir runtime sbRuntime nRuntime codebase inputs serverBaseUrl star
         inputs
         runtime
         sbRuntime
-        nRuntime
         codebase
         serverBaseUrl
         ucmVersion
+        authenticatedHTTPClient
+        credMan
         lspCheckForChanges
         shouldWatchFiles
 
@@ -567,11 +644,11 @@ markdownFile md = case takeExtension md of
 isDotU :: String -> Bool
 isDotU file = takeExtension file == ".u"
 
-getCodebaseOrExit :: Maybe CodebasePathOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
-getCodebaseOrExit codebasePathOption migrationStrategy action = do
+getCodebaseOrExit :: Maybe CodebasePathOption -> SC.CodebaseLockOption -> SC.MigrationStrategy -> ((InitResult, CodebasePath, Codebase IO Symbol Ann) -> IO r) -> IO r
+getCodebaseOrExit codebasePathOption locking migrationStrategy action = do
   initOptions <- argsToCodebaseInitOptions codebasePathOption
   let cbInit = SC.init
-  result <- CodebaseInit.withOpenOrCreateCodebase cbInit "main" initOptions SC.DoLock migrationStrategy \case
+  result <- CodebaseInit.withOpenOrCreateCodebase cbInit "main" initOptions locking migrationStrategy \case
     cbInit@(CreatedCodebase, dir, _) -> do
       pDir <- prettyDir dir
       PT.putPrettyLn' ""

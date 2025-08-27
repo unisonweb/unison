@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -152,6 +152,15 @@ library
       Unison.LSP.Util.Signal
       Unison.LSP.VFS
       Unison.Main
+      Unison.MCP
+      Unison.MCP.Cli
+      Unison.MCP.Prompts
+      Unison.MCP.Server
+      Unison.MCP.Share.API
+      Unison.MCP.StaticResources
+      Unison.MCP.Tools
+      Unison.MCP.Types
+      Unison.MCP.Wrapper
       Unison.Share.Codeserver
       Unison.Share.ExpectedHashMismatches
       Unison.Share.Sync
@@ -224,9 +233,11 @@ library
     , filepath
     , free
     , friendly-time
+    , frontmatter
     , fsnotify
     , generic-lens
     , haskeline
+    , hs-mcp
     , http-client >=0.7.6
     , http-client-tls
     , http-types
@@ -247,6 +258,7 @@ library
     , pretty-simple
     , process
     , random-shuffle
+    , raw-strings-qq
     , recover-rtti
     , regex-tdfa
     , semialign
@@ -280,6 +292,7 @@ library
     , unison-sqlite
     , unison-syntax
     , unison-util-base32hex
+    , unison-util-file-embed
     , unison-util-recursion
     , unison-util-relation
     , unliftio
@@ -338,6 +351,7 @@ executable transcripts
   ghc-options: -Wall -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
   build-depends:
       base
+    , bytestring
     , code-page
     , directory
     , easytest

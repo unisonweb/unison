@@ -1,13 +1,13 @@
 ``` ucm
-diffs/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
   Done.
 
-diffs/main> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
+> alias.term lib.builtins.Nat.gt lib.builtins.Nat.>
 
   Done.
 
-diffs/main> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
+> alias.term lib.builtins.Nat.drop lib.builtins.Nat.-
 
   Done.
 ```
@@ -41,28 +41,26 @@ unitCase = id (x -> 1)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ability Stream a
+  + type Type
 
-    ⍟ New definitions:
-    
-      ability Stream a
-      type Type
-      id       : x -> x
-      take     : Nat -> '{g} t ->{g, Stream a} Optional t
-      term     : Nat
-      unitCase : x -> Nat
+  + id       : x -> x
+  + take     : Nat -> '{g} t ->{g, Stream a} Optional t
+  + term     : Nat
+  + unitCase : x -> Nat
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-diffs/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-diffs/main> branch.create new
+> branch.create new
 
   Done. I've created the new branch based off of main.
 
@@ -100,22 +98,21 @@ unitCase = id (x -> (1, ()))
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  ~ type Type a
 
-    ⊡ Previously added definitions will be ignored: Stream id
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      type Type a
-      take     : Nat -> '{g} t ->{g, Stream a} Optional t
-      term     : Nat
-      unitCase : x -> (Nat, ())
+  ~ take     : Nat -> '{g} t ->{g, Stream a} Optional t
+  ~ term     : Nat
+  ~ unitCase : x -> (Nat, ())
+
+  (and 1 unchanged type and 1 unchanged term)
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-diffs/new> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -126,7 +123,8 @@ diffs/new> update
 Diff terms
 
 ``` api
-GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
+GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=term&newTerm=term
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -633,14 +631,16 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=te
               "term"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
+
 ```
 
 More complex diff
 
 ``` api
-GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
+GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=take&newTerm=take
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -3345,14 +3345,16 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=ta
               "take"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
+
 ```
 
 Regression test for weird behavior w/r to unit and parens.
 
 ``` api
-GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=unitCase&newTerm=unitCase
+GET /api/projects/scratch/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=unitCase&newTerm=unitCase
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -3973,14 +3975,16 @@ GET /api/projects/diffs/diff/terms?oldBranchRef=main&newBranchRef=new&oldTerm=un
               "unitCase"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
+
 ```
 
 Diff types
 
 ``` api
-GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
+GET /api/projects/scratch/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Type&newType=Type
+RESPONSE:
   {
       "diff": {
           "contents": [
@@ -4221,6 +4225,7 @@ GET /api/projects/diffs/diff/types?oldBranchRef=main&newBranchRef=new&oldType=Ty
               "Type"
           ]
       },
-      "project": "diffs"
+      "project": "scratch"
   }
+
 ```

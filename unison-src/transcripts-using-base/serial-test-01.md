@@ -12,10 +12,11 @@ combines = cases
     "(" ++ toText rx ++ ", " ++ toText ry ++ ", \"" ++ rz ++ "\")"
 
 mkTestCase = do
-  saveTestCase "case-01" "v4" combines (l1, l2, l3)
+  saveTestCase None "case-01" "v4" combines (l1, l2, l3)
+  saveTestCase (Some 5) "case-01" "v5" combines (l1, l2, l3)
 ```
 
 ``` ucm
-scratch/main> add
-scratch/main> run mkTestCase
+> add
+> run mkTestCase
 ```

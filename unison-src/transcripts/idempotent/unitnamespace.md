@@ -5,31 +5,28 @@
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + `()`.foo : ##Text
 
-    ⍟ New definitions:
-    
-      `()`.foo : ##Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> find
+> find
 
   1. `()`.foo : ##Text
 
-scratch/main> find-in `()`
+> find-in `()`
 
   1. foo : ##Text
 
-scratch/main> delete.namespace `()`
+> delete.namespace `()`
 
   Done.
 ```

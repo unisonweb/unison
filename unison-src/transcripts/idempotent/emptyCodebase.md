@@ -7,7 +7,7 @@ Not even `Nat` or `+`\!
 BEHOLD\!\!\!
 
 ``` ucm :error
-scratch/main> ls .
+> ls .
 
   nothing to show
 ```
@@ -15,26 +15,26 @@ scratch/main> ls .
 Technically, the definitions all exist, but they have no names. `builtins.merge` brings them into existence, under the current namespace:
 
 ``` ucm
-scratch/main> builtins.merge lib.builtins
+> builtins.merge lib.builtins
 
   Done.
 
-scratch/main> ls lib
+> ls lib
 
-  1. builtins/ (483 terms, 78 types)
+  1. builtins/ (605 terms, 101 types)
 ```
 
 And for a limited time, you can get even more builtin goodies:
 
 ``` ucm
-scratch/main> builtins.mergeio lib.builtinsio
+> builtins.mergeio lib.builtinsio
 
   Done.
 
-scratch/main> ls lib
+> ls lib
 
-  1. builtins/   (483 terms, 78 types)
-  2. builtinsio/ (657 terms, 96 types)
+  1. builtins/   (605 terms, 101 types)
+  2. builtinsio/ (778 terms, 119 types)
 ```
 
 More typically, you'd start out by pulling `base`.

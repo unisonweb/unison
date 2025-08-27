@@ -79,6 +79,13 @@ data RunSource
   | RunCompiled FilePath
   deriving (Show, Eq)
 
+data TranscriptCodebaseSetup
+  = -- Use the default codebase or one provided by the --codebase option.
+    InPlace
+  | -- Operate on a temp codebase, which is possibly forked from an existing codebase, and is possibly saved to a given location afterwards.
+    UseTempCodebase ShouldForkCodebase ShouldSaveCodebase
+  deriving stock (Show, Eq)
+
 data ShouldForkCodebase
   = UseFork
   | DontFork
@@ -112,17 +119,17 @@ data Command
       (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
       ShouldWatchFiles
   | PrintVersion
+  | MCPServer
   | -- @deprecated in trunk after M2g. Remove the Init command completely after M2h has been released
     Init
   | Run RunSource [String]
-  | Transcript ShouldForkCodebase ShouldSaveCodebase (Maybe RtsStatsPath) (NonEmpty FilePath)
+  | Transcript TranscriptCodebaseSetup (Maybe RtsStatsPath) (NonEmpty FilePath)
   deriving (Show, Eq)
 
 -- | Options shared by sufficiently many subcommands.
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
     exitOption :: ShouldExit,
-    nativeRuntimePath :: Maybe FilePath,
     lspFormattingConfig :: LspFormattingConfig
   }
   deriving (Show, Eq)
@@ -171,6 +178,9 @@ renderUsage programName pInfo preferences subCommand =
 
 versionCommand :: Mod CommandFields Command
 versionCommand = command "version" (info versionParser (fullDesc <> progDesc "Print the version of unison you're running"))
+
+mcpCommand :: Mod CommandFields Command
+mcpCommand = command "mcp" (info mcpParser (fullDesc <> progDesc "Run the MCP server using stdin/stdout"))
 
 initCommand :: Mod CommandFields Command
 initCommand = command "init" (info initParser (progDesc initHelp))
@@ -243,6 +253,18 @@ transcriptForkCommand =
           "Multiple transcript files may be provided; they are processed in sequence" <+> "starting from the same codebase."
         ]
 
+transcriptInPlaceCommand :: Mod CommandFields Command
+transcriptInPlaceCommand =
+  command "transcript.in-place" (info transcriptInPlaceParser (fullDesc <> progDesc transcriptHelp <> footerDoc transcriptFooter))
+  where
+    transcriptHelp = "Execute transcript markdown files on the specified (or default) codebase"
+    transcriptFooter =
+      Just . fold . List.intersperse P.line $
+        [ "For each <transcript>.md file provided this executes the transcript directly on the codebase and creates" <+> P.annotate bold "<transcript>.output.md" <+> "if successful.",
+          "After completion, any changes made to the codebase will persist.",
+          "Multiple transcript files may be provided; they are processed in sequence."
+        ]
+
 commandParser :: CodebaseServerOpts -> Parser Command
 commandParser envOpts =
   hsubparser commands <|> launchParser envOpts WithCLI
@@ -250,6 +272,7 @@ commandParser envOpts =
     commands =
       fold
         [ versionCommand,
+          mcpCommand,
           initCommand,
           runSymbolCommand,
           runCompiledCommand,
@@ -257,6 +280,7 @@ commandParser envOpts =
           runPipeCommand,
           transcriptCommand,
           transcriptForkCommand,
+          transcriptInPlaceCommand,
           launchHeadlessCommand envOpts
         ]
 
@@ -265,11 +289,10 @@ globalOptionsParser = do
   -- ApplicativeDo
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
-  nativeRuntimePath <- nativeRuntimePathFlag
   lspFormattingConfig <- lspFormattingParser
 
   pure
-    GlobalOptions {codebasePathOption, exitOption, nativeRuntimePath, lspFormattingConfig}
+    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -373,6 +396,9 @@ initParser = pure Init
 versionParser :: Parser Command
 versionParser = pure PrintVersion
 
+mcpParser :: Parser Command
+mcpParser = pure MCPServer
+
 runArgumentParser :: Parser [String]
 runArgumentParser = many (strArgument (metavar "RUN-ARGS"))
 
@@ -464,14 +490,6 @@ readAbsolutePath = do
           <> show rel
           <> " was relative. Try adding a `.` prefix, e.g. `.path.to.project`"
 
-nativeRuntimePathFlag :: Parser (Maybe FilePath)
-nativeRuntimePathFlag =
-  optional . strOption $
-    long "runtime-path"
-      <> metavar "DIR"
-      <> help "Path to native runtime files"
-      <> noGlobal
-
 readPath' :: ReadM Path.Path'
 readPath' = do
   strPath <- OptParse.str
@@ -504,7 +522,7 @@ transcriptParser = do
     ( let saveCodebase = case shouldSaveCodebaseTo of
             DontSaveCodebase -> shouldSaveCodebase
             _ -> shouldSaveCodebaseTo
-       in Transcript DontFork saveCodebase mrtsStatsFp files
+       in Transcript (UseTempCodebase DontFork saveCodebase) mrtsStatsFp files
     )
 
 transcriptForkParser :: Parser Command
@@ -518,8 +536,14 @@ transcriptForkParser = do
     ( let saveCodebase = case shouldSaveCodebaseTo of
             DontSaveCodebase -> shouldSaveCodebase
             _ -> shouldSaveCodebaseTo
-       in Transcript UseFork saveCodebase mrtsStatsFp files
+       in Transcript (UseTempCodebase UseFork saveCodebase) mrtsStatsFp files
     )
+
+transcriptInPlaceParser :: Parser Command
+transcriptInPlaceParser = do
+  mrtsStatsFp <- rtsStatsOption
+  files <- liftA2 (NE.:|) (fileArgument "FILE") (many (fileArgument "FILES..."))
+  pure (Transcript InPlace mrtsStatsFp files)
 
 unisonHelp :: String -> String -> P.Doc
 unisonHelp (fromString -> executable) (fromString -> version) =

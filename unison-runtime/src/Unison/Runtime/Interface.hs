@@ -11,7 +11,6 @@
 module Unison.Runtime.Interface
   ( startRuntime,
     withRuntime,
-    startNativeRuntime,
     standalone,
     runStandalone,
     StoredCache
@@ -34,17 +33,14 @@ import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
 import Data.Bitraversable (bitraverse)
-import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.Bytes.Get (MonadGet, getWord8, runGetS)
-import Data.Bytes.Put (MonadPut, putWord32be, runPutL, runPutS)
+import Data.Bytes.Get (MonadGet)
+import Data.Bytes.Put (MonadPut, runPutL)
 import Data.Bytes.Serial
 import Data.Foldable
-import Data.Function (on)
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
-import Data.Sequence qualified as Seq (fromList)
 import Data.Set as Set
   ( filter,
     fromList,
@@ -54,30 +50,8 @@ import Data.Set as Set
     (\\),
   )
 import Data.Set qualified as Set
-import Data.Text as Text (pack, unpack)
+import Data.Text as Text (unpack)
 import Data.Void (absurd)
-import GHC.IO.Exception (IOErrorType (NoSuchThing, OtherError, PermissionDenied), IOException (ioe_description, ioe_type))
-import Network.Simple.TCP (Socket, acceptFork, listen, recv, send)
-import Network.Socket (PortNumber, socketPort)
-import System.Directory
-  ( XdgDirectory (XdgCache),
-    createDirectoryIfMissing,
-    getXdgDirectory,
-  )
-import System.Environment (getArgs)
-import System.Exit (ExitCode (..))
-import System.FilePath ((<.>), (</>))
-import System.Process
-  ( CmdSpec (RawCommand, ShellCommand),
-    CreateProcess (..),
-    StdStream (..),
-    callProcess,
-    proc,
-    readCreateProcessWithExitCode,
-    shell,
-    waitForProcess,
-    withCreateProcess,
-  )
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -101,17 +75,13 @@ import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
 import Unison.Runtime.ANF.Serialize as ANF
   ( getGroupCurrent,
     getOptInfos,
-    getVersionedValue,
     putGroup,
     putOptInfos,
-    serializeValue,
   )
 import Unison.Runtime.Builtin
 import Unison.Runtime.Decompile
 import Unison.Runtime.Exception
-  ( bugMsg,
-    die,
-    dieP,
+  ( die,
     listErrors,
     prettyCompileExn,
     prettyRuntimeExn,
@@ -150,7 +120,6 @@ import Unison.Runtime.Machine
     refNumTm,
     refNumsTm,
     refNumsTy,
-    reifyValue,
     resolveSection,
   )
 import Unison.Runtime.Pattern
@@ -305,7 +274,7 @@ recursiveRefDeps cl (RF.DerivedId i) =
 recursiveRefDeps _ _ = pure mempty
 
 recursiveIRefDeps ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   Set Reference ->
   [Reference] ->
   Set Reference
@@ -316,9 +285,9 @@ recursiveIRefDeps cl seen0 rfs = srfs <> foldMap f rfs
     f = foldMap (recursiveGroupDeps cl seen) . flip Map.lookup cl
 
 recursiveGroupDeps ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   Set Reference ->
-  SuperGroup Symbol ->
+  SuperGroup Reference Symbol ->
   Set Reference
 recursiveGroupDeps cl seen0 grp = deps <> recursiveIRefDeps cl seen depl
   where
@@ -327,9 +296,9 @@ recursiveGroupDeps cl seen0 grp = deps <> recursiveIRefDeps cl seen depl
     seen = seen0 <> deps
 
 recursiveIntermedDeps ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   [Reference] ->
-  [(Reference, SuperGroup Symbol)]
+  [(Reference, SuperGroup Reference Symbol)]
 recursiveIntermedDeps cl rfs = mapMaybe f $ Set.toList ds
   where
     ds = recursiveIRefDeps cl mempty rfs
@@ -408,10 +377,16 @@ backmapRef ctx r0 = r2
     r1 = Map.findWithDefault r0 r0 . backmap $ intermedRemap ctx
     r2 = Map.findWithDefault r1 r1 . backmap $ floatRemap ctx
 
+-- Runs references through the backmaps with defaults at all steps.
+maybeBackmapRef :: EvalCtx -> Reference -> Maybe CodebaseReference
+maybeBackmapRef ctx r0 = do
+  r1 <- Map.lookup r0 . backmap $ intermedRemap ctx
+  Map.lookup r1 . backmap $ floatRemap ctx
+
 performRehash ::
-  Map.Map Reference (SuperGroup Symbol) ->
+  Map.Map Reference (SuperGroup Reference Symbol) ->
   EvalCtx ->
-  (EvalCtx, Map Reference Reference, [(Reference, SuperGroup Symbol)])
+  (EvalCtx, Map Reference Reference, [(Reference, SuperGroup Reference Symbol)])
 performRehash rgrp0 ctx =
   (intermedRemapAdd rrefs ctx, rrefs, Map.toList rrgrp)
   where
@@ -435,7 +410,7 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, SuperGroup Symbol)])
+  IO (EvalCtx, [(Reference, SuperGroup Reference Symbol)])
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -468,7 +443,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, Code)])
+  IO (EvalCtx, [(Reference, Code Reference)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -487,10 +462,10 @@ loadDeps cl ppe ctx tyrs tmrs = do
 checkCacheability ::
   CodeLookup Symbol IO () ->
   EvalCtx ->
-  (IntermediateReference, SuperGroup Symbol) ->
-  IO (IntermediateReference, Code)
+  (IntermediateReference, SuperGroup Reference Symbol) ->
+  IO (IntermediateReference, Code Reference)
 checkCacheability cl ctx (r, sg) =
-  getTermType codebaseRef >>= \case
+  getTermType mayCodebaseRef >>= \case
     -- A term's result is cacheable iff it has no arrows in its type,
     -- this is sufficient since top-level definitions can't have effects without a delay.
     Just typ
@@ -498,31 +473,22 @@ checkCacheability cl ctx (r, sg) =
           pure (r, CodeRep sg Cacheable)
     _ -> pure (r, CodeRep sg Uncacheable)
   where
-    codebaseRef = backmapRef ctx r
-    getTermType :: CodebaseReference -> IO (Maybe (Type Symbol))
+    mayCodebaseRef :: Maybe CodebaseReference
+    mayCodebaseRef = maybeBackmapRef ctx r
+    getTermType :: Maybe CodebaseReference -> IO (Maybe (Type Symbol))
     getTermType = \case
-      (RF.DerivedId i) ->
+      Just (RF.DerivedId i) ->
         getTypeOfTerm cl i >>= \case
           Just t -> pure $ Just t
           Nothing -> pure Nothing
-      RF.Builtin {} -> pure $ Nothing
+      Just (RF.Builtin {}) -> pure $ Nothing
+      Nothing -> pure Nothing
     hasArrows :: Type.TypeF v a Bool -> Bool
     hasArrows abt = case ABT.out' abt of
       (ABT.Tm f) -> case f of
         Type.Arrow _ _ -> True
         other -> or other
       t -> or t
-
-compileValue :: Reference -> [(Reference, Code)] -> Value
-compileValue base =
-  flip pair (rf base) . ANF.BLit . List . Seq.fromList . fmap cpair
-  where
-    rf = ANF.BLit . TmLink . RF.Ref
-    cons x y = Data RF.pairRef 0 [x, y]
-    tt = Data RF.unitRef 0 []
-    code sg = ANF.BLit (Code sg)
-    pair x y = cons x (cons y tt)
-    cpair (r, sg) = pair (rf r) (code sg)
 
 decompileCtx ::
   EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
@@ -532,32 +498,6 @@ decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
     fr = floatRemap ctx
     ir = intermedRemap ctx
     dt = decompTm ctx
-
-nativeEval ::
-  FilePath ->
-  IORef EvalCtx ->
-  CodeLookup Symbol IO () ->
-  PrettyPrintEnv ->
-  Term Symbol ->
-  IO (Either Error ([Error], Term Symbol))
-nativeEval executable ctxVar cl ppe tm = catchInternalErrors $ do
-  ctx <- readIORef ctxVar
-  (tyrs, tmrs) <- collectDeps cl tm
-  (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
-  (ctx, tcodes, base) <- prepareEvaluation ppe tm ctx
-  writeIORef ctxVar ctx
-  -- Note: port 0 mean choosing an arbitrary available port.
-  -- We then ask what port was actually chosen.
-  listen "127.0.0.1" "0" $ \(serv, _) ->
-    socketPort serv >>= \port ->
-      nativeEvalInContext
-        executable
-        ppe
-        ctx
-        serv
-        port
-        (L.nubBy ((==) `on` fst) $ tcodes ++ codes)
-        base
 
 interpEval ::
   ActiveThreads ->
@@ -577,146 +517,6 @@ interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
     writeIORef ctxVar ctx
     evalInContext ppe ctx activeThreads initw
       `UnliftIO.finally` cleanupThreads
-
-ensureExists :: (HasCallStack) => CreateProcess -> (CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText) -> IO ()
-ensureExists cmd err =
-  ccall >>= \case
-    Nothing -> pure ()
-    Just failure -> dieP [] $ err (cmdspec cmd) failure
-  where
-    call =
-      readCreateProcessWithExitCode cmd "" >>= \case
-        (ExitSuccess, _stdout, _stderr) -> pure Nothing
-        (ExitFailure exitCode, stdout, stderr) -> pure (Just (Left (exitCode, stdout, stderr)))
-    ccall = call `UnliftIO.catch` \(e :: IOException) -> pure . Just $ Right e
-
-ensureRuntimeExists :: (HasCallStack) => FilePath -> IO ()
-ensureRuntimeExists executable =
-  ensureExists cmd runtimeErrMsg
-  where
-    cmd = proc executable ["--help"]
-
-ensureRacoExists :: (HasCallStack) => IO ()
-ensureRacoExists = ensureExists (shell "raco help") racoErrMsg
-
-prettyCmdSpec :: CmdSpec -> Pretty ColorText
-prettyCmdSpec = \case
-  ShellCommand string -> fromString string
-  System.Process.RawCommand filePath args ->
-    P.sep " " (fromString filePath : Prelude.map fromString args)
-
-prettyCallError :: Either (Int, String, String) IOException -> Pretty ColorText
-prettyCallError = \case
-  Right ex ->
-    P.lines
-      [ P.wrap . fromString $ "The error type was: '" ++ show (ioe_type ex) ++ "', and the message is:",
-        "",
-        P.indentN 2 (fromString (ioe_description ex))
-      ]
-  Left (errCode, stdout, stderr) ->
-    let prettyExitCode = "The exit code was" <> fromString (show errCode)
-     in if null stdout && null stderr
-          then P.wrap $ prettyExitCode <> " but there was no output."
-          else
-            P.lines
-              [ P.wrap $ prettyExitCode <> "and the output was:",
-                "",
-                P.indentN
-                  2
-                  if null stdout
-                    then fromString stderr
-                    else
-                      if null stderr
-                        then fromString stdout
-                        else P.lines $ [fromString stdout, "", "---", "", fromString stderr]
-              ]
-
--- https://hackage.haskell.org/package/process-1.6.18.0/docs/System-Process.html#t:CreateProcess
--- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOError
--- https://hackage.haskell.org/package/base-4.19.0.0/docs/GHC-IO-Exception.html#t:IOErrorType
-runtimeErrMsg :: CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText
-runtimeErrMsg c error =
-  case error of
-    Right (ioe_type -> NoSuchThing) ->
-      P.lines
-        [ P.wrap "I couldn't find the Unison native runtime. I tried to start it with:",
-          "",
-          P.indentN 2 $ prettyCmdSpec c,
-          "",
-          P.wrap
-            "If that doesn't look right, you can use the `--runtime-path` command line \
-            \argument to specify the correct path for the executable."
-        ]
-    Right (ioe_type -> PermissionDenied) ->
-      P.lines
-        [ P.wrap
-            "I got a 'Permission Denied' error when trying to start the \
-            \Unison native runtime with:",
-          "",
-          P.indentN 2 $ prettyCmdSpec c,
-          "",
-          P.wrap
-            "Please check the permisssions (e.g. check that the directory is accessible, \
-            \and that the program is marked executable).",
-          "",
-          P.wrap
-            "If it looks like I'm calling the wrong executable altogether, you can use the \
-            \`--runtime-path` command line argument to specify the correct one."
-        ]
-    _ ->
-      P.lines
-        [ P.wrap
-            "I got an error when starting the Unison native runtime using:",
-          "",
-          P.indentN 2 (prettyCmdSpec c),
-          "",
-          prettyCallError error
-        ]
-
-racoErrMsg :: CmdSpec -> Either (Int, String, String) IOException -> Pretty ColorText
-racoErrMsg c = \case
-  Right (ioe_type -> e@OtherError) ->
-    P.lines
-      [ P.wrap . fromString $
-          "Sorry, I got an error of type '"
-            ++ show e
-            ++ "' when I ran `raco`, \
-               \and I'm not sure what to do about it.",
-        "",
-        "For debugging purposes, the full command was:",
-        "",
-        P.indentN 2 (prettyCmdSpec c)
-      ]
-  error ->
-    P.lines
-      [ P.wrap
-          "I can't seem to call `raco`. Please ensure Racket \
-          \is installed.",
-        "",
-        prettyCallError error,
-        "",
-        "See",
-        "",
-        P.indentN 2 "https://download.racket-lang.org/",
-        "",
-        "for how to install Racket manually."
-      ]
-
-nativeCompile ::
-  FilePath ->
-  IORef EvalCtx ->
-  CompileOpts ->
-  CodeLookup Symbol IO () ->
-  PrettyPrintEnv ->
-  Reference ->
-  FilePath ->
-  IO (Maybe Error)
-nativeCompile executable ctxVar copts cl ppe base path = tryM $ do
-  ctx <- readIORef ctxVar
-  (tyrs, tmrs) <- collectRefDeps cl base
-  (ctx, codes) <- loadDeps cl ppe ctx tyrs tmrs
-  Just ibase <- pure $ baseToIntermed ctx base
-  nativeCompileCodes copts executable codes ibase path
 
 interpCompile ::
   Text ->
@@ -757,7 +557,7 @@ intermediateTerms ::
   EvalCtx ->
   Map RF.Id (Symbol, Term Symbol) ->
   ( Map.Map Symbol Reference,
-    Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
@@ -831,7 +631,7 @@ intermediateTerm ::
   Term Symbol ->
   ( Reference,
     Map.Map Reference Reference,
-    Map.Map Reference (SuperGroup Symbol),
+    Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerm ppe ctx tm =
@@ -849,7 +649,7 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, [(Reference, Code)], Reference)
+  IO (EvalCtx, [(Reference, Code Reference)], Reference)
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
@@ -893,149 +693,6 @@ backReferenceTm ws frs irs dcm c i = do
   -- look up original ref in decompile info
   bs <- Map.lookup r dcm
   Map.lookup i bs
-
-ucrEvalProc :: FilePath -> [String] -> CreateProcess
-ucrEvalProc executable args =
-  (proc executable args)
-    { std_in = Inherit,
-      std_out = Inherit,
-      std_err = Inherit
-    }
-
-ucrCompileProc :: FilePath -> [String] -> CreateProcess
-ucrCompileProc executable args =
-  (proc executable args)
-    { std_in = CreatePipe,
-      std_out = Inherit,
-      std_err = Inherit
-    }
-
-receiveAll :: Socket -> IO ByteString
-receiveAll sock = read []
-  where
-    read acc =
-      recv sock 4096 >>= \case
-        Just chunk -> read (chunk : acc)
-        Nothing -> pure . BS.concat $ reverse acc
-
-data NativeResult
-  = Success Value
-  | Bug Text Value
-  | Error Text
-
-deserializeNativeResponse :: ByteString -> NativeResult
-deserializeNativeResponse =
-  run $
-    getWord8 >>= \case
-      0 -> Success <$> getVersionedValue
-      1 -> Bug <$> getText <*> getVersionedValue
-      2 -> Error <$> getText
-      _ -> pure $ Error "Unexpected result bytes tag"
-  where
-    run e bs = either (Error . pack) id (runGetS e bs)
-
--- Note: this currently does not support yielding values; instead it
--- just produces a result appropriate for unitary `run` commands. The
--- reason is that the executed code can cause output to occur, which
--- would interfere with using stdout to communicate the final value
--- back from the subprocess. We need a side channel to support both
--- output effects and result communication.
---
--- Strictly speaking, this also holds for input. Input effects will
--- just get EOF in this scheme, because the code communication has
--- taken over the input. This could probably be without a side
--- channel, but a side channel is probably better.
-nativeEvalInContext ::
-  FilePath ->
-  PrettyPrintEnv ->
-  EvalCtx ->
-  Socket ->
-  PortNumber ->
-  [(Reference, Code)] ->
-  Reference ->
-  IO (Either Error ([Error], Term Symbol))
-nativeEvalInContext executable ppe ctx serv port codes base = do
-  ensureRuntimeExists executable
-  let cc = ccache ctx
-  crs <- readTVarIO $ combRefs cc
-  -- Seems a bit weird, but apparently this is how we do it
-  args <- getArgs
-  let bytes = serializeValue . compileValue base $ codes
-
-      decodeResult (Error msg) = pure . Left $ text msg
-      decodeResult (Bug msg val) =
-        reifyValue cc val >>= \case
-          Left _ -> pure . Left $ "missing references from bug result"
-          Right cl ->
-            pure . Left . bugMsg ppe [] msg $ decompileCtx crs ctx cl
-      decodeResult (Success val) =
-        reifyValue cc val >>= \case
-          Left _ -> pure . Left $ "missing references from result"
-          Right cl -> case decompileCtx crs ctx cl of
-            (errs, dv) -> pure $ Right (listErrors errs, dv)
-
-      comm mv (sock, _) = do
-        let encodeNum = runPutS . putWord32be . fromIntegral
-        send sock . encodeNum $ BS.length bytes
-        send sock bytes
-        send sock . encodeNum $ length args
-        for_ args $ \arg -> do
-          let bs = encodeUtf8 $ pack arg
-          send sock . encodeNum $ BS.length bs
-          send sock bs
-        UnliftIO.putMVar mv =<< receiveAll sock
-
-      callout _ _ _ ph = do
-        mv <- UnliftIO.newEmptyMVar
-        tid <- acceptFork serv $ comm mv
-        waitForProcess ph >>= \case
-          ExitSuccess ->
-            decodeResult . deserializeNativeResponse
-              =<< UnliftIO.takeMVar mv
-          ExitFailure _ -> do
-            UnliftIO.killThread tid
-            pure . Left $ "native evaluation failed"
-      p = ucrEvalProc executable ["-p", show port]
-      ucrError (e :: IOException) = pure $ Left (runtimeErrMsg (cmdspec p) (Right e))
-  withCreateProcess p callout
-    `UnliftIO.catch` ucrError
-
-nativeCompileCodes ::
-  CompileOpts ->
-  FilePath ->
-  [(Reference, Code)] ->
-  Reference ->
-  FilePath ->
-  IO ()
-nativeCompileCodes copts executable codes base path = do
-  ensureRuntimeExists executable
-  ensureRacoExists
-  genDir <- getXdgDirectory XdgCache "unisonlanguage/racket-tmp"
-  createDirectoryIfMissing True genDir
-  let bytes = serializeValue . compileValue base $ codes
-      srcPath = genDir </> path <.> "rkt"
-      callout (Just pin) _ _ ph = do
-        BS.hPut pin . runPutS . putWord32be . fromIntegral $ BS.length bytes
-        BS.hPut pin bytes
-        UnliftIO.hClose pin
-        _ <- waitForProcess ph
-        pure ()
-      callout _ _ _ _ = fail "withCreateProcess didn't provide handles"
-      ucrError (e :: IOException) =
-        dieP [] . runtimeErrMsg (cmdspec p) $ Right e
-      racoError (e :: IOException) =
-        dieP [] . racoErrMsg (makeRacoCmd RawCommand) $ Right e
-      dargs = ["-G", srcPath]
-      pargs
-        | profile copts = "--profile" : dargs
-        | otherwise = dargs
-      p = ucrCompileProc executable pargs
-      makeRacoCmd :: (FilePath -> [String] -> a) -> a
-      makeRacoCmd f = f "raco" ["exe", "-o", path, srcPath]
-  withCreateProcess p callout
-    `UnliftIO.catch` ucrError
-  makeRacoCmd callProcess
-    `UnliftIO.catch` racoError
 
 evalInContext ::
   PrettyPrintEnv ->
@@ -1160,18 +817,6 @@ startRuntime sandboxed runtimeHost version = do
         ioTestTypes = builtinIOTestTypes External
       }
 
-startNativeRuntime :: Text -> FilePath -> IO (Runtime Symbol)
-startNativeRuntime _version executable = do
-  ctxVar <- newIORef =<< baseContext False
-  pure $
-    Runtime
-      { terminate = pure (),
-        evaluate = nativeEval executable ctxVar,
-        compileTo = nativeCompile executable ctxVar,
-        mainType = builtinMain External,
-        ioTestTypes = builtinIOTestTypes External
-      }
-
 withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
 withRuntime sandboxed runtimeHost version action =
   UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
@@ -1196,11 +841,11 @@ data StoredCache
       (EnumMap Word64 Combs)
       (EnumMap Word64 Reference)
       (EnumSet Word64)
-      (OptInfos Symbol)
+      (OptInfos Reference Symbol)
       (EnumMap Word64 Reference)
       Word64
       Word64
-      (Map Reference (SuperGroup Symbol))
+      (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
       (Map Reference (Set Reference))
@@ -1299,8 +944,8 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
 
 traceNeeded ::
   Reference ->
-  Map Reference (SuperGroup Symbol) ->
-  IO (Map Reference (SuperGroup Symbol))
+  Map Reference (SuperGroup Reference Symbol) ->
+  IO (Map Reference (SuperGroup Reference Symbol))
 traceNeeded init src = go mempty init
   where
     go acc nx
@@ -1315,11 +960,11 @@ buildSCache ::
   EnumMap Word64 Reference ->
   EnumMap Word64 Combs ->
   EnumSet Word64 ->
-  OptInfos Symbol ->
+  OptInfos Reference Symbol ->
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
-  Map Reference (SuperGroup Symbol) ->
+  Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
   Map Reference (Set Reference) ->

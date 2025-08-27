@@ -35,27 +35,24 @@ test = 'let
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + test    : '{IO} [Result]
+  + testNat : Nat
+              -> Optional Int
+              -> Optional Float
+              ->{Stream Result} ()
 
-    ⍟ New definitions:
-    
-      test    : '{IO} [Result]
-      testNat : Nat
-                -> Optional Int
-                -> Optional Float
-                ->{Stream Result} ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test test
+> io.test test
 
     New test results:
 

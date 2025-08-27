@@ -165,17 +165,13 @@ data Input
     ExecuteI (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
-  | -- execute an IO [Result], bool selects runtime
-    IOTestI Bool (HQ.HashQualified Name)
-  | -- execute all in-scope IO tests, interpreter or native
-    IOTestAllI Bool
+  | -- execute an IO [Result]
+    IOTestI (HQ.HashQualified Name)
+  | -- execute all in-scope IO tests
+    IOTestAllI
   | -- make a standalone binary file
     MakeStandaloneI String (HQ.HashQualified Name)
-  | -- execute an IO thunk using scheme
-    ExecuteSchemeI (HQ.HashQualified Name) [String]
-  | -- compile to a scheme file; profiling flag
-    CompileSchemeI Bool Text (HQ.HashQualified Name)
-  | TestI Bool TestInput
+  | TestI TestInput
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | -- Display provided definitions.
     DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
@@ -238,6 +234,11 @@ data Input
   | LibInstallI
       !Bool -- Remind the user to use `lib.install` next time, not `pull`?
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
+  | LibInstallLocalI
+      -- The source local project and branch.
+      !(ProjectAndBranch ProjectName ProjectBranchName)
+      -- The destination lib name
+      (Maybe NameSegment)
   | UpgradeCommitI
   | MergeCommitI
   | DebugSynhashTermI !Name

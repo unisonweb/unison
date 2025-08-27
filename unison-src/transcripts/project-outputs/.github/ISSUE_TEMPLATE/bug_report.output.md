@@ -1,12 +1,10 @@
------
-
-name: Bug report
+---
 about: Create a report to help us improve
-title: ''
-labels: bug
 assignees: ''
-
------
+labels: bug
+name: Bug report
+title: ''
+---
 
 **Describe and demonstrate the bug**
 This should be written as a [ucm transcript](https://www.unison-lang.org/docs/tooling/transcripts/) if possible, calling out the unexpected behavior in the text. e.g.
@@ -18,7 +16,7 @@ a = 1
 Here I try to pass an argument to `update`, which fails:
 
 ``` ucm :error
-scratch/main> update a
+> update a
 
   ⚠️
 

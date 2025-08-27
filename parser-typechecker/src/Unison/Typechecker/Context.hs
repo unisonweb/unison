@@ -319,6 +319,7 @@ data CompilerBug v loc
 data PathElement v loc
   = InSynthesize (Term v loc)
   | InSubtype (Type v loc) (Type v loc)
+  | InSubAbilities [Type v loc] [Type v loc] -- want, have
   | InEquate (Type v loc) (Type v loc)
   | InCheck (Term v loc) (Type v loc)
   | InInstantiateL v (Type v loc)
@@ -333,6 +334,7 @@ data PathElement v loc
   | InMatch loc -- location of 1st case body
   | InMatchGuard
   | InMatchBody
+  | InActionRestriction
   deriving (Show)
 
 type ExpectedArgCount = Int
@@ -1274,7 +1276,7 @@ synthesizeWanted tm@(Term.Request' r) =
 synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   (tbinding, wb) <- synthesizeBinding top binding
   v' <- ABT.freshen e freshenVar
-  when (Var.isAction (ABT.variable e)) $
+  when (Var.isAction (ABT.variable e)) . scope InActionRestriction $
     -- enforce that actions in a block have type ()
     subtype tbinding (DDB.unitType (ABT.annotation binding))
   appendContext [Ann v' boundVarAnn tbinding]
@@ -1324,6 +1326,25 @@ synthesizeWanted (Term.Handle' h body) = do
       let (oes, o') = Type.stripEffect o
       want <- checkWanted Nothing (fmap (Just h,) oes) body rt
       pure (o', want)
+    -- another degenerate case, handler has completely unknown type
+    v0@(Type.Var' (TypeVar.Existential _ _)) -> do
+      r <- extendExistential Var.inferInput
+      e <- extendExistential Var.inferAbility
+      o <- extendExistential Var.inferOutput
+      let lo = loc v0
+          rt = existentialp lo r
+          ot = existentialp lo o
+          et = existentialp lo e
+          eff =
+            Type.apps
+              (Type.ref lo Type.effectRef)
+              [(lo, Type.effects lo [et]), (lo, rt)]
+          hndt = Type.arrow lo eff ot
+      subtype hndt v0
+      ot <- applyM ot
+      let (oes, ot') = Type.stripEffect ot
+      want <- checkWanted Nothing (fmap (Just h,) oes) body rt
+      pure (ot', want)
     _ -> failWith $ HandlerOfUnexpectedType (loc h) ht
 synthesizeWanted (Term.Ann' e t) = checkScoped e t
 synthesizeWanted tm@(Term.Apps' f args) = do
@@ -1408,7 +1429,9 @@ synthesizeWanted e
       outputTypev <- freshenVar (Var.named "match-output")
       let outputType = existential' l B.Blank outputTypev
       appendContext [existential outputTypev]
-      cwant <- checkCases scrutineeType outputType cases
+      cwant <-
+        scope (InMatch (ABT.annotation outputType)) $
+          checkCases scrutineeType outputType cases
       want <- coalesceWanted cwant swant
       ctx <- getContext
       let matchType = apply ctx outputType
@@ -1605,13 +1628,12 @@ checkCases ::
   [Term.MatchCase loc (Term v loc)] ->
   M v loc (Wanted v loc)
 checkCases _ _ [] = pure []
-checkCases scrutType outType cases@(Term.MatchCase _ _ t : _) =
-  scope (InMatch (ABT.annotation t)) $ do
-    mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
-    for_ mes $ \es ->
-      applyM scrutType >>= \sty -> ensureReqEffects sty es
-    scrutType' <- applyM =<< ungeneralize scrutType
-    coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
+checkCases scrutType outType cases = do
+  mes <- requestType (cases <&> \(Term.MatchCase p _ _) -> p)
+  for_ mes $ \es ->
+    applyM scrutType >>= \sty -> ensureReqEffects sty es
+  scrutType' <- applyM =<< ungeneralize scrutType
+  coalesceWanteds =<< traverse (checkCase scrutType' outType) cases
 
 -- Checks a scrutinee type against a list of effects from e.g. a list of cases
 -- from a handler.
@@ -1950,8 +1972,10 @@ annotateLetRecBindings isTop letrec =
         Foldable.for_ (zip3 vs bindings bindingTypes) $ \(v, b, t) -> do
           -- note: elements of a cycle have to be pure, otherwise order of effects
           -- is unclear and chaos ensues
+
           -- ensure actions in blocks have type ()
-          when (Var.isAction v) $ subtype t (DDB.unitType (ABT.annotation b))
+          when (Var.isAction v) . scope InActionRestriction $
+            subtype t (DDB.unitType (ABT.annotation b))
           insideDef v $ checkScopedWith b t []
         ensureGuardedCycle (vs `zip` bindings)
         pure (bindings, bindingTypes, vlocs)
@@ -2549,7 +2573,7 @@ checkWanted exact want (Term.Let1Top' top binding boundVarAnn m) t = do
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
   markThenRetractWanted v $ do
-    when (Var.isAction (ABT.variable m)) $
+    when (Var.isAction (ABT.variable m)) . scope InActionRestriction $
       -- enforce that actions in a block have type ()
       subtype tbinding (DDB.unitType (ABT.annotation binding))
     extendContext (Ann v boundVarAnn tbinding)
@@ -3257,11 +3281,13 @@ subAbilities want have = do
   have <- expandAbilities have
   (extra, want) <- traverse expandWanted =<< pruneAbilities want have
   have <- expandAbilities have
-  case (want, mapMaybe ex have) of
-    ([], _) -> pure extra
-    (want@((_, w) : _), [(b, ve, tv)]) ->
-      extra <$ refineEffectVar (loc w) (snd <$> want) b ve tv -- `orElse` die src w
-    ((src, w) : _, _) -> die src w
+  scope
+    (InSubAbilities (snd <$> want) have)
+    case (want, mapMaybe ex have) of
+      ([], _) -> pure extra
+      (want@((_, w) : _), [(b, ve, tv)]) ->
+        extra <$ refineEffectVar (loc w) (snd <$> want) b ve tv
+      ((src, w) : _, _) -> die src w
   where
     ex t@(Type.Var' (TypeVar.Existential b v)) = Just (b, v, t)
     ex _ = Nothing

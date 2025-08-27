@@ -56,32 +56,30 @@ testABunchOfNats _ =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + type EncDec
 
-    ⍟ New definitions:
-    
-      type EncDec
-      BE16             : EncDec
-      BE32             : EncDec
-      BE64             : EncDec
-      LE16             : EncDec
-      LE32             : EncDec
-      LE64             : EncDec
-      testABunchOfNats : ∀ _. _ ->{IO} [Result]
-      testNat          : Nat -> '{IO, Stream Result} ()
-      testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
+  + BE16             : EncDec
+  + BE32             : EncDec
+  + BE64             : EncDec
+  + LE16             : EncDec
+  + LE32             : EncDec
+  + LE64             : EncDec
+  + testABunchOfNats : ∀ _. _ ->{IO} [Result]
+  + testNat          : Nat -> '{IO, Stream Result} ()
+  + testRoundTrip    : Nat -> EncDec ->{IO, Stream Result} ()
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test testABunchOfNats
+> io.test testABunchOfNats
 
     New test results:
 

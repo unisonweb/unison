@@ -1,7 +1,7 @@
 `update` properly discovers and establishes new cycles.
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -15,17 +15,14 @@ pong _ = !ping + 2
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + ping : 'Nat
+  + pong : 'Nat
 
-    ⍟ New definitions:
-    
-      ping : 'Nat
-      pong : 'Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -44,21 +41,16 @@ clang _ = !pong + 3
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + clang : 'Nat
+  ~ ping : 'Nat
 
-    ⍟ New definitions:
-    
-      clang : 'Nat
-    
-    ⍟ These names already exist. You can `update` them to your
-      new definition:
-    
-      ping : 'Nat
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> update
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -69,7 +61,7 @@ scratch/main> update
 
   Done.
 
-scratch/main> view ping pong clang
+> view ping pong clang
 
   clang : 'Nat
   clang _ =

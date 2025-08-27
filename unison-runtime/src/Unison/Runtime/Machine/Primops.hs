@@ -20,6 +20,7 @@ import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as Ty
 import Unison.ShortHash qualified as SH
@@ -485,13 +486,13 @@ lkup env stk tl
   | otherwise = writeBack stk =<< lookupCode env tl
 {-# INLINE lkup #-}
 
-cvld :: CCache -> Stack -> [(Referent, Code)] -> IO ()
+cvld :: CCache -> Stack -> [(Referent, Referenced Code)] -> IO ()
 cvld env stk news
   | sandboxed env = die [] "attempted to use sandboxed operation: validate"
   | otherwise =
       traverse extract news >>= codeValidate env >>= writeBack stk
   where
-    extract (Ref r, code) = pure (r, codeGroup code)
+    extract (Ref r, dereference -> code) = pure (r, codeGroup code)
     extract _ = die [] "Prim1:CVLD: Con reference"
 {-# INLINE cvld #-}
 
@@ -875,8 +876,8 @@ iorb :: Stack -> Bool -> Bool -> IO ()
 iorb stk x y = pokeBool stk $ x || y
 {-# INLINE iorb #-}
 
-sdbv :: CCache -> Stack -> [Referent] -> Value -> IO ()
-sdbv env stk allowed0 v
+sdbv :: CCache -> Stack -> [Referent] -> Referenced Value -> IO ()
+sdbv env stk allowed0 (dereference -> v)
   | sandboxed env =
       die [] "attempted to use sandboxed operation: Value.validateSandboxed"
   | otherwise = checkValueSandboxing env allowed v >>= writeBack stk

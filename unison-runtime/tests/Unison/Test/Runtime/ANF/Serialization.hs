@@ -18,6 +18,7 @@ import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Unison.Prelude
+import Unison.Reference (Reference)
 import Unison.Runtime.ANF
 import Unison.Runtime.ANF.Serialize
 import Unison.Test.Gen
@@ -38,17 +39,17 @@ test =
 genUBytes :: Gen Util.Bytes.Bytes
 genUBytes = Util.Bytes.fromByteString <$> Gen.bytes (Range.linear 0 4)
 
-genGroupRef :: Gen GroupRef
+genGroupRef :: Gen (GroupRef Reference)
 genGroupRef = GR <$> genReference <*> genSmallWord64
 
-genValList :: Gen ValList
+genValList :: Gen (ValList Reference)
 genValList = Gen.list (Range.linear 0 4) genValue
 
-genCont :: Gen Cont
+genCont :: Gen (Cont Reference)
 genCont = do
   Gen.choice
     [ pure KE,
-      Mark <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genReference <*> Gen.map (Range.linear 0 4) ((,) <$> genReference <*> genValue) <*> genCont,
+      Mark <$> genSmallWord64 <*> Gen.list (Range.linear 0 4) genReference <*> Gen.list (Range.linear 0 4) ((,) <$> genReference <*> genValue) <*> genCont,
       Push <$> genSmallWord64 <*> genSmallWord64 <*> genGroupRef <*> genCont
     ]
 
@@ -60,7 +61,7 @@ genByteArray :: (Prim p) => Gen p -> Gen ByteArray
 genByteArray genP = do
   ByteArray.byteArrayFromList <$> Gen.list (Range.linear 0 20) genP
 
-genBLit :: Gen BLit
+genBLit :: Gen (BLit Reference)
 genBLit =
   Gen.choice
     [ Text <$> genUText,
@@ -79,7 +80,7 @@ genBLit =
       Arr <$> genArray (Range.linear 0 4) genValue
     ]
 
-genValue :: Gen Value
+genValue :: Gen (Value Reference)
 genValue = Gen.sized \n -> do
   -- Limit amount of recursion to avoid infinitely deep values
   let gValList

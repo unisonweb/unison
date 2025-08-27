@@ -15,14 +15,14 @@ term2 _ = ()
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> names term1
+> names term1
 
   'term1':
   Hash          Kind   Names

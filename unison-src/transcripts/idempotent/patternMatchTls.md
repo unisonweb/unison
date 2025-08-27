@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 We had bugs in the calling conventions for both send and terminate which would
@@ -27,24 +27,21 @@ assertRight = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + assertRight : Either a b -> b
+  + frank       : '{IO} ()
 
-    ⍟ New definitions:
-    
-      assertRight : Either a b -> b
-      frank       : '{IO} ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run frank
+> run frank
 
   ()
 ```

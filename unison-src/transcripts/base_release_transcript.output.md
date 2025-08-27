@@ -1,10 +1,10 @@
 # Testing functions that use the base library
 
 ``` ucm
-scratch/main> lib.install @unison/base/releases/3.35.0
+> lib.install @unison/base/releases/3.35.0
 
-  I installed @unison/base/releases/3.35.0 as
-  unison_base_3_35_0.
+  I installed @unison/base/releases/3.35.0 into
+  lib.unison_base_3_35_0
 ```
 
 This just verifies that a `Map` prints out nicely, as a call to `Map.fromList`:
@@ -18,12 +18,7 @@ This just verifies that a `Map` prints out nicely, as a call to `Map.fromList`:
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > Map.fromList [("Alice", 1), ("Bob", 2), ("Carol", 3)]
           ⧩

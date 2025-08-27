@@ -23,9 +23,8 @@ import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Prelude
-import Unison.Project (ProjectAndBranch (..))
+import Unison.Project (ProjectAndBranch (..), defaultBranchName)
 import Unison.Sqlite qualified as Sqlite
-import Witch (unsafeFrom)
 
 -- | Delete a project branch.
 --
@@ -66,7 +65,7 @@ handleDeleteBranch projectAndBranchNamesToDelete = do
 
     findMainBranchInProjectExcept :: ProjectId -> ProjectBranchId -> MaybeT Sqlite.Transaction (ProjectAndBranch ProjectId ProjectBranchId)
     findMainBranchInProjectExcept projectId exceptBranchId = do
-      branch <- MaybeT $ Queries.loadProjectBranchByName projectId (unsafeFrom @Text "main")
+      branch <- MaybeT $ Queries.loadProjectBranchByName projectId defaultBranchName
       guard (branch ^. #branchId /= exceptBranchId)
       pure (ProjectAndBranch projectId (branch ^. #branchId))
 

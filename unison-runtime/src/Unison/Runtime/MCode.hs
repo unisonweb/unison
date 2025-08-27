@@ -842,6 +842,9 @@ sumCtx ctx v vcs
 rctxResolve :: (Var v) => RCtx v -> v -> Maybe Word64
 rctxResolve ctx u = M.lookup u ctx
 
+-- convenient alias for our most used type
+type RNormal = ANormal Reference
+
 -- Compile a top-level definition group to a collection of combinators.
 -- The provided word refers to the numbering for the overall group,
 -- and intra-group calls are numbered locally, with 0 specifying
@@ -851,7 +854,7 @@ emitCombs ::
   RefNums ->
   Reference ->
   Word64 ->
-  SuperGroup v ->
+  SuperGroup Reference v ->
   EnumMap Word64 Comb
 emitCombs rns grpr grpn (Rec grp ent) =
   emitComb rns grpr grpn rec (0, ent) <> aux
@@ -962,7 +965,7 @@ emitComb ::
   Reference ->
   Word64 ->
   RCtx v ->
-  (Word64, SuperNormal v) ->
+  (Word64, SuperNormal Reference v) ->
   EC.EnumMap Word64 Comb
 emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
   runEmit n
@@ -980,7 +983,7 @@ emitSection ::
   Word64 ->
   RCtx v ->
   Ctx v ->
-  ANormal v ->
+  RNormal v ->
   Emit Section
 emitSection rns grpr grpn rec ctx (TLets d us ms bu bo) =
   emitLet rns grpr grpn rec d (zip us ms) ctx bu $
@@ -1050,7 +1053,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
-    hs <- mapFromList $ first (dnum rns) <$> M.toList hs0 =
+    hs <- mapFromList $ first (dnum rns) <$> hs0 =
       uncurry (RMatch i)
         <$> emitRequestMatching rns grpr grpn rec ctx hs df
   | Just (i, UN) <- ctxResolve ctx v,
@@ -1136,7 +1139,7 @@ emitFunction ::
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
   Ctx v -> -- local context
-  Func v ->
+  Func Reference v ->
   Args ->
   Section
 emitFunction _ grpr grpn rec ctx (FVar v) as
@@ -1187,7 +1190,7 @@ countBlock = go 0
     go i (Tag ctx) = go (i + 1) ctx
     go i _ = i
 
-matchCallingError :: Mem -> Branched v -> String
+matchCallingError :: Mem -> Branched Reference v -> String
 matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
   where
     brs
@@ -1221,7 +1224,7 @@ emitLet ::
   Direction Word16 ->
   [(v, Mem)] ->
   Ctx v ->
-  ANormal v ->
+  RNormal v ->
   Emit Section ->
   Emit Section
 emitLet _ _ _ _ _ _ _ (TLit l) =
@@ -1475,8 +1478,8 @@ emitDataMatching ::
   Word64 ->
   RCtx v ->
   Ctx v ->
-  EnumMap CTag ([Mem], ANormal v) ->
-  Maybe (ANormal v) ->
+  EnumMap CTag ([Mem], RNormal v) ->
+  Maybe (RNormal v) ->
   Emit Branch
 emitDataMatching r rns grpr grpn rec ctx cs df =
   mkBranch <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
@@ -1502,7 +1505,7 @@ emitSumMatching ::
   Ctx v ->
   v ->
   Int ->
-  EnumMap Word64 ([Mem], ANormal v) ->
+  EnumMap Word64 ([Mem], RNormal v) ->
   Emit Section
 emitSumMatching rns grpr grpn rec ctx v i cs =
   MatchW i edf <$> traverse (emitSumCase rns grpr grpn rec ctx v) cs
@@ -1516,8 +1519,8 @@ emitRequestMatching ::
   Word64 ->
   RCtx v ->
   Ctx v ->
-  EnumMap Word64 (EnumMap CTag ([Mem], ANormal v)) ->
-  ANormal v ->
+  EnumMap Word64 (EnumMap CTag ([Mem], RNormal v)) ->
+  RNormal v ->
   Emit (Section, EnumMap Word64 Branch)
 emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
@@ -1537,8 +1540,8 @@ emitLitMatching ::
   RCtx v ->
   Ctx v ->
   Int ->
-  f (ANormal v) ->
-  Maybe (ANormal v) ->
+  f (RNormal v) ->
+  Maybe (RNormal v) ->
   Emit Section
 emitLitMatching con err rns grpr grpn rec ctx i cs df =
   con i <$> edf <*> traverse (emitCase rns grpr grpn rec ctx . ([],)) cs
@@ -1554,7 +1557,7 @@ emitCase ::
   Word64 ->
   RCtx v ->
   Ctx v ->
-  ([Mem], ANormal v) ->
+  ([Mem], RNormal v) ->
   Emit Section
 emitCase rns grpr grpn rec ctx (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (pushCtx (zip vs ccs) ctx) bo
@@ -1567,12 +1570,12 @@ emitSumCase ::
   RCtx v ->
   Ctx v ->
   v ->
-  ([Mem], ANormal v) ->
+  ([Mem], RNormal v) ->
   Emit Section
 emitSumCase rns grpr grpn rec ctx v (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (sumCtx ctx v $ zip vs ccs) bo
 
-litToMLit :: ANF.Lit -> MLit
+litToMLit :: ANF.Lit Reference -> MLit
 litToMLit (ANF.I i) = MI (fromIntegral i)
 litToMLit (ANF.N n) = MN n
 litToMLit (ANF.C c) = MC c
@@ -1582,7 +1585,7 @@ litToMLit (ANF.LM r) = MM r
 litToMLit (ANF.LY r) = MY r
 
 -- | Emit a literal as a machine literal of the correct boxed/unboxed format.
-emitLit :: ANF.Lit -> Instr
+emitLit :: ANF.Lit Reference -> Instr
 emitLit = Lit . litToMLit
 
 -- Emits some fix-up code for calling functions. Some of the

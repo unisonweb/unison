@@ -21,17 +21,11 @@ mapTests = do [!testIt]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + mapTests : '{IO} [Result]
+  + testIt   : '{IO} Result
+  + theMap   : Map Nat Nat
 
-    ⍟ New definitions:
-    
-      mapTests : '{IO} [Result]
-      testIt   : '{IO} Result
-      theMap   : Map Nat Nat
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     14 | > Map.get 1
            ⧩
@@ -48,14 +42,14 @@ mapTests = do [!testIt]
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test mapTests
+> io.test mapTests
 
     New test results:
 

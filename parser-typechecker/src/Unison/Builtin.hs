@@ -252,7 +252,8 @@ builtinTypesSrc =
     B' "Char.Class" CT.Data,
     B' "UDPSocket" CT.Data,
     B' "ListenSocket" CT.Data,
-    B' "ClientSockAddr" CT.Data
+    B' "ClientSockAddr" CT.Data,
+    B' "PinnedByteArray" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -631,6 +632,16 @@ builtinsSrc =
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read64be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read16le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read24le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read32le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read40le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read64le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableArray.write" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> a --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write8" . forall1 "g" $ \g ->
@@ -640,6 +651,12 @@ builtinsSrc =
     B "MutableByteArray.write32be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write64be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write16le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write32le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write64le" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
       marrayt g a
@@ -669,6 +686,16 @@ builtinsSrc =
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read64be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read16le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read24le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read32le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read40le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read64le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> Type.effect1 () g (iarrayt a),
     B "MutableByteArray.freeze!" . forall1 "g" $ \g ->
@@ -677,6 +704,11 @@ builtinsSrc =
       marrayt g a --> nat --> nat --> Type.effect1 () g (iarrayt a),
     B "MutableByteArray.freeze" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect1 () g ibytearrayt,
+    B "ImmutableByteArray.toBytes" $
+      ibytearrayt --> nat --> nat --> bytes,
+    B "ImmutableByteArray.fromBytes" $
+      bytes --> ibytearrayt,
+    B "PinnedByteArray.cast" $ forall1 "g" $ \g -> pinnedByteArrayt g --> mbytearrayt g,
     B "Scope.array" . forall2 "s" "a" $ \s a ->
       nat --> Type.effect1 () (scopet s) (marrayt (scopet s) a),
     B "Scope.arrayOf" . forall2 "s" "a" $ \s a ->
@@ -685,6 +717,10 @@ builtinsSrc =
       nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
     B "Scope.bytearrayOf" . forall1 "s" $ \s ->
       nat --> nat --> Type.effect1 () (scopet s) (mbytearrayt (scopet s)),
+    B "Scope.pinnedByteArray" . forall1 "s" $ \s ->
+      nat --> Type.effect1 () (scopet s) (pinnedByteArrayt (scopet s)),
+    B "Scope.pinnedByteArrayOf" . forall1 "s" $ \s ->
+      nat --> nat --> Type.effect1 () (scopet s) (pinnedByteArrayt (scopet s)),
     B "Char.Class.any" charClass,
     B "Char.Class.not" $ charClass --> charClass,
     B "Char.Class.and" $ charClass --> charClass --> charClass,
@@ -819,6 +855,9 @@ ioBuiltins =
     ("IO.getSomeBytes.impl.v1", handle --> nat --> iof bytes),
     ("IO.putBytes.impl.v3", handle --> bytes --> iof unit),
     ("IO.getLine.impl.v1", handle --> iof text),
+    ("IO.fillBuf.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> nat --> iof nat),
+    ("IO.putBuf.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> nat --> iof nat),
+    ("IO.getBufSome.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> nat --> iof nat),
     ("IO.systemTime.impl.v3", unit --> iof nat),
     ("IO.systemTimeMicroseconds.v1", unit --> io int),
     ("IO.getTempDirectory.impl.v3", unit --> iof text),
@@ -854,6 +893,8 @@ ioBuiltins =
     ("IO.socketAccept.impl.v3", socket --> iof socket),
     ("IO.socketSend.impl.v3", socket --> bytes --> iof unit),
     ("IO.socketReceive.impl.v3", socket --> nat --> iof bytes),
+    ("IO.socketSendBuf.impl.v1", socket --> pinnedByteArrayt iot --> nat --> iof unit),
+    ("IO.socketReceiveBuf.impl.v1", socket --> pinnedByteArrayt iot --> nat --> iof nat),
     ("IO.forkComp.v2", forall1 "a" $ \a -> (unit --> io a) --> io threadId),
     ("IO.stdHandle", stdhandle --> handle),
     ("IO.delay.impl.v3", nat --> iof unit),
@@ -919,6 +960,12 @@ ioBuiltins =
     ( "IO.bytearrayOf",
       nat --> nat --> io (mbytearrayt iot)
     ),
+    ( "IO.pinnedByteArray",
+      nat --> io (pinnedByteArrayt iot)
+    ),
+    ( "IO.pinnedByteArrayOf",
+      nat --> nat --> io (pinnedByteArrayt iot)
+    ),
     ( "IO.tryEval",
       forall1 "a" $ \a ->
         (unit --> io a) --> Type.effect () [Type.builtinIO (), DD.exceptionType ()] a
@@ -948,6 +995,7 @@ codeBuiltins =
   [ ("Code.dependencies", code --> list termLink),
     ("Code.isMissing", termLink --> io boolean),
     ("Code.serialize", code --> bytes),
+    ("Code.serialize.versioned", nat --> code --> bytes),
     ("Code.deserialize", bytes --> eithert text code),
     ("Code.cache_", list (tuple [termLink, code]) --> io (list termLink)),
     ("Code.validate", list (tuple [termLink, code]) --> io (optionalt failure)),
@@ -962,6 +1010,7 @@ codeBuiltins =
     ),
     ("Value.dependencies", value --> list termLink),
     ("Value.serialize", value --> bytes),
+    ("Value.serialize.versioned", nat --> value --> bytes),
     ("Value.deserialize", bytes --> eithert text value),
     ("Value.value", forall1 "a" $ \a -> a --> value),
     ( "Value.load",
@@ -1075,6 +1124,9 @@ ibytearrayt = Type.ibytearrayType ()
 
 mbytearrayt :: Type -> Type
 mbytearrayt g = Type.mbytearrayType () `app` g
+
+pinnedByteArrayt :: Type -> Type
+pinnedByteArrayt a = Type.pinnedByteArrayType () `app` a
 
 iarrayt :: Type -> Type
 iarrayt a = Type.iarrayType () `app` a

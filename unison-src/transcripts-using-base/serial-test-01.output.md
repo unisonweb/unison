@@ -12,33 +12,31 @@ combines = cases
     "(" ++ toText rx ++ ", " ++ toText ry ++ ", \"" ++ rz ++ "\")"
 
 mkTestCase = do
-  saveTestCase "case-01" "v4" combines (l1, l2, l3)
+  saveTestCase None "case-01" "v4" combines (l1, l2, l3)
+  saveTestCase (Some 5) "case-01" "v5" combines (l1, l2, l3)
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + combines   : ([Float], [Int], [Char]) -> Text
+  + l1         : [Float]
+  + l2         : [Int]
+  + l3         : [Char]
+  + mkTestCase : '{IO, Exception} ()
 
-    ⍟ New definitions:
-    
-      combines   : ([Float], [Int], [Char]) -> Text
-      l1         : [Float]
-      l2         : [Int]
-      l3         : [Char]
-      mkTestCase : '{IO, Exception} ()
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> run mkTestCase
+> run mkTestCase
 
   ()
 ```

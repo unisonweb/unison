@@ -31,19 +31,16 @@ body k out v =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
+  + count : Nat -> ()
+  + inc   : TVar Nat ->{IO} Nat
+  + loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
 
-    ⍟ New definitions:
-    
-      body  : Nat -> TVar (Optional Nat) -> TVar Nat ->{IO} ()
-      count : Nat -> ()
-      inc   : TVar Nat ->{IO} Nat
-      loop  : '{IO} Nat -> Nat -> Nat ->{IO} Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -89,26 +86,23 @@ tests = '(map spawn nats)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + display : Nat -> Nat -> Nat -> Text
+  + nats    : [Nat]
+  + spawn   : Nat ->{IO} Result
+  + tests   : '{IO} [Result]
 
-    ⍟ New definitions:
-    
-      display : Nat -> Nat -> Nat -> Text
-      nats    : [Nat]
-      spawn   : Nat ->{IO} Result
-      tests   : '{IO} [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> io.test tests
+> io.test tests
 
     New test results:
 

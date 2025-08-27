@@ -1,7 +1,7 @@
 # Suffix-based resolution of names
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 Any unique name suffix can be used to refer to a definition. For instance:
@@ -20,14 +20,14 @@ optional.isNone = cases
 This also affects commands like find. Notice lack of qualified names in output:
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> find take
+> find take
 
   1. builtin.Bytes.take : Nat -> Bytes -> Bytes
   2. builtin.List.take : Nat -> [a] -> [a]
@@ -39,11 +39,11 @@ scratch/main> find take
 The `view` and `display` commands also benefit from this:
 
 ``` ucm
-scratch/main> view List.drop
+> view List.drop
 
   builtin builtin.List.drop : builtin.Nat -> [a] -> [a]
 
-scratch/main> display bar.a
+> display bar.a
 
   +99
 ```
@@ -53,7 +53,7 @@ In the signature, we don't see `base.Nat`, just `Nat`. The full declaration name
 Type-based search also benefits from this, we can just say `Nat` rather than `.base.Nat`:
 
 ``` ucm
-scratch/main> find : Nat -> [a] -> [a]
+> find : Nat -> [a] -> [a]
 
   1. builtin.List.drop : Nat -> [a] -> [a]
   2. builtin.List.take : Nat -> [a] -> [a]
@@ -73,19 +73,16 @@ lib.distributed.lib.baz.qux = "indirect dependency"
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + cool.abra.cadabra            : Text
+  + lib.distributed.abra.cadabra : Text
+  + lib.distributed.baz.qux      : Text
+  + lib.distributed.lib.baz.qux  : Text
 
-    ⍟ New definitions:
-    
-      cool.abra.cadabra            : Text
-      lib.distributed.abra.cadabra : Text
-      lib.distributed.baz.qux      : Text
-      lib.distributed.lib.baz.qux  : Text
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -121,12 +118,7 @@ scratch/main> add
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ✅
-
-  scratch.u changed.
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  No changes found.
 
     1 | > baz.qux
           ⧩
@@ -134,7 +126,7 @@ scratch/main> add
 ```
 
 ``` ucm
-scratch/main> view abra.cadabra
+> view abra.cadabra
 
   cool.abra.cadabra : Text
   cool.abra.cadabra = "my project"
@@ -142,7 +134,7 @@ scratch/main> view abra.cadabra
   lib.distributed.abra.cadabra : Text
   lib.distributed.abra.cadabra = "direct dependency 1"
 
-scratch/main> view baz.qux
+> view baz.qux
 
   lib.distributed.baz.qux : Text
   lib.distributed.baz.qux = "direct dependency 2"
@@ -151,12 +143,12 @@ scratch/main> view baz.qux
 Note that we can always still view indirect dependencies by using more name segments:
 
 ``` ucm
-scratch/main> view distributed.abra.cadabra
+> view distributed.abra.cadabra
 
   lib.distributed.abra.cadabra : Text
   lib.distributed.abra.cadabra = "direct dependency 1"
 
-scratch/main> names distributed.lib.baz.qux
+> names distributed.lib.baz.qux
 
   'distributed.lib.baz.qux':
   Hash          Kind   Names

@@ -1,11 +1,11 @@
 # Integration test: transcript
 
 ``` ucm :hide
-scratch/main> builtins.mergeio lib.builtins
+> builtins.mergeio lib.builtins
 
-scratch/main> load ./unison-src/transcripts-using-base/base.u
+> load ./unison-src/transcripts-using-base/base.u
 
-scratch/main> add
+> add
 ```
 
 ``` unison
@@ -38,21 +38,19 @@ main = do
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + structural ability Break
+  + type MyBool
 
-    ⍟ These new definitions are ok to `update`:
-    
-      structural ability Break
-      type MyBool
-      main   : '{IO, Exception} ()
-      resume : Request {g, Break} x -> x
+  + main   : '{IO, Exception} ()
+  + resume : Request {g, Break} x -> x
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Done.
 
-scratch/main> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
+> compile main ./unison-cli-integration/integration-tests/IntegrationTests/main
 ```

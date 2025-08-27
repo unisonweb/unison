@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -13,25 +13,22 @@ mytest = [Ok "ok"]
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar    : Nat
+  + foo    : Nat
+  + mytest : [Result]
 
-    ⍟ New definitions:
-    
-      bar    : Nat
-      foo    : Nat
-      mytest : [Result]
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> edit.new foo bar
+> edit.new foo bar
 
   ☝️
 
@@ -40,7 +37,7 @@ scratch/main> edit.new foo bar
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
 
-scratch/main> edit.new mytest
+> edit.new mytest
 
   ☝️
 
@@ -63,7 +60,7 @@ test> mytest = [Ok "ok"]
 ```
 
 ``` ucm :error
-scratch/main> edit.new missing
+> edit.new missing
 
   ⚠️
 
@@ -72,7 +69,7 @@ scratch/main> edit.new missing
 ```
 
 ``` ucm :hide
-scratch/main> project.delete scratch
+> project.delete scratch
 ```
 
 # `edit`
@@ -100,18 +97,15 @@ baz = 19
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + bar : Nat
+  + baz : Nat
+  + foo : Nat
 
-    ⍟ New definitions:
-    
-      bar : Nat
-      baz : Nat
-      foo : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -127,12 +121,11 @@ bar = 18
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked the definitions in scratch.u. This
-  file has been previously added to the codebase.
+  No changes found.
 ```
 
 ``` ucm
-scratch/main> edit bar baz
+> edit bar baz
 
   ☝️
 
@@ -148,5 +141,5 @@ baz = 19
 ```
 
 ``` ucm :hide
-scratch/main> project.delete scratch
+> project.delete scratch
 ```

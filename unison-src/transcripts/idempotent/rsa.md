@@ -1,5 +1,5 @@
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.merge
 ```
 
 ``` unison
@@ -38,23 +38,17 @@ sigKo = match signature with
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I found and typechecked these definitions in scratch.u. If you
-  do an `update`, here's how your codebase would change:
+  + down               : Bytes
+  + incorrectPublicKey : Bytes
+  + message            : Bytes
+  + publicKey          : Bytes
+  + secret             : Bytes
+  + sigKo              : Either Failure Boolean
+  + signature          : Either Failure Bytes
+  + sigOkay            : Either Failure Boolean
+  + up                 : Bytes
 
-    ⍟ New definitions:
-    
-      down               : Bytes
-      incorrectPublicKey : Bytes
-      message            : Bytes
-      publicKey          : Bytes
-      secret             : Bytes
-      sigKo              : Either Failure Boolean
-      sigOkay            : Either Failure Boolean
-      signature          : Either Failure Bytes
-      up                 : Bytes
-
-  Now evaluating any watch expressions (lines starting with
-  `>`)... Ctrl+C cancels.
+  Run `update` to apply these changes to your codebase.
 
     28 | > signature
            ⧩

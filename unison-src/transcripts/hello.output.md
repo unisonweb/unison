@@ -1,7 +1,7 @@
 # Hello\!
 
 ``` ucm :hide
-scratch/main> builtins.merge
+> builtins.mergeio
 ```
 
 This markdown file is also a Unison transcript file. Transcript files are an easy way to create self-documenting Unison programs, libraries, and tutorials.
@@ -32,25 +32,22 @@ x = 42
 ``` ucm :added-by-ucm
   Loading changes detected in myfile.u.
 
-  I found and typechecked these definitions in myfile.u. If you
-  do an `update`, here's how your codebase would change:
+  + x : Nat
 
-    ⍟ New definitions:
-    
-      x : Nat
+  Run `update` to apply these changes to your codebase.
 ```
 
 Let's go ahead and add that to the codebase, then make sure it's there:
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> view x
+> view x
 
   x : Nat
   x = 42
@@ -69,7 +66,7 @@ y = 99
 This works for `ucm` blocks as well.
 
 ``` ucm :hide
-scratch/main> rename.term x answerToUltimateQuestionOfLife
+> rename.term x answerToUltimateQuestionOfLife
 ```
 
 Doing `unison :hide-all` hides the block altogether, both input and output - this is useful for doing behind-the-scenes control of `ucm`'s state.

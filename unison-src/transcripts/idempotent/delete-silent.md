@@ -1,5 +1,5 @@
 ``` ucm :error
-scratch/main> delete foo
+> delete foo
 
   ⚠️
 
@@ -13,22 +13,22 @@ structural type Foo = Foo ()
 ```
 
 ``` ucm
-scratch/main> add
+> add
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete foo
+> delete foo
 
   Done.
 
-scratch/main> delete.type Foo
+> delete.type Foo
 
   Done.
 
-scratch/main> delete.term Foo.Foo
+> delete.term Foo.Foo
 
   Done.
 ```
