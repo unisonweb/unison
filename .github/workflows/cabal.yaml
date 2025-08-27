@@ -1,6 +1,11 @@
 ### Cabal is not supported by Unison. This workflow helps us keep the contributed cabal.project file in a good state,
 ### but it is not a required workflow.
 
+### IMPORTANT: This workflow is loaded from the _target branch_ of the PR. That means that changes to it won’t take
+###            effect until after they are merged. To test changes to this workflow, replace `pull_request_target` with
+###            `pull_request` and open the PR from the same repo that it’s being merged into (not a fork). Remember to
+###            change back to `pull_request_target` before merging.
+
 name: Cabal
 
 defaults:
@@ -9,7 +14,7 @@ defaults:
 
 on:
   # Run on the post-merge result of every push to a PR that changes one of the relevant build files.
-  pull_request:
+  pull_request_target:
     paths:
       - '**.cabal'
       - '**/cabal.project*'
@@ -18,15 +23,26 @@ on:
   # Allow manual runs
   workflow_dispatch:
 
+permissions:
+  pull-requests: write
+
 jobs:
   smoke-test:
     # Only build on one platform, because we’re mostly just checking that the cabal.project file is sane.
     runs-on: ubuntu-24.04
     steps:
+      # Since we’re using `on.pull_request_target`, this workflow would check out the code from the target branch by
+      # default. This step fetches the SHA for the merge commit, so we can check out that (as `on.pull_request` would
+      # do).
+      - uses: suzuki-shunsuke/get-pr-action@b002e41164d7a39586b41f17f9caca4e98a1efe4 # v0.1.0
+        id: get-pr
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{steps.get-pr.outputs.merge_commit_sha}}
 
       - id: setup-haskell
-        uses: haskell-actions/setup@v2
+        uses: haskell-actions/setup@7909071ceec0344debcc968c6c7a96a52e8dd0d7 # v2.8.1
         with:
           ghc-version: '9.6.5' # Should match the version implied by the resolver in ../../stack.yaml.
           cabal-version: '3.10.3.0' # Should match the version in ../../.vscode/settings.json.
@@ -42,4 +58,12 @@ jobs:
             cabal-freeze
 
       # --only-configure skips some build steps, but should ensure all dependencies are correct.
-      - run: cabal build all --only-configure --project-file contrib/cabal.project
+      - id: build
+        run: cabal build all --only-configure --project-file contrib/cabal.project
+        continue-on-error: true
+
+      - uses: mainmatter/continue-on-error-comment@b2606cc5ef2525ec21692999676a19f047e3e082 # v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          outcome: ${{ steps.build.outcome }}
+          test-id: Cabal / smoke-test
