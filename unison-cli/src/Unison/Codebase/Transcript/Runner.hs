@@ -24,7 +24,6 @@ import Data.Text.Encoding qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
-import System.Environment (lookupEnv)
 import System.IO qualified as IO
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
@@ -79,13 +78,6 @@ import Prelude hiding (readFile, writeFile)
 terminalWidth :: Pretty.Width
 terminalWidth = 65
 
--- | If provided, this access token will be used on all
--- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
---
--- It's useful in scripted contexts or when running transcripts against a codeserver.
-accessTokenEnvVarKey :: String
-accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
-
 type Runner =
   -- | The name of the transcript to run.
   String ->
@@ -104,6 +96,9 @@ withRunner ::
   (Runner -> m r) ->
   m r
 withRunner isTest verbosity ucmVersion action = do
+  credMan <- AuthN.newCredentialManager
+  authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
+
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
   -- so that errors are consistent.
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
@@ -111,7 +106,8 @@ withRunner isTest verbosity ucmVersion action = do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
   withRuntimes \runtime sbRuntime ->
     action \transcriptName transcriptSrc codebase -> do
-      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime Nothing ucmVersion
+      let workDir = Nothing
+      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
       Server.startServer
         isTest
         Backend.BackendEnv {Backend.useNamesIndex = False}
@@ -121,19 +117,33 @@ withRunner isTest verbosity ucmVersion action = do
         (MCP.mcpServer mcpServerConfig)
         \case
           Nothing -> pure $ Left PortBindingFailure
-          Just baseUrl ->
-            either
-              (pure . Left . ParseError)
-              ( run isTest verbosity codebase runtime sbRuntime ucmVersion $
-                  tShow @Server.BaseUrl baseUrl
-              )
-              $ Transcript.parse transcriptName transcriptSrc
+          Just baseUrl -> do
+            let baseUrlText = tShow @Server.BaseUrl baseUrl
+            case (Transcript.parse transcriptName transcriptSrc) of
+              Left parseError -> pure $ Left (ParseError parseError)
+              Right stanzas ->
+                run
+                  isTest
+                  verbosity
+                  codebase
+                  runtime
+                  sbRuntime
+                  ucmVersion
+                  baseUrlText
+                  authenticatedHTTPClient
+                  credMan
+                  stanzas
   where
     withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
           action runtime sbRuntime
+    initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
+    initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do
+      let tokenProvider :: AuthN.TokenProvider
+          tokenProvider = AuthN.newTokenProvider credMan
+      AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = generated . getCommonInfoTags
@@ -147,9 +157,11 @@ run ::
   Runtime.Runtime Symbol ->
   UCMVersion ->
   Text ->
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
   Transcript ->
   IO (Either Error Transcript)
-run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = UnliftIO.try do
+run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -163,14 +175,6 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
         "Running the provided transcript file...",
         ""
       ]
-  mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
-  credMan <- AuthN.newCredentialManager
-  let tokenProvider :: AuthN.TokenProvider
-      tokenProvider =
-        maybe
-          (AuthN.newTokenProvider credMan)
-          (\accessToken _codeserverID -> pure $ Right accessToken)
-          mayShareAccessToken
   -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
   -- e.g. a unison-file update by a command like 'edit'
   inputQueue <-
@@ -509,8 +513,6 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
               "The stanza above with `:bug` is now passing! You can remove `:bug` and close any appropriate Github \
               \issues."
           (_, _, _) -> pure ()
-
-  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   seedRef <- newIORef (0 :: Int)
 
