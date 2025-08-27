@@ -273,6 +273,7 @@ module U.Codebase.Sqlite.Queries
     addProjectBranchLastAccessedColumn,
     addMergeBranchTables,
     addUpdateBranchTable,
+    addDerivedDependentsByDependencyIndex,
 
     -- ** schema version
     currentSchemaVersion,
@@ -427,7 +428,7 @@ import Unison.Prelude
 import Unison.Sqlite
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Alternative qualified as Alternative
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
 import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
@@ -441,7 +442,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 20
+currentSchemaVersion = 21
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -518,6 +519,10 @@ addMergeBranchTables =
 addUpdateBranchTable :: Transaction ()
 addUpdateBranchTable =
   executeStatements $(embedProjectStringFile "sql/017-add-update-branch-table.sql")
+
+addDerivedDependentsByDependencyIndex :: Transaction ()
+addDerivedDependentsByDependencyIndex =
+  executeStatements $(embedProjectStringFile "sql/018-add-derived-dependents-by-dependency-index.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -1969,14 +1974,10 @@ getDirectDependentsWithinScope scope query = do
 -- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`
 -- (not including `query` itself).
 getTransitiveDependentsWithinScope ::
-  Set S.Reference.Id ->
+  DefnsF Set S.TermReferenceId S.TypeReferenceId ->
   Set S.Reference ->
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getTransitiveDependentsWithinScope scope query = do
-  -- Populate a temporary table with all of the references in `scope`
-  let scopeTableName = [sql| dependents_search_scope |]
-  createTemporaryTableOfReferenceIds scopeTableName scope
-
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
   createTemporaryTableOfReferences queryTableName query
@@ -1988,7 +1989,7 @@ getTransitiveDependentsWithinScope scope query = do
   --   #honk -> #baz -> #foo
   --            #qux -> #bar
   --
-  -- The recursive query below is seeded with direct dependents of the `query` set that are in `scope`, namely:
+  -- The recursive query below is seeded with direct dependents of the `query` set, namely:
   --
   --   #honk -> #baz -> #foo
   --            #qux -> #bar
@@ -1998,37 +1999,21 @@ getTransitiveDependentsWithinScope scope query = do
   -- Then, every iteration of the query expands to that set's dependents (#honk and onwards), until there are no more.
   -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
   -- reference more than once.
-  --
-  -- Historical note: this query was much slower without the row-value `IN` clauses as a substitute for an inner join
-  -- to `dependents_search_scope`. SQLite doesn't intelligently order joins to a temp table. The goal (achieved here) is
-  -- avoiding a scan on `dependents_index`.
 
   result0 :: [S.Reference.Id :. Only ObjectType] <-
     queryListRow
       [sql|
-        WITH RECURSIVE
-        dependents_index_in_scope AS (
-          SELECT *
-          FROM dependents_index
-          WHERE (dependent_object_id, dependent_component_index) IN (
-            SELECT object_id, component_index
-            FROM $scopeTableName
-          )
-        ),
-        transitive_dependents (object_id, component_index) AS (
+        WITH RECURSIVE transitive_dependents (object_id, component_index) AS (
           SELECT d.dependent_object_id, d.dependent_component_index
-          FROM dependents_index_in_scope d
-          WHERE EXISTS (
-            SELECT 1
-            FROM $queryTableName q
-            WHERE d.dependency_builtin IS q.builtin
+          FROM $queryTableName q
+          JOIN dependents_index d
+            ON d.dependency_builtin IS q.builtin
               AND d.dependency_object_id IS q.object_id
               AND d.dependency_component_index IS q.component_index
-          )
           UNION
           SELECT d.dependent_object_id, d.dependent_component_index
           FROM transitive_dependents t
-            JOIN dependents_index_in_scope d
+            JOIN dependents_index d
               ON t.object_id = d.dependency_object_id
               AND t.component_index = d.dependency_component_index
         )
@@ -2037,21 +2022,19 @@ getTransitiveDependentsWithinScope scope query = do
           JOIN object o ON t.object_id = o.id
       |]
 
-  execute [sql| DROP TABLE $scopeTableName |]
   execute [sql| DROP TABLE $queryTableName |]
 
   -- Post-process the query result
-  let result1 =
-        List.foldl'
-          ( \deps -> \case
-              dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
-              dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
-              _ -> deps -- impossible; could error here
-          )
-          (Defns Set.empty Set.empty)
-          result0
-
-  pure result1
+  result0
+    & List.foldl'
+      ( \deps -> \case
+          dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
+          dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
+          _ -> deps -- impossible; could error here
+      )
+      (Defns Set.empty Set.empty)
+    & zipDefnsWith Set.intersection Set.intersection scope
+    & pure
 
 createTemporaryTableOfReferences :: Sql -> Set S.Reference -> Transaction ()
 createTemporaryTableOfReferences tableName refs = do

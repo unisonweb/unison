@@ -1155,14 +1155,14 @@ directDependentsWithinScope scope0 query0 = do
 -- | `transitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope` (not
 -- including `query` itself).
 transitiveDependentsWithinScope ::
-  Set C.Reference.Id ->
+  DefnsF Set C.TermReferenceId C.TypeReferenceId ->
   Set C.Reference ->
   Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
 transitiveDependentsWithinScope scope0 query0
-  | Set.null scope0 || Set.null query0 = pure (Defns Set.empty Set.empty)
+  | (Set.null scope0.terms && Set.null scope0.types) || Set.null query0 = pure (Defns Set.empty Set.empty)
   | otherwise = do
       -- Convert C -> S
-      scope1 <- Set.traverse c2sReferenceId scope0
+      scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
       query1 <- Set.traverse c2sReference query0
 
       -- Do the query
