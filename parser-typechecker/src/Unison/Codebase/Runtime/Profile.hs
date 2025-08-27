@@ -10,7 +10,8 @@ module Unison.Codebase.Runtime.Profile
     addPath,
     aggregatePruned,
     fullProfile,
-    miniProfile
+    miniProfile,
+    foldedProfile
   ) where
 
 import Data.Bifunctor (second)
@@ -73,7 +74,7 @@ addPath (i:is) (ProfT m) = ProfT $ M.alter f i m
 
 data AggInfo k = Ag {
     -- inherited sample count
-    _inherited :: Int,
+    inherited :: Int,
     -- total sample for all occurrences of a key
     allOccs :: Map k Int
   }
@@ -85,23 +86,17 @@ instance Ord k => Semigroup (AggInfo k) where
 instance Ord k => Monoid (AggInfo k) where
   mempty = Ag 0 M.empty
 
-fraction :: Int -> Int -> Double
-fraction n d = fromIntegral n / fromIntegral d
-
-aggregate0 ::
+aggregateWith ::
   Ord k =>
-  Int ->
+  (AggInfo k -> Int -> r) ->
   k ->
   (Int, ProfTrie k Int) ->
-  (AggInfo k, ((Double, Double), ProfTrie k (Double, Double)))
-aggregate0 total k (m, ProfT t) =
-  case M.traverseWithKey (aggregate0 total) t of
-    (ag@(Ag s _), t) -> (ag <> local, ((inherited, self), ProfT t))
+  (AggInfo k, (r, ProfTrie k r))
+aggregateWith f k (m, ProfT t) =
+  case M.traverseWithKey (aggregateWith f) t of
+    (ag, t) -> (ag', (f ag' m, ProfT t))
       where
-      local = Ag m (M.singleton k m)
-      s' = s + m
-      inherited = fraction s' total
-      self = fraction m total
+      ag' = ag <> Ag m (M.singleton k m)
 
 prune0 ::
   Ord k =>
@@ -132,13 +127,20 @@ topN n0 = M.foldlWithKey (ins n0) []
     pop _ [] = []
     pop n (p:ps) = p : pop (n-1) ps
 
+fraction :: Int -> Int -> Double
+fraction n d = fromIntegral n / fromIntegral d
+
+fractions :: Int -> AggInfo k -> Int -> (Double, Double)
+fractions total ag lo =
+  (fraction (inherited ag) total, fraction lo total)
+
 -- Given a total count and a profile trie, calculates local and inherited
 -- cost fractions of the positions in the trie, and prunes it to the
 -- hottest spots.
 aggregatePruned ::
   Ord k => Int -> ProfTrie k Int -> ProfTrie k (Double, Double)
 aggregatePruned total (ProfT t) =
-  case M.traverseWithKey (aggregate0 total) t of
+  case M.traverseWithKey (aggregateWith (fractions total)) t of
     (ag, t)
       | top <- topN 10 (allOccs ag) ->
           prune (S.fromList $ fst <$> top) $ ProfT t
@@ -149,17 +151,24 @@ aggregate ::
   ProfTrie k Int ->
   ([(k, Double)], ProfTrie k (Double, Double))
 aggregate total (ProfT t) =
-  case M.traverseWithKey (aggregate0 total) t of
+  case M.traverseWithKey (aggregateWith (fractions total)) t of
     (ag, t) ->
       (second (flip fraction total) <$> topN 10 (allOccs ag), ProfT t)
 
--- Folds over a profile trie. The mapping function recieves the depth,
--- since this will be used for indentation.
-foldMapTrie :: Monoid m => (Width -> k -> v -> m) -> ProfTrie k v -> m
-foldMapTrie f = descend 0
+aggregateTicks :: Ord k => ProfTrie k Int -> ProfTrie k Int
+aggregateTicks (ProfT t) =
+  ProfT . snd $ M.traverseWithKey (aggregateWith (const . inherited)) t
+
+-- Folds over a profile trie. The mapping function receives a reversed
+-- path to the node, which can be used e.g. to see the node's key and to
+-- calculate the depth in the trie.
+foldMapTrie :: Monoid m => ((k,[k]) -> v -> m) -> ProfTrie k v -> m
+foldMapTrie f = descend []
   where
-  descend n (ProfT m) =
-    M.foldMapWithKey (\k (v, sub) -> f n k v <> descend (n+1) sub) m
+    descend ks (ProfT m) =
+      M.foldMapWithKey
+        (\k (v, sub) -> f (k,ks) v <> descend (k:ks) sub)
+        m
 
 showPercent :: Double -> String
 showPercent d = pad $ showFFloat (Just 2) (100 * d) ""
@@ -170,20 +179,28 @@ dispProfEntry ::
   Ord k =>
   PrettyPrintEnv ->
   Map k Reference ->
-  Width ->
-  k ->
+  (k,[k]) ->
   (Double, Double) ->
   Pretty ColorText
-dispProfEntry ppe refs ind k (inh, self) =
+dispProfEntry ppe refs (k,ks) (inh, self) =
   mconcat
     [ P.indentN 6 . fromString $ showPercent inh,
       P.indentN 4 . fromString $ showPercent self,
-      P.indentN (2*ind + 4) dr,
+      P.indentN (2*ind + 4) $ dispKey ppe refs k,
       "\n"
     ]
   where
-    dr | Just r <- M.lookup k refs = dispFunc ppe r
-       | otherwise = "<unknown>"
+    ind = fromIntegral $ length ks
+
+dispFunc :: PrettyPrintEnv -> Reference -> Pretty ColorText
+dispFunc ppe =
+  syntaxToColor . prettyHashQualified . termName ppe . Ref
+
+dispKey ::
+  Ord k => PrettyPrintEnv -> Map k Reference -> k -> Pretty ColorText
+dispKey ppe refs k
+  | Just r <- M.lookup k refs = dispFunc ppe r
+  | otherwise = "<unknown>"
 
 dispProfTrie ::
   Ord k =>
@@ -237,10 +254,6 @@ miniProfile ppe (Prof total tr refs) =
   where
     ag = aggregatePruned total tr
 
-dispFunc :: PrettyPrintEnv -> Reference -> Pretty ColorText
-dispFunc ppe =
-  syntaxToColor . prettyHashQualified . termName ppe . Ref
-
 fullProfile ::
   Ord k =>
   PrettyPrintEnv ->
@@ -254,3 +267,21 @@ fullProfile ppe (Prof total tr refs) =
   dispProfTrie ppe refs ag
   where
     (top, ag) = aggregate total tr
+
+foldedProfile ::
+  Ord k =>
+  PrettyPrintEnv ->
+  Profile k ->
+  String
+foldedProfile ppe (Prof _ tr refs) =
+  toPlainUnbroken $ foldMapTrie f tr
+  where
+    dk = dispKey ppe refs
+
+    f (k,ks) n =
+      mconcat
+        [ foldl (\tx k -> dk k <> ";" <> tx) (dk k) ks
+        , " "
+        , fromString $ show n
+        , "\n"
+        ]

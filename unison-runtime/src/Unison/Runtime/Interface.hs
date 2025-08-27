@@ -51,6 +51,7 @@ import Data.Set as Set
 import Data.Set qualified as Set
 import Data.Text as Text (isPrefixOf, unpack)
 import Data.Void (absurd)
+import System.FilePath
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
@@ -58,7 +59,12 @@ import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
 import Unison.Codebase.Runtime
   (CompileOpts (..), Error, Response (..), Runtime (..))
 import Unison.Codebase.Runtime.Profile
-  (Profile (..), ProfileSpec (..), fullProfile, miniProfile)
+  ( Profile (..),
+    ProfileSpec (..),
+    fullProfile,
+    miniProfile,
+    foldedProfile
+  )
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
@@ -537,9 +543,13 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
         ectx <- readIORef ctxVar
         pout <- backReferenceProfile ectx <$> getProf
         case mout of
-          Just loc -> do
-            writeFile loc . toPlainUnbroken $ fullProfile ppe pout
-            pure $ Right (errs, tmr)
+          Just loc
+            | takeExtension loc == ".folded" -> do
+                writeFile loc $ foldedProfile ppe pout
+                pure $ Right (errs, tmr)
+            | otherwise -> do
+              writeFile loc . toPlainUnbroken $ fullProfile ppe pout
+              pure $ Right (errs, tmr)
           Nothing ->
             pure $ Right (errs <> Profile (miniProfile ppe pout), tmr)
   where
