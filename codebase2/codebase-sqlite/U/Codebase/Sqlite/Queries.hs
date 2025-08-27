@@ -1998,33 +1998,43 @@ getTransitiveDependentsWithinScope scope query = do
   -- Then, every iteration of the query expands to that set's dependents (#honk and onwards), until there are no more.
   -- We use `UNION` rather than `UNION ALL` so as to not track down the transitive dependents of any particular
   -- reference more than once.
+  --
+  -- Historical note: this query was much slower without the row-value `IN` clauses as a substitute for an inner join
+  -- to `dependents_search_scope`. SQLite doesn't intelligently order joins to a temp table. The goal (achieved here) is
+  -- avoiding a scan on `dependents_index`.
 
   result0 :: [S.Reference.Id :. Only ObjectType] <-
     queryListRow
       [sql|
-        WITH RECURSIVE transitive_dependents (dependent_object_id, dependent_component_index, type_id) AS (
-          SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
-          FROM dependents_index d
-          JOIN object ON d.dependent_object_id = object.id
-          JOIN $queryTableName q
-            ON q.builtin IS d.dependency_builtin
-            AND q.object_id IS d.dependency_object_id
-            AND q.component_index IS d.dependency_component_index
-          JOIN $scopeTableName s
-            ON s.object_id = d.dependent_object_id
-            AND s.component_index = d.dependent_component_index
-
-          UNION SELECT d.dependent_object_id, d.dependent_component_index, object.type_id
-          FROM dependents_index d
-          JOIN object ON d.dependent_object_id = object.id
-          JOIN transitive_dependents t
-            ON t.dependent_object_id = d.dependency_object_id
-            AND t.dependent_component_index = d.dependency_component_index
-          JOIN $scopeTableName s
-            ON s.object_id = d.dependent_object_id
-            AND s.component_index = d.dependent_component_index
+        WITH RECURSIVE
+        dependents_index_in_scope AS (
+          SELECT *
+          FROM dependents_index
+          WHERE (dependent_object_id, dependent_component_index) IN (
+            SELECT object_id, component_index
+            FROM $scopeTableName
+          )
+        ),
+        transitive_dependents (object_id, component_index) AS (
+          SELECT d.dependent_object_id, d.dependent_component_index
+          FROM dependents_index_in_scope d
+          WHERE EXISTS (
+            SELECT 1
+            FROM $queryTableName q
+            WHERE d.dependency_builtin IS q.builtin
+              AND d.dependency_object_id IS q.object_id
+              AND d.dependency_component_index IS q.component_index
+          )
+          UNION
+          SELECT d.dependent_object_id, d.dependent_component_index
+          FROM transitive_dependents t
+            JOIN dependents_index_in_scope d
+              ON t.object_id = d.dependency_object_id
+              AND t.component_index = d.dependency_component_index
         )
-        SELECT * FROM transitive_dependents
+        SELECT t.object_id, t.component_index, o.type_id
+        FROM transitive_dependents t
+          JOIN object o ON t.object_id = o.id
       |]
 
   execute [sql| DROP TABLE $scopeTableName |]
@@ -2034,8 +2044,8 @@ getTransitiveDependentsWithinScope scope query = do
   let result1 =
         List.foldl'
           ( \deps -> \case
-              dep :. Only TermComponent -> Defns (Set.insert dep deps.terms) deps.types
-              dep :. Only DeclComponent -> Defns deps.terms (Set.insert dep deps.types)
+              dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
+              dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
               _ -> deps -- impossible; could error here
           )
           (Defns Set.empty Set.empty)
