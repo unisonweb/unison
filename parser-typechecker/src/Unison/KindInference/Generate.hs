@@ -369,7 +369,9 @@ builtinConstraintTree =
           flip Type.ref Type.codeRef,
           flip Type.ref Type.valueRef,
           flip Type.ref Type.timeSpecRef,
-          flip Type.ref Type.hashAlgorithmRef
+          flip Type.ref Type.hashAlgorithmRef,
+          flip Type.ref Type.bigIntRef,
+          flip Type.ref Type.bigNatRef
         ],
       traverse
         (constrain (Type :-> Type))

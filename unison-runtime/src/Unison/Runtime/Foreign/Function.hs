@@ -39,7 +39,7 @@ import Data.Avro.Schema.ReadSchema qualified as ReadSchema
 import Data.Avro.Schema.Schema qualified as AvroSchema
 import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bimapM)
-import Data.Bits (shiftL, (.|.))
+import Data.Bits (complement, popCount, shiftL, shiftR, xor, (.&.), (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
@@ -108,6 +108,7 @@ import Network.UDP as UDP
     stop,
   )
 import Numeric (showHex)
+import Numeric.Natural (Natural)
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
   ( createDirectoryIfMissing,
@@ -1070,6 +1071,60 @@ foreignCallHelper = \case
     pure . bimap encodeJsonParseError (second encodeVal) $ parseJson txt
   Avro_decodeBinary -> mkForeign $ \(env :: Closure, readSchema :: Closure, bytes :: Bytes.Bytes) -> do
     avroDecodeBinary env readSchema bytes
+  BigInt_fromText -> mkForeign $ \(txt :: Text) -> pure $ encodeVal (readMaybe (unpack txt) :: Maybe Integer)
+  BigInt_toText -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (show n)
+  BigInt_fromInt -> mkForeign $ \(n :: Int) -> pure $ encodeVal (fromIntegral n :: Integer)
+  BigInt_toInt -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Int)
+  BigInt_add -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l + r)
+  BigInt_sub -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l - r)
+  BigInt_mul -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l * r)
+  BigInt_div -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l `div` r)
+  BigInt_mod -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l `mod` r)
+  BigInt_pow -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l ^ r)
+  BigInt_shl -> mkForeign $ \(l :: Integer, r) -> pure $ encodeVal (l `shiftL` r)
+  BigInt_shr -> mkForeign $ \(l :: Integer, r) -> pure $ encodeVal (l `shiftR` r)
+  BigInt_and -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l .&. r)
+  BigInt_or -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l .|. r)
+  BigInt_xor -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l `xor` r)
+  BigInt_not -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (complement n)
+  BigInt_popCount -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (popCount n)
+  BigInt_truncate0 -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral (if n < 0 then 0 else n) :: Natural)
+  BigInt_isEven -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (even n)
+  BigInt_isOdd -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (odd n)
+  BigInt_eq -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l == r)
+  BigInt_lt -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l < r)
+  BigInt_le -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l <= r)
+  BigInt_gt -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l > r)
+  BigInt_ge -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l >= r)
+  BigInt_neg -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (-n)
+  BigInt_abs -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (abs n)
+  BigInt_signum -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (signum n)
+  BigInt_toFloat -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Double)
+  BigNat_fromText -> mkForeign $ \(txt :: Text) -> pure $ encodeVal (readMaybe (unpack txt) :: Maybe Natural)
+  BigNat_toText -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (show n)
+  BigNat_fromNat -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (fromIntegral n :: Integer)
+  BigNat_toNat -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Natural)
+  BigNat_toFloat -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (fromIntegral n :: Double)
+  BigNat_add -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l + r)
+  BigNat_sub -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l - r)
+  BigNat_mul -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l * r)
+  BigNat_div -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l `div` r)
+  BigNat_mod -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l `mod` r)
+  BigNat_pow -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l ^ r)
+  BigNat_shl -> mkForeign $ \(l :: Natural, r) -> pure $ encodeVal (l `shiftL` r)
+  BigNat_shr -> mkForeign $ \(l :: Natural, r) -> pure $ encodeVal (l `shiftR` r)
+  BigNat_and -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l .&. r)
+  BigNat_or -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l .|. r)
+  BigNat_xor -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l `xor` r)
+  BigNat_not -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (complement n)
+  BigNat_popCount -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (popCount n)
+  BigNat_isEven -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (even n)
+  BigNat_isOdd -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (odd n)
+  BigNat_eq -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l == r)
+  BigNat_lt -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l < r)
+  BigNat_le -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l <= r)
+  BigNat_gt -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l > r)
+  BigNat_ge -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l >= r)
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse

@@ -253,7 +253,9 @@ builtinTypesSrc =
     B' "UDPSocket" CT.Data,
     B' "ListenSocket" CT.Data,
     B' "ClientSockAddr" CT.Data,
-    B' "PinnedByteArray" CT.Data
+    B' "PinnedByteArray" CT.Data,
+    B' "Integer" CT.Data,
+    B' "Natural" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -739,13 +741,61 @@ builtinsSrc =
     B "Char.Class.symbol" charClass,
     B "Char.Class.separator" charClass,
     B "Char.Class.letter" charClass,
-    B "Char.Class.is" $
-      charClass
-        --> char
-        --> boolean,
-    B
-      "Text.patterns.char"
-      $ charClass --> pat text
+    B "Char.Class.is" $ charClass --> char --> boolean,
+    B "Text.patterns.char" $ charClass --> pat text,
+    B "Integer.fromText" $ text --> bigInt,
+    B "Natural.fromText" $ text --> bigNat,
+    B "Integer.toText" $ bigInt --> text,
+    B "Natural.toText" $ bigNat --> text,
+    B "Integer.fromInt" $ int --> bigInt,
+    B "Natural.fromInt" $ int --> bigNat,
+    B "Integer.toInt" $ bigInt --> int,
+    B "Natural.toInt" $ bigNat --> int,
+    B "Integer.add" $ bigInt --> bigInt --> bigInt,
+    B "Integer.sub" $ bigInt --> bigInt --> bigInt,
+    B "Integer.mul" $ bigInt --> bigInt --> bigInt,
+    B "Integer.div" $ bigInt --> bigInt --> bigInt,
+    B "Integer.mod" $ bigInt --> bigInt --> bigInt,
+    B "Integer.pow" $ bigInt --> bigInt --> bigInt,
+    B "Integer.shl" $ bigInt --> nat --> bigInt,
+    B "Integer.shr" $ bigInt --> nat --> bigInt,
+    B "Integer.and" $ bigInt --> bigInt --> bigInt,
+    B "Integer.or" $ bigInt --> bigInt --> bigInt,
+    B "Integer.xor" $ bigInt --> bigInt --> bigInt,
+    B "Integer.not" $ bigInt --> bigInt,
+    B "Integer.popCount" $ bigInt --> nat,
+    B "Integer.eq" $ bigInt --> bigInt --> boolean,
+    B "Integer.lt" $ bigInt --> bigInt --> boolean,
+    B "Integer.lteq" $ bigInt --> bigInt --> boolean,
+    B "Integer.gt" $ bigInt --> bigInt --> boolean,
+    B "Integer.gteq" $ bigInt --> bigInt --> boolean,
+    B "Integer.neg" $ bigInt --> bigInt,
+    B "Integer.abs" $ bigInt --> bigInt,
+    B "Integer.signum" $ bigInt --> int,
+    B "Integer.toFloat" $ bigInt --> float,
+    B "Integer.isEven" $ bigInt --> boolean,
+    B "Integer.isOdd" $ bigInt --> boolean,
+    B "Natural.add" $ bigNat --> bigNat --> bigNat,
+    B "Natural.sub" $ bigNat --> bigNat --> bigNat,
+    B "Natural.mul" $ bigNat --> bigNat --> bigNat,
+    B "Natural.div" $ bigNat --> bigNat --> bigNat,
+    B "Natural.mod" $ bigNat --> bigNat --> bigNat,
+    B "Natural.pow" $ bigNat --> bigNat --> bigNat,
+    B "Natural.shl" $ bigNat --> nat --> bigNat,
+    B "Natural.shr" $ bigNat --> nat --> bigNat,
+    B "Natural.and" $ bigNat --> bigNat --> bigNat,
+    B "Natural.or" $ bigNat --> bigNat --> bigNat,
+    B "Natural.xor" $ bigNat --> bigNat --> bigNat,
+    B "Natural.not" $ bigNat --> bigNat,
+    B "Natural.popCount" $ bigNat --> nat,
+    B "Natural.eq" $ bigNat --> bigNat --> boolean,
+    B "Natural.lt" $ bigNat --> bigNat --> boolean,
+    B "Natural.lteq" $ bigNat --> bigNat --> boolean,
+    B "Natural.gt" $ bigNat --> bigNat --> boolean,
+    B "Natural.gteq" $ bigNat --> bigNat --> boolean,
+    B "Natural.toFloat" $ bigNat --> float,
+    B "Natural.isEven" $ bigNat --> boolean,
+    B "Natural.isOdd" $ bigNat --> boolean
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1161,7 +1211,7 @@ bmode = DD.bufferModeType ()
 smode = DD.seekModeType ()
 stdhandle = DD.stdHandleType ()
 
-int, nat, bytes, text, boolean, float, char :: Type
+int, nat, bytes, text, boolean, float, char, bigInt, bigNat :: Type
 int = Type.int ()
 nat = Type.nat ()
 bytes = Type.bytes ()
@@ -1169,6 +1219,8 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
+bigInt = Type.ref () Type.bigIntRef
+bigNat = Type.ref () Type.bigNatRef
 
 anyt, code, value, termLink :: Type
 anyt = Type.ref () Type.anyRef
