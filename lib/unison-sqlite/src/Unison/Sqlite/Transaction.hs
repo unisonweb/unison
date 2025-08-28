@@ -40,6 +40,9 @@ module Unison.Sqlite.Transaction
 
     -- * Rows modified
     rowsModified,
+
+    -- * Debug-timing actions
+    time,
   )
 where
 
@@ -52,6 +55,7 @@ import Data.Unique (Unique, newUnique)
 import Database.SQLite.Simple qualified as Sqlite
 import Database.SQLite.Simple.FromField qualified as Sqlite
 import System.Random qualified as Random
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Sqlite.Connection (Connection (..))
 import Unison.Sqlite.Connection qualified as Connection
@@ -59,6 +63,7 @@ import Unison.Sqlite.Exception (SqliteExceptionReason, SqliteQueryException, pat
 import Unison.Sqlite.Sql (Sql)
 import Unison.Util.Cache (Cache)
 import Unison.Util.Cache qualified as Cache
+import Unison.Util.Timing qualified as Timing
 import UnliftIO.Exception (bracketOnError_, catchAny, trySyncOrAsync, uninterruptibleMask)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -236,8 +241,8 @@ unsafeGetConnection =
 
 -- | Unwrap the transaction newtype, throwing away the sending of BEGIN/COMMIT + automatic retry.
 unsafeUnTransaction :: Transaction a -> Connection -> IO a
-unsafeUnTransaction (Transaction action) =
-  action
+unsafeUnTransaction =
+  coerce
 
 -- Without results
 
@@ -355,3 +360,16 @@ rowsModified =
 
 transactionRetryDelay :: Int
 transactionRetryDelay = 100_000
+
+-- Debug timing
+
+-- | Time a transaction.
+time :: String -> Transaction a -> Transaction a
+time label action =
+  if Debug.shouldDebug Debug.Timing
+    then Transaction \conn -> do
+      startTime <- Timing.startTiming
+      result <- unsafeUnTransaction action conn
+      Timing.stopTiming label startTime
+      pure result
+    else action
