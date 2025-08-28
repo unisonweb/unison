@@ -319,6 +319,7 @@ import Control.Monad.Writer (MonadWriter, runWriterT)
 import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
+import Data.Bifoldable (bifold)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
@@ -1978,6 +1979,10 @@ getTransitiveDependentsWithinScope ::
   Set S.Reference ->
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getTransitiveDependentsWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName (bifold scope)
+
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
   createTemporaryTableOfReferences queryTableName query
@@ -1989,7 +1994,7 @@ getTransitiveDependentsWithinScope scope query = do
   --   #honk -> #baz -> #foo
   --            #qux -> #bar
   --
-  -- The recursive query below is seeded with direct dependents of the `query` set, namely:
+  -- The recursive query below is seeded with direct dependents of the `query` set that are in `scope`, namely:
   --
   --   #honk -> #baz -> #foo
   --            #qux -> #bar
@@ -2003,38 +2008,50 @@ getTransitiveDependentsWithinScope scope query = do
   result0 :: [S.Reference.Id :. Only ObjectType] <-
     queryListRow
       [sql|
-        WITH RECURSIVE transitive_dependents (object_id, component_index) AS (
-          SELECT d.dependent_object_id, d.dependent_component_index
+        WITH RECURSIVE
+        dependents_index_in_scope AS (
+          SELECT *
+          FROM dependents_index
+          WHERE (dependent_object_id, dependent_component_index) IN (
+            SELECT object_id, component_index
+            FROM $scopeTableName
+          )
+        ),
+        transitive_dependents (object_id, component_index, type_id) AS (
+          SELECT d.dependent_object_id, d.dependent_component_index, o.type_id
           FROM $queryTableName q
-          JOIN dependents_index d
-            ON d.dependency_builtin IS q.builtin
-              AND d.dependency_object_id IS q.object_id
-              AND d.dependency_component_index IS q.component_index
+            JOIN dependents_index_in_scope d
+              ON d.dependency_builtin IS q.builtin
+                AND d.dependency_object_id IS q.object_id
+                AND d.dependency_component_index IS q.component_index
+            JOIN object o ON d.dependent_object_id = o.id
           UNION
-          SELECT d.dependent_object_id, d.dependent_component_index
+          SELECT d.dependent_object_id, d.dependent_component_index, o.type_id
           FROM transitive_dependents t
-            JOIN dependents_index d
+            JOIN dependents_index_in_scope d
               ON t.object_id = d.dependency_object_id
               AND t.component_index = d.dependency_component_index
+            JOIN object o ON d.dependent_object_id = o.id
         )
-        SELECT t.object_id, t.component_index, o.type_id
+        SELECT *
         FROM transitive_dependents t
-          JOIN object o ON t.object_id = o.id
       |]
 
+  execute [sql| DROP TABLE $scopeTableName |]
   execute [sql| DROP TABLE $queryTableName |]
 
   -- Post-process the query result
-  result0
-    & List.foldl'
-      ( \deps -> \case
-          dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
-          dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
-          _ -> deps -- impossible; could error here
-      )
-      (Defns Set.empty Set.empty)
-    & zipDefnsWith Set.intersection Set.intersection scope
-    & pure
+  let result1 =
+        List.foldl'
+          ( \deps -> \case
+              dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
+              dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
+              _ -> deps -- impossible; could error here
+          )
+          (Defns Set.empty Set.empty)
+          result0
+
+  pure result1
 
 createTemporaryTableOfReferences :: Sql -> Set S.Reference -> Transaction ()
 createTemporaryTableOfReferences tableName refs = do
