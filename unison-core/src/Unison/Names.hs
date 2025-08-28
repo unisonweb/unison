@@ -72,6 +72,7 @@ import Data.These (These (..))
 import Text.EditDistance
 import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -91,6 +92,7 @@ import Unison.ShortHash qualified as SH
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns qualified as Defns
 import Unison.Util.Nametree (Nametree, unflattenNametree)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
@@ -247,13 +249,29 @@ queryEditDistances' nameToText query names = do
 editDistance :: String -> String -> Int
 editDistance = restrictedDamerauLevenshteinDistance defaultEditCosts
 
--- | Get all (untagged) term/type references ids in a @Names@.
-referenceIds :: Names -> Set Reference.Id
+-- | Get all term/type references ids in a @Names@.
+referenceIds :: Names -> DefnsF Set TermReferenceId TypeReferenceId
 referenceIds Names {terms, types} =
-  fromTerms <> fromTypes
+  foldMap fromTerms (Relation.domain terms) <> foldMap fromTypes (Relation.domain types)
   where
-    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran terms)
-    fromTypes = Set.mapMaybe Reference.toId (Relation.ran types)
+    fromTerms :: Set Referent -> DefnsF Set TermReferenceId TypeReferenceId
+    fromTerms =
+      foldMap \case
+        Referent.Con ref _ ->
+          ref
+            & view ConstructorReference.reference_
+            & Reference.toId
+            & maybe Set.empty Set.singleton
+            & Defns.fromTypes
+        Referent.Ref ref ->
+          ref
+            & Reference.toId
+            & maybe Set.empty Set.singleton
+            & Defns.fromTerms
+
+    fromTypes :: (Ord terms) => Set TypeReference -> DefnsF Set terms TypeReferenceId
+    fromTypes =
+      Defns.fromTypes . Set.mapMaybe Reference.toId
 
 -- | Returns all constructor term references. Constructors are omitted.
 termReferences :: Names -> Set TermReference

@@ -82,7 +82,7 @@ makeMergeblob ::
   ( ThreeWay (DefnsF Set TermReferenceId TypeReferenceId) ->
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
   ) ->
-  (Set Reference.Id -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
+  (DefnsF Set TermReferenceId TypeReferenceId -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
   m (Updated Names) ->
   (DefnsF Set TermReference TypeReference -> m (TypeLookup Symbol Ann)) ->
   Diffblob libdep ->
@@ -113,7 +113,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
 
     dependentsIds <- do
       for ((,) <$> ThreeWay.forgetLca blob.defnsIds <*> coreDependencies) \(defns, deps) ->
-        loadDependents (bifold defns) (bifold deps)
+        loadDependents defns (bifold deps)
 
     hydratedDefnsById <- do
       let unhydratedConflictsAndDependentsIds :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId)

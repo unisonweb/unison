@@ -17,7 +17,6 @@ module Unison.Cli.UpdateUtils
 where
 
 import Control.Monad.Reader (ask)
-import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
@@ -86,7 +85,7 @@ getNamespaceDependentsOf2 ::
 getNamespaceDependentsOf2 defns dependencies = do
   let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
   let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
-  let scope = bifoldMap toTermScope toTypeScope defns
+  let scope = bimap toTermScope toTypeScope defns
   Operations.transitiveDependentsWithinScope scope dependencies
     <&> bimap (Set.foldl' addTerms Map.empty) (Set.foldl' addTypes Map.empty)
   where
