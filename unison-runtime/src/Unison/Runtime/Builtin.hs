@@ -942,6 +942,7 @@ declareUdpForeigns = do
 declareBigIntForeigns :: FDecl Symbol ()
 declareBigIntForeigns = do
   declareForeign Untracked 1 BigInt_fromText
+  declareForeign Untracked 1 BigInt_unsafeFromText
   declareForeign Untracked 1 BigInt_toText
   declareForeign Untracked 1 BigInt_fromInt
   declareForeign Untracked 1 BigInt_toInt
@@ -956,7 +957,6 @@ declareBigIntForeigns = do
   declareForeign Untracked 2 BigInt_and
   declareForeign Untracked 2 BigInt_or
   declareForeign Untracked 2 BigInt_xor
-  declareForeign Untracked 1 BigInt_not
   declareForeign Untracked 1 BigInt_popCount
   declareForeign Untracked 1 BigInt_truncate0
   declareForeign Untracked 1 BigInt_isEven
@@ -974,6 +974,7 @@ declareBigIntForeigns = do
 declareBigNatForeigns :: FDecl Symbol ()
 declareBigNatForeigns = do
   declareForeign Untracked 1 BigNat_fromText
+  declareForeign Untracked 1 BigNat_unsafeFromText
   declareForeign Untracked 1 BigNat_toText
   declareForeign Untracked 1 BigNat_fromNat
   declareForeign Untracked 1 BigNat_toNat
@@ -988,7 +989,6 @@ declareBigNatForeigns = do
   declareForeign Untracked 2 BigNat_and
   declareForeign Untracked 2 BigNat_or
   declareForeign Untracked 2 BigNat_xor
-  declareForeign Untracked 1 BigNat_not
   declareForeign Untracked 1 BigNat_popCount
   declareForeign Untracked 1 BigNat_isEven
   declareForeign Untracked 1 BigNat_isOdd

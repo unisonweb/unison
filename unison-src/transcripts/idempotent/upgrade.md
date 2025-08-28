@@ -58,7 +58,7 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin/ (605 terms, 101 types)
+  1. builtin/ (660 terms, 103 types)
   2. new/     (1 term)
 
 proj/main> view thingy
@@ -168,7 +168,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin/ (605 terms, 101 types)
+  1. builtin/ (660 terms, 103 types)
   2. new/     (1 term)
 
 proj/main> branches
@@ -273,7 +273,7 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin/ (605 terms, 101 types)
+  1. builtin/ (660 terms, 103 types)
   2. new/     (1 term)
 
 proj/main> branches
@@ -509,7 +509,7 @@ scratch/main> upgrade dep dep__2
 
 scratch/main> ls lib
 
-  1. builtin/ (605 terms, 101 types)
+  1. builtin/ (660 terms, 103 types)
   2. dep/     (1 term)
 ```
 
@@ -553,7 +553,7 @@ scratch/main> upgrade hello dep__2
 
 scratch/main> ls lib
 
-  1. builtin/ (605 terms, 101 types)
+  1. builtin/ (660 terms, 103 types)
   2. dep/     (1 term)
   3. dep__2/  (1 term)
 ```

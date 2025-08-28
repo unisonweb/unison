@@ -281,8 +281,8 @@ bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 typeLinkRef = Reference.Builtin "Link.Type"
-bigIntRef = Reference.Builtin "Integer"
-bigNatRef = Reference.Builtin "Natural"
+bigIntRef = Reference.Builtin "BigInt"
+bigNatRef = Reference.Builtin "BigNat"
 
 builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: TypeReference
 builtinIORef = Reference.Builtin "IO"
