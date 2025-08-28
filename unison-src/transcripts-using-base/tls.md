@@ -1,8 +1,8 @@
 # Tests for TLS builtins
 
 ``` ucm
-> alias.term ##Tls.ClientConfig.validate.disableCertificateValidation dcv
-> alias.term ##Tls.ClientConfig.validate.disableHostNameValidation dhv
+> alias.term ##Tls.ClientConfig.validation.disableCertificateValidation dcv
+> alias.term ##Tls.ClientConfig.validation.disableHostNameValidation dhv
 
 ```
 
@@ -165,11 +165,52 @@ testDisableCertificateValidation _ =
 
     -- Client
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
-    received = !(testClient (Some cert) "test.unison.cloud" true false portVar)
+    received = !(testClient None "test.unison.cloud" true false portVar)
 
     _ = kill.impl tid
 
     expectU "should have reaped what we've sown" toSend received
+
+  runTest test
+
+testDisableHostNameValidation: '{io2.IO}[Result]
+testDisableHostNameValidation _ =
+  test _ =
+    -- Server
+    portVar = !MVar.newEmpty
+    toSend = "12345"
+    tid = forkComp (serverThread portVar toSend)
+
+    -- Client
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    received = !(testClient None "xxx.unison.clown" false true portVar)
+
+    _ = kill.impl tid
+
+    expectU "should have reaped what we've sown" toSend received
+
+  runTest test
+
+testWrongHost: '{io2.IO}[Result]
+testWrongHost _ =
+  checkError : Either Failure a -> Result
+  checkError = cases
+    Right _ -> Fail "expected a host mismatch"
+    Left (Failure _ t _) ->
+      if contains "NameMismatch" t && contains "HandshakeFailed" t then Ok "correctly host mismatch" else
+        Fail ("expected NameMismatch, got: " ++ t)
+
+  test _ =
+    -- Server
+    portVar = !MVar.newEmpty
+    toSend = "12345"
+    tid = forkComp (serverThread portVar toSend)
+
+    -- Client
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    testClient None "xx.unison.clown" true true portVar |> toEither |> checkError |> emit
+
+    kill.impl tid
 
   runTest test
 
@@ -233,4 +274,5 @@ testCNReject _ =
 > io.test testCAReject
 > io.test testCNReject
 > io.test testDisableCertificateValidation
+> io.test testWrongHost
 ```
