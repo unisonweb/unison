@@ -93,6 +93,7 @@ import Network.Socket as SYS
     socketPort,
   )
 import Network.TLS as TLS
+
 import Network.TLS.Extra.Cipher as Cipher
 import Network.UDP (UDPSocket)
 import Network.UDP as UDP
@@ -163,6 +164,7 @@ import System.Process as SYS
     withCreateProcess,
   )
 import System.X509 qualified as X
+import Data.X509.Validation as X
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text, some)
 import Unison.Reference
@@ -479,11 +481,36 @@ foreignCallHelper = \case
         updateClient certs client = client {TLS.clientShared = ((clientShared client) {TLS.sharedCAStore = certs})}
      in mkForeign $
           \(certs :: [X.SignedCertificate], params :: ClientParams) -> pure $ updateClient (X.makeCertificateStore certs) params
+
+  Tls_ClientConfig_certificates_get ->
+    mkForeign $
+         \(client :: TLS.ClientParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ TLS.clientShared client
+
+  Tls_ClientConfig_validation_disableHostNameValidation ->
+    let 
+        customChecks = X.defaultChecks { checkFQHN = False}
+        customHooks = def { TLS.onServerCertificate =  X.validate X.HashSHA256 defaultHooks customChecks }
+     in
+        mkForeign $
+          \(params :: TLS.ClientParams) -> 
+              pure $ params { TLS.clientHooks = customHooks }
+    
+  Tls_ClientConfig_validation_disableCertificateValidation ->
+    let 
+        customHooks = def { TLS.onServerCertificate = \_ _ _ _ -> pure [] }
+     in
+        mkForeign $
+          \(params :: TLS.ClientParams) -> 
+              pure $ params { TLS.clientHooks = customHooks }
+
   Tls_ServerConfig_certificates_set ->
     let updateServer :: X.CertificateStore -> TLS.ServerParams -> TLS.ServerParams
         updateServer certs client = client {TLS.serverShared = ((serverShared client) {TLS.sharedCAStore = certs})}
      in mkForeign $
           \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
+  Tls_ServerConfig_certificates_get ->
+    mkForeign $
+      \(params :: ServerParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ serverShared params
   TVar_new -> mkForeign $
     \(c :: Val) -> unsafeSTMToIO $ STM.newTVar c
   TVar_read -> mkForeign $
