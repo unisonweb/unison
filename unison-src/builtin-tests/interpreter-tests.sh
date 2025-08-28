@@ -2,6 +2,7 @@
 set -ex
 
 if [ -z "$1" ]; then
+  stack build
   ucm=$(stack exec -- which unison)
 else
   ucm="$1"
