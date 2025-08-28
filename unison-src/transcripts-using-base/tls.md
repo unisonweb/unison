@@ -3,6 +3,8 @@
 ``` ucm
 > alias.term ##Tls.ClientConfig.validation.disableCertificateValidation dcv
 > alias.term ##Tls.ClientConfig.validation.disableHostNameValidation dhv
+> alias.term ##Tls.ClientConfig.certificates.get clientCertGet
+> alias.term ##Tls.ServerConfig.certificates.get serverCertGet
 
 ```
 
@@ -183,7 +185,7 @@ testDisableHostNameValidation _ =
 
     -- Client
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
-    received = !(testClient None "xxx.unison.clown" false true portVar)
+    received = !(testClient (Some cert) "xxx.unison.clown" false true portVar)
 
     _ = kill.impl tid
 
@@ -266,6 +268,29 @@ testCNReject _ =
 
   runTest test
 
+testCertificateGet: '{io2.IO}[Result]
+testCertificateGet _ =
+  test _ =
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with
+      k +: _ -> k
+      [] -> bug "oh no"
+
+       -- create a default configuration using our credentials (certificate chain and key)
+    serverConfig = Tls.ServerConfig.default [cert] key
+    serverConfig' = ServerConfig.certificates.set [cert] serverConfig
+    certs = serverCertGet serverConfig'
+
+    expectU "server should have the correct certificate" certs [cert]
+
+    clientConfig = Tls.ClientConfig.default "test.unison.cloud" Bytes.empty
+    clientConfig' = ClientConfig.certificates.set [cert] clientConfig
+    clientCerts = clientCertGet clientConfig'
+
+    expectU "client should have the correct certificate" clientCerts [cert]
+
+  runTest test
+
 ```
 
 ``` ucm
@@ -274,5 +299,7 @@ testCNReject _ =
 > io.test testCAReject
 > io.test testCNReject
 > io.test testDisableCertificateValidation
+> io.test testDisableHostNameValidation
 > io.test testWrongHost
+> io.test testCertificateGet
 ```

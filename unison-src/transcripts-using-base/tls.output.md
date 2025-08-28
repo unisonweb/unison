@@ -8,6 +8,14 @@
 > alias.term ##Tls.ClientConfig.validation.disableHostNameValidation dhv
 
   Done.
+
+> alias.term ##Tls.ClientConfig.certificates.get clientCertGet
+
+  Done.
+
+> alias.term ##Tls.ServerConfig.certificates.get serverCertGet
+
+  Done.
 ```
 
 ``` unison :hide
@@ -212,7 +220,7 @@ testDisableHostNameValidation _ =
 
     -- Client
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
-    received = !(testClient None "xxx.unison.clown" false true portVar)
+    received = !(testClient (Some cert) "xxx.unison.clown" false true portVar)
 
     _ = kill.impl tid
 
@@ -295,6 +303,29 @@ testCNReject _ =
 
   runTest test
 
+testCertificateGet: '{io2.IO}[Result]
+testCertificateGet _ =
+  test _ =
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with
+      k +: _ -> k
+      [] -> bug "oh no"
+
+       -- create a default configuration using our credentials (certificate chain and key)
+    serverConfig = Tls.ServerConfig.default [cert] key
+    serverConfig' = ServerConfig.certificates.set [cert] serverConfig
+    certs = serverCertGet serverConfig'
+
+    expectU "server should have the correct certificate" certs [cert]
+
+    clientConfig = Tls.ClientConfig.default "test.unison.cloud" Bytes.empty
+    clientConfig' = ClientConfig.certificates.set [cert] clientConfig
+    clientCerts = clientCertGet clientConfig'
+
+    expectU "client should have the correct certificate" clientCerts [cert]
+
+  runTest test
+
 ```
 
 ``` ucm :added-by-ucm
@@ -304,6 +335,7 @@ testCNReject _ =
                                        -> Text
                                        -> '{IO} ()
   + testCAReject                     : '{IO} [Result]
+  + testCertificateGet               : '{IO} [Result]
   + testClient                       : Optional SignedCert
                                        -> Text
                                        -> Boolean
@@ -367,6 +399,16 @@ testCNReject _ =
 
   Tip: Use view 1 to view the source of a test.
 
+> io.test testDisableHostNameValidation
+
+    New test results:
+
+    1. testDisableHostNameValidation   ◉ should have reaped what we've sown
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
 > io.test testWrongHost
 
     New test results:
@@ -374,6 +416,17 @@ testCNReject _ =
     1. testWrongHost   ◉ correctly host mismatch
 
   ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+> io.test testCertificateGet
+
+    New test results:
+
+    1. testCertificateGet   ◉ server should have the correct certificate
+                            ◉ client should have the correct certificate
+
+  ✅ 2 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

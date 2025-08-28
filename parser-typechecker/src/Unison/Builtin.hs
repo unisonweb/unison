@@ -938,7 +938,7 @@ ioBuiltins =
     ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig),
     ("Tls.ClientConfig.certificates.get", tlsClientConfig --> list tlsSignedCert),
     ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig),
-    ("Tls.ServerConfig.certificates.get", tlsClientConfig --> list tlsSignedCert),
+    ("Tls.ServerConfig.certificates.get", tlsServerConfig --> list tlsSignedCert),
     ("Tls.ClientConfig.validation.disableHostNameValidation", tlsClientConfig --> tlsClientConfig),
     ("Tls.ClientConfig.validation.disableCertificateValidation", tlsClientConfig --> tlsClientConfig),
     ("Tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig),
