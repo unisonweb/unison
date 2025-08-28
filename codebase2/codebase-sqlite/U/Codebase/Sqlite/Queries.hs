@@ -429,7 +429,7 @@ import Unison.Prelude
 import Unison.Sqlite
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Alternative qualified as Alternative
-import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.FileEmbed (embedProjectStringFile)
 import Unison.Util.Lens qualified as Lens
 import Unison.Util.Map qualified as Map
