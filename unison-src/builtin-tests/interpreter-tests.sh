@@ -15,4 +15,4 @@ runtime_tests_version="$runtime_tests_version" \
     envsubst '$runtime_tests_version' \
     < unison-src/builtin-tests/interpreter-tests.tpl.md \
     > unison-src/builtin-tests/interpreter-tests.md
-time "$ucm" transcript.fork -C $codebase -S $codebase unison-src/builtin-tests/interpreter-tests.md
+time "$ucm" transcript.in-place --codebase-create $codebase unison-src/builtin-tests/interpreter-tests.md
