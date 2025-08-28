@@ -1,5 +1,11 @@
 # Tests for TLS builtins
 
+``` ucm
+> alias.term ##Tls.ClientConfig.validate.disableCertificateValidation dcv
+> alias.term ##Tls.ClientConfig.validate.disableHostNameValidation dhv
+
+```
+
 ``` unison :hide
 -- generated with:
 -- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
@@ -91,8 +97,8 @@ serverThread portVar toSend = 'let
     Left (Failure _ t _) -> watch ("error in server: " ++ t) ()
     _ -> watch "server finished" ()
 
-testClient : Optional SignedCert -> Text -> MVar Nat -> '{io2.IO, Exception} Text
-testClient cert hostname portVar _ =
+testClient : Optional SignedCert -> Text -> Boolean -> Boolean -> MVar Nat -> '{io2.IO, Exception} Text
+testClient cert hostname hostnameValidation certificateValidation portVar _ =
   -- create a client that will expect a cert from the given hostname (CN)
   defaultClient = (Tls.ClientConfig.default hostname Bytes.empty)
 
@@ -100,6 +106,16 @@ testClient cert hostname portVar _ =
   tlsconfig = match cert with
     None        -> defaultClient
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
+
+  tlsconfig' = 
+    if hostnameValidation 
+      then tlsconfig 
+      else dhv tlsconfig
+
+  tlsconfig'' = 
+    if certificateValidation 
+      then tlsconfig' 
+      else dcv tlsconfig'
 
   -- wait to find out what port the server started on
   port = take portVar
@@ -109,7 +125,7 @@ testClient cert hostname portVar _ =
   sock = clientSocket "127.0.0.1" (Nat.toText port)
 
   -- attach the TLS client to the TCP socket
-  tls = newClient tlsconfig sock
+  tls = newClient tlsconfig'' sock
 
   -- verify that the server presents us with a certificate chain for
   -- test.unison.cloud originating with a certificate we trust, and
@@ -129,7 +145,7 @@ testConnectSelfSigned _ =
 
     -- Client
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
-    received = !(testClient (Some cert) "test.unison.cloud" portVar)
+    received = !(testClient (Some cert) "test.unison.cloud" true true portVar)
 
     _ = kill.impl tid
 
@@ -137,6 +153,26 @@ testConnectSelfSigned _ =
 
 
   runTest test
+
+
+testDisableCertificateValidation: '{io2.IO}[Result]
+testDisableCertificateValidation _ =
+  test _ =
+    -- Server
+    portVar = !MVar.newEmpty
+    toSend = "12345"
+    tid = forkComp (serverThread portVar toSend)
+
+    -- Client
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    received = !(testClient (Some cert) "test.unison.cloud" true false portVar)
+
+    _ = kill.impl tid
+
+    expectU "should have reaped what we've sown" toSend received
+
+  runTest test
+
 
 -- this client will trust whatever certs the system trusts
 -- for signing certs. This should NOT trust the server
@@ -158,7 +194,7 @@ testCAReject _ =
     tid = forkComp (serverThread portVar toSend)
 
     -- Client
-    testClient None "test.unison.cloud" portVar |> toEither |> checkError |> emit
+    testClient None "test.unison.cloud" true true portVar |> toEither |> checkError |> emit
 
     kill.impl tid
 
@@ -183,11 +219,12 @@ testCNReject _ =
 
 
     -- Client
-    testClient None "wrong.host.name" portVar |> toEither |> checkError |> emit
+    testClient None "wrong.host.name" true true portVar |> toEither |> checkError |> emit
 
     kill.impl tid
 
   runTest test
+
 ```
 
 ``` ucm
@@ -195,4 +232,5 @@ testCNReject _ =
 > io.test testConnectSelfSigned
 > io.test testCAReject
 > io.test testCNReject
+> io.test testDisableCertificateValidation
 ```
