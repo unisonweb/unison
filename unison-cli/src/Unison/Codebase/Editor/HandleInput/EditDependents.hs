@@ -62,7 +62,10 @@ handleEditDependents name = do
       dependents <-
         Cli.runTransaction do
           Operations.transitiveDependentsWithinScope
-            (Branch.deepTermReferenceIds branchWithoutLibdeps <> Branch.deepTypeReferenceIds branchWithoutLibdeps)
+            Defns
+              { terms = Branch.deepTermReferenceIds branchWithoutLibdeps,
+                types = Branch.deepTypeReferenceIds branchWithoutLibdeps
+              }
             (bifold refs)
 
       let refsAndDependents =

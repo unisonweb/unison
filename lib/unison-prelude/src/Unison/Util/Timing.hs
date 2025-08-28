@@ -28,7 +28,7 @@ startTiming = (,) <$> getMonotonicTimeNSec <*> getCPUTime
 stopTiming :: String -> (Word64, Integer) -> IO ()
 stopTiming label (systemTimeStart, cpuTimeStart) = do
   (systemTimeEnd, cpuTimeEnd) <- startTiming
-  let systemDiff = realToFrac @Word64 @Double (systemTimeEnd - systemTimeStart) / 1_000
+  let systemDiff = realToFrac @Word64 @Double (systemTimeEnd - systemTimeStart)
   let cpuDiff = realToFrac @Integer @Double (cpuTimeEnd - cpuTimeStart) / 1_000
   printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
   where

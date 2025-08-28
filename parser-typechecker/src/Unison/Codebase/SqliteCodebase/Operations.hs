@@ -101,6 +101,7 @@ createSchema = do
   Q.addProjectBranchLastAccessedColumn
   Q.addMergeBranchTables
   Q.addUpdateBranchTable
+  Q.addDerivedDependentsByDependencyIndex
   (_, emptyCausalHashId) <- emptyCausalHash
   (_, ProjectBranch {projectId, branchId}) <- insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
   Q.setCurrentProjectPath projectId branchId []

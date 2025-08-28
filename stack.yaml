@@ -1,11 +1,9 @@
+resolver: lts-22.26 # GHC 9.6.5
+
 ## We intentionally disable Nix integration when running in a Nix shell.
 notify-if-nix-on-path: false
 ## We pin a specific Stack version when possible. We shouldn’t then tell contributors to upgrade from there.
 recommend-stack-upgrade: false
-
-flags:
-  haskeline:
-    terminfo: false
 
 allow-different-user: true
 
@@ -50,8 +48,6 @@ packages:
   - unison-syntax
   - yaks/easytest
 
-resolver: lts-22.26
-
 extra-deps:
   # This custom Haskeline alters ANSI rendering on Windows.
   # If changing the haskeline dependency, please ensure color renders properly in a
@@ -70,13 +66,20 @@ extra-deps:
   - numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
   - network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
 
+  # The version in lts-22.26 (1.3.1) doesn’t work with newer GCC releases
+  - hashtables-1.4.2@65107f0c970351b971ea1f676a5e00b61e37c298a4c83c867d937f2a774501eb
+
+flags:
+  haskeline:
+    terminfo: false
+
 allow-newer: true
 allow-newer-deps:
   - numerals
 
 ghc-options:
   # All packages
-  "$locals": -Wall -Werror -Wno-name-shadowing -Wno-missing-pattern-synonym-signatures -fprint-expanded-synonyms -fwrite-ide-info -Wunused-packages -funbox-strict-fields #-freverse-errors
+  "$locals": -Wall -Werror -Wno-missing-pattern-synonym-signatures -Wno-name-shadowing -Wunused-packages -fprint-expanded-synonyms -funbox-strict-fields -fwrite-ide-info # -freverse-errors
 
   # See https://github.com/haskell/haskell-language-server/issues/208
   "$everything": -haddock

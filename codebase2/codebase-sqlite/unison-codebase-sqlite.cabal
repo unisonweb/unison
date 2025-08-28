@@ -27,6 +27,7 @@ extra-source-files:
     sql/015-add-project-branch-last-accessed.sql
     sql/016-add-merge-branch-tables.sql
     sql/017-add-update-branch-table.sql
+    sql/018-add-derived-dependents-by-dependency-index.sql
     sql/create.sql
 
 source-repository head

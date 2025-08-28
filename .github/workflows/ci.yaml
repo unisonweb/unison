@@ -238,7 +238,6 @@ jobs:
         with:
           path: ${{env.ucm_local_bin}}
           name: local-bin-${{matrix.os}}
-          if-no-files-found: error
       - name: set built binaries permissions
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: chmod +x ${{env.ucm_local_bin}}/*
@@ -335,7 +334,6 @@ jobs:
         with:
           path: ${{env.ucm_local_bin}}
           name: local-bin-${{ matrix.os }}
-          if-no-files-found: error
       - name: set binaries permissions
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         run: chmod +x ${{env.ucm_local_bin}}/*
