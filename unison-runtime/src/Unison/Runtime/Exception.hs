@@ -7,6 +7,7 @@ module Unison.Runtime.Exception
     listErrors,
     tabulateErrors,
     peStr,
+    prettyPanic,
     prettyRuntimeExn,
     prettyRuntimeExnSansCtx,
   )
@@ -24,7 +25,7 @@ import Unison.Reference (Reference)
 import Unison.Referent qualified as RF (pattern Ref)
 import Unison.Runtime.Decompile (DecompError, DecompResult, decompile, renderDecompError)
 import Unison.Runtime.InternalError as InternalError
-import Unison.Runtime.Stack (Val)
+import Unison.Runtime.Stack (RuntimePanic (Panic), Val)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Syntax.TermPrinter (pretty)
@@ -71,11 +72,21 @@ prettyRuntimeExn' issueFn ppe backmap decom = \case
 prettyRuntimeExn ::
   PrettyPrintEnv -> (Reference -> Reference) -> (Val -> DecompResult Symbol) -> RuntimeExn -> IO (Pretty P.ColorText)
 prettyRuntimeExn =
-  prettyRuntimeExn'
-    ( \i -> do
-        mtitle <- githubTitleForIssue i
-        pure $ either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) mtitle
-    )
+  prettyRuntimeExn' \i ->
+    either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) <$> githubTitleForIssue i
+
+prettyPanic :: PrettyPrintEnv -> (Val -> DecompResult Symbol) -> RuntimePanic -> Pretty P.ColorText
+prettyPanic ppe decom (Panic msg mval) =
+  P.callout panicIcon . P.linesNonEmpty $
+    [ P.wrap "The program halted with a runtime panic:",
+      "",
+      P.string msg
+    ]
+      ++ maybe [] (render . decom) mval
+  where
+    panicIcon = "💥🤯💥"
+    render (errs, tm) =
+      ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]
 
 bugMsg ::
   PrettyPrintEnv ->

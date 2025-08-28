@@ -84,6 +84,7 @@ import Unison.Runtime.Exception
   ( die,
     listErrors,
     prettyCompileExn,
+    prettyPanic,
     prettyRuntimeExn,
     prettyRuntimeExnSansCtx,
     tabulateErrors,
@@ -707,20 +708,9 @@ evalInContext ppe ctx activeThreads w = do
       decom = decompileCtx crs ctx
       finish = fmap (first listErrors . decom)
 
-      prettyError e
-        | Just rte <- fromException e = Just $ prettyRuntimeExn ppe (backmapRef ctx) decom rte
-        | Just (Panic msg mval) <- fromException e =
-            Just . pure . P.callout panicIcon . P.linesNonEmpty $
-              [ P.wrap $
-                  "The program halted with a runtime panic:",
-                "",
-                P.string msg
-              ]
-                ++ maybe [] (render . decom) mval
-        | otherwise = Nothing
-        where
-          render (errs, tm) =
-            ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]
+      prettyError e =
+        prettyRuntimeExn ppe (backmapRef ctx) decom <$> fromException e
+          <|> pure . prettyPanic ppe decom <$> fromException e
 
       debugText fancy val = case decom val of
         (errs, dv)
@@ -762,9 +752,6 @@ executeMainComb init cc = do
                   (decompTm ctx)
               )
       prettyRuntimeExn mempty id decom re
-
-panicIcon :: Pretty ColorText
-panicIcon = "💥🤯💥"
 
 catchInternalErrors ::
   IO (Either Error a) ->
