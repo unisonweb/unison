@@ -597,971 +597,977 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> [Text]
         -> TypeName
         
-  155.  -- ##BigInt.abs
-        builtin.BigInt.abs : ##BigInt -> ##BigInt
+  155.  -- ##BigInt
+        builtin type builtin.BigInt
         
-  156.  -- ##BigInt.add
-        builtin.BigInt.add : ##BigInt -> ##BigInt -> ##BigInt
+  156.  -- ##BigInt.abs
+        builtin.BigInt.abs : BigInt -> BigInt
         
-  157.  -- ##BigInt.and
-        builtin.BigInt.and : ##BigInt -> ##BigInt -> ##BigInt
+  157.  -- ##BigInt.add
+        builtin.BigInt.add : BigInt -> BigInt -> BigInt
         
-  158.  -- ##BigInt.div
-        builtin.BigInt.div : ##BigInt -> ##BigInt -> ##BigInt
+  158.  -- ##BigInt.and
+        builtin.BigInt.and : BigInt -> BigInt -> BigInt
         
-  159.  -- ##BigInt.eq
-        builtin.BigInt.eq : ##BigInt -> ##BigInt -> Boolean
+  159.  -- ##BigInt.div
+        builtin.BigInt.div : BigInt -> BigInt -> BigInt
         
-  160.  -- ##BigInt.fromInt
-        builtin.BigInt.fromInt : Int -> ##BigInt
+  160.  -- ##BigInt.eq
+        builtin.BigInt.eq : BigInt -> BigInt -> Boolean
         
-  161.  -- ##BigInt.fromText
-        builtin.BigInt.fromText : Text -> Optional ##BigInt
+  161.  -- ##BigInt.fromInt
+        builtin.BigInt.fromInt : Int -> BigInt
         
-  162.  -- ##BigInt.gt
-        builtin.BigInt.gt : ##BigInt -> ##BigInt -> Boolean
+  162.  -- ##BigInt.fromText
+        builtin.BigInt.fromText : Text -> Optional BigInt
         
-  163.  -- ##BigInt.gteq
-        builtin.BigInt.gteq : ##BigInt -> ##BigInt -> Boolean
+  163.  -- ##BigInt.gt
+        builtin.BigInt.gt : BigInt -> BigInt -> Boolean
         
-  164.  -- ##BigInt.isEven
-        builtin.BigInt.isEven : ##BigInt -> Boolean
+  164.  -- ##BigInt.gteq
+        builtin.BigInt.gteq : BigInt -> BigInt -> Boolean
         
-  165.  -- ##BigInt.isOdd
-        builtin.BigInt.isOdd : ##BigInt -> Boolean
+  165.  -- ##BigInt.isEven
+        builtin.BigInt.isEven : BigInt -> Boolean
         
-  166.  -- ##BigInt.lt
-        builtin.BigInt.lt : ##BigInt -> ##BigInt -> Boolean
+  166.  -- ##BigInt.isOdd
+        builtin.BigInt.isOdd : BigInt -> Boolean
         
-  167.  -- ##BigInt.lteq
-        builtin.BigInt.lteq : ##BigInt -> ##BigInt -> Boolean
+  167.  -- ##BigInt.lt
+        builtin.BigInt.lt : BigInt -> BigInt -> Boolean
         
-  168.  -- ##BigInt.mod
-        builtin.BigInt.mod : ##BigInt -> ##BigInt -> ##BigInt
+  168.  -- ##BigInt.lteq
+        builtin.BigInt.lteq : BigInt -> BigInt -> Boolean
         
-  169.  -- ##BigInt.mul
-        builtin.BigInt.mul : ##BigInt -> ##BigInt -> ##BigInt
+  169.  -- ##BigInt.mod
+        builtin.BigInt.mod : BigInt -> BigInt -> BigInt
         
-  170.  -- ##BigInt.neg
-        builtin.BigInt.neg : ##BigInt -> ##BigInt
+  170.  -- ##BigInt.mul
+        builtin.BigInt.mul : BigInt -> BigInt -> BigInt
         
-  171.  -- ##BigInt.not
-        builtin.BigInt.not : ##BigInt -> ##BigInt
+  171.  -- ##BigInt.neg
+        builtin.BigInt.neg : BigInt -> BigInt
         
-  172.  -- ##BigInt.or
-        builtin.BigInt.or : ##BigInt -> ##BigInt -> ##BigInt
+  172.  -- ##BigInt.not
+        builtin.BigInt.not : BigInt -> BigInt
         
-  173.  -- ##BigInt.popCount
-        builtin.BigInt.popCount : ##BigInt -> Nat
+  173.  -- ##BigInt.or
+        builtin.BigInt.or : BigInt -> BigInt -> BigInt
         
-  174.  -- ##BigInt.pow
-        builtin.BigInt.pow : ##BigInt -> ##BigInt -> ##BigInt
+  174.  -- ##BigInt.popCount
+        builtin.BigInt.popCount : BigInt -> Nat
         
-  175.  -- ##BigInt.shiftLeft
-        builtin.BigInt.shiftLeft : ##BigInt -> Nat -> ##BigInt
+  175.  -- ##BigInt.pow
+        builtin.BigInt.pow : BigInt -> BigInt -> BigInt
         
-  176.  -- ##BigInt.shiftRight
-        builtin.BigInt.shiftRight : ##BigInt -> Nat -> ##BigInt
+  176.  -- ##BigInt.shiftLeft
+        builtin.BigInt.shiftLeft : BigInt -> Nat -> BigInt
         
-  177.  -- ##BigInt.signum
-        builtin.BigInt.signum : ##BigInt -> Int
+  177.  -- ##BigInt.shiftRight
+        builtin.BigInt.shiftRight : BigInt -> Nat -> BigInt
         
-  178.  -- ##BigInt.sub
-        builtin.BigInt.sub : ##BigInt -> ##BigInt -> ##BigInt
+  178.  -- ##BigInt.signum
+        builtin.BigInt.signum : BigInt -> Int
         
-  179.  -- ##BigInt.toFloat
-        builtin.BigInt.toFloat : ##BigInt -> Float
+  179.  -- ##BigInt.sub
+        builtin.BigInt.sub : BigInt -> BigInt -> BigInt
         
-  180.  -- ##BigInt.toInt
-        builtin.BigInt.toInt : ##BigInt -> Int
+  180.  -- ##BigInt.toFloat
+        builtin.BigInt.toFloat : BigInt -> Float
         
-  181.  -- ##BigInt.toText
-        builtin.BigInt.toText : ##BigInt -> Text
+  181.  -- ##BigInt.toInt
+        builtin.BigInt.toInt : BigInt -> Int
         
-  182.  -- ##BigInt.unsafeFromText
-        builtin.BigInt.unsafeFromText : Text -> ##BigInt
+  182.  -- ##BigInt.toText
+        builtin.BigInt.toText : BigInt -> Text
         
-  183.  -- ##BigInt.xor
-        builtin.BigInt.xor : ##BigInt -> ##BigInt -> ##BigInt
+  183.  -- ##BigInt.unsafeFromText
+        builtin.BigInt.unsafeFromText : Text -> BigInt
         
-  184.  -- ##BigNat.add
-        builtin.BigNat.add : ##BigNat -> ##BigNat -> ##BigNat
+  184.  -- ##BigInt.xor
+        builtin.BigInt.xor : BigInt -> BigInt -> BigInt
         
-  185.  -- ##BigNat.and
-        builtin.BigNat.and : ##BigNat -> ##BigNat -> ##BigNat
+  185.  -- ##BigNat
+        builtin type builtin.BigNat
         
-  186.  -- ##BigNat.div
-        builtin.BigNat.div : ##BigNat -> ##BigNat -> ##BigNat
+  186.  -- ##BigNat.add
+        builtin.BigNat.add : BigNat -> BigNat -> BigNat
         
-  187.  -- ##BigNat.eq
-        builtin.BigNat.eq : ##BigNat -> ##BigNat -> Boolean
+  187.  -- ##BigNat.and
+        builtin.BigNat.and : BigNat -> BigNat -> BigNat
         
-  188.  -- ##BigNat.fromNat
-        builtin.BigNat.fromNat : Nat -> ##BigNat
+  188.  -- ##BigNat.div
+        builtin.BigNat.div : BigNat -> BigNat -> BigNat
         
-  189.  -- ##BigNat.fromText
-        builtin.BigNat.fromText : Text -> Optional ##BigNat
+  189.  -- ##BigNat.eq
+        builtin.BigNat.eq : BigNat -> BigNat -> Boolean
         
-  190.  -- ##BigNat.gt
-        builtin.BigNat.gt : ##BigNat -> ##BigNat -> Boolean
+  190.  -- ##BigNat.fromNat
+        builtin.BigNat.fromNat : Nat -> BigNat
         
-  191.  -- ##BigNat.gteq
-        builtin.BigNat.gteq : ##BigNat -> ##BigNat -> Boolean
+  191.  -- ##BigNat.fromText
+        builtin.BigNat.fromText : Text -> Optional BigNat
         
-  192.  -- ##BigNat.isEven
-        builtin.BigNat.isEven : ##BigNat -> Boolean
+  192.  -- ##BigNat.gt
+        builtin.BigNat.gt : BigNat -> BigNat -> Boolean
         
-  193.  -- ##BigNat.isOdd
-        builtin.BigNat.isOdd : ##BigNat -> Boolean
+  193.  -- ##BigNat.gteq
+        builtin.BigNat.gteq : BigNat -> BigNat -> Boolean
         
-  194.  -- ##BigNat.lt
-        builtin.BigNat.lt : ##BigNat -> ##BigNat -> Boolean
+  194.  -- ##BigNat.isEven
+        builtin.BigNat.isEven : BigNat -> Boolean
         
-  195.  -- ##BigNat.lteq
-        builtin.BigNat.lteq : ##BigNat -> ##BigNat -> Boolean
+  195.  -- ##BigNat.isOdd
+        builtin.BigNat.isOdd : BigNat -> Boolean
         
-  196.  -- ##BigNat.mod
-        builtin.BigNat.mod : ##BigNat -> ##BigNat -> ##BigNat
+  196.  -- ##BigNat.lt
+        builtin.BigNat.lt : BigNat -> BigNat -> Boolean
         
-  197.  -- ##BigNat.mul
-        builtin.BigNat.mul : ##BigNat -> ##BigNat -> ##BigNat
+  197.  -- ##BigNat.lteq
+        builtin.BigNat.lteq : BigNat -> BigNat -> Boolean
         
-  198.  -- ##BigNat.not
-        builtin.BigNat.not : ##BigNat -> ##BigNat
+  198.  -- ##BigNat.mod
+        builtin.BigNat.mod : BigNat -> BigNat -> BigNat
         
-  199.  -- ##BigNat.or
-        builtin.BigNat.or : ##BigNat -> ##BigNat -> ##BigNat
+  199.  -- ##BigNat.mul
+        builtin.BigNat.mul : BigNat -> BigNat -> BigNat
         
-  200.  -- ##BigNat.popCount
-        builtin.BigNat.popCount : ##BigNat -> Nat
+  200.  -- ##BigNat.not
+        builtin.BigNat.not : BigNat -> BigNat
         
-  201.  -- ##BigNat.pow
-        builtin.BigNat.pow : ##BigNat -> ##BigNat -> ##BigNat
+  201.  -- ##BigNat.or
+        builtin.BigNat.or : BigNat -> BigNat -> BigNat
         
-  202.  -- ##BigNat.shiftLeft
-        builtin.BigNat.shiftLeft : ##BigNat -> Nat -> ##BigNat
+  202.  -- ##BigNat.popCount
+        builtin.BigNat.popCount : BigNat -> Nat
         
-  203.  -- ##BigNat.shiftRight
-        builtin.BigNat.shiftRight : ##BigNat -> Nat -> ##BigNat
+  203.  -- ##BigNat.pow
+        builtin.BigNat.pow : BigNat -> BigNat -> BigNat
         
-  204.  -- ##BigNat.sub
-        builtin.BigNat.sub : ##BigNat -> ##BigNat -> ##BigNat
+  204.  -- ##BigNat.shiftLeft
+        builtin.BigNat.shiftLeft : BigNat -> Nat -> BigNat
         
-  205.  -- ##BigNat.toFloat
-        builtin.BigNat.toFloat : ##BigNat -> Float
+  205.  -- ##BigNat.shiftRight
+        builtin.BigNat.shiftRight : BigNat -> Nat -> BigNat
         
-  206.  -- ##BigNat.toNat
-        builtin.BigNat.toNat : ##BigNat -> Nat
+  206.  -- ##BigNat.sub
+        builtin.BigNat.sub : BigNat -> BigNat -> BigNat
         
-  207.  -- ##BigNat.toText
-        builtin.BigNat.toText : ##BigNat -> Text
+  207.  -- ##BigNat.toFloat
+        builtin.BigNat.toFloat : BigNat -> Float
         
-  208.  -- ##BigNat.unsafeFromText
-        builtin.BigNat.unsafeFromText : Text -> ##BigNat
+  208.  -- ##BigNat.toNat
+        builtin.BigNat.toNat : BigNat -> Nat
         
-  209.  -- ##BigNat.xor
-        builtin.BigNat.xor : ##BigNat -> ##BigNat -> ##BigNat
+  209.  -- ##BigNat.toText
+        builtin.BigNat.toText : BigNat -> Text
         
-  210.  -- ##Boolean
+  210.  -- ##BigNat.unsafeFromText
+        builtin.BigNat.unsafeFromText : Text -> BigNat
+        
+  211.  -- ##BigNat.xor
+        builtin.BigNat.xor : BigNat -> BigNat -> BigNat
+        
+  212.  -- ##Boolean
         builtin type builtin.Boolean
         
-  211.  -- ##Boolean.not
+  213.  -- ##Boolean.not
         builtin.Boolean.not : Boolean -> Boolean
         
-  212.  -- ##bug
+  214.  -- ##bug
         builtin.bug : a -> b
         
-  213.  -- ##Bytes
+  215.  -- ##Bytes
         builtin type builtin.Bytes
         
-  214.  -- ##Bytes.++
+  216.  -- ##Bytes.++
         builtin.Bytes.++ : Bytes -> Bytes -> Bytes
         
-  215.  -- ##Bytes.at
+  217.  -- ##Bytes.at
         builtin.Bytes.at : Nat -> Bytes -> Optional Nat
         
-  216.  -- ##Bytes.decodeNat16be
+  218.  -- ##Bytes.decodeNat16be
         builtin.Bytes.decodeNat16be : Bytes
         -> Optional (Nat, Bytes)
         
-  217.  -- ##Bytes.decodeNat16le
+  219.  -- ##Bytes.decodeNat16le
         builtin.Bytes.decodeNat16le : Bytes
         -> Optional (Nat, Bytes)
         
-  218.  -- ##Bytes.decodeNat32be
+  220.  -- ##Bytes.decodeNat32be
         builtin.Bytes.decodeNat32be : Bytes
         -> Optional (Nat, Bytes)
         
-  219.  -- ##Bytes.decodeNat32le
+  221.  -- ##Bytes.decodeNat32le
         builtin.Bytes.decodeNat32le : Bytes
         -> Optional (Nat, Bytes)
         
-  220.  -- ##Bytes.decodeNat64be
+  222.  -- ##Bytes.decodeNat64be
         builtin.Bytes.decodeNat64be : Bytes
         -> Optional (Nat, Bytes)
         
-  221.  -- ##Bytes.decodeNat64le
+  223.  -- ##Bytes.decodeNat64le
         builtin.Bytes.decodeNat64le : Bytes
         -> Optional (Nat, Bytes)
         
-  222.  -- ##Bytes.drop
+  224.  -- ##Bytes.drop
         builtin.Bytes.drop : Nat -> Bytes -> Bytes
         
-  223.  -- ##Bytes.empty
+  225.  -- ##Bytes.empty
         builtin.Bytes.empty : Bytes
         
-  224.  -- ##Bytes.encodeNat16be
+  226.  -- ##Bytes.encodeNat16be
         builtin.Bytes.encodeNat16be : Nat -> Bytes
         
-  225.  -- ##Bytes.encodeNat16le
+  227.  -- ##Bytes.encodeNat16le
         builtin.Bytes.encodeNat16le : Nat -> Bytes
         
-  226.  -- ##Bytes.encodeNat32be
+  228.  -- ##Bytes.encodeNat32be
         builtin.Bytes.encodeNat32be : Nat -> Bytes
         
-  227.  -- ##Bytes.encodeNat32le
+  229.  -- ##Bytes.encodeNat32le
         builtin.Bytes.encodeNat32le : Nat -> Bytes
         
-  228.  -- ##Bytes.encodeNat64be
+  230.  -- ##Bytes.encodeNat64be
         builtin.Bytes.encodeNat64be : Nat -> Bytes
         
-  229.  -- ##Bytes.encodeNat64le
+  231.  -- ##Bytes.encodeNat64le
         builtin.Bytes.encodeNat64le : Nat -> Bytes
         
-  230.  -- ##Bytes.flatten
+  232.  -- ##Bytes.flatten
         builtin.Bytes.flatten : Bytes -> Bytes
         
-  231.  -- ##Bytes.fromBase16
+  233.  -- ##Bytes.fromBase16
         builtin.Bytes.fromBase16 : Bytes -> Either Text Bytes
         
-  232.  -- ##Bytes.fromBase32
+  234.  -- ##Bytes.fromBase32
         builtin.Bytes.fromBase32 : Bytes -> Either Text Bytes
         
-  233.  -- ##Bytes.fromBase64
+  235.  -- ##Bytes.fromBase64
         builtin.Bytes.fromBase64 : Bytes -> Either Text Bytes
         
-  234.  -- ##Bytes.fromBase64UrlUnpadded
+  236.  -- ##Bytes.fromBase64UrlUnpadded
         builtin.Bytes.fromBase64UrlUnpadded : Bytes
         -> Either Text Bytes
         
-  235.  -- ##Bytes.fromList
+  237.  -- ##Bytes.fromList
         builtin.Bytes.fromList : [Nat] -> Bytes
         
-  236.  -- ##Bytes.gzip.compress
+  238.  -- ##Bytes.gzip.compress
         builtin.Bytes.gzip.compress : Bytes -> Bytes
         
-  237.  -- ##Bytes.gzip.decompress
+  239.  -- ##Bytes.gzip.decompress
         builtin.Bytes.gzip.decompress : Bytes
         -> Either Text Bytes
         
-  238.  -- ##Bytes.indexOf
+  240.  -- ##Bytes.indexOf
         builtin.Bytes.indexOf : Bytes -> Bytes -> Optional Nat
         
-  239.  -- ##Bytes.size
+  241.  -- ##Bytes.size
         builtin.Bytes.size : Bytes -> Nat
         
-  240.  -- ##Bytes.take
+  242.  -- ##Bytes.take
         builtin.Bytes.take : Nat -> Bytes -> Bytes
         
-  241.  -- ##Bytes.toBase16
+  243.  -- ##Bytes.toBase16
         builtin.Bytes.toBase16 : Bytes -> Bytes
         
-  242.  -- ##Bytes.toBase32
+  244.  -- ##Bytes.toBase32
         builtin.Bytes.toBase32 : Bytes -> Bytes
         
-  243.  -- ##Bytes.toBase64
+  245.  -- ##Bytes.toBase64
         builtin.Bytes.toBase64 : Bytes -> Bytes
         
-  244.  -- ##Bytes.toBase64UrlUnpadded
+  246.  -- ##Bytes.toBase64UrlUnpadded
         builtin.Bytes.toBase64UrlUnpadded : Bytes -> Bytes
         
-  245.  -- ##Bytes.toList
+  247.  -- ##Bytes.toList
         builtin.Bytes.toList : Bytes -> [Nat]
         
-  246.  -- ##Bytes.zlib.compress
+  248.  -- ##Bytes.zlib.compress
         builtin.Bytes.zlib.compress : Bytes -> Bytes
         
-  247.  -- ##Bytes.zlib.decompress
+  249.  -- ##Bytes.zlib.decompress
         builtin.Bytes.zlib.decompress : Bytes
         -> Either Text Bytes
         
-  248.  -- ##Char
+  250.  -- ##Char
         builtin type builtin.Char
         
-  249.  -- ##Char.Class
+  251.  -- ##Char.Class
         builtin type builtin.Char.Class
         
-  250.  -- ##Char.Class.alphanumeric
+  252.  -- ##Char.Class.alphanumeric
         builtin.Char.Class.alphanumeric : Class
         
-  251.  -- ##Char.Class.and
+  253.  -- ##Char.Class.and
         builtin.Char.Class.and : Class -> Class -> Class
         
-  252.  -- ##Char.Class.any
+  254.  -- ##Char.Class.any
         builtin.Char.Class.any : Class
         
-  253.  -- ##Char.Class.anyOf
+  255.  -- ##Char.Class.anyOf
         builtin.Char.Class.anyOf : [Char] -> Class
         
-  254.  -- ##Char.Class.control
+  256.  -- ##Char.Class.control
         builtin.Char.Class.control : Class
         
-  255.  -- ##Char.Class.is
+  257.  -- ##Char.Class.is
         builtin.Char.Class.is : Class -> Char -> Boolean
         
-  256.  -- ##Char.Class.letter
+  258.  -- ##Char.Class.letter
         builtin.Char.Class.letter : Class
         
-  257.  -- ##Char.Class.lower
+  259.  -- ##Char.Class.lower
         builtin.Char.Class.lower : Class
         
-  258.  -- ##Char.Class.mark
+  260.  -- ##Char.Class.mark
         builtin.Char.Class.mark : Class
         
-  259.  -- ##Char.Class.not
+  261.  -- ##Char.Class.not
         builtin.Char.Class.not : Class -> Class
         
-  260.  -- ##Char.Class.number
+  262.  -- ##Char.Class.number
         builtin.Char.Class.number : Class
         
-  261.  -- ##Char.Class.or
+  263.  -- ##Char.Class.or
         builtin.Char.Class.or : Class -> Class -> Class
         
-  262.  -- ##Char.Class.printable
+  264.  -- ##Char.Class.printable
         builtin.Char.Class.printable : Class
         
-  263.  -- ##Char.Class.punctuation
+  265.  -- ##Char.Class.punctuation
         builtin.Char.Class.punctuation : Class
         
-  264.  -- ##Char.Class.range
+  266.  -- ##Char.Class.range
         builtin.Char.Class.range : Char -> Char -> Class
         
-  265.  -- ##Char.Class.separator
+  267.  -- ##Char.Class.separator
         builtin.Char.Class.separator : Class
         
-  266.  -- ##Char.Class.symbol
+  268.  -- ##Char.Class.symbol
         builtin.Char.Class.symbol : Class
         
-  267.  -- ##Char.Class.upper
+  269.  -- ##Char.Class.upper
         builtin.Char.Class.upper : Class
         
-  268.  -- ##Char.Class.whitespace
+  270.  -- ##Char.Class.whitespace
         builtin.Char.Class.whitespace : Class
         
-  269.  -- ##Char.fromNat
+  271.  -- ##Char.fromNat
         builtin.Char.fromNat : Nat -> Char
         
-  270.  -- ##Char.toNat
+  272.  -- ##Char.toNat
         builtin.Char.toNat : Char -> Nat
         
-  271.  -- ##Char.toText
+  273.  -- ##Char.toText
         builtin.Char.toText : Char -> Text
         
-  272.  -- ##ClientSockAddr
+  274.  -- ##ClientSockAddr
         builtin type builtin.ClientSockAddr
         
-  273.  -- ##Code
+  275.  -- ##Code
         builtin type builtin.Code
         
-  274.  -- ##Code.cache_
+  276.  -- ##Code.cache_
         builtin.Code.cache_ : [(Link.Term, Code)]
         ->{IO} [Link.Term]
         
-  275.  -- ##Code.dependencies
+  277.  -- ##Code.dependencies
         builtin.Code.dependencies : Code -> [Link.Term]
         
-  276.  -- ##Code.deserialize
+  278.  -- ##Code.deserialize
         builtin.Code.deserialize : Bytes -> Either Text Code
         
-  277.  -- ##Code.display
+  279.  -- ##Code.display
         builtin.Code.display : Text -> Code -> Text
         
-  278.  -- ##Code.isMissing
+  280.  -- ##Code.isMissing
         builtin.Code.isMissing : Link.Term ->{IO} Boolean
         
-  279.  -- ##Code.lookup
+  281.  -- ##Code.lookup
         builtin.Code.lookup : Link.Term ->{IO} Optional Code
         
-  280.  -- ##Code.serialize
+  282.  -- ##Code.serialize
         builtin.Code.serialize : Code -> Bytes
         
-  281.  -- ##Code.serialize.versioned
+  283.  -- ##Code.serialize.versioned
         builtin.Code.serialize.versioned : Nat -> Code -> Bytes
         
-  282.  -- ##Code.validate
+  284.  -- ##Code.validate
         builtin.Code.validate : [(Link.Term, Code)]
         ->{IO} Optional Failure
         
-  283.  -- ##Code.validateLinks
+  285.  -- ##Code.validateLinks
         builtin.Code.validateLinks : [(Link.Term, Code)]
         ->{Exception} Either [Link.Term] [Link.Term]
         
-  284.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0
+  286.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0
         type builtin.ConsoleText
         
-  285.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#5
+  287.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#5
         builtin.ConsoleText.Background : Color
         -> ConsoleText
         -> ConsoleText
         
-  286.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#0
+  288.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#0
         builtin.ConsoleText.Bold : ConsoleText -> ConsoleText
         
-  287.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#4
+  289.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#4
         builtin.ConsoleText.Foreground : Color
         -> ConsoleText
         -> ConsoleText
         
-  288.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#2
+  290.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#2
         builtin.ConsoleText.Invert : ConsoleText -> ConsoleText
         
-  289.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#3
+  291.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#3
         builtin.ConsoleText.Plain : Text -> ConsoleText
         
-  290.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#1
+  292.  -- #ldqsht5qvddaabskcad3idka4nqkv6lfncrp0s0o4rqbbnk1qvq269bueu7qobhvaf7gpluqtpn9bgp9u69jsntv0u6o4qtbktnfrs0#1
         builtin.ConsoleText.Underline : ConsoleText
         -> ConsoleText
         
-  291.  -- #pgornst1pqaea8qmf8ckbtvrm7f6hn49djhffgebajmo12faf4jku63ftc9fp0r4k58e0qcdi77g08f34b2ihvsu97s48du6mfn7vko
+  293.  -- #pgornst1pqaea8qmf8ckbtvrm7f6hn49djhffgebajmo12faf4jku63ftc9fp0r4k58e0qcdi77g08f34b2ihvsu97s48du6mfn7vko
         type builtin.CopyrightHolder
         
-  292.  -- #pgornst1pqaea8qmf8ckbtvrm7f6hn49djhffgebajmo12faf4jku63ftc9fp0r4k58e0qcdi77g08f34b2ihvsu97s48du6mfn7vko#0
+  294.  -- #pgornst1pqaea8qmf8ckbtvrm7f6hn49djhffgebajmo12faf4jku63ftc9fp0r4k58e0qcdi77g08f34b2ihvsu97s48du6mfn7vko#0
         builtin.CopyrightHolder.CopyrightHolder : GUID
         -> Text
         -> CopyrightHolder
         
-  293.  -- #9jpkv5bb0d680ffs4f2j4lntj54m1iq9kaei8foqv5973i04jq9fugbn9msmpeiorjh4umhdeak625u53hejkvkm3buruj33msd1p6g
+  295.  -- #9jpkv5bb0d680ffs4f2j4lntj54m1iq9kaei8foqv5973i04jq9fugbn9msmpeiorjh4umhdeak625u53hejkvkm3buruj33msd1p6g
         builtin.CopyrightHolder.guid : CopyrightHolder -> GUID
         
-  294.  -- #6fhjsi02lnhvotndl6ufqnnsv20f3b9b4eg45n0rgo96m8f21dpqe5erb2dtn9nhdlp028vkock07r0foqune3jojhcrnmti9srsmdg
+  296.  -- #6fhjsi02lnhvotndl6ufqnnsv20f3b9b4eg45n0rgo96m8f21dpqe5erb2dtn9nhdlp028vkock07r0foqune3jojhcrnmti9srsmdg
         builtin.CopyrightHolder.guid.modify : (GUID ->{g} GUID)
         -> CopyrightHolder
         ->{g} CopyrightHolder
         
-  295.  -- #1lk04okan4prc9kkh7julshv5l2q331pa5tf5f0ghm7ob5vkep3t6dnqejc8aju4i2vob6b5seliccer3a1kmtq4481i36alivhgdr0
+  297.  -- #1lk04okan4prc9kkh7julshv5l2q331pa5tf5f0ghm7ob5vkep3t6dnqejc8aju4i2vob6b5seliccer3a1kmtq4481i36alivhgdr0
         builtin.CopyrightHolder.guid.set : GUID
         -> CopyrightHolder
         -> CopyrightHolder
         
-  296.  -- #u1k741o71gg743tr5o7fc3joeqdm14qkd58cf2h2tmkpejr2uj3qhclvugqsgoighd7o4ijlrp17i6iadgsuhhhb56vi4j22i6c2lbo
+  298.  -- #u1k741o71gg743tr5o7fc3joeqdm14qkd58cf2h2tmkpejr2uj3qhclvugqsgoighd7o4ijlrp17i6iadgsuhhhb56vi4j22i6c2lbo
         builtin.CopyrightHolder.name : CopyrightHolder -> Text
         
-  297.  -- #3845ei99ci6p7dh3bcsctodd0otjtsntik5n0q7fpafo3s7v45a8nl7mk6ae7qot87jr9p4q3857tm4jtvmkb4s3rtn77t7goaphmf8
+  299.  -- #3845ei99ci6p7dh3bcsctodd0otjtsntik5n0q7fpafo3s7v45a8nl7mk6ae7qot87jr9p4q3857tm4jtvmkb4s3rtn77t7goaphmf8
         builtin.CopyrightHolder.name.modify : (Text ->{g} Text)
         -> CopyrightHolder
         ->{g} CopyrightHolder
         
-  298.  -- #2ehufgpsgnd2jq0i1topsir6dvv2m132dp2phs2bncnm6n9qrf7oaod6pbmvs9muihlq9dckpnughb3pajrmit7chdr67qco6tsd8j0
+  300.  -- #2ehufgpsgnd2jq0i1topsir6dvv2m132dp2phs2bncnm6n9qrf7oaod6pbmvs9muihlq9dckpnughb3pajrmit7chdr67qco6tsd8j0
         builtin.CopyrightHolder.name.set : Text
         -> CopyrightHolder
         -> CopyrightHolder
         
-  299.  -- #bcubd2qdb27v92gb4kohhbq710cdu0g1njvnjm5iqemr6b0sq44nheo4jsgi9demkcrej53oj8hgjgdcsc50l5j53mg9h4koo52bfb8
+  301.  -- #bcubd2qdb27v92gb4kohhbq710cdu0g1njvnjm5iqemr6b0sq44nheo4jsgi9demkcrej53oj8hgjgdcsc50l5j53mg9h4koo52bfb8
         type builtin.crypto.CryptoFailure
         
-  300.  -- ##crypto.Ed25519.sign.impl
+  302.  -- ##crypto.Ed25519.sign.impl
         builtin.crypto.Ed25519.sign.impl : Bytes
         -> Bytes
         -> Bytes
         -> Either Failure Bytes
         
-  301.  -- ##crypto.Ed25519.verify.impl
+  303.  -- ##crypto.Ed25519.verify.impl
         builtin.crypto.Ed25519.verify.impl : Bytes
         -> Bytes
         -> Bytes
         -> Either Failure Boolean
         
-  302.  -- ##crypto.hash
+  304.  -- ##crypto.hash
         builtin.crypto.hash : HashAlgorithm -> a -> Bytes
         
-  303.  -- ##crypto.HashAlgorithm
+  305.  -- ##crypto.HashAlgorithm
         builtin type builtin.crypto.HashAlgorithm
         
-  304.  -- ##crypto.HashAlgorithm.Blake2b_256
+  306.  -- ##crypto.HashAlgorithm.Blake2b_256
         builtin.crypto.HashAlgorithm.Blake2b_256 : HashAlgorithm
         
-  305.  -- ##crypto.HashAlgorithm.Blake2b_512
+  307.  -- ##crypto.HashAlgorithm.Blake2b_512
         builtin.crypto.HashAlgorithm.Blake2b_512 : HashAlgorithm
         
-  306.  -- ##crypto.HashAlgorithm.Blake2s_256
+  308.  -- ##crypto.HashAlgorithm.Blake2s_256
         builtin.crypto.HashAlgorithm.Blake2s_256 : HashAlgorithm
         
-  307.  -- ##crypto.HashAlgorithm.Md5
+  309.  -- ##crypto.HashAlgorithm.Md5
         builtin.crypto.HashAlgorithm.Md5 : HashAlgorithm
         
-  308.  -- ##crypto.HashAlgorithm.Sha1
+  310.  -- ##crypto.HashAlgorithm.Sha1
         builtin.crypto.HashAlgorithm.Sha1 : HashAlgorithm
         
-  309.  -- ##crypto.HashAlgorithm.Sha2_256
+  311.  -- ##crypto.HashAlgorithm.Sha2_256
         builtin.crypto.HashAlgorithm.Sha2_256 : HashAlgorithm
         
-  310.  -- ##crypto.HashAlgorithm.Sha2_512
+  312.  -- ##crypto.HashAlgorithm.Sha2_512
         builtin.crypto.HashAlgorithm.Sha2_512 : HashAlgorithm
         
-  311.  -- ##crypto.HashAlgorithm.Sha3_256
+  313.  -- ##crypto.HashAlgorithm.Sha3_256
         builtin.crypto.HashAlgorithm.Sha3_256 : HashAlgorithm
         
-  312.  -- ##crypto.HashAlgorithm.Sha3_512
+  314.  -- ##crypto.HashAlgorithm.Sha3_512
         builtin.crypto.HashAlgorithm.Sha3_512 : HashAlgorithm
         
-  313.  -- ##crypto.hashBytes
+  315.  -- ##crypto.hashBytes
         builtin.crypto.hashBytes : HashAlgorithm
         -> Bytes
         -> Bytes
         
-  314.  -- ##crypto.hmac
+  316.  -- ##crypto.hmac
         builtin.crypto.hmac : HashAlgorithm
         -> Bytes
         -> a
         -> Bytes
         
-  315.  -- ##crypto.hmacBytes
+  317.  -- ##crypto.hmacBytes
         builtin.crypto.hmacBytes : HashAlgorithm
         -> Bytes
         -> Bytes
         -> Bytes
         
-  316.  -- ##crypto.Rsa.sign.impl
+  318.  -- ##crypto.Rsa.sign.impl
         builtin.crypto.Rsa.sign.impl : Bytes
         -> Bytes
         -> Either Failure Bytes
         
-  317.  -- ##crypto.Rsa.verify.impl
+  319.  -- ##crypto.Rsa.verify.impl
         builtin.crypto.Rsa.verify.impl : Bytes
         -> Bytes
         -> Bytes
         -> Either Failure Boolean
         
-  318.  -- ##Debug.toText
+  320.  -- ##Debug.toText
         builtin.Debug.toText : a -> Optional (Either Text Text)
         
-  319.  -- ##Debug.trace
+  321.  -- ##Debug.trace
         builtin.Debug.trace : Text -> a -> ()
         
-  320.  -- ##Debug.watch
+  322.  -- ##Debug.watch
         builtin.Debug.watch : Text -> a -> a
         
-  321.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8
+  323.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8
         type builtin.Doc
         
-  322.  -- #baiqeiovdrs4ju0grn5q5akq64k4kuhgifqno52smkkttqg31jkgm3qa9o3ohe54fgpiigd1tj0an7rfveopfg622sjj9v9g44n27go
+  324.  -- #baiqeiovdrs4ju0grn5q5akq64k4kuhgifqno52smkkttqg31jkgm3qa9o3ohe54fgpiigd1tj0an7rfveopfg622sjj9v9g44n27go
         builtin.Doc.++ : Doc2 -> Doc2 -> Doc2
         
-  323.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#0
+  325.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#0
         builtin.Doc.Blob : Text -> Doc
         
-  324.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#4
+  326.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#4
         builtin.Doc.Evaluate : Link.Term -> Doc
         
-  325.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#5
+  327.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#5
         builtin.Doc.Join : [Doc] -> Doc
         
-  326.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#1
+  328.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#1
         builtin.Doc.Link : Link -> Doc
         
-  327.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#3
+  329.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#3
         builtin.Doc.Signature : Link.Term -> Doc
         
-  328.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#2
+  330.  -- #p65rcethk26an850aaaceojremfu054hqllhoip1mt9s22584j9r62o08qo9t0pri7ssgu9m7f0rfp4nujhulgbmo41tkgl182quhd8#2
         builtin.Doc.Source : Link -> Doc
         
-  329.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0
+  331.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0
         type builtin.Doc2
         
-  330.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#27
+  332.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#27
         builtin.Doc2.Anchor : Text -> Doc2 -> Doc2
         
-  331.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#11
+  333.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#11
         builtin.Doc2.Aside : Doc2 -> Doc2
         
-  332.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#15
+  334.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#15
         builtin.Doc2.Blankline : Doc2
         
-  333.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#10
+  335.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#10
         builtin.Doc2.Blockquote : Doc2 -> Doc2
         
-  334.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#7
+  336.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#7
         builtin.Doc2.Bold : Doc2 -> Doc2
         
-  335.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#21
+  337.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#21
         builtin.Doc2.BulletedList : [Doc2] -> Doc2
         
-  336.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#3
+  338.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#3
         builtin.Doc2.Callout : Optional Doc2 -> Doc2 -> Doc2
         
-  337.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#6
+  339.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#6
         builtin.Doc2.Code : Doc2 -> Doc2
         
-  338.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#25
+  340.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#25
         builtin.Doc2.CodeBlock : Text -> Doc2 -> Doc2
         
-  339.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#24
+  341.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#24
         builtin.Doc2.Column : [Doc2] -> Doc2
         
-  340.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#0
+  342.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#0
         builtin.Doc2.Folded : Boolean -> Doc2 -> Doc2 -> Doc2
         
-  341.  -- #h3gajooii4tsdseghcbcsq4qq7c33mtb71u5npg35b06mgv7v654g0n55gpq212umfmq7nvi11o28m1v13r5fto5g8ium3ee4qk1i68
+  343.  -- #h3gajooii4tsdseghcbcsq4qq7c33mtb71u5npg35b06mgv7v654g0n55gpq212umfmq7nvi11o28m1v13r5fto5g8ium3ee4qk1i68
         type builtin.Doc2.FrontMatter
         
-  342.  -- #h3gajooii4tsdseghcbcsq4qq7c33mtb71u5npg35b06mgv7v654g0n55gpq212umfmq7nvi11o28m1v13r5fto5g8ium3ee4qk1i68#0
+  344.  -- #h3gajooii4tsdseghcbcsq4qq7c33mtb71u5npg35b06mgv7v654g0n55gpq212umfmq7nvi11o28m1v13r5fto5g8ium3ee4qk1i68#0
         builtin.Doc2.FrontMatter.FrontMatter : [(Text, Text)]
         -> FrontMatter
         
-  343.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#12
+  345.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#12
         builtin.Doc2.Group : Doc2 -> Doc2
         
-  344.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#14
+  346.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#14
         builtin.Doc2.Image : Doc2
         -> Doc2
         -> Optional Doc2
         -> Doc2
         
-  345.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#8
+  347.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#8
         builtin.Doc2.Italic : Doc2 -> Doc2
         
-  346.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#22
+  348.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#22
         builtin.Doc2.Join : [Doc2] -> Doc2
         
-  347.  -- #lpf7g5c2ct61mci2okedmug8o0i2j0rhpealc05r2musapmn15cina6dsqdvis234evvb2bo09l2p8v5qhh0me7gi1j37nqqp47qvto
+  349.  -- #lpf7g5c2ct61mci2okedmug8o0i2j0rhpealc05r2musapmn15cina6dsqdvis234evvb2bo09l2p8v5qhh0me7gi1j37nqqp47qvto
         type builtin.Doc2.LaTeXInline
         
-  348.  -- #lpf7g5c2ct61mci2okedmug8o0i2j0rhpealc05r2musapmn15cina6dsqdvis234evvb2bo09l2p8v5qhh0me7gi1j37nqqp47qvto#0
+  350.  -- #lpf7g5c2ct61mci2okedmug8o0i2j0rhpealc05r2musapmn15cina6dsqdvis234evvb2bo09l2p8v5qhh0me7gi1j37nqqp47qvto#0
         builtin.Doc2.LaTeXInline.LaTeXInline : Text
         -> LaTeXInline
         
-  349.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#16
+  351.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#16
         builtin.Doc2.Linebreak : Doc2
         
-  350.  -- #ut0tds116gr0soc9p6nroaalqlq423u1mao3p4jjultjmok3vbck69la7rs26duptji5v5hscijpek4hotu4krbfah8np3sntr87gb0
+  352.  -- #ut0tds116gr0soc9p6nroaalqlq423u1mao3p4jjultjmok3vbck69la7rs26duptji5v5hscijpek4hotu4krbfah8np3sntr87gb0
         type builtin.Doc2.MediaSource
         
-  351.  -- #ut0tds116gr0soc9p6nroaalqlq423u1mao3p4jjultjmok3vbck69la7rs26duptji5v5hscijpek4hotu4krbfah8np3sntr87gb0#0
+  353.  -- #ut0tds116gr0soc9p6nroaalqlq423u1mao3p4jjultjmok3vbck69la7rs26duptji5v5hscijpek4hotu4krbfah8np3sntr87gb0#0
         builtin.Doc2.MediaSource.MediaSource : Text
         -> Optional Text
         -> MediaSource
         
-  352.  -- #f7s1m2rs7ldj4idrcirtdqohsmc6n719e6cdqtgrhdkcrbm7971uvug6mvkrcc32qhdpo1og4oqin4rbmb2346m47ni24k5m3bpp3so
+  354.  -- #f7s1m2rs7ldj4idrcirtdqohsmc6n719e6cdqtgrhdkcrbm7971uvug6mvkrcc32qhdpo1og4oqin4rbmb2346m47ni24k5m3bpp3so
         builtin.Doc2.MediaSource.mimeType : MediaSource
         -> Optional Text
         
-  353.  -- #rncdj545f93f7nfrneabp6jlrjag766vr2n18al8u2a78ju5v746agg62r4ob8u6ue8eeac6nbg8apeii6qfasgfv2q2ap3h4sk1tdg
+  355.  -- #rncdj545f93f7nfrneabp6jlrjag766vr2n18al8u2a78ju5v746agg62r4ob8u6ue8eeac6nbg8apeii6qfasgfv2q2ap3h4sk1tdg
         builtin.Doc2.MediaSource.mimeType.modify : (Optional
           Text
         ->{g} Optional Text)
         -> MediaSource
         ->{g} MediaSource
         
-  354.  -- #54dl203thl9540r2jec546pishtg1b1ecb8vl6rqlbgf4h2rk04mrkdkqo4be82m8d3t2d0ef3gidjsn2r9u8ko7c9kvtavbqflim88
+  356.  -- #54dl203thl9540r2jec546pishtg1b1ecb8vl6rqlbgf4h2rk04mrkdkqo4be82m8d3t2d0ef3gidjsn2r9u8ko7c9kvtavbqflim88
         builtin.Doc2.MediaSource.mimeType.set : Optional Text
         -> MediaSource
         -> MediaSource
         
-  355.  -- #77l9vc6k6miu7pobamoasrpdm455ddgprgvfpg2di6liigijg70f4t3ppmpbs3j12kp93eep7u0e5r1bdq0niou0v85lo4aa5kek8mg
+  357.  -- #77l9vc6k6miu7pobamoasrpdm455ddgprgvfpg2di6liigijg70f4t3ppmpbs3j12kp93eep7u0e5r1bdq0niou0v85lo4aa5kek8mg
         builtin.Doc2.MediaSource.sourceUrl : MediaSource -> Text
         
-  356.  -- #laoh1nhllsb9vf0reilmbmjutdei2b0vs0vse1s8j148imfi1m9uu4l17iqdt9r5575dap8jnlq6r48kdn6ob70iroso75erqfc74e0
+  358.  -- #laoh1nhllsb9vf0reilmbmjutdei2b0vs0vse1s8j148imfi1m9uu4l17iqdt9r5575dap8jnlq6r48kdn6ob70iroso75erqfc74e0
         builtin.Doc2.MediaSource.sourceUrl.modify : (Text
         ->{g} Text)
         -> MediaSource
         ->{g} MediaSource
         
-  357.  -- #eb0dl30fc5k80vb0fna187vmag5ta1rgik40s1shlkng8stvvkt2gglecit8ajjd8vmfrtg8ki8ft3ife8rrqlcoit5161ekg6vhcfo
+  359.  -- #eb0dl30fc5k80vb0fna187vmag5ta1rgik40s1shlkng8stvvkt2gglecit8ajjd8vmfrtg8ki8ft3ife8rrqlcoit5161ekg6vhcfo
         builtin.Doc2.MediaSource.sourceUrl.set : Text
         -> MediaSource
         -> MediaSource
         
-  358.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#2
+  360.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#2
         builtin.Doc2.NamedLink : Doc2 -> Doc2 -> Doc2
         
-  359.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#4
+  361.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#4
         builtin.Doc2.NumberedList : Nat -> [Doc2] -> Doc2
         
-  360.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#20
+  362.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#20
         builtin.Doc2.Paragraph : [Doc2] -> Doc2
         
-  361.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#13
+  363.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#13
         builtin.Doc2.Section : Doc2 -> [Doc2] -> Doc2
         
-  362.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#17
+  364.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#17
         builtin.Doc2.SectionBreak : Doc2
         
-  363.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#5
+  365.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#5
         builtin.Doc2.Special : SpecialForm -> Doc2
         
-  364.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0
+  366.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0
         type builtin.Doc2.SpecialForm
         
-  365.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#4
+  367.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#4
         builtin.Doc2.SpecialForm.Embed : Any -> SpecialForm
         
-  366.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#5
+  368.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#5
         builtin.Doc2.SpecialForm.EmbedInline : Any
         -> SpecialForm
         
-  367.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#9
+  369.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#9
         builtin.Doc2.SpecialForm.Eval : Doc2.Term -> SpecialForm
         
-  368.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#10
+  370.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#10
         builtin.Doc2.SpecialForm.EvalInline : Doc2.Term
         -> SpecialForm
         
-  369.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#0
+  371.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#0
         builtin.Doc2.SpecialForm.Example : Nat
         -> Doc2.Term
         -> SpecialForm
         
-  370.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#1
+  372.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#1
         builtin.Doc2.SpecialForm.ExampleBlock : Nat
         -> Doc2.Term
         -> SpecialForm
         
-  371.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#7
+  373.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#7
         builtin.Doc2.SpecialForm.FoldedSource : [( Either
           Type Doc2.Term,
           [Doc2.Term])]
         -> SpecialForm
         
-  372.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#3
+  374.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#3
         builtin.Doc2.SpecialForm.Link : Either Type Doc2.Term
         -> SpecialForm
         
-  373.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#2
+  375.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#2
         builtin.Doc2.SpecialForm.Signature : [Doc2.Term]
         -> SpecialForm
         
-  374.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#8
+  376.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#8
         builtin.Doc2.SpecialForm.SignatureInline : Doc2.Term
         -> SpecialForm
         
-  375.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#6
+  377.  -- #e46kdnv67raqhc4m3jnitkh3o9seq3q5mtlqnvobjlqnnd2tk7nui54b6grui7eql62fne4fo3ndetmeb23oj5es85habha5f6saoi0#6
         builtin.Doc2.SpecialForm.Source : [( Either
           Type Doc2.Term,
           [Doc2.Term])]
         -> SpecialForm
         
-  376.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#9
+  378.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#9
         builtin.Doc2.Strikethrough : Doc2 -> Doc2
         
-  377.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#26
+  379.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#26
         builtin.Doc2.Style : Text -> Doc2 -> Doc2
         
-  378.  -- #sv2cta4p4th10h7tpurvr0t6s3cbahlevvmpadk01v32e39kse8aicdvfsm2dbk6ltc68ht788jvkfhk6ol2mch7eubngtug019e8fg
+  380.  -- #sv2cta4p4th10h7tpurvr0t6s3cbahlevvmpadk01v32e39kse8aicdvfsm2dbk6ltc68ht788jvkfhk6ol2mch7eubngtug019e8fg
         type builtin.Doc2.Svg
         
-  379.  -- #sv2cta4p4th10h7tpurvr0t6s3cbahlevvmpadk01v32e39kse8aicdvfsm2dbk6ltc68ht788jvkfhk6ol2mch7eubngtug019e8fg#0
+  381.  -- #sv2cta4p4th10h7tpurvr0t6s3cbahlevvmpadk01v32e39kse8aicdvfsm2dbk6ltc68ht788jvkfhk6ol2mch7eubngtug019e8fg#0
         builtin.Doc2.Svg.Svg : Text -> Svg
         
-  380.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#18
+  382.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#18
         builtin.Doc2.Table : [[Doc2]] -> Doc2
         
-  381.  -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg
+  383.  -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg
         type builtin.Doc2.Term
         
-  382.  -- #42hub6f3fn0p5fk8t5bb2njhbgg5dj75vtqijvins6h45pkorakbu3g8h312ghu98ee4h75tb61fti192ckpk9cpdle9hsr8pdthkjo
+  384.  -- #42hub6f3fn0p5fk8t5bb2njhbgg5dj75vtqijvins6h45pkorakbu3g8h312ghu98ee4h75tb61fti192ckpk9cpdle9hsr8pdthkjo
         builtin.Doc2.term : '{g} a -> Doc2.Term
         
-  383.  -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg#0
+  385.  -- #s0an21vospbdlsbddiskuvt3ngbf00n78sip2o1mnp4jgp16i7sursbm14bf8ap7osphqbis2lduep3i29b7diu8sf03f8tlqd7rgcg#0
         builtin.Doc2.Term.Term : Any -> Doc2.Term
         
-  384.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#1
+  386.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#1
         builtin.Doc2.Tooltip : Doc2 -> Doc2 -> Doc2
         
-  385.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#23
+  387.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#23
         builtin.Doc2.UntitledSection : [Doc2] -> Doc2
         
-  386.  -- #794fndq1941e2khqv5uh7fmk9es2g4fkp8pr48objgs6blc1pqsdt2ab4o79noril2l7s70iu2eimn1smpd8t40j4g18btian8a2pt0
+  388.  -- #794fndq1941e2khqv5uh7fmk9es2g4fkp8pr48objgs6blc1pqsdt2ab4o79noril2l7s70iu2eimn1smpd8t40j4g18btian8a2pt0
         type builtin.Doc2.Video
         
-  387.  -- #46er7fsgre91rer0mpk6vhaa2vie19i0piubvtnfmt3vq7odcjfr6tlf0mc57q4jnij9rkolpekjd6dpqdotn41guk9lp9qioa88m58
+  389.  -- #46er7fsgre91rer0mpk6vhaa2vie19i0piubvtnfmt3vq7odcjfr6tlf0mc57q4jnij9rkolpekjd6dpqdotn41guk9lp9qioa88m58
         builtin.Doc2.Video.config : Video -> [(Text, Text)]
         
-  388.  -- #vld47vp37855gceko81jj00j5t0mf5p137ub57094585aq3jfevq0ob03fot9d73p97r2pj0alel9e6a7lqcc7mue0ogefshg991e6g
+  390.  -- #vld47vp37855gceko81jj00j5t0mf5p137ub57094585aq3jfevq0ob03fot9d73p97r2pj0alel9e6a7lqcc7mue0ogefshg991e6g
         builtin.Doc2.Video.config.modify : ([(Text, Text)]
         ->{g} [(Text, Text)])
         -> Video
         ->{g} Video
         
-  389.  -- #ll9hiqi1s63ragrv9ul3ouu2rvpjkok4gdmgqs6cl8j4fgdmqlgikc5lseoe94e9fvrughjfetlcsn7gc5ed8prtnljfo5j6r1vveq8
+  391.  -- #ll9hiqi1s63ragrv9ul3ouu2rvpjkok4gdmgqs6cl8j4fgdmqlgikc5lseoe94e9fvrughjfetlcsn7gc5ed8prtnljfo5j6r1vveq8
         builtin.Doc2.Video.config.set : [(Text, Text)]
         -> Video
         -> Video
         
-  390.  -- #a454aldsi00l8kh10bhi6d4phtdr9ht0es6apr05jert6oo4vstm5cdr4ee2k0srted1urqgvkrcoihjvmus6tph92v628f3lr9b92o
+  392.  -- #a454aldsi00l8kh10bhi6d4phtdr9ht0es6apr05jert6oo4vstm5cdr4ee2k0srted1urqgvkrcoihjvmus6tph92v628f3lr9b92o
         builtin.Doc2.Video.sources : Video -> [MediaSource]
         
-  391.  -- #nm77894uq9g3kv5mo7ubuptpimt53jml7jt825lr83gu41tqcfpg2krcesn7p5aaea107su7brg2gm8vn1l0mabpfnpbcdi4onlatvo
+  393.  -- #nm77894uq9g3kv5mo7ubuptpimt53jml7jt825lr83gu41tqcfpg2krcesn7p5aaea107su7brg2gm8vn1l0mabpfnpbcdi4onlatvo
         builtin.Doc2.Video.sources.modify : ([MediaSource]
         ->{g} [MediaSource])
         -> Video
         ->{g} Video
         
-  392.  -- #5r0bgv3t666s4lh274mvtk13jqu1doc26ki2k8t2rpophrq2hjran1qodeobf3trlnniarjehr1rgl6scn6mhqpmcokdafja3b54jt0
+  394.  -- #5r0bgv3t666s4lh274mvtk13jqu1doc26ki2k8t2rpophrq2hjran1qodeobf3trlnniarjehr1rgl6scn6mhqpmcokdafja3b54jt0
         builtin.Doc2.Video.sources.set : [MediaSource]
         -> Video
         -> Video
         
-  393.  -- #794fndq1941e2khqv5uh7fmk9es2g4fkp8pr48objgs6blc1pqsdt2ab4o79noril2l7s70iu2eimn1smpd8t40j4g18btian8a2pt0#0
+  395.  -- #794fndq1941e2khqv5uh7fmk9es2g4fkp8pr48objgs6blc1pqsdt2ab4o79noril2l7s70iu2eimn1smpd8t40j4g18btian8a2pt0#0
         builtin.Doc2.Video.Video : [MediaSource]
         -> [(Text, Text)]
         -> Video
         
-  394.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#19
+  396.  -- #ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0#19
         builtin.Doc2.Word : Text -> Doc2
         
-  395.  -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8
+  397.  -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8
         structural type builtin.Either a b
         
-  396.  -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8#1
+  398.  -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8#1
         builtin.Either.Left : a -> Either a b
         
-  397.  -- #i8po73lvi3etn7kqb6hpucm2e836861juvrjalqiv96legk4ds7e1qhfpaakbsajiruji4noos8u4f41i2un3glpemba22qnahl65lg
+  399.  -- #i8po73lvi3etn7kqb6hpucm2e836861juvrjalqiv96legk4ds7e1qhfpaakbsajiruji4noos8u4f41i2un3glpemba22qnahl65lg
         builtin.Either.mapRight : (a ->{g} b)
         -> Either e a
         ->{g} Either e b
         
-  398.  -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8#0
+  400.  -- #0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8#0
         builtin.Either.Right : b -> Either a b
         
-  399.  -- #4n0fgs00hpsj3paqnm9bfm4nbt9cbrin3hl88i992m9tjiq1ik7eq72asu4hcg885uti36tbnj5rudt56eahhnut1nobofg86pk1bng
+  401.  -- #4n0fgs00hpsj3paqnm9bfm4nbt9cbrin3hl88i992m9tjiq1ik7eq72asu4hcg885uti36tbnj5rudt56eahhnut1nobofg86pk1bng
         structural ability builtin.Exception
         structural ability Exception
         
-  400.  -- #4n0fgs00hpsj3paqnm9bfm4nbt9cbrin3hl88i992m9tjiq1ik7eq72asu4hcg885uti36tbnj5rudt56eahhnut1nobofg86pk1bng#0
+  402.  -- #4n0fgs00hpsj3paqnm9bfm4nbt9cbrin3hl88i992m9tjiq1ik7eq72asu4hcg885uti36tbnj5rudt56eahhnut1nobofg86pk1bng#0
         builtin.Exception.raise,
         Exception.raise : Failure
         ->{Exception} x
         
-  401.  -- ##Float
+  403.  -- ##Float
         builtin type builtin.Float
         
-  402.  -- ##Float.*
+  404.  -- ##Float.*
         builtin.Float.* : Float -> Float -> Float
         
-  403.  -- ##Float.+
+  405.  -- ##Float.+
         builtin.Float.+ : Float -> Float -> Float
         
-  404.  -- ##Float.-
+  406.  -- ##Float.-
         builtin.Float.- : Float -> Float -> Float
         
-  405.  -- ##Float./
+  407.  -- ##Float./
         builtin.Float./ : Float -> Float -> Float
         
-  406.  -- ##Float.abs
+  408.  -- ##Float.abs
         builtin.Float.abs : Float -> Float
         
-  407.  -- ##Float.acos
+  409.  -- ##Float.acos
         builtin.Float.acos : Float -> Float
         
-  408.  -- ##Float.acosh
+  410.  -- ##Float.acosh
         builtin.Float.acosh : Float -> Float
         
-  409.  -- ##Float.asin
+  411.  -- ##Float.asin
         builtin.Float.asin : Float -> Float
         
-  410.  -- ##Float.asinh
+  412.  -- ##Float.asinh
         builtin.Float.asinh : Float -> Float
         
-  411.  -- ##Float.atan
+  413.  -- ##Float.atan
         builtin.Float.atan : Float -> Float
         
-  412.  -- ##Float.atan2
+  414.  -- ##Float.atan2
         builtin.Float.atan2 : Float -> Float -> Float
         
-  413.  -- ##Float.atanh
+  415.  -- ##Float.atanh
         builtin.Float.atanh : Float -> Float
         
-  414.  -- ##Float.ceiling
+  416.  -- ##Float.ceiling
         builtin.Float.ceiling : Float -> Int
         
-  415.  -- ##Float.cos
+  417.  -- ##Float.cos
         builtin.Float.cos : Float -> Float
         
-  416.  -- ##Float.cosh
+  418.  -- ##Float.cosh
         builtin.Float.cosh : Float -> Float
         
-  417.  -- ##Float.==
+  419.  -- ##Float.==
         builtin.Float.eq : Float -> Float -> Boolean
         
-  418.  -- ##Float.exp
+  420.  -- ##Float.exp
         builtin.Float.exp : Float -> Float
         
-  419.  -- ##Float.floor
+  421.  -- ##Float.floor
         builtin.Float.floor : Float -> Int
         
-  420.  -- ##Float.fromRepresentation
+  422.  -- ##Float.fromRepresentation
         builtin.Float.fromRepresentation : Nat -> Float
         
-  421.  -- ##Float.fromText
+  423.  -- ##Float.fromText
         builtin.Float.fromText : Text -> Optional Float
         
-  422.  -- ##Float.>
+  424.  -- ##Float.>
         builtin.Float.gt : Float -> Float -> Boolean
         
-  423.  -- ##Float.>=
+  425.  -- ##Float.>=
         builtin.Float.gteq : Float -> Float -> Boolean
         
-  424.  -- ##Float.log
+  426.  -- ##Float.log
         builtin.Float.log : Float -> Float
         
-  425.  -- ##Float.logBase
+  427.  -- ##Float.logBase
         builtin.Float.logBase : Float -> Float -> Float
         
-  426.  -- ##Float.<
+  428.  -- ##Float.<
         builtin.Float.lt : Float -> Float -> Boolean
         
-  427.  -- ##Float.<=
+  429.  -- ##Float.<=
         builtin.Float.lteq : Float -> Float -> Boolean
         
-  428.  -- ##Float.max
+  430.  -- ##Float.max
         builtin.Float.max : Float -> Float -> Float
         
-  429.  -- ##Float.min
+  431.  -- ##Float.min
         builtin.Float.min : Float -> Float -> Float
         
-  430.  -- ##Float.pow
+  432.  -- ##Float.pow
         builtin.Float.pow : Float -> Float -> Float
         
-  431.  -- ##Float.round
+  433.  -- ##Float.round
         builtin.Float.round : Float -> Int
         
-  432.  -- ##Float.sin
+  434.  -- ##Float.sin
         builtin.Float.sin : Float -> Float
         
-  433.  -- ##Float.sinh
+  435.  -- ##Float.sinh
         builtin.Float.sinh : Float -> Float
         
-  434.  -- ##Float.sqrt
+  436.  -- ##Float.sqrt
         builtin.Float.sqrt : Float -> Float
         
-  435.  -- ##Float.tan
+  437.  -- ##Float.tan
         builtin.Float.tan : Float -> Float
         
-  436.  -- ##Float.tanh
+  438.  -- ##Float.tanh
         builtin.Float.tanh : Float -> Float
         
-  437.  -- ##Float.toRepresentation
+  439.  -- ##Float.toRepresentation
         builtin.Float.toRepresentation : Float -> Nat
         
-  438.  -- ##Float.toText
+  440.  -- ##Float.toText
         builtin.Float.toText : Float -> Text
         
-  439.  -- ##Float.truncate
+  441.  -- ##Float.truncate
         builtin.Float.truncate : Float -> Int
         
-  440.  -- #hqectlr3gt02r6r984b3627eg5bq3d82lab5q18e3ql09u1ka8dblf5k50ae0q0d8gk87udqd7b6767q86gogdt8ghpdiq77gk6blr8
+  442.  -- #hqectlr3gt02r6r984b3627eg5bq3d82lab5q18e3ql09u1ka8dblf5k50ae0q0d8gk87udqd7b6767q86gogdt8ghpdiq77gk6blr8
         type builtin.GUID
         
-  441.  -- #hqectlr3gt02r6r984b3627eg5bq3d82lab5q18e3ql09u1ka8dblf5k50ae0q0d8gk87udqd7b6767q86gogdt8ghpdiq77gk6blr8#0
+  443.  -- #hqectlr3gt02r6r984b3627eg5bq3d82lab5q18e3ql09u1ka8dblf5k50ae0q0d8gk87udqd7b6767q86gogdt8ghpdiq77gk6blr8#0
         builtin.GUID.GUID : Bytes -> GUID
         
-  442.  -- ##Handle.toText
+  444.  -- ##Handle.toText
         builtin.Handle.toText : Handle -> Text
         
-  443.  -- ##ImmutableArray
+  445.  -- ##ImmutableArray
         builtin type builtin.ImmutableArray
         
-  444.  -- ##ImmutableArray.copyTo!
+  446.  -- ##ImmutableArray.copyTo!
         builtin.ImmutableArray.copyTo! : MutableArray g a
         -> Nat
         -> ImmutableArray a
@@ -1569,22 +1575,22 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Nat
         ->{g, Exception} ()
         
-  445.  -- #j76q8bad5uoq65d0416qq5acd70c4p797grmp24e6cstl7lo3beqprtt30254d5o1tg8afc659bjvh6ufg7ha4ljvhl32g2pcqkhum8
+  447.  -- #j76q8bad5uoq65d0416qq5acd70c4p797grmp24e6cstl7lo3beqprtt30254d5o1tg8afc659bjvh6ufg7ha4ljvhl32g2pcqkhum8
         builtin.ImmutableArray.fromList : [a]
         -> ImmutableArray a
         
-  446.  -- ##ImmutableArray.read
+  448.  -- ##ImmutableArray.read
         builtin.ImmutableArray.read : ImmutableArray a
         -> Nat
         ->{Exception} a
         
-  447.  -- ##ImmutableArray.size
+  449.  -- ##ImmutableArray.size
         builtin.ImmutableArray.size : ImmutableArray a -> Nat
         
-  448.  -- ##ImmutableByteArray
+  450.  -- ##ImmutableByteArray
         builtin type builtin.ImmutableByteArray
         
-  449.  -- ##ImmutableByteArray.copyTo!
+  451.  -- ##ImmutableByteArray.copyTo!
         builtin.ImmutableByteArray.copyTo! : MutableByteArray g
         -> Nat
         -> ImmutableByteArray
@@ -1592,1041 +1598,1038 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Nat
         ->{g, Exception} ()
         
-  450.  -- ##ImmutableByteArray.fromBytes
+  452.  -- ##ImmutableByteArray.fromBytes
         builtin.ImmutableByteArray.fromBytes : Bytes
         -> ImmutableByteArray
         
-  451.  -- ##ImmutableByteArray.read16be
+  453.  -- ##ImmutableByteArray.read16be
         builtin.ImmutableByteArray.read16be : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  452.  -- ##ImmutableByteArray.read16le
+  454.  -- ##ImmutableByteArray.read16le
         builtin.ImmutableByteArray.read16le : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  453.  -- ##ImmutableByteArray.read24be
+  455.  -- ##ImmutableByteArray.read24be
         builtin.ImmutableByteArray.read24be : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  454.  -- ##ImmutableByteArray.read24le
+  456.  -- ##ImmutableByteArray.read24le
         builtin.ImmutableByteArray.read24le : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  455.  -- ##ImmutableByteArray.read32be
+  457.  -- ##ImmutableByteArray.read32be
         builtin.ImmutableByteArray.read32be : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  456.  -- ##ImmutableByteArray.read32le
+  458.  -- ##ImmutableByteArray.read32le
         builtin.ImmutableByteArray.read32le : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  457.  -- ##ImmutableByteArray.read40be
+  459.  -- ##ImmutableByteArray.read40be
         builtin.ImmutableByteArray.read40be : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  458.  -- ##ImmutableByteArray.read40le
+  460.  -- ##ImmutableByteArray.read40le
         builtin.ImmutableByteArray.read40le : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  459.  -- ##ImmutableByteArray.read64be
+  461.  -- ##ImmutableByteArray.read64be
         builtin.ImmutableByteArray.read64be : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  460.  -- ##ImmutableByteArray.read64le
+  462.  -- ##ImmutableByteArray.read64le
         builtin.ImmutableByteArray.read64le : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  461.  -- ##ImmutableByteArray.read8
+  463.  -- ##ImmutableByteArray.read8
         builtin.ImmutableByteArray.read8 : ImmutableByteArray
         -> Nat
         ->{Exception} Nat
         
-  462.  -- ##ImmutableByteArray.size
+  464.  -- ##ImmutableByteArray.size
         builtin.ImmutableByteArray.size : ImmutableByteArray
         -> Nat
         
-  463.  -- ##ImmutableByteArray.toBytes
+  465.  -- ##ImmutableByteArray.toBytes
         builtin.ImmutableByteArray.toBytes : ImmutableByteArray
         -> Nat
         -> Nat
         -> Bytes
         
-  464.  -- ##Int
+  466.  -- ##Int
         builtin type builtin.Int
         
-  465.  -- ##Int.*
+  467.  -- ##Int.*
         builtin.Int.* : Int -> Int -> Int
         
-  466.  -- ##Int.+
+  468.  -- ##Int.+
         builtin.Int.+ : Int -> Int -> Int
         
-  467.  -- ##Int.-
+  469.  -- ##Int.-
         builtin.Int.- : Int -> Int -> Int
         
-  468.  -- ##Int./
+  470.  -- ##Int./
         builtin.Int./ : Int -> Int -> Int
         
-  469.  -- ##Int.and
+  471.  -- ##Int.and
         builtin.Int.and : Int -> Int -> Int
         
-  470.  -- ##Int.complement
+  472.  -- ##Int.complement
         builtin.Int.complement : Int -> Int
         
-  471.  -- ##Int.==
+  473.  -- ##Int.==
         builtin.Int.eq : Int -> Int -> Boolean
         
-  472.  -- ##Int.fromRepresentation
+  474.  -- ##Int.fromRepresentation
         builtin.Int.fromRepresentation : Nat -> Int
         
-  473.  -- ##Int.fromText
+  475.  -- ##Int.fromText
         builtin.Int.fromText : Text -> Optional Int
         
-  474.  -- ##Int.>
+  476.  -- ##Int.>
         builtin.Int.gt : Int -> Int -> Boolean
         
-  475.  -- ##Int.>=
+  477.  -- ##Int.>=
         builtin.Int.gteq : Int -> Int -> Boolean
         
-  476.  -- ##Int.increment
+  478.  -- ##Int.increment
         builtin.Int.increment : Int -> Int
         
-  477.  -- ##Int.isEven
+  479.  -- ##Int.isEven
         builtin.Int.isEven : Int -> Boolean
         
-  478.  -- ##Int.isOdd
+  480.  -- ##Int.isOdd
         builtin.Int.isOdd : Int -> Boolean
         
-  479.  -- ##Int.leadingZeros
+  481.  -- ##Int.leadingZeros
         builtin.Int.leadingZeros : Int -> Nat
         
-  480.  -- ##Int.<
+  482.  -- ##Int.<
         builtin.Int.lt : Int -> Int -> Boolean
         
-  481.  -- ##Int.<=
+  483.  -- ##Int.<=
         builtin.Int.lteq : Int -> Int -> Boolean
         
-  482.  -- ##Int.mod
+  484.  -- ##Int.mod
         builtin.Int.mod : Int -> Int -> Int
         
-  483.  -- ##Int.negate
+  485.  -- ##Int.negate
         builtin.Int.negate : Int -> Int
         
-  484.  -- ##Int.or
+  486.  -- ##Int.or
         builtin.Int.or : Int -> Int -> Int
         
-  485.  -- ##Int.popCount
+  487.  -- ##Int.popCount
         builtin.Int.popCount : Int -> Nat
         
-  486.  -- ##Int.pow
+  488.  -- ##Int.pow
         builtin.Int.pow : Int -> Nat -> Int
         
-  487.  -- ##Int.shiftLeft
+  489.  -- ##Int.shiftLeft
         builtin.Int.shiftLeft : Int -> Nat -> Int
         
-  488.  -- ##Int.shiftRight
+  490.  -- ##Int.shiftRight
         builtin.Int.shiftRight : Int -> Nat -> Int
         
-  489.  -- ##Int.signum
+  491.  -- ##Int.signum
         builtin.Int.signum : Int -> Int
         
-  490.  -- ##Int.toFloat
+  492.  -- ##Int.toFloat
         builtin.Int.toFloat : Int -> Float
         
-  491.  -- ##Int.toRepresentation
+  493.  -- ##Int.toRepresentation
         builtin.Int.toRepresentation : Int -> Nat
         
-  492.  -- ##Int.toText
+  494.  -- ##Int.toText
         builtin.Int.toText : Int -> Text
         
-  493.  -- ##Int.trailingZeros
+  495.  -- ##Int.trailingZeros
         builtin.Int.trailingZeros : Int -> Nat
         
-  494.  -- ##Int.truncate0
+  496.  -- ##Int.truncate0
         builtin.Int.truncate0 : Int -> Nat
         
-  495.  -- ##Int.xor
+  497.  -- ##Int.xor
         builtin.Int.xor : Int -> Int -> Int
         
-  496.  -- ##Integer
-        builtin type builtin.Integer
-        
-  497.  -- #s6ijmhqkkaus51chjgahogc7sdrqj9t66i599le2k7ts6fkl216f997hbses3mqk6a21vaj3cm1mertbldn0g503jt522vfo4rfv720
+  498.  -- #s6ijmhqkkaus51chjgahogc7sdrqj9t66i599le2k7ts6fkl216f997hbses3mqk6a21vaj3cm1mertbldn0g503jt522vfo4rfv720
         type builtin.io2.ArithmeticFailure
         
-  498.  -- #6dtvam7msqc64dimm8p0d8ehdf0330o4qbd2fdafb11jj1c2rg4ke3jdcmbgo6s4pf2jgm0vb76jeavv4ba6ht71t74p963a1miekag
+  499.  -- #6dtvam7msqc64dimm8p0d8ehdf0330o4qbd2fdafb11jj1c2rg4ke3jdcmbgo6s4pf2jgm0vb76jeavv4ba6ht71t74p963a1miekag
         type builtin.io2.ArrayFailure
         
-  499.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98
+  500.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98
         type builtin.io2.BufferMode
         
-  500.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#2
+  501.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#2
         builtin.io2.BufferMode.BlockBuffering : BufferMode
         
-  501.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#1
+  502.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#1
         builtin.io2.BufferMode.LineBuffering : BufferMode
         
-  502.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#0
+  503.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#0
         builtin.io2.BufferMode.NoBuffering : BufferMode
         
-  503.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#3
+  504.  -- #dc6n5ebu839ik3b6ohmnqm6p0cifn7o94em1g41mjp4ae0gmv3b4rupba499lbasfrp4bqce9u4hd6518unlbg8vk993c0q6rigos98#3
         builtin.io2.BufferMode.SizedBlockBuffering : Nat
         -> BufferMode
         
-  504.  -- ##Clock.internals.monotonic.v1
+  505.  -- ##Clock.internals.monotonic.v1
         builtin.io2.Clock.internals.monotonic : '{IO} Either
           Failure TimeSpec
         
-  505.  -- ##Clock.internals.nsec.v1
+  506.  -- ##Clock.internals.nsec.v1
         builtin.io2.Clock.internals.nsec : TimeSpec -> Nat
         
-  506.  -- ##Clock.internals.processCPUTime.v1
+  507.  -- ##Clock.internals.processCPUTime.v1
         builtin.io2.Clock.internals.processCPUTime : '{IO} Either
           Failure TimeSpec
         
-  507.  -- ##Clock.internals.realtime.v1
+  508.  -- ##Clock.internals.realtime.v1
         builtin.io2.Clock.internals.realtime : '{IO} Either
           Failure TimeSpec
         
-  508.  -- ##Clock.internals.sec.v1
+  509.  -- ##Clock.internals.sec.v1
         builtin.io2.Clock.internals.sec : TimeSpec -> Int
         
-  509.  -- ##Clock.internals.systemTimeZone.v1
+  510.  -- ##Clock.internals.systemTimeZone.v1
         builtin.io2.Clock.internals.systemTimeZone : Int
         ->{IO} (Int, Nat, Text)
         
-  510.  -- ##Clock.internals.threadCPUTime.v1
+  511.  -- ##Clock.internals.threadCPUTime.v1
         builtin.io2.Clock.internals.threadCPUTime : '{IO} Either
           Failure TimeSpec
         
-  511.  -- ##TimeSpec
+  512.  -- ##TimeSpec
         builtin type builtin.io2.Clock.internals.TimeSpec
         
-  512.  -- #r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8
+  513.  -- #r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8
         type builtin.io2.Failure
         
-  513.  -- #r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8#0
+  514.  -- #r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8#0
         builtin.io2.Failure.Failure : Type
         -> Text
         -> Any
         -> Failure
         
-  514.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8
+  515.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8
         type builtin.io2.FileMode
         
-  515.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#2
+  516.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#2
         builtin.io2.FileMode.Append : FileMode
         
-  516.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#0
+  517.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#0
         builtin.io2.FileMode.Read : FileMode
         
-  517.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#3
+  518.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#3
         builtin.io2.FileMode.ReadWrite : FileMode
         
-  518.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#1
+  519.  -- #jhnlob35huv3rr7jg6aa4gtd8okhprla7gvlq8io429qita8vj7k696n9jvp4b8ct9i2pc1jodb8ap2bipqtgp138epdgfcth7vqvt8#1
         builtin.io2.FileMode.Write : FileMode
         
-  519.  -- ##Handle
+  520.  -- ##Handle
         builtin type builtin.io2.Handle
         
-  520.  -- ##IO
+  521.  -- ##IO
         builtin type builtin.io2.IO
         
-  521.  -- ##IO.array
+  522.  -- ##IO.array
         builtin.io2.IO.array : Nat ->{IO} MutableArray {IO} a
         
-  522.  -- ##IO.arrayOf
+  523.  -- ##IO.arrayOf
         builtin.io2.IO.arrayOf : a
         -> Nat
         ->{IO} MutableArray {IO} a
         
-  523.  -- ##IO.bytearray
+  524.  -- ##IO.bytearray
         builtin.io2.IO.bytearray : Nat
         ->{IO} MutableByteArray {IO}
         
-  524.  -- ##IO.bytearrayOf
+  525.  -- ##IO.bytearrayOf
         builtin.io2.IO.bytearrayOf : Nat
         -> Nat
         ->{IO} MutableByteArray {IO}
         
-  525.  -- ##IO.clientSocket.impl.v3
+  526.  -- ##IO.clientSocket.impl.v3
         builtin.io2.IO.clientSocket.impl : Text
         -> Text
         ->{IO} Either Failure Socket
         
-  526.  -- ##IO.closeFile.impl.v3
+  527.  -- ##IO.closeFile.impl.v3
         builtin.io2.IO.closeFile.impl : Handle
         ->{IO} Either Failure ()
         
-  527.  -- ##IO.closeSocket.impl.v3
+  528.  -- ##IO.closeSocket.impl.v3
         builtin.io2.IO.closeSocket.impl : Socket
         ->{IO} Either Failure ()
         
-  528.  -- ##IO.createDirectory.impl.v3
+  529.  -- ##IO.createDirectory.impl.v3
         builtin.io2.IO.createDirectory.impl : Text
         ->{IO} Either Failure ()
         
-  529.  -- ##IO.createTempDirectory.impl.v3
+  530.  -- ##IO.createTempDirectory.impl.v3
         builtin.io2.IO.createTempDirectory.impl : Text
         ->{IO} Either Failure Text
         
-  530.  -- ##IO.delay.impl.v3
+  531.  -- ##IO.delay.impl.v3
         builtin.io2.IO.delay.impl : Nat ->{IO} Either Failure ()
         
-  531.  -- ##IO.directoryContents.impl.v3
+  532.  -- ##IO.directoryContents.impl.v3
         builtin.io2.IO.directoryContents.impl : Text
         ->{IO} Either Failure [Text]
         
-  532.  -- ##IO.fileExists.impl.v3
+  533.  -- ##IO.fileExists.impl.v3
         builtin.io2.IO.fileExists.impl : Text
         ->{IO} Either Failure Boolean
         
-  533.  -- ##IO.fillBuf.impl.v1
+  534.  -- ##IO.fillBuf.impl.v1
         builtin.io2.IO.fillBuf.impl : Handle
         -> PinnedByteArray g
         -> Nat
         ->{IO} Either Failure Nat
         
-  534.  -- ##IO.forkComp.v2
+  535.  -- ##IO.forkComp.v2
         builtin.io2.IO.forkComp : '{IO} a ->{IO} ThreadId
         
-  535.  -- ##IO.getArgs.impl.v1
+  536.  -- ##IO.getArgs.impl.v1
         builtin.io2.IO.getArgs.impl : '{IO} Either
           Failure [Text]
         
-  536.  -- ##IO.getBuffering.impl.v3
+  537.  -- ##IO.getBuffering.impl.v3
         builtin.io2.IO.getBuffering.impl : Handle
         ->{IO} Either Failure BufferMode
         
-  537.  -- ##IO.getBufSome.impl.v1
+  538.  -- ##IO.getBufSome.impl.v1
         builtin.io2.IO.getBufSome.impl : Handle
         -> PinnedByteArray g
         -> Nat
         ->{IO} Either Failure Nat
         
-  538.  -- ##IO.getBytes.impl.v3
+  539.  -- ##IO.getBytes.impl.v3
         builtin.io2.IO.getBytes.impl : Handle
         -> Nat
         ->{IO} Either Failure Bytes
         
-  539.  -- ##IO.getChar.impl.v1
+  540.  -- ##IO.getChar.impl.v1
         builtin.io2.IO.getChar.impl : Handle
         ->{IO} Either Failure Char
         
-  540.  -- ##IO.getCurrentDirectory.impl.v3
+  541.  -- ##IO.getCurrentDirectory.impl.v3
         builtin.io2.IO.getCurrentDirectory.impl : '{IO} Either
           Failure Text
         
-  541.  -- ##IO.getEcho.impl.v1
+  542.  -- ##IO.getEcho.impl.v1
         builtin.io2.IO.getEcho.impl : Handle
         ->{IO} Either Failure Boolean
         
-  542.  -- ##IO.getEnv.impl.v1
+  543.  -- ##IO.getEnv.impl.v1
         builtin.io2.IO.getEnv.impl : Text
         ->{IO} Either Failure Text
         
-  543.  -- ##IO.getFileSize.impl.v3
+  544.  -- ##IO.getFileSize.impl.v3
         builtin.io2.IO.getFileSize.impl : Text
         ->{IO} Either Failure Nat
         
-  544.  -- ##IO.getFileTimestamp.impl.v3
+  545.  -- ##IO.getFileTimestamp.impl.v3
         builtin.io2.IO.getFileTimestamp.impl : Text
         ->{IO} Either Failure Nat
         
-  545.  -- ##IO.getLine.impl.v1
+  546.  -- ##IO.getLine.impl.v1
         builtin.io2.IO.getLine.impl : Handle
         ->{IO} Either Failure Text
         
-  546.  -- ##IO.getSomeBytes.impl.v1
+  547.  -- ##IO.getSomeBytes.impl.v1
         builtin.io2.IO.getSomeBytes.impl : Handle
         -> Nat
         ->{IO} Either Failure Bytes
         
-  547.  -- ##IO.getTempDirectory.impl.v3
+  548.  -- ##IO.getTempDirectory.impl.v3
         builtin.io2.IO.getTempDirectory.impl : '{IO} Either
           Failure Text
         
-  548.  -- ##IO.handlePosition.impl.v3
+  549.  -- ##IO.handlePosition.impl.v3
         builtin.io2.IO.handlePosition.impl : Handle
         ->{IO} Either Failure Nat
         
-  549.  -- ##IO.isDirectory.impl.v3
+  550.  -- ##IO.isDirectory.impl.v3
         builtin.io2.IO.isDirectory.impl : Text
         ->{IO} Either Failure Boolean
         
-  550.  -- ##IO.isFileEOF.impl.v3
+  551.  -- ##IO.isFileEOF.impl.v3
         builtin.io2.IO.isFileEOF.impl : Handle
         ->{IO} Either Failure Boolean
         
-  551.  -- ##IO.isFileOpen.impl.v3
+  552.  -- ##IO.isFileOpen.impl.v3
         builtin.io2.IO.isFileOpen.impl : Handle
         ->{IO} Either Failure Boolean
         
-  552.  -- ##IO.isSeekable.impl.v3
+  553.  -- ##IO.isSeekable.impl.v3
         builtin.io2.IO.isSeekable.impl : Handle
         ->{IO} Either Failure Boolean
         
-  553.  -- ##IO.kill.impl.v3
+  554.  -- ##IO.kill.impl.v3
         builtin.io2.IO.kill.impl : ThreadId
         ->{IO} Either Failure ()
         
-  554.  -- ##IO.listen.impl.v3
+  555.  -- ##IO.listen.impl.v3
         builtin.io2.IO.listen.impl : Socket
         ->{IO} Either Failure ()
         
-  555.  -- ##IO.openFile.impl.v3
+  556.  -- ##IO.openFile.impl.v3
         builtin.io2.IO.openFile.impl : Text
         -> FileMode
         ->{IO} Either Failure Handle
         
-  556.  -- ##IO.pinnedByteArray
+  557.  -- ##IO.pinnedByteArray
         builtin.io2.IO.pinnedByteArray : Nat
         ->{IO} PinnedByteArray {IO}
         
-  557.  -- ##IO.pinnedByteArrayOf
+  558.  -- ##IO.pinnedByteArrayOf
         builtin.io2.IO.pinnedByteArrayOf : Nat
         -> Nat
         ->{IO} PinnedByteArray {IO}
         
-  558.  -- ##IO.process.call
+  559.  -- ##IO.process.call
         builtin.io2.IO.process.call : Text -> [Text] ->{IO} Nat
         
-  559.  -- ##IO.process.exitCode
+  560.  -- ##IO.process.exitCode
         builtin.io2.IO.process.exitCode : ProcessHandle
         ->{IO} Optional Nat
         
-  560.  -- ##IO.process.kill
+  561.  -- ##IO.process.kill
         builtin.io2.IO.process.kill : ProcessHandle ->{IO} ()
         
-  561.  -- ##IO.process.start
+  562.  -- ##IO.process.start
         builtin.io2.IO.process.start : Text
         -> [Text]
         ->{IO} (Handle, Handle, Handle, ProcessHandle)
         
-  562.  -- ##IO.process.wait
+  563.  -- ##IO.process.wait
         builtin.io2.IO.process.wait : ProcessHandle ->{IO} Nat
         
-  563.  -- ##IO.putBuf.impl.v1
+  564.  -- ##IO.putBuf.impl.v1
         builtin.io2.IO.putBuf.impl : Handle
         -> PinnedByteArray g
         -> Nat
         ->{IO} Either Failure Nat
         
-  564.  -- ##IO.putBytes.impl.v3
+  565.  -- ##IO.putBytes.impl.v3
         builtin.io2.IO.putBytes.impl : Handle
         -> Bytes
         ->{IO} Either Failure ()
         
-  565.  -- ##IO.randomBytes
+  566.  -- ##IO.randomBytes
         builtin.io2.IO.randomBytes : Nat ->{IO} Bytes
         
-  566.  -- ##IO.ready.impl.v1
+  567.  -- ##IO.ready.impl.v1
         builtin.io2.IO.ready.impl : Handle
         ->{IO} Either Failure Boolean
         
-  567.  -- ##IO.ref
+  568.  -- ##IO.ref
         builtin.io2.IO.ref : a ->{IO} Ref {IO} a
         
-  568.  -- ##IO.removeDirectory.impl.v3
+  569.  -- ##IO.removeDirectory.impl.v3
         builtin.io2.IO.removeDirectory.impl : Text
         ->{IO} Either Failure ()
         
-  569.  -- ##IO.removeFile.impl.v3
+  570.  -- ##IO.removeFile.impl.v3
         builtin.io2.IO.removeFile.impl : Text
         ->{IO} Either Failure ()
         
-  570.  -- ##IO.renameDirectory.impl.v3
+  571.  -- ##IO.renameDirectory.impl.v3
         builtin.io2.IO.renameDirectory.impl : Text
         -> Text
         ->{IO} Either Failure ()
         
-  571.  -- ##IO.renameFile.impl.v3
+  572.  -- ##IO.renameFile.impl.v3
         builtin.io2.IO.renameFile.impl : Text
         -> Text
         ->{IO} Either Failure ()
         
-  572.  -- ##IO.seekHandle.impl.v3
+  573.  -- ##IO.seekHandle.impl.v3
         builtin.io2.IO.seekHandle.impl : Handle
         -> SeekMode
         -> Int
         ->{IO} Either Failure ()
         
-  573.  -- ##IO.serverSocket.impl.v3
+  574.  -- ##IO.serverSocket.impl.v3
         builtin.io2.IO.serverSocket.impl : Optional Text
         -> Text
         ->{IO} Either Failure Socket
         
-  574.  -- ##IO.setBuffering.impl.v3
+  575.  -- ##IO.setBuffering.impl.v3
         builtin.io2.IO.setBuffering.impl : Handle
         -> BufferMode
         ->{IO} Either Failure ()
         
-  575.  -- ##IO.setCurrentDirectory.impl.v3
+  576.  -- ##IO.setCurrentDirectory.impl.v3
         builtin.io2.IO.setCurrentDirectory.impl : Text
         ->{IO} Either Failure ()
         
-  576.  -- ##IO.setEcho.impl.v1
+  577.  -- ##IO.setEcho.impl.v1
         builtin.io2.IO.setEcho.impl : Handle
         -> Boolean
         ->{IO} Either Failure ()
         
-  577.  -- ##IO.socketAccept.impl.v3
+  578.  -- ##IO.socketAccept.impl.v3
         builtin.io2.IO.socketAccept.impl : Socket
         ->{IO} Either Failure Socket
         
-  578.  -- ##IO.socketPort.impl.v3
+  579.  -- ##IO.socketPort.impl.v3
         builtin.io2.IO.socketPort.impl : Socket
         ->{IO} Either Failure Nat
         
-  579.  -- ##IO.socketReceive.impl.v3
+  580.  -- ##IO.socketReceive.impl.v3
         builtin.io2.IO.socketReceive.impl : Socket
         -> Nat
         ->{IO} Either Failure Bytes
         
-  580.  -- ##IO.socketReceiveBuf.impl.v1
+  581.  -- ##IO.socketReceiveBuf.impl.v1
         builtin.io2.IO.socketReceiveBuf.impl : Socket
         -> PinnedByteArray {IO}
         -> Nat
         ->{IO} Either Failure Nat
         
-  581.  -- ##IO.socketSend.impl.v3
+  582.  -- ##IO.socketSend.impl.v3
         builtin.io2.IO.socketSend.impl : Socket
         -> Bytes
         ->{IO} Either Failure ()
         
-  582.  -- ##IO.socketSendBuf.impl.v1
+  583.  -- ##IO.socketSendBuf.impl.v1
         builtin.io2.IO.socketSendBuf.impl : Socket
         -> PinnedByteArray {IO}
         -> Nat
         ->{IO} Either Failure ()
         
-  583.  -- ##IO.stdHandle
+  584.  -- ##IO.stdHandle
         builtin.io2.IO.stdHandle : StdHandle -> Handle
         
-  584.  -- ##IO.systemTime.impl.v3
+  585.  -- ##IO.systemTime.impl.v3
         builtin.io2.IO.systemTime.impl : '{IO} Either
           Failure Nat
         
-  585.  -- ##IO.systemTimeMicroseconds.v1
+  586.  -- ##IO.systemTimeMicroseconds.v1
         builtin.io2.IO.systemTimeMicroseconds : '{IO} Int
         
-  586.  -- ##IO.tryEval
+  587.  -- ##IO.tryEval
         builtin.io2.IO.tryEval : '{IO} a ->{IO, Exception} a
         
-  587.  -- ##IO.UDP.ClientSockAddr.toText.v1
+  588.  -- ##IO.UDP.ClientSockAddr.toText.v1
         builtin.io2.IO.UDP.ClientSockAddr.toText : ClientSockAddr
         -> Text
         
-  588.  -- ##IO.UDP.clientSocket.impl.v1
+  589.  -- ##IO.UDP.clientSocket.impl.v1
         builtin.io2.IO.UDP.clientSocket.impl : Text
         -> Text
         ->{IO} Either Failure UDPSocket
         
-  589.  -- ##IO.UDP.ListenSocket.close.impl.v1
+  590.  -- ##IO.UDP.ListenSocket.close.impl.v1
         builtin.io2.IO.UDP.ListenSocket.close.impl : ListenSocket
         ->{IO} Either Failure ()
         
-  590.  -- ##IO.UDP.ListenSocket.recvFrom.impl.v1
+  591.  -- ##IO.UDP.ListenSocket.recvFrom.impl.v1
         builtin.io2.IO.UDP.ListenSocket.recvFrom.impl : ListenSocket
         ->{IO} Either Failure (Bytes, ClientSockAddr)
         
-  591.  -- ##IO.UDP.ListenSocket.sendTo.impl.v1
+  592.  -- ##IO.UDP.ListenSocket.sendTo.impl.v1
         builtin.io2.IO.UDP.ListenSocket.sendTo.impl : ListenSocket
         -> Bytes
         -> ClientSockAddr
         ->{IO} Either Failure ()
         
-  592.  -- ##IO.UDP.ListenSocket.toText.impl.v1
+  593.  -- ##IO.UDP.ListenSocket.toText.impl.v1
         builtin.io2.IO.UDP.ListenSocket.toText.impl : ListenSocket
         -> Text
         
-  593.  -- ##IO.UDP.serverSocket.impl.v1
+  594.  -- ##IO.UDP.serverSocket.impl.v1
         builtin.io2.IO.UDP.serverSocket.impl : Text
         -> Text
         ->{IO} Either Failure ListenSocket
         
-  594.  -- ##IO.UDP.UDPSocket.close.impl.v1
+  595.  -- ##IO.UDP.UDPSocket.close.impl.v1
         builtin.io2.IO.UDP.UDPSocket.close.impl : UDPSocket
         ->{IO} Either Failure ()
         
-  595.  -- ##IO.UDP.UDPSocket.recv.impl.v1
+  596.  -- ##IO.UDP.UDPSocket.recv.impl.v1
         builtin.io2.IO.UDP.UDPSocket.recv.impl : UDPSocket
         ->{IO} Either Failure Bytes
         
-  596.  -- ##IO.UDP.UDPSocket.send.impl.v1
+  597.  -- ##IO.UDP.UDPSocket.send.impl.v1
         builtin.io2.IO.UDP.UDPSocket.send.impl : UDPSocket
         -> Bytes
         ->{IO} Either Failure ()
         
-  597.  -- ##IO.UDP.UDPSocket.toText.impl.v1
+  598.  -- ##IO.UDP.UDPSocket.toText.impl.v1
         builtin.io2.IO.UDP.UDPSocket.toText.impl : UDPSocket
         -> Text
         
-  598.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0
+  599.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0
         type builtin.io2.IOError
         
-  599.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#0
+  600.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#0
         builtin.io2.IOError.AlreadyExists : IOError
         
-  600.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#4
+  601.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#4
         builtin.io2.IOError.EOF : IOError
         
-  601.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#5
+  602.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#5
         builtin.io2.IOError.IllegalOperation : IOError
         
-  602.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#1
+  603.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#1
         builtin.io2.IOError.NoSuchThing : IOError
         
-  603.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#6
+  604.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#6
         builtin.io2.IOError.PermissionDenied : IOError
         
-  604.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#2
+  605.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#2
         builtin.io2.IOError.ResourceBusy : IOError
         
-  605.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#3
+  606.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#3
         builtin.io2.IOError.ResourceExhausted : IOError
         
-  606.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#7
+  607.  -- #h4smnou0l3fg4dn92g2r88j0imfvufjerkgbuscvvmaprv12l22nk6sff3c12edlikb2vfg3vfdj4b23a09q4lvtk75ckbe4lsmtuc0#7
         builtin.io2.IOError.UserError : IOError
         
-  607.  -- #6ivk1e38hh0l9gcl8fn4mhf8bmak3qaji36vevg5e1n16ju5i4cl9u5gmqi7u16b907rd98gd60pouma892efbqt2ri58tmu99hp77g
+  608.  -- #6ivk1e38hh0l9gcl8fn4mhf8bmak3qaji36vevg5e1n16ju5i4cl9u5gmqi7u16b907rd98gd60pouma892efbqt2ri58tmu99hp77g
         type builtin.io2.IOFailure
         
-  608.  -- #574pvphqahl981k517dtrqtq812m05h3hj6t2bt9sn3pknenfik1krscfdb6r66nf1sm7g3r1r56k0c6ob7vg4opfq4gihi8njbnhsg
+  609.  -- #574pvphqahl981k517dtrqtq812m05h3hj6t2bt9sn3pknenfik1krscfdb6r66nf1sm7g3r1r56k0c6ob7vg4opfq4gihi8njbnhsg
         type builtin.io2.MiscFailure
         
-  609.  -- ##MVar
+  610.  -- ##MVar
         builtin type builtin.io2.MVar
         
-  610.  -- ##MVar.isEmpty
+  611.  -- ##MVar.isEmpty
         builtin.io2.MVar.isEmpty : MVar a ->{IO} Boolean
         
-  611.  -- ##MVar.new
+  612.  -- ##MVar.new
         builtin.io2.MVar.new : a ->{IO} MVar a
         
-  612.  -- ##MVar.newEmpty.v2
+  613.  -- ##MVar.newEmpty.v2
         builtin.io2.MVar.newEmpty : '{IO} MVar a
         
-  613.  -- ##MVar.put.impl.v3
+  614.  -- ##MVar.put.impl.v3
         builtin.io2.MVar.put.impl : MVar a
         -> a
         ->{IO} Either Failure ()
         
-  614.  -- ##MVar.read.impl.v3
+  615.  -- ##MVar.read.impl.v3
         builtin.io2.MVar.read.impl : MVar a
         ->{IO} Either Failure a
         
-  615.  -- ##MVar.swap.impl.v3
+  616.  -- ##MVar.swap.impl.v3
         builtin.io2.MVar.swap.impl : MVar a
         -> a
         ->{IO} Either Failure a
         
-  616.  -- ##MVar.take.impl.v3
+  617.  -- ##MVar.take.impl.v3
         builtin.io2.MVar.take.impl : MVar a
         ->{IO} Either Failure a
         
-  617.  -- ##MVar.tryPut.impl.v3
+  618.  -- ##MVar.tryPut.impl.v3
         builtin.io2.MVar.tryPut.impl : MVar a
         -> a
         ->{IO} Either Failure Boolean
         
-  618.  -- ##MVar.tryRead.impl.v3
+  619.  -- ##MVar.tryRead.impl.v3
         builtin.io2.MVar.tryRead.impl : MVar a
         ->{IO} Either Failure (Optional a)
         
-  619.  -- ##MVar.tryTake
+  620.  -- ##MVar.tryTake
         builtin.io2.MVar.tryTake : MVar a ->{IO} Optional a
         
-  620.  -- ##ProcessHandle
+  621.  -- ##ProcessHandle
         builtin type builtin.io2.ProcessHandle
         
-  621.  -- ##Promise
+  622.  -- ##Promise
         builtin type builtin.io2.Promise
         
-  622.  -- ##Promise.new
+  623.  -- ##Promise.new
         builtin.io2.Promise.new : '{IO} Promise a
         
-  623.  -- ##Promise.read
+  624.  -- ##Promise.read
         builtin.io2.Promise.read : Promise a ->{IO} a
         
-  624.  -- ##Promise.tryRead
+  625.  -- ##Promise.tryRead
         builtin.io2.Promise.tryRead : Promise a
         ->{IO} Optional a
         
-  625.  -- ##Promise.write
+  626.  -- ##Promise.write
         builtin.io2.Promise.write : Promise a
         -> a
         ->{IO} Boolean
         
-  626.  -- ##Ref.cas
+  627.  -- ##Ref.cas
         builtin.io2.Ref.cas : Ref {IO} a
         -> Ticket a
         -> a
         ->{IO} Boolean
         
-  627.  -- ##Ref.readForCas
+  628.  -- ##Ref.readForCas
         builtin.io2.Ref.readForCas : Ref {IO} a ->{IO} Ticket a
         
-  628.  -- ##Ref.Ticket
+  629.  -- ##Ref.Ticket
         builtin type builtin.io2.Ref.Ticket
         
-  629.  -- ##Ref.Ticket.read
+  630.  -- ##Ref.Ticket.read
         builtin.io2.Ref.Ticket.read : Ticket a -> a
         
-  630.  -- #vph2eas3lf2gi259f3khlrspml3id2l8u0ru07kb5fd833h238jk4iauju0b6decth9i3nao5jkf5eej1e1kovgmu5tghhh8jq3i7p8
+  631.  -- #vph2eas3lf2gi259f3khlrspml3id2l8u0ru07kb5fd833h238jk4iauju0b6decth9i3nao5jkf5eej1e1kovgmu5tghhh8jq3i7p8
         type builtin.io2.RuntimeFailure
         
-  631.  -- ##sandboxLinks
+  632.  -- ##sandboxLinks
         builtin.io2.sandboxLinks : Link.Term ->{IO} [Link.Term]
         
-  632.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40
+  633.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40
         type builtin.io2.SeekMode
         
-  633.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#0
+  634.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#0
         builtin.io2.SeekMode.AbsoluteSeek : SeekMode
         
-  634.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#1
+  635.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#1
         builtin.io2.SeekMode.RelativeSeek : SeekMode
         
-  635.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#2
+  636.  -- #1bca3hq98sfgr6a4onuon1tsda69cdjggq8pkmlsfola6492dbrih5up6dv18ptfbqeocm9q6parf64pj773p7p19qe76238o4trc40#2
         builtin.io2.SeekMode.SeekFromEnd : SeekMode
         
-  636.  -- ##Socket
+  637.  -- ##Socket
         builtin type builtin.io2.Socket
         
-  637.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8
+  638.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8
         type builtin.io2.StdHandle
         
-  638.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#2
+  639.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#2
         builtin.io2.StdHandle.StdErr : StdHandle
         
-  639.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#0
+  640.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#0
         builtin.io2.StdHandle.StdIn : StdHandle
         
-  640.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#1
+  641.  -- #121tku5rfh21t247v1cakhd6ir44fakkqsm799rrfp5qcjdls4nvdu4r3nco80stdd86tdo2hhh0ulcpoaofnrnkjun04kqnfmjqio8#1
         builtin.io2.StdHandle.StdOut : StdHandle
         
-  641.  -- ##STM
+  642.  -- ##STM
         builtin type builtin.io2.STM
         
-  642.  -- ##STM.atomically
+  643.  -- ##STM.atomically
         builtin.io2.STM.atomically : '{STM} a ->{IO} a
         
-  643.  -- ##STM.retry
+  644.  -- ##STM.retry
         builtin.io2.STM.retry : '{STM} a
         
-  644.  -- #cggbdfff21ac5uedf4qvn4to83clinvhsovrila35u7f7e73g4l6hoj8pjmjnk713a8luhnn4bi1j9ai1nl0can1un66hvg230eog9g
+  645.  -- #cggbdfff21ac5uedf4qvn4to83clinvhsovrila35u7f7e73g4l6hoj8pjmjnk713a8luhnn4bi1j9ai1nl0can1un66hvg230eog9g
         type builtin.io2.STMFailure
         
-  645.  -- ##ThreadId
+  646.  -- ##ThreadId
         builtin type builtin.io2.ThreadId
         
-  646.  -- #ggh649864d9bfnk90n7kgtj7dflddc4kn8osu7u7mub8p7l8biid8dgtungj4u005h7karbgupfpum9jp94spks3ma1sgh39bhirv38
+  647.  -- #ggh649864d9bfnk90n7kgtj7dflddc4kn8osu7u7mub8p7l8biid8dgtungj4u005h7karbgupfpum9jp94spks3ma1sgh39bhirv38
         type builtin.io2.ThreadKilledFailure
         
-  647.  -- ##Tls
+  648.  -- ##Tls
         builtin type builtin.io2.Tls
         
-  648.  -- ##Tls.Cipher
+  649.  -- ##Tls.Cipher
         builtin type builtin.io2.Tls.Cipher
         
-  649.  -- ##Tls.ClientConfig
+  650.  -- ##Tls.ClientConfig
         builtin type builtin.io2.Tls.ClientConfig
         
-  650.  -- ##Tls.ClientConfig.certificates.set
+  651.  -- ##Tls.ClientConfig.certificates.set
         builtin.io2.Tls.ClientConfig.certificates.set : [SignedCert]
         -> ClientConfig
         -> ClientConfig
         
-  651.  -- ##TLS.ClientConfig.ciphers.set
+  652.  -- ##TLS.ClientConfig.ciphers.set
         builtin.io2.TLS.ClientConfig.ciphers.set : [Cipher]
         -> ClientConfig
         -> ClientConfig
         
-  652.  -- ##Tls.ClientConfig.default
+  653.  -- ##Tls.ClientConfig.default
         builtin.io2.Tls.ClientConfig.default : Text
         -> Bytes
         -> ClientConfig
         
-  653.  -- ##Tls.ClientConfig.versions.set
+  654.  -- ##Tls.ClientConfig.versions.set
         builtin.io2.Tls.ClientConfig.versions.set : [Version]
         -> ClientConfig
         -> ClientConfig
         
-  654.  -- ##Tls.decodeCert.impl.v3
+  655.  -- ##Tls.decodeCert.impl.v3
         builtin.io2.Tls.decodeCert.impl : Bytes
         -> Either Failure SignedCert
         
-  655.  -- ##Tls.decodePrivateKey
+  656.  -- ##Tls.decodePrivateKey
         builtin.io2.Tls.decodePrivateKey : Bytes -> [PrivateKey]
         
-  656.  -- ##Tls.encodeCert
+  657.  -- ##Tls.encodeCert
         builtin.io2.Tls.encodeCert : SignedCert -> Bytes
         
-  657.  -- ##Tls.encodePrivateKey
+  658.  -- ##Tls.encodePrivateKey
         builtin.io2.Tls.encodePrivateKey : PrivateKey -> Bytes
         
-  658.  -- ##Tls.handshake.impl.v3
+  659.  -- ##Tls.handshake.impl.v3
         builtin.io2.Tls.handshake.impl : Tls
         ->{IO} Either Failure ()
         
-  659.  -- ##Tls.newClient.impl.v3
+  660.  -- ##Tls.newClient.impl.v3
         builtin.io2.Tls.newClient.impl : ClientConfig
         -> Socket
         ->{IO} Either Failure Tls
         
-  660.  -- ##Tls.newServer.impl.v3
+  661.  -- ##Tls.newServer.impl.v3
         builtin.io2.Tls.newServer.impl : ServerConfig
         -> Socket
         ->{IO} Either Failure Tls
         
-  661.  -- ##Tls.PrivateKey
+  662.  -- ##Tls.PrivateKey
         builtin type builtin.io2.Tls.PrivateKey
         
-  662.  -- ##Tls.receive.impl.v3
+  663.  -- ##Tls.receive.impl.v3
         builtin.io2.Tls.receive.impl : Tls
         ->{IO} Either Failure Bytes
         
-  663.  -- ##Tls.send.impl.v3
+  664.  -- ##Tls.send.impl.v3
         builtin.io2.Tls.send.impl : Tls
         -> Bytes
         ->{IO} Either Failure ()
         
-  664.  -- ##Tls.ServerConfig
+  665.  -- ##Tls.ServerConfig
         builtin type builtin.io2.Tls.ServerConfig
         
-  665.  -- ##Tls.ServerConfig.certificates.set
+  666.  -- ##Tls.ServerConfig.certificates.set
         builtin.io2.Tls.ServerConfig.certificates.set : [SignedCert]
         -> ServerConfig
         -> ServerConfig
         
-  666.  -- ##Tls.ServerConfig.ciphers.set
+  667.  -- ##Tls.ServerConfig.ciphers.set
         builtin.io2.Tls.ServerConfig.ciphers.set : [Cipher]
         -> ServerConfig
         -> ServerConfig
         
-  667.  -- ##Tls.ServerConfig.default
+  668.  -- ##Tls.ServerConfig.default
         builtin.io2.Tls.ServerConfig.default : [SignedCert]
         -> PrivateKey
         -> ServerConfig
         
-  668.  -- ##Tls.ServerConfig.versions.set
+  669.  -- ##Tls.ServerConfig.versions.set
         builtin.io2.Tls.ServerConfig.versions.set : [Version]
         -> ServerConfig
         -> ServerConfig
         
-  669.  -- ##Tls.SignedCert
+  670.  -- ##Tls.SignedCert
         builtin type builtin.io2.Tls.SignedCert
         
-  670.  -- ##Tls.terminate.impl.v3
+  671.  -- ##Tls.terminate.impl.v3
         builtin.io2.Tls.terminate.impl : Tls
         ->{IO} Either Failure ()
         
-  671.  -- ##Tls.Version
+  672.  -- ##Tls.Version
         builtin type builtin.io2.Tls.Version
         
-  672.  -- #r3gag1btclr8iclbdt68irgt8n1d1vf7agv5umke3dgdbl11acj6easav6gtihanrjnct18om07638rne9ej06u2bkv2v4l36knm2l0
+  673.  -- #r3gag1btclr8iclbdt68irgt8n1d1vf7agv5umke3dgdbl11acj6easav6gtihanrjnct18om07638rne9ej06u2bkv2v4l36knm2l0
         type builtin.io2.TlsFailure
         
-  673.  -- ##TVar
+  674.  -- ##TVar
         builtin type builtin.io2.TVar
         
-  674.  -- ##TVar.new
+  675.  -- ##TVar.new
         builtin.io2.TVar.new : a ->{STM} TVar a
         
-  675.  -- ##TVar.newIO
+  676.  -- ##TVar.newIO
         builtin.io2.TVar.newIO : a ->{IO} TVar a
         
-  676.  -- ##TVar.read
+  677.  -- ##TVar.read
         builtin.io2.TVar.read : TVar a ->{STM} a
         
-  677.  -- ##TVar.readIO
+  678.  -- ##TVar.readIO
         builtin.io2.TVar.readIO : TVar a ->{IO} a
         
-  678.  -- ##TVar.swap
+  679.  -- ##TVar.swap
         builtin.io2.TVar.swap : TVar a -> a ->{STM} a
         
-  679.  -- ##TVar.write
+  680.  -- ##TVar.write
         builtin.io2.TVar.write : TVar a -> a ->{STM} ()
         
-  680.  -- ##validateSandboxed
+  681.  -- ##validateSandboxed
         builtin.io2.validateSandboxed : [Link.Term]
         -> a
         -> Boolean
         
-  681.  -- ##Value.validateSandboxed
+  682.  -- ##Value.validateSandboxed
         builtin.io2.Value.validateSandboxed : [Link.Term]
         -> Value
         ->{IO} Either [Link.Term] [Link.Term]
         
-  682.  -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8
+  683.  -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8
         type builtin.IsPropagated
         
-  683.  -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8#0
+  684.  -- #c23jofurcegj93796o0karmkcm6baifupiuu1rtkniu74avn6a4r1n66ga5rml5di7easkgn4iak800u3tnb6kfisbrv6tcfgkb13a8#0
         builtin.IsPropagated.IsPropagated : IsPropagated
         
-  684.  -- #q6snodsh7i7u6k7gtqj73tt7nv6htjofs5f37vg2v3dsfk6hau71fs5mcv0hq3lqg111fsvoi92mngm08850aftfgh65uka9mhqvft0
+  685.  -- #q6snodsh7i7u6k7gtqj73tt7nv6htjofs5f37vg2v3dsfk6hau71fs5mcv0hq3lqg111fsvoi92mngm08850aftfgh65uka9mhqvft0
         type builtin.IsTest
         
-  685.  -- #q6snodsh7i7u6k7gtqj73tt7nv6htjofs5f37vg2v3dsfk6hau71fs5mcv0hq3lqg111fsvoi92mngm08850aftfgh65uka9mhqvft0#0
+  686.  -- #q6snodsh7i7u6k7gtqj73tt7nv6htjofs5f37vg2v3dsfk6hau71fs5mcv0hq3lqg111fsvoi92mngm08850aftfgh65uka9mhqvft0#0
         builtin.IsTest.IsTest : IsTest
         
-  686.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo
+  687.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo
         type builtin.Json
         
-  687.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#5
+  688.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#5
         builtin.Json.Array : [Json] -> Json
         
-  688.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#1
+  689.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#1
         builtin.Json.Boolean : Boolean -> Json
         
-  689.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#0
+  690.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#0
         builtin.Json.Null : Json
         
-  690.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#3
+  691.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#3
         builtin.Json.Number.Unparsed : Text -> Json
         
-  691.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#2
+  692.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#2
         builtin.Json.Object : [(Text, Json)] -> Json
         
-  692.  -- #7ndh8qr2jn3b0b4ps8pa85hm0ts3kmuvrmhne87ka0q61i4u3pvafjoetjel4s66s2sji1hp81jnbih5812hbfe3if6fc4ndnouitl8
+  693.  -- #7ndh8qr2jn3b0b4ps8pa85hm0ts3kmuvrmhne87ka0q61i4u3pvafjoetjel4s66s2sji1hp81jnbih5812hbfe3if6fc4ndnouitl8
         type builtin.Json.ParseError
         
-  693.  -- #7ndh8qr2jn3b0b4ps8pa85hm0ts3kmuvrmhne87ka0q61i4u3pvafjoetjel4s66s2sji1hp81jnbih5812hbfe3if6fc4ndnouitl8#0
+  694.  -- #7ndh8qr2jn3b0b4ps8pa85hm0ts3kmuvrmhne87ka0q61i4u3pvafjoetjel4s66s2sji1hp81jnbih5812hbfe3if6fc4ndnouitl8#0
         builtin.Json.ParseError.ParseError : Text
         -> Nat
         -> Text
         -> ParseError
         
-  694.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#4
+  695.  -- #j0uel16uheg3tdbj87msfh1isek2ml1262o562sjqpup6uh4gncgpg588u3nmdclbv8tu0c7e0943t0paud4f28dr4a9scfq2v12fpo#4
         builtin.Json.Text : Text -> Json
         
-  695.  -- #68haromionghg6cvojngjrgc7t0ob658nkk8b20fpho6k6ltjtf6rfmr4ia1omige97hk34lu21qsj933vl1dkpbna7evbjfkh71r9g
+  696.  -- #68haromionghg6cvojngjrgc7t0ob658nkk8b20fpho6k6ltjtf6rfmr4ia1omige97hk34lu21qsj933vl1dkpbna7evbjfkh71r9g
         type builtin.License
         
-  696.  -- #knhl4mlkqf0mt877flahlbas2ufb7bub8f11vi9ihh9uf7r6jqaglk7rm6912q1vml50866ddl0qfa4o6d7o0gomchaoae24m0u2nk8
+  697.  -- #knhl4mlkqf0mt877flahlbas2ufb7bub8f11vi9ihh9uf7r6jqaglk7rm6912q1vml50866ddl0qfa4o6d7o0gomchaoae24m0u2nk8
         builtin.License.copyrightHolders : License
         -> [CopyrightHolder]
         
-  697.  -- #ucpi54l843bf1osaejl1cnn0jt3o89fak5c0120k8256in3m80ik836hnite0osl12m91utnpnt5n7pgm3oe1rv4r1hk8ai4033agvo
+  698.  -- #ucpi54l843bf1osaejl1cnn0jt3o89fak5c0120k8256in3m80ik836hnite0osl12m91utnpnt5n7pgm3oe1rv4r1hk8ai4033agvo
         builtin.License.copyrightHolders.modify : ([CopyrightHolder]
         ->{g} [CopyrightHolder])
         -> License
         ->{g} License
         
-  698.  -- #9hbbfn61d2odn8jvtj5da9n1e9decsrheg6chg73uf94oituv3750b9hd6vp3ljhi54dkp5uqfg57j66i39bstfd8ivgav4p3si39ro
+  699.  -- #9hbbfn61d2odn8jvtj5da9n1e9decsrheg6chg73uf94oituv3750b9hd6vp3ljhi54dkp5uqfg57j66i39bstfd8ivgav4p3si39ro
         builtin.License.copyrightHolders.set : [CopyrightHolder]
         -> License
         -> License
         
-  699.  -- #68haromionghg6cvojngjrgc7t0ob658nkk8b20fpho6k6ltjtf6rfmr4ia1omige97hk34lu21qsj933vl1dkpbna7evbjfkh71r9g#0
+  700.  -- #68haromionghg6cvojngjrgc7t0ob658nkk8b20fpho6k6ltjtf6rfmr4ia1omige97hk34lu21qsj933vl1dkpbna7evbjfkh71r9g#0
         builtin.License.License : [CopyrightHolder]
         -> [Year]
         -> LicenseType
         -> License
         
-  700.  -- #aqi4h1bfq2rjnrrfanf4nut8jd1elkkc00u1tn0rmt9ocsrds8i8pha7q9cihvbiq7edpg21iqnfornimae2gad0ab8ih0bksjnoi4g
+  701.  -- #aqi4h1bfq2rjnrrfanf4nut8jd1elkkc00u1tn0rmt9ocsrds8i8pha7q9cihvbiq7edpg21iqnfornimae2gad0ab8ih0bksjnoi4g
         builtin.License.licenseType : License -> LicenseType
         
-  701.  -- #1rm8kpbv278t9tqj4jfssl8q3cn4hgu1mti7bp8lhcr5h7qmojujmt9de4c31p42to8mtav61u98oad3oen8q9im20sacs69psjpugo
+  702.  -- #1rm8kpbv278t9tqj4jfssl8q3cn4hgu1mti7bp8lhcr5h7qmojujmt9de4c31p42to8mtav61u98oad3oen8q9im20sacs69psjpugo
         builtin.License.licenseType.modify : (LicenseType
         ->{g} LicenseType)
         -> License
         ->{g} License
         
-  702.  -- #dv9jsg0ksrlp3g0uftvkutpa8matt039o7dhat9airnkto2b703mgoi5t412hdi95pdhp9g01luga13ihmp52nk6bgh788gts6elv2o
+  703.  -- #dv9jsg0ksrlp3g0uftvkutpa8matt039o7dhat9airnkto2b703mgoi5t412hdi95pdhp9g01luga13ihmp52nk6bgh788gts6elv2o
         builtin.License.licenseType.set : LicenseType
         -> License
         -> License
         
-  703.  -- #fh5qbeba2hg5c5k9uppi71rfghj8df37p4cg3hk23b9pv0hpm67ok807f05t368rn6v99v7kvf7cp984v8ipkjr1j1h095g6nd9jtig
+  704.  -- #fh5qbeba2hg5c5k9uppi71rfghj8df37p4cg3hk23b9pv0hpm67ok807f05t368rn6v99v7kvf7cp984v8ipkjr1j1h095g6nd9jtig
         builtin.License.years : License -> [Year]
         
-  704.  -- #2samr066hti71pf0fkvb4niemm7j3amvaap3sk1dqpihqp9g8f8lknhhmjq9atai6j5kcs4huvfokvpm15ebefmfggr4hd2cetf7co0
+  705.  -- #2samr066hti71pf0fkvb4niemm7j3amvaap3sk1dqpihqp9g8f8lknhhmjq9atai6j5kcs4huvfokvpm15ebefmfggr4hd2cetf7co0
         builtin.License.years.modify : ([Year] ->{g} [Year])
         -> License
         ->{g} License
         
-  705.  -- #g3ap8lg6974au4meb2hl49k1k6f048det9uckmics3bkt9s571921ksqfdsch63k2pk3fij8pn697svniakkrueddh8nkflnmjk9ffo
+  706.  -- #g3ap8lg6974au4meb2hl49k1k6f048det9uckmics3bkt9s571921ksqfdsch63k2pk3fij8pn697svniakkrueddh8nkflnmjk9ffo
         builtin.License.years.set : [Year] -> License -> License
         
-  706.  -- #uj652rrb45urfnojgt1ssqoji7iiibu27uhrc1sfl68lm54hbr7r1dpgppsv0pvf0oile2uk2h2gn1h4vgng30fga66idihhen14qc0
+  707.  -- #uj652rrb45urfnojgt1ssqoji7iiibu27uhrc1sfl68lm54hbr7r1dpgppsv0pvf0oile2uk2h2gn1h4vgng30fga66idihhen14qc0
         type builtin.LicenseType
         
-  707.  -- #uj652rrb45urfnojgt1ssqoji7iiibu27uhrc1sfl68lm54hbr7r1dpgppsv0pvf0oile2uk2h2gn1h4vgng30fga66idihhen14qc0#0
+  708.  -- #uj652rrb45urfnojgt1ssqoji7iiibu27uhrc1sfl68lm54hbr7r1dpgppsv0pvf0oile2uk2h2gn1h4vgng30fga66idihhen14qc0#0
         builtin.LicenseType.LicenseType : Doc -> LicenseType
         
-  708.  -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0
+  709.  -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0
         type builtin.Link
         
-  709.  -- ##Link.Term
+  710.  -- ##Link.Term
         builtin type builtin.Link.Term
         
-  710.  -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0#0
+  711.  -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0#0
         builtin.Link.Term : Link.Term -> Link
         
-  711.  -- ##Link.Term.toText
+  712.  -- ##Link.Term.toText
         builtin.Link.Term.toText : Link.Term -> Text
         
-  712.  -- ##Link.Type
+  713.  -- ##Link.Type
         builtin type builtin.Link.Type
         
-  713.  -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0#1
+  714.  -- #f4b37niu61dc517c32h3os36ig34fgnt7inaaoqdbecmscchthi14gdo0vj3eee1ru746ibvl9vnmm1pglrv3125qnhsbc0i1tqtic0#1
         builtin.Link.Type : Type -> Link
         
-  714.  -- ##Sequence
+  715.  -- ##Sequence
         builtin type builtin.List
         
-  715.  -- ##List.++
+  716.  -- ##List.++
         builtin.List.++ : [a] -> [a] -> [a]
         
-  716.  -- ##List.cons
+  717.  -- ##List.cons
         builtin.List.+:, builtin.List.cons : a -> [a] -> [a]
         
-  717.  -- ##List.snoc
+  718.  -- ##List.snoc
         builtin.List.:+, builtin.List.snoc : [a] -> a -> [a]
         
-  718.  -- ##List.at
+  719.  -- ##List.at
         builtin.List.at : Nat -> [a] -> Optional a
         
-  719.  -- ##List.cons
+  720.  -- ##List.cons
         builtin.List.cons, builtin.List.+: : a -> [a] -> [a]
         
-  720.  -- ##List.drop
+  721.  -- ##List.drop
         builtin.List.drop : Nat -> [a] -> [a]
         
-  721.  -- ##List.empty
+  722.  -- ##List.empty
         builtin.List.empty : [a]
         
-  722.  -- #6frvp5jfjtt7odi9769i0p5phuuuij1fi1d9l5ncpelh416ab3vceaphhaijh0ct0v9n793j7e4h78687oij6ai97085u63m264gj5o
+  723.  -- #6frvp5jfjtt7odi9769i0p5phuuuij1fi1d9l5ncpelh416ab3vceaphhaijh0ct0v9n793j7e4h78687oij6ai97085u63m264gj5o
         builtin.List.map : (a ->{e} b) -> [a] ->{e} [b]
         
-  723.  -- ##List.size
+  724.  -- ##List.size
         builtin.List.size : [a] -> Nat
         
-  724.  -- ##List.snoc
+  725.  -- ##List.snoc
         builtin.List.snoc, builtin.List.:+ : [a] -> a -> [a]
         
-  725.  -- ##List.take
+  726.  -- ##List.take
         builtin.List.take : Nat -> [a] -> [a]
         
-  726.  -- ##ListenSocket
+  727.  -- ##ListenSocket
         builtin type builtin.ListenSocket
         
-  727.  -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg
+  728.  -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg
         type builtin.Map k v
         type Map k v
         
-  728.  -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg#0
+  729.  -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg#0
         builtin.Map.Bin,
         Map.Bin : Nat
         -> k
@@ -2635,19 +2638,19 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Map k v
         -> Map k v
         
-  729.  -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg#1
+  730.  -- #nk9jfsoidsc5h3nhcf1p6528t6c5hqui3hridbvaqnruel4jns3qo6plgups2sgi82c9jgt9ba1qlkum1bdjdgp75h7si2thbo7tcfg#1
         builtin.Map.Tip, Map.Tip : Map k v
         
-  730.  -- #cb9e3iosob3e4q0v96ifmserg27samv1lvi4dh0l0l19phvct4vbbvv19abngneb77b02h8cefr1o3ad8gnm3cn6mjgsub97gjlte8g
+  731.  -- #cb9e3iosob3e4q0v96ifmserg27samv1lvi4dh0l0l19phvct4vbbvv19abngneb77b02h8cefr1o3ad8gnm3cn6mjgsub97gjlte8g
         builtin.metadata.isPropagated : IsPropagated
         
-  731.  -- #lkpne3jg56pmqegv4jba6b5nnjg86qtfllnlmtvijql5lsf89rfu6tgb1s9ic0gsqs5si0v9agmj90lk0bhihbovd5o5ve023g4ocko
+  732.  -- #lkpne3jg56pmqegv4jba6b5nnjg86qtfllnlmtvijql5lsf89rfu6tgb1s9ic0gsqs5si0v9agmj90lk0bhihbovd5o5ve023g4ocko
         builtin.metadata.isTest : IsTest
         
-  732.  -- ##MutableArray
+  733.  -- ##MutableArray
         builtin type builtin.MutableArray
         
-  733.  -- ##MutableArray.copyTo!
+  734.  -- ##MutableArray.copyTo!
         builtin.MutableArray.copyTo! : MutableArray g a
         -> Nat
         -> MutableArray g a
@@ -2655,34 +2658,34 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Nat
         ->{g, Exception} ()
         
-  734.  -- ##MutableArray.freeze
+  735.  -- ##MutableArray.freeze
         builtin.MutableArray.freeze : MutableArray g a
         -> Nat
         -> Nat
         ->{g} ImmutableArray a
         
-  735.  -- ##MutableArray.freeze!
+  736.  -- ##MutableArray.freeze!
         builtin.MutableArray.freeze! : MutableArray g a
         ->{g} ImmutableArray a
         
-  736.  -- ##MutableArray.read
+  737.  -- ##MutableArray.read
         builtin.MutableArray.read : MutableArray g a
         -> Nat
         ->{g, Exception} a
         
-  737.  -- ##MutableArray.size
+  738.  -- ##MutableArray.size
         builtin.MutableArray.size : MutableArray g a -> Nat
         
-  738.  -- ##MutableArray.write
+  739.  -- ##MutableArray.write
         builtin.MutableArray.write : MutableArray g a
         -> Nat
         -> a
         ->{g, Exception} ()
         
-  739.  -- ##MutableByteArray
+  740.  -- ##MutableByteArray
         builtin type builtin.MutableByteArray
         
-  740.  -- ##MutableByteArray.copyTo!
+  741.  -- ##MutableByteArray.copyTo!
         builtin.MutableByteArray.copyTo! : MutableByteArray g
         -> Nat
         -> MutableByteArray g
@@ -2690,206 +2693,203 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Nat
         ->{g, Exception} ()
         
-  741.  -- ##MutableByteArray.freeze
+  742.  -- ##MutableByteArray.freeze
         builtin.MutableByteArray.freeze : MutableByteArray g
         -> Nat
         -> Nat
         ->{g} ImmutableByteArray
         
-  742.  -- ##MutableByteArray.freeze!
+  743.  -- ##MutableByteArray.freeze!
         builtin.MutableByteArray.freeze! : MutableByteArray g
         ->{g} ImmutableByteArray
         
-  743.  -- ##MutableByteArray.read16be
+  744.  -- ##MutableByteArray.read16be
         builtin.MutableByteArray.read16be : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  744.  -- ##MutableByteArray.read16le
+  745.  -- ##MutableByteArray.read16le
         builtin.MutableByteArray.read16le : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  745.  -- ##MutableByteArray.read24be
+  746.  -- ##MutableByteArray.read24be
         builtin.MutableByteArray.read24be : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  746.  -- ##MutableByteArray.read24le
+  747.  -- ##MutableByteArray.read24le
         builtin.MutableByteArray.read24le : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  747.  -- ##MutableByteArray.read32be
+  748.  -- ##MutableByteArray.read32be
         builtin.MutableByteArray.read32be : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  748.  -- ##MutableByteArray.read32le
+  749.  -- ##MutableByteArray.read32le
         builtin.MutableByteArray.read32le : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  749.  -- ##MutableByteArray.read40be
+  750.  -- ##MutableByteArray.read40be
         builtin.MutableByteArray.read40be : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  750.  -- ##MutableByteArray.read40le
+  751.  -- ##MutableByteArray.read40le
         builtin.MutableByteArray.read40le : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  751.  -- ##MutableByteArray.read64be
+  752.  -- ##MutableByteArray.read64be
         builtin.MutableByteArray.read64be : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  752.  -- ##MutableByteArray.read64le
+  753.  -- ##MutableByteArray.read64le
         builtin.MutableByteArray.read64le : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  753.  -- ##MutableByteArray.read8
+  754.  -- ##MutableByteArray.read8
         builtin.MutableByteArray.read8 : MutableByteArray g
         -> Nat
         ->{g, Exception} Nat
         
-  754.  -- ##MutableByteArray.size
+  755.  -- ##MutableByteArray.size
         builtin.MutableByteArray.size : MutableByteArray g
         -> Nat
         
-  755.  -- ##MutableByteArray.write16be
+  756.  -- ##MutableByteArray.write16be
         builtin.MutableByteArray.write16be : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  756.  -- ##MutableByteArray.write16le
+  757.  -- ##MutableByteArray.write16le
         builtin.MutableByteArray.write16le : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  757.  -- ##MutableByteArray.write32be
+  758.  -- ##MutableByteArray.write32be
         builtin.MutableByteArray.write32be : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  758.  -- ##MutableByteArray.write32le
+  759.  -- ##MutableByteArray.write32le
         builtin.MutableByteArray.write32le : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  759.  -- ##MutableByteArray.write64be
+  760.  -- ##MutableByteArray.write64be
         builtin.MutableByteArray.write64be : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  760.  -- ##MutableByteArray.write64le
+  761.  -- ##MutableByteArray.write64le
         builtin.MutableByteArray.write64le : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  761.  -- ##MutableByteArray.write8
+  762.  -- ##MutableByteArray.write8
         builtin.MutableByteArray.write8 : MutableByteArray g
         -> Nat
         -> Nat
         ->{g, Exception} ()
         
-  762.  -- ##Nat
+  763.  -- ##Nat
         builtin type builtin.Nat
         
-  763.  -- ##Nat.*
+  764.  -- ##Nat.*
         builtin.Nat.* : Nat -> Nat -> Nat
         
-  764.  -- ##Nat.+
+  765.  -- ##Nat.+
         builtin.Nat.+ : Nat -> Nat -> Nat
         
-  765.  -- ##Nat./
+  766.  -- ##Nat./
         builtin.Nat./ : Nat -> Nat -> Nat
         
-  766.  -- ##Nat.and
+  767.  -- ##Nat.and
         builtin.Nat.and : Nat -> Nat -> Nat
         
-  767.  -- ##Nat.complement
+  768.  -- ##Nat.complement
         builtin.Nat.complement : Nat -> Nat
         
-  768.  -- ##Nat.drop
+  769.  -- ##Nat.drop
         builtin.Nat.drop : Nat -> Nat -> Nat
         
-  769.  -- ##Nat.==
+  770.  -- ##Nat.==
         builtin.Nat.eq : Nat -> Nat -> Boolean
         
-  770.  -- ##Nat.fromText
+  771.  -- ##Nat.fromText
         builtin.Nat.fromText : Text -> Optional Nat
         
-  771.  -- ##Nat.>
+  772.  -- ##Nat.>
         builtin.Nat.gt : Nat -> Nat -> Boolean
         
-  772.  -- ##Nat.>=
+  773.  -- ##Nat.>=
         builtin.Nat.gteq : Nat -> Nat -> Boolean
         
-  773.  -- ##Nat.increment
+  774.  -- ##Nat.increment
         builtin.Nat.increment : Nat -> Nat
         
-  774.  -- ##Nat.isEven
+  775.  -- ##Nat.isEven
         builtin.Nat.isEven : Nat -> Boolean
         
-  775.  -- ##Nat.isOdd
+  776.  -- ##Nat.isOdd
         builtin.Nat.isOdd : Nat -> Boolean
         
-  776.  -- ##Nat.leadingZeros
+  777.  -- ##Nat.leadingZeros
         builtin.Nat.leadingZeros : Nat -> Nat
         
-  777.  -- ##Nat.<
+  778.  -- ##Nat.<
         builtin.Nat.lt : Nat -> Nat -> Boolean
         
-  778.  -- ##Nat.<=
+  779.  -- ##Nat.<=
         builtin.Nat.lteq : Nat -> Nat -> Boolean
         
-  779.  -- ##Nat.mod
+  780.  -- ##Nat.mod
         builtin.Nat.mod : Nat -> Nat -> Nat
         
-  780.  -- ##Nat.or
+  781.  -- ##Nat.or
         builtin.Nat.or : Nat -> Nat -> Nat
         
-  781.  -- ##Nat.popCount
+  782.  -- ##Nat.popCount
         builtin.Nat.popCount : Nat -> Nat
         
-  782.  -- ##Nat.pow
+  783.  -- ##Nat.pow
         builtin.Nat.pow : Nat -> Nat -> Nat
         
-  783.  -- ##Nat.shiftLeft
+  784.  -- ##Nat.shiftLeft
         builtin.Nat.shiftLeft : Nat -> Nat -> Nat
         
-  784.  -- ##Nat.shiftRight
+  785.  -- ##Nat.shiftRight
         builtin.Nat.shiftRight : Nat -> Nat -> Nat
         
-  785.  -- ##Nat.sub
+  786.  -- ##Nat.sub
         builtin.Nat.sub : Nat -> Nat -> Int
         
-  786.  -- ##Nat.toFloat
+  787.  -- ##Nat.toFloat
         builtin.Nat.toFloat : Nat -> Float
         
-  787.  -- ##Nat.toInt
+  788.  -- ##Nat.toInt
         builtin.Nat.toInt : Nat -> Int
         
-  788.  -- ##Nat.toText
+  789.  -- ##Nat.toText
         builtin.Nat.toText : Nat -> Text
         
-  789.  -- ##Nat.trailingZeros
+  790.  -- ##Nat.trailingZeros
         builtin.Nat.trailingZeros : Nat -> Nat
         
-  790.  -- ##Nat.xor
+  791.  -- ##Nat.xor
         builtin.Nat.xor : Nat -> Nat -> Nat
-        
-  791.  -- ##Natural
-        builtin type builtin.Natural
         
   792.  -- #nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg
         structural type builtin.Optional a
