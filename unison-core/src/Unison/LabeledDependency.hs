@@ -1,5 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Unison.LabeledDependency
   ( derivedTerm,
     derivedType,
@@ -21,7 +19,7 @@ import Data.Set qualified as Set
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorType (ConstructorType (Data, Effect))
 import Unison.Prelude hiding (fold)
-import Unison.Reference (Id, Reference, Reference' (DerivedId))
+import Unison.Reference (Reference, Reference' (DerivedId), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 
@@ -41,16 +39,16 @@ pattern TermReference ref = TermReferent (Referent.Ref ref)
 
 {-# COMPLETE ConReference, TermReference, TypeReference #-}
 
-derivedType :: Id -> LabeledDependency
+derivedType :: TypeReferenceId -> LabeledDependency
 derivedType = TypeReference . DerivedId
 
-derivedTerm :: Id -> LabeledDependency
+derivedTerm :: TermReferenceId -> LabeledDependency
 derivedTerm = TermReference . DerivedId
 
-typeRef :: Reference -> LabeledDependency
+typeRef :: TypeReference -> LabeledDependency
 typeRef = TypeReference
 
-termRef :: Reference -> LabeledDependency
+termRef :: TermReference -> LabeledDependency
 termRef = TermReference
 
 referent :: Referent -> LabeledDependency

@@ -5,6 +5,7 @@ module Unison.Merge.CombineDiffs
   )
 where
 
+import Control.DeepSeq (NFData)
 import Data.Semialign (alignWith)
 import Data.These (These (..))
 import Unison.Merge.DiffOp (DiffOp (..))
@@ -15,12 +16,14 @@ import Unison.Merge.TwoDiffOps (TwoDiffOps (..))
 import Unison.Merge.TwoDiffOps qualified as TwoDiffOps
 import Unison.Merge.TwoWay (TwoWay (..), twoWay)
 import Unison.Merge.TwoWay qualified as TwoWay
-import Unison.Merge.Updated (Updated (..))
+import Unison.Merge.Updated (GUpdated (..), Updated)
+import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Util.Defns (DefnsF2, DefnsF3)
+import Prelude hiding (map)
 
 -- | The combined result of two diffs on the same thing.
 data CombinedDiffOp a
@@ -29,7 +32,8 @@ data CombinedDiffOp a
   | CombinedDiffOp'Update !(EitherWayI (Updated a))
   | -- An add-add or an update-update conflict. We don't consider update-delete a conflict; the delete gets ignored.
     CombinedDiffOp'Conflict !(TwoWay a)
-  deriving stock (Functor, Show)
+  deriving stock (Generic, Show)
+  deriving anyclass (NFData)
 
 -- | Combine LCA->Alice diff and LCA->Bob diff.
 combineDiffs ::
@@ -42,7 +46,7 @@ combineDiffs =
 
 combine :: These (DiffOp (Synhashed a)) (DiffOp (Synhashed a)) -> CombinedDiffOp a
 combine =
-  TwoDiffOps.make >>> combine1 >>> fmap (view #value)
+  TwoDiffOps.make >>> combine1 >>> map (view #value)
 
 combine1 :: (Eq a) => TwoDiffOps a -> CombinedDiffOp a
 combine1 = \case
@@ -60,6 +64,13 @@ combine1 = \case
   TwoDiffOps'UpdateUpdate old new
     | new.alice /= new.bob -> CombinedDiffOp'Conflict new
     | otherwise -> CombinedDiffOp'Update (AliceAndBob Updated {old, new = new.alice})
+
+map :: (a -> b) -> CombinedDiffOp a -> CombinedDiffOp b
+map f = \case
+  CombinedDiffOp'Add x -> CombinedDiffOp'Add (fmap f x)
+  CombinedDiffOp'Delete x -> CombinedDiffOp'Delete (fmap f x)
+  CombinedDiffOp'Update x -> CombinedDiffOp'Update (fmap (Updated.map f) x)
+  CombinedDiffOp'Conflict x -> CombinedDiffOp'Conflict (fmap f x)
 
 xor2ior :: EitherWay a -> EitherWayI a
 xor2ior = \case

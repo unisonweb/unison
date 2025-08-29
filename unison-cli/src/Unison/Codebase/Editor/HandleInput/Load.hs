@@ -52,9 +52,7 @@ import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -99,7 +97,7 @@ loadUnisonFile sourceName text = do
   unisonFile <- parseAndTypecheckUnisonFile oldNames sourceName text
   let unisonFileNames = UF.typecheckedToNames unisonFile
   let newNames = UF.addNamesFromTypeCheckedUnisonFile unisonFile oldNames
-  let newPpe = PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
+  let newPpe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
   pp <- Cli.getCurrentProjectPath
 
   maybeUpdateBranchParentCausalHash <-
@@ -139,7 +137,7 @@ loadUnisonFile sourceName text = do
             getTermAliases oldNames.terms slurpEntries.terms
 
       let oldPpe =
-            PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
+            PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
 
       Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
     Just updateBranchParentCausalHash -> do
@@ -172,7 +170,7 @@ loadUnisonFile sourceName text = do
             getTermAliases updateBranchParentNames.terms slurpEntries.terms
 
       let oldPpe =
-            PPE.suffixifiedPPE $
+            PPED.suffixifiedPPE $
               PPED.makePPED
                 (PPE.hqNamer 10 updateBranchParentNames)
                 (PPE.suffixifyByHash updateBranchParentNames)

@@ -119,7 +119,6 @@ library
       Unison.PrettyPrintEnv.Names
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
-      Unison.PrettyPrintEnvDecl.Names
       Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
@@ -141,6 +140,7 @@ library
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
+      Unison.UnconflictedLocalDefnsView
       Unison.UnisonFile
       Unison.UnisonFile.Env
       Unison.UnisonFile.Names

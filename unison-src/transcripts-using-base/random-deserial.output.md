@@ -113,8 +113,11 @@ serialTests = do
                      ◉ case-04 v3
                      ◉ case-04 v4
                      ◉ case-04 v5
+                     ◉ case-05 v3
+                     ◉ case-05 v4
+                     ◉ case-05 v5
 
-  ✅ 15 test(s) passing
+  ✅ 18 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

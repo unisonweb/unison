@@ -1,7 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.PrettyPrintEnvDecl
   ( PrettyPrintEnvDecl (..),
+    makePPED,
     biasTo,
     empty,
     addFallback,
@@ -12,6 +11,7 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (empty)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
@@ -26,6 +26,13 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
     suffixifiedPPE :: PrettyPrintEnv
   }
   deriving stock (Generic, Show)
+
+makePPED :: PPE.Namer -> PPE.Suffixifier -> PrettyPrintEnvDecl
+makePPED namer suffixifier =
+  PrettyPrintEnvDecl
+    { unsuffixifiedPPE = PPE.makePPE namer PPE.dontSuffixify,
+      suffixifiedPPE = PPE.makePPE namer suffixifier
+    }
 
 -- | Lifts 'biasTo' over a PrettyPrintEnvDecl
 biasTo :: [Name] -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl

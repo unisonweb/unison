@@ -16,7 +16,6 @@ import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Server.Backend qualified as Backend
 
 handleLs :: Path' -> Cli ()

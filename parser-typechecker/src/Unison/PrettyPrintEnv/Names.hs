@@ -28,7 +28,7 @@ import Unison.Names qualified as Names
 import Unison.Names.ResolvesTo (ResolvesTo (..))
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv (PrettyPrintEnv))
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.Util.Relation (Relation)
@@ -77,30 +77,36 @@ dontSuffixify =
 
 suffixifyByName :: Names -> Suffixifier
 suffixifyByName names =
-  Suffixifier
-    { suffixifyTerm = \name -> Name.suffixifyByName name (Names.terms names),
-      suffixifyType = \name -> Name.suffixifyByName name (Names.types names)
-    }
+  let terms = Names.terms names
+      types = Names.types names
+   in Suffixifier
+        { suffixifyTerm = (`Name.suffixifyByName` terms),
+          suffixifyType = (`Name.suffixifyByName` types)
+        }
 
 suffixifyByHash :: Names -> Suffixifier
 suffixifyByHash names =
-  Suffixifier
-    { suffixifyTerm = \name -> Name.suffixifyByHash name (Names.terms names),
-      suffixifyType = \name -> Name.suffixifyByHash name (Names.types names)
-    }
+  let terms = Names.terms names
+      types = Names.types names
+   in Suffixifier
+        { suffixifyTerm = (`Name.suffixifyByHash` terms),
+          suffixifyType = (`Name.suffixifyByHash` types)
+        }
 
 suffixifyByHashName :: Names -> Suffixifier
 suffixifyByHashName names =
-  Suffixifier
-    { suffixifyTerm = \name -> Name.suffixifyByHashName name (Names.terms names),
-      suffixifyType = \name -> Name.suffixifyByHashName name (Names.types names)
-    }
+  let terms = Names.terms names
+      types = Names.types names
+   in Suffixifier
+        { suffixifyTerm = (`Name.suffixifyByHashName` terms),
+          suffixifyType = (`Name.suffixifyByHashName` types)
+        }
 
 suffixifyByHashWithUnhashedTermsInScope :: Set Name -> Names -> Suffixifier
 suffixifyByHashWithUnhashedTermsInScope localTermNames namespaceNames =
   Suffixifier
-    { suffixifyTerm = \name -> Name.suffixifyByHash name terms,
-      suffixifyType = \name -> Name.suffixifyByHash name (Names.types namespaceNames)
+    { suffixifyTerm = (`Name.suffixifyByHash` terms),
+      suffixifyType = (`Name.suffixifyByHash` types)
     }
   where
     terms :: Relation Name (ResolvesTo Referent)
@@ -110,14 +116,19 @@ suffixifyByHashWithUnhashedTermsInScope localTermNames namespaceNames =
         & Relation.mapRan ResolvesToNamespace
         & Relation.union (Relation.fromList (map (\name -> (name, ResolvesToLocal name)) (Set.toList localTermNames)))
 
+    types :: Relation Name TypeReference
+    types =
+      Names.types namespaceNames
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Pretty-print env
 
 makePPE :: Namer -> Suffixifier -> PrettyPrintEnv
 makePPE namer suffixifier =
   PrettyPrintEnv
-    (makeTermNames namer suffixifier)
-    (makeTypeNames namer suffixifier)
+    { termNames = makeTermNames namer suffixifier,
+      typeNames = makeTypeNames namer suffixifier
+    }
 
 makeTermNames :: Namer -> Suffixifier -> Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
 makeTermNames Namer {nameTerm} Suffixifier {suffixifyTerm} =

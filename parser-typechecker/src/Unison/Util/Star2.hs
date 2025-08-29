@@ -5,6 +5,7 @@ module Unison.Util.Star2
     fact,
     insertD1,
     insertD2,
+    isEmpty,
     deleteD1,
     deleteD2,
     deleteFact,
@@ -12,6 +13,7 @@ module Unison.Util.Star2
     d1,
     d2,
     difference,
+    Unison.Util.Star2.empty,
     lookupD1,
     mapD2,
     memberD1,
@@ -84,6 +86,10 @@ deleteD1 x s =
         d1'
         d2'
 
+empty :: Star2 fact d1 d2
+empty =
+  Star2 Set.empty R.empty R.empty
+
 lookupD1 :: (Ord fact, Ord d1) => d1 -> Star2 fact d1 d2 -> Set fact
 lookupD1 x s = R.lookupRan x (d1 s)
 
@@ -108,6 +114,10 @@ insertD2 (f, x) s =
     { fact = Set.insert f (fact s),
       d2 = R.insert f x (d2 s)
     }
+
+isEmpty :: Star2 fact d1 d2 -> Bool
+isEmpty =
+  Set.null . fact
 
 memberD1 :: (Ord fact, Ord d1) => (fact, d1) -> Star2 fact d1 d2 -> Bool
 memberD1 (f, x) s = R.member f x (d1 s)

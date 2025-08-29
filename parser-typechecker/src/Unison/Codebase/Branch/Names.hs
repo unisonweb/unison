@@ -11,7 +11,6 @@ import Unison.Names (Names (..))
 import Unison.NamesWithHistory qualified as Names
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Util.Relation qualified as R
 import Prelude hiding (head, read, subtract)
 
