@@ -173,7 +173,7 @@ data EvalCtx = ECtx
     floatRemap :: Remapping CodebaseReference FloatedReference,
     intermedRemap :: Remapping FloatedReference IntermediateReference,
     decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol)),
-    ccache :: CCache
+    ccache :: CCache ()
   }
 
 uncurryDspec :: DataSpec -> Map.Map ConstructorReference Int
@@ -181,7 +181,7 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
     f (r, l) = zipWith (\n c -> (ConstructorReference r n, c)) [0 ..] $ either id id l
 
-cacheContext :: CCache -> EvalCtx
+cacheContext :: CCache () -> EvalCtx
 cacheContext =
   ECtx builtinDataSpec mempty mempty
     . Map.fromList
@@ -807,12 +807,16 @@ evalInContext ppe ctx prof activeThreads w = do
   result <-
     traverse (const $ readIORef r)
       <=< tryJust prettyError
-      $ apply0 (Just hook) ((ccache ctx) {tracer = debugText, profiler = prof}) activeThreads w
+      $ case prof of
+          Nothing ->
+            apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
+          Just pc ->
+            apply0 (Just hook) ((ccache ctx) {tracer = debugText, profiler = pc}) activeThreads w
   pure $ finish result
 
 executeMainComb ::
   CombIx ->
-  CCache ->
+  CCache () ->
   IO (Either (Pretty ColorText) ())
 executeMainComb init cc = do
   rSection <- resolveSection cc $ Ins (Pack RF.unitRef TT.unitTag ZArgs) $ Call True init init (VArg1 0)
@@ -1064,10 +1068,10 @@ tabulateErrors errs =
       : P.wrap "The following errors occured while decompiling:"
       : (listErrors errs)
 
-restoreCache :: Bool -> StoredCache -> IO CCache
+restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText Nothing
+    CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -1190,7 +1194,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sn
     restrictTyW m = restrictKeys m typeKeys
     restrictTyR m = Map.restrictKeys m typeRefs
 
-standalone :: CCache -> Word64 -> IO StoredCache
+standalone :: CCache () -> Word64 -> IO StoredCache
 standalone cc init =
   readTVarIO (combRefs cc) >>= \crs ->
     case EC.lookup init crs of
