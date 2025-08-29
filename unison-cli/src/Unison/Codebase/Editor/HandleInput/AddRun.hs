@@ -23,8 +23,7 @@ import Unison.Name (Name)
 import Unison.Parser.Ann (Ann (External))
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl qualified as PPE
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Syntax.Name qualified as Name
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -54,5 +53,4 @@ handleAddRun input resultName = do
   Cli.stepAt description (pp, doSlurpAdds adds uf)
   let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile uf currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 namesWithDefinitionsFromFile) (PPE.suffixifyByHash namesWithDefinitionsFromFile)
-  let suffixifiedPPE = PPE.suffixifiedPPE pped
-  Cli.respond $ SlurpOutput input suffixifiedPPE sr
+  Cli.respond $ SlurpOutput input pped.suffixifiedPPE sr

@@ -5,7 +5,6 @@ module Unison.Codebase.Branch.Type
     namespaceHash,
     Branch (..),
     Branch0 (asUnconflicted),
-    UnconflictedBranchView (..),
     branch0,
     terms_,
     types_,
@@ -46,18 +45,15 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
-import Unison.Names qualified as Names
-import Unison.Prelude hiding (empty)
+import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import Unison.Util.BiMultimap (BiMultimap)
-import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
+import Unison.UnconflictedLocalDefnsView qualified as UnconflictedLocalDefnsView
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..), DefnF)
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.Nametree (Nametree, unflattenNametrees)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
@@ -116,7 +112,7 @@ data Branch0 m = Branch0
             (Conflicted Name Referent)
             (Conflicted Name TypeReference)
         )
-        UnconflictedBranchView
+        UnconflictedLocalDefnsView
   }
 
 instance Eq (Branch0 m) where
@@ -125,23 +121,6 @@ instance Eq (Branch0 m) where
       && _types a == _types b
       && _children a == _children b
       && (fmap fst . _edits) a == (fmap fst . _edits) b
-
--- | A view of a branch's definition (everything outside of `lib`) that is unconflicted: each name refers to one thing.
--- The data contained within is all just different expressions of the same contents, for various use cases. The
--- intention is to use laziness to avoid recomputing data structures whenever possible.
-data UnconflictedBranchView = UnconflictedBranchView
-  { defns :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name),
-    nametree :: Nametree (DefnsF (Map NameSegment) Referent TypeReference),
-    names :: Names
-  }
-
-makeUnconflictedBranchView :: DefnsF (Map Name) Referent TypeReference -> UnconflictedBranchView
-makeUnconflictedBranchView defns0 =
-  UnconflictedBranchView
-    { defns = bimap BiMultimap.fromRange BiMultimap.fromRange defns0,
-      nametree = unflattenNametrees defns0,
-      names = Names.fromUnconflicted defns0
-    }
 
 history_ :: Iso' (Branch m) (UnwrappedBranch m)
 history_ = iso _history Branch
@@ -280,7 +259,7 @@ deriveDeepTypes branch =
 -- | Derive the 'asUnconflicted' field of a branch.
 deriveAsUnconflicted :: Branch0 m -> Branch0 m
 deriveAsUnconflicted branch =
-  branch {asUnconflicted = makeUnconflictedBranchView <$> narrowDefns defns}
+  branch {asUnconflicted = UnconflictedLocalDefnsView.fromDefns <$> narrowDefns defns}
   where
     branchWithoutLibdeps = deleteLibdeps branch
     defns =

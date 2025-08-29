@@ -1,8 +1,12 @@
 module Unison.PartialDeclNameLookup
   ( PartialDeclNameLookup (..),
+    Unison.PartialDeclNameLookup.empty,
+    expectDeclName,
+    expectConstructorNames,
   )
 where
 
+import Data.Map.Strict qualified as Map
 import Unison.Name (Name)
 import Unison.Prelude
 
@@ -13,3 +17,19 @@ data PartialDeclNameLookup = PartialDeclNameLookup
     declToConstructors :: !(Map Name [Maybe Name])
   }
   deriving stock (Generic)
+
+empty :: PartialDeclNameLookup
+empty =
+  PartialDeclNameLookup Map.empty Map.empty
+
+expectDeclName :: (HasCallStack) => PartialDeclNameLookup -> Name -> Name
+expectDeclName PartialDeclNameLookup {constructorToDecl} x =
+  case Map.lookup x constructorToDecl of
+    Nothing -> error (reportBug "E874908" ("Expected constructor name key " <> show x <> " in partial decl name lookup"))
+    Just y -> y
+
+expectConstructorNames :: (HasCallStack) => PartialDeclNameLookup -> Name -> [Maybe Name]
+expectConstructorNames PartialDeclNameLookup {declToConstructors} x =
+  case Map.lookup x declToConstructors of
+    Nothing -> error (reportBug "E800097" ("Expected decl name key " <> show x <> " in partial decl name lookup"))
+    Just y -> y

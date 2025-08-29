@@ -9,12 +9,14 @@ module Unison.Names
     conflicts,
     contains,
     difference,
+    Unison.Names.empty,
     filter,
     filterBySHs,
     filterTypes,
     fromReferenceIds,
     fromUnconflicted,
     fromUnconflictedReferenceIds,
+    fromUnconflictedRelation,
     map,
     makeAbsolute,
     makeRelative,
@@ -87,6 +89,8 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Defns qualified as Defns
 import Unison.Util.Nametree (Nametree, unflattenNametree)
@@ -111,7 +115,7 @@ instance Semigroup (Names) where
     Names (e1 <> e2) (t1 <> t2)
 
 instance Monoid (Names) where
-  mempty = Names mempty mempty
+  mempty = Unison.Names.empty
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null n.terms && R.null n.types
@@ -137,6 +141,13 @@ fromUnconflictedReferenceIds defns =
   Names
     { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId defns.terms),
       types = Relation.fromMap (Map.map Reference.fromId defns.types)
+    }
+
+fromUnconflictedRelation :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
+fromUnconflictedRelation defns =
+  Names
+    { terms = Relation.swap (BiMultimap.toRelation defns.terms),
+      types = Relation.swap (BiMultimap.toRelation defns.types)
     }
 
 map :: (Name -> Name) -> Names -> Names
@@ -470,6 +481,10 @@ difference a b =
   Names
     (R.difference a.terms b.terms)
     (R.difference a.types b.types)
+
+empty :: Names
+empty =
+  Names R.empty R.empty
 
 contains :: Names -> Reference -> Bool
 contains names =

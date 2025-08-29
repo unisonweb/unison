@@ -57,6 +57,7 @@ library
   build-depends:
       base
     , containers
+    , deepseq
     , lens
     , mtl
     , recover-rtti

@@ -236,10 +236,7 @@ checkDeclCoherencyWith loadDeclNumConstructors callbacks =
     go prefix (Nametree defns children) = do
       for_
         (Map.toList defns.terms)
-        ( checkDeclCoherencyWith_DoTerms
-            callbacks
-            prefix
-        )
+        (checkDeclCoherencyWith_DoTerms callbacks prefix)
       childrenWeWentInto <-
         forMaybe
           (Map.toList defns.types)

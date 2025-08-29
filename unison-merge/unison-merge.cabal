@@ -20,21 +20,18 @@ library
       Unison.Merge
       Unison.Merge.CombineDiffs
       Unison.Merge.Diff
+      Unison.Merge.Diffblob
       Unison.Merge.DiffOp
       Unison.Merge.EitherWay
       Unison.Merge.EitherWayI
       Unison.Merge.FindConflictedAlias
-      Unison.Merge.HumanDiffOp
       Unison.Merge.Internal.Types
       Unison.Merge.Libdeps
-      Unison.Merge.Mergeblob0
-      Unison.Merge.Mergeblob1
-      Unison.Merge.Mergeblob2
-      Unison.Merge.Mergeblob3
-      Unison.Merge.Mergeblob4
-      Unison.Merge.Mergeblob5
+      Unison.Merge.Mergeblob
+      Unison.Merge.Narrow
       Unison.Merge.PartitionCombinedDiffs
       Unison.Merge.Rename
+      Unison.Merge.Render
       Unison.Merge.Synhash
       Unison.Merge.Synhashed
       Unison.Merge.ThreeWay
@@ -84,12 +81,14 @@ library
   build-depends:
       base
     , containers
+    , deepseq
     , lens
     , nonempty-containers
     , semialign
     , semigroups
     , text
     , these
+    , transformers
     , unison-core
     , unison-core1
     , unison-hash

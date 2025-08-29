@@ -23,7 +23,7 @@ import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent

@@ -12,6 +12,7 @@ module Unison.Util.Defns
     fromTypes,
     hoistDefnsF,
     mapDefns,
+    toPair,
     unzipDefns,
     unzipDefnsWith,
     zipDefns,
@@ -21,6 +22,7 @@ module Unison.Util.Defns
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens (Lens)
 import Data.Align (Semialign, alignWith)
 import Data.Bifoldable (Bifoldable, bifoldMap)
@@ -35,6 +37,7 @@ data Defns terms types = Defns
     types :: types
   }
   deriving stock (Generic, Functor, Show, Eq, Ord)
+  deriving anyclass (NFData)
   deriving (Monoid, Semigroup) via GenericSemigroupMonoid (Defns terms types)
 
 instance Bifoldable Defns where
@@ -87,6 +90,10 @@ fromTypes types =
 hoistDefnsF :: (forall x. f x -> g x) -> DefnsF f a b -> DefnsF g a b
 hoistDefnsF f (Defns x y) =
   Defns (f x) (f y)
+
+toPair :: Defns a b -> (a, b)
+toPair (Defns x y) =
+  (x, y)
 
 mapDefns :: (a -> b) -> Defns a a -> Defns b b
 mapDefns f =
