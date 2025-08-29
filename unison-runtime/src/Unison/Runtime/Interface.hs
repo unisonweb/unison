@@ -544,7 +544,7 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
         pout <- backReferenceProfile ectx <$> getProf
         case mout of
           Just loc
-            | takeExtension loc == ".folded" -> do
+            | ticky $ takeExtension loc -> do
                 writeFile loc $ foldedProfile ppe pout
                 pure $ Right (errs, tmr)
             | otherwise -> do
@@ -553,6 +553,10 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
           Nothing ->
             pure $ Right (errs <> Profile (miniProfile ppe pout), tmr)
   where
+    ticky ".ticks" = True
+    ticky ".folded" = True
+    ticky _ = False
+
     backReferenceProfile (ECtx {..}) (Prof tot tr refs) =
       Prof tot tr (f <$> refs)
       where

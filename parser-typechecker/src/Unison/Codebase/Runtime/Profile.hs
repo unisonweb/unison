@@ -134,6 +134,9 @@ fractions :: Int -> AggInfo k -> Int -> (Double, Double)
 fractions total ag lo =
   (fraction (inherited ag) total, fraction lo total)
 
+topNum :: Int
+topNum = 25
+
 -- Given a total count and a profile trie, calculates local and inherited
 -- cost fractions of the positions in the trie, and prunes it to the
 -- hottest spots.
@@ -142,7 +145,7 @@ aggregatePruned ::
 aggregatePruned total (ProfT t) =
   case M.traverseWithKey (aggregateWith (fractions total)) t of
     (ag, t)
-      | top <- topN 10 (allOccs ag) ->
+      | top <- topN topNum (allOccs ag) ->
           prune (S.fromList $ fst <$> top) $ ProfT t
 
 aggregate ::
@@ -153,11 +156,9 @@ aggregate ::
 aggregate total (ProfT t) =
   case M.traverseWithKey (aggregateWith (fractions total)) t of
     (ag, t) ->
-      (second (flip fraction total) <$> topN 10 (allOccs ag), ProfT t)
-
-aggregateTicks :: Ord k => ProfTrie k Int -> ProfTrie k Int
-aggregateTicks (ProfT t) =
-  ProfT . snd $ M.traverseWithKey (aggregateWith (const . inherited)) t
+      ( second (flip fraction total) <$> topN topNum (allOccs ag),
+        ProfT t
+      )
 
 -- Folds over a profile trie. The mapping function receives a reversed
 -- path to the node, which can be used e.g. to see the node's key and to
@@ -171,9 +172,9 @@ foldMapTrie f = descend []
         m
 
 showPercent :: Double -> String
-showPercent d = pad $ showFFloat (Just 2) (100 * d) ""
+showPercent d = pad $ showFFloat (Just 2) (100 * d) "%"
   where
-    pad s = replicate (6 - length s) ' ' <> s
+    pad s = replicate (7 - length s) ' ' <> s
 
 dispProfEntry ::
   Ord k =>
@@ -184,7 +185,7 @@ dispProfEntry ::
   Pretty ColorText
 dispProfEntry ppe refs (k,ks) (inh, self) =
   mconcat
-    [ P.indentN 6 . fromString $ showPercent inh,
+    [ P.indentN 2 . fromString $ showPercent inh,
       P.indentN 4 . fromString $ showPercent self,
       P.indentN (2*ind + 4) $ dispKey ppe refs k,
       "\n"
@@ -218,8 +219,8 @@ dispTopEntry ::
   Pretty ColorText
 dispTopEntry ppe refs (k, frac) =
   mconcat
-    [ P.indentN 4 . fromString $ showPercent frac,
-      P.indentN 6 dr,
+    [ P.indentN 3 . fromString $ showPercent frac,
+      P.indentN 4 dr,
       "\n"
     ]
   where
@@ -237,13 +238,13 @@ dispTop ppe refs = foldMap (dispTopEntry ppe refs)
 
 profileTopHeader :: Pretty ColorText
 profileTopHeader =
-  "Hot Spots\n" <> "  Total Cost    Function\n"
+  "Hot Spots\n" <> " Total Cost    Function\n"
 
 profileTreeHeader :: Pretty ColorText
 profileTreeHeader =
   P.lines
-    [ P.indentN 2 "Profile Tree"
-    , P.indentN 4 "Inherited    Self     Function"
+    [ P.indentN 9 "Costs"
+    , "Inherited      Local    Function Call Tree"
     , ""
     ]
 

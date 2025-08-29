@@ -53,7 +53,7 @@ module Unison.CommandLine.InputPatterns
     editNamespace,
     execute,
     execProfiled,
-    execProfiledTo,
+    execProfiledFull,
     find,
     findAll,
     findGlobal,
@@ -2963,17 +2963,25 @@ execProfiled =
     (Parameters
       [("definition to execute", exactDefinitionTermQueryArg)]
       . Optional [] $ Just ("argument", noCompletionsArg))
-    ( P.wrapColumn2
-        [ ( "`run.profiled mymain args ...`",
+    ( "`run.profiled mymain args ...`" <>
+      P.indentN 2 (P.lines
+        [ "", ""
+        , P.wrap $
             "Runs `!mymain`, where `mymain` is searched for in the most"
               <> "recent typechecked file, or in the codebase."
-              <> "After running, some profiling information will be"
-              <> "displayed in addition to the result value."
-              <> "Any provided arguments will be passed as program"
-              <> "arguments as though they were provided at the command"
-              <> "line when running `mymain` as an executable."
-          )
-        ]
+        , ""
+        , P.wrap $
+            "After running, some profiling information will be" <>
+            "displayed in addition to the result value. The tree" <>
+            "is filtered to the 25 most expensive functions to" <>
+            "try to provide a reasonable amount of output." <>
+            "For full profiling information, use `run.profiled.full`."
+        , ""
+        , P.wrap $
+            "Any provided arguments will be passed as program" <>
+            "arguments as though they were provided at the command" <>
+            "line when running `mymain` as an executable."
+        ])
     )
     \case
       main : args ->
@@ -2982,10 +2990,10 @@ execProfiled =
           <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
       [] -> wrongArgsLength "at least one argument" []
 
-execProfiledTo :: InputPattern
-execProfiledTo =
+execProfiledFull :: InputPattern
+execProfiledFull =
   InputPattern
-    "run.profiled-to"
+    "run.profiled.full"
     []
     I.Visible
     (Parameters
@@ -2993,22 +3001,36 @@ execProfiledTo =
         ("profiling output file", filePathArg)
       ]
       . Optional [] $ Just ("argument", noCompletionsArg))
-    ( P.wrapColumn2
-        [ ( "`run.profiled-to mymain outFile args ...`",
+    ( "`run.profiled.full mymain outfile args ...`" <>
+      P.indentN 2 (P.lines
+        [ "", ""
+        , P.wrap $
             "Runs `!mymain`, where `mymain` is searched for in the most"
               <> "recent typechecked file, or in the codebase."
-              <> "After running, profiling information will be"
-              <> "logged to the specified file."
-              <> "Any provided arguments will be passed as program"
-              <> "arguments as though they were provided at the command"
-              <> "line when running `mymain` as an executable."
-          )
-        ]
+        , ""
+        , P.wrap $
+            "After running, profiling information will be written" <>
+            "to the specified file. If the file name given ends in" <>
+            "`.ticks` or `.folded`, a tick count file will be" <>
+            "produced, suitable for use with flamegraph.pl at"
+        , ""
+        , P.indentN 4 "https://github.com/brendangregg/FlameGraph"
+        , ""
+        , P.wrap $
+            "Otherwise, the file will contain a list of the 25 most" <>
+            "costly functions together with the full recorded call" <>
+            "tree for the program with percentage costs."
+        , ""
+        , P.wrap $
+            "Any provided arguments will be passed as program" <>
+            "arguments as though they were provided at the command" <>
+            "line when running `mymain` as an executable."
+        ])
     )
     \case
       main : file : args ->
         Input.ExecuteI . FullProf
-          <$> unsupportedStructuredArgument execProfiledTo "profile file name" file
+          <$> unsupportedStructuredArgument execProfiledFull "profile file name" file
           <*> handleHashQualifiedNameArg main
           <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
       args -> wrongArgsLength "at least two arguments" args
@@ -3525,7 +3547,7 @@ validInputs =
       editNew,
       execute,
       execProfiled,
-      execProfiledTo,
+      execProfiledFull,
       find,
       findIn,
       findAll,
