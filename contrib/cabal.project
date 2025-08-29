@@ -83,4 +83,7 @@ program-options
 
 -- These options are applied to all packages, local ones and also external dependencies.
 package *
-  ghc-options: -haddock
+  -- -fno-omit-yields allows non-allocating loops to be preempted by the
+  -- GHC scheduler. Building all dependencies with it minimizes
+  -- uninterruptible loops.
+  ghc-options: -haddock -fno-omit-yields
