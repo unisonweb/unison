@@ -24,7 +24,6 @@ dependencies:
   - safe
   - text
   - these
-  - time
   - transformers
   - unliftio
   - vector
@@ -54,6 +53,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - NumericUnderscores
   - OverloadedLabels
   - OverloadedStrings
   - PatternSynonyms

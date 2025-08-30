@@ -120,6 +120,7 @@ library
     , crypton-x509
     , crypton-x509-store
     , crypton-x509-system
+    , crypton-x509-validation
     , cryptonite
     , data-default
     , data-memocombinators

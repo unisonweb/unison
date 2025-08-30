@@ -14,9 +14,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Unison.Merge.Synhashed (Synhashed (..))
-import Unison.Merge.ThreeWay (ThreeWay)
-import Unison.Merge.ThreeWay qualified as ThreeWay
-import Unison.Merge.TwoWay (TwoWay (..))
+import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Name (Name)
 import Unison.Prelude
 import Unison.Reference (TypeReference)
@@ -37,10 +35,10 @@ data Rename = Rename
   }
 
 makeRenames ::
-  ThreeWay (Defns (BiMultimap (Synhashed Referent) Name) (BiMultimap (Synhashed TypeReference) Name)) ->
-  TwoWay (DefnsF [] Rename Rename)
+  Updated (Defns (BiMultimap (Synhashed Referent) Name) (BiMultimap (Synhashed TypeReference) Name)) ->
+  DefnsF [] Rename Rename
 makeRenames defns =
-  zipDefnsWith (f termNamingsToRename) (f \_ -> namingsToRename) defns.lca <$> ThreeWay.forgetLca defns
+  zipDefnsWith (f termNamingsToRename) (f \_ -> namingsToRename) defns.old defns.new
   where
     f ::
       (Ord ref) =>

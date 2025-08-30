@@ -31,6 +31,7 @@ module U.Codebase.Reference
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens (Lens, Lens', Prism, Prism', Traversal, lens, preview, prism)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
@@ -75,6 +76,7 @@ data Reference' t h
   = ReferenceBuiltin t
   | ReferenceDerived (Id' h)
   deriving stock (Eq, Generic, Functor, Ord, Show)
+  deriving anyclass (NFData)
 
 -- | A type declaration reference.
 type TermReference' t h = Reference' t h
@@ -111,7 +113,8 @@ type Pos = Word64
 
 -- | @Pos@ is a position into a cycle, as cycles are hashed together.
 data Id' h = Id h Pos
-  deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Generic, Ord, Show, Functor, Foldable, Traversable)
+  deriving anyclass (NFData)
 
 t_ :: Prism (Reference' t h) (Reference' t' h) t t'
 t_ = prism ReferenceBuiltin \case

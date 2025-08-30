@@ -14,8 +14,8 @@ import Unison.LSP.VFS qualified as VFS
 import Unison.Names (Names)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Sqlite qualified as Sqlite

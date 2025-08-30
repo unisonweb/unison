@@ -40,6 +40,7 @@ module Unison.Cli.Monad
     respond,
     respondNumbered,
     withRespondRegion,
+    withRespondRegionIO,
     setNumberedArgs,
 
     -- * Debug-timing actions
@@ -49,6 +50,7 @@ module Unison.Cli.Monad
     runTransaction,
     runTransactionWithRollback,
     runTransactionWithRollback2,
+    runTransactionWithRollbackE,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -63,13 +65,8 @@ import Control.Monad.State.Strict qualified as State
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
-import Data.Time.Clock.System (getSystemTime, systemToTAITime)
-import Data.Time.Clock.TAI (diffAbsoluteTime)
 import Data.Unique (Unique, newUnique)
-import System.CPUTime (getCPUTime)
 import System.Console.Regions qualified as Console.Regions
-import Text.Printf (printf)
 import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (CredentialManager)
@@ -96,6 +93,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Timing qualified as Timing
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The main command-line app monad.
@@ -340,45 +338,11 @@ time :: String -> Cli a -> Cli a
 time label action =
   if Debug.shouldDebug Debug.Timing
     then Cli \env k s -> do
-      systemStart <- getSystemTime
-      cpuPicoStart <- getCPUTime
+      startTime <- Timing.startTiming
       a <- unCli action env (\a loopState -> pure (Success a, loopState)) s
-      cpuPicoEnd <- getCPUTime
-      systemEnd <- getSystemTime
-      let systemDiff =
-            diffTimeToNanos
-              (diffAbsoluteTime (systemToTAITime systemEnd) (systemToTAITime systemStart))
-      let cpuDiff = picosToNanos (cpuPicoEnd - cpuPicoStart)
-      printf "%s: %s (cpu), %s (system)\n" label (renderNanos cpuDiff) (renderNanos systemDiff)
+      Timing.stopTiming label startTime
       feed k a
     else action
-  where
-    diffTimeToNanos :: DiffTime -> Double
-    diffTimeToNanos =
-      picosToNanos . diffTimeToPicoseconds
-
-    picosToNanos :: Integer -> Double
-    picosToNanos =
-      (/ 1_000) . realToFrac
-
-    -- Render nanoseconds, trying to fit into 4 characters.
-    renderNanos :: Double -> String
-    renderNanos ns
-      | ns < 0.5 = "0 ns"
-      | ns < 995 = printf "%.0f ns" ns
-      | ns < 9_950 = printf "%.2f µs" us
-      | ns < 99_500 = printf "%.1f µs" us
-      | ns < 995_000 = printf "%.0f µs" us
-      | ns < 9_950_000 = printf "%.2f ms" ms
-      | ns < 99_500_000 = printf "%.1f ms" ms
-      | ns < 995_000_000 = printf "%.0f ms" ms
-      | ns < 9_950_000_000 = printf "%.2f s" s
-      | ns < 99_500_000_000 = printf "%.1f s" s
-      | otherwise = printf "%.0f s" s
-      where
-        us = ns / 1_000
-        ms = ns / 1_000_000
-        s = ns / 1_000_000_000
 
 getProjectPathIds :: Cli PP.ProjectPathIds
 getProjectPathIds = do
@@ -443,18 +407,23 @@ respondNumbered output = do
 --
 -- (In transcripts, this just outputs messages as normal).
 withRespondRegion :: ((Output -> Cli ()) -> Cli a) -> Cli a
-withRespondRegion action = do
+withRespondRegion action =
+  withRespondRegionIO \respondRegion ->
+    action (liftIO . respondRegion)
+
+-- | Like 'withRespondRegion', but the provided callback is in IO, not lifted to Cli, which is sometimes needed.
+withRespondRegionIO :: ((Output -> IO ()) -> Cli a) -> Cli a
+withRespondRegionIO action = do
   env <- ask
   case env.isTranscriptTest of
     False ->
       with_ Console.Regions.displayConsoleRegions do
         with (Console.Regions.withConsoleRegion Console.Regions.Linear) \region ->
-          action \output ->
-            liftIO do
-              string <- (OutputMessages.notifyUser (pure ".") output)
-              width <- PrettyTerminal.getAvailableWidth
-              Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
-    True -> action respond
+          action \output -> do
+            string <- (OutputMessages.notifyUser (pure ".") output)
+            width <- PrettyTerminal.getAvailableWidth
+            Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
+    True -> action env.notify
 
 -- | Updates the numbered args, but only if the new args are non-empty.
 setNumberedArgs :: NumberedArgs -> Cli ()
@@ -481,3 +450,8 @@ runTransactionWithRollback2 :: ((forall void. a -> Sqlite.Transaction void) -> S
 runTransactionWithRollback2 action = do
   env <- ask
   liftIO (Codebase.runTransactionWithRollback env.codebase action)
+
+-- | Run a transaction that can abort early.
+runTransactionWithRollbackE :: ((forall void. a -> Sqlite.Transaction void) -> Sqlite.Transaction b) -> Cli (Either a b)
+runTransactionWithRollbackE action =
+  runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))

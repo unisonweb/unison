@@ -214,7 +214,7 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
-import Unison.Util.Defns (DefnsF)
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (foldMapM)
@@ -1155,21 +1155,23 @@ directDependentsWithinScope scope0 query0 = do
 -- | `transitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope` (not
 -- including `query` itself).
 transitiveDependentsWithinScope ::
-  Set C.Reference.Id ->
+  DefnsF Set C.TermReferenceId C.TypeReferenceId ->
   Set C.Reference ->
   Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
-transitiveDependentsWithinScope scope0 query0 = do
-  -- Convert C -> S
-  scope1 <- Set.traverse c2sReferenceId scope0
-  query1 <- Set.traverse c2sReference query0
+transitiveDependentsWithinScope scope0 query0
+  | (Set.null scope0.terms && Set.null scope0.types) || Set.null query0 = pure (Defns Set.empty Set.empty)
+  | otherwise = do
+      -- Convert C -> S
+      scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
+      query1 <- Set.traverse c2sReference query0
 
-  -- Do the query
-  dependents0 <- Q.getTransitiveDependentsWithinScope scope1 query1
+      -- Do the query
+      dependents0 <- Q.getTransitiveDependentsWithinScope scope1 query1
 
-  -- Convert S -> C
-  dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
+      -- Convert S -> C
+      dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
 
-  pure dependents1
+      pure dependents1
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

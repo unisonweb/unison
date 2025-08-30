@@ -1,5 +1,23 @@
 # Tests for TLS builtins
 
+``` ucm
+> alias.term ##Tls.ClientConfig.validation.disableCertificateValidation dcv
+
+  Done.
+
+> alias.term ##Tls.ClientConfig.validation.disableHostNameValidation dhv
+
+  Done.
+
+> alias.term ##Tls.ClientConfig.certificates.get clientCertGet
+
+  Done.
+
+> alias.term ##Tls.ServerConfig.certificates.get serverCertGet
+
+  Done.
+```
+
 ``` unison :hide
 -- generated with:
 -- openssl req -newkey rsa:2048 -subj '/CN=test.unison.cloud/O=Unison/C=US' -nodes -keyout key.pem -x509 -days 3650 -out cert.pem
@@ -116,8 +134,8 @@ serverThread portVar toSend = 'let
     Left (Failure _ t _) -> watch ("error in server: " ++ t) ()
     _ -> watch "server finished" ()
 
-testClient : Optional SignedCert -> Text -> MVar Nat -> '{io2.IO, Exception} Text
-testClient cert hostname portVar _ =
+testClient : Optional SignedCert -> Text -> Boolean -> Boolean -> MVar Nat -> '{io2.IO, Exception} Text
+testClient cert hostname hostnameValidation certificateValidation portVar _ =
   -- create a client that will expect a cert from the given hostname (CN)
   defaultClient = (Tls.ClientConfig.default hostname Bytes.empty)
 
@@ -125,6 +143,16 @@ testClient cert hostname portVar _ =
   tlsconfig = match cert with
     None        -> defaultClient
     Some (cert) -> defaultClient |> ClientConfig.certificates.set [cert]
+
+  tlsconfig' = 
+    if hostnameValidation 
+      then tlsconfig 
+      else dhv tlsconfig
+
+  tlsconfig'' = 
+    if certificateValidation 
+      then tlsconfig' 
+      else dcv tlsconfig'
 
   -- wait to find out what port the server started on
   port = take portVar
@@ -134,7 +162,7 @@ testClient cert hostname portVar _ =
   sock = clientSocket "127.0.0.1" (Nat.toText port)
 
   -- attach the TLS client to the TCP socket
-  tls = newClient tlsconfig sock
+  tls = newClient tlsconfig'' sock
 
   -- verify that the server presents us with a certificate chain for
   -- test.unison.cloud originating with a certificate we trust, and
@@ -154,7 +182,7 @@ testConnectSelfSigned _ =
 
     -- Client
     cert = decodeCert (toUtf8 self_signed_cert_pem2)
-    received = !(testClient (Some cert) "test.unison.cloud" portVar)
+    received = !(testClient (Some cert) "test.unison.cloud" true true portVar)
 
     _ = kill.impl tid
 
@@ -162,6 +190,67 @@ testConnectSelfSigned _ =
 
 
   runTest test
+
+
+testDisableCertificateValidation: '{io2.IO}[Result]
+testDisableCertificateValidation _ =
+  test _ =
+    -- Server
+    portVar = !MVar.newEmpty
+    toSend = "12345"
+    tid = forkComp (serverThread portVar toSend)
+
+    -- Client
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    received = !(testClient None "test.unison.cloud" true false portVar)
+
+    _ = kill.impl tid
+
+    expectU "should have reaped what we've sown" toSend received
+
+  runTest test
+
+testDisableHostNameValidation: '{io2.IO}[Result]
+testDisableHostNameValidation _ =
+  test _ =
+    -- Server
+    portVar = !MVar.newEmpty
+    toSend = "12345"
+    tid = forkComp (serverThread portVar toSend)
+
+    -- Client
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    received = !(testClient (Some cert) "xxx.unison.clown" false true portVar)
+
+    _ = kill.impl tid
+
+    expectU "should have reaped what we've sown" toSend received
+
+  runTest test
+
+testWrongHost: '{io2.IO}[Result]
+testWrongHost _ =
+  checkError : Either Failure a -> Result
+  checkError = cases
+    Right _ -> Fail "expected a host mismatch"
+    Left (Failure _ t _) ->
+      if contains "NameMismatch" t && contains "HandshakeFailed" t then Ok "correctly host mismatch" else
+        Fail ("expected NameMismatch, got: " ++ t)
+
+  test _ =
+    -- Server
+    portVar = !MVar.newEmpty
+    toSend = "12345"
+    tid = forkComp (serverThread portVar toSend)
+
+    -- Client
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    testClient None "xx.unison.clown" true true portVar |> toEither |> checkError |> emit
+
+    kill.impl tid
+
+  runTest test
+
 
 -- this client will trust whatever certs the system trusts
 -- for signing certs. This should NOT trust the server
@@ -183,7 +272,7 @@ testCAReject _ =
     tid = forkComp (serverThread portVar toSend)
 
     -- Client
-    testClient None "test.unison.cloud" portVar |> toEither |> checkError |> emit
+    testClient None "test.unison.cloud" true true portVar |> toEither |> checkError |> emit
 
     kill.impl tid
 
@@ -208,24 +297,56 @@ testCNReject _ =
 
 
     -- Client
-    testClient None "wrong.host.name" portVar |> toEither |> checkError |> emit
+    testClient None "wrong.host.name" true true portVar |> toEither |> checkError |> emit
 
     kill.impl tid
 
   runTest test
+
+testCertificateGet: '{io2.IO}[Result]
+testCertificateGet _ =
+  test _ =
+    cert = decodeCert (toUtf8 self_signed_cert_pem2)
+    key = match (decodePrivateKey (toUtf8 self_signed_key_pem)) with
+      k +: _ -> k
+      [] -> bug "oh no"
+
+       -- create a default configuration using our credentials (certificate chain and key)
+    serverConfig = Tls.ServerConfig.default [cert] key
+    serverConfig' = ServerConfig.certificates.set [cert] serverConfig
+    certs = serverCertGet serverConfig'
+
+    expectU "server should have the correct certificate" certs [cert]
+
+    clientConfig = Tls.ClientConfig.default "test.unison.cloud" Bytes.empty
+    clientConfig' = ClientConfig.certificates.set [cert] clientConfig
+    clientCerts = clientCertGet clientConfig'
+
+    expectU "client should have the correct certificate" clientCerts [cert]
+
+  runTest test
+
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + serverThread          : MVar Nat -> Text -> '{IO} ()
-  + testCAReject          : '{IO} [Result]
-  + testClient            : Optional SignedCert
-                            -> Text
-                            -> MVar Nat
-                            -> '{IO, Exception} Text
-  + testCNReject          : '{IO} [Result]
-  + testConnectSelfSigned : '{IO} [Result]
+  + serverThread                     : MVar Nat
+                                       -> Text
+                                       -> '{IO} ()
+  + testCAReject                     : '{IO} [Result]
+  + testCertificateGet               : '{IO} [Result]
+  + testClient                       : Optional SignedCert
+                                       -> Text
+                                       -> Boolean
+                                       -> Boolean
+                                       -> MVar Nat
+                                       -> '{IO, Exception} Text
+  + testCNReject                     : '{IO} [Result]
+  + testConnectSelfSigned            : '{IO} [Result]
+  + testDisableCertificateValidation : '{IO} [Result]
+  + testDisableHostNameValidation    : '{IO} [Result]
+  + testWrongHost                    : '{IO} [Result]
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -265,6 +386,47 @@ testCNReject _ =
     1. testCNReject   ◉ correctly rejected self-signed cert
 
   ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+> io.test testDisableCertificateValidation
+
+    New test results:
+
+    1. testDisableCertificateValidation   ◉ should have reaped what we've sown
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+> io.test testDisableHostNameValidation
+
+    New test results:
+
+    1. testDisableHostNameValidation   ◉ should have reaped what we've sown
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+> io.test testWrongHost
+
+    New test results:
+
+    1. testWrongHost   ◉ correctly host mismatch
+
+  ✅ 1 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+
+> io.test testCertificateGet
+
+    New test results:
+
+    1. testCertificateGet   ◉ server should have the correct certificate
+                            ◉ client should have the correct certificate
+
+  ✅ 2 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

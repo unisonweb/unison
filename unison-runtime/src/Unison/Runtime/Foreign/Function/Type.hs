@@ -105,7 +105,11 @@ data ForeignFunc
   | Tls_ClientConfig_default
   | Tls_ServerConfig_default
   | Tls_ClientConfig_certificates_set
+  | Tls_ClientConfig_certificates_get
+  | Tls_ClientConfig_validation_disableHostNameValidation
+  | Tls_ClientConfig_validation_disableCertificateValidation
   | Tls_ServerConfig_certificates_set
+  | Tls_ServerConfig_certificates_get
   | TVar_new
   | TVar_read
   | TVar_write
@@ -461,6 +465,10 @@ foreignFuncBuiltinName = \case
   Tls_ServerConfig_default -> "Tls.ServerConfig.default"
   Tls_ClientConfig_certificates_set -> "Tls.ClientConfig.certificates.set"
   Tls_ServerConfig_certificates_set -> "Tls.ServerConfig.certificates.set"
+  Tls_ClientConfig_certificates_get -> "Tls.ClientConfig.certificates.get"
+  Tls_ServerConfig_certificates_get -> "Tls.ServerConfig.certificates.get"
+  Tls_ClientConfig_validation_disableCertificateValidation -> "Tls.ClientConfig.validation.disableCertificateValidation"
+  Tls_ClientConfig_validation_disableHostNameValidation -> "Tls.ClientConfig.validation.disableHostNameValidation"
   TVar_new -> "TVar.new"
   TVar_read -> "TVar.read"
   TVar_write -> "TVar.write"

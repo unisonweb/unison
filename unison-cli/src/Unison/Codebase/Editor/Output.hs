@@ -342,7 +342,6 @@ data Output
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName Text
-  | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty (Either ShortCausalHash ProjectPath))
   | NoOp
@@ -520,7 +519,6 @@ isFailure o = case o of
   RunResult {} -> False
   Success {} -> False
   PrintMessage {} -> False
-  CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
   SourceLoadFailed {} -> True

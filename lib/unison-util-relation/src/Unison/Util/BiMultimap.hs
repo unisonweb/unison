@@ -61,14 +61,15 @@ import Prelude hiding (filter)
 --
 -- "Left-unique" means that for all @(x, y)@ in the relation, @y@ is related only to @x@.
 data BiMultimap a b = BiMultimap
-  { toMultimap :: (Map a (NESet b)), -- intentionally lazy in case it's not used after `fromRange`
-    toMapR :: (Map b a)
+  { toMultimap :: Map a (NESet b), -- intentionally lazy in case it's not used after `fromRange`
+    toMapR :: Map b a
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | An empty left-unique relation.
 empty :: (Ord a, Ord b) => BiMultimap a b
-empty = BiMultimap mempty mempty
+empty =
+  BiMultimap Map.empty Map.empty
 
 -- | Is a left-unique relation empty?
 isEmpty :: BiMultimap a b -> Bool
@@ -167,6 +168,7 @@ withoutRan :: (Ord a, Ord b) => Set b -> BiMultimap a b -> BiMultimap a b
 withoutRan ys m =
   fromRange (Map.withoutKeys (range m) ys)
 
+-- | /O(1)/.
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap
 
@@ -216,8 +218,10 @@ ran =
 
 -- | Convert a left-unique relation to a relation (forgetting its left-uniqueness).
 toRelation :: (Ord a, Ord b) => BiMultimap a b -> Relation a b
-toRelation =
-  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . domain
+toRelation m =
+  Relation.unsafeFromMultimaps
+    (Set.NonEmpty.toSet <$> domain m)
+    (Set.singleton <$> range m)
 
 -- | Insert a pair into a left-unique relation, maintaining left-uniqueness, preferring the latest inserted element.
 --

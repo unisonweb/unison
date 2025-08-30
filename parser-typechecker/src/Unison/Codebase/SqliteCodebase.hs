@@ -22,7 +22,7 @@ import U.Codebase.HashTags (BranchHash, CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase1
-import Unison.Codebase.Branch (Branch (..), UnconflictedBranchView (..))
+import Unison.Codebase.Branch (Branch (..))
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Init (BackupStrategy (..), CodebaseLockOption (..), MigrationStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init qualified as Codebase
@@ -50,6 +50,7 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Cache qualified as Cache
 import Unison.Util.Defns (Defns (..))
@@ -238,10 +239,10 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         branchPartialDeclNameLookupCache <- Cache.semispaceCache 10
         let getBranchPartialDeclNameLookup ::
               BranchHash ->
-              UnconflictedBranchView ->
+              UnconflictedLocalDefnsView ->
               Sqlite.Transaction PartialDeclNameLookup
             getBranchPartialDeclNameLookup =
-              let get :: Keyed BranchHash UnconflictedBranchView -> Sqlite.Transaction PartialDeclNameLookup
+              let get :: Keyed BranchHash UnconflictedLocalDefnsView -> Sqlite.Transaction PartialDeclNameLookup
                   get =
                     CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k -> do
                       numConstructors <- getBranchDeclNumConstructors0 (Keyed k.key (BiMultimap.dom k.value.defns.types))
@@ -251,11 +252,11 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         branchDeclNameLookupCache <- Cache.semispaceCache 10
         let getBranchDeclNameLookup ::
               BranchHash ->
-              UnconflictedBranchView ->
+              UnconflictedLocalDefnsView ->
               Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
             getBranchDeclNameLookup =
               let get ::
-                    Keyed BranchHash UnconflictedBranchView ->
+                    Keyed BranchHash UnconflictedLocalDefnsView ->
                     Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
                   get =
                     CodebaseOps.makeCachedTransaction branchDeclNameLookupCache \k -> do
@@ -303,6 +304,11 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                 runInIO do
                   Cache.insert rootBranchCache (Branch.headHash branch) branch
                   runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
+
+            putBranchTx :: Branch Sqlite.Transaction -> Sqlite.Transaction ()
+            putBranchTx branch = do
+              Sqlite.unsafeIO (Cache.insert rootBranchCacheTx (Branch.headHash branch) branch)
+              CodebaseOps.putBranch branch
 
             preloadBranch :: CausalHash -> m ()
             preloadBranch h = do
@@ -355,6 +361,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   getBranchPartialDeclNameLookup,
                   getBranchDeclNameLookup,
                   putBranch,
+                  putBranchTx,
                   getWatch,
                   termsOfTypeImpl,
                   termsMentioningTypeImpl,

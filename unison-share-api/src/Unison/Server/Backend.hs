@@ -143,7 +143,6 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
