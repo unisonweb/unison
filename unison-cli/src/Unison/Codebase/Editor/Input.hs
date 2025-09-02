@@ -40,9 +40,9 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
+import Unison.Codebase.Runtime.Profile (ProfileSpec)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
-import Unison.Codebase.Runtime.Profile (ProfileSpec)
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'

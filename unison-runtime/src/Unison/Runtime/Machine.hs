@@ -116,7 +116,7 @@ infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
 -- Entry point for evaluating a section
 eval0 ::
-  RuntimeProfiler p => CCache p -> ActiveThreads -> MSection -> IO ()
+  (RuntimeProfiler p) => CCache p -> ActiveThreads -> MSection -> IO ()
 eval0 env !activeThreads !co = do
   stk <- alloc
   cmbs <- readTVarIO $ combs env
@@ -127,11 +127,11 @@ eval0 env !activeThreads !co = do
   (tick, cancelTicks) <- startTicker $ profiler env
   eval tick env henv activeThreads stk (k KE) (CIx dummyRef 0 0) co
     `finally` cancelTicks
-{-# SPECIALIZE
-    eval0 :: CCache () -> ActiveThreads -> MSection -> IO ()
+{-# SPECIALIZE eval0 ::
+  CCache () -> ActiveThreads -> MSection -> IO ()
   #-}
-{-# SPECIALIZE
-     eval0 :: CCache ProfileComm -> ActiveThreads -> MSection -> IO ()
+{-# SPECIALIZE eval0 ::
+  CCache ProfileComm -> ActiveThreads -> MSection -> IO ()
   #-}
 
 mCombVal :: CombIx -> MComb -> Val
@@ -171,7 +171,7 @@ topHEnv combs rfTy rfTm =
 -- This is the entry point actually used in the interactive
 -- environment currently.
 apply0 ::
-  RuntimeProfiler p =>
+  (RuntimeProfiler p) =>
   Maybe (XStack -> IO ()) ->
   CCache p ->
   ActiveThreads ->
@@ -192,34 +192,40 @@ apply0 !callback env !threadTracker !i = do
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
       (tick, cancelTicks) <- startTicker $ profiler env
-      apply tick env henv threadTracker stk (kf k0) True ZArgs
+      apply
+        tick
+        env
+        henv
+        threadTracker
+        stk
+        (kf k0)
+        True
+        ZArgs
         (BoxedVal $ PAp entryCix entryComb nullSeg)
         `finally` cancelTicks
     -- if it's cached, we can just finish
     CachedVal _ val -> bump stk >>= \stk -> poke stk val
   where
     k0 = fromMaybe KE (callback <&> \cb -> CB . Hook $ \stk -> cb stk)
-{-# SPECIALIZE
-    apply0 ::
-      Maybe (XStack -> IO ()) ->
-      CCache () ->
-      ActiveThreads ->
-      Word64 ->
-      IO ()
+{-# SPECIALIZE apply0 ::
+  Maybe (XStack -> IO ()) ->
+  CCache () ->
+  ActiveThreads ->
+  Word64 ->
+  IO ()
   #-}
-{-# SPECIALIZE
-    apply0 ::
-      Maybe (XStack -> IO ()) ->
-      CCache ProfileComm ->
-      ActiveThreads ->
-      Word64 ->
-      IO ()
+{-# SPECIALIZE apply0 ::
+  Maybe (XStack -> IO ()) ->
+  CCache ProfileComm ->
+  ActiveThreads ->
+  Word64 ->
+  IO ()
   #-}
 
 -- Apply helper currently used for forking. Creates the new stacks
 -- necessary to evaluate a closure with the provided information.
 apply1 ::
-  RuntimeProfiler p =>
+  (RuntimeProfiler p) =>
   (Stack -> IO ()) ->
   CCache p ->
   ActiveThreads ->
@@ -276,7 +282,7 @@ dumpStack stk@(Stack ap fp sp _ustk _bstk)
 -- immediately evaluated when created to avoid thunks building up, so
 -- that it doesn't need to be a strict argument.
 exec ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   CCache prof ->
   HEnv ->
   ActiveThreads ->
@@ -525,7 +531,7 @@ encodeExn stk exc = do
 -- immediately evaluated when created to avoid thunks building up, so
 -- that it doesn't need to be a strict argument.
 eval' ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   HEnv ->
@@ -609,7 +615,7 @@ eval' !_ _ _ !_ !_activeThreads !_ _ (Die s) = die s
 {-# INLINE eval' #-}
 
 eval ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   HEnv ->
@@ -622,29 +628,27 @@ eval ::
 eval !yld env henv !activeThreads !stk !k here sect = do
   checkTicker yld here k
   eval' yld env henv activeThreads stk k here sect
-{-# SPECIALIZE
-    eval ::
-      Ticker () ->
-      CCache () ->
-      HEnv ->
-      ActiveThreads ->
-      Stack ->
-      K ->
-      CombIx ->
-      MSection ->
-      IO ()
+{-# SPECIALIZE eval ::
+  Ticker () ->
+  CCache () ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  CombIx ->
+  MSection ->
+  IO ()
   #-}
-{-# SPECIALIZE
-    eval ::
-      Ticker ProfileComm ->
-      CCache ProfileComm ->
-      HEnv ->
-      ActiveThreads ->
-      Stack ->
-      K ->
-      CombIx ->
-      MSection ->
-      IO ()
+{-# SPECIALIZE eval ::
+  Ticker ProfileComm ->
+  CCache ProfileComm ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  CombIx ->
+  MSection ->
+  IO ()
   #-}
 
 -- Note: denv shadows aenv always
@@ -664,7 +668,7 @@ unhandledAbilityRequest :: (HasCallStack) => IO a
 unhandledAbilityRequest = error . show . PE callStack . P.lit . fromString $ "eval: unhandled ability request"
 
 forkEval ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   CCache prof ->
   ActiveThreads ->
   Val ->
@@ -695,7 +699,7 @@ forkEval env activeThreads clo =
 {-# INLINE forkEval #-}
 
 nestEval ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   CCache prof ->
   ActiveThreads ->
   (Val -> IO ()) ->
@@ -707,7 +711,7 @@ nestEval env activeThreads write val = apply1 readBack env activeThreads val
 {-# INLINE nestEval #-}
 
 atomicEval ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   CCache prof ->
   ActiveThreads ->
   (Val -> IO ()) ->
@@ -719,7 +723,7 @@ atomicEval env activeThreads write val =
 
 -- fast path application
 enter ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   HEnv ->
@@ -778,7 +782,7 @@ extendPAp v _ =
 
 -- slow path application
 apply ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   HEnv ->
@@ -826,7 +830,7 @@ apply !yld env henv !activeThreads !stk !k !ck !args !val =
 {-# INLINE apply #-}
 
 jump ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   HEnv ->
@@ -861,7 +865,7 @@ jump !yld env henv !activeThreads !stk !k !args clo = case clo of
 {-# INLINE jump #-}
 
 repush ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   ActiveThreads ->
@@ -1020,7 +1024,7 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
           l = fsize stk - i
 
 yield ::
-  RuntimeProfiler prof =>
+  (RuntimeProfiler prof) =>
   Ticker prof ->
   CCache prof ->
   HEnv ->
@@ -1370,7 +1374,7 @@ normalizeCodes = id
 #endif
 
 cacheAdd0 ::
-  RuntimeProfiler p =>
+  (RuntimeProfiler p) =>
   S.Set Reference ->
   [(Reference, Code Reference)] ->
   [(Reference, Set Reference)] ->
@@ -1436,7 +1440,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
 preEvalTopLevelConstants ::
-  RuntimeProfiler p =>
+  (RuntimeProfiler p) =>
   (EnumMap Word64 (GCombs Val CombIx)) ->
   (EnumMap Word64 (GCombs Val CombIx)) ->
   CCache p ->
@@ -1497,7 +1501,7 @@ expandSandbox sand0 groups = fixed mempty
         extra' = M.fromList new
 
 cacheAdd ::
-  RuntimeProfiler p =>
+  (RuntimeProfiler p) =>
   [(Reference, Code Reference)] ->
   CCache p ->
   IO [Reference]

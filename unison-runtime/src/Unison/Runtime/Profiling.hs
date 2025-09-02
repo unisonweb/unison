@@ -1,4 +1,3 @@
-
 module Unison.Runtime.Profiling where
 
 import Control.Concurrent
@@ -6,7 +5,6 @@ import Control.Concurrent.STM
 import Data.Foldable
 import Data.Map.Strict qualified as M
 import Data.Word
-
 import Unison.Codebase.Runtime.Profile
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
@@ -14,20 +12,20 @@ import Unison.Runtime.Stack
 addSample :: CombIx -> K -> Profile Word64 -> Profile Word64
 addSample c k (Prof count trie refs) =
   Prof
-    (1+count)
+    (1 + count)
     (addPath (fst <$> cmbs) trie)
     (M.union refs $ M.fromList cmbs)
   where
-  cixToPair (CIx r i _) = (i, r)
+    cixToPair (CIx r i _) = (i, r)
 
-  cmbs = combs [cixToPair c] k
+    cmbs = combs [cixToPair c] k
 
-  combs acc KE = acc
-  combs acc (CB _) = acc
-  combs acc (AMark _ _ _ k) = combs acc k
-  combs acc (Mark _ _ _ k) = combs acc k
-  combs acc (Local _ _ k) = combs acc k
-  combs acc (Push _ _ c _ _ k) = combs (cixToPair c : acc) k
+    combs acc KE = acc
+    combs acc (CB _) = acc
+    combs acc (AMark _ _ _ k) = combs acc k
+    combs acc (Mark _ _ _ k) = combs acc k
+    combs acc (Local _ _ k) = combs acc k
+    combs acc (Push _ _ c _ _ k) = combs (cixToPair c : acc) k
 
 addSamples :: [(CombIx, K)] -> Profile Word64 -> Profile Word64
 addSamples ts p = foldl' (flip . uncurry $ addSample) p ts
@@ -42,12 +40,13 @@ data TickComm
   | Final [(CombIx, K)]
 
 readInput :: TVar TickComm -> IO (Bool, [(CombIx, K)])
-readInput input = atomically $
-  readTVar input >>= \case
-    Empty -> retry
-    Finished -> pure (True, [])
-    Ticks ts -> (False, ts) <$ writeTVar input Empty
-    Final ts -> (True, ts) <$ writeTVar input Finished
+readInput input =
+  atomically $
+    readTVar input >>= \case
+      Empty -> retry
+      Finished -> pure (True, [])
+      Ticks ts -> (False, ts) <$ writeTVar input Empty
+      Final ts -> (True, ts) <$ writeTVar input Finished
 
 profileLoop ::
   TVar TickComm ->
@@ -58,16 +57,16 @@ profileLoop input output prof = do
   (finish, ts) <- readInput input
   prof <- pure $ addSamples ts prof
   if not finish
-  then profileLoop input output prof
-  else atomically $ putTMVar output prof
+    then profileLoop input output prof
+    else atomically $ putTMVar output prof
 
 enqueue :: TVar TickComm -> CombIx -> K -> IO ()
 enqueue comm c k = atomically $
   modifyTVar comm \case
     Empty -> Ticks [(c, k)]
     Finished -> Final [(c, k)]
-    Ticks ts -> Ticks ((c, k):ts)
-    Final ts -> Final ((c, k):ts)
+    Ticks ts -> Ticks ((c, k) : ts)
+    Final ts -> Final ((c, k) : ts)
 
 finish :: TVar TickComm -> IO ()
 finish comm = atomically $
@@ -77,10 +76,11 @@ finish comm = atomically $
     Ticks ts -> Final ts
     Final ts -> Final ts
 
-data ProfileComm =
-  PC (CombIx -> K -> IO ())
-     (IO ())
-     (IO (Profile Word64))
+data ProfileComm
+  = PC
+      (CombIx -> K -> IO ())
+      (IO ())
+      (IO (Profile Word64))
 
 spawnProfiler :: IO ProfileComm
 spawnProfiler = do

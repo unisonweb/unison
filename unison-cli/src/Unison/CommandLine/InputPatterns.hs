@@ -2960,28 +2960,34 @@ execProfiled =
     "run.profiled"
     []
     I.Visible
-    (Parameters
-      [("definition to execute", exactDefinitionTermQueryArg)]
-      . Optional [] $ Just ("argument", noCompletionsArg))
-    ( "`run.profiled mymain args ...`" <>
-      P.indentN 2 (P.lines
-        [ "", ""
-        , P.wrap $
-            "Runs `!mymain`, where `mymain` is searched for in the most"
-              <> "recent typechecked file, or in the codebase."
-        , ""
-        , P.wrap $
-            "After running, some profiling information will be" <>
-            "displayed in addition to the result value. The tree" <>
-            "is filtered to the 25 most expensive functions to" <>
-            "try to provide a reasonable amount of output." <>
-            "For full profiling information, use `run.profiled.full`."
-        , ""
-        , P.wrap $
-            "Any provided arguments will be passed as program" <>
-            "arguments as though they were provided at the command" <>
-            "line when running `mymain` as an executable."
-        ])
+    ( Parameters
+        [("definition to execute", exactDefinitionTermQueryArg)]
+        . Optional []
+        $ Just ("argument", noCompletionsArg)
+    )
+    ( "`run.profiled mymain args ...`"
+        <> P.indentN
+          2
+          ( P.lines
+              [ "",
+                "",
+                P.wrap $
+                  "Runs `!mymain`, where `mymain` is searched for in the most"
+                    <> "recent typechecked file, or in the codebase.",
+                "",
+                P.wrap $
+                  "After running, some profiling information will be"
+                    <> "displayed in addition to the result value. The tree"
+                    <> "is filtered to the 25 most expensive functions to"
+                    <> "try to provide a reasonable amount of output."
+                    <> "For full profiling information, use `run.profiled.full`.",
+                "",
+                P.wrap $
+                  "Any provided arguments will be passed as program"
+                    <> "arguments as though they were provided at the command"
+                    <> "line when running `mymain` as an executable."
+              ]
+          )
     )
     \case
       main : args ->
@@ -2996,36 +3002,42 @@ execProfiledFull =
     "run.profiled.full"
     []
     I.Visible
-    (Parameters
-      [ ("definition to execute", exactDefinitionTermQueryArg),
-        ("profiling output file", filePathArg)
-      ]
-      . Optional [] $ Just ("argument", noCompletionsArg))
-    ( "`run.profiled.full mymain outfile args ...`" <>
-      P.indentN 2 (P.lines
-        [ "", ""
-        , P.wrap $
-            "Runs `!mymain`, where `mymain` is searched for in the most"
-              <> "recent typechecked file, or in the codebase."
-        , ""
-        , P.wrap $
-            "After running, profiling information will be written" <>
-            "to the specified file. If the file name given ends in" <>
-            "`.ticks` or `.folded`, a tick count file will be" <>
-            "produced, suitable for use with flamegraph.pl at"
-        , ""
-        , P.indentN 4 "https://github.com/brendangregg/FlameGraph"
-        , ""
-        , P.wrap $
-            "Otherwise, the file will contain a list of the 25 most" <>
-            "costly functions together with the full recorded call" <>
-            "tree for the program with percentage costs."
-        , ""
-        , P.wrap $
-            "Any provided arguments will be passed as program" <>
-            "arguments as though they were provided at the command" <>
-            "line when running `mymain` as an executable."
-        ])
+    ( Parameters
+        [ ("definition to execute", exactDefinitionTermQueryArg),
+          ("profiling output file", filePathArg)
+        ]
+        . Optional []
+        $ Just ("argument", noCompletionsArg)
+    )
+    ( "`run.profiled.full mymain outfile args ...`"
+        <> P.indentN
+          2
+          ( P.lines
+              [ "",
+                "",
+                P.wrap $
+                  "Runs `!mymain`, where `mymain` is searched for in the most"
+                    <> "recent typechecked file, or in the codebase.",
+                "",
+                P.wrap $
+                  "After running, profiling information will be written"
+                    <> "to the specified file. If the file name given ends in"
+                    <> "`.ticks` or `.folded`, a tick count file will be"
+                    <> "produced, suitable for use with flamegraph.pl at",
+                "",
+                P.indentN 4 "https://github.com/brendangregg/FlameGraph",
+                "",
+                P.wrap $
+                  "Otherwise, the file will contain a list of the 25 most"
+                    <> "costly functions together with the full recorded call"
+                    <> "tree for the program with percentage costs.",
+                "",
+                P.wrap $
+                  "Any provided arguments will be passed as program"
+                    <> "arguments as though they were provided at the command"
+                    <> "line when running `mymain` as an executable."
+              ]
+          )
     )
     \case
       main : file : args ->

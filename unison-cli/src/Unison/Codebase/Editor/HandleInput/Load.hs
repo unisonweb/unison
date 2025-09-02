@@ -30,7 +30,9 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils
-  (EvalMode (..), modeProfSpec)
+  ( EvalMode (..),
+    modeProfSpec,
+  )
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..), TermSlurp (..))

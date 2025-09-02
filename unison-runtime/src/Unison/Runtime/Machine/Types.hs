@@ -12,9 +12,9 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.Kind (Type)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
-import Data.Kind (Type)
 import Data.Word
 #if !defined(mingw32_HOST_OS)
 import GHC.Event (getSystemTimerManager, registerTimeout)
@@ -102,6 +102,7 @@ die s = do
 -- desired, other aspects of the runtime could be configured this way.
 class RuntimeProfiler prof where
   data Ticker prof :: Type
+
   -- starts a ticker for a profiler
   startTicker :: prof -> IO (Ticker prof, IO ())
   checkTicker :: Ticker prof -> CombIx -> K -> IO ()

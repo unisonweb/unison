@@ -6,7 +6,7 @@ module Unison.Codebase.Editor.HandleInput.RuntimeUtils
     displayResponse,
     selectRuntime,
     EvalMode (..),
-    modeProfSpec
+    modeProfSpec,
   )
 where
 

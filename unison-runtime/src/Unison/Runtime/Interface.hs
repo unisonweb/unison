@@ -57,13 +57,17 @@ import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
 import Unison.Codebase.Runtime
-  (CompileOpts (..), Error, Response (..), Runtime (..))
+  ( CompileOpts (..),
+    Error,
+    Response (..),
+    Runtime (..),
+  )
 import Unison.Codebase.Runtime.Profile
   ( Profile (..),
     ProfileSpec (..),
+    foldedProfile,
     fullProfile,
     miniProfile,
-    foldedProfile
   )
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
@@ -548,8 +552,8 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
                 writeFile loc $ foldedProfile ppe pout
                 pure $ Right (errs, tmr)
             | otherwise -> do
-              writeFile loc . toPlainUnbroken $ fullProfile ppe pout
-              pure $ Right (errs, tmr)
+                writeFile loc . toPlainUnbroken $ fullProfile ppe pout
+                pure $ Right (errs, tmr)
           Nothing ->
             pure $ Right (errs <> Profile (miniProfile ppe pout), tmr)
   where
@@ -561,7 +565,6 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
       Prof tot tr (f <$> refs)
       where
         f r = fromMaybe r $ backReference floatRemap intermedRemap r
-
 
 interpEval ::
   ActiveThreads ->
@@ -812,10 +815,10 @@ evalInContext ppe ctx prof activeThreads w = do
     traverse (const $ readIORef r)
       <=< tryJust prettyError
       $ case prof of
-          Nothing ->
-            apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
-          Just pc ->
-            apply0 (Just hook) ((ccache ctx) {tracer = debugText, profiler = pc}) activeThreads w
+        Nothing ->
+          apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
+        Just pc ->
+          apply0 (Just hook) ((ccache ctx) {tracer = debugText, profiler = pc}) activeThreads w
   pure $ finish result
 
 executeMainComb ::
