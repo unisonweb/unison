@@ -1,7 +1,14 @@
+{-# LANGUAGE CPP #-}
+
 module Unison.Runtime.Machine.Types where
 
+#if !defined(mingw32_HOST_OS)
 import Control.Concurrent
   (ThreadId, MVar, newEmptyMVar, tryPutMVar, tryTakeMVar)
+#else
+import Control.Concurrent (ThreadId)
+#endif
+
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -9,7 +16,11 @@ import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Kind (Type)
 import Data.Word
+#if !defined(mingw32_HOST_OS)
 import GHC.Event (getSystemTimerManager, registerTimeout)
+#else
+import System.CPUTime
+#endif
 import GHC.Stack
 import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
@@ -102,6 +113,8 @@ instance RuntimeProfiler () where
   {-# INLINE checkTicker #-}
 
 type Tick = CombIx -> K -> IO ()
+#if !defined(mingw32_HOST_OS)
+-- GHC.Event, time-baed profiler
 instance RuntimeProfiler ProfileComm where
   newtype Ticker ProfileComm = ProfTicker (MVar Tick)
 
@@ -135,6 +148,19 @@ tickCallback interval tick ticker cancel = body
       when (not b) do
         tm <- getSystemTimerManager
         () <$ registerTimeout tm interval body
+#else
+-- CPUTime based profiler for Windows
+instance RuntimeProfiler ProfileComm where
+  data Ticker ProfileComm = TPC !Tick !(IORef Word8)
+  startTicker (PC pf _ _) = (, pure ()) . TPC pf  <$> newIORef 1
+
+  checkTicker (TPC tick r) cix k = do
+    n <- readIORef r
+    when (n `mod` 128 == 0) do
+      n <- getCPUTime
+      when (n `mod` 100000 == 0) $ tick cix k
+    writeIORef r (n+1)
+#endif
 
 -- code caching environment
 data CCache prof = CCache
