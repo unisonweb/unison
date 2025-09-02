@@ -10,6 +10,7 @@ import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase.Runtime (Runtime, evaluateWatches)
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
@@ -132,6 +133,7 @@ resultTest rt uf filepath = do
             =<< evaluateWatches
               Builtin.codeLookup
               PPE.empty
+              NoProf
               (const $ pure Nothing)
               rt
               uf

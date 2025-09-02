@@ -40,6 +40,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.PushBehavior (PushBehavior)
+import Unison.Codebase.Runtime.Profile (ProfileSpec)
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath, parseBranchRelativePath)
@@ -161,8 +162,8 @@ data Input
   | -- First `Maybe Int` is cap on number of results, if any
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
-  | -- execute an IO thunk with args
-    ExecuteI (HQ.HashQualified Name) [String]
+  | -- execute an IO thunk with args; boolean indicates profiling
+    ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
     SaveExecuteResultI Name
   | -- execute an IO [Result]

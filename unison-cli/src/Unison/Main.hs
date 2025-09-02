@@ -75,6 +75,7 @@ import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
@@ -201,7 +202,7 @@ main version = do
                         rt
                         sbrt
                         theCodebase
-                        [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                        [Left fileEvent, Right $ Input.ExecuteI NoProf mainName args, Right Input.QuitI]
                         authenticatedHTTPClient
                         credMan
                         serverUrl
@@ -229,7 +230,7 @@ main version = do
                     rt
                     sbrt
                     theCodebase
-                    [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                    [Left fileEvent, Right $ Input.ExecuteI NoProf mainName args, Right Input.QuitI]
                     authenticatedHTTPClient
                     credMan
                     serverUrl

@@ -84,6 +84,10 @@ ghc-options:
   "$locals": -Wall -Werror -Wno-missing-pattern-synonym-signatures -Wno-name-shadowing -Wunused-packages -fprint-expanded-synonyms -funbox-strict-fields -fwrite-ide-info # -freverse-errors
 
   # See https://github.com/haskell/haskell-language-server/issues/208
-  "$everything": -haddock
+  #
+  # -fno-omit-yields allows non-allocating loops to be preempted by the
+  # GHC scheduler. Building all dependencies with it results in fewer
+  # opportunities for uninterruptible loops.
+  "$everything": -haddock -fno-omit-yields
 
   statistics: -fsimpl-tick-factor=10000 # statistics fails on GHC 9 without this, https://github.com/haskell/statistics/issues/173
