@@ -862,9 +862,8 @@ type UVal = Int
 
 -- | A runtime value, which is either a boxed or unboxed value, but we may not know which.
 --
---  __TODO__: Can this be represented with `These` instead, distinguishing the case where we don’t know which (`These`)
---            from the known unboxed (`This`) and known boxed (`That`) cases? Or is it the case that we /do not/ know
---            which?
+--   When it represents a boxed value, `getUnboxedVal` is meaningless, but when it represents an unboxed value,
+--   `getBoxedVal` tells us its type.
 data Val = Val {getUnboxedVal :: !UVal, getBoxedVal :: !BVal}
   deriving (Show)
 

@@ -35,8 +35,14 @@ import Unison.Util.Pretty as P
 data RuntimeExn
   = -- | pretty exception
     PE CallStack [Word] (P.Pretty P.ColorText)
-  | -- | __TODO__: What is `BU`? Boxed/Unboxed?
-    BU [(Reference, Int)] Text Val
+  | -- | a failure in Unison code
+    BU
+      -- | Unison stack
+      [(Reference, Int)]
+      -- | message
+      Text
+      -- | Unison value
+      Val
 
 prettyRuntimeExn' ::
   (Applicative f) =>
