@@ -26,6 +26,7 @@ import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.Codebase.Type (Codebase (..))
 import Unison.HashQualified qualified as HQ
 import Unison.Parser.Ann (Ann)
@@ -62,7 +63,7 @@ execute codebase runtime mainPath =
       MainTerm.Success _ tm _ -> do
         let codeLookup = codebaseToCodeLookup codebase
             ppe = PPE.empty
-        (liftIO $ Runtime.evaluateTerm codeLookup ppe runtime tm) >>= \case
+        (liftIO $ Runtime.evaluateTerm codeLookup ppe NoProf runtime tm) >>= \case
           Left err -> throwError err
           Right _ -> pure ()
 

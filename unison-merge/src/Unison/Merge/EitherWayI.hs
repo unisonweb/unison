@@ -6,12 +6,16 @@ module Unison.Merge.EitherWayI
   )
 where
 
+import Control.DeepSeq (NFData)
+import Unison.Prelude (Generic)
+
 -- | Alice inclusive-or Bob?
 data EitherWayI a
   = OnlyAlice a
   | OnlyBob a
   | AliceAndBob a
-  deriving stock (Functor, Show)
+  deriving stock (Functor, Generic, Show)
+  deriving anyclass (NFData)
 
 includingAlice :: EitherWayI a -> Maybe a
 includingAlice = \case

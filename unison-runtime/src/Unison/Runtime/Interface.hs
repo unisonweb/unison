@@ -52,11 +52,24 @@ import Data.Set as Set
 import Data.Set qualified as Set
 import Data.Text as Text (unpack)
 import Data.Void (absurd)
+import System.FilePath
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime (CompileOpts (..), Error, Runtime (..))
+import Unison.Codebase.Runtime
+  ( CompileOpts (..),
+    Error,
+    Response (..),
+    Runtime (..),
+  )
+import Unison.Codebase.Runtime.Profile
+  ( Profile (..),
+    ProfileSpec (..),
+    foldedProfile,
+    fullProfile,
+    miniProfile,
+  )
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
@@ -124,6 +137,7 @@ import Unison.Runtime.Machine
     resolveSection,
   )
 import Unison.Runtime.Pattern
+import Unison.Runtime.Profiling
 import Unison.Runtime.Serialize as SER
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
@@ -171,7 +185,7 @@ data EvalCtx = ECtx
     floatRemap :: Remapping CodebaseReference FloatedReference,
     intermedRemap :: Remapping FloatedReference IntermediateReference,
     decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol)),
-    ccache :: CCache
+    ccache :: CCache ()
   }
 
 uncurryDspec :: DataSpec -> Map.Map ConstructorReference Int
@@ -179,7 +193,7 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
   where
     f (r, l) = zipWith (\n c -> (ConstructorReference r n, c)) [0 ..] $ either id id l
 
-cacheContext :: CCache -> EvalCtx
+cacheContext :: CCache () -> EvalCtx
 cacheContext =
   ECtx builtinDataSpec mempty mempty
     . Map.fromList
@@ -500,15 +514,16 @@ decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
     ir = intermedRemap ctx
     dt = decompTm ctx
 
-interpEval ::
+interpEvalDirect ::
   ActiveThreads ->
   IO () ->
   IORef EvalCtx ->
+  Maybe ProfileComm ->
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Term Symbol ->
-  IO (Either Error ([Error], Term Symbol))
-interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
+  IO (Either Error (Response, Term Symbol))
+interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
   catchInternalErrors $ do
     ctx <- readIORef ctxVar
     (tyrs, tmrs) <- collectDeps cl tm
@@ -516,8 +531,63 @@ interpEval activeThreads cleanupThreads ctxVar cl ppe tm =
     (ctx, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
-    evalInContext ppe ctx activeThreads initw
+    evalInContext ppe ctx prof activeThreads initw
       `UnliftIO.finally` cleanupThreads
+
+profileEval ::
+  ActiveThreads ->
+  IO () ->
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  Maybe String ->
+  Term Symbol ->
+  IO (Either Error (Response, Term Symbol))
+profileEval actThr cleanThr ctxVar cl ppe mout tm = do
+  prof <- spawnProfiler
+  result <-
+    interpEvalDirect actThr cleanThr ctxVar (Just prof) cl ppe tm
+  case result of
+    Left err -> pure $ Left err
+    Right (errs, tmr) -> case prof of
+      PC _ finish getProf -> do
+        finish
+        ectx <- readIORef ctxVar
+        pout <- backReferenceProfile ectx <$> getProf
+        case mout of
+          Just loc
+            | ticky $ takeExtension loc -> do
+                writeFile loc $ foldedProfile ppe pout
+                pure $ Right (errs, tmr)
+            | otherwise -> do
+                writeFile loc . toPlain 0 $ fullProfile ppe pout
+                pure $ Right (errs, tmr)
+          Nothing ->
+            pure $ Right (errs <> Profile (miniProfile ppe pout), tmr)
+  where
+    ticky ".ticks" = True
+    ticky ".folded" = True
+    ticky _ = False
+
+    backReferenceProfile (ECtx {..}) (Prof tot tr refs) =
+      Prof tot tr (f <$> refs)
+      where
+        f r = fromMaybe r $ backReference floatRemap intermedRemap r
+
+interpEval ::
+  ActiveThreads ->
+  IO () ->
+  IORef EvalCtx ->
+  CodeLookup Symbol IO () ->
+  PrettyPrintEnv ->
+  ProfileSpec ->
+  Term Symbol ->
+  IO (Either Error (Response, Term Symbol))
+interpEval actThr cleanThr ctxVar cl ppe = \case
+  NoProf -> interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
+  MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
+  FullProf file ->
+    profileEval actThr cleanThr ctxVar cl ppe $ Just file
 
 interpCompile ::
   Text ->
@@ -677,7 +747,7 @@ watchHook r xstk = peek (packXStack xstk) >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
-  Remapping IntermediateReference CodebaseReference ->
+  Remapping CodebaseReference FloatedReference ->
   Remapping FloatedReference IntermediateReference ->
   Map.Map CodebaseReference (Map.Map Word64 (Term Symbol)) ->
   Word64 ->
@@ -685,28 +755,40 @@ backReferenceTm ::
   Maybe (Term Symbol)
 backReferenceTm ws frs irs dcm c i = do
   r <- EC.lookup c ws
+  r <- backReference frs irs r
+  -- look up original ref in decompile info
+  bs <- Map.lookup r dcm
+  Map.lookup i bs
+
+backReference ::
+  Remapping CodebaseReference FloatedReference ->
+  Remapping FloatedReference IntermediateReference ->
+  Reference ->
+  Maybe Reference
+backReference frs irs r = do
   -- backmap from function replacements
   r <- pure $ Map.findWithDefault r r functionUnreplacements
   -- backmap intermediate ref to floated ref
   r <- Map.lookup r (backmap irs)
   -- backmap floated ref to original ref
-  r <- pure $ Map.findWithDefault r r (backmap frs)
-  -- look up original ref in decompile info
-  bs <- Map.lookup r dcm
-  Map.lookup i bs
+  pure $ Map.findWithDefault r r (backmap frs)
 
 evalInContext ::
   PrettyPrintEnv ->
   EvalCtx ->
+  Maybe ProfileComm ->
   ActiveThreads ->
   Word64 ->
-  IO (Either Error ([Error], Term Symbol))
-evalInContext ppe ctx activeThreads w = do
+  IO (Either Error (Response, Term Symbol))
+evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompileCtx crs ctx
-      finish = fmap (first listErrors . decom)
+      mkResponse errs = case listErrors errs of
+        [] -> EmptyResponse
+        es -> DecompErrs es
+      finish = fmap (first mkResponse . decom)
 
       prettyError e =
         prettyRuntimeExn ppe (backmapRef ctx) decom <$> fromException e
@@ -724,12 +806,16 @@ evalInContext ppe ctx activeThreads w = do
 
   result <-
     bitraverse id (const $ readIORef r) <=< tryJust prettyError $
-      apply0 (Just hook) ((ccache ctx) {tracer = debugText}) activeThreads w
+      ( maybe
+          (apply0 (Just hook) (ccache ctx) {tracer = debugText} activeThreads w)
+          (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, profiler = pc} activeThreads w)
+          prof
+      )
   pure $ finish result
 
 executeMainComb ::
   CombIx ->
-  CCache ->
+  CCache () ->
   IO (Either (Pretty ColorText) ())
 executeMainComb init cc = do
   rSection <- resolveSection cc $ Ins (Pack RF.unitRef TT.unitTag ZArgs) $ Call True init init (VArg1 0)
@@ -873,10 +959,10 @@ debugTextFormat fancy =
   where
     render = if fancy then toANSI else toPlain
 
-restoreCache :: Bool -> StoredCache -> IO CCache
+restoreCache :: Bool -> StoredCache -> IO (CCache ())
 restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
   cc <-
-    CCache sandboxed debugText
+    CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
       <*> newTVarIO combs
       <*> newTVarIO (crs <> builtinTermBackref)
@@ -999,7 +1085,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sn
     restrictTyW m = restrictKeys m typeKeys
     restrictTyR m = Map.restrictKeys m typeRefs
 
-standalone :: CCache -> Word64 -> IO StoredCache
+standalone :: CCache () -> Word64 -> IO StoredCache
 standalone cc init =
   readTVarIO (combRefs cc) >>= \crs ->
     case EC.lookup init crs of

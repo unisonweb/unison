@@ -19,7 +19,7 @@ import Unison.Merge.TwoWayI (TwoWayI (..))
 import Unison.Merge.TwoWayI qualified as TwoWayI
 import Unison.Merge.Unconflicts (Unconflicts (..))
 import Unison.Merge.Unconflicts qualified as Unconflicts
-import Unison.Merge.Updated (Updated (..))
+import Unison.Merge.Updated (GUpdated (..))
 import Unison.Name (Name)
 import Unison.Prelude hiding (catMaybes)
 import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)

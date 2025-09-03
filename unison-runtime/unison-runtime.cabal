@@ -67,6 +67,7 @@ library
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Profiling
       Unison.Runtime.Referenced
       Unison.Runtime.Serialize
       Unison.Runtime.SparseVector
@@ -121,6 +122,7 @@ library
     , crypton-x509
     , crypton-x509-store
     , crypton-x509-system
+    , crypton-x509-validation
     , cryptonite
     , data-default
     , data-memocombinators

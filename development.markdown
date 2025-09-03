@@ -69,29 +69,29 @@ Again you can leave off the flag. To run an executable with profiling enabled, d
 
 That will generate a `<executable-name>.prof` plain text file with profiling data. [More info on profiling](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html).
 
-## Building with cabal
+## Building with Cabal
 
-Unison can also be built/installed with cabal. You'll need the same ghc
+Unison can also be built/installed with Cabal. You'll need the same ghc
 used by `stack.yaml` to successfully build its dependencies.
 The provided project file is also in contrib/ so you'll need to specify
 its location on the command line.
 
 * To build all projects use
 
-    `cabal v2-build --project-file=contrib/cabal.project all`
+    `cabal build --project-file=contrib/cabal.project all`
 
 * Tests can be run with e.g.
 
-    `cabal v2-test --project-file=contrib/cabal.project all`
+    `cabal test --project-file=contrib/cabal.project all`
 
 * The executable can be installed with
 
-    `cabal v2-install --project-file=contrib/cabal.project unison`
+    `cabal install --project-file=contrib/cabal.project unison`
 
-* The install directory can be modified with the option `--installdir: ...`
+* The install directory can be modified with the option `--installdir=`
 
 * Take in account that if you want to load the project in haskell-language-server using cabal instead stack you will need:
-  * Copy or link `./contrib/cabal.project` to `./cabal.project`
+  * Symlink `contrib/cabal.project*` to the project root (for example, `ln -s contrib/cabal.project* ./`)
   * Delete or rename the existing `./hie.yaml`. The default behaviour without `hie.yaml` works with cabal.
 
 ## Building on Windows

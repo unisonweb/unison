@@ -62,7 +62,6 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.PrintError qualified as PrintError
 import Unison.Referent qualified as Referent
 import Unison.Result (Note)

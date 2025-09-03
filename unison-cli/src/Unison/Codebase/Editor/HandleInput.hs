@@ -109,6 +109,7 @@ import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.CommandLine.Completion qualified as Completion
@@ -134,7 +135,6 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -528,7 +528,7 @@ loop e = do
         Update2I -> handleUpdate2
         TodoI -> handleTodo
         TestI testInput -> Tests.handleTest testInput
-        ExecuteI main args -> handleRun main args
+        ExecuteI prof main args -> handleRun prof main args
         MakeStandaloneI output main ->
           doCompile False output main
         IOTestI main -> Tests.handleIOTest main
@@ -841,7 +841,13 @@ inputDescription input =
         DeleteTarget'Project _ -> wat
     Update2I -> pure ("update")
     UndoI {} -> pure "undo"
-    ExecuteI s args -> pure ("execute " <> Text.unwords (HQ.toText s : fmap Text.pack args))
+    ExecuteI prof s args ->
+      pure (head <> Text.unwords (HQ.toText s : fmap Text.pack args))
+      where
+        head = case prof of
+          NoProf -> "run "
+          MiniProf -> "run.profiled "
+          FullProf nm -> "run.profiled-to " <> Text.pack nm <> " "
     IOTestI hq -> pure ("io.test " <> HQ.toText hq)
     IOTestAllI -> pure "io.test.all"
     UpdateBuiltinsI -> pure "builtins.update"

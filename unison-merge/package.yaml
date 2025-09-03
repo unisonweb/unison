@@ -7,12 +7,14 @@ ghc-options: -Wall
 dependencies:
   - base
   - containers
+  - deepseq
   - lens
   - nonempty-containers
   - semialign
   - semigroups
   - text
   - these
+  - transformers
   - unison-core
   - unison-core1
   - unison-hash
@@ -25,10 +27,6 @@ dependencies:
   - witherable
 
 library:
-  # exposed-modules:
-  #   # TODO probably whittle this down to one
-  #   - Unison.Merge
-  #   - Unison.Merge2
   source-dirs: src
   when:
     - condition: false

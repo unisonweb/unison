@@ -40,6 +40,7 @@ module Unison.Cli.Monad
     respond,
     respondNumbered,
     withRespondRegion,
+    withRespondRegionIO,
     setNumberedArgs,
 
     -- * Debug-timing actions
@@ -49,6 +50,7 @@ module Unison.Cli.Monad
     runTransaction,
     runTransactionWithRollback,
     runTransactionWithRollback2,
+    runTransactionWithRollbackE,
 
     -- * Misc types
     LoadSourceResult (..),
@@ -405,18 +407,23 @@ respondNumbered output = do
 --
 -- (In transcripts, this just outputs messages as normal).
 withRespondRegion :: ((Output -> Cli ()) -> Cli a) -> Cli a
-withRespondRegion action = do
+withRespondRegion action =
+  withRespondRegionIO \respondRegion ->
+    action (liftIO . respondRegion)
+
+-- | Like 'withRespondRegion', but the provided callback is in IO, not lifted to Cli, which is sometimes needed.
+withRespondRegionIO :: ((Output -> IO ()) -> Cli a) -> Cli a
+withRespondRegionIO action = do
   env <- ask
   case env.isTranscriptTest of
     False ->
       with_ Console.Regions.displayConsoleRegions do
         with (Console.Regions.withConsoleRegion Console.Regions.Linear) \region ->
-          action \output ->
-            liftIO do
-              string <- (OutputMessages.notifyUser (pure ".") output)
-              width <- PrettyTerminal.getAvailableWidth
-              Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
-    True -> action respond
+          action \output -> do
+            string <- (OutputMessages.notifyUser (pure ".") output)
+            width <- PrettyTerminal.getAvailableWidth
+            Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
+    True -> action env.notify
 
 -- | Updates the numbered args, but only if the new args are non-empty.
 setNumberedArgs :: NumberedArgs -> Cli ()
@@ -443,3 +450,8 @@ runTransactionWithRollback2 :: ((forall void. a -> Sqlite.Transaction void) -> S
 runTransactionWithRollback2 action = do
   env <- ask
   liftIO (Codebase.runTransactionWithRollback env.codebase action)
+
+-- | Run a transaction that can abort early.
+runTransactionWithRollbackE :: ((forall void. a -> Sqlite.Transaction void) -> Sqlite.Transaction b) -> Cli (Either a b)
+runTransactionWithRollbackE action =
+  runTransactionWithRollback2 (\rollback -> Right <$> action (rollback . Left))

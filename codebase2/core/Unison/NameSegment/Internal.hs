@@ -6,6 +6,7 @@
 --   thus should only be imported by parsers & printers.
 module Unison.NameSegment.Internal (NameSegment (..)) where
 
+import Control.DeepSeq (NFData)
 import GHC.TypeLits (ErrorMessage ((:$$:)), TypeError)
 import GHC.TypeLits qualified as TypeError (ErrorMessage (Text))
 import Unison.Prelude
@@ -25,6 +26,7 @@ newtype NameSegment = NameSegment
   }
   deriving stock (Eq, Generic, Ord, Show)
   deriving newtype (Alphabetical)
+  deriving anyclass (NFData)
 
 instance
   ( TypeError

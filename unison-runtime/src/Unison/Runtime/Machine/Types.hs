@@ -1,12 +1,26 @@
+{-# LANGUAGE CPP #-}
+
 module Unison.Runtime.Machine.Types where
 
+#if !defined(mingw32_HOST_OS)
+import Control.Concurrent
+  (ThreadId, MVar, newEmptyMVar, tryPutMVar, tryTakeMVar)
+#else
 import Control.Concurrent (ThreadId)
+#endif
+
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
-import Data.IORef (IORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.Kind (Type)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Word
+#if !defined(mingw32_HOST_OS)
+import GHC.Event (getSystemTimerManager, registerTimeout)
+#else
+import System.CPUTime
+#endif
 import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
@@ -24,6 +38,7 @@ import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.MCode
+import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Symbol
@@ -67,10 +82,78 @@ refLookup s m r
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
+-- A class parameterizing profiling. The interpreter loop can be
+-- specialized to a class, which allows the same code to be used for both
+-- normal and profiling execution without sacrificing performance. If
+-- desired, other aspects of the runtime could be configured this way.
+class RuntimeProfiler prof where
+  data Ticker prof :: Type
+
+  -- starts a ticker for a profiler
+  startTicker :: prof -> IO (Ticker prof, IO ())
+  checkTicker :: Ticker prof -> CombIx -> K -> IO ()
+
+instance RuntimeProfiler () where
+  data Ticker () = NilTick
+  startTicker () = pure (NilTick, pure ())
+  checkTicker _ _ _ = pure ()
+  {-# INLINE checkTicker #-}
+
+type Tick = CombIx -> K -> IO ()
+#if !defined(mingw32_HOST_OS)
+-- GHC.Event, time-baed profiler
+instance RuntimeProfiler ProfileComm where
+  newtype Ticker ProfileComm = ProfTicker (MVar Tick)
+
+  startTicker (PC pf _ _) = do
+    ticker <- newEmptyMVar
+    cancel <- newIORef False
+    tm <- getSystemTimerManager
+    void . registerTimeout tm 100 $
+      tickCallback 100 pf ticker cancel
+    pure (ProfTicker ticker, writeIORef cancel True)
+
+  checkTicker (ProfTicker tick) cix k = tryTakeMVar tick >>= \case
+    Nothing -> pure ()
+    Just pf -> pf cix k
+  {-# INLINE checkTicker #-}
+
+-- Callback for producing ticks via event manager timeouts. These happen
+-- promptly, but probably should have short callbacks, since they're
+-- running in the scheduler. here, we just write a tick to the MVar that
+-- is checked periodically by runtime threads, then set a new timeout
+-- unless we've been cancelled.
+--
+-- The callback doesn't block trying to write to the MVar, so if something
+-- is already there, a second tick just won't happen.
+tickCallback :: Int -> Tick -> MVar Tick -> IORef Bool -> IO ()
+tickCallback interval tick ticker cancel = body
+  where
+    body = do
+      tryPutMVar ticker tick
+      b <- readIORef cancel
+      when (not b) do
+        tm <- getSystemTimerManager
+        () <$ registerTimeout tm interval body
+#else
+-- CPUTime based profiler for Windows
+instance RuntimeProfiler ProfileComm where
+  data Ticker ProfileComm = TPC !Tick !(IORef Word8)
+  startTicker (PC pf _ _) = (, pure ()) . TPC pf  <$> newIORef 1
+
+  checkTicker (TPC tick r) cix k = do
+    n <- readIORef r
+    when (n `mod` 128 == 0) do
+      n <- getCPUTime
+      when (n `mod` 100000 == 0) $ tick cix k
+    writeIORef r (n+1)
+#endif
+
 -- code caching environment
-data CCache = CCache
+data CCache prof = CCache
   { sandboxed :: Bool,
     tracer :: Bool -> Val -> Tracer,
+    profiler :: !prof,
     -- Combinators in their original form, where they're easier to serialize into SCache
     srcCombs :: TVar (EnumMap Word64 Combs),
     combs :: TVar (EnumMap Word64 MCombs),
@@ -87,21 +170,21 @@ data CCache = CCache
     sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
-refNumsTm :: CCache -> IO (M.Map Reference Word64)
+refNumsTm :: CCache prof -> IO (M.Map Reference Word64)
 refNumsTm cc = readTVarIO (refTm cc)
 
-refNumsTy :: CCache -> IO (M.Map Reference Word64)
+refNumsTy :: CCache prof -> IO (M.Map Reference Word64)
 refNumsTy cc = readTVarIO (refTy cc)
 
-refNumTm :: CCache -> Reference -> IO Word64
+refNumTm :: CCache prof -> Reference -> IO Word64
 refNumTm cc r =
   refNumsTm cc >>= \case
     (M.lookup r -> Just w) -> pure w
     _ -> Exception.die [] $ "refNumTm: unknown reference: " ++ show r
 
-baseCCache :: Bool -> IO CCache
+baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
-  CCache sandboxed noTrace
+  CCache sandboxed noTrace ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
     <*> newTVarIO builtinTermBackref
@@ -134,7 +217,7 @@ baseCCache sandboxed = do
         & absurdCombs
         & resolveCombs Nothing
 
-lookupCode :: CCache -> Referent -> IO (Maybe (Referenced Code))
+lookupCode :: CCache prof -> Referent -> IO (Maybe (Referenced Code))
 lookupCode env (Ref link) =
   resolveCode link
     <$> readTVarIO (intermed env)
@@ -176,7 +259,7 @@ cacheability rfn cach link
   | otherwise = Uncacheable
 
 checkSandboxing ::
-  CCache ->
+  CCache prof ->
   [Reference] ->
   Closure ->
   IO Bool
@@ -194,7 +277,7 @@ checkSandboxing cc allowed0 c = do
 -- dependencies of the Value are unknown. A Right result indicates
 -- builtins transitively referenced by the Value that are disallowed.
 checkValueSandboxing ::
-  CCache ->
+  CCache prof ->
   [Reference] ->
   Value Reference ->
   IO (Either [Referent] [Referent])
@@ -216,7 +299,7 @@ checkValueSandboxing cc allowed0 v = do
     allowed = S.fromList allowed0
 
 codeValidate ::
-  CCache ->
+  CCache prof ->
   [(Reference, SuperGroup Reference Symbol)] ->
   IO (Maybe (Failure UText.Text))
 codeValidate cc tml = do

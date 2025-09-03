@@ -8,9 +8,11 @@ import Unison.Prelude
 
 -- | A small utility type that represents a syntactic-hashed thing.
 --
+-- The synhash itself is a lazy field so that we can avoid computing it in certain cases, just using laziness.
+--
 -- The `Eq` and `Ord` instances only compares syntactic hashes.
 data Synhashed a = Synhashed
-  { hash :: !Hash,
+  { hash :: Hash,
     value :: !a
   }
   deriving stock (Functor, Generic, Show)

@@ -20,7 +20,7 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoDiffOps (TwoDiffOps (..))
 import Unison.Merge.TwoDiffOps qualified as TwoDiffOps
 import Unison.Merge.TwoWay (TwoWay (..))
-import Unison.Merge.Updated (Updated (..))
+import Unison.Merge.Updated (GUpdated (..))
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)

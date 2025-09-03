@@ -116,6 +116,7 @@ import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
@@ -144,7 +145,6 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Project (ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -808,14 +808,14 @@ evalDocRef rt codebase r = do
       let evalPPE = PPE.empty
       let codeLookup = Codebase.codebaseToCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
-      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
+      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE NoProf rt tm
       -- Only cache watches when we're not in readonly mode
       Env.lookupEnv "UNISON_READONLY" >>= \case
         Just (_ : _) -> pure ()
         _ -> do
           case r of
             -- don't cache when there were decompile errors
-            Just (errs, tmr)
+            Just (Rt.DecompErrs errs, tmr)
               | null errs ->
                   Codebase.runTransaction codebase do
                     Codebase.putWatch
