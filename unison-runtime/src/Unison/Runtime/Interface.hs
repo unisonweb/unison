@@ -417,7 +417,10 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO (EvalCtx, Map Reference FloatName, [(Reference, SuperGroup Reference Symbol)])
+  IO ( EvalCtx,
+       Map Reference (FloatName Symbol),
+       [(Reference, SuperGroup Reference Symbol)]
+     )
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -450,7 +453,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, Map Reference FloatName, [(Reference, Code Reference)])
+  IO (EvalCtx, Map Reference (FloatName Symbol), [(Reference, Code Reference)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -515,7 +518,7 @@ interpEvalDirect ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Term Symbol ->
-  IO (Either Error (Map Reference FloatName, (Response, Term Symbol)))
+  IO (Either Error (Map Reference (FloatName Symbol), (Response, Term Symbol)))
 interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
   catchInternalErrors $ do
     ctx <- readIORef ctxVar
@@ -545,7 +548,7 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
     Left err -> pure $ Left err
     Right (fnames0, (errs, tmr)) -> case prof of
       PC _ finish getProf -> do
-        let fnames = Map.map prettyFloatName fnames0
+        let fnames = Map.map (prettyFloatName ppe) fnames0
         finish
         ectx <- readIORef ctxVar
         pout <- backReferenceProfile ectx <$> getProf
@@ -624,7 +627,7 @@ intermediateTerms ::
   EvalCtx ->
   Map RF.Id (Symbol, Term Symbol) ->
   ( Map.Map Symbol Reference,
-    Map.Map Reference FloatName,
+    Map.Map Reference (FloatName Symbol),
     Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
@@ -651,7 +654,7 @@ normalizeTerm ::
   Term Symbol ->
   ( Reference,
     Map Reference Reference,
-    Map Reference FloatName,
+    Map Reference (FloatName Symbol),
     Map Reference (Term Symbol),
     Map Reference (Map.Map Word64 (Term Symbol))
   )
@@ -677,7 +680,7 @@ normalizeGroup ::
   Map Symbol Reference ->
   [(Symbol, Term Symbol)] ->
   ( Map Symbol Reference,
-    Map Reference FloatName,
+    Map Reference (FloatName Symbol),
     Map Reference (Term Symbol),
     Map Reference (Term Symbol)
   )
@@ -702,7 +705,7 @@ intermediateTerm ::
   Term Symbol ->
   ( Reference,
     Map.Map Reference Reference,
-    Map.Map Reference FloatName,
+    Map.Map Reference (FloatName Symbol),
     Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
@@ -722,7 +725,11 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, Map Reference FloatName, [(Reference, Code Reference)], Reference)
+  IO ( EvalCtx,
+       Map Reference (FloatName Symbol),
+       [(Reference, Code Reference)],
+       Reference
+     )
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
