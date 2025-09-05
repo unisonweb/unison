@@ -119,8 +119,8 @@ import Unison.ConstructorReference (ConstructorReference, GConstructorReference 
 import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
-import Unison.PrettyPrintEnv (PrettyPrintEnv, termName)
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv, termName)
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.Array qualified as PA
@@ -129,7 +129,7 @@ import Unison.Runtime.Referenced (Referential (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
-import Unison.Syntax.NamePrinter (prettyShortHash, prettyHashQualified)
+import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
 import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
@@ -413,42 +413,45 @@ extendName :: FloatSeg v -> FloatName v -> FloatName v
 extendName s (FloatName ss) = FloatName $ s : ss
 
 prettyFloatName ::
-  Var v => PrettyPrintEnv -> FloatName v -> Pretty.Pretty Pretty.ColorText
+  (Var v) => PrettyPrintEnv -> FloatName v -> Pretty.Pretty Pretty.ColorText
 prettyFloatName ppe (FloatName ts) =
   Pretty.sep "$" . fmap prettySeg $ reverse ts
   where
     prettySeg (FSText tx) = Pretty.text tx
     prettySeg (FSVar v) = Pretty.text $ Var.name v
     prettySeg (FSRef r) =
-      Pretty.syntaxToColor .
-        prettyHashQualified .
-        termName ppe $ Rfn.Ref' r
+      Pretty.syntaxToColor
+        . prettyHashQualified
+        . termName ppe
+        $ Rfn.Ref' r
 
-data FloatState v a =
-  FS { lambdas :: Int,
-       path :: FloatName v,
-       ctxVars :: Set v,
-       floated :: [(v, Term v a)],
-       floatNames :: [(v, FloatName v)],
-       decomp :: [(v, Term v a)]
-     }
+data FloatState v a = FS
+  { lambdas :: Int,
+    path :: FloatName v,
+    ctxVars :: Set v,
+    floated :: [(v, Term v a)],
+    floatNames :: [(v, FloatName v)],
+    decomp :: [(v, Term v a)]
+  }
 
 emptyState :: FloatState v a
 emptyState = FS 0 (FloatName []) Set.empty [] [] []
 
 type FloatM v a r = State (FloatState v a) r
 
-addVars :: Ord v => Set v -> FloatM v a ()
-addVars new = modify \st -> st { ctxVars = new <> ctxVars st }
+addVars :: (Ord v) => Set v -> FloatM v a ()
+addVars new = modify \st -> st {ctxVars = new <> ctxVars st}
 
 inLocal :: FloatSeg v -> FloatM v a r -> FloatM v a r
 inLocal nm act = do
   st <- get
-  put $ st { path = extendName nm $ path st,
-             lambdas = 0
-           }
+  put $
+    st
+      { path = extendName nm $ path st,
+        lambdas = 0
+      }
   r <- act
-  modify \st' -> st' { path = path st, lambdas = lambdas st }
+  modify \st' -> st' {path = path st, lambdas = lambdas st}
   pure r
 
 inLocalLam :: FloatM v a r -> FloatM v a r
@@ -461,16 +464,17 @@ addFloated ::
 addFloated fln dc = modify \st ->
   let fl = fln <&> \(v, _, tm) -> (v, tm)
       fn = fln <&> \(v, n, _) -> (v, extendName n $ path st)
-  in st { floated = fl <> floated st,
+   in st
+        { floated = fl <> floated st,
           floatNames = fn <> floatNames st,
           decomp = dc <> decomp st
         }
 
-nameLambda :: Var v => Maybe v -> FloatM v a Text
+nameLambda :: (Var v) => Maybe v -> FloatM v a Text
 nameLambda (Just v) = pure $ Var.name v
 nameLambda Nothing = state \st ->
-  let n = lambdas st in
-  ("Lambda" <> Data.Text.pack (show n), st { lambdas = n + 1 })
+  let n = lambdas st
+   in ("Lambda" <> Data.Text.pack (show n), st {lambdas = n + 1})
 
 freshFloat :: (Var v) => Set v -> v -> v
 freshFloat avoid (Var.freshIn avoid -> v0) =
@@ -501,7 +505,7 @@ groupFloater rec vbs = do
       rn v = Map.findWithDefault v v shadowMap
       shvs = Set.fromList $ map (rn . fst) vbs
       h (v, b) =
-        (rn v, nm,) <$> inLocal nm (rec' (ABT.renames shadowMap b))
+        (rn v,nm,) <$> inLocal nm (rec' (ABT.renames shadowMap b))
         where
           nm = FSVar v
   addVars shvs
@@ -536,16 +540,17 @@ lamFloater ::
   [v] ->
   Term v a ->
   FloatM v a v
-lamFloater closed tm mv a vs bd = get >>= \FS {ctxVars, floated} ->
-  case find p floated of
-    Just (v, _) -> pure v
-    Nothing -> do
-      let v = ABT.freshIn ctxVars $ fromMaybe (typed Var.Float) mv
-      nm <- nameLambda mv
-      addFloated
-        [(v, FSText nm, lamWithoutBindingAnns a vs bd)]
-        (floatDecomp closed v tm)
-      pure v
+lamFloater closed tm mv a vs bd =
+  get >>= \FS {ctxVars, floated} ->
+    case find p floated of
+      Just (v, _) -> pure v
+      Nothing -> do
+        let v = ABT.freshIn ctxVars $ fromMaybe (typed Var.Float) mv
+        nm <- nameLambda mv
+        addFloated
+          [(v, FSText nm, lamWithoutBindingAnns a vs bd)]
+          (floatDecomp closed v tm)
+        pure v
   where
     tgt = unannotate (lamWithoutBindingAnns a vs bd)
     p (_, flam) = unannotate flam == tgt
@@ -601,7 +606,7 @@ postFloat ::
     [(Reference, Term v a)],
     [(Reference, Term v a)]
   )
-postFloat orig (FS { floatNames, floated, decomp }) =
+postFloat orig (FS {floatNames, floated, decomp}) =
   ( subs,
     subvs,
     mapMaybe (fmap $ fmap originals) nms,
@@ -624,16 +629,18 @@ postFloat orig (FS { floatNames, floated, decomp }) =
         rf = DerivedId id
         idtm = ref (ABT.annotation tm) rf
     unzip4 [] = ([], [], [], [])
-    unzip4 ((a,b,c,d) : (unzip4 -> ~(as,bs,cs,ds))) =
-      (a:as, b:bs, c:cs, d:ds)
+    unzip4 ((a, b, c, d) : (unzip4 -> ~(as, bs, cs, ds))) =
+      (a : as, b : bs, c : cs, d : ds)
     (subvs, nms, subs, tops) = unzip4 $ map f trips
     subm = fmap DerivedId (Map.fromList subvs)
     dsubs = Map.toList $ Map.map (ref mempty) orig <> Map.fromList subs
 
-    originals (FloatName ss) = FloatName $ ss <&> \case
-      FSVar v
-        | Just r <- Map.lookup v orig -> FSRef r
-      seg -> seg
+    originals (FloatName ss) =
+      FloatName $
+        ss <&> \case
+          FSVar v
+            | Just r <- Map.lookup v orig -> FSRef r
+          seg -> seg
 
 float ::
   (Var v) =>

@@ -417,10 +417,11 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO ( EvalCtx,
-       Map Reference (FloatName Symbol),
-       [(Reference, SuperGroup Reference Symbol)]
-     )
+  IO
+    ( EvalCtx,
+      Map Reference (FloatName Symbol),
+      [(Reference, SuperGroup Reference Symbol)]
+    )
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -467,8 +468,8 @@ loadDeps cl ppe ctx tyrs tmrs = do
   let tyAdd = Set.fromList $ fst <$> tyrs
   (ctx', fnames, rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
-  (ctx', fnames, crgrp) <$
-    cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+  (ctx', fnames, crgrp)
+    <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
@@ -725,11 +726,12 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO ( EvalCtx,
-       Map Reference (FloatName Symbol),
-       [(Reference, Code Reference)],
-       Reference
-     )
+  IO
+    ( EvalCtx,
+      Map Reference (FloatName Symbol),
+      [(Reference, Code Reference)],
+      Reference
+    )
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
