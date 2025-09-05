@@ -417,7 +417,7 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, SuperGroup Reference Symbol)])
+  IO (EvalCtx, Map Reference FloatName, [(Reference, SuperGroup Reference Symbol)])
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -432,7 +432,7 @@ loadCode cl ppe ctx tmrs = do
   itms <-
     traverse (\r -> (RF.unsafeId r,) <$> resolveTermRef cl r) new
   let im = Tm.unhashComponent (Map.fromList itms)
-      (subvs, rgrp0, rbkr) = intermediateTerms ppe ctx im
+      (subvs, fnames, rgrp0, rbkr) = intermediateTerms ppe ctx im
       lubvs r = case Map.lookup r subvs of
         Just r -> r
         Nothing -> error "loadCode: variable missing for float refs"
@@ -442,7 +442,7 @@ loadCode cl ppe ctx tmrs = do
         performRehash
           (fmap (overGroupLinks int) rgrp0)
           (floatRemapAdd vm ctx)
-  return (backrefAdd rbkr ctx', rgrp ++ odeps)
+  return (backrefAdd rbkr ctx', fnames, rgrp ++ odeps)
 
 loadDeps ::
   CodeLookup Symbol IO () ->
@@ -450,7 +450,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, [(Reference, Code Reference)])
+  IO (EvalCtx, Map Reference FloatName, [(Reference, Code Reference)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -462,9 +462,10 @@ loadDeps cl ppe ctx tyrs tmrs = do
       _ -> False
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   let tyAdd = Set.fromList $ fst <$> tyrs
-  (ctx', rgrp) <- loadCode cl ppe ctx tmrs
+  (ctx', fnames, rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
-  (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+  (ctx', fnames, crgrp) <$
+    cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
@@ -514,17 +515,18 @@ interpEvalDirect ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Term Symbol ->
-  IO (Either Error (Response, Term Symbol))
+  IO (Either Error (Map Reference FloatName, (Response, Term Symbol)))
 interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
   catchInternalErrors $ do
     ctx <- readIORef ctxVar
     (tyrs, tmrs) <- collectDeps cl tm
-    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
-    (ctx, _, init) <- prepareEvaluation ppe tm ctx
+    (ctx, fnames0, _) <- loadDeps cl ppe ctx tyrs tmrs
+    (ctx, fnames1, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
-    evalInContext ppe ctx prof activeThreads initw
-      `UnliftIO.finally` cleanupThreads
+    fmap (fmap (Map.union fnames0 fnames1,)) $
+      evalInContext ppe ctx prof activeThreads initw
+        `UnliftIO.finally` cleanupThreads
 
 profileEval ::
   ActiveThreads ->
@@ -541,21 +543,22 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
     interpEvalDirect actThr cleanThr ctxVar (Just prof) cl ppe tm
   case result of
     Left err -> pure $ Left err
-    Right (errs, tmr) -> case prof of
+    Right (fnames0, (errs, tmr)) -> case prof of
       PC _ finish getProf -> do
+        let fnames = Map.map prettyFloatName fnames0
         finish
         ectx <- readIORef ctxVar
         pout <- backReferenceProfile ectx <$> getProf
         case mout of
           Just loc
             | ticky $ takeExtension loc -> do
-                writeFile loc $ foldedProfile ppe pout
+                writeFile loc $ foldedProfile ppe fnames pout
                 pure $ Right (errs, tmr)
             | otherwise -> do
-                writeFile loc . toPlainUnbroken $ fullProfile ppe pout
+                writeFile loc . toPlainUnbroken $ fullProfile ppe fnames pout
                 pure $ Right (errs, tmr)
           Nothing ->
-            pure $ Right (errs <> Profile (miniProfile ppe pout), tmr)
+            pure $ Right (errs <> Profile (miniProfile ppe fnames pout), tmr)
   where
     ticky ".ticks" = True
     ticky ".folded" = True
@@ -576,7 +579,8 @@ interpEval ::
   Term Symbol ->
   IO (Either Error (Response, Term Symbol))
 interpEval actThr cleanThr ctxVar cl ppe = \case
-  NoProf -> interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
+  NoProf ->
+    fmap (fmap snd) . interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
   FullProf file ->
     profileEval actThr cleanThr ctxVar cl ppe $ Just file
@@ -593,7 +597,7 @@ interpCompile ::
 interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl rf
-  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+  (ctx, _, _) <- loadDeps cl ppe ctx tyrs tmrs
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
@@ -620,13 +624,14 @@ intermediateTerms ::
   EvalCtx ->
   Map RF.Id (Symbol, Term Symbol) ->
   ( Map.Map Symbol Reference,
+    Map.Map Reference FloatName,
     Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
   case normalizeGroup ctx orig (Map.elems rtms) of
-    (subvs, cmbs, dcmp) ->
-      (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
+    (subvs, fnames, cmbs, dcmp) ->
+      (subvs, fnames, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
       where
         f ref =
           superNormalize
@@ -646,6 +651,7 @@ normalizeTerm ::
   Term Symbol ->
   ( Reference,
     Map Reference Reference,
+    Map Reference FloatName,
     Map Reference (Term Symbol),
     Map Reference (Map.Map Word64 (Term Symbol))
   )
@@ -662,23 +668,25 @@ normalizeTerm ctx tm =
             . Hashing.hashTermComponentsWithoutTypes
             $ Map.fromList bs
       | otherwise = mempty
-    absorb (ll, frem, bs, dcmp) =
+    absorb (ll, frem, fnames, bs, dcmp) =
       let ref = RF.DerivedId $ Hashing.hashClosedTerm ll
-       in (ref, frem, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
+       in (ref, frem, fnames, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
 
 normalizeGroup ::
   EvalCtx ->
   Map Symbol Reference ->
   [(Symbol, Term Symbol)] ->
   ( Map Symbol Reference,
+    Map Reference FloatName,
     Map Reference (Term Symbol),
     Map Reference (Term Symbol)
   )
 normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
-  (subvis, cmbs, dcmp) ->
+  (subvis, fnames, cmbs, dcmp) ->
     let subvs = (fmap . fmap) RF.DerivedId subvis
         subrs = Map.fromList $ mapMaybe f subvs
      in ( Map.fromList subvs,
+          Map.fromList fnames,
           Map.fromList $
             (fmap . fmap) (Tm.updateDependencies subrs mempty) cmbs,
           Map.fromList dcmp
@@ -694,12 +702,14 @@ intermediateTerm ::
   Term Symbol ->
   ( Reference,
     Map.Map Reference Reference,
+    Map.Map Reference FloatName,
     Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerm ppe ctx tm =
   case normalizeTerm ctx tm of
-    (ref, frem, cmbs, dcmp) -> (ref, frem, fmap f cmbs, dcmp)
+    (ref, frem, fnames, cmbs, dcmp) ->
+      (ref, frem, fnames, fmap f cmbs, dcmp)
       where
         tmName = HQ.toText . termName ppe $ RF.Ref ref
         f =
@@ -712,16 +722,16 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO (EvalCtx, [(Reference, Code Reference)], Reference)
+  IO (EvalCtx, Map Reference FloatName, [(Reference, Code Reference)], Reference)
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $
       "Error in prepareEvaluation, cache is missing: " <> show missing
-  pure (backrefAdd rbkr ctx', rcode, rmn)
+  pure (backrefAdd rbkr ctx', fnames, rcode, rmn)
   where
     uncacheable g = CodeRep g Uncacheable
-    (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
+    (rmn0, frem, fnames, rgrp0, rbkr) = intermediateTerm ppe ctx tm
     int b r
       | b || Map.member r rgrp0 = r
       | otherwise = toIntermed ctx r

@@ -178,15 +178,16 @@ showPercent d = pad $ showFFloat (Just 2) (100 * d) "%"
 dispProfEntry ::
   (Ord k) =>
   PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
   Map k Reference ->
   (k, [k]) ->
   (Double, Double) ->
   Pretty ColorText
-dispProfEntry ppe refs (k, ks) (inh, self) =
+dispProfEntry ppe misc refs (k, ks) (inh, self) =
   mconcat
     [ P.indentN 2 . fromString $ showPercent inh,
       P.indentN 4 . fromString $ showPercent self,
-      P.indentN (2 * ind + 4) $ dispKey ppe refs k,
+      P.indentN (2 * ind + 4) $ dispKey ppe misc refs k,
       "\n"
     ]
   where
@@ -197,18 +198,27 @@ dispFunc ppe =
   syntaxToColor . prettyHashQualified . termName ppe . Ref
 
 dispKey ::
-  (Ord k) => PrettyPrintEnv -> Map k Reference -> k -> Pretty ColorText
-dispKey ppe refs k
-  | Just r <- M.lookup k refs = dispFunc ppe r
-  | otherwise = "<unknown>"
+  (Ord k) =>
+  PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
+  Map k Reference ->
+  k ->
+  Pretty ColorText
+dispKey ppe misc refs k = case M.lookup k refs of
+  Just r
+    | Just pr <- M.lookup r misc -> pr
+    | otherwise -> dispFunc ppe r
+  Nothing -> "<unknown>"
 
 dispProfTrie ::
   (Ord k) =>
   PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
   Map k Reference ->
   ProfTrie k (Double, Double) ->
   Pretty ColorText
-dispProfTrie ppe refs ag = foldMapTrie (dispProfEntry ppe refs) ag
+dispProfTrie ppe misc refs ag =
+  foldMapTrie (dispProfEntry ppe misc refs) ag
 
 dispTopEntry ::
   (Ord k) =>
@@ -248,36 +258,43 @@ profileTreeHeader =
       ""
     ]
 
-miniProfile :: (Ord k) => PrettyPrintEnv -> Profile k -> Pretty ColorText
-miniProfile ppe (Prof total tr refs) =
+miniProfile ::
+  (Ord k) =>
+  PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
+  Profile k ->
+  Pretty ColorText
+miniProfile ppe misc (Prof total tr refs) =
   profileTreeHeader
-    <> dispProfTrie ppe refs ag
+    <> dispProfTrie ppe misc refs ag
   where
     ag = aggregatePruned total tr
 
 fullProfile ::
   (Ord k) =>
   PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
   Profile k ->
   Pretty ColorText
-fullProfile ppe (Prof total tr refs) =
+fullProfile ppe misc (Prof total tr refs) =
   profileTopHeader
     <> dispTop ppe refs top
     <> "\n\n"
     <> profileTreeHeader
-    <> dispProfTrie ppe refs ag
+    <> dispProfTrie ppe misc refs ag
   where
     (top, ag) = aggregate total tr
 
 foldedProfile ::
   (Ord k) =>
   PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
   Profile k ->
   String
-foldedProfile ppe (Prof _ tr refs) =
+foldedProfile ppe misc (Prof _ tr refs) =
   toPlainUnbroken $ foldMapTrie f tr
   where
-    dk = dispKey ppe refs
+    dk = dispKey ppe misc refs
 
     f (k, ks) n =
       mconcat
