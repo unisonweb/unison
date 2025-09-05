@@ -29,7 +29,7 @@ foo.bar.subtract x y = x Int.- y
 
 > ls foo
 
-  1. bar/ (2 terms)
+  1. bar. (2 terms)
 
 > ls 1
 
