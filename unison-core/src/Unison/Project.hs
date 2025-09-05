@@ -34,6 +34,7 @@ where
 
 import Data.Char qualified as Char
 import Data.Kind (Type)
+import Data.Monoid qualified as Monoid
 import Data.Text qualified as Text
 import Data.Text.Read qualified as Text (decimal)
 import Data.These (These (..))
@@ -74,6 +75,52 @@ projectNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+-- Parse a project name, and whether it ended in a forward slash (which is, of course, not part of the name)
+newProjectNameParser :: Megaparsec.Parsec Void Text (ProjectName, Bool)
+newProjectNameParser = do
+  userSlug <-
+    asum
+      [ do
+          user <- userSlugParser
+          pure (Text.Builder.char '@' <> user <> Text.Builder.char '/'),
+        pure mempty
+      ]
+  projectSlug <- projectSlugParser
+  hasTrailingSlash <- isJust <$> optional (Megaparsec.char '/')
+  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)), hasTrailingSlash)
+  where
+    -- Github project regular expression: ^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){1,39}$
+    --
+    -- In English: a-z or 0-9, followed by 1-39 repetitions of a-z or 0-9 or hyphen, with the restriction that any
+    -- hyphen must be followed by a-z or 0-9
+    --
+    -- We implement that here, but with parser combinators: a-z or 0-9, followed by 1 or more chunks of [optional
+    -- hyphen followed by 1 or more a-z or 0-9], checking length at the end
+    projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    projectSlugParser = do
+      firstChar <- Megaparsec.satisfy isAsciiLowerOrDigit
+      chunks <- some ((,) <$> optional (Megaparsec.char '-') <*> Megaparsec.takeWhile1P Nothing isAsciiLowerOrDigit)
+      when (chunksLength chunks > 39) (fail "Project name must be 2-40 characters long.")
+      pure $
+        Text.Builder.char firstChar
+          <> foldMap
+            ( \(maybeHyphen, chunk) ->
+                maybe (mempty @Text.Builder) Text.Builder.char maybeHyphen <> Text.Builder.text chunk
+            )
+            chunks
+      where
+        isAsciiLowerOrDigit :: Char -> Bool
+        isAsciiLowerOrDigit c =
+          Char.isAsciiLower c || Char.isDigit c
+
+        chunksLength :: [(Maybe Char, Text)] -> Int
+        chunksLength =
+          Monoid.getSum . foldMap (Monoid.Sum . chunkLength)
+
+        chunkLength :: (Maybe Char, Text) -> Int
+        chunkLength (maybeHyphen, chunk) =
+          (if isJust maybeHyphen then 1 else 0) + Text.length chunk
 
 -- | Get the user slug at the beginning of a project name, if there is one.
 --
