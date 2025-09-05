@@ -50,6 +50,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as R
 import Unison.Referent (Referent, pattern Ref)
+import Unison.Referent qualified as Referent
 import Unison.Result (Note (..))
 import Unison.Result qualified as Result
 import Unison.Settings qualified as Settings
@@ -2086,8 +2087,7 @@ prettyResolutionFailures ::
 prettyResolutionFailures s allFailures =
   Pr.callout "❓" $
     Pr.linesNonEmpty
-      [ Pr.wrap
-          ("I couldn't resolve any of" <> style ErrorSite "these" <> "symbols:"),
+      [ Pr.wrap ("I couldn't resolve any of" <> style ErrorSite "these" <> "names:"),
         "",
         annotatedsAsErrorSite s (Names.getAnnotation <$> allFailures),
         "",
@@ -2095,40 +2095,61 @@ prettyResolutionFailures s allFailures =
       ]
   where
     -- Collapses identical failures which may have multiple annotations into a single failure.
-    -- uniqueFailures
     ambiguitiesToTable :: [Names.ResolutionFailure a] -> Pretty ColorText
     ambiguitiesToTable failures =
-      let pairs :: ([(HQ.HashQualified Name, Maybe (NESet String))])
-          pairs = nubOrd . fmap toAmbiguityPair $ failures
-          spacerRow = ("", "")
-       in Pr.column2Header "Symbol" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow pairs)
+      let rows :: [(HQ.HashQualified Name, String, Maybe (NESet String))]
+          rows = nubOrd . fmap toRow $ failures
+          spacerRow = ("", "", "")
+       in Pr.column3Header "Name" "Type" "Suggestions" $ spacerRow : (intercalateMap [spacerRow] prettyRow rows)
 
-    toAmbiguityPair :: Names.ResolutionFailure annotation -> (HQ.HashQualified Name, Maybe (NESet String))
-    toAmbiguityPair = \case
-      (Names.TermResolutionFailure name _ (Names.Ambiguous names refs localNames)) -> do
-        let ppe = ppeFromNames names
-         in ( name,
-              Just $
-                NES.unsafeFromSet
-                  (Set.map (showTermRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
-            )
-      (Names.TypeResolutionFailure name _ (Names.Ambiguous names refs localNames)) -> do
-        let ppe = ppeFromNames names
-         in ( name,
-              Just $
-                NES.unsafeFromSet (Set.map (showTypeRef ppe) refs <> Set.map (Text.unpack . Name.toText) localNames)
-            )
-      (Names.TermResolutionFailure name _ Names.NotFound) -> (name, Nothing)
-      (Names.TypeResolutionFailure name _ Names.NotFound) -> (name, Nothing)
+    toRow :: Names.ResolutionFailure annotation -> (HQ.HashQualified Name, String, Maybe (NESet String))
+    toRow = \case
+      Names.TermResolutionFailure name _ err ->
+        ( name,
+          "term",
+          case err of
+            Names.Ambiguous names refs localNames -> Just (ambiguous refs localNames (showTermRef (ppeFromNames names)))
+            Names.NotFound -> Nothing
+        )
+      Names.TypeResolutionFailure name _ err ->
+        ( name,
+          "type",
+          case err of
+            Names.Ambiguous names refs localNames -> Just (ambiguous refs localNames (showTypeRef (ppeFromNames names)))
+            Names.NotFound -> Nothing
+        )
+      Names.ConstructorResolutionFailure name _ err ->
+        ( name,
+          "constructor",
+          case err of
+            Names.Ambiguous names refs localNames ->
+              Just
+                ( ambiguous
+                    refs
+                    localNames
+                    (\(ref, ty) -> showTermRef (ppeFromNames names) (Referent.Con ref ty))
+                )
+            Names.NotFound -> Nothing
+        )
+      where
+        ambiguous :: Set ref -> Set Name -> (ref -> String) -> NESet String
+        ambiguous refs localNames render =
+          NES.unsafeFromSet (Set.map render refs <> Set.map (Text.unpack . Name.toText) localNames)
 
     ppeFromNames :: Names.Names -> PPE.PrettyPrintEnv
     ppeFromNames names =
       PPE.makePPE (PPE.hqNamer PPE.todoHashLength names) PPE.dontSuffixify
 
-    prettyRow :: (HQ.HashQualified Name, Maybe (NESet String)) -> [(Pretty ColorText, Pretty ColorText)]
-    prettyRow (name, mSet) = case mSet of
-      Nothing -> [(prettyHashQualified0 name, Pr.hiBlack "No matches")]
-      Just suggestions -> zip ([prettyHashQualified0 name] ++ repeat "") (Pr.string <$> toList suggestions)
+    prettyRow ::
+      (HQ.HashQualified Name, String, Maybe (NESet String)) ->
+      [(Pretty ColorText, Pretty ColorText, Pretty ColorText)]
+    prettyRow (name, ty, mSet) = case mSet of
+      Nothing -> [(prettyHashQualified0 name, Pr.string ty, Pr.hiBlack "No matches")]
+      Just suggestions ->
+        zipWith
+          (\(x, y) z -> (x, y, z))
+          ((prettyHashQualified0 name, Pr.string ty) : repeat ("", ""))
+          (Pr.string <$> toList suggestions)
 
 useExamples :: Pretty ColorText
 useExamples =
