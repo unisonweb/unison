@@ -31,7 +31,7 @@ scratch/main> move.namespace . .root.at.path
 
 scratch/main> ls .
 
-  1. root/ (1 term)
+  1. root. (1 term)
 
 scratch/main> history
 
@@ -173,7 +173,7 @@ scratch/happy> move.namespace a b
 scratch/happy> ls b
 
   1. T       (type)
-  2. T/      (2 terms)
+  2. T.      (2 terms)
   3. termInA (Nat)
 
 scratch/happy> history b
