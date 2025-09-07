@@ -9,6 +9,7 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls (tupleTerm, pattern TupleTerm')
 import Unison.Codebase.CodeLookup qualified as CL
 import Unison.Codebase.CodeLookup.Util qualified as CL
+import Unison.Codebase.Runtime.Profile
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -27,6 +28,22 @@ import Unison.WatchKind qualified as WK
 
 type Error = P.Pretty P.ColorText
 
+data Response
+  = DecompErrs [Error]
+  | Profile (P.Pretty P.ColorText)
+  | EmptyResponse
+
+instance Semigroup Response where
+  DecompErrs l <> DecompErrs r = DecompErrs (l <> r)
+  d@(DecompErrs _) <> _ = d
+  _ <> d@(DecompErrs _) = d
+  p@(Profile _) <> _ = p
+  _ <> p@(Profile _) = p
+  EmptyResponse <> r = r
+
+instance Monoid Response where
+  mempty = EmptyResponse
+
 type Term v = Term.Term v ()
 
 data CompileOpts = COpts
@@ -41,8 +58,9 @@ data Runtime v = Runtime
     evaluate ::
       CL.CodeLookup v IO () ->
       PPE.PrettyPrintEnv ->
+      ProfileSpec ->
       Term v ->
-      IO (Either Error ([Error], Term v)),
+      IO (Either Error (Response, Term v)),
     compileTo ::
       CompileOpts ->
       CL.CodeLookup v IO () ->
@@ -65,7 +83,7 @@ type WatchResults v a =
       -- Bindings:
       ( [(v, Term v)],
         -- Map watchName (loc, hash, expression, value, isHit)
-        [Error],
+        Response,
         Map v (a, WatchKind, Reference.Id, Term v, Term v, IsCacheHit)
       )
   )
@@ -83,11 +101,12 @@ evaluateWatches ::
   (Var v) =>
   CL.CodeLookup v IO a ->
   PPE.PrettyPrintEnv ->
+  ProfileSpec ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   Runtime v ->
   TypecheckedUnisonFile v a ->
   IO (WatchResults v a)
-evaluateWatches code ppe evaluationCache rt tuf = do
+evaluateWatches code ppe prof evaluationCache rt tuf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference.Id, Term.Term v a)
       m = fmap (\(_a, id, _wk, tm, _tp) -> (id, tm)) (UF.hashTermsId tuf)
@@ -113,7 +132,7 @@ evaluateWatches code ppe evaluationCache rt tuf = do
       cl = void (CL.fromTypecheckedUnisonFile tuf) <> void code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
-  out <- evaluate rt cl ppe bigOl'LetRec
+  out <- evaluate rt cl ppe prof bigOl'LetRec
   case out of
     Right (errs, out) -> do
       let (bindings, results) = case out of
@@ -150,13 +169,14 @@ evaluateTerm' ::
   CL.CodeLookup v IO a ->
   (Reference.Id -> IO (Maybe (Term v))) ->
   PPE.PrettyPrintEnv ->
+  ProfileSpec ->
   Runtime v ->
   Term.Term v a ->
-  IO (Either Error ([Error], Term v))
-evaluateTerm' codeLookup cache ppe rt tm = do
+  IO (Either Error (Response, Term v))
+evaluateTerm' codeLookup cache ppe prof rt tm = do
   result <- cache (Hashing.hashClosedTerm tm)
   case result of
-    Just r -> pure (Right ([], r))
+    Just r -> pure (Right (EmptyResponse, r))
     Nothing -> do
       let tuf =
             UF.typecheckedUnisonFile
@@ -164,7 +184,7 @@ evaluateTerm' codeLookup cache ppe rt tm = do
               mempty
               mempty
               [(WK.RegularWatch, [(Var.nameds "result", mempty, tm, mempty <$> mainType rt)])]
-      r <- evaluateWatches (void codeLookup) ppe cache rt (void tuf)
+      r <- evaluateWatches (void codeLookup) ppe prof cache rt (void tuf)
       pure $
         r <&> \(_, errs, map) ->
           case Map.elems map of
@@ -175,7 +195,8 @@ evaluateTerm ::
   (Var v, Monoid a) =>
   CL.CodeLookup v IO a ->
   PPE.PrettyPrintEnv ->
+  ProfileSpec ->
   Runtime v ->
   Term.Term v a ->
-  IO (Either Error ([Error], Term v))
+  IO (Either Error (Response, Term v))
 evaluateTerm codeLookup = evaluateTerm' codeLookup noCache

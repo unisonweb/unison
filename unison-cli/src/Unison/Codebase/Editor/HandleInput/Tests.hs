@@ -30,6 +30,7 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -134,7 +135,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
 
 handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
-  let mode = Permissive
+  let mode = Permissive NoProf
   runtime <- RuntimeUtils.selectRuntime mode
   names <- Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
@@ -169,7 +170,7 @@ findTermsOfTypes codebase includeLib path filterTypes = do
 handleAllIOTests :: Cli ()
 handleAllIOTests = do
   Cli.Env {codebase} <- ask
-  runtime <- RuntimeUtils.selectRuntime Permissive
+  runtime <- RuntimeUtils.selectRuntime (Permissive NoProf)
   names <- Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
@@ -219,7 +220,7 @@ runIOTest ppe ref = do
   let a = ABT.annotation tm
       tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
-  tm' <- RuntimeUtils.evalUnisonTerm Permissive ppe False tm
+  tm' <- RuntimeUtils.evalUnisonTerm (Permissive NoProf) ppe False tm
   pure $ partitionTestResults tm'
 
 partitionTestResults :: Term Symbol Ann -> ([Text {- fails -}], [Text {- oks -}])

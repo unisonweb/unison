@@ -27,7 +27,7 @@ Unison has cryptographic builtins for hashing and computing [HMACs](https://en.w
   20. fromBase64            (Bytes -> Either Text Bytes)
   21. fromBase64UrlUnpadded (Bytes -> Either Text Bytes)
   22. fromList              ([Nat] -> Bytes)
-  23. gzip/                 (2 terms)
+  23. gzip.                 (2 terms)
   24. indexOf               (Bytes -> Bytes -> Optional Nat)
   25. size                  (Bytes -> Nat)
   26. take                  (Nat -> Bytes -> Bytes)
@@ -36,7 +36,7 @@ Unison has cryptographic builtins for hashing and computing [HMACs](https://en.w
   29. toBase64              (Bytes -> Bytes)
   30. toBase64UrlUnpadded   (Bytes -> Bytes)
   31. toList                (Bytes -> [Nat])
-  32. zlib/                 (2 terms)
+  32. zlib.                 (2 terms)
 ```
 
 Notice the `fromBase16` and `toBase16` functions. Here's some convenience functions for converting `Bytes` to and from base-16 `Text`.

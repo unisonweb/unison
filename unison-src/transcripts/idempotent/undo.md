@@ -20,7 +20,7 @@ scratch/main> add
 
 scratch/main> ls .
 
-  1. lib/ (664 terms, 103 types)
+  1. lib. (664 terms, 103 types)
   2. x    (Nat)
 
 scratch/main> alias.term x y
@@ -29,7 +29,7 @@ scratch/main> alias.term x y
 
 scratch/main> ls .
 
-  1. lib/ (664 terms, 103 types)
+  1. lib. (664 terms, 103 types)
   2. x    (Nat)
   3. y    (Nat)
 
@@ -68,7 +68,7 @@ scratch/main> undo
 
 scratch/main> ls .
 
-  1. lib/ (664 terms, 103 types)
+  1. lib. (664 terms, 103 types)
   2. x    (Nat)
 
 scratch/main> history
@@ -107,7 +107,7 @@ scratch/branch1> add
 
 scratch/branch1> ls .
 
-  1. lib/ (664 terms, 103 types)
+  1. lib. (664 terms, 103 types)
   2. x    (Nat)
 
 scratch/branch1> alias.term x y
@@ -116,7 +116,7 @@ scratch/branch1> alias.term x y
 
 scratch/branch1> ls .
 
-  1. lib/ (664 terms, 103 types)
+  1. lib. (664 terms, 103 types)
   2. x    (Nat)
   3. y    (Nat)
 
@@ -165,7 +165,7 @@ scratch/branch1> undo
 
 scratch/branch1> ls .
 
-  1. lib/ (664 terms, 103 types)
+  1. lib. (664 terms, 103 types)
   2. x    (Nat)
 
 scratch/branch1> history
