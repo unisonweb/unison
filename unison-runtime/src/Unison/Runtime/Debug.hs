@@ -26,7 +26,7 @@ import Unison.Syntax.NamePrinter (prettyShortHash)
 import Unison.Syntax.TermPrinter (pretty)
 import Unison.Term qualified as Tm
 import Unison.Util.EnumContainers
-import Unison.Util.Pretty (ColorText, Pretty, toANSI, toAnsiUnbroken)
+import Unison.Util.Pretty (ColorText, Pretty, toANSI)
 import Unison.Var (Var)
 
 type Term v = Tm.Term v ()
@@ -112,7 +112,7 @@ prettyRef :: Reference -> Pretty ColorText
 prettyRef = prettyShortHash . shortenTo 10 . toShortHash
 
 prettyRefStr :: Reference -> String
-prettyRefStr = toAnsiUnbroken . prettyRef
+prettyRefStr = toANSI 0 . prettyRef
 
 tracePrettyCodes ::
   Bool -> [(Reference, Code Reference)] -> [(Reference, Code Reference)]

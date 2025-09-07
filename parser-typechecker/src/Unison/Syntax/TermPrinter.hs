@@ -72,7 +72,7 @@ import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
--- Gets rid of unsightly "_eta" expansion in the pretty-printed output
+-- | Gets rid of unsightly "_eta" expansion in the pretty-printed output
 etaReduce :: (Var v) => Term3 v a -> Term3 v a
 etaReduce (LamNamed' v (App' f (Var' v'))) | v == v' && Var.name v == "_eta" = f
 etaReduce tm = tm
@@ -81,8 +81,7 @@ goPretty :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
 goPretty ppe tm = runPretty (avoidShadowing tm ppe) $ pretty0 emptyAc $ printAnnotate ppe tm
 
 pretty :: (HasCallStack, Var v) => PrettyPrintEnv -> Term v a -> Pretty ColorText
-pretty ppe tm =
-  PP.syntaxToColor $ goPretty ppe tm
+pretty ppe = PP.syntaxToColor . goPretty ppe
 
 prettyBlock :: (Var v) => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
 prettyBlock elideUnit ppe = PP.syntaxToColor . prettyBlock' elideUnit ppe
@@ -91,11 +90,8 @@ prettyBlock' :: (HasCallStack, Var v) => Bool -> PrettyPrintEnv -> Term v a -> P
 prettyBlock' elideUnit ppe tm =
   runPretty (avoidShadowing tm ppe) . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
 
-pretty' :: (HasCallStack, Var v) => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
-pretty' (Just width) n t =
-  PP.render width . PP.syntaxToColor $ goPretty n t
-pretty' Nothing n t =
-  PP.renderUnbroken . PP.syntaxToColor $ goPretty n t
+pretty' :: (HasCallStack, Var v) => Width -> PrettyPrintEnv -> Term v a -> ColorText
+pretty' width n = PP.render width . pretty n
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -977,8 +973,7 @@ prettyBinding' ::
   HQ.HashQualified Name ->
   Term v a ->
   ColorText
-prettyBinding' ppe width v t =
-  PP.render width . PP.syntaxToColor $ prettyBinding ppe v t
+prettyBinding' ppe width v = PP.render width . PP.syntaxToColor . prettyBinding ppe v
 
 prettyBinding0 ::
   (HasCallStack, MonadPretty v m) =>
@@ -1917,12 +1912,12 @@ prettyDoc2 ac tm = do
       bail tm = brace <$> pretty0 ac tm
       contains :: Char -> Pretty SyntaxText -> Bool
       contains c p =
-        PP.toPlainUnbroken (PP.syntaxToColor p)
+        PP.toPlain 0 (PP.syntaxToColor p)
           & elem c
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
         case filter (\s -> take 2 s == [c, c]) $
-          List.group (PP.toPlainUnbroken $ PP.syntaxToColor s) of
+          List.group (PP.toPlain 0 $ PP.syntaxToColor s) of
           [] -> 2
           x -> 1 + maximum (map length x)
       oneMore c inner = replicate (longestRun c inner) c
@@ -1938,7 +1933,7 @@ prettyDoc2 ac tm = do
           prettyDs <- intercalateMapM "\n\n" (go (hdr + 1)) ds
           pure $
             PP.lines
-              [ PP.text (Text.replicate (PP.widthToInt hdr) "#") <> " " <> prettyTitle,
+              [ PP.string (replicate (PP.widthToInt hdr) '#') <> " " <> prettyTitle,
                 "",
                 PP.indentN (hdr + 1) prettyDs
               ]

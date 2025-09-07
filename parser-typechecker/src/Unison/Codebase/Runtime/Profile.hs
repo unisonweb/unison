@@ -275,7 +275,7 @@ foldedProfile ::
   Profile k ->
   String
 foldedProfile ppe (Prof _ tr refs) =
-  toPlainUnbroken $ foldMapTrie f tr
+  toPlain 0 $ foldMapTrie f tr
   where
     dk = dispKey ppe refs
 

@@ -175,7 +175,7 @@ import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
-import Unison.Runtime.Exception
+import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function.Type
@@ -583,7 +583,7 @@ foreignCallHelper = \case
   Code_serialize_versioned -> mkForeign $
     \(ver :: Word64, co :: Referenced ANF.Code) ->
       ANF.serializeCodeWithVersion ver False co >>= \case
-        Left err -> die err
+        Left err -> die [] err
         Right bs -> pure $ Bytes.fromLazyByteString bs
   Code_deserialize ->
     mkForeign $
@@ -965,12 +965,12 @@ foreignCallHelper = \case
   Text_patterns_charIn -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.charIn: non-character closure"
+      _ -> die [] "Text.patterns.charIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char $ TPat.CharSet cs
   Text_patterns_notCharIn -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.notCharIn: non-character closure"
+      _ -> die [] "Text.patterns.notCharIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharSet cs
   Pattern_many -> mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many False p
@@ -1004,7 +1004,7 @@ foreignCallHelper = \case
   Char_Class_anyOf -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.charIn: non-character closure"
+      _ -> die [] "Text.patterns.charIn: non-character closure"
     evaluate $ TPat.CharSet cs
   Char_Class_alphanumeric -> mkForeign $ \() -> pure (TPat.CharClass TPat.AlphaNum)
   Char_Class_upper -> mkForeign $ \() -> pure (TPat.CharClass TPat.Upper)
@@ -1063,19 +1063,19 @@ foreignCallHelper = \case
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.union l r
       pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
-    _ -> die "Set.union: bad closure"
+    _ -> die [] "Set.union: bad closure"
   Set_intersect -> mkForeign $ \case
     (Data1 _ _ vl, Data1 _ _ vr) -> do
       (l :: Map Val Val) <- decodeVal vl
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.intersection l r
       pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
-    _ -> die "Set.insersect: bad closure"
+    _ -> die [] "Set.insersect: bad closure"
   Set_toList -> mkForeign $ \case
     (Data1 _ _ vs) -> do
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
-    _ -> die "Set.toList: bad closure"
+    _ -> die [] "Set.toList: bad closure"
   Json_toText -> mkForeign $ \(clo :: Closure) -> do
     evaluate =<< emitJson clo
   Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
@@ -1888,11 +1888,11 @@ emitJson = \case
         literalForm <$> decodeVal @Text v
     | TT.jsonArrTag == t ->
         fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
-  c -> die $ "Json.toText: unrecognized Json value: " ++ show c
+  c -> die [] $ "Json.toText: unrecognized Json value: " ++ show c
   where
     emitJsonVal (BoxedVal c) = emitJson c
     emitJsonVal v =
-      die $ "Json.toText: unrecognized Json value: " ++ show v
+      die [] $ "Json.toText: unrecognized Json value: " ++ show v
 
     commaSep = fold . Sq.intersperse ","
     renderArray s = "[" <> commaSep s <> "]"
@@ -1901,7 +1901,7 @@ emitJson = \case
     emitPair (Tup2V x y) =
       mapping <$> decodeVal @Text x <*> emitJsonVal y
     emitPair v =
-      die $ "Json.toText: unrecognized Json object pair: " ++ show v
+      die [] $ "Json.toText: unrecognized Json object pair: " ++ show v
 
     mapping key val = literalForm key <> ":" <> val
 
@@ -1961,15 +1961,15 @@ avroDecodeReadSchema = \case
         (name, aliases, size, logicalType) <- avroDecodeFixed c
         pure $ ReadSchema.Fixed name aliases size logicalType
     | TT.avroReadSchemaNullTag == t || TT.avroReadSchemaBooleanTag == t || TT.avroReadSchemaStringTag == t || TT.avroReadSchemaFloatTag == t || TT.avroReadSchemaFixedTag == t || TT.avroReadSchemaDoubleTag == t || TT.avroReadSchemaBytesTag == t || TT.avroReadSchemaNamedTypeTag == t || TT.avroReadSchemaArrayTag == t || TT.avroReadSchemaMapTag == t || TT.avroReadSchemaLongTag == t || TT.avroReadSchemaFreeUnionTag == t || TT.avroReadSchemaEnumTag == t || TT.avroReadSchemaUnionTag == t || TT.avroReadSchemaArrayTag == t ->
-        die $ "avroDecodeReadSchema: type error: mismatched data1 tag " ++ show t ++ " " ++ show v
-    | otherwise -> die $ "avroDecodeReadSchema: type error: unknown data1 tag " ++ show t ++ " " ++ show v ++ " " ++ show (TT.unpackTags t)
+        die [] $ "avroDecodeReadSchema: type error: mismatched data1 tag " ++ show t ++ " " ++ show v
+    | otherwise -> die [] $ "avroDecodeReadSchema: type error: unknown data1 tag " ++ show t ++ " " ++ show v ++ " " ++ show (TT.unpackTags t)
   Data2 _ t (BoxedVal c1) (BoxedVal c2)
     | TT.avroReadSchemaArrayTag == t -> ReadSchema.Array <$> avroDecodeReadSchema c1
     | TT.avroReadSchemaMapTag == t -> ReadSchema.Map <$> avroDecodeReadSchema c1
     | TT.avroReadSchemaLongTag == t -> ReadSchema.Long <$> avroDecodeReadLong c1 <*> decodeMaybe avroDecodeLogicalTypeLong c2
   Data2 _ t v1 (BoxedVal c2)
     | TT.avroReadSchemaFreeUnionTag == t -> ReadSchema.FreeUnion <$> decodeVal v1 <*> avroDecodeReadSchema c2
-  d -> die $ "avroDecodeReadSchema: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadSchema: type error: " ++ show d
 
 avroDecodeSchema :: Closure -> IO AvroSchema.Schema
 avroDecodeSchema = \case
@@ -1994,7 +1994,7 @@ avroDecodeSchema = \case
     | TT.avroSchemaArrayTag == t -> AvroSchema.Array <$> avroDecodeSchema c
     | TT.avroSchemaNamedTypeTag == t -> AvroSchema.NamedType <$> avroDecodeTypeName c
     | TT.avroSchemaUnionTag == t -> AvroSchema.Union . Vector.fromList <$> (traverse avroDecodeSchema =<< decodeVal v)
-  d -> die $ "avroDecodeSchema: type error: " ++ show d
+  d -> die [] $ "avroDecodeSchema: type error: " ++ show d
 
 avroDecodeLogicalTypeLong :: Closure -> IO ReadSchema.LogicalTypeLong
 avroDecodeLogicalTypeLong = \case
@@ -2005,7 +2005,7 @@ avroDecodeLogicalTypeLong = \case
     | TT.avroLogicalLongLocalTimestampMillisTag == t -> pure ReadSchema.LocalTimestampMillis
     | TT.avroLogicalLongLocalTimestampMicrosTag == t -> pure ReadSchema.LocalTimestampMicros
   Data1 _ _ (BoxedVal c) -> ReadSchema.DecimalL <$> avroDecodeDecimal c
-  d -> die $ "avroDecodeLogicalTypeLong: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalTypeLong: type error: " ++ show d
 
 avroDecodeReadRecord :: Closure -> IO ReadSchema.ReadSchema
 avroDecodeReadRecord = \case
@@ -2015,22 +2015,22 @@ avroDecodeReadRecord = \case
     doc' <- fmap Util.Text.toText <$> decodeVal doc
     fields' <- traverse avroDecodeReadField =<< (decodeVal fields :: IO [Closure])
     pure $ ReadSchema.Record name' aliases' doc' fields'
-  d -> die $ "avroDecodeReadRecord: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadRecord: type error: " ++ show d
 
 avroDecodeRecord :: Closure -> IO AvroSchema.Schema
 avroDecodeRecord = \case
   DataC _ _ [BoxedVal name, aliases, doc, fields] -> AvroSchema.Record <$> avroDecodeTypeName name <*> (traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> (traverse avroDecodeField =<< (decodeVal fields :: IO [Closure]))
-  d -> die $ "avroDecodeReadRecord: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadRecord: type error: " ++ show d
 
 avroDecodeReadField :: Closure -> IO ReadSchema.ReadField
 avroDecodeReadField = \case
   DataC _ _ [name, aliases, doc, BoxedVal typ, BoxedVal status, BoxedVal order, BoxedVal def] -> (ReadSchema.ReadField . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeFieldStatus status <*> avroDecodeReadSchema typ <*> decodeMaybe avroDecodeDefaultValue def
-  d -> die $ "avroDecodeReadField: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadField: type error: " ++ show d
 
 avroDecodeField :: Closure -> IO AvroSchema.Field
 avroDecodeField = \case
   DataC _ _ [name, doc, BoxedVal typ, aliases, BoxedVal order, BoxedVal def] -> (AvroSchema.Field . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeSchema typ <*> decodeMaybe avroDecodeDefaultValue def
-  d -> die $ "avroDecodeField: type error: " ++ show d
+  d -> die [] $ "avroDecodeField: type error: " ++ show d
 
 avroDecodeEnum :: Closure -> IO (AvroSchema.TypeName, [AvroSchema.TypeName], Maybe Data.Text.Text, Vector.Vector Data.Text.Text)
 avroDecodeEnum = \case
@@ -2040,7 +2040,7 @@ avroDecodeEnum = \case
     doc' <- fmap Util.Text.toText <$> decodeVal doc
     symbols' <- Vector.fromList . map Util.Text.toText <$> decodeVal symbols
     pure (name', aliases', doc', symbols')
-  d -> die $ "avroDecodeEnum: type error: " ++ show d
+  d -> die [] $ "avroDecodeEnum: type error: " ++ show d
 
 avroDecodeFixed :: Closure -> IO (Avro.TypeName, [Avro.TypeName], Int, Maybe ReadSchema.LogicalTypeFixed)
 avroDecodeFixed = \case
@@ -2050,20 +2050,20 @@ avroDecodeFixed = \case
     size' <- decodeVal size
     logicalType' <- decodeMaybe avroDecodeLogicalFixed logicalType
     pure (name', aliases', size', logicalType')
-  d -> die $ "avroDecodeFixed: type error: " ++ show d
+  d -> die [] $ "avroDecodeFixed: type error: " ++ show d
 
 avroDecodeLogicalFixed :: Closure -> IO ReadSchema.LogicalTypeFixed
 avroDecodeLogicalFixed = \case
   Enum _ t | TT.avroLogicalFixedDurationTag == t -> pure ReadSchema.Duration
   Data1 _ t (BoxedVal v) | TT.avroLogicalFixedDecimalTag == t -> ReadSchema.DecimalF <$> avroDecodeDecimal v
-  d -> die $ "avroDecodeLogicalFixed: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalFixed: type error: " ++ show d
 
 avroDecodeReadLong :: Closure -> IO ReadSchema.ReadLong
 avroDecodeReadLong = \case
   Enum _ t
     | TT.avroReadLongInt32Tag == t -> pure ReadSchema.LongFromInt
     | TT.avroReadLongTag == t -> pure ReadSchema.ReadLong
-  d -> die $ "avroDecodeReadLong: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadLong: type error: " ++ show d
 
 avroDecodeLogicalInt :: Closure -> IO ReadSchema.LogicalTypeInt
 avroDecodeLogicalInt = \case
@@ -2071,23 +2071,23 @@ avroDecodeLogicalInt = \case
     | TT.avroLogicalIntDateTag == t -> pure ReadSchema.Date
     | TT.avroLogicalIntTimeTag == t -> pure ReadSchema.TimeMillis
   Data1 _ t (BoxedVal v) | TT.avroLogicalIntDecimalTag == t -> ReadSchema.DecimalI <$> avroDecodeDecimal v
-  d -> die $ "avroDecodeLogicalInt: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalInt: type error: " ++ show d
 
 avroDecodeLogicalBytes :: Closure -> IO ReadSchema.LogicalTypeBytes
 avroDecodeLogicalBytes = \case
   Data1 _ t (BoxedVal v) | TT.avroLogicalBytesDecimalTag == t -> ReadSchema.DecimalB <$> avroDecodeDecimal v
-  d -> die $ "avroDecodeLogicalBytes: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalBytes: type error: " ++ show d
 
 avroDecodeLogicalString :: Closure -> IO ReadSchema.LogicalTypeString
 avroDecodeLogicalString = \case
   Enum _ t
     | TT.avroLogicalStringUuidTag == t -> pure ReadSchema.UUID
-  d -> die $ "avroDecodeLogicalString: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalString: type error: " ++ show d
 
 avroDecodeTypeName :: Closure -> IO Avro.TypeName
 avroDecodeTypeName = \case
   Data2 _ _ name namespace -> (Avro.TN . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal namespace)
-  d -> die $ "avroDecodeTypeName: type error: " ++ show d
+  d -> die [] $ "avroDecodeTypeName: type error: " ++ show d
 
 avroDecodeReadFloat :: Closure -> IO ReadSchema.ReadFloat
 avroDecodeReadFloat = \case
@@ -2095,7 +2095,7 @@ avroDecodeReadFloat = \case
     | TT.avroReadFloatFromInt32Tag == t -> pure ReadSchema.FloatFromInt
     | TT.avroReadFloatFromInt64Tag == t -> pure ReadSchema.FloatFromLong
     | TT.avroReadFloatTag == t -> pure ReadSchema.ReadFloat
-  d -> die $ "avroDecodeReadFloat: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadFloat: type error: " ++ show d
 
 avroDecodeReadDouble :: Closure -> IO ReadSchema.ReadDouble
 avroDecodeReadDouble = \case
@@ -2104,12 +2104,12 @@ avroDecodeReadDouble = \case
     | TT.avroReadDoubleFromInt64Tag == t -> pure ReadSchema.DoubleFromLong
     | TT.avroReadDoubleFromFloatTag == t -> pure ReadSchema.DoubleFromFloat
     | TT.avroReadDoubleTag == t -> pure ReadSchema.ReadDouble
-  d -> die $ "avroDecodeReadDouble: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadDouble: type error: " ++ show d
 
 avroDecodeDecimal :: Closure -> IO ReadSchema.Decimal
 avroDecodeDecimal = \case
   Data2 _ _ precision scale -> ReadSchema.Decimal <$> fmap fromIntegral (decodeVal precision :: IO Int) <*> fmap fromIntegral (decodeVal scale :: IO Int)
-  d -> die $ "avroDecodeDecimal: type error: " ++ show d
+  d -> die [] $ "avroDecodeDecimal: type error: " ++ show d
 
 avroDecodeFieldStatus :: Closure -> IO ReadSchema.FieldStatus
 avroDecodeFieldStatus = \case
@@ -2117,7 +2117,7 @@ avroDecodeFieldStatus = \case
     | TT.avroFieldStatusIgnoredTag == t -> pure ReadSchema.Ignored
   Data1 _ _ v -> ReadSchema.AsIs . fromIntegral <$> (decodeVal v :: IO Word64)
   Data2 _ _ v1 (BoxedVal v2) -> ReadSchema.Defaulted <$> decodeVal v1 <*> avroDecodeDefaultValue v2
-  d -> die $ "avroDecodeFieldStatus: type error: " ++ show d
+  d -> die [] $ "avroDecodeFieldStatus: type error: " ++ show d
 
 avroDecodeOrder :: Closure -> IO Avro.Order
 avroDecodeOrder = \case
@@ -2125,7 +2125,7 @@ avroDecodeOrder = \case
     | TT.avroOrderAscendingTag == t -> pure Avro.Ascending
     | TT.avroOrderDescendingTag == t -> pure Avro.Descending
     | TT.avroOrderIgnoreTag == t -> pure Avro.Ignore
-  d -> die $ "avroDecodeOrder: type error: " ++ show d
+  d -> die [] $ "avroDecodeOrder: type error: " ++ show d
 
 avroDecodeDefaultValue :: Closure -> IO AvroSchema.DefaultValue
 avroDecodeDefaultValue = \case
@@ -2146,7 +2146,7 @@ avroDecodeDefaultValue = \case
     | TT.avroDefaultValueFixedTag == t -> AvroSchema.DFixed <$> avroDecodeSchema c1 <*> (Bytes.toByteString <$> decodeVal v2)
   DataC _ t [schemas, BoxedVal schema, BoxedVal defaultVal] | TT.avroDefaultValueUnionTag == t -> AvroSchema.DUnion <$> fmap Vector.fromList (traverse avroDecodeSchema =<< decodeVal schemas) <*> avroDecodeSchema schema <*> (avroDecodeDefaultValue defaultVal)
   DataC _ t [BoxedVal schema, ix, symbol] | TT.avroDefaultValueEnumTag == t -> AvroSchema.DEnum <$> avroDecodeSchema schema <*> decodeVal ix <*> (Util.Text.toText <$> decodeVal symbol)
-  d -> die $ "avroDecodeDefaultValue: type error: " ++ show d
+  d -> die [] $ "avroDecodeDefaultValue: type error: " ++ show d
 
 avroEncodeLogicalTypeInt :: ReadSchema.LogicalTypeInt -> Val
 avroEncodeLogicalTypeInt = \case

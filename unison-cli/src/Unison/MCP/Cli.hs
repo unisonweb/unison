@@ -128,7 +128,7 @@ cliToMCP projCtx cli = do
     sourceCodeUpdates <- toList <$> readTVar sourceCodeUpdatesVar
     let outputMessages =
           msgs
-            & fmap (Text.pack . Pretty.toPlainUnbroken)
+            & fmap (Text.pack . Pretty.toPlain 0)
             & toList
     pure $
       ( CliOutput

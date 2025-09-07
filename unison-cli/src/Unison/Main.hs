@@ -94,7 +94,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
 import Unison.Project (defaultBranchName)
-import Unison.Runtime.Exception (RuntimeExn (..))
+import Unison.Runtime.Exception (prettyRuntimeExnSansCtx)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
@@ -241,13 +241,14 @@ main version = do
         Run (RunCompiled file) args ->
           BL.readFile file >>= \bs ->
             try (evaluate $ RTI.decodeStandalone bs) >>= \case
-              Left (PE _cs err) -> do
+              Left re -> do
+                exnMessage <- prettyRuntimeExnSansCtx re
                 exitError . P.lines $
                   [ P.wrap . P.text $
                       "I was unable to parse this file as a compiled\
                       \ program. The parser generated the following error:",
                     "",
-                    P.indentN 2 $ err
+                    P.indentN 2 exnMessage
                   ]
               Right (Left err) ->
                 exitError . P.lines $
@@ -257,10 +258,6 @@ main version = do
                     "",
                     P.indentN 2 . P.wrap $ P.string err
                   ]
-              Left _ -> do
-                exitError . P.wrap . P.text $
-                  "I was unable to parse this file as a compiled\
-                  \ program. The parser generated an unrecognized error."
               Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise ->

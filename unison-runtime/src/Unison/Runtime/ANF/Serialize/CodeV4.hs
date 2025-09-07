@@ -39,7 +39,7 @@ index ctx u = go 0 ctx
       | otherwise = go (n + 1) vs
 
 deindex :: (HasCallStack) => [v] -> Word64 -> v
-deindex [] _ = exn "deindex: bad index"
+deindex [] _ = exn [] "deindex: bad index"
 deindex (v : vs) n
   | n == 0 = v
   | otherwise = deindex vs (n - 1)
@@ -55,7 +55,7 @@ getIndex = getVarInt
 putVar :: (MonadPut m) => (Eq v) => [v] -> v -> m ()
 putVar ctx v
   | Just i <- index ctx v = putIndex i
-  | otherwise = exn "putVar: variable not in context"
+  | otherwise = exn [] "putVar: variable not in context"
 
 getVar :: (MonadGet m) => [v] -> m v
 getVar ctx = deindex ctx <$> getIndex
@@ -79,7 +79,7 @@ getCCs =
     getWord8 <&> \case
       0 -> UN
       1 -> BX
-      _ -> exn "getCCs: bad calling convention"
+      _ -> exn [] "getCCs: bad calling convention"
 
 -- Serializes a `SuperGroup`.
 --
@@ -162,7 +162,7 @@ getCacheability =
   getWord8 >>= \case
     0 -> pure Uncacheable
     1 -> pure Cacheable
-    n -> exn $ "getBLit: unrecognized cacheability byte: " ++ show n
+    n -> exn [] $ "getBLit: unrecognized cacheability byte: " ++ show n
 
 putComb ::
   (MonadPut m) =>
@@ -236,7 +236,7 @@ putNormal fops ctx tm = case tm of
       *> putCCs ccs
       *> putNormal fops ctx l
       *> putNormal fops (pushCtx us ctx) e
-  v -> exn $ "putNormal: malformed term\n" ++ show v
+  v -> exn [] $ "putNormal: malformed term\n" ++ show v
 
 getNormal ::
   (MonadGet m) =>
@@ -335,13 +335,13 @@ getFOp = toEnum <$> getVarInt
 putPOp :: (MonadPut m) => POp -> m ()
 putPOp op
   | Just w <- Map.lookup op pop2word = putWord16be w
-  | otherwise = exn $ "putPOp: unknown POp: " ++ show op
+  | otherwise = exn [] $ "putPOp: unknown POp: " ++ show op
 
 getPOp :: (MonadGet m) => m POp
 getPOp =
   getWord16be >>= \w -> case Map.lookup w word2pop of
     Just op -> pure op
-    Nothing -> exn "getPOp: unknown enum code"
+    Nothing -> exn [] "getPOp: unknown enum code"
 
 pOpCode :: POp -> Word16
 pOpCode op = case op of
@@ -563,7 +563,7 @@ putBranches fops ctx bs = case bs of
     putRefNum r
     putEnumMap putWord64be (putNormal fops ctx) m
     putMaybe df $ putNormal fops ctx
-  _ -> exn "putBranches: malformed intermediate term"
+  _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
   (MonadGet m) =>
