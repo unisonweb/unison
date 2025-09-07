@@ -1094,7 +1094,7 @@ foreignCallHelper = \case
     Nothing -> noneVal
   BigInt_unsafeFromText -> mkForeign $ \(txt :: Text) -> case readMaybe (unpack txt) of
     Just n -> pure $ encodeVal (n :: Integer)
-    Nothing -> die "Natural.unsafeFromText: invalid natural"
+    Nothing -> die [] "Natural.unsafeFromText: invalid natural"
   BigInt_toText -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (show n)
   BigInt_fromInt -> mkForeign $ \(n :: Int) -> pure $ encodeVal (fromIntegral n :: Integer)
   BigInt_toInt -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Int)
@@ -1124,7 +1124,7 @@ foreignCallHelper = \case
   BigInt_toFloat -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Double)
   BigNat_unsafeFromText -> mkForeign $ \(txt :: Text) -> case readMaybe (unpack txt) of
     Just n -> pure $ encodeVal (n :: Natural)
-    Nothing -> die "Natural.unsafeFromText: invalid natural"
+    Nothing -> die [] "Natural.unsafeFromText: invalid natural"
   BigNat_fromText -> mkForeign $ \(txt :: Text) -> pure . encodeVal $ case (readMaybe (unpack txt) :: Maybe Natural) of
     Just n -> someVal (encodeVal n)
     Nothing -> noneVal
