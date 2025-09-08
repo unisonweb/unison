@@ -168,6 +168,132 @@ test> Nat.tests.conversions =
 > add
 ```
 
+## `Natural` functions (arbitrary-precision natural numbers)
+
+``` unison :hide
+use BigNat eq
+
+test> BigNat.tests.arithmetic =
+      checks [
+        BigNat.eq (BigNat.add (BigNat.fromText "123456789012345678901234567890" |> Optional.getOrBug "Invalid natural") (BigNat.fromText "987654321098765432109876543210" |> Optional.getOrBug "Invalid natural")) (BigNat.fromText "1111111110111111111011111111100" |> Optional.getOrBug "Invalid natural"),
+        eq (BigNat.sub (BigNat.fromNat 1000) (BigNat.fromNat 500)) (BigNat.fromNat 500),
+        eq (BigNat.mul (BigNat.fromNat 123456789) (BigNat.fromNat 987654321)) (BigNat.fromText "121932631112635269" |> Optional.getOrBug "Invalid natural"),
+        eq (BigNat.div (BigNat.fromNat 1000) (BigNat.fromNat 3)) (BigNat.fromNat 333),
+        eq (BigNat.mod (BigNat.fromNat 1000) (BigNat.fromNat 3)) (BigNat.fromNat 1),
+        eq (BigNat.pow (BigNat.fromNat 2) (BigNat.fromNat 64)) (BigNat.fromText "18446744073709551616" |> Optional.getOrBug "Invalid natural"),
+        BigNat.gt (BigNat.fromNat 1000) (BigNat.fromNat 500),
+        BigNat.lt (BigNat.fromNat 500) (BigNat.fromNat 1000),
+        BigNat.lteq (BigNat.fromNat 500) (BigNat.fromNat 500),
+        BigNat.lteq (BigNat.fromNat 500) (BigNat.fromNat 1000),
+        BigNat.gteq (BigNat.fromNat 1000) (BigNat.fromNat 500),
+        BigNat.gteq (BigNat.fromNat 1000) (BigNat.fromNat 1000),
+        BigNat.eq (BigNat.fromNat 1000) (BigNat.fromNat 1000),
+        not (BigNat.eq (BigNat.fromNat 1000) (BigNat.fromNat 999))
+        ]
+
+test> BigNat.tests.bitwise =
+      checks [
+        eq (BigNat.and (BigNat.fromNat 5) (BigNat.fromNat 4)) (BigNat.fromNat 4),
+        eq (BigNat.and (BigNat.fromNat 5) (BigNat.fromNat 1)) (BigNat.fromNat 1),
+        eq (BigNat.or (BigNat.fromNat 4) (BigNat.fromNat 1)) (BigNat.fromNat 5),
+        eq (BigNat.xor (BigNat.fromNat 5) (BigNat.fromNat 1)) (BigNat.fromNat 4),
+        BigNat.popCount (BigNat.fromNat 1) Universal.== 1,
+        BigNat.popCount (BigNat.fromNat 2) Universal.== 1,
+        BigNat.popCount (BigNat.fromNat 4) Universal.== 1,
+        BigNat.popCount (BigNat.fromNat 5) Universal.== 2,
+        eq (BigNat.shiftLeft (BigNat.fromNat 1) 6) (BigNat.fromNat 64),
+        eq (BigNat.shiftRight (BigNat.fromNat 64) 6) (BigNat.fromNat 1)
+        ]
+
+test> BigNat.tests.conversions =
+      checks [
+        isSome (BigNat.fromText "123456789012345678901234567890"),
+        BigNat.fromText "0" Universal.== Some (BigNat.fromNat 0),
+        BigNat.fromText "invalid" Universal.== None,
+        BigNat.fromText "-1" Universal.== None,
+        BigNat.toText (BigNat.fromNat 0) Universal.== "0",
+        BigNat.toText (BigNat.fromText "123456789" |> Optional.getOrBug "Invalid natural") Universal.== "123456789",
+        BigNat.toFloat (BigNat.fromText "123456789" |> Optional.getOrBug "Invalid natural") Universal.== 123456789.0,
+        BigNat.toFloat (BigNat.fromNat 0) Universal.== 0.0
+        ]
+
+test> BigNat.tests.parity =
+      checks [
+        not (BigNat.isEven (BigNat.fromNat 99)),
+        BigNat.isEven (BigNat.fromNat 100),
+        BigNat.isOdd (BigNat.fromNat 105),
+        not (BigNat.isOdd (BigNat.fromNat 108))
+        ]
+```
+
+``` ucm :hide
+> add
+```
+
+## `Integer` functions (arbitrary-precision integers)
+
+``` unison :hide
+use BigInt eq
+
+test> BigInt.tests.arithmetic =
+      checks [
+          BigInt.eq (BigInt.add (BigInt.fromText "123456789012345678901234567890" |> Optional.getOrBug "Invalid integer") (BigInt.fromText "987654321098765432109876543210" |> Optional.getOrBug "Invalid integer")) (BigInt.fromText "1111111110111111111011111111100" |> Optional.getOrBug "Invalid integer"),
+        eq (BigInt.sub (BigInt.fromInt +1000) (BigInt.fromInt +500)) (BigInt.fromInt +500),
+        eq (BigInt.mul (BigInt.fromInt +123456789) (BigInt.fromInt +987654321)) (BigInt.fromText "121932631112635269" |> Optional.getOrBug "Invalid integer"),
+        eq (BigInt.div (BigInt.fromInt +1000) (BigInt.fromInt +3)) (BigInt.fromInt +333),
+        eq (BigInt.mod (BigInt.fromInt +1000) (BigInt.fromInt +3)) (BigInt.fromInt +1),
+        eq (BigInt.pow (BigInt.fromInt +2) (BigInt.fromInt +64)) (BigInt.fromText "18446744073709551616" |> Optional.getOrBug "Invalid integer"),
+        BigInt.gt (BigInt.fromInt +1000) (BigInt.fromInt +500),
+        BigInt.lt (BigInt.fromInt +500) (BigInt.fromInt +1000),
+        BigInt.lteq (BigInt.fromInt +500) (BigInt.fromInt +500),
+        BigInt.lteq (BigInt.fromInt +500) (BigInt.fromInt +1000),
+        BigInt.gteq (BigInt.fromInt +1000) (BigInt.fromInt +500),
+        BigInt.gteq (BigInt.fromInt +1000) (BigInt.fromInt +1000),
+        BigInt.eq (BigInt.fromInt +1000) (BigInt.fromInt +1000),
+        not (BigInt.eq (BigInt.fromInt +1000) (BigInt.fromInt +999)),
+        eq (BigInt.abs (BigInt.fromInt +1000)) (BigInt.fromInt +1000),
+        eq (BigInt.abs (BigInt.fromInt -1000)) (BigInt.fromInt +1000)
+        ]
+
+test> BigInt.tests.bitwise =
+      checks [
+        eq (BigInt.and (BigInt.fromInt +5) (BigInt.fromInt +4)) (BigInt.fromInt +4),
+        eq (BigInt.and (BigInt.fromInt +5) (BigInt.fromInt +1)) (BigInt.fromInt +1),
+        eq (BigInt.or (BigInt.fromInt +4) (BigInt.fromInt +1)) (BigInt.fromInt +5),
+        eq (BigInt.xor (BigInt.fromInt +5) (BigInt.fromInt +1)) (BigInt.fromInt +4),
+        BigInt.popCount (BigInt.fromInt +1) Universal.== 1,
+        BigInt.popCount (BigInt.fromInt +2) Universal.== 1,
+        BigInt.popCount (BigInt.fromInt +4) Universal.== 1,
+        BigInt.popCount (BigInt.fromInt +5) Universal.== 2,
+        eq (BigInt.shiftLeft (BigInt.fromInt +1) 6) (BigInt.fromInt +64),
+        eq (BigInt.shiftRight (BigInt.fromInt +64) 6) (BigInt.fromInt +1)
+        ]
+
+test> BigInt.tests.conversions =
+      checks [
+        isSome (BigInt.fromText "123456789012345678901234567890"),
+        BigInt.fromText "0" Universal.== Some (BigInt.fromInt +0),
+        BigInt.fromText "invalid" Universal.== None,
+        BigInt.fromText "-1" Universal.== Some (BigInt.fromInt -1),
+        BigInt.toText (BigInt.fromInt +0) Universal.== "0",
+        BigInt.toText (BigInt.fromText "123456789" |> Optional.getOrBug "Invalid integer") Universal.== "123456789",
+        BigInt.toFloat (BigInt.fromText "123456789" |> Optional.getOrBug "Invalid integer") Universal.== 123456789.0,
+        BigInt.toFloat (BigInt.fromInt +0) Universal.== 0.0
+        ]
+
+test> BigInt.tests.parity =
+      checks [
+        not (BigInt.isEven (BigInt.fromInt +99)),
+        BigInt.isEven (BigInt.fromInt +100),
+        BigInt.isOdd (BigInt.fromInt +105),
+        not (BigInt.isOdd (BigInt.fromInt +108))
+        ]
+```
+
+``` ucm :hide
+> add
+```
+
 ## `Boolean` functions
 
 ``` unison :hide
@@ -730,34 +856,42 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
     1.  Any.test1                           ◉ Passed
     2.  Any.test2                           ◉ Passed
-    3.  Boolean.tests.andTable              ◉ Passed
-    4.  Boolean.tests.notTable              ◉ Passed
-    5.  Boolean.tests.orTable               ◉ Passed
-    6.  Bytes.tests.at                      ◉ Passed
-    7.  Bytes.tests.byteArray               ◉ Passed
-    8.  Bytes.tests.compression             ◉ Passed
-    9.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
-    10. Bytes.tests.indexOf                 ◉ Passed
-    11. Int.tests.arithmetic                ◉ Passed
-    12. Int.tests.bitTwiddling              ◉ Passed
-    13. Int.tests.conversions               ◉ Passed
-    14. Nat.tests.arithmetic                ◉ Passed
-    15. Nat.tests.bitTwiddling              ◉ Passed
-    16. Nat.tests.conversions               ◉ Passed
-    17. Sandbox.test1                       ◉ Passed
-    18. Sandbox.test2                       ◉ Passed
-    19. Sandbox.test3                       ◉ Passed
-    20. test.rtjqan7bcs                     ◉ Passed
-    21. Text.tests.alignment                ◉ Passed
-    22. Text.tests.indexOf                  ◉ Passed
-    23. Text.tests.indexOfEmoji             ◉ Passed
-    24. Text.tests.literalsEq               ◉ Passed
-    25. Text.tests.patterns                 ◉ Passed
-    26. Text.tests.repeat                   ◉ Passed
-    27. Text.tests.takeDropAppend           ◉ Passed
-    28. Universal.murmurHash.tests          ◉ Passed
+    3.  BigInt.tests.arithmetic             ◉ Passed
+    4.  BigInt.tests.bitwise                ◉ Passed
+    5.  BigInt.tests.conversions            ◉ Passed
+    6.  BigInt.tests.parity                 ◉ Passed
+    7.  BigNat.tests.arithmetic             ◉ Passed
+    8.  BigNat.tests.bitwise                ◉ Passed
+    9.  BigNat.tests.conversions            ◉ Passed
+    10. BigNat.tests.parity                 ◉ Passed
+    11. Boolean.tests.andTable              ◉ Passed
+    12. Boolean.tests.notTable              ◉ Passed
+    13. Boolean.tests.orTable               ◉ Passed
+    14. Bytes.tests.at                      ◉ Passed
+    15. Bytes.tests.byteArray               ◉ Passed
+    16. Bytes.tests.compression             ◉ Passed
+    17. Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
+    18. Bytes.tests.indexOf                 ◉ Passed
+    19. Int.tests.arithmetic                ◉ Passed
+    20. Int.tests.bitTwiddling              ◉ Passed
+    21. Int.tests.conversions               ◉ Passed
+    22. Nat.tests.arithmetic                ◉ Passed
+    23. Nat.tests.bitTwiddling              ◉ Passed
+    24. Nat.tests.conversions               ◉ Passed
+    25. Sandbox.test1                       ◉ Passed
+    26. Sandbox.test2                       ◉ Passed
+    27. Sandbox.test3                       ◉ Passed
+    28. test.ebobca6b0t                     ◉ Passed
+    29. Text.tests.alignment                ◉ Passed
+    30. Text.tests.indexOf                  ◉ Passed
+    31. Text.tests.indexOfEmoji             ◉ Passed
+    32. Text.tests.literalsEq               ◉ Passed
+    33. Text.tests.patterns                 ◉ Passed
+    34. Text.tests.repeat                   ◉ Passed
+    35. Text.tests.takeDropAppend           ◉ Passed
+    36. Universal.murmurHash.tests          ◉ Passed
 
-  ✅ 28 test(s) passing
+  ✅ 36 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

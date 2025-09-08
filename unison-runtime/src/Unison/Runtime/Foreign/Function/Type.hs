@@ -309,6 +309,60 @@ data ForeignFunc
   | Json_unconsText
   | Json_tryUnconsText
   | Avro_decodeBinary
+  | BigInt_fromText
+  | BigInt_unsafeFromText
+  | BigInt_toText
+  | BigInt_fromInt
+  | BigInt_toInt
+  | BigInt_add
+  | BigInt_sub
+  | BigInt_mul
+  | BigInt_div
+  | BigInt_mod
+  | BigInt_pow
+  | BigInt_shl
+  | BigInt_shr
+  | BigInt_and
+  | BigInt_or
+  | BigInt_xor
+  | BigInt_eq
+  | BigInt_lt
+  | BigInt_le
+  | BigInt_gt
+  | BigInt_ge
+  | BigInt_neg
+  | BigInt_abs
+  | BigInt_signum
+  | BigInt_toFloat
+  | BigInt_popCount
+  | BigInt_truncate0
+  | BigInt_isEven
+  | BigInt_isOdd
+  | BigNat_fromText
+  | BigNat_unsafeFromText
+  | BigNat_toText
+  | BigNat_fromNat
+  | BigNat_toNat
+  | BigNat_toFloat
+  | BigNat_add
+  | BigNat_sub
+  | BigNat_mul
+  | BigNat_div
+  | BigNat_mod
+  | BigNat_pow
+  | BigNat_shl
+  | BigNat_shr
+  | BigNat_and
+  | BigNat_or
+  | BigNat_xor
+  | BigNat_eq
+  | BigNat_lt
+  | BigNat_le
+  | BigNat_gt
+  | BigNat_ge
+  | BigNat_popCount
+  | BigNat_isEven
+  | BigNat_isOdd
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -614,3 +668,57 @@ foreignFuncBuiltinName = \case
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
   Avro_decodeBinary -> "avro.Value.tryDecodeBytes"
+  BigInt_toText -> "BigInt.toText"
+  BigInt_fromText -> "BigInt.fromText"
+  BigInt_unsafeFromText -> "BigInt.unsafeFromText"
+  BigInt_fromInt -> "BigInt.fromInt"
+  BigInt_toInt -> "BigInt.toInt"
+  BigInt_add -> "BigInt.add"
+  BigInt_sub -> "BigInt.sub"
+  BigInt_mul -> "BigInt.mul"
+  BigInt_div -> "BigInt.div"
+  BigInt_mod -> "BigInt.mod"
+  BigInt_pow -> "BigInt.pow"
+  BigInt_shl -> "BigInt.shiftLeft"
+  BigInt_shr -> "BigInt.shiftRight"
+  BigInt_and -> "BigInt.and"
+  BigInt_or -> "BigInt.or"
+  BigInt_xor -> "BigInt.xor"
+  BigInt_eq -> "BigInt.eq"
+  BigInt_lt -> "BigInt.lt"
+  BigInt_le -> "BigInt.lteq"
+  BigInt_gt -> "BigInt.gt"
+  BigInt_ge -> "BigInt.gteq"
+  BigInt_neg -> "BigInt.neg"
+  BigInt_abs -> "BigInt.abs"
+  BigInt_signum -> "BigInt.signum"
+  BigInt_toFloat -> "BigInt.toFloat"
+  BigInt_popCount -> "BigInt.popCount"
+  BigInt_truncate0 -> "BigInt.truncate0"
+  BigInt_isEven -> "BigInt.isEven"
+  BigInt_isOdd -> "BigInt.isOdd"
+  BigNat_toText -> "BigNat.toText"
+  BigNat_fromText -> "BigNat.fromText"
+  BigNat_unsafeFromText -> "BigNat.unsafeFromText"
+  BigNat_fromNat -> "BigNat.fromNat"
+  BigNat_toNat -> "BigNat.toNat"
+  BigNat_toFloat -> "BigNat.toFloat"
+  BigNat_add -> "BigNat.add"
+  BigNat_sub -> "BigNat.sub"
+  BigNat_mul -> "BigNat.mul"
+  BigNat_div -> "BigNat.div"
+  BigNat_mod -> "BigNat.mod"
+  BigNat_pow -> "BigNat.pow"
+  BigNat_shl -> "BigNat.shiftLeft"
+  BigNat_shr -> "BigNat.shiftRight"
+  BigNat_and -> "BigNat.and"
+  BigNat_or -> "BigNat.or"
+  BigNat_xor -> "BigNat.xor"
+  BigNat_eq -> "BigNat.eq"
+  BigNat_lt -> "BigNat.lt"
+  BigNat_le -> "BigNat.lteq"
+  BigNat_gt -> "BigNat.gt"
+  BigNat_ge -> "BigNat.gteq"
+  BigNat_popCount -> "BigNat.popCount"
+  BigNat_isEven -> "BigNat.isEven"
+  BigNat_isOdd -> "BigNat.isOdd"

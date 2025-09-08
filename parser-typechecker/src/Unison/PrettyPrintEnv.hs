@@ -148,6 +148,12 @@ patternName env r =
 empty :: PrettyPrintEnv
 empty = PrettyPrintEnv mempty mempty
 
+instance Semigroup PrettyPrintEnv where
+  (<>) = union
+
+instance Monoid PrettyPrintEnv where
+  mempty = empty
+
 -- | Prefer names which share a common prefix with any provided target.
 --
 -- Results are sorted according to the longest common prefix found against ANY target.

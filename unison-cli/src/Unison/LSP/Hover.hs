@@ -106,7 +106,7 @@ hoverInfo uri pos =
 
     renderTypeSigForHover :: (Var v) => PPED.PrettyPrintEnvDecl -> Text -> Type.Type v a -> Text
     renderTypeSigForHover pped name typ =
-      let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+      let renderedType = Text.pack $ TypePrinter.prettyStr prettyWidth (PPED.suffixifiedPPE pped) typ
        in markdownify (name <> " : " <> renderedType)
 
     hoverInfoForLiteral :: MaybeT m Text

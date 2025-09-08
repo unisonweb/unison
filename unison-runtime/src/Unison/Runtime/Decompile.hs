@@ -14,6 +14,8 @@ where
 
 import Data.Map qualified as Map
 import Data.Set (singleton)
+import Data.Text qualified as DT
+import Numeric.Natural (Natural)
 import Unison.ABT (substs)
 import Unison.Builtin.Decls qualified as DD
 import Unison.Codebase.Runtime (Error)
@@ -67,6 +69,8 @@ import Unison.Term
 import Unison.Term qualified as Term
 import Unison.Type
   ( anyRef,
+    bigIntRef,
+    bigNatRef,
     booleanRef,
     hmapRef,
     iarrayRef,
@@ -239,12 +243,28 @@ decompileForeign backref topTerms f
       let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
       kvs <- traverse (uncurry decompileEntry) (Map.toList m)
       pure $ app () map_fromList (list () kvs)
+  | Just n <- maybeUnwrapForeign bigNatRef f =
+      pure $ app () naturalFromText (text () $ DT.pack (show (n :: Natural)))
+  | Just i <- maybeUnwrapForeign bigIntRef f =
+      pure $ app () integerFromText (text () $ DT.pack (show (i :: Integer)))
 decompileForeign _ _ (Wrap r _) =
   err (BadForeign r) $ bug text
   where
     text
       | Builtin name <- r = "<" <> name <> ">"
       | otherwise = "<Foreign>"
+
+naturalFromText :: (Var v) => Term v ()
+naturalFromText =
+  case Referent.fromText "##Natural.unsafeFromText" of
+    Just r -> Term.fromReferent () r
+    Nothing -> error "Natural_unsafeFromText"
+
+integerFromText :: (Var v) => Term v ()
+integerFromText =
+  case Referent.fromText "##Integer.unsafeFromText" of
+    Just r -> Term.fromReferent () r
+    Nothing -> error "Integer_unsafeFromText"
 
 map_fromList :: (Var v) => Term v ()
 map_fromList =

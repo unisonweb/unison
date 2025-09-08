@@ -13,7 +13,7 @@ Before merging the PR on Github, we'll merge your branch on Share and restore `r
 ```
 
 ``` ucm :hide
-> clone @unison/runtime-tests/releases/0.0.3 runtime-tests/selected
+> clone @unison/runtime-tests/releases/0.0.4 runtime-tests/selected
 ```
 
 ``` ucm

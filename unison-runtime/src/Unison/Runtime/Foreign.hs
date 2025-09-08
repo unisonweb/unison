@@ -28,6 +28,7 @@ import Data.X509 qualified as X509
 import Network.Socket (Socket)
 import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
 import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
+import Numeric.Natural (Natural)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
 import System.IO.Unsafe (unsafePerformIO)
@@ -156,6 +157,22 @@ tmlCmp :: Referent -> Referent -> Ordering
 tmlCmp r l = compare r l
 {-# NOINLINE tmlCmp #-}
 
+bigIntEq :: Integer -> Integer -> Bool
+bigIntEq l r = l == r
+{-# NOINLINE bigIntEq #-}
+
+bigIntCmp :: Integer -> Integer -> Ordering
+bigIntCmp = compare
+{-# NOINLINE bigIntCmp #-}
+
+bigNatEq :: Natural -> Natural -> Bool
+bigNatEq l r = l == r
+{-# NOINLINE bigNatEq #-}
+
+bigNatCmp :: Natural -> Natural -> Ordering
+bigNatCmp = compare
+{-# NOINLINE bigNatCmp #-}
+
 ref2eq :: Reference -> Maybe (a -> b -> Bool)
 ref2eq r
   | r == Ty.textRef = Just $ promote txtEq
@@ -178,6 +195,8 @@ ref2eq r
   | r == Ty.patternRef = Just $ promote cpatEq
   | r == Ty.charClassRef = Just $ promote charClassEq
   | r == Ty.codeRef = Just $ promote codeEq
+  | r == Ty.bigIntRef = Just $ promote bigIntEq
+  | r == Ty.bigNatRef = Just $ promote bigNatEq
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -190,6 +209,8 @@ ref2cmp r
   | r == Ty.ibytearrayRef = Just $ promote barrCmp
   | r == Ty.patternRef = Just $ promote cpatCmp
   | r == Ty.charClassRef = Just $ promote charClassCmp
+  | r == Ty.bigIntRef = Just $ promote bigIntCmp
+  | r == Ty.bigNatRef = Just $ promote bigNatCmp
   | otherwise = Nothing
 
 ptrEq :: a -> b -> Bool
@@ -333,6 +354,14 @@ instance BuiltinForeign (MutableByteArray s) where
 instance BuiltinForeign ByteArray where
   foreignName = Tagged "ByteArray"
   foreignRef = Tagged Ty.ibytearrayRef
+
+instance BuiltinForeign Integer where
+  foreignName = Tagged "Integer"
+  foreignRef = Tagged Ty.bigIntRef
+
+instance BuiltinForeign Natural where
+  foreignName = Tagged "Natural"
+  foreignRef = Tagged Ty.bigNatRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm

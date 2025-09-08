@@ -23,10 +23,7 @@ tc_diff_rtt rtt s expected width =
   let input_type = Common.t s
       get_names = PPE.makePPE (PPE.hqNamer Common.hqLength Unison.Builtin.names) PPE.dontSuffixify
       prettied = fmap toPlain $ PP.syntaxToColor . runPretty get_names $ prettyRaw Map.empty (-1) input_type
-      actual =
-        if width == 0
-          then PP.renderUnbroken $ prettied
-          else PP.render width $ prettied
+      actual = PP.render width prettied
       actual_reparsed = Common.t actual
    in scope s $
         tests

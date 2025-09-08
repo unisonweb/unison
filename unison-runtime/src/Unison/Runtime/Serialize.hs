@@ -33,7 +33,7 @@ import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.ReferentPrime (Referent' (..))
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Canonicalizer
-import Unison.Runtime.Exception
+import Unison.Runtime.Exception (exn)
 import Unison.Runtime.MCode
   ( Prim1 (..),
     Prim2 (..),
@@ -45,7 +45,7 @@ import Unison.Util.EnumContainers as EC
 unknownTag :: (MonadGet m) => String -> Word8 -> m a
 unknownTag t w =
   remaining >>= \r ->
-    exn $
+    exn [] $
       "unknown "
         ++ t
         ++ " word: "
@@ -107,7 +107,7 @@ getBool = d =<< getWord8
   where
     d 0 = pure False
     d 1 = pure True
-    d n = exn $ "getBool: bad tag: " ++ show n
+    d n = exn [] $ "getBool: bad tag: " ++ show n
 
 putNat :: (MonadPut m) => Word64 -> m ()
 putNat = putWord64be
@@ -151,7 +151,7 @@ putPositive ::
   n ->
   m ()
 putPositive n
-  | n < 0 = exn $ "putPositive: negative number: " ++ show (toInteger n)
+  | n < 0 = exn [] $ "putPositive: negative number: " ++ show (toInteger n)
   | otherwise = putVarInt n
 {-# INLINE putPositive #-}
 
@@ -404,7 +404,7 @@ putReferenceByNumber ::
   (MonadPut m) => CanonMap Reference Int -> Reference -> m ()
 putReferenceByNumber cm r
   | Just i <- unsafeLookup r cm = putVarInt i
-  | otherwise = exn $ "could not serialize reference: " ++ show r
+  | otherwise = exn [] $ "could not serialize reference: " ++ show r
 {-# INLINE putReferenceByNumber #-}
 
 putRefNum :: (MonadPut m) => RefNum -> m ()
@@ -427,7 +427,7 @@ getReferenceByNumber refm = getVarInt >>= lookupRef refm
 lookupRef :: (Monad m) => Array Reference -> Int -> m Reference
 lookupRef arr i
   | 0 <= i && i < sizeofArray arr = pure $ indexArray arr i
-  | otherwise = exn $ "lookupRef: index out of bounds: " ++ show i
+  | otherwise = exn [] $ "lookupRef: index out of bounds: " ++ show i
 {-# INLINE lookupRef #-}
 
 getRefNum :: (MonadGet m) => m RefNum

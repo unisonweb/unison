@@ -149,29 +149,18 @@ module Unison.Runtime.TypeTags
   )
 where
 
-import Control.Exception (throw)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.List hiding (and, or)
 import Data.Map qualified as Map
-import GHC.Stack (CallStack, callStack)
 import U.Codebase.Reference (Reference)
 import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude
 import Unison.Runtime.Builtin.Types (builtinTypeNumbering)
+import Unison.Runtime.InternalError (internalBug)
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty qualified as Pretty
 import Prelude hiding (abs, and, or, seq)
 import Prelude qualified
-
--- For internal errors
-data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
-  deriving (Show)
-
-instance Exception CompileExn
-
-internalBug :: (HasCallStack) => String -> a
-internalBug = throw . CE callStack . Pretty.lit . fromString
 
 -- Types representing components that will go into the runtime tag of
 -- a data type value. RTags correspond to references, while CTags
@@ -222,13 +211,13 @@ typeTag (PackedTag w) = w `shiftR` 16
 ensureRTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureRTag s n x
   | n > 0xFFFFFFFFFFFF =
-      internalBug $ s ++ "@RTag: too large: " ++ show n
+      internalBug [] $ s ++ "@RTag: too large: " ++ show n
   | otherwise = x
 
 ensureCTag :: (Ord n, Show n, Num n) => String -> n -> r -> r
 ensureCTag s n x
   | n > 0xFFFF =
-      internalBug $ s ++ "@CTag: too large: " ++ show n
+      internalBug [] $ s ++ "@CTag: too large: " ++ show n
   | otherwise = x
 
 instance Enum RTag where
@@ -241,19 +230,19 @@ instance Enum CTag where
 
 instance Num RTag where
   fromInteger i = ensureRTag "fromInteger" i . RTag $ fromInteger i
-  (+) = internalBug "RTag: +"
-  (*) = internalBug "RTag: *"
-  abs = internalBug "RTag: abs"
-  signum = internalBug "RTag: signum"
-  negate = internalBug "RTag: negate"
+  (+) = internalBug [] "RTag: +"
+  (*) = internalBug [] "RTag: *"
+  abs = internalBug [] "RTag: abs"
+  signum = internalBug [] "RTag: signum"
+  negate = internalBug [] "RTag: negate"
 
 instance Num CTag where
   fromInteger i = ensureCTag "fromInteger" i . CTag $ fromInteger i
-  (+) = internalBug "CTag: +"
-  (*) = internalBug "CTag: *"
-  abs = internalBug "CTag: abs"
-  signum = internalBug "CTag: signum"
-  negate = internalBug "CTag: negate"
+  (+) = internalBug [] "CTag: +"
+  (*) = internalBug [] "CTag: *"
+  abs = internalBug [] "CTag: abs"
+  signum = internalBug [] "CTag: signum"
+  negate = internalBug [] "CTag: negate"
 
 floatTag :: PackedTag
 floatTag = mkSimpleTag "floatTag" Ty.floatRef
@@ -290,7 +279,7 @@ noneTag, someTag :: PackedTag
         Ty.optionalRef
         [Ty.noneId, Ty.someId] =
       (nt, st)
-  | otherwise = error "internal error: optional tags"
+  | otherwise = internalBug [] "missing optional tags"
 
 leftTag, rightTag :: PackedTag
 (leftTag, rightTag)
@@ -300,7 +289,7 @@ leftTag, rightTag :: PackedTag
         Ty.eitherRef
         [Ty.eitherLeftId, Ty.eitherRightId] =
       (lt, rt)
-  | otherwise = error "internal error: either tags"
+  | otherwise = internalBug [] "missing either tags"
 
 noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag :: PackedTag
 (noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag)
@@ -314,7 +303,7 @@ noBufTag, lineBufTag, blockBufTag, sizedBlockBufTag :: PackedTag
           Ty.bufferModeSizedBlockBufferingId
         ] =
       (nt, lt, bt, st)
-  | otherwise = error "internal error: buffer mode tags"
+  | otherwise = internalBug [] "missing buffer mode tags"
 
 readModeTag, writeModeTag, appendModeTag, readWriteModeTag :: PackedTag
 (readModeTag, writeModeTag, appendModeTag, readWriteModeTag)
@@ -328,7 +317,7 @@ readModeTag, writeModeTag, appendModeTag, readWriteModeTag :: PackedTag
           Ty.fileModeReadWriteId
         ] =
       (rt, wt, at, rwt)
-  | otherwise = error "internal error: file mode tags"
+  | otherwise = internalBug [] "missing file mode tags"
 
 seekAbsoluteTag, seekRelativeTag, seekEndTag :: PackedTag
 (seekAbsoluteTag, seekRelativeTag, seekEndTag)
@@ -341,7 +330,7 @@ seekAbsoluteTag, seekRelativeTag, seekEndTag :: PackedTag
           Ty.seekModeEndId
         ] =
       (at, rt, et)
-  | otherwise = error "internal error: seek mode tags"
+  | otherwise = internalBug [] "missing seek mode tags"
 
 stdInTag, stdOutTag, stdErrTag :: PackedTag
 (stdInTag, stdOutTag, stdErrTag)
@@ -354,7 +343,7 @@ stdInTag, stdOutTag, stdErrTag :: PackedTag
           Ty.stdErrId
         ] =
       (it, ot, et)
-  | otherwise = error "internal error: standard handle tags"
+  | otherwise = internalBug [] "missing standard handle tags"
 
 exceptionTag :: Word64
 exceptionRaiseTag :: PackedTag
@@ -363,14 +352,14 @@ exceptionRaiseTag :: PackedTag
     et <- toEnum $ fromIntegral n,
     rt <- toEnum $ fromIntegral Ty.exceptionRaiseId =
       (n, packTags et rt)
-  | otherwise = internalBug $ "internal error: Exception tag"
+  | otherwise = internalBug [] "missing Exception tag"
 
 pairTag :: PackedTag
 pairTag
   | Just n <- Map.lookup Ty.pairRef builtinTypeNumbering,
     pt <- toEnum (fromIntegral n) =
       packTags pt 0
-  | otherwise = internalBug "internal error: pairTag"
+  | otherwise = internalBug [] "missing pairTag"
 
 seqViewEmptyTag, seqViewElemTag :: PackedTag
 (seqViewEmptyTag, seqViewElemTag)
@@ -382,7 +371,7 @@ seqViewEmptyTag, seqViewElemTag :: PackedTag
           Ty.seqViewElem
         ] =
       (emt, elt)
-  | otherwise = error "internal error: seq view tags"
+  | otherwise = internalBug [] "missing seq view tags"
 
 mapTipTag, mapBinTag :: PackedTag
 (mapTipTag, mapBinTag)
@@ -394,7 +383,7 @@ mapTipTag, mapBinTag :: PackedTag
           Ty.mapBin
         ] =
       (mtt, mbt)
-  | otherwise = error "internal error: map tags"
+  | otherwise = internalBug [] "missing map tags"
 
 setWrapTag :: PackedTag
 setWrapTag
@@ -404,7 +393,7 @@ setWrapTag
         Ty.setRef
         [Ty.setWrap] =
       swt
-  | otherwise = error "internal error: set tag"
+  | otherwise = internalBug [] "missing set tag"
 
 jsonNullTag, jsonBoolTag, jsonObjTag, jsonNumTag :: PackedTag
 jsonTextTag, jsonArrTag :: PackedTag
@@ -421,7 +410,7 @@ jsonTextTag, jsonArrTag :: PackedTag
           Ty.jsonArr
         ] =
       (nlt, bot, obt, nut, txt, art)
-  | otherwise = error "internal error: json tags"
+  | otherwise = internalBug [] "missing json tags"
 
 jsonParseErrorTag :: PackedTag
 jsonParseErrorTag
@@ -431,7 +420,7 @@ jsonParseErrorTag
         Ty.parseErrorRef
         [Ty.jsonParseError] =
       pet
-  | otherwise = error "internal error: json parse error tag"
+  | otherwise = internalBug [] "missing json parse error tag"
 
 avroNullTag, avroRecordTag, avroBytesTag, avroFixedTag, avroArrayTag, avroMapTag, avroUnionTag, avroEnumTag, avroStringTag, avroIntTag, avroLongTag, avroFloatTag, avroDoubleTag, avroBooleanTag :: PackedTag
 (avroNullTag, avroRecordTag, avroBytesTag, avroFixedTag, avroArrayTag, avroMapTag, avroUnionTag, avroEnumTag, avroStringTag, avroIntTag, avroLongTag, avroFloatTag, avroDoubleTag, avroBooleanTag)
@@ -599,11 +588,11 @@ mkEnumTag msg r i
   | Just n <- Map.lookup r builtinTypeNumbering,
     rt <- toEnum (fromIntegral n) =
       packTags rt (toEnum i)
-  | otherwise = internalBug $ "internal error: " <> msg
+  | otherwise = internalBug [] $ "missing enum tag: " <> msg
 
 mkTags :: String -> Reference -> [Word64] -> [PackedTag]
 mkTags msg r cs
   | Just n <- Map.lookup r builtinTypeNumbering,
     tt <- toEnum $ fromIntegral n =
       packTags tt . toEnum . fromIntegral <$> cs
-  | otherwise = error $ "internal error: " ++ msg
+  | otherwise = internalBug [] $ "missing tag: " ++ msg

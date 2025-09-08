@@ -408,7 +408,7 @@ analyseNotes fileUri ppe src notes = do
     nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do
       Context.Suggestion {suggestionName, suggestionType, suggestionMatch} <- sortOn nameResolutionSuggestionPriority suggestions
-      let prettyType = TypePrinter.prettyStr Nothing ppe suggestionType
+      let prettyType = TypePrinter.prettyStr 0 ppe suggestionType
       let ranges = (diags ^.. folded . range)
       let rca = rangedCodeAction ("Use " <> Name.toText suggestionName <> " : " <> Text.pack prettyType) diags ranges
       pure $
@@ -433,7 +433,7 @@ analyseNotes fileUri ppe src notes = do
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
             hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
             typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
-            let prettyType = TypePrinter.prettyStr Nothing ppe typ
+            let prettyType = TypePrinter.prettyStr 0 ppe typ
             let txtName = HQ'.toText hqNameSuggestion
             let ranges = (diags ^.. folded . range)
             let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
