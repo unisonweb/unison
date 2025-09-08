@@ -19,7 +19,7 @@ import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
-import Unison.Codebase.Editor.Input (Event)
+import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.OutputMessages qualified as Output
@@ -63,7 +63,7 @@ ppForProjectContext ProjectContext {projectName, branchName} = do
       Just projectBranch -> pure projectBranch
   pure $ PP.fromProjectAndBranch (PP.ProjectAndBranch project branch) Path.Root
 
-handleInputMCP :: ProjectContext -> [Event] -> ExceptT Text MCP CliOutput
+handleInputMCP :: ProjectContext -> [Either Event Input] -> ExceptT Text MCP CliOutput
 handleInputMCP projectContext input = do
   case input of
     (inp : rest) -> do

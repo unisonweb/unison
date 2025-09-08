@@ -31,7 +31,7 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
-import Unison.Codebase.Editor.Input (Event (..), Input (..))
+import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
@@ -136,7 +136,7 @@ main ::
   FilePath ->
   Welcome.Welcome ->
   PP.ProjectPathIds ->
-  [Event] ->
+  [Either Event Input] ->
   Runtime.Runtime Symbol ->
   Runtime.Runtime Symbol ->
   Codebase IO Symbol Ann ->
@@ -147,7 +147,7 @@ main ::
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl ucmVersion authHTTPClient credentialManager lspCheckForChanges shouldWatchFiles = do
+main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion authHTTPClient credentialManager lspCheckForChanges shouldWatchFiles = do
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
   let config = FSNotify.defaultConfig
@@ -158,9 +158,9 @@ main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl uc
       -- IOSource takes a while to compile, we should start compiling it on startup
       _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
       -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event.
-      awaitFileEvent :: IO (Text, Text) <- do
+      awaitFileEvent <- do
         (fmap . fmap)
-          (\(file, contents) -> (Text.pack file, contents))
+          (\(file, contents) -> UnisonFileChanged (Text.pack file) contents)
           ( Watch.watchDirectory
               scope
               mgr
@@ -173,7 +173,7 @@ main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl uc
           )
 
       let initialState = Cli.loopState0 ppIds
-      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialEvents
+      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
       pageOutput <- newIORef True
 
       initialEcho <- hGetEcho stdin
@@ -215,8 +215,8 @@ main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl uc
                         (putPrettyLnUnpaged o)
                   )
 
-      let awaitEvent :: Cli.LoopState -> IO Event
-          awaitEvent loopState = do
+      let awaitInput :: Cli.LoopState -> IO (Either Event Input)
+          awaitInput loopState = do
             -- use up buffered input before consulting external events
             readIORef initialInputsRef >>= \case
               h : t -> writeIORef initialInputsRef t >> pure h
@@ -228,13 +228,13 @@ main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl uc
                     userInputThread <- Ki.fork scope (getInput loopState)
                     (atomically . asum)
                       [ do
-                          (file, contents) <- Ki.await fileEventThread
+                          event <- Ki.await fileEventThread
                           pure do
                             writeIORef pageOutput False
-                            pure (Event'UnisonFileChanged file contents),
+                            pure (Left event),
                         do
                           input <- Ki.await userInputThread
-                          pure (pure (Event'CommandLineInput input))
+                          pure (pure (Right input))
                       ]
                 action
 
@@ -273,8 +273,8 @@ main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl uc
         -- Handle inputs until @HaltRepl@, staying in the loop on Ctrl+C or synchronous exception.
         let loop0 :: Cli.LoopState -> IO ()
             loop0 s0 = do
-              let stepEvent :: Event -> IO (Cli.ReturnType (), Cli.LoopState)
-                  stepEvent input =
+              let stepInput :: Either Event Input -> IO (Cli.ReturnType (), Cli.LoopState)
+                  stepInput input =
                     Cli.runCli env s0 (HandleInput.loop input)
 
               -- We want to handle file-change events in a way that allow interruption by other file-change events for
@@ -297,42 +297,40 @@ main dir welcome ppIds initialEvents runtime sbRuntime codebase serverBaseUrl uc
               -- first file-change event. Users are unlikely to even notice these details, as while one file is
               -- typechecking, they are not likely to be trying to input things into the prompt nor trying to typecheck
               -- a different file.
-              let stepFileChanged :: Text -> Text -> IO (Cli.ReturnType (), Cli.LoopState)
-                  stepFileChanged file contents = do
+              let stepEvent :: Event -> IO (Cli.ReturnType (), Cli.LoopState)
+                  stepEvent event@(UnisonFileChanged file contents) = do
                     action <-
                       Ki.scoped \scope -> do
-                        handleEventThread <- Ki.fork scope (stepEvent (Event'UnisonFileChanged file contents))
+                        handleEventThread <- Ki.fork scope (stepInput (Left event))
                         fileEventThread <-
                           Ki.fork scope do
-                            let loop = do
-                                  event2@(file2, contents2) <- awaitFileEvent
-                                  if file2 == file && contents /= contents2
-                                    then
-                                      pure event2
-                                    else loop
+                            let loop =
+                                  awaitFileEvent >>= \case
+                                    event2@(UnisonFileChanged file2 contents2)
+                                      | file2 == file && contents /= contents2 -> pure event2
+                                    _ -> loop
                             loop
                         (atomically . asum)
                           [ do
                               result <- Ki.await handleEventThread
                               pure (pure result),
                             do
-                              (file2, contents2) <- Ki.await fileEventThread
-                              pure (stepFileChanged file2 contents2)
+                              event2 <- Ki.await fileEventThread
+                              pure (stepEvent event2)
                           ]
                     action
 
               let step :: IO (Cli.ReturnType (), Cli.LoopState)
                   step = do
-                    event <- awaitEvent s0
-                    (!result, s1) <-
-                      case event of
-                        Event'UnisonFileChanged file contents -> stepFileChanged file contents
-                        Event'CommandLineInput _ -> stepEvent event
-                    let s2 =
-                          case event of
-                            Event'UnisonFileChanged _ _ -> s1
-                            Event'CommandLineInput input -> s1 & #lastInput ?~ input
-                    pure (result, s2)
+                    input <- awaitInput s0
+                    (!result, resultState) <-
+                      case input of
+                        Left event -> stepEvent event
+                        Right _ -> stepInput input
+                    let sNext = case input of
+                          Left _ -> resultState
+                          Right inp -> resultState & #lastInput ?~ inp
+                    pure (result, sNext)
               UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
                 -- SIGINT
                 Left () -> do

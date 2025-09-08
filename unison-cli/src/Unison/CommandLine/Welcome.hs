@@ -39,32 +39,32 @@ welcome :: CodebaseInitStatus -> Text -> Bool -> Welcome
 welcome initStatus unisonVersion showWelcomeHint =
   Welcome (Init initStatus) unisonVersion showWelcomeHint
 
-run :: Welcome -> [Event]
+run :: Welcome -> [Either Event Input]
 run Welcome {onboarding = onboarding, unisonVersion = version, showWelcomeHint = showWelcomeHint} = do
   go onboarding []
   where
-    go :: Onboarding -> [Event] -> [Event]
+    go :: Onboarding -> [Either Event Input] -> [Either Event Input]
     go onboarding acc =
       case onboarding of
         Init NewlyCreatedCodebase -> do
           go PreviouslyOnboarded (headerMsg : acc)
           where
-            headerMsg = toEvent (header version)
+            headerMsg = toInput (header version)
         Init PreviouslyCreatedCodebase -> do
           go PreviouslyOnboarded (headerMsg : acc)
           where
-            headerMsg = toEvent (header version)
+            headerMsg = toInput (header version)
         Author ->
           go Finished (authorMsg : acc)
           where
-            authorMsg = toEvent authorSuggestion
+            authorMsg = toInput authorSuggestion
         -- These are our two terminal Welcome conditions, at the end we reverse the order of the desired input commands otherwise they come out backwards
-        Finished -> reverse (toEvent (getStarted showWelcomeHint) : acc)
-        PreviouslyOnboarded -> reverse (toEvent (getStarted showWelcomeHint) : acc)
+        Finished -> reverse (toInput (getStarted showWelcomeHint) : acc)
+        PreviouslyOnboarded -> reverse (toInput (getStarted showWelcomeHint) : acc)
 
-toEvent :: P.Pretty P.ColorText -> Event
-toEvent pretty =
-  Event'CommandLineInput $ CreateMessage pretty
+toInput :: P.Pretty P.ColorText -> Either Event Input
+toInput pretty =
+  Right $ CreateMessage pretty
 
 asciiartUnison :: P.Pretty P.ColorText
 asciiartUnison =

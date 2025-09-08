@@ -180,14 +180,15 @@ import UnliftIO.Directory qualified as Directory
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
 
-loop :: Event -> Cli ()
-loop = \case
-    Event'UnisonFileChanged sourceName text -> Cli.time "UnisonFileChanged" do
+loop :: Either Event Input -> Cli ()
+loop e = do
+  case e of
+    Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
       -- We skip this update if it was programmatically generated
       Cli.getLatestFile >>= \case
         Just (_, True) -> (#latestFile . _Just . _2) .= False
         _ -> loadUnisonFile sourceName text
-    Event'CommandLineInput input ->
+    Right input ->
       Cli.time "InputPattern" case input of
         ApiI -> do
           pp <- Cli.getCurrentProjectPath

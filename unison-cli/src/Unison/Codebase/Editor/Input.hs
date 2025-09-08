@@ -53,8 +53,7 @@ import Unison.Project (ProjectAndBranch, ProjectAndBranchNames, ProjectBranchNam
 import Unison.Util.Pretty qualified as P
 
 data Event
-  = Event'CommandLineInput Input
-  | Event'UnisonFileChanged SourceName Source
+  = UnisonFileChanged SourceName Source
   deriving stock (Show)
 
 type Source = Text -- "id x = x\nconst a b = a"
