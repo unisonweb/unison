@@ -319,7 +319,6 @@ import Control.Monad.Writer (MonadWriter, runWriterT)
 import Control.Monad.Writer qualified as Writer
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
-import Data.Bifoldable (bifold)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy (LazyByteString)
 import Data.Bytes.Put (runPutS)
@@ -1886,7 +1885,9 @@ getDirectDependenciesOfScope isBuiltinType scope = do
   let tempTableName = [sql| temp_dependents |]
 
   -- Populate a temporary table with all of the references in `scope`
-  createTemporaryTableOfReferenceIds tempTableName (Set.union scope.terms scope.types)
+  createTemporaryTableOfReferenceIds tempTableName
+  for_ scope.terms \ref -> execute [sql| INSERT INTO $tempTableName VALUES (@ref, @) |]
+  for_ scope.types \ref -> execute [sql| INSERT INTO $tempTableName VALUES (@ref, @) |]
 
   -- Get their direct dependencies (tagged with object type)
   --
@@ -1933,7 +1934,8 @@ getDirectDependentsWithinScope ::
 getDirectDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   let scopeTableName = [sql| dependents_search_scope |]
-  createTemporaryTableOfReferenceIds scopeTableName scope
+  createTemporaryTableOfReferenceIds scopeTableName
+  for_ scope \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
 
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
@@ -1981,7 +1983,9 @@ getTransitiveDependentsWithinScope ::
 getTransitiveDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   let scopeTableName = [sql| dependents_search_scope |]
-  createTemporaryTableOfReferenceIds scopeTableName (bifold scope)
+  createTemporaryTableOfReferenceIds scopeTableName
+  for_ scope.terms \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.types \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
 
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
@@ -2069,8 +2073,8 @@ createTemporaryTableOfReferences tableName refs = do
   for_ refs \ref ->
     execute [sql| INSERT INTO $tableName VALUES (@ref, @, @) |]
 
-createTemporaryTableOfReferenceIds :: Sql -> Set S.Reference.Id -> Transaction ()
-createTemporaryTableOfReferenceIds tableName refs = do
+createTemporaryTableOfReferenceIds :: Sql -> Transaction ()
+createTemporaryTableOfReferenceIds tableName = do
   execute
     [sql|
       CREATE TEMPORARY TABLE $tableName (
@@ -2079,8 +2083,6 @@ createTemporaryTableOfReferenceIds tableName refs = do
         PRIMARY KEY (object_id, component_index)
       )
     |]
-  for_ refs \ref ->
-    execute [sql| INSERT INTO $tableName VALUES (@ref, @) |]
 
 objectIdByBase32Prefix :: ObjectType -> Text -> Transaction [ObjectId]
 objectIdByBase32Prefix objType prefix =

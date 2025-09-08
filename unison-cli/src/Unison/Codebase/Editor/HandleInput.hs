@@ -75,7 +75,6 @@ import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
 import Unison.Codebase.Editor.HandleInput.MoveType (doMoveType)
 import Unison.Codebase.Editor.HandleInput.Names (handleNames)
-import Unison.Codebase.Editor.HandleInput.NamespaceDependencies (handleNamespaceDependencies)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.HandleInput.ProjectClone (handleClone)
 import Unison.Codebase.Editor.HandleInput.ProjectCreate (projectCreate)
@@ -598,7 +597,11 @@ loop e = do
           SyncV2.handleSyncFromCodebase description srcCodebasePath srcBranch destBranch
         ListDependentsI hq -> handleDependents hq
         ListDependenciesI hq -> handleDependencies hq
-        NamespaceDependenciesI path -> handleNamespaceDependencies path
+        NamespaceDependenciesI _ ->
+          Cli.respond $
+            Output.Literal $
+              P.wrap $
+                "The `namespace.dependencies` command has been replaced by `todo`. Run `todo` instead."
         DebugNumberedArgsI -> do
           schLength <- Cli.runTransaction Codebase.branchHashLength
           numArgs <- use #numberedArgs
