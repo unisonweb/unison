@@ -454,7 +454,7 @@ evalUnisonFile mode ppe unisonFile args = do
             | not $ null errs ->
                 False <$ RuntimeUtils.displayDecompileErrors errs
           Runtime.Profile prof ->
-            True <$ Cli.respond (Output.PrintMessage prof)
+            True <$ Cli.respond (Output.Literal prof)
           _ -> pure True
         for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
           -- only update the watch cache when there are no errors

@@ -46,7 +46,7 @@ modeProfSpec Sandboxed = NoProf
 modeProfSpec (Permissive prof) = prof
 
 displayDecompileErrors :: [Runtime.Error] -> Cli ()
-displayDecompileErrors errs = Cli.respond (PrintMessage msg)
+displayDecompileErrors errs = Cli.respond (Literal msg)
   where
     msg =
       P.lines $
@@ -93,7 +93,7 @@ evalUnisonTermE mode ppe useCache tm = do
 displayResponse :: Runtime.Response -> Cli ()
 displayResponse (Runtime.DecompErrs errs)
   | not $ null errs = displayDecompileErrors errs
-displayResponse (Runtime.Profile prof) = Cli.respond (PrintMessage msg)
+displayResponse (Runtime.Profile prof) = Cli.respond (Literal msg)
   where
     msg = P.lines ["Profile Results:", ""] <> prof
 displayResponse _ = pure ()

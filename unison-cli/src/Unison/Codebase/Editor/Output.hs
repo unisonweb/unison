@@ -178,8 +178,6 @@ data Output
     Success
   | -- User did `update` before typechecking a file?
     NoUnisonFile
-  | -- Used in Welcome module to instruct user
-    PrintMessage (P.Pretty P.ColorText)
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
@@ -518,7 +516,6 @@ isFailure o = case o of
   SaveTermNameConflict {} -> True
   RunResult {} -> False
   Success {} -> False
-  PrintMessage {} -> False
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
   SourceLoadFailed {} -> True
