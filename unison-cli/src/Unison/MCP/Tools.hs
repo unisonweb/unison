@@ -164,7 +164,7 @@ typecheckCodeTool =
         source <- case code of
           Left filePath -> liftIO $ readUtf8 filePath
           Right codeSnippet -> pure codeSnippet
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" source]
+        output <- handleInputMCP projectContext [Event'UnisonFileChanged "scratch.u" source]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
@@ -184,7 +184,7 @@ docsTool =
           },
       toolArgType = Proxy,
       toolHandler = \(DocsToolArguments {name, projectContext}) -> handleToolError $ do
-        output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
+        output <- handleInputMCP projectContext [Event'CommandLineInput $ DocToMarkdownI name]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
@@ -235,7 +235,7 @@ listProjectDefinitionsTool =
               let noLibBranch = Branch.deleteLibdeps b
               if (R.null $ Branch.deepTerms noLibBranch) && (R.null $ Branch.deepTypes noLibBranch)
                 then pure $ textToolResult "No definitions found in the project. There may be definitions within the project's installed libraries."
-                else jsonToolResult <$> handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') []]
+                else jsonToolResult <$> handleInputMCP projectContext [Event'CommandLineInput $ Input.FindI False (FindLocal Path.Root') []]
             _ -> pure . errorToolResult $ "No current branch found"
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
@@ -257,7 +257,7 @@ listProjectLibrariesTool =
       toolArgType = Proxy,
       toolHandler = \(ProjectContextArgument projectContext) -> handleToolError $ do
         let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment])
-        output <- handleInputMCP projectContext [Right $ Input.FindShallowI libPath]
+        output <- handleInputMCP projectContext [Event'CommandLineInput $ Input.FindShallowI libPath]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
@@ -278,7 +278,7 @@ listLibraryDefinitionsTool =
       toolArgType = Proxy,
       toolHandler = \(ListLibraryDefinitionsToolArguments {libName, projectContext}) -> handleToolError $ do
         let libPath = Path.AbsolutePath' $ Path.Absolute (Path.fromList [NameSegment.libSegment, NameSegment.unsafeParseText libName])
-        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal libPath) []]
+        definitions <- handleInputMCP projectContext [Event'CommandLineInput $ Input.FindI False (FindLocal libPath) []]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
         pure $ textToolResult outputJSON
     }
@@ -303,7 +303,7 @@ viewDefinitionsTool =
             pure $ errorToolResult "No names provided to view definitions"
           Just nonEmptyNames -> do
             let names' = HQ.NameOnly <$> nonEmptyNames
-            definitions <- handleInputMCP projectContext [Right $ Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal names']
+            definitions <- handleInputMCP projectContext [Event'CommandLineInput $ Input.ShowDefinitionI Input.ConsoleLocation Input.ShowDefinitionLocal names']
             let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
             pure $ textToolResult outputJSON
     }
@@ -324,7 +324,7 @@ listLocalProjectsTool =
       toolArgType = Proxy,
       toolHandler = \(()) -> handleToolError $ do
         pc <- currentProjectContext
-        projects <- handleInputMCP pc [Right Input.ProjectsI]
+        projects <- handleInputMCP pc [Event'CommandLineInput Input.ProjectsI]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projects
         pure $ textToolResult outputJSON
     }
@@ -345,7 +345,7 @@ listProjectBranchesTool =
       toolArgType = Proxy,
       toolHandler = \(ProjectNameArgument {projectName}) -> handleToolError $ do
         projectContext <- currentProjectContext
-        branches <- handleInputMCP projectContext [Right $ Input.BranchesI (Just projectName)]
+        branches <- handleInputMCP projectContext [Event'CommandLineInput $ Input.BranchesI (Just projectName)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode branches
         pure $ textToolResult outputJSON
     }
@@ -385,7 +385,7 @@ searchDefinitionsTool =
           },
       toolArgType = Proxy,
       toolHandler = \(SearchDefinitionsToolArguments {projectContext, query}) -> handleToolError $ do
-        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [Text.unpack query]]
+        definitions <- handleInputMCP projectContext [Event'CommandLineInput $ Input.FindI False (FindLocal Path.Root') [Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
         pure $ textToolResult outputJSON
     }
@@ -405,7 +405,7 @@ searchByTypeTool =
           },
       toolArgType = Proxy,
       toolHandler = \(SearchByTypeToolArguments {projectContext, query}) -> handleToolError $ do
-        definitions <- handleInputMCP projectContext [Right $ Input.FindI False (FindLocal Path.Root') [":", Text.unpack query]]
+        definitions <- handleInputMCP projectContext [Event'CommandLineInput $ Input.FindI False (FindLocal Path.Root') [":", Text.unpack query]]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
         pure $ textToolResult outputJSON
     }
@@ -425,7 +425,7 @@ dependenciesTool =
           },
       toolArgType = Proxy,
       toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
-        output <- handleInputMCP projectContext [Right $ Input.ListDependenciesI (HQ.NameOnly definitionName)]
+        output <- handleInputMCP projectContext [Event'CommandLineInput $ Input.ListDependenciesI (HQ.NameOnly definitionName)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
@@ -445,7 +445,7 @@ dependentsTool =
           },
       toolArgType = Proxy,
       toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
-        output <- handleInputMCP projectContext [Right $ Input.ListDependentsI (HQ.NameOnly definitionName)]
+        output <- handleInputMCP projectContext [Event'CommandLineInput $ Input.ListDependentsI (HQ.NameOnly definitionName)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }

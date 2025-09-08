@@ -9,6 +9,7 @@ module Unison.Project
     projectNameUserSlug,
     projectNameToUserProjectSlugs,
     prependUserSlugToProjectName,
+    isValidNewProjectName,
     ProjectBranchName,
     projectBranchNameUserSlug,
     projectBranchNameToValidProjectBranchNameText,
@@ -121,6 +122,10 @@ newProjectNameParser = do
         chunkLength :: (Maybe Char, Text) -> Int
         chunkLength (maybeHyphen, chunk) =
           (if isJust maybeHyphen then 1 else 0) + Text.length chunk
+
+isValidNewProjectName :: ProjectName -> Bool
+isValidNewProjectName (UnsafeProjectName projectName) =
+  isRight (Megaparsec.parse newProjectNameParser "" projectName)
 
 -- | Get the user slug at the beginning of a project name, if there is one.
 --

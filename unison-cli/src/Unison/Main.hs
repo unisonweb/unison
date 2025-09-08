@@ -189,7 +189,6 @@ main version = do
                 Right contents -> do
                   getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                     withRuntimes RTI.OneOff \(rt, sbrt) -> do
-                      let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
                       let ucmVersion = Version.gitDescribeWithDate version
@@ -202,7 +201,10 @@ main version = do
                         rt
                         sbrt
                         theCodebase
-                        [Left fileEvent, Right $ Input.ExecuteI NoProf mainName args, Right Input.QuitI]
+                        [ Input.Event'UnisonFileChanged (Text.pack file) contents,
+                          Input.Event'CommandLineInput $ Input.ExecuteI NoProf mainName args,
+                          Input.Event'CommandLineInput Input.QuitI
+                        ]
                         authenticatedHTTPClient
                         credMan
                         serverUrl
@@ -217,7 +219,6 @@ main version = do
             Right contents -> do
               getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
                 withRuntimes RTI.OneOff \(rt, sbrt) -> do
-                  let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
                   let ucmVersion = Version.gitDescribeWithDate version
@@ -230,7 +231,10 @@ main version = do
                     rt
                     sbrt
                     theCodebase
-                    [Left fileEvent, Right $ Input.ExecuteI NoProf mainName args, Right Input.QuitI]
+                    [ Input.Event'UnisonFileChanged (Text.pack "<standard input>") contents,
+                      Input.Event'CommandLineInput $ Input.ExecuteI NoProf mainName args,
+                      Input.Event'CommandLineInput Input.QuitI
+                    ]
                     authenticatedHTTPClient
                     credMan
                     serverUrl
@@ -606,7 +610,7 @@ launch ::
   Rt.Runtime Symbol ->
   Rt.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
-  [Either Input.Event Input.Input] ->
+  [Input.Event] ->
   AuthN.AuthenticatedHttpClient ->
   AuthN.CredentialManager ->
   Maybe Server.BaseUrl ->
@@ -615,7 +619,7 @@ launch ::
   (PP.ProjectPathIds -> IO ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir runtime sbRuntime codebase inputs authenticatedHTTPClient credMan serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
+launch version dir runtime sbRuntime codebase events authenticatedHTTPClient credMan serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -626,7 +630,7 @@ launch version dir runtime sbRuntime codebase inputs authenticatedHTTPClient cre
         dir
         welcome
         startingPath
-        inputs
+        events
         runtime
         sbRuntime
         codebase

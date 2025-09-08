@@ -39,7 +39,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
-import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
+import Unison.Codebase.Editor.Input (Event (..), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
@@ -340,7 +340,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             case maybeSwitchCommand of
               Just switchCommand -> do
                 atomically . Q.undequeue cmdQueue $ Just p
-                pure $ Right switchCommand
+                pure $ Event'CommandLineInput switchCommand
               Nothing -> do
                 case words . Text.unpack $ lineTxt of
                   [] -> Cli.returnEarlyWithoutOutput
@@ -360,7 +360,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                             Cli.returnEarlyWithoutOutput
                         )
                         -- No input received from this line, try again.
-                        (maybe Cli.returnEarlyWithoutOutput $ pure . Right . snd)
+                        (maybe Cli.returnEarlyWithoutOutput $ pure . Event'CommandLineInput . snd)
 
       startProcessedBlock block = case block of
         Unison infoTags txt -> do
@@ -378,7 +378,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             liftIO $ writeIORef isHidden HideAll
             atomically . Q.enqueue cmdQueue . pure $ UcmCommand UcmContextEmpty "update"
             atomically $ Q.enqueue cmdQueue Nothing
-          pure . Left $ UnisonFileChanged sourceName txt
+          pure $ Event'UnisonFileChanged sourceName txt
         API infoTags apiRequests -> do
           liftIO do
             writeIORef isHidden $ (runIdentity $ getHidden behaviors) block
@@ -403,7 +403,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
 
       finishTranscript = do
         showStatus True "✔️" "Completed transcript.\n"
-        pure $ Right QuitI
+        pure $ Event'CommandLineInput QuitI
 
       processStanza stanza midx = do
         liftIO . showStatus False "⚙️" $
@@ -435,8 +435,8 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         liftIO $ writeIORef hasErrors False
         maybe (liftIO finishTranscript) (uncurry processStanza) =<< atomically (Q.tryDequeue inputQueue)
 
-      awaitInput :: Cli (Either Event Input)
-      awaitInput = maybe whatsNext (maybe endUcmBlock processUcmLine) =<< atomically (Q.tryDequeue cmdQueue)
+      awaitEvent :: Cli Event
+      awaitEvent = maybe whatsNext (maybe endUcmBlock processUcmLine) =<< atomically (Q.tryDequeue cmdQueue)
 
       loadPreviousUnisonBlock name =
         maybe
@@ -538,10 +538,13 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
 
   let loop :: Cli.LoopState -> IO (Seq Stanza)
       loop s0 = do
-        Cli.runCli env s0 awaitInput >>= \case
-          (Cli.Success input, s1) ->
-            let next s = loop $ either (const s) (\inp -> s & #lastInput ?~ inp) input
-             in Cli.runCli env s1 (HandleInput.loop input) >>= \case
+        Cli.runCli env s0 awaitEvent >>= \case
+          (Cli.Success event, s1) ->
+            let next s =
+                  loop case event of
+                    Event'UnisonFileChanged _ _ -> s
+                    Event'CommandLineInput input -> s & #lastInput ?~ input
+             in Cli.runCli env s1 (HandleInput.loop event) >>= \case
                   (Cli.Success (), s2) -> next s2
                   (Cli.Continue, s2) -> next s2
                   (Cli.HaltRepl, _) -> onHalt
