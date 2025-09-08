@@ -547,6 +547,7 @@ lamFloater closed tm mv a vs bd =
       Nothing -> do
         let v = ABT.freshIn ctxVars $ fromMaybe (typed Var.Float) mv
         nm <- nameLambda mv
+        addVars $ Set.singleton v
         addFloated
           [(v, FSText nm, lamWithoutBindingAnns a vs bd)]
           (floatDecomp closed v tm)
