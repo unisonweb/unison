@@ -71,7 +71,7 @@ separateAmbiguousTypeUsage _ = ()
 
     ❓
     
-    I couldn't resolve any of these symbols:
+    I couldn't resolve any of these names:
     
         3 | useAmbiguousType : AmbiguousType -> ()
         4 | useAmbiguousType _ = ()
@@ -83,12 +83,12 @@ separateAmbiguousTypeUsage _ = ()
        10 | separateAmbiguousTypeUsage : AmbiguousType -> ()
     
     
-    Symbol          Suggestions
-                    
-    AmbiguousType   one.AmbiguousType
-                    two.AmbiguousType
-                    
-    UnknownType     No matches
+    Name            Type   Suggestions
+                           
+    AmbiguousType   type   one.AmbiguousType
+                           two.AmbiguousType
+                           
+    UnknownType     type   No matches
 ```
 
 Currently, ambiguous terms are caught and handled by type directed name resolution,
