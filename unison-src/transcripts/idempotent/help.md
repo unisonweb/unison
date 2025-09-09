@@ -833,6 +833,43 @@
                         provided at the command line when
                         running mymain as an executable.
 
+  run.profiled
+  `run.profiled mymain args ...`  
+    
+    Runs `!mymain`, where `mymain` is searched for in the most
+    recent typechecked file, or in the codebase.
+    
+    After running, some profiling information will be displayed
+    in addition to the result value. The tree is filtered to the
+    25 most expensive functions to try to provide a reasonable
+    amount of output. For full profiling information, use
+    `run.profiled.full`.
+    
+    Any provided arguments will be passed as program arguments
+    as though they were provided at the command line when
+    running `mymain` as an executable.
+
+  run.profiled.full
+  `run.profiled.full mymain outfile args ...`  
+    
+    Runs `!mymain`, where `mymain` is searched for in the most
+    recent typechecked file, or in the codebase.
+    
+    After running, profiling information will be written to the
+    specified file. If the file name given ends in `.ticks` or
+    `.folded`, a tick count file will be produced, suitable for
+    use with flamegraph.pl at
+    
+        https://github.com/brendangregg/FlameGraph
+    
+    Otherwise, the file will contain a list of the 25 most
+    costly functions together with the full recorded call tree
+    for the program with percentage costs.
+    
+    Any provided arguments will be passed as program arguments
+    as though they were provided at the command line when
+    running `mymain` as an executable.
+
   switch
   `switch`          opens an interactive selector to pick a
                     project and branch
