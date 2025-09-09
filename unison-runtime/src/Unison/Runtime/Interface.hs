@@ -184,6 +184,7 @@ data EvalCtx = ECtx
   { dspec :: DataSpec,
     floatRemap :: Remapping CodebaseReference FloatedReference,
     intermedRemap :: Remapping FloatedReference IntermediateReference,
+    floatNames :: Map.Map FloatedReference (FloatName Symbol),
     decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol)),
     ccache :: CCache ()
   }
@@ -195,7 +196,7 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
 
 cacheContext :: CCache () -> EvalCtx
 cacheContext =
-  ECtx builtinDataSpec mempty mempty
+  ECtx builtinDataSpec mempty mempty mempty
     . Map.fromList
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
@@ -358,6 +359,11 @@ floatRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 floatRemapAdd m ctx@ECtx {floatRemap} =
   ctx {floatRemap = remapAdd m floatRemap}
 
+floatNamesAdd ::
+  Map.Map Reference (FloatName Symbol) -> EvalCtx -> EvalCtx
+floatNamesAdd m ctx@ECtx {floatNames} =
+  ctx {floatNames = Map.union m floatNames}
+
 intermedRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 intermedRemapAdd m ctx@ECtx {intermedRemap} =
   ctx {intermedRemap = remapAdd m intermedRemap}
@@ -440,7 +446,7 @@ loadCode cl ppe ctx tmrs = do
   itms <-
     traverse (\r -> (RF.unsafeId r,) <$> resolveTermRef cl r) new
   let im = Tm.unhashComponent (Map.fromList itms)
-      (subvs, rgrp0, rbkr) = intermediateTerms ppe ctx im
+      (subvs, fnames, rgrp0, rbkr) = intermediateTerms ppe ctx im
       lubvs r = case Map.lookup r subvs of
         Just r -> r
         Nothing -> error "loadCode: variable missing for float refs"
@@ -449,7 +455,7 @@ loadCode cl ppe ctx tmrs = do
       (ctx', _, rgrp) =
         performRehash
           (fmap (overGroupLinks int) rgrp0)
-          (floatRemapAdd vm ctx)
+          (floatNamesAdd fnames $ floatRemapAdd vm ctx)
   return (backrefAdd rbkr ctx', rgrp ++ odeps)
 
 loadDeps ::
@@ -553,17 +559,18 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
       PC _ finish getProf -> do
         finish
         ectx <- readIORef ctxVar
+        let fnames = Map.map (prettyFloatName ppe) (floatNames ectx)
         pout <- backReferenceProfile ectx <$> getProf
         case mout of
           Just loc
             | ticky $ takeExtension loc -> do
-                writeFile loc $ foldedProfile ppe pout
+                writeFile loc $ foldedProfile ppe fnames pout
                 pure $ Right (errs, tmr)
             | otherwise -> do
-                writeFile loc . toPlain 0 $ fullProfile ppe pout
+                writeFile loc . toPlain 0 $ fullProfile ppe fnames pout
                 pure $ Right (errs, tmr)
           Nothing ->
-            pure $ Right (errs <> Profile (miniProfile ppe pout), tmr)
+            pure $ Right (errs <> Profile (miniProfile ppe fnames pout), tmr)
   where
     ticky ".ticks" = True
     ticky ".folded" = True
@@ -584,7 +591,8 @@ interpEval ::
   Term Symbol ->
   IO (Either Error (Response, Term Symbol))
 interpEval actThr cleanThr ctxVar cl ppe = \case
-  NoProf -> interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
+  NoProf ->
+    interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
   FullProf file ->
     profileEval actThr cleanThr ctxVar cl ppe $ Just file
@@ -628,13 +636,14 @@ intermediateTerms ::
   EvalCtx ->
   Map RF.Id (Symbol, Term Symbol) ->
   ( Map.Map Symbol Reference,
+    Map.Map Reference (FloatName Symbol),
     Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerms ppe ctx rtms =
   case normalizeGroup ctx orig (Map.elems rtms) of
-    (subvs, cmbs, dcmp) ->
-      (subvs, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
+    (subvs, fnames, cmbs, dcmp) ->
+      (subvs, fnames, Map.mapWithKey f cmbs, Map.map (Map.singleton 0) dcmp)
       where
         f ref =
           superNormalize
@@ -654,6 +663,7 @@ normalizeTerm ::
   Term Symbol ->
   ( Reference,
     Map Reference Reference,
+    Map Reference (FloatName Symbol),
     Map Reference (Term Symbol),
     Map Reference (Map.Map Word64 (Term Symbol))
   )
@@ -670,23 +680,25 @@ normalizeTerm ctx tm =
             . Hashing.hashTermComponentsWithoutTypes
             $ Map.fromList bs
       | otherwise = mempty
-    absorb (ll, frem, bs, dcmp) =
+    absorb (ll, frem, fnames, bs, dcmp) =
       let ref = RF.DerivedId $ Hashing.hashClosedTerm ll
-       in (ref, frem, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
+       in (ref, frem, fnames, Map.fromList $ (ref, ll) : bs, backrefLifted ref tm dcmp)
 
 normalizeGroup ::
   EvalCtx ->
   Map Symbol Reference ->
   [(Symbol, Term Symbol)] ->
   ( Map Symbol Reference,
+    Map Reference (FloatName Symbol),
     Map Reference (Term Symbol),
     Map Reference (Term Symbol)
   )
 normalizeGroup ctx orig gr0 = case lamLiftGroup orig gr of
-  (subvis, cmbs, dcmp) ->
+  (subvis, fnames, cmbs, dcmp) ->
     let subvs = (fmap . fmap) RF.DerivedId subvis
         subrs = Map.fromList $ mapMaybe f subvs
      in ( Map.fromList subvs,
+          Map.fromList fnames,
           Map.fromList $
             (fmap . fmap) (Tm.updateDependencies subrs mempty) cmbs,
           Map.fromList dcmp
@@ -702,12 +714,14 @@ intermediateTerm ::
   Term Symbol ->
   ( Reference,
     Map.Map Reference Reference,
+    Map.Map Reference (FloatName Symbol),
     Map.Map Reference (SuperGroup Reference Symbol),
     Map.Map Reference (Map.Map Word64 (Term Symbol))
   )
 intermediateTerm ppe ctx tm =
   case normalizeTerm ctx tm of
-    (ref, frem, cmbs, dcmp) -> (ref, frem, fmap f cmbs, dcmp)
+    (ref, frem, fnames, cmbs, dcmp) ->
+      (ref, frem, fnames, fmap f cmbs, dcmp)
       where
         tmName = HQ.toText . termName ppe $ RF.Ref ref
         f =
@@ -729,14 +743,14 @@ prepareEvaluation ppe tm ctx = do
   pure (backrefAdd rbkr ctx', rcode, rmn)
   where
     uncacheable g = CodeRep g Uncacheable
-    (rmn0, frem, rgrp0, rbkr) = intermediateTerm ppe ctx tm
+    (rmn0, frem, fnames, rgrp0, rbkr) = intermediateTerm ppe ctx tm
     int b r
       | b || Map.member r rgrp0 = r
       | otherwise = toIntermed ctx r
     (ctx', rrefs, rgrp) =
       performRehash
         ((fmap . overGroupLinks) int $ rgrp0)
-        (floatRemapAdd frem ctx)
+        (floatNamesAdd fnames $ floatRemapAdd frem ctx)
     rcode = second uncacheable <$> rgrp
     rmn = case Map.lookup rmn0 rrefs of
       Just r -> r
