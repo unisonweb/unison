@@ -176,6 +176,7 @@ data EvalCtx = ECtx
   { dspec :: DataSpec,
     floatRemap :: Remapping CodebaseReference FloatedReference,
     intermedRemap :: Remapping FloatedReference IntermediateReference,
+    floatNames :: Map.Map FloatedReference (FloatName Symbol),
     decompTm :: Map.Map Reference (Map.Map Word64 (Term Symbol)),
     ccache :: CCache ()
   }
@@ -187,7 +188,7 @@ uncurryDspec = Map.fromList . concatMap f . Map.toList
 
 cacheContext :: CCache () -> EvalCtx
 cacheContext =
-  ECtx builtinDataSpec mempty mempty
+  ECtx builtinDataSpec mempty mempty mempty
     . Map.fromList
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
@@ -350,6 +351,11 @@ floatRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 floatRemapAdd m ctx@ECtx {floatRemap} =
   ctx {floatRemap = remapAdd m floatRemap}
 
+floatNamesAdd ::
+  Map.Map Reference (FloatName Symbol) -> EvalCtx -> EvalCtx
+floatNamesAdd m ctx@ECtx {floatNames} =
+  ctx {floatNames = Map.union m floatNames}
+
 intermedRemapAdd :: Map.Map Reference Reference -> EvalCtx -> EvalCtx
 intermedRemapAdd m ctx@ECtx {intermedRemap} =
   ctx {intermedRemap = remapAdd m intermedRemap}
@@ -417,11 +423,7 @@ loadCode ::
   PrettyPrintEnv ->
   EvalCtx ->
   [Reference] ->
-  IO
-    ( EvalCtx,
-      Map Reference (FloatName Symbol),
-      [(Reference, SuperGroup Reference Symbol)]
-    )
+  IO (EvalCtx, [(Reference, SuperGroup Reference Symbol)])
 loadCode cl ppe ctx tmrs = do
   igs <- readTVarIO (intermed $ ccache ctx)
   q <-
@@ -445,8 +447,8 @@ loadCode cl ppe ctx tmrs = do
       (ctx', _, rgrp) =
         performRehash
           (fmap (overGroupLinks int) rgrp0)
-          (floatRemapAdd vm ctx)
-  return (backrefAdd rbkr ctx', fnames, rgrp ++ odeps)
+          (floatNamesAdd fnames $ floatRemapAdd vm ctx)
+  return (backrefAdd rbkr ctx', rgrp ++ odeps)
 
 loadDeps ::
   CodeLookup Symbol IO () ->
@@ -454,7 +456,7 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  IO (EvalCtx, Map Reference (FloatName Symbol), [(Reference, Code Reference)])
+  IO (EvalCtx, [(Reference, Code Reference)])
 loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
@@ -466,10 +468,9 @@ loadDeps cl ppe ctx tyrs tmrs = do
       _ -> False
   ctx <- foldM (uncurry . allocType) ctx $ Prelude.filter p tyrs
   let tyAdd = Set.fromList $ fst <$> tyrs
-  (ctx', fnames, rgrp) <- loadCode cl ppe ctx tmrs
+  (ctx', rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
-  (ctx', fnames, crgrp)
-    <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+  (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
@@ -519,18 +520,17 @@ interpEvalDirect ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Term Symbol ->
-  IO (Either Error (Map Reference (FloatName Symbol), (Response, Term Symbol)))
+  IO (Either Error (Response, Term Symbol))
 interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
   catchInternalErrors $ do
     ctx <- readIORef ctxVar
     (tyrs, tmrs) <- collectDeps cl tm
-    (ctx, fnames0, _) <- loadDeps cl ppe ctx tyrs tmrs
-    (ctx, fnames1, _, init) <- prepareEvaluation ppe tm ctx
+    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+    (ctx, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
-    fmap (fmap (Map.union fnames0 fnames1,)) $
-      evalInContext ppe ctx prof activeThreads initw
-        `UnliftIO.finally` cleanupThreads
+    evalInContext ppe ctx prof activeThreads initw
+      `UnliftIO.finally` cleanupThreads
 
 profileEval ::
   ActiveThreads ->
@@ -547,11 +547,11 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
     interpEvalDirect actThr cleanThr ctxVar (Just prof) cl ppe tm
   case result of
     Left err -> pure $ Left err
-    Right (fnames0, (errs, tmr)) -> case prof of
+    Right (errs, tmr) -> case prof of
       PC _ finish getProf -> do
-        let fnames = Map.map (prettyFloatName ppe) fnames0
         finish
         ectx <- readIORef ctxVar
+        let fnames = Map.map (prettyFloatName ppe) (floatNames ectx)
         pout <- backReferenceProfile ectx <$> getProf
         case mout of
           Just loc
@@ -584,7 +584,7 @@ interpEval ::
   IO (Either Error (Response, Term Symbol))
 interpEval actThr cleanThr ctxVar cl ppe = \case
   NoProf ->
-    fmap (fmap snd) . interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
+    interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
   FullProf file ->
     profileEval actThr cleanThr ctxVar cl ppe $ Just file
@@ -601,7 +601,7 @@ interpCompile ::
 interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
   (tyrs, tmrs) <- collectRefDeps cl rf
-  (ctx, _, _) <- loadDeps cl ppe ctx tyrs tmrs
+  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
@@ -726,18 +726,13 @@ prepareEvaluation ::
   PrettyPrintEnv ->
   Term Symbol ->
   EvalCtx ->
-  IO
-    ( EvalCtx,
-      Map Reference (FloatName Symbol),
-      [(Reference, Code Reference)],
-      Reference
-    )
+  IO (EvalCtx, [(Reference, Code Reference)], Reference)
 prepareEvaluation ppe tm ctx = do
   missing <- cacheAdd rcode (ccache ctx')
   when (not . null $ missing) . fail $
     reportBug "E029347" $
       "Error in prepareEvaluation, cache is missing: " <> show missing
-  pure (backrefAdd rbkr ctx', fnames, rcode, rmn)
+  pure (backrefAdd rbkr ctx', rcode, rmn)
   where
     uncacheable g = CodeRep g Uncacheable
     (rmn0, frem, fnames, rgrp0, rbkr) = intermediateTerm ppe ctx tm
@@ -747,7 +742,7 @@ prepareEvaluation ppe tm ctx = do
     (ctx', rrefs, rgrp) =
       performRehash
         ((fmap . overGroupLinks) int $ rgrp0)
-        (floatRemapAdd frem ctx)
+        (floatNamesAdd fnames $ floatRemapAdd frem ctx)
     rcode = second uncacheable <$> rgrp
     rmn = case Map.lookup rmn0 rrefs of
       Just r -> r
