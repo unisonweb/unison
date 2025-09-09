@@ -41,6 +41,7 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
 import Unison.Typechecker.TypeLookup qualified as TL
+import Unison.Typechecker.Variance (defaultVariances)
 import Unison.UnisonFile (definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -100,7 +101,8 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             typeLookup = tl,
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
-            topLevelComponents = Map.empty
+            topLevelComponents = Map.empty,
+            variances = defaultVariances
           }
     ShouldUseTndr'Yes parsingEnv -> do
       let resolveName :: Name -> Relation Name (ResolvesTo Referent)
@@ -192,7 +194,8 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             typeLookup,
             termsByShortname,
             freeNameToFuzzyTermsByShortName,
-            topLevelComponents = Map.empty
+            topLevelComponents = Map.empty,
+            variances = defaultVariances
           }
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.

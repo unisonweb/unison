@@ -13,6 +13,7 @@ import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.Typechecker.Variance (defaultVariances)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 
 data Mergeblob5 = Mergeblob5
@@ -27,7 +28,8 @@ makeMergeblob5 blob typeLookup =
             termsByShortname = Map.empty,
             typeLookup,
             freeNameToFuzzyTermsByShortName = Map.empty,
-            topLevelComponents = Map.empty
+            topLevelComponents = Map.empty,
+            variances = defaultVariances
           }
    in case runIdentity (Result.runResultT (FileParsers.synthesizeFile typecheckingEnv blob.file)) of
         (Nothing, notes) -> Left notes
