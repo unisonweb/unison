@@ -13,7 +13,7 @@ on:
 
 env:
   ## Some version numbers that are used during CI
-  runtime_tests_version: "@unison/runtime-tests/releases/0.0.3"
+  runtime_tests_version: "@unison/runtime-tests/releases/0.0.4"
 
   ## Some cached directories
   # a temp path for caching a built `ucm`
@@ -231,7 +231,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.transcript_test_results}}
-          key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md', '**/unison-src/**/*.u') }}
+          key: transcripts-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/unison-src/**/*.md', '**/unison-src/**/*.u') }}
       - name: restore binaries
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
@@ -319,7 +319,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.interpreter_test_results}}
-          key: interpreter-test-results-${{ matrix.os }}-${{ hashFiles('**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/interpreter-tests.tpl.md') }}-${{env.runtime_tests_causalhash}}
+          key: interpreter-test-results-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs')}}-${{ hashFiles('**/interpreter-tests.tpl.md') }}-${{env.runtime_tests_causalhash}}
       - name: cache testing codebase
         id: cache-testing-codebase
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
@@ -330,21 +330,18 @@ jobs:
           restore-keys: runtime-tests-codebase-
       - name: restore binaries
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         with:
           path: ${{env.ucm_local_bin}}
           name: local-bin-${{ matrix.os }}
       - name: set binaries permissions
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         run: chmod +x ${{env.ucm_local_bin}}/*
       - name: interpreter tests
         # this one should be re-run if the ucm binaries have changed or unison-src/ has changed
         if: steps.cache-interpreter-test-results.outputs.cache-hit != 'true'
         run: |
-          envsubst '${runtime_tests_version}' \
-            < unison-src/builtin-tests/interpreter-tests.tpl.md \
-            > unison-src/builtin-tests/interpreter-tests.md
-          ${{ env.ucm }} transcript.fork -C ${{ env.runtime_tests_codebase }} unison-src/builtin-tests/interpreter-tests.md
+          UNISON_MIGRATION=auto unison-src/builtin-tests/interpreter-tests.sh ${{ env.ucm }}
           cat unison-src/builtin-tests/interpreter-tests.output.md
           git diff --exit-code unison-src/builtin-tests/interpreter-tests.output.md
       - name: mark interpreter tests as passing

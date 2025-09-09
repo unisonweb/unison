@@ -82,5 +82,5 @@ checkMatch scrutineeType cases = do
   where
     title = P.bold
     doDebug out = case shouldDebug PatternCoverage of
-      True -> trace (P.toAnsiUnbroken out)
+      True -> trace (P.toANSI 0 out)
       False -> id

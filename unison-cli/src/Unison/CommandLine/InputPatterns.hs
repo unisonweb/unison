@@ -3978,7 +3978,7 @@ projectToCompletion :: Sqlite.Project -> Completion
 projectToCompletion project =
   Completion
     { replacement = stringProjectName,
-      display = P.toAnsiUnbroken (prettyProjectNameSlash (project ^. #name)),
+      display = P.toANSI 0 (prettyProjectNameSlash (project ^. #name)),
       isFinished = False
     }
   where
@@ -3988,7 +3988,7 @@ projectBranchToCompletion :: ProjectName -> (ProjectBranchId, ProjectBranchName)
 projectBranchToCompletion projectName (_, branchName) =
   Completion
     { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName)),
-      display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+      display = P.toANSI 0 (prettySlashProjectBranchName branchName),
       isFinished = False
     }
 
@@ -4018,7 +4018,7 @@ currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Comp
 currentProjectBranchToCompletion (_, branchName) =
   Completion
     { replacement = '/' : Text.unpack (into @Text branchName),
-      display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+      display = P.toANSI 0 (prettySlashProjectBranchName branchName),
       isFinished = False
     }
 
@@ -4064,7 +4064,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
     projectBranchToCompletionWithSep projectName (_, branchName) =
       Completion
         { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName) <> branchPathSep),
-          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName <> branchPathSepPretty),
+          display = P.toANSI 0 (prettySlashProjectBranchName branchName <> branchPathSepPretty),
           isFinished = False
         }
 
@@ -4072,14 +4072,14 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
     prefixPathSep c =
       c
         { Line.replacement = branchPathSep <> Line.replacement c,
-          Line.display = P.toAnsiUnbroken branchPathSepPretty <> Line.display c
+          Line.display = P.toANSI 0 branchPathSepPretty <> Line.display c
         }
 
     suffixPathSep :: Completion -> Completion
     suffixPathSep c =
       c
         { Line.replacement = Line.replacement c <> branchPathSep,
-          Line.display = Line.display c <> P.toAnsiUnbroken branchPathSepPretty
+          Line.display = Line.display c <> P.toANSI 0 branchPathSepPretty
         }
 
     addBranchPrefix ::
@@ -4099,7 +4099,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
        in \c ->
             c
               { Line.replacement = Text.unpack prefixText <> branchPathSep <> Line.replacement c,
-                Line.display = P.toAnsiUnbroken (prefixPretty <> branchPathSepPretty) <> Line.display c
+                Line.display = P.toANSI 0 (prefixPretty <> branchPathSepPretty) <> Line.display c
               }
 
     branchPathSepPretty = P.hiBlack branchPathSep
@@ -4180,7 +4180,7 @@ projectNameSuggestions slash (Text.strip . Text.pack -> input) codebase = do
        in \project ->
             Completion
               { replacement = Text.unpack (toText project),
-                display = P.toAnsiUnbroken (toPretty (project ^. #name)),
+                display = P.toANSI 0 (toPretty (project ^. #name)),
                 isFinished = False
               }
 

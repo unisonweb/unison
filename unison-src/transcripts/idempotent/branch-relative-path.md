@@ -69,14 +69,14 @@ p0/main> fork p1/main: p0/main:p1
 p0/main> ls p1
 
   1. bonk  (##Nat)
-  2. donk/ (1 term)
-  3. yyy/  (1 term)
-  4. zzz/  (2 terms)
+  2. donk. (1 term)
+  3. yyy.  (1 term)
+  4. zzz.  (2 terms)
 
 p0/main> ls p1.zzz
 
   1. foo  (##Nat)
-  2. foo/ (1 term)
+  2. foo. (1 term)
 
 p0/main> ls p1.yyy
 

@@ -460,4 +460,4 @@ prettyUVar :: (Var v) => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
 prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
 
 tracePretty :: P.Pretty P.ColorText -> a -> a
-tracePretty p = trace (P.toAnsiUnbroken p)
+tracePretty p = trace (P.toANSI 0 p)

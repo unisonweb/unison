@@ -35,8 +35,6 @@ module Unison.Runtime.ANF
     pattern TDiscard,
     pattern TLocal,
     pattern TUpdate,
-    CompileExn (..),
-    internalBug,
     FloatName (..),
     prettyFloatName,
     Mem (..),
@@ -98,7 +96,6 @@ module Unison.Runtime.ANF
   )
 where
 
-import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
@@ -110,7 +107,6 @@ import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
-import GHC.Stack (CallStack, callStack)
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -125,6 +121,7 @@ import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShort
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
+import Unison.Runtime.InternalError (internalBug)
 import Unison.Runtime.Referenced (Referential (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.ShortHash (shortenTo)
@@ -140,15 +137,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-
--- For internal errors
-data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
-  deriving (Show)
-
-instance Exception CompileExn
-
-internalBug :: (HasCallStack) => String -> a
-internalBug = throw . CE callStack . Pretty.lit . fromString
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
@@ -850,7 +838,7 @@ minimizeCyclesOrCrash :: (Var v, Ord a) => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e ->
-    internalBug $
+    internalBug [] $
       "tried to minimize let rec with duplicate definitions: "
         ++ show (fst <$> toList e)
 
@@ -1424,26 +1412,24 @@ instance Semigroup (BranchAccum v) where
     AccumSeqView el (eml <|> Just emr) cnl
   AccumSeqView el eml cnl <> AccumSeqView er emr _
     | el /= er =
-        internalBug "AccumSeqView: trying to merge views of opposite ends"
+        internalBug [] "AccumSeqView: trying to merge views of opposite ends"
     | otherwise = AccumSeqView el (eml <|> emr) cnl
   AccumSeqView _ _ _ <> AccumDefault _ =
-    internalBug "seq views may not have defaults"
+    internalBug [] "seq views may not have defaults"
   AccumDefault _ <> AccumSeqView _ _ _ =
-    internalBug "seq views may not have defaults"
+    internalBug [] "seq views may not have defaults"
   AccumSeqSplit el nl dl bl <> AccumSeqSplit er nr dr _
     | el /= er =
-        internalBug
-          "AccumSeqSplit: trying to merge splits at opposite ends"
+        internalBug [] "AccumSeqSplit: trying to merge splits at opposite ends"
     | nl /= nr =
-        internalBug
-          "AccumSeqSplit: trying to merge splits at different positions"
+        internalBug [] "AccumSeqSplit: trying to merge splits at different positions"
     | otherwise =
         AccumSeqSplit el nl (dl <|> dr) bl
   AccumDefault dl <> AccumSeqSplit er nr _ br =
     AccumSeqSplit er nr (Just dl) br
   AccumSeqSplit el nl dl bl <> AccumDefault dr =
     AccumSeqSplit el nl (dl <|> Just dr) bl
-  _ <> _ = internalBug $ "cannot merge data cases for different types"
+  _ <> _ = internalBug [] "cannot merge data cases for different types"
 
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
@@ -1885,7 +1871,7 @@ toSuperNormal :: (Var v) => Term v a -> ANFM v (SuperNormal Reference v)
 toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
-    then internalBug $ "free variables in supercombinator: " ++ show tm
+    then internalBug [] $ "free variables in supercombinator: " ++ show tm
     else
       Lambda (BX <$ vs) . ABTN.TAbss vs . snd
         <$> bindLocal vs (anfTerm body)
@@ -2098,7 +2084,7 @@ anfBlock (Handle' h body) =
       (ctx, (_, TVar v)) | floatableCtx ctx -> do
         pure (hctx <> ctx, (Indirect (), TApp (FVar vh) [v]))
       p@(_, _) ->
-        internalBug $ "handle body should be a simple call: " ++ show p
+        internalBug [] $ "handle body should be a simple call: " ++ show p
 anfBlock (Match' scrut cas) = do
   (sctx, sc) <- anfBlock scrut
   (cx, v) <- contextualize sc
@@ -2107,7 +2093,7 @@ anfBlock (Match' scrut cas) = do
     AccumDefault (TBinds (directed -> dctx) df) -> do
       pure (sctx <> cx <> dctx, pure df)
     AccumRequest _ Nothing ->
-      internalBug "anfBlock: AccumRequest without default"
+      internalBug [] "anfBlock: AccumRequest without default"
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us,
         TBinds (directed -> bx) bd <- bd ->
@@ -2117,8 +2103,8 @@ anfBlock (Match' scrut cas) = do
               pure (sctx <> pure [ST1 d0 u BX (TFrc v)] <> bx, pure bd)
             (d0, [ST1 d1 _ BX tm]) ->
               pure (sctx <> (d0, [ST1 d1 u BX tm]) <> bx, pure bd)
-            _ -> internalBug "anfBlock|AccumPure: impossible"
-      | otherwise -> internalBug "pure handler with too many variables"
+            _ -> internalBug [] "anfBlock|AccumPure: impossible"
+      | otherwise -> internalBug [] "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
         r <- fresh
@@ -2130,7 +2116,7 @@ anfBlock (Match' scrut cas) = do
       let (d, msc)
             | (d, [ST1 _ _ BX tm]) <- cx = (d, tm)
             | (_, [ST _ _ _ _]) <- cx =
-                internalBug "anfBlock: impossible"
+                internalBug [] "anfBlock: impossible"
             | otherwise = (Indirect (), TFrc v)
       pure
         ( sctx <> pure [LZ hv (Right r) vs],
@@ -2143,7 +2129,7 @@ anfBlock (Match' scrut cas) = do
     AccumData r df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchData r cs df)
     AccumSeqEmpty _ ->
-      internalBug "anfBlock: non-exhaustive AccumSeqEmpty"
+      internalBug [] "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
       r <- fresh
       let op
@@ -2164,7 +2150,7 @@ anfBlock (Match' scrut cas) = do
               )
         )
     AccumSeqView {} ->
-      internalBug "anfBlock: non-exhaustive AccumSeqView"
+      internalBug [] "anfBlock: non-exhaustive AccumSeqView"
     AccumSeqSplit en n mdf bd -> do
       i <- fresh
       r <- fresh
@@ -2255,7 +2241,7 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
-anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
+anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =
   Map Reference (EnumMap CTag ([Mem], ANormal ref v))
@@ -2280,7 +2266,7 @@ anfInitCase ::
   MatchCase p (Term v a) ->
   ANFD v (BranchAccum v)
 anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
-  | Just _ <- guard = internalBug "anfInitCase: unexpected guard"
+  | Just _ <- guard = internalBug [] "anfInitCase: unexpected guard"
   | P.Unbound _ <- p,
     [] <- vs =
       AccumDefault <$> anfBody bd
@@ -2288,7 +2274,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
     [v] <- vs =
       AccumDefault . ABTN.rename v u <$> anfBody bd
   | P.Var _ <- p =
-      internalBug $ "vars: " ++ show (length vs)
+      internalBug [] $ "vars: " ++ show (length vs)
   | P.Int _ (fromIntegral -> i) <- p =
       AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
   | P.Nat _ i <- p =
@@ -2323,7 +2309,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
         <*> anfBody bd
         <&> \(exp, kf, bd) ->
           let (us, uk) =
-                maybe (internalBug "anfInitCase: unsnoc impossible") id $
+                maybe (internalBug [] "anfInitCase: unsnoc impossible") id $
                   unsnoc exp
               jn = Builtin "jumpCont"
            in flip AccumRequest Nothing
@@ -2352,7 +2338,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   where
     anfBody tm = Compose . bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _) =
-  internalBug $ "anfInitCase: unexpected pattern: " ++ show p
+  internalBug [] $ "anfInitCase: unexpected pattern: " ++ show p
 
 valueTermLinks :: (Ord ref) => Value ref -> [ref]
 valueTermLinks = Set.toList . valueLinks f
@@ -2644,7 +2630,7 @@ expandBindings' _ _ _ =
 expandBindings :: (Var v) => [P.Pattern p] -> [v] -> ANFD v [v]
 expandBindings ps vs =
   Compose . state $ \(fr, bnd, co) -> case expandBindings' fr ps vs of
-    Left err -> internalBug $ err ++ " " ++ show (ps, vs)
+    Left err -> internalBug [] $ err ++ " " ++ show (ps, vs)
     Right (fr, l) -> (pure l, (fr, bnd, co))
 
 anfCases ::
@@ -2704,8 +2690,8 @@ prettyLVars (c : cs) (v : vs) =
   showString " "
     . showParen True (pvar v . showString ":" . shows c)
     . prettyLVars cs vs
-prettyLVars [] (_ : _) = internalBug "more variables than conventions"
-prettyLVars (_ : _) [] = internalBug "more conventions than variables"
+prettyLVars [] (_ : _) = internalBug [] "more variables than conventions"
+prettyLVars (_ : _) [] = internalBug [] "more conventions than variables"
 
 prettyRBind :: (Var v) => [v] -> ShowS
 prettyRBind [] = showString "()"
@@ -2819,7 +2805,7 @@ prettyFunc (FPrim op) = either shows shows op . showString " "
 
 showsShort :: Reference -> ShowS
 showsShort =
-  showString . Pretty.toPlainUnbroken . prettyShortHash . shortenTo 10 . toShortHash
+  showString . Pretty.toPlain 0 . prettyShortHash . shortenTo 10 . toShortHash
 
 prettyBranches ::
   (Var v) => Int -> Branched Reference (ANormal Reference v) -> ShowS

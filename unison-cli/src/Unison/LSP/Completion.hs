@@ -320,7 +320,7 @@ completionItemResolveHandler message respond = do
         case dep of
           LD.TermReferent ref -> do
             typ <- LSPQ.getTypeOfReferent fileUri ref
-            let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr (Just typeWidth) (PPED.suffixifiedPPE pped) typ)
+            let renderedType = ": " <> (Text.pack $ TypePrinter.prettyStr typeWidth (PPED.suffixifiedPPE pped) typ)
             let doc = toMarkup (Text.unlines $ ["``` unison", Name.toText fullyQualifiedName, "```"] ++ renderedDocs)
             pure $ (completion {_detail = Just renderedType, _documentation = Just doc} :: CompletionItem)
           LD.TypeReference ref ->

@@ -809,7 +809,7 @@ notifyUser dir = \case
             isBuiltin (typeEntryReference typeEntry)
           )
         ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
-          ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
+          ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> ".",
             case catMaybes [formatCount "term" numContainedTerms, formatCount "type" numContainedTypes] of
               [] -> ""
               counts -> P.hiBlack $ "(" <> intercalateMap ", " id counts <> ")"

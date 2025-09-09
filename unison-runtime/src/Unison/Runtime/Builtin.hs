@@ -939,9 +939,71 @@ declareUdpForeigns = do
 
   declareForeign Tracked 3 IO_UDP_ListenSocket_sendTo_impl_v1
 
+declareBigIntForeigns :: FDecl Symbol ()
+declareBigIntForeigns = do
+  declareForeign Untracked 1 BigInt_fromText
+  declareForeign Untracked 1 BigInt_unsafeFromText
+  declareForeign Untracked 1 BigInt_toText
+  declareForeign Untracked 1 BigInt_fromInt
+  declareForeign Untracked 1 BigInt_toInt
+  declareForeign Untracked 2 BigInt_add
+  declareForeign Untracked 2 BigInt_sub
+  declareForeign Untracked 2 BigInt_mul
+  declareForeign Untracked 2 BigInt_div
+  declareForeign Untracked 2 BigInt_mod
+  declareForeign Untracked 2 BigInt_pow
+  declareForeign Untracked 2 BigInt_shl
+  declareForeign Untracked 2 BigInt_shr
+  declareForeign Untracked 2 BigInt_and
+  declareForeign Untracked 2 BigInt_or
+  declareForeign Untracked 2 BigInt_xor
+  declareForeign Untracked 1 BigInt_popCount
+  declareForeign Untracked 1 BigInt_truncate0
+  declareForeign Untracked 1 BigInt_isEven
+  declareForeign Untracked 1 BigInt_isOdd
+  declareForeign Untracked 2 BigInt_eq
+  declareForeign Untracked 2 BigInt_lt
+  declareForeign Untracked 2 BigInt_le
+  declareForeign Untracked 2 BigInt_gt
+  declareForeign Untracked 2 BigInt_ge
+  declareForeign Untracked 1 BigInt_neg
+  declareForeign Untracked 1 BigInt_abs
+  declareForeign Untracked 1 BigInt_signum
+  declareForeign Untracked 1 BigInt_toFloat
+
+declareBigNatForeigns :: FDecl Symbol ()
+declareBigNatForeigns = do
+  declareForeign Untracked 1 BigNat_fromText
+  declareForeign Untracked 1 BigNat_unsafeFromText
+  declareForeign Untracked 1 BigNat_toText
+  declareForeign Untracked 1 BigNat_fromNat
+  declareForeign Untracked 1 BigNat_toNat
+  declareForeign Untracked 2 BigNat_add
+  declareForeign Untracked 2 BigNat_sub
+  declareForeign Untracked 2 BigNat_mul
+  declareForeign Untracked 2 BigNat_div
+  declareForeign Untracked 2 BigNat_mod
+  declareForeign Untracked 2 BigNat_pow
+  declareForeign Untracked 2 BigNat_shl
+  declareForeign Untracked 2 BigNat_shr
+  declareForeign Untracked 2 BigNat_and
+  declareForeign Untracked 2 BigNat_or
+  declareForeign Untracked 2 BigNat_xor
+  declareForeign Untracked 1 BigNat_popCount
+  declareForeign Untracked 1 BigNat_isEven
+  declareForeign Untracked 1 BigNat_isOdd
+  declareForeign Untracked 2 BigNat_eq
+  declareForeign Untracked 2 BigNat_lt
+  declareForeign Untracked 2 BigNat_le
+  declareForeign Untracked 2 BigNat_gt
+  declareForeign Untracked 2 BigNat_ge
+  declareForeign Untracked 1 BigNat_toFloat
+
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
   declareUdpForeigns
+  declareBigIntForeigns
+  declareBigNatForeigns
   declareForeign Tracked 2 IO_openFile_impl_v3
 
   declareForeign Tracked 1 IO_closeFile_impl_v3

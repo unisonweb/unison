@@ -43,9 +43,9 @@ putPretty' p = do
   width <- getAvailableWidth
   putStr $ P.toANSI width p
 
+-- | Returns a `P.Width` in the range 80–100, depending on the terminal width.
 getAvailableWidth :: IO P.Width
-getAvailableWidth =
-  maybe 80 (\s -> 100 `min` P.Width (Terminal.width s)) <$> Terminal.size
+getAvailableWidth = maybe 80 (P.Width . min 100 . Terminal.width) <$> Terminal.size
 
 putPrettyNonempty :: P.Pretty P.ColorText -> IO ()
 putPrettyNonempty msg = do
