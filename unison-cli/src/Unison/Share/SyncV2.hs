@@ -201,7 +201,7 @@ validateAndSave shouldValidate codebase entities = do
   -- Validation is slow, so we run it in parallel with insertion (which can also be slow),
   -- but we don't commit the transaction until we're done validation to avoid inserting invalid entities.
   ExceptT . liftIO $ IO.withAsync validateEntities \validationTask -> do
-    Timing.time "Inserting entities" $ Codebase.runTransactionExceptT codebase do
+    Codebase.runTransactionExceptT codebase do
       for_ entities \(hash, entity) -> do
         void . lift $ Q.saveTempEntityInMain v2HashHandle hash entity
       lift (Sqlite.unsafeIO (IO.wait validationTask)) >>= \case
