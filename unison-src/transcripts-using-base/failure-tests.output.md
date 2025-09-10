@@ -59,10 +59,7 @@ test2 = do
 
   The program halted with an unhandled exception:
 
-    Failure
-      (typeLink RuntimeFailure)
-      "💔💥\n\nI've encountered a call to builtin.bug with the following value:\n\n  \"whoa\"\n\nStack trace:\n  #00b3gl0n7k"
-      (Any "whoa")
+    Failure (typeLink RuntimeFailure) "builtin.bug" (Any "whoa")
 
   Stack trace:
     ##raise
