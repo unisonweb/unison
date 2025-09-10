@@ -27,6 +27,9 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Runtime (Error)
+import Unison.Runtime.Decompile (DecompError)
+import Unison.Runtime.Interface (Runtime, renderDecompError)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -35,7 +38,7 @@ import Unison.WatchKind qualified as WK
 
 data EvalMode = Sandboxed | Permissive ProfileSpec
 
-selectRuntime :: EvalMode -> Cli (Runtime.Runtime Symbol)
+selectRuntime :: EvalMode -> Cli (Runtime Symbol)
 selectRuntime mode =
   ask <&> \Cli.Env {runtime, sandboxedRuntime} -> case mode of
     Permissive _ -> runtime
@@ -45,16 +48,17 @@ modeProfSpec :: EvalMode -> ProfileSpec
 modeProfSpec Sandboxed = NoProf
 modeProfSpec (Permissive prof) = prof
 
-displayDecompileErrors :: [Runtime.Error] -> Cli ()
-displayDecompileErrors errs = Cli.respond (PrintMessage msg)
+displayDecompileErrors :: [DecompError] -> Cli ()
+displayDecompileErrors =
+  Cli.respond . PrintMessage . msg . fmap (P.indentN 2 . P.indentN 2 . renderDecompError)
   where
-    msg =
+    msg em = do
       P.lines $
         [ P.warnCallout "I had trouble decompiling some results.",
           "",
           "The following errors were encountered:"
         ]
-          ++ fmap (P.indentN 2) errs
+          ++ em
 
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::
@@ -62,7 +66,7 @@ evalUnisonTermE ::
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
+  Cli (Either Error (Term Symbol Ann))
 evalUnisonTermE mode ppe useCache tm = do
   Cli.Env {codebase} <- ask
   theRuntime <- selectRuntime mode
@@ -90,7 +94,7 @@ evalUnisonTermE mode ppe useCache tm = do
       Left _ -> pure ()
   pure $ r <&> Term.amap (\() -> Ann.External) . snd
 
-displayResponse :: Runtime.Response -> Cli ()
+displayResponse :: Runtime.Response DecompError -> Cli ()
 displayResponse (Runtime.DecompErrs errs)
   | not $ null errs = displayDecompileErrors errs
 displayResponse (Runtime.Profile prof) = Cli.respond (PrintMessage msg)
@@ -106,14 +110,13 @@ evalUnisonTerm ::
   Term Symbol Ann ->
   Cli (Term Symbol Ann)
 evalUnisonTerm mode ppe useCache tm =
-  evalUnisonTermE mode ppe useCache tm & onLeftM \err ->
-    Cli.returnEarly (EvaluationFailure err)
+  evalUnisonTermE mode ppe useCache tm & onLeftM (Cli.returnEarly . EvaluationFailure id)
 
 evalPureUnison ::
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
-  Cli (Either Runtime.Error (Term Symbol Ann))
+  Cli (Either Error (Term Symbol Ann))
 evalPureUnison ppe useCache tm =
   evalUnisonTermE mode ppe useCache tm'
   where

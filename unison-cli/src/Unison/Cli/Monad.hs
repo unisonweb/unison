@@ -78,13 +78,13 @@ import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime (Runtime)
 import Unison.CommandLine.OutputMessages qualified as OutputMessages
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Debug qualified as Debug
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PrettyTerminal
+import Unison.Runtime (Runtime)
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
@@ -420,7 +420,7 @@ withRespondRegionIO action = do
       with_ Console.Regions.displayConsoleRegions do
         with (Console.Regions.withConsoleRegion Console.Regions.Linear) \region ->
           action \output -> do
-            string <- (OutputMessages.notifyUser (pure ".") output)
+            string <- (OutputMessages.notifyUser (pure ".") OutputMessages.showIssueUrl output)
             width <- PrettyTerminal.getAvailableWidth
             Console.Regions.setConsoleRegion region (Pretty.toANSI width (Pretty.border 2 string))
     True -> action env.notify

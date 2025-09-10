@@ -68,7 +68,6 @@ library:
     - directory
     - exceptions
     - filepath
-    - github
     - hashable
     - iproute
     - lens

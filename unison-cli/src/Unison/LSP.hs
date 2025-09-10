@@ -30,7 +30,6 @@ import Network.Simple.TCP qualified as TCP
 import System.Environment (lookupEnv)
 import Unison.Codebase
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime (Runtime)
 import Unison.LSP.CancelRequest (cancelRequestHandler)
 import Unison.LSP.CodeAction (codeActionHandler)
 import Unison.LSP.CodeLens (codeLensHandler)
@@ -51,6 +50,7 @@ import Unison.LSP.Util.Signal (Signal)
 import Unison.LSP.VFS qualified as VFS
 import Unison.Parser.Ann
 import Unison.Prelude
+import Unison.Runtime (Runtime)
 import Unison.Symbol
 import UnliftIO
 import UnliftIO.Foreign (Errno (..), eADDRINUSE)

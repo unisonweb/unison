@@ -39,6 +39,7 @@ library:
     - frontmatter
     - fsnotify
     - generic-lens
+    - github
     - haskeline
     - hs-mcp
     - http-client >= 0.7.6

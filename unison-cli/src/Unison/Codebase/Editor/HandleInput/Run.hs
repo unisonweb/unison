@@ -59,7 +59,7 @@ handleRun prof main args = do
   let mode = Permissive prof
   (_, xs) <-
     evalUnisonFile mode suffixifiedPPE unisonFile args & onLeftM \err ->
-      Cli.returnEarly (Output.EvaluationFailure err)
+      Cli.returnEarly (Output.EvaluationFailure id err)
   mainRes :: Term Symbol () <-
     case lookup magicMainWatcherString (map bonk (Map.toList xs)) of
       Nothing ->

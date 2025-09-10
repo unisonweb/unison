@@ -8,7 +8,6 @@ module Unison.Runtime.Decompile
   ( decompile,
     DecompResult,
     DecompError (..),
-    renderDecompError,
   )
 where
 
@@ -18,7 +17,6 @@ import Data.Text qualified as DT
 import Numeric.Natural (Natural)
 import Unison.ABT (substs)
 import Unison.Builtin.Decls qualified as DD
-import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
 import Unison.Reference (Reference, pattern Builtin)
@@ -46,7 +44,6 @@ import Unison.Runtime.Stack
     pattern DataC,
     pattern PApV,
   )
-import Unison.Syntax.NamePrinter (prettyReference)
 import Unison.Term
   ( Term,
     app,
@@ -80,7 +77,6 @@ import Unison.Type
     typeLinkRef,
   )
 import Unison.Util.Bytes qualified as By
-import Unison.Util.Pretty (indentN, lines, lit, shown, syntaxToColor, wrap)
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
 import Prelude hiding (lines)
@@ -108,54 +104,6 @@ data DecompError
   deriving (Eq, Ord)
 
 type DecompResult v = (Set DecompError, Term v ())
-
-prf :: Reference -> Error
-prf = syntaxToColor . prettyReference 10
-
-printUnboxedTypeTag :: UnboxedTypeTag -> Error
-printUnboxedTypeTag = shown
-
-renderDecompError :: DecompError -> Error
-renderDecompError (BadBool n) =
-  lines
-    [ wrap "A boolean value had an unexpected constructor tag:",
-      indentN 2 . lit . fromString $ show n
-    ]
-renderDecompError (BadUnboxed tt) =
-  lines
-    [ wrap "An apparent numeric type had an unrecognized packed tag:",
-      indentN 2 $ printUnboxedTypeTag tt
-    ]
-renderDecompError (BadForeign rf) =
-  lines
-    [ wrap "A foreign value with no decompiled representation was encountered:",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (BadData rf) =
-  lines
-    [ wrap
-        "A data type with no decompiled representation was encountered:",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (BadPAp rf) =
-  lines
-    [ wrap "A partial function application could not be decompiled: ",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (UnkComb rf) =
-  lines
-    [ wrap "A reference to an unknown function was encountered: ",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (UnkLocal rf n) =
-  lines
-    [ "A reference to an unknown portion to a function was encountered: ",
-      indentN 2 $ "function: " <> prf rf,
-      indentN 2 $ "section: " <> lit (fromString $ show n)
-    ]
-renderDecompError Cont = "A continuation value was encountered"
-renderDecompError Exn = "An exception value was encountered"
-renderDecompError Aff = "An affine info value was encountered"
 
 decompile ::
   forall v.
