@@ -10,11 +10,11 @@ where
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar (modifyTVar', newTVarIO, readTVar, readTVarIO)
-import U.Codebase.Sqlite.Operations qualified as Ops
 import Data.List.NonEmpty (pattern (:|))
 import System.Console.Regions qualified as Console.Regions
 import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -25,6 +25,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode, shareUserHandleToText)
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectBranch (..))
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
@@ -38,7 +39,6 @@ import Unison.Sync.Common qualified as Sync.Common
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
 import UnliftIO.Environment qualified as UnliftIO
-import Unison.Codebase.ProjectPath (ProjectBranch(..))
 
 data SyncVersion = SyncV1 | SyncV2
   deriving (Eq, Show)
