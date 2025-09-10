@@ -52,6 +52,7 @@ handlePull unresolvedSourceAndTarget pullMode = do
               Input.PullWithoutHistory -> Share.IncludeSquashedHead
           )
           remoteBranch
+          True
           & onLeftM (Cli.returnEarly . Output.ShareError)
 
   remoteBranchIsEmpty <-

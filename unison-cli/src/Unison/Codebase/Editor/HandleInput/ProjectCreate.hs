@@ -109,7 +109,7 @@ projectCreate tryDownloadingBase maybeProjectName = do
                 Share.GetProjectBranchResponseProjectNotFound -> done Nothing
                 Share.GetProjectBranchResponseSuccess branch -> pure branch
             _hash <-
-              downloadProjectBranchFromShare Share.NoSquashedHead baseLatestReleaseBranch
+              downloadProjectBranchFromShare Share.NoSquashedHead baseLatestReleaseBranch False
                 & onLeftM (Cli.returnEarly . Output.ShareError)
             Cli.Env {codebase} <- ask
             baseLatestReleaseBranchObject <-

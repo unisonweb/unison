@@ -451,6 +451,7 @@ data Output
   | UCMServerNotRunning
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
   | BranchUpdate'BranchChanged
+  | SyncingFromTo CausalHash CausalHash
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -692,6 +693,7 @@ isFailure o = case o of
   UCMServerNotRunning -> True
   BranchSquashSuccess {} -> False
   BranchUpdate'BranchChanged {} -> True
+  SyncingFromTo {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
