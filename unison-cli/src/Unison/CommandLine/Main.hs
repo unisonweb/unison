@@ -35,17 +35,17 @@ import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
+import Unison.Runtime (Runtime)
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Share.Codeserver (isCustomCodeserver)
@@ -137,8 +137,8 @@ main ::
   Welcome.Welcome ->
   PP.ProjectPathIds ->
   [Either Event Input] ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
+  Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
@@ -207,7 +207,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               else return Cli.InvalidSourceNameError
       let notify :: Output -> IO ()
           notify =
-            notifyUser (pure dir)
+            notifyUser (pure dir) fetchIssueFromGitHub
               >=> ( \o ->
                       ifM
                         (readIORef pageOutput)

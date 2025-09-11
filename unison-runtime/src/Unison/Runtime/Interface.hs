@@ -19,11 +19,18 @@ module Unison.Runtime.Interface
       ),
     decodeStandalone,
     RuntimeHost (..),
-    Runtime (..),
+    Runtime,
+    terminate,
 
     -- * Exported for tests
     getStoredCache,
     putStoredCache,
+
+    -- * error serialization (these should live in unison-cli, but they still have some call sites here)
+    prettyError,
+    prettyRuntimeExn,
+    renderDecompError,
+    tabulateErrors,
   )
 where
 
@@ -41,15 +48,9 @@ import Data.Foldable
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
-import Data.Set as Set
-  ( filter,
-    fromList,
-    map,
-    notMember,
-    singleton,
-    (\\),
-  )
+import Data.Set as Set (filter, fromList, map, notMember, singleton, (\\))
 import Data.Set qualified as Set
+import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
 import Data.Void (absurd)
 import System.FilePath
@@ -57,19 +58,8 @@ import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
 import Unison.Codebase.CodeLookup (CodeLookup (..))
 import Unison.Codebase.MainTerm (builtinIOTestTypes, builtinMain)
-import Unison.Codebase.Runtime
-  ( CompileOpts (..),
-    Error,
-    Response (..),
-    Runtime (..),
-  )
-import Unison.Codebase.Runtime.Profile
-  ( Profile (..),
-    ProfileSpec (..),
-    foldedProfile,
-    fullProfile,
-    miniProfile,
-  )
+import Unison.Codebase.Runtime (CompileOpts (..), Response (..))
+import Unison.Codebase.Runtime.Profile (Profile (..), ProfileSpec (..), foldedProfile, fullProfile, miniProfile)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorReference qualified as RF
 import Unison.DataDeclaration (Decl, declFields, declTypeDependencies)
@@ -82,27 +72,17 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Reference qualified as RF
 import Unison.Referent qualified as RF (pattern Ref)
+import Unison.Runtime
 import Unison.Runtime.ANF as ANF
 import Unison.Runtime.ANF.Optimize as ANF
 import Unison.Runtime.ANF.Rehash as ANF (rehashGroups)
-import Unison.Runtime.ANF.Serialize as ANF
-  ( getGroupCurrent,
-    getOptInfos,
-    putGroup,
-    putOptInfos,
-  )
+import Unison.Runtime.ANF.Serialize as ANF (getGroupCurrent, getOptInfos, putGroup, putOptInfos)
 import Unison.Runtime.Builtin
-import Unison.Runtime.Decompile
-import Unison.Runtime.Exception
-  ( die,
-    listErrors,
-    prettyCompileExn,
-    prettyPanic,
-    prettyRuntimeExn,
-    prettyRuntimeExnSansCtx,
-    tabulateErrors,
-  )
+import Unison.Runtime.Decompile (DecompError, DecompResult, decompile)
+import Unison.Runtime.Decompile qualified as Decomp
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
+import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
@@ -143,6 +123,7 @@ import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
@@ -528,9 +509,9 @@ interpEvalDirect ::
   CodeLookup Symbol IO () ->
   PrettyPrintEnv ->
   Term Symbol ->
-  IO (Either Error (Response, Term Symbol))
+  IO (Either Error (Response DecompError, Term Symbol))
 interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
-  catchInternalErrors $ do
+  catchErrors $ do
     ctx <- readIORef ctxVar
     (tyrs, tmrs) <- collectDeps cl tm
     (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
@@ -548,7 +529,7 @@ profileEval ::
   PrettyPrintEnv ->
   Maybe String ->
   Term Symbol ->
-  IO (Either Error (Response, Term Symbol))
+  IO (Either Error (Response DecompError, Term Symbol))
 profileEval actThr cleanThr ctxVar cl ppe mout tm = do
   prof <- spawnProfiler
   result <-
@@ -589,13 +570,12 @@ interpEval ::
   PrettyPrintEnv ->
   ProfileSpec ->
   Term Symbol ->
-  IO (Either Error (Response, Term Symbol))
+  IO (Either Error (Response DecompError, Term Symbol))
 interpEval actThr cleanThr ctxVar cl ppe = \case
   NoProf ->
     interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
-  FullProf file ->
-    profileEval actThr cleanThr ctxVar cl ppe $ Just file
+  FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
 
 interpCompile ::
   Text ->
@@ -793,20 +773,21 @@ evalInContext ::
   Maybe ProfileComm ->
   ActiveThreads ->
   Word64 ->
-  IO (Either Error (Response, Term Symbol))
+  IO (Either Error (Response DecompError, Term Symbol))
 evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
   let hook = watchHook r
       decom = decompileCtx crs ctx
-      mkResponse errs = case listErrors errs of
-        [] -> EmptyResponse
-        es -> DecompErrs es
+      mkResponse errs =
+        if Set.null errs
+          then EmptyResponse
+          else DecompErrs $ toList errs
       finish = fmap (first mkResponse . decom)
 
       prettyError e =
-        prettyRuntimeExn ppe (backmapRef ctx) decom <$> fromException e
-          <|> pure . prettyPanic ppe decom <$> fromException e
+        RuntimeExn (pure (ppe, backmapRef ctx, decom)) <$> fromException e
+          <|> RuntimePanic ppe decom <$> fromException e
 
       debugText fancy val = case decom val of
         (errs, dv)
@@ -819,47 +800,34 @@ evalInContext ppe ctx prof activeThreads w = do
                 (debugTextFormat fancy $ pretty ppe dv)
 
   result <-
-    bitraverse id (const $ readIORef r) <=< tryJust prettyError $
-      ( maybe
-          (apply0 (Just hook) (ccache ctx) {tracer = debugText} activeThreads w)
-          (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, profiler = pc} activeThreads w)
-          prof
-      )
+    traverse (const $ readIORef r) <=< tryJust prettyError $
+      maybe
+        (apply0 (Just hook) (ccache ctx) {tracer = debugText} activeThreads w)
+        (\pc -> apply0 (Just hook) (ccache ctx) {tracer = debugText, profiler = pc} activeThreads w)
+        prof
+
   pure $ finish result
 
 executeMainComb ::
   CombIx ->
   CCache () ->
-  IO (Either (Pretty ColorText) ())
+  IO (Either Error ())
 executeMainComb init cc = do
   rSection <- resolveSection cc $ Ins (Pack RF.unitRef TT.unitTag ZArgs) $ Call True init init (VArg1 0)
-  result <-
-    UnliftIO.try . eval0 cc Nothing $ rSection
-  case result of
-    Left err -> Left <$> formatErr err
-    Right () -> pure (Right ())
+  result <- UnliftIO.try $ eval0 cc Nothing rSection
+  bitraverse contextualizeErr pure result
   where
-    formatErr re = do
+    contextualizeErr re = do
       crs <- readTVarIO (combRefs cc)
       let ctx = cacheContext cc
           decom =
-            decompile
-              (intermedToBase ctx)
-              ( backReferenceTm
-                  crs
-                  (floatRemap ctx)
-                  (intermedRemap ctx)
-                  (decompTm ctx)
-              )
-      prettyRuntimeExn mempty id decom re
+            decompile (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
+              decompTm ctx
+      pure $ RuntimeExn (pure (mempty, id, decom)) re
 
-catchInternalErrors ::
-  IO (Either Error a) ->
-  IO (Either Error a)
-catchInternalErrors sub = sub `UnliftIO.catch` hCE `UnliftIO.catch` hRE
-  where
-    hCE = fmap Left . prettyCompileExn
-    hRE = fmap Left . prettyRuntimeExnSansCtx
+catchErrors :: IO (Either Error a) -> IO (Either Error a)
+catchErrors sub =
+  sub `UnliftIO.catch` (pure . Left . CompileExn) `UnliftIO.catch` (pure . Left . RuntimeExn Nothing)
 
 decodeStandalone ::
   BL.ByteString ->
@@ -910,14 +878,11 @@ withRuntime sandboxed runtimeHost version action =
 
 tryM :: IO () -> IO (Maybe Error)
 tryM =
-  flip UnliftIO.catch hRE
-    . flip UnliftIO.catch hCE
+  flip UnliftIO.catch (pure . pure . RuntimeExn Nothing)
+    . flip UnliftIO.catch (pure . pure . CompileExn)
     . fmap (const Nothing)
-  where
-    hCE = fmap Just . prettyCompileExn
-    hRE = fmap Just . prettyRuntimeExnSansCtx
 
-runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either (Pretty ColorText) ())
+runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either Error ())
 runStandalone sandboxed sc init =
   restoreCache sandboxed sc >>= executeMainComb init
 
@@ -1117,3 +1082,185 @@ standalone cc init =
           <*> readTVarIO (sandbox cc)
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
+
+renderDecompError :: DecompError -> Pretty P.ColorText
+renderDecompError = \case
+  Decomp.BadBool n ->
+    P.lines
+      [ P.wrap "A boolean value had an unexpected constructor tag:",
+        P.indentN 2 . P.lit . fromString $ show n
+      ]
+  Decomp.BadUnboxed tt ->
+    P.lines
+      [ P.wrap "An apparent numeric type had an unrecognized packed tag:",
+        P.indentN 2 $ printUnboxedTypeTag tt
+      ]
+  Decomp.BadForeign rf ->
+    P.lines
+      [ P.wrap "A foreign value with no decompiled representation was encountered:",
+        P.indentN 2 $ prf rf
+      ]
+  Decomp.BadData rf ->
+    P.lines
+      [ P.wrap "A data type with no decompiled representation was encountered:",
+        P.indentN 2 $ prf rf
+      ]
+  Decomp.BadPAp rf ->
+    P.lines
+      [ P.wrap "A partial function application could not be decompiled: ",
+        P.indentN 2 $ prf rf
+      ]
+  Decomp.UnkComb rf ->
+    P.lines
+      [ P.wrap "A reference to an unknown function was encountered: ",
+        P.indentN 2 $ prf rf
+      ]
+  Decomp.UnkLocal rf n ->
+    P.lines
+      [ "A reference to an unknown portion to a function was encountered: ",
+        P.indentN 2 $ "function: " <> prf rf,
+        P.indentN 2 $ "section: " <> P.lit (fromString $ show n)
+      ]
+  Decomp.Cont -> "A continuation value was encountered"
+  Decomp.Exn -> "An exception value was encountered"
+  Decomp.Aff -> "An affine info value was encountered"
+  where
+    prf = P.syntaxToColor . prettyReference 10
+    printUnboxedTypeTag = P.shown
+
+tabulateErrors :: Set DecompError -> Pretty P.ColorText
+tabulateErrors errs | null errs = mempty
+tabulateErrors errs =
+  P.indentN 2 . P.lines $
+    ""
+      : P.wrap "The following errors occured while decompiling:"
+      : (P.indentN 2 . renderDecompError <$> toList errs)
+
+formatIssues :: (Applicative f) => (Word -> f (Pretty P.ColorText)) -> [Word] -> f (Pretty P.ColorText)
+formatIssues issueFn issues = do
+  issueMessages <- traverse issueFn issues
+  pure $
+    P.lines $
+      if null issues
+        then [P.wrap "Please report it at https://github.com/unisonweb/unison/issues/new/choose."]
+        else
+          [ P.wrap "Please check if one of these known issues matches your situation:",
+            "",
+            P.bulleted issueMessages,
+            "",
+            P.wrap "If not, please open a new one: https://github.com/unisonweb/unison/issues/new/choose"
+          ]
+
+prettyRuntimeExn' ::
+  (Applicative f) =>
+  PrettyPrintEnv ->
+  (Reference -> Reference) ->
+  (Val -> DecompResult Symbol) ->
+  (Word -> f (Pretty P.ColorText)) ->
+  RuntimeExn ->
+  f (Pretty P.ColorText)
+prettyRuntimeExn' ppe backmap decom issueFn = \case
+  PE _ issues err -> do
+    issueMessage <- formatIssues issueFn issues
+    pure $
+      P.fatalCallout . P.lines $
+        [ P.wrap "Sorry – I’ve encountered a Unison runtime error.",
+          "",
+          P.indentN 2 err,
+          "",
+          issueMessage
+        ]
+  BU tr0 nm c -> pure . P.callout "💔💥" . P.linesNonEmpty . bugMsg ppe tr nm $ decom c
+    where
+      tr = first backmap <$> tr0
+  where
+    bugMsg ppe tr name (errs, tm)
+      | name == "blank expression" =
+          [ P.wrap $ "I encountered a" <> P.red (P.text name) <> "with the following name/message:",
+            "",
+            P.indentN 2 $ pretty ppe tm,
+            tabulateErrors errs,
+            stackTrace ppe tr
+          ]
+      | "pattern match failure" `isPrefixOf` name =
+          [ P.wrap $ "I've encountered a" <> P.red (P.text name) <> "while scrutinizing:",
+            "",
+            P.indentN 2 $ pretty ppe tm,
+            "",
+            P.wrap "This happens when calling a function that doesn't handle all possible inputs",
+            tabulateErrors errs,
+            stackTrace ppe tr
+          ]
+      | name == "builtin.raise" =
+          [ P.wrap "The program halted with an unhandled exception:",
+            "",
+            P.indentN 2 $ pretty ppe tm,
+            tabulateErrors errs,
+            stackTrace ppe tr
+          ]
+      | name == "builtin.bug",
+        RF.TupleTerm' [Tm.Text' msg, x] <- tm,
+        "pattern match failure" `isPrefixOf` msg =
+          [ P.wrap $ "I've encountered a" <> P.red (P.text msg) <> "while scrutinizing:",
+            "",
+            P.indentN 2 $ pretty ppe x,
+            "",
+            P.wrap "This happens when calling a function that doesn't handle all possible inputs",
+            tabulateErrors errs,
+            stackTrace ppe tr
+          ]
+      | otherwise =
+          [ P.wrap $ "I've encountered a call to" <> P.red (P.text name) <> "with the following value:",
+            "",
+            P.indentN 2 $ pretty ppe tm,
+            tabulateErrors errs,
+            stackTrace ppe tr
+          ]
+      where
+        stackTrace _ [] = mempty
+        stackTrace ppe tr = "\nStack trace:\n" <> P.indentN 2 (P.lines $ f <$> tr)
+          where
+            f (rf, n) = name <> count
+              where
+                count
+                  | n > 1 = " (" <> P.shown n <> " copies)"
+                  | otherwise = ""
+                name = P.syntaxToColor . prettyHashQualified . PPE.termName ppe $ RF.Ref rf
+
+prettyRuntimeExn :: (Applicative f) => (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
+prettyRuntimeExn = prettyRuntimeExn' mempty id (decompile pure \_ _ -> Nothing)
+
+-- |
+--
+--  __NB__: The only reason this is in the unison-runtime package is because it’s used in the tests. Otherwise it should move to unison-cli.
+prettyError ::
+  (Applicative f) =>
+  -- | A function for displaying unisonweb/unison issue numbers (for example,
+  --   `Unison.CommandLine.OutputMessages.showIssueUrl`).
+  (Word -> f (Pretty P.ColorText)) ->
+  Error ->
+  f (Pretty P.ColorText)
+prettyError issueFn = \case
+  UnstructuredError text -> pure $ P.text text
+  CompileExn (CE _ issues err) -> do
+    issueMessage <- formatIssues issueFn issues
+    pure $
+      P.fatalCallout . P.lines $
+        [ P.wrap "Sorry – I've encountered a bug in the Unison runtime.",
+          "",
+          P.indentN 2 $ P.string err,
+          "",
+          issueMessage
+        ]
+  RuntimeExn ctx re ->
+    maybe prettyRuntimeExn (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
+  RuntimePanic ppe decom (Panic msg mval) ->
+    pure . P.callout panicIcon . P.linesNonEmpty $
+      [ P.wrap "The program halted with a runtime panic:",
+        "",
+        P.string msg
+      ]
+        ++ maybe [] (render . decom) mval
+    where
+      panicIcon = "💥🤯💥"
+      render (errs, tm) = ["", P.indentN 2 $ pretty ppe tm, tabulateErrors errs]

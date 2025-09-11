@@ -75,6 +75,7 @@ import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
+import Unison.Runtime (Error)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResultPrime (SearchResult')
 import Unison.Share.Sync.Types qualified as Sync
@@ -273,7 +274,10 @@ data Output
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
-  | EvaluationFailure Runtime.Error
+  | EvaluationFailure
+      -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
+      (P.Pretty P.ColorText -> P.Pretty P.ColorText)
+      Error
   | Evaluated
       SourceFileContents
       PPE.PrettyPrintEnv

@@ -60,6 +60,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
+import Unison.Runtime (Error)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
@@ -186,7 +187,7 @@ loadUnisonFile sourceName text = do
           when (not (null e)) do
             let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
             Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f e)
-        Left err -> Cli.respond (Output.EvaluationFailure err)
+        Left err -> Cli.respond (Output.EvaluationFailure id err)
 
   #latestTypecheckedFile .= Just (Right unisonFile)
 
@@ -427,7 +428,7 @@ evalUnisonFile ::
   [String] ->
   Cli
     ( Either
-        Runtime.Error
+        Error
         ( [(Symbol, Term Symbol ())],
           Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
         )

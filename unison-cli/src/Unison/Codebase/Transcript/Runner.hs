@@ -43,7 +43,6 @@ import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Transcript
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
@@ -52,7 +51,7 @@ import Unison.CommandLine
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
 import Unison.Debug qualified as Debug
 import Unison.MCP qualified as MCP
@@ -134,7 +133,7 @@ withRunner isTest verbosity ucmVersion action = do
                   credMan
                   stanzas
   where
-    withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
+    withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
@@ -153,8 +152,8 @@ run ::
   Bool ->
   Verbosity ->
   Codebase IO Symbol Ann ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
   UCMVersion ->
   Text ->
   AuthN.AuthenticatedHttpClient ->
@@ -461,7 +460,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       print o = do
         -- NB: We have a directory, but we don’t pass it to the notifier because it’s a temp dir, and if it ends up in
         --     transcript output, it makes transcripts non-reproducible.
-        msg <- notifyUser Nothing o
+        msg <- notifyUser Nothing showIssueUrl o
         outputUcmResult msg
         when (Output.isFailure o) $ maybeDieWithMsg msg
 

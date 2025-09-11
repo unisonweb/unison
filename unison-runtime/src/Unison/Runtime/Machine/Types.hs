@@ -37,6 +37,7 @@ import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.Foreign (Failure (..))
+import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
@@ -317,7 +318,7 @@ codeValidate cc tml = do
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
-    `catch` \(Exception.CE cs _issues perr) ->
+    `catch` \(CE cs _issues perr) ->
       let msg = UText.pack perr
           extra = UText.pack $ show cs
        in pure . Just $ Failure ioFailureRef msg extra

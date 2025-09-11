@@ -73,7 +73,7 @@ import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, peStr)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -372,7 +372,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
 exec _ _ !_activeThreads !stk !k cix (Prim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- peekOff stk j
-  () <- throwIO (BU (traceK r k) (Util.Text.toText name) x)
+  () <- throwIO $ BU (traceK r k) (Util.Text.toText name) x
   error "throwIO should never return"
   where
     r = combRef cix
@@ -665,7 +665,7 @@ fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
 
 unhandledAbilityRequest :: (HasCallStack) => IO a
-unhandledAbilityRequest = error . displayException $ peStr [2922, 5400] "eval: unhandled ability request"
+unhandledAbilityRequest = exn [2922, 5400] "eval: unhandled ability request"
 
 forkEval ::
   (RuntimeProfiler prof) =>

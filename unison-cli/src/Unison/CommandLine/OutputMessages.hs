@@ -28,6 +28,7 @@ import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
 import Debug.RecoverRTTI qualified as RTTI
+import GitHub qualified as GH
 import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
@@ -118,6 +119,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent
 import Unison.Result qualified as Result
+import Unison.Runtime.Interface (prettyError)
 import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
@@ -515,14 +517,31 @@ undoTip =
       <> IP.makeExample' IP.branchReflog
       <> "to undo this change."
 
+issueUrl :: Word -> P.Pretty P.ColorText
+issueUrl = ("https://github.com/unisonweb/unison/issues/" <>) . P.shown
+
+showIssueUrl :: (Applicative f) => Word -> f (P.Pretty P.ColorText)
+showIssueUrl = pure . issueUrl
+
+githubTitleForIssue :: Word -> IO (Either GH.Error Text)
+githubTitleForIssue =
+  fmap (fmap GH.issueTitle) . GH.github' GH.issueR "unisonweb" "unison" . GH.IssueNumber . fromIntegral
+
+-- | Look up the issue in the unisonweb/unison repo, and include the title in the message.
+fetchIssueFromGitHub :: Word -> IO Pretty
+fetchIssueFromGitHub i =
+  either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) <$> githubTitleForIssue i
+
 notifyUser ::
   -- | The directory being watched for .u files. If a `FilePath` isn’t provided, it uses a constant string. This is
   --   useful in contexts like transcripts, where we need the output to be consistent, and not vary because of a temp
   --   directory.
   Maybe FilePath ->
+  -- | How to present any GitHub issues associated with an error. For example, `showIssueUrl` or `fetchIssueFromGitHub`.
+  (Word -> IO (P.Pretty P.ColorText)) ->
   Output ->
   IO Pretty
-notifyUser dir = \case
+notifyUser dir issueFn = \case
   SaveTermNameConflict name ->
     pure
       . P.warnCallout
@@ -591,7 +610,7 @@ notifyUser dir = \case
             <> " with the codebase, or the term was deleted just now "
             <> " by someone else. Trying your command again might fix it."
       ]
-  EvaluationFailure err -> pure err
+  EvaluationFailure ctx err -> ctx <$> prettyError issueFn err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure $

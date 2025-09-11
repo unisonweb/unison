@@ -40,20 +40,12 @@ import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
-import System.Directory
-  ( canonicalizePath,
-    getCurrentDirectory,
-    removeDirectoryRecursive,
-  )
+import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
-import System.FilePath
-  ( replaceExtension,
-    takeExtension,
-    (</>),
-  )
+import System.FilePath (replaceExtension, takeExtension, (</>))
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Temp qualified as Temp
@@ -74,7 +66,6 @@ import Unison.Codebase.Init qualified as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.Transcript.Parser qualified as Transcript
@@ -82,6 +73,7 @@ import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Helpers (plural')
 import Unison.CommandLine.Main qualified as CommandLine
+import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub)
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
@@ -94,7 +86,6 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
 import Unison.Project (defaultBranchName)
-import Unison.Runtime.Exception (prettyRuntimeExnSansCtx)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
@@ -178,7 +169,7 @@ main version = do
           getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
-                Left err -> exitError err
+                Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
         Run (RunFromFile file mainName) args
           | not (isDotU file) -> exitError "Files must have a .u extension."
@@ -242,7 +233,7 @@ main version = do
           BL.readFile file >>= \bs ->
             try (evaluate $ RTI.decodeStandalone bs) >>= \case
               Left re -> do
-                exnMessage <- prettyRuntimeExnSansCtx re
+                exnMessage <- RTI.prettyRuntimeExn fetchIssueFromGitHub re
                 exitError . P.lines $
                   [ P.wrap . P.text $
                       "I was unable to parse this file as a compiled\
@@ -262,7 +253,7 @@ main version = do
                 | not vmatch -> mismatchMsg
                 | otherwise ->
                     withArgs args (RTI.runStandalone False sto combIx) >>= \case
-                      Left err -> exitError err
+                      Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
                   vmatch = v == Version.gitDescribeWithDate version
@@ -600,8 +591,8 @@ runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption a
 launch ::
   Version ->
   FilePath ->
-  Rt.Runtime Symbol ->
-  Rt.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
   AuthN.AuthenticatedHttpClient ->
