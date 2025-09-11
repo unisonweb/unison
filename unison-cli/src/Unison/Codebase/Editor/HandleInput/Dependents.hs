@@ -36,6 +36,19 @@ handleDependents hq = do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
   namespace <- Cli.getCurrentProjectRoot0
+  dependents <- Cli.runTransaction $ computeDependents namespace refs
+
+  -- Set numbered args
+  (dependentNames.types ++ dependentNames.terms)
+    & map (SA.HashQualified . HQ'.toHQ . fst)
+    & Cli.setNumberedArgs
+
+  let lds = bifoldMap (Set.map LD.referent) (Set.map LD.typeRef) refs
+  Cli.respond (ListDependents ppe lds dependentNames)
+
+
+computeDependentsWithinScope :: Branch0 m -> _ -> Transaction _
+computeDependentsWithinScope branch refs = do
   let ppe =
         let names = Branch.toNames namespace
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
@@ -44,15 +57,12 @@ handleDependents hq = do
   let ppeWithoutLibdeps =
         let names = Branch.toNames namespaceWithoutLibdeps
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-
-  dependents <- do
-    Cli.runTransaction do
-      Operations.directDependentsWithinScope
-        ( Set.union
-            (Set.mapMaybe Reference.toId (Branch.deepTypeReferences namespaceWithoutLibdeps))
-            (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents namespaceWithoutLibdeps))
-        )
-        (bifoldMap (Set.map Referent.toReference) id refs)
+  Operations.directDependentsWithinScope
+    ( Set.union
+        (Set.mapMaybe Reference.toId (Branch.deepTypeReferences namespaceWithoutLibdeps))
+        (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents namespaceWithoutLibdeps))
+    )
+    (bifoldMap (Set.map Referent.toReference) id refs)
 
   let dependentNames ::
         DefnsF
@@ -69,11 +79,4 @@ handleDependents hq = do
             Set.toList
               >>> mapMaybe (g >>> listToMaybe)
               >>> Name.sortByText (fst >>> HQ'.toText)
-
-  -- Set numbered args
-  (dependentNames.types ++ dependentNames.terms)
-    & map (SA.HashQualified . HQ'.toHQ . fst)
-    & Cli.setNumberedArgs
-
-  let lds = bifoldMap (Set.map LD.referent) (Set.map LD.typeRef) refs
-  Cli.respond (ListDependents ppe lds dependentNames)
+  pure dependentNames

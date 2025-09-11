@@ -9,6 +9,8 @@ module Unison.Server.Local.Endpoints.GetDefinitions where
 import Servant
   ( QueryParam,
     QueryParams,
+    ServerT,
+    (:<|>) (..),
     (:>),
   )
 import Servant.Docs
@@ -18,37 +20,51 @@ import Servant.Docs
     ToSample (..),
     noSamples,
   )
-import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Causal qualified as Causal
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ShortCausalHash
-  ( ShortCausalHash,
-  )
+import Unison.Codebase.ProjectPath
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Project
 import Unison.Runtime (Runtime)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Local.Definitions qualified as Local
 import Unison.Server.Types
   ( APIGet,
+    APIHeaders,
     DefinitionDisplayResults,
+    DefinitionSearchResults,
+    RequiredQueryParam,
     Suffixify (..),
     defaultWidth,
+    setCacheControl,
   )
 import Unison.Symbol (Symbol)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty (Width)
 
 type DefinitionsAPI =
-  "getDefinition"
-    :> QueryParam "relativeTo" Path.Path
+  ("getDefinition" :> GetDefinitionEndpoint)
+    :<|> ("getDefinitionDependents" :> GetDefinitionDependentsEndpoint)
+
+-- More endpoints could go here in the future
+
+type GetDefinitionEndpoint =
+  QueryParam "relativeTo" Path.Path
     :> QueryParams "names" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
     :> QueryParam "suffixifyBindings" Suffixify
     :> APIGet DefinitionDisplayResults
+
+type GetDefinitionDependentsEndpoint =
+  QueryParam "relativeTo" Path.Path
+    :> RequiredQueryParam "name" (HQ.HashQualified Name)
+    :> QueryParam "renderWidth" Width
+    :> APIGet DefinitionSearchResults
 
 instance ToParam (QueryParam "renderWidth" Width) where
   toParam _ =
@@ -106,25 +122,50 @@ instance ToParam (QueryParams "names" (HQ.HashQualified Name)) where
 instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
-serveDefinitions ::
+getDefinitionDependentsEndpoint ::
   Runtime Symbol ->
   Codebase IO Symbol Ann ->
-  Either ShortCausalHash CausalHash ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  Maybe Path.Path ->
+  HQ.HashQualified Name ->
+  Maybe Width ->
+  Backend.Backend IO (APIHeaders DefinitionSearchResults)
+getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath _hqn _width = do
+  rootCausal <- Backend.resolveProjectRoot codebase projectAndBranch
+  _names <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
+    _names <- lift $ Codebase.namesAtPath (Causal.valueHash rootCausal) (Path.fromList [])
+    pure ()
+  pure $ setCacheControl undefined
+
+getDefinitionsEndpoint ::
+  Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
   Maybe Path.Path ->
   [HQ.HashQualified Name] ->
   Maybe Width ->
   Maybe Suffixify ->
-  Backend.Backend IO DefinitionDisplayResults
-serveDefinitions rt codebase root relativePath hqns width suff =
-  do
-    rootCausalHash <- Backend.hoistBackend (Codebase.runTransaction codebase) . Backend.normaliseRootCausalHash $ root
+  Backend.Backend IO (APIHeaders DefinitionDisplayResults)
+getDefinitionsEndpoint rt codebase projectAndBranchName relativePath hqns width suff = do
+  root <- Backend.resolveProjectRoot codebase projectAndBranchName
+  r <-
     foldMapM
       ( Local.prettyDefinitionsForHQName
           (maybe Path.Root Path.Absolute relativePath)
-          rootCausalHash
+          root
           width
           (fromMaybe (Suffixify True) suff)
           rt
           codebase
       )
       hqns
+  pure $ setCacheControl r
+
+serveDefinitionsServer ::
+  Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  ServerT DefinitionsAPI (Backend.Backend IO)
+serveDefinitionsServer rt codebase projectAndBranch = do
+  getDefinitionsEndpoint rt codebase projectAndBranch
+    :<|> getDefinitionDependentsEndpoint rt codebase projectAndBranch

@@ -58,6 +58,8 @@ module Unison.Server.Backend
     renderDocRefs,
     docsForDefinitionName,
     normaliseRootCausalHash,
+    resolveProjectRootHash,
+    resolveProjectRoot,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -97,6 +99,7 @@ import System.Directory
 import System.FilePath
 import Text.FuzzyFind qualified as FZF
 import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
@@ -144,7 +147,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -1236,3 +1239,14 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
+
+resolveProjectRoot :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO (V2.CausalBranch Sqlite.Transaction)
+resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
+  mayCB <- liftIO . Codebase.runTransaction codebase $ Codebase.getShallowProjectRootByNames projectAndBranchName
+  case mayCB of
+    Nothing -> throwError (ProjectBranchNameNotFound projectName branchName)
+    Just cb -> pure cb
+
+resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO CausalHash
+resolveProjectRootHash codebase projectAndBranchName = do
+  resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
