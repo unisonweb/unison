@@ -564,10 +564,14 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
         case mout of
           Just loc
             | ticky $ takeExtension loc -> do
-                writeFile loc $ foldedProfile ppe fnames pout
+                let (comp, wake) = foldedProfile ppe fnames pout
+                writeFile loc comp
+                writeFile (loc <.> "wakeup") wake
                 pure $ Right (errs, tmr)
             | otherwise -> do
-                writeFile loc . toPlain 0 $ fullProfile ppe fnames pout
+                let (comp, wake) = fullProfile ppe fnames pout
+                writeFile loc $ toPlain 0 comp
+                writeFile (loc <.> "wakeup") $ toPlain 0 wake
                 pure $ Right (errs, tmr)
           Nothing ->
             pure $ Right (errs <> Profile (miniProfile ppe fnames pout), tmr)

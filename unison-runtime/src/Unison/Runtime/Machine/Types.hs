@@ -2,16 +2,11 @@
 
 module Unison.Runtime.Machine.Types where
 
-#if !defined(mingw32_HOST_OS)
-import Control.Concurrent
-  (ThreadId, MVar, newEmptyMVar, tryPutMVar, tryTakeMVar)
-#else
 import Control.Concurrent (ThreadId)
-#endif
-
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef
+  (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.Kind (Type)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -103,19 +98,20 @@ type Tick = CombIx -> K -> IO ()
 #if !defined(mingw32_HOST_OS)
 -- GHC.Event, time-baed profiler
 instance RuntimeProfiler ProfileComm where
-  newtype Ticker ProfileComm = ProfTicker (MVar Tick)
+  newtype Ticker ProfileComm = ProfTicker (IORef (Maybe Tick))
 
   startTicker (PC pf _ _) = do
-    ticker <- newEmptyMVar
+    ticker <- newIORef Nothing
     cancel <- newIORef False
     tm <- getSystemTimerManager
     void . registerTimeout tm 100 $
       tickCallback 100 pf ticker cancel
     pure (ProfTicker ticker, writeIORef cancel True)
 
-  checkTicker (ProfTicker tick) cix k = tryTakeMVar tick >>= \case
-    Nothing -> pure ()
-    Just pf -> pf cix k
+  checkTicker (ProfTicker ticker) cix k =
+    atomicModifyIORef ticker (Nothing,) >>= \case
+      Nothing -> pure ()
+      Just pf -> pf cix k
   {-# INLINE checkTicker #-}
 
 -- Callback for producing ticks via event manager timeouts. These happen
@@ -126,16 +122,24 @@ instance RuntimeProfiler ProfileComm where
 --
 -- The callback doesn't block trying to write to the MVar, so if something
 -- is already there, a second tick just won't happen.
-tickCallback :: Int -> Tick -> MVar Tick -> IORef Bool -> IO ()
-tickCallback interval tick ticker cancel = body
+tickCallback ::
+  Int ->
+  (Bool -> Tick) ->
+  IORef (Maybe Tick) ->
+  IORef Bool ->
+  IO ()
+tickCallback interval ptick ticker cancel = body
   where
     body = do
-      tryPutMVar ticker tick
+      _full <- atomicModifyIORef ticker \(isJust -> b) ->
+        (Just $ ptick b, b)
       b <- readIORef cancel
       when (not b) do
         tm <- getSystemTimerManager
         () <$ registerTimeout tm interval body
+
 #else
+
 -- CPUTime based profiler for Windows
 instance RuntimeProfiler ProfileComm where
   data Ticker ProfileComm = TPC !Tick !(IORef Word8)
@@ -147,6 +151,7 @@ instance RuntimeProfiler ProfileComm where
       n <- getCPUTime
       when (n `mod` 100000 == 0) $ tick cix k
     writeIORef r (n+1)
+
 #endif
 
 -- code caching environment

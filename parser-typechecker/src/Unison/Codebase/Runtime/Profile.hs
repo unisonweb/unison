@@ -37,9 +37,24 @@ import Unison.Util.Pretty as P
 newtype ProfTrie k a = ProfT (Map k (a, ProfTrie k a))
   deriving (Functor)
 
+trimEmpty :: (Ord k, Eq a, Num a) => ProfTrie k a -> ProfTrie k a
+trimEmpty (ProfT m) = case M.traverseMaybeWithKey f m of
+  Identity m -> ProfT m
+  where
+    f _ (a, trimEmpty -> sub@(ProfT m))
+      | a == 0, null m = pure Nothing
+      | otherwise = pure $ Just (a, sub)
+
+demux ::
+  (Ord k, Eq a, Eq b, Num a, Num b) =>
+  ProfTrie k (a, b) ->
+  (ProfTrie k a, ProfTrie k b)
+demux tr = (trimEmpty $ fst <$> tr, trimEmpty $ snd <$> tr)
+
 -- A profile pairs the above arbitrary key based profile trie with a
 -- decoding of the integers to references and a total sample count.
-data Profile k = Prof !Int !(ProfTrie k Int) !(Map k Reference)
+data Profile k =
+  Prof !(Int, Int) !(ProfTrie k (Int, Int)) !(Map k Reference)
 
 -- Abstracts over the exact key type used in a profile.
 data SomeProfile = forall k. (Ord k) => SomeProf (Profile k)
@@ -48,28 +63,51 @@ data ProfileSpec = NoProf | MiniProf | FullProf String
   deriving (Eq, Ord, Show)
 
 emptyProfile :: Profile k
-emptyProfile = Prof 0 (ProfT M.empty) M.empty
+emptyProfile = Prof zero (ProfT M.empty) M.empty
+
+zero :: (Int, Int)
+zero = (0, 0)
+
+inc :: Bool -> (Int, Int) -> (Int, Int)
+inc b (m, n) = pair (m+1) (if b then n+1 else n)
+  where
+    pair !x !y = (x, y)
 
 -- Creates a singleton profile trie from a path.
-singlePath :: (Ord k) => [k] -> (Int, ProfTrie k Int)
-singlePath [] = (1, ProfT M.empty)
-singlePath (i : is) = (0,) . ProfT $! M.singleton i (singlePath is)
+singlePath ::
+  (Ord k) =>
+  Bool ->
+  [k] ->
+  ((Int, Int), ProfTrie k (Int, Int))
+singlePath b [] = (inc b zero, ProfT M.empty)
+singlePath b (i : is) =
+  (zero,) . ProfT $! M.singleton i (singlePath b is)
 
-addPath0 :: (Ord k) => [k] -> (Int, ProfTrie k Int) -> (Int, ProfTrie k Int)
-addPath0 [] (m, p) = (,p) $! m + 1
-addPath0 (i : is) (m, ProfT p) = (m,) . ProfT $! M.alter f i p
+addPath0 ::
+  (Ord k) =>
+  Bool ->
+  [k] ->
+  ((Int, Int), ProfTrie k (Int, Int)) ->
+  ((Int, Int), ProfTrie k (Int, Int))
+addPath0 b [] (t, p) = (,p) $! inc b t
+addPath0 b (i : is) (m, ProfT p) = (m,) . ProfT $! M.alter f i p
   where
-    f Nothing = Just $ singlePath is
-    f (Just q) = Just $ addPath0 is q
+    f Nothing = Just $ singlePath b is
+    f (Just q) = Just $ addPath0 b is q
 
 -- Adds a path to a profile trie, incrementing the count for the given
 -- path.
-addPath :: (Ord k) => [k] -> ProfTrie k Int -> ProfTrie k Int
-addPath [] p = p
-addPath (i : is) (ProfT m) = ProfT $ M.alter f i m
+addPath ::
+  (Ord k) =>
+  Bool ->
+  [k] ->
+  ProfTrie k (Int, Int) ->
+  ProfTrie k (Int, Int)
+addPath _ [] p = p
+addPath b (i : is) (ProfT m) = ProfT $ M.alter f i m
   where
-    f Nothing = Just $ singlePath is
-    f (Just q) = Just $ addPath0 is q
+    f Nothing = Just $ singlePath b is
+    f (Just q) = Just $ addPath0 b is q
 
 data AggInfo k = Ag
   { -- inherited sample count
@@ -116,6 +154,7 @@ prune keep (ProfT m) = case M.traverseMaybeWithKey (prune0 keep) m of
 topN :: (Ord k) => Int -> Map k Int -> [(k, Int)]
 topN n0 = M.foldlWithKey (ins n0) []
   where
+    ins _ pss _ 0 = pss
     ins 0 _ _ _ = []
     ins _ [] k i = [(k, i)]
     ins n pss@((k1, j) : ps) k0 i
@@ -193,9 +232,15 @@ dispProfEntry ppe misc refs (k, ks) (inh, self) =
   where
     ind = fromIntegral $ length ks
 
-dispFunc :: PrettyPrintEnv -> Reference -> Pretty ColorText
-dispFunc ppe =
-  syntaxToColor . prettyHashQualified . termName ppe . Ref
+dispFunc ::
+  PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
+  Reference ->
+  Pretty ColorText
+dispFunc ppe misc r
+  | Just pr <- M.lookup r misc = pr
+  | otherwise =
+      syntaxToColor . prettyHashQualified . termName ppe $ Ref r
 
 dispKey ::
   (Ord k) =>
@@ -205,9 +250,7 @@ dispKey ::
   k ->
   Pretty ColorText
 dispKey ppe misc refs k = case M.lookup k refs of
-  Just r
-    | Just pr <- M.lookup r misc -> pr
-    | otherwise -> dispFunc ppe r
+  Just r -> dispFunc ppe misc r
   Nothing -> "<unknown>"
 
 dispProfTrie ::
@@ -223,10 +266,11 @@ dispProfTrie ppe misc refs ag =
 dispTopEntry ::
   (Ord k) =>
   PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
   Map k Reference ->
   (k, Double) ->
   Pretty ColorText
-dispTopEntry ppe refs (k, frac) =
+dispTopEntry ppe misc refs (k, frac) =
   mconcat
     [ P.indentN 3 . fromString $ showPercent frac,
       P.indentN 4 dr,
@@ -235,16 +279,24 @@ dispTopEntry ppe refs (k, frac) =
   where
     dr :: Pretty ColorText
     dr
-      | Just r <- M.lookup k refs = dispFunc ppe r
+      | Just r <- M.lookup k refs = dispFunc ppe misc r
       | otherwise = "<unknown>"
 
 dispTop ::
   (Ord k) =>
   PrettyPrintEnv ->
+  Map Reference (Pretty ColorText) ->
   Map k Reference ->
   [(k, Double)] ->
   Pretty ColorText
-dispTop ppe refs = foldMap (dispTopEntry ppe refs)
+dispTop ppe misc refs = foldMap (dispTopEntry ppe misc refs)
+
+overallHeader :: Pretty ColorText -> Int -> Pretty ColorText
+overallHeader label samps = label <> ": " <> dsamps <> newline
+  where
+    dsamps
+      | samps == 1 = "1 sample"
+      | otherwise = fromString (show samps) <> " samples"
 
 profileTopHeader :: Pretty ColorText
 profileTopHeader =
@@ -264,37 +316,60 @@ miniProfile ::
   Map Reference (Pretty ColorText) ->
   Profile k ->
   Pretty ColorText
-miniProfile ppe misc (Prof total tr refs) =
-  profileTreeHeader
-    <> dispProfTrie ppe misc refs ag
+miniProfile ppe misc (Prof (total, wtotal) tr refs) =
+  P.lines
+    [ overallHeader "Complete Profile" total,
+      profileTreeHeader <> dispProfTrie ppe misc refs ag,
+      "",
+      if wtotal > 0
+      then
+        overallHeader "Post-wakeup Profile" wtotal <> newline
+          <> profileTreeHeader
+          <> dispProfTrie ppe misc refs agw
+      else "Threads never missed ticks"
+    ]
   where
-    ag = aggregatePruned total tr
+    (full, wait) = demux tr
+    ag = aggregatePruned total full
+    agw = aggregatePruned wtotal wait
 
 fullProfile ::
   (Ord k) =>
   PrettyPrintEnv ->
   Map Reference (Pretty ColorText) ->
   Profile k ->
-  Pretty ColorText
-fullProfile ppe misc (Prof total tr refs) =
-  profileTopHeader
-    <> dispTop ppe refs top
-    <> "\n\n"
-    <> profileTreeHeader
-    <> dispProfTrie ppe misc refs ag
+  (Pretty ColorText, Pretty ColorText)
+fullProfile ppe misc (Prof (total, wtotal) tr0 refs) =
+  ( make "Complete Profile" total comp,
+    make "Post-wakeup Profile" wtotal wait
+  )
   where
-    (top, ag) = aggregate total tr
+    (comp, wait) = demux tr0
+
+    make label tot tr =
+      overallHeader label tot <> newline
+        <> profileTopHeader
+        <> dispTop ppe misc refs top
+        <> newline <> newline
+        <> profileTreeHeader
+        <> dispProfTrie ppe misc refs ag
+      where
+        (top, ag) = aggregate tot tr
 
 foldedProfile ::
   (Ord k) =>
   PrettyPrintEnv ->
   Map Reference (Pretty ColorText) ->
   Profile k ->
-  String
+  (String, String)
 foldedProfile ppe misc (Prof _ tr refs) =
-  toPlain 0 $ foldMapTrie f tr
+  ( toPlain 0 $ foldMapTrie f comp,
+    toPlain 0 $ foldMapTrie f wake
+  )
   where
     dk = dispKey ppe misc refs
+
+    (comp, wake) = demux tr
 
     f (k, ks) n =
       mconcat
