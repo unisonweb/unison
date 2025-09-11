@@ -2373,7 +2373,7 @@ notifyUser dir = \case
       P.wrap $
         "Updating branch from"
           <> P.green (prettySCH $ SCH.fromHash 10 fromCausalHash)
-          <> "->"
+          <> "to"
           <> P.group (P.green $ prettySCH $ SCH.fromHash 10 toCausalHash)
 
 prettyShareError :: ShareError -> Pretty
