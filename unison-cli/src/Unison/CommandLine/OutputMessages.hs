@@ -2387,6 +2387,13 @@ notifyUser dir issueFn = \case
   BranchUpdate'BranchChanged -> do
     pure $
       P.wrap "Another process updated the codebase while your command was running, so I didn't apply the update. Please run the command again."
+  SyncingFromTo fromCausalHash toCausalHash -> do
+    pure $
+      P.wrap $
+        "Updating branch from"
+          <> P.green (prettySCH $ SCH.fromHash 10 fromCausalHash)
+          <> "to"
+          <> P.group (P.green $ prettySCH $ SCH.fromHash 10 toCausalHash)
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

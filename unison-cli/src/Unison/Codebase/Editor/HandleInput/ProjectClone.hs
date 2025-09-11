@@ -224,7 +224,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
   let remoteProjectBranchNames = ProjectAndBranch remoteProjectName remoteBranchName
 
   branchHead <-
-    downloadProjectBranchFromShare Share.NoSquashedHead remoteProjectBranch
+    downloadProjectBranchFromShare Share.NoSquashedHead remoteProjectBranch False
       & onLeftM (Cli.returnEarly . Output.ShareError)
 
   localProjectAndBranch <-
