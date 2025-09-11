@@ -18,11 +18,10 @@ module Unison.Server.Local.Endpoints.DefinitionSummary
 where
 
 import Control.Monad.Reader
-import Data.Aeson
-import Data.OpenApi (ToSchema)
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
+import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -40,14 +39,12 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Server.Backend (Backend)
 import Unison.Server.Backend qualified as Backend
-import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Types
   ( APIGet,
-    TermTag (..),
-    TypeTag,
+    TermSummary(..),
+    TypeSummary(..),
     mayDefaultWidth,
   )
-import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty (Width)
 
@@ -64,28 +61,6 @@ type TermSummaryAPI =
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TermSummary
-
-instance ToSample TermSummary where
-  toSamples _ = noSamples
-
-data TermSummary = TermSummary
-  { displayName :: HQ.HashQualified Name,
-    hash :: SH.ShortHash,
-    summary :: DisplayObject SyntaxText SyntaxText,
-    tag :: TermTag
-  }
-  deriving (Generic, Show)
-
-instance ToJSON TermSummary where
-  toJSON (TermSummary {..}) =
-    object
-      [ "displayName" .= displayName,
-        "hash" .= hash,
-        "summary" .= summary,
-        "tag" .= tag
-      ]
-
-deriving instance ToSchema TermSummary
 
 serveTermSummary ::
   Codebase IO Symbol Ann ->
@@ -137,28 +112,6 @@ type TypeSummaryAPI =
     :> QueryParam "relativeTo" Path.Path
     :> QueryParam "renderWidth" Width
     :> APIGet TypeSummary
-
-instance ToSample TypeSummary where
-  toSamples _ = noSamples
-
-data TypeSummary = TypeSummary
-  { displayName :: HQ.HashQualified Name,
-    hash :: SH.ShortHash,
-    summary :: DisplayObject SyntaxText SyntaxText,
-    tag :: TypeTag
-  }
-  deriving (Generic, Show)
-
-instance ToJSON TypeSummary where
-  toJSON (TypeSummary {..}) =
-    object
-      [ "displayName" .= displayName,
-        "hash" .= hash,
-        "summary" .= summary,
-        "tag" .= tag
-      ]
-
-deriving instance ToSchema TypeSummary
 
 serveTypeSummary ::
   Codebase IO Symbol Ann ->

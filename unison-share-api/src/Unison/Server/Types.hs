@@ -24,6 +24,7 @@ import Servant qualified
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
+    ToHttpApiData (..),
     Get,
     Header,
     Headers,
@@ -49,6 +50,7 @@ import Unison.Project (ProjectAndBranch, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
 import Unison.Server.Syntax qualified as Syntax
+import Unison.Server.Syntax (SyntaxText)
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
@@ -624,3 +626,210 @@ instance FromJSON TypeDiffResponse where
 
 -- | Servant utility for a query param that's required, providing a useful error message if it's missing.
 type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]
+
+data DefinitionNameSearchResult = DefinitionNameSearchResult
+  { token :: Name,
+    tag :: TermOrTypeTag
+  }
+
+instance ToJSON DefinitionNameSearchResult where
+  toJSON DefinitionNameSearchResult {..} =
+    Aeson.object
+      [ "token" .= token,
+        "tag" .= tag
+      ]
+
+instance FromJSON DefinitionNameSearchResult where
+  parseJSON = Aeson.withObject "DefinitionNameSearchResult" $ \o -> do
+    token <- o Aeson..: "token"
+    tag <- o Aeson..: "tag"
+    pure DefinitionNameSearchResult {token, tag}
+
+newtype DefinitionSearchResults = DefinitionSearchResults
+  { results :: [DefinitionSearchResult]
+  }
+
+instance ToJSON DefinitionSearchResults where
+  toJSON DefinitionSearchResults {..} =
+    Aeson.object
+      [ "results" .= results
+      ]
+
+instance FromJSON DefinitionSearchResults where
+  parseJSON = Aeson.withObject "DefinitionSearchResults" $ \o -> do
+    results <- o Aeson..: "results"
+    pure DefinitionSearchResults {results}
+
+data DefinitionSearchResult = DefinitionSearchResult
+  { fqn :: Name,
+    summary :: TermOrTypeSummary,
+    project :: ProjectName,
+    branchRef :: ProjectBranchName
+  }
+
+instance ToJSON DefinitionSearchResult where
+  toJSON DefinitionSearchResult {..} =
+    Aeson.object
+      [ "fqn" Aeson..= fqn,
+        "projectRef" Aeson..= project,
+        "branchRef" Aeson..= branchRef,
+        "kind" Aeson..= kind,
+        "definition" Aeson..= definition
+      ]
+    where
+      (kind, definition) = case summary of
+        ToTTermSummary TermSummary {displayName, hash, summary, tag} ->
+          ( Aeson.String "term",
+            Aeson.object
+              [ "displayName" Aeson..= displayName,
+                "hash" Aeson..= hash,
+                "summary" Aeson..= summary,
+                "tag" Aeson..= tag
+              ]
+          )
+        ToTTypeSummary TypeSummary {displayName, hash, summary, tag} ->
+          ( Aeson.String "type",
+            Aeson.object
+              [ "displayName" Aeson..= displayName,
+                "hash" Aeson..= hash,
+                "summary" Aeson..= summary,
+                "tag" Aeson..= tag
+              ]
+          )
+
+instance FromJSON DefinitionSearchResult where
+  parseJSON = Aeson.withObject "DefinitionSearchResult" $ \o -> do
+    fqn <- o Aeson..: "fqn"
+    project <- o Aeson..: "projectRef"
+    branchRef <- o Aeson..: "branchRef"
+    kind <- o Aeson..: "kind"
+    definition <- o Aeson..: "definition"
+    summary <- case kind of
+      Aeson.String "term" -> do
+        definitionObj <- case definition of
+          Aeson.Object obj -> pure obj
+          _ -> fail "Expected object for term definition"
+        displayName <- definitionObj Aeson..: "displayName"
+        hash <- definitionObj Aeson..: "hash"
+        summaryText <- definitionObj Aeson..: "summary"
+        tag <- definitionObj Aeson..: "tag"
+        pure $ ToTTermSummary $ TermSummary {displayName, hash, summary = summaryText, tag}
+      Aeson.String "type" -> do
+        definitionObj <- case definition of
+          Aeson.Object obj -> pure obj
+          _ -> fail "Expected object for type definition"
+        displayName <- definitionObj Aeson..: "displayName"
+        hash <- definitionObj Aeson..: "hash"
+        summaryText <- definitionObj Aeson..: "summary"
+        tag <- definitionObj Aeson..: "tag"
+        pure $ ToTTypeSummary $ TypeSummary {displayName, hash, summary = summaryText, tag}
+      _ -> fail "Invalid definition kind"
+    pure DefinitionSearchResult {fqn, summary, project, branchRef}
+
+
+instance Docs.ToSample TermSummary where
+  toSamples _ = Docs.noSamples
+
+data TermSummary = TermSummary
+  { displayName :: HQ.HashQualified Name,
+    hash :: ShortHash,
+    summary :: DisplayObject SyntaxText SyntaxText,
+    tag :: TermTag
+  }
+  deriving (Generic, Show)
+
+instance ToJSON TermSummary where
+  toJSON (TermSummary {..}) =
+    object
+      [ "displayName" .= displayName,
+        "hash" .= hash,
+        "summary" .= summary,
+        "tag" .= tag
+      ]
+
+deriving instance ToSchema TermSummary
+
+
+instance Docs.ToSample TypeSummary where
+  toSamples _ = Docs.noSamples
+
+data TypeSummary = TypeSummary
+  { displayName :: HQ.HashQualified Name,
+    hash :: ShortHash,
+    summary :: DisplayObject SyntaxText SyntaxText,
+    tag :: TypeTag
+  }
+  deriving (Generic, Show)
+
+instance ToJSON TypeSummary where
+  toJSON (TypeSummary {..}) =
+    object
+      [ "displayName" .= displayName,
+        "hash" .= hash,
+        "summary" .= summary,
+        "tag" .= tag
+      ]
+
+deriving instance ToSchema TypeSummary
+
+data TermOrTypeSummary = ToTTermSummary TermSummary | ToTTypeSummary TypeSummary
+  deriving (Show)
+
+instance ToJSON TermOrTypeSummary where
+  toJSON (ToTTermSummary ts) = object ["kind" .= ("term" :: Text), "payload" .= ts]
+  toJSON (ToTTypeSummary ts) = object ["kind" .= ("type" :: Text), "payload" .= ts]
+
+instance FromJSON TermOrTypeSummary where
+  parseJSON = withObject "TermOrTypeSummary" $ \o -> do
+    kind :: Text <- o .: "kind"
+    case kind of
+      "term" -> do
+        ts <- o .: "payload"
+        ts & withObject "TermSummary" \o -> do
+          displayName <- o .: "displayName"
+          hash <- o .: "hash"
+          summary <- o .: "summary"
+          tag <- o .: "tag"
+          pure $ ToTTermSummary $ TermSummary {..}
+      "type" -> do
+        ts <- o .: "payload"
+        ts & withObject "TypeSummary" \o -> do
+          displayName <- o .: "displayName"
+          hash <- o .: "hash"
+          summary <- o .: "summary"
+          tag <- o .: "tag"
+          pure $ ToTTypeSummary $ TypeSummary {..}
+      _ -> fail $ "Invalid kind: " <> Text.unpack kind
+
+data TermOrTypeTag = ToTTermTag TermTag | ToTTypeTag TypeTag
+  deriving stock (Show, Eq, Ord)
+
+instance FromHttpApiData TermOrTypeTag where
+  parseQueryParam = \case
+    "doc" -> Right $ ToTTermTag Doc
+    "test" -> Right $ ToTTermTag Test
+    "plain" -> Right $ ToTTermTag Plain
+    "data-constructor" -> Right $ ToTTermTag $ Constructor Data
+    "ability-constructor" -> Right $ ToTTermTag $ Constructor Ability
+    "data" -> Right $ ToTTypeTag Data
+    "ability" -> Right $ ToTTypeTag Ability
+    _ -> Left "Invalid TermOrTypeTag"
+
+instance ToHttpApiData TermOrTypeTag where
+  toQueryParam = \case
+    ToTTermTag Doc -> "doc"
+    ToTTermTag Test -> "test"
+    ToTTermTag Plain -> "plain"
+    ToTTermTag (Constructor Data) -> "data-constructor"
+    ToTTermTag (Constructor Ability) -> "ability-constructor"
+    ToTTypeTag Data -> "data"
+    ToTTypeTag Ability -> "ability"
+
+instance ToJSON TermOrTypeTag where
+  toJSON = String . toQueryParam
+
+instance FromJSON TermOrTypeTag where
+  parseJSON = withText "TermOrTypeTag" $ \txt ->
+    case parseQueryParam txt of
+      Left err -> fail $ Text.unpack err
+      Right tag -> pure tag
