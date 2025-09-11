@@ -6,6 +6,8 @@
 
 module Unison.Server.Local.Endpoints.GetDefinitions where
 
+import Data.Bifoldable (Bifoldable (..))
+import Data.Set qualified as Set
 import Servant
   ( QueryParam,
     QueryParams,
@@ -23,16 +25,21 @@ import Servant.Docs
 import U.Codebase.Causal qualified as Causal
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.NamesWithHistory (SearchType (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project
 import Unison.Runtime (Runtime)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Local.Definitions qualified as Local
+import Unison.Server.NameSearch.FromNames (makeNameSearch)
+import Unison.Server.QueryResult (QueryResult (..))
+import Unison.Server.SearchResult (SearchResult (..), TermResult (..), TypeResult (..))
 import Unison.Server.Types
   ( APIGet,
     APIHeaders,
@@ -44,6 +51,7 @@ import Unison.Server.Types
     setCacheControl,
   )
 import Unison.Symbol (Symbol)
+import Unison.Util.Defns (Defns (..))
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty (Width)
 
@@ -130,10 +138,21 @@ getDefinitionDependentsEndpoint ::
   HQ.HashQualified Name ->
   Maybe Width ->
   Backend.Backend IO (APIHeaders DefinitionSearchResults)
-getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath _hqn _width = do
+getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath hqn _width = do
+  hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   rootCausal <- Backend.resolveProjectRoot codebase projectAndBranch
-  _names <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
-    _names <- lift $ Codebase.namesAtPath (Causal.valueHash rootCausal) (Path.fromList [])
+  Backend.hoistBackend (Codebase.runTransaction codebase) $ do
+    names <- lift $ Codebase.namesAtPath (Causal.valueHash rootCausal) (Path.fromList [])
+    branch0 <- Branch.head <$> lift (Codebase.expectBranchForHashTx codebase (Causal.causalHash rootCausal))
+    let nameSearch = makeNameSearch hqLength names
+    QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
+    let defs =
+          hits & foldMap \case
+            Tp TypeResult {reference} -> Defns {terms = Set.empty, types = (Set.singleton reference)}
+            Tm TermResult {referent} -> Defns {terms = (Set.singleton referent), types = Set.empty}
+
+    dependents <- lift $ Codebase.dependentsWithinBranchScope branch0 defs
+    dependents & bifoldMapM _ _
     pure ()
   pure $ setCacheControl undefined
 

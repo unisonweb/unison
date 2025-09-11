@@ -257,9 +257,9 @@ hoistBackend f (Backend m) =
   Backend (mapReaderT (mapExceptT f) m)
 
 loadReferentType ::
-  Codebase m Symbol Ann ->
+  Codebase m Symbol a ->
   Referent ->
-  Sqlite.Transaction (Maybe (Type Symbol Ann))
+  Sqlite.Transaction (Maybe (Type Symbol a))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
   Referent.Con r _ -> getTypeOfConstructor r
@@ -1250,3 +1250,28 @@ resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName b
 resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO CausalHash
 resolveProjectRootHash codebase projectAndBranchName = do
   resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
+
+termSummaryForReferent :: Codebase IO Symbol Ann -> Referent -> Maybe Name -> PPED.PrettyPrintEnvDecl -> Backend IO TermSummary
+termSummaryForReferent codebase referent mayName ppe = do
+  let shortHash = Referent.toShortHash referent
+  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
+  let termReference = Referent.toReference referent
+  let v2Referent = Cv.referent1to2 referent
+
+  sig <- hoistBackend (Codebase.runTransaction codebase) do
+    sig <- lift (loadReferentType codebase referent)
+    pure sig
+  case sig of
+    Nothing ->
+      throwError (MissingSignatureForTerm termReference)
+    Just typeSig -> do
+      let formattedTermSig = formatSuffixedType ppe width typeSig
+      let summary = mkSummary termReference formattedTermSig
+      tag <- lift $ getTermTag codebase v2Referent sig
+      pure $ TermSummary displayName shortHash summary tag
+  where
+    width = defaultWidth
+    mkSummary reference termSig =
+      if Reference.isBuiltin reference
+        then BuiltinObject termSig
+        else UserObject termSig

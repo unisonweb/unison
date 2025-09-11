@@ -24,12 +24,12 @@ import Servant qualified
 import Servant.API
   ( Capture,
     FromHttpApiData (..),
-    ToHttpApiData (..),
     Get,
     Header,
     Headers,
     JSON,
     QueryParam,
+    ToHttpApiData (..),
     addHeader,
   )
 import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
@@ -49,8 +49,8 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
-import Unison.Server.Syntax qualified as Syntax
 import Unison.Server.Syntax (SyntaxText)
+import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
@@ -648,6 +648,7 @@ instance FromJSON DefinitionNameSearchResult where
 newtype DefinitionSearchResults = DefinitionSearchResults
   { results :: [DefinitionSearchResult]
   }
+  deriving (Show, Eq, Generic)
 
 instance ToJSON DefinitionSearchResults where
   toJSON DefinitionSearchResults {..} =
@@ -660,12 +661,20 @@ instance FromJSON DefinitionSearchResults where
     results <- o Aeson..: "results"
     pure DefinitionSearchResults {results}
 
+instance Docs.ToSample DefinitionSearchResults where
+  toSamples _ = Docs.noSamples
+
+deriving anyclass instance ToSchema DefinitionSearchResults
+
 data DefinitionSearchResult = DefinitionSearchResult
   { fqn :: Name,
     summary :: TermOrTypeSummary,
     project :: ProjectName,
     branchRef :: ProjectBranchName
   }
+  deriving (Show, Eq, Generic)
+
+deriving instance ToSchema DefinitionSearchResult
 
 instance ToJSON DefinitionSearchResult where
   toJSON DefinitionSearchResult {..} =
@@ -726,7 +735,6 @@ instance FromJSON DefinitionSearchResult where
       _ -> fail "Invalid definition kind"
     pure DefinitionSearchResult {fqn, summary, project, branchRef}
 
-
 instance Docs.ToSample TermSummary where
   toSamples _ = Docs.noSamples
 
@@ -736,7 +744,7 @@ data TermSummary = TermSummary
     summary :: DisplayObject SyntaxText SyntaxText,
     tag :: TermTag
   }
-  deriving (Generic, Show)
+  deriving (Generic, Show, Eq, Ord)
 
 instance ToJSON TermSummary where
   toJSON (TermSummary {..}) =
@@ -749,7 +757,6 @@ instance ToJSON TermSummary where
 
 deriving instance ToSchema TermSummary
 
-
 instance Docs.ToSample TypeSummary where
   toSamples _ = Docs.noSamples
 
@@ -759,7 +766,7 @@ data TypeSummary = TypeSummary
     summary :: DisplayObject SyntaxText SyntaxText,
     tag :: TypeTag
   }
-  deriving (Generic, Show)
+  deriving (Generic, Show, Eq, Ord)
 
 instance ToJSON TypeSummary where
   toJSON (TypeSummary {..}) =
@@ -773,7 +780,9 @@ instance ToJSON TypeSummary where
 deriving instance ToSchema TypeSummary
 
 data TermOrTypeSummary = ToTTermSummary TermSummary | ToTTypeSummary TypeSummary
-  deriving (Show)
+  deriving (Show, Eq, Ord, Generic)
+
+deriving instance ToSchema TermOrTypeSummary
 
 instance ToJSON TermOrTypeSummary where
   toJSON (ToTTermSummary ts) = object ["kind" .= ("term" :: Text), "payload" .= ts]
