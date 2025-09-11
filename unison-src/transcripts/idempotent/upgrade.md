@@ -125,10 +125,14 @@ proj/main> upgrade old new
 ```
 
 ``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
 thingy : Nat
 thingy =
   use Nat +
   foo + 10
+
 ```
 
 Resolve the error and commit the upgrade.
@@ -230,10 +234,14 @@ proj/main> upgrade old new
 ```
 
 ``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
 thingy : Nat
 thingy =
   use Nat +
   foo + 10
+
 ```
 
 Resolve the error and commit the upgrade.
@@ -399,6 +407,9 @@ myproject/main> upgrade old new
 ```
 
 ``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
 bar : Nat
 bar =
   use Nat +
@@ -413,6 +424,7 @@ d.y.y.y.y : Nat
 d.y.y.y.y =
   use Nat +
   foo + 10
+
 ```
 
 ``` ucm :hide

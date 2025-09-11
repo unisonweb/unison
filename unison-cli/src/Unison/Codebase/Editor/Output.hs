@@ -13,7 +13,6 @@ module Unison.Codebase.Editor.Output
     MoreEntriesThanShown (..),
     UndoFailureReason (..),
     ShareError (..),
-    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -423,7 +422,6 @@ data Output
   | ProjectHasNoReleases ProjectName
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
-  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
@@ -442,6 +440,7 @@ data Output
   | ConflictedDefn !Text {- what operation? -} !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
+  | IncoherentDeclDuringUpgrade !IncoherentDeclReason
   | -- | A literal output message. Use this if it's too cumbersome to create a new Output constructor, e.g. for
     -- ephemeral progress messages that are just simple strings like "Loading branch..."
     Literal !(P.Pretty P.ColorText)
@@ -454,8 +453,6 @@ data Output
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
-
-data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --
@@ -510,7 +507,6 @@ isFailure :: Output -> Bool
 isFailure o = case o of
   UpdateTypecheckingFailure {} -> True
   UpdateTypecheckingFailure2 {} -> True
-  UpdateIncompleteConstructorSet {} -> True
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False
@@ -685,6 +681,7 @@ isFailure o = case o of
   ConflictedDefn {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
+  IncoherentDeclDuringUpgrade {} -> True
   Literal _ -> False
   SyncPullError {} -> True
   SyncFromCodebaseMissingProjectBranch {} -> True

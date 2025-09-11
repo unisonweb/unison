@@ -5,7 +5,6 @@
 module Unison.Cli.UpdateUtils
   ( -- * Getting dependents in a namespace
     getNamespaceDependentsOf,
-    getNamespaceDependentsOf2,
 
     -- * Hydrating definitions
     hydrateRefs,
@@ -30,8 +29,6 @@ import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
-import Unison.Names (Names)
-import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -50,8 +47,6 @@ import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
 import Unison.Util.Map qualified as Map (thenInsertPair)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Prelude hiding (unzip, zip, zipWith)
 
@@ -61,28 +56,10 @@ import Prelude hiding (unzip, zip, zipWith)
 -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
 -- (transitive) dependents of the dependencies.
 getNamespaceDependentsOf ::
-  Names ->
-  Set Reference ->
-  Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-getNamespaceDependentsOf names dependencies = do
-  dependents <- Operations.transitiveDependentsWithinScope (Names.referenceIds names) dependencies
-  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents)
-  where
-    nameTerm :: TermReferenceId -> Relation Name TermReferenceId
-    nameTerm ref =
-      Relation.fromManyDom (Relation.lookupRan (Referent.fromTermReferenceId ref) (Names.terms names)) ref
-
-    nameType :: TypeReferenceId -> Relation Name TypeReferenceId
-    nameType ref =
-      Relation.fromManyDom (Relation.lookupRan (Reference.fromId ref) (Names.types names)) ref
-
--- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
--- (transitive) dependents of the dependencies.
-getNamespaceDependentsOf2 ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Set Reference ->
   Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-getNamespaceDependentsOf2 defns dependencies = do
+getNamespaceDependentsOf defns dependencies = do
   let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
   let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
   let scope = bimap toTermScope toTypeScope defns

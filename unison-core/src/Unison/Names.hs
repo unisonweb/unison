@@ -13,7 +13,6 @@ module Unison.Names
     filter,
     filterBySHs,
     filterTypes,
-    fromReferenceIds,
     fromUnconflicted,
     fromUnconflictedReferenceIds,
     fromUnconflictedRelation,
@@ -119,14 +118,6 @@ instance Monoid (Names) where
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null n.terms && R.null n.types
-
--- | Construct a 'Names' from unconflicted reference ids.
-fromReferenceIds :: DefnsF (Relation Name) TermReferenceId TypeReferenceId -> Names
-fromReferenceIds defns =
-  Names
-    { terms = Relation.mapRan Referent.fromTermReferenceId defns.terms,
-      types = Relation.mapRan Reference.fromId defns.types
-    }
 
 fromUnconflicted :: DefnsF (Map Name) Referent TypeReference -> Names
 fromUnconflicted defns =

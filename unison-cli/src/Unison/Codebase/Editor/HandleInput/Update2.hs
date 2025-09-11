@@ -29,12 +29,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils
-  ( getNamespaceDependentsOf2,
-    hydrateRefs,
-    nameHydratedRefIds,
-    parseAndTypecheck,
-  )
+import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, nameHydratedRefIds, parseAndTypecheck)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -83,7 +78,6 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
-import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
 
@@ -96,19 +90,18 @@ handleUpdate2 :: Cli ()
 handleUpdate2 = do
   env <- ask
   tuf <- Cli.expectLatestTypecheckedFile
-  let termAndDeclNames = getTermAndDeclNames tuf
   pp <- Cli.getCurrentProjectPath
   let projectId = pp.project.projectId
   currentBranch <- Cli.getCurrentBranch
   let currentBranch0 = Branch.head currentBranch
   let namesIncludingLibdeps = Branch.toNames currentBranch0
 
-  -- Assert that the namespace doesn't have any conflicted names, and get whether we are on an "update" branch already
+  -- Assert that the namespace doesn't have any conflicted names
   unconflictedView <-
     Branch.asUnconflicted currentBranch0
       & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
 
-  -- Assert that the namespace doesn't have any incoherent decls
+  -- Assert that the namespace doesn't have any incoherent decls, and get whether we are on an "update" branch already
   (declNameLookup, onUpdateBranchAlready) <-
     Cli.runTransactionWithRollback \rollback -> do
       declNameLookup <-
@@ -117,13 +110,9 @@ handleUpdate2 = do
       onUpdateBranchAlready <- Queries.projectBranchIsUpdateBranch projectId pp.branch.branchId
       pure (declNameLookup, onUpdateBranchAlready)
 
-  let fileTermNamespaceBindings :: Set Name
-      fileTermNamespaceBindings =
-        Set.map Name.unsafeParseVar (UF.termNamespaceBindings tuf)
-
-  let fileTypeNamespaceBindings :: Set Name
-      fileTypeNamespaceBindings =
-        Set.map Name.unsafeParseVar (UF.typeNamespaceBindings tuf)
+  let namespaceBindings :: DefnsF Set Name Name
+      namespaceBindings =
+        bimap (Set.map Name.unsafeParseVar) (Set.map Name.unsafeParseVar) (UF.namespaceBindings tuf)
 
   finalOutput <-
     Cli.label \done ->
@@ -135,16 +124,16 @@ handleUpdate2 = do
           Cli.runTransaction do
             -- Get all dependents of things being updated
             dependents0 <-
-              getNamespaceDependentsOf2
+              getNamespaceDependentsOf
                 unconflictedView.defns
-                (getExistingReferencesNamed termAndDeclNames unconflictedView.names)
+                (getExistingReferencesNamed namespaceBindings unconflictedView.names)
 
             -- Throw away the dependents that are shadowed by the file itself
             let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
                 dependents1 =
                   bimap
-                    (`Map.withoutKeys` fileTermNamespaceBindings)
-                    (`Map.withoutKeys` fileTypeNamespaceBindings)
+                    (`Map.withoutKeys` namespaceBindings.terms)
+                    (`Map.withoutKeys` namespaceBindings.types)
                     dependents0
 
             -- Hydrate the dependents for rendering
@@ -204,11 +193,11 @@ handleUpdate2 = do
                              in unconflictedView.defns
                                   & bimap
                                     ( BiMultimap.range
-                                        >>> (`Map.withoutKeys` fileTermNamespaceBindings)
+                                        >>> (`Map.withoutKeys` namespaceBindings.terms)
                                         >>> Map.filter keepTerm
                                     )
                                     ( BiMultimap.range
-                                        >>> (`Map.withoutKeys` fileTypeNamespaceBindings)
+                                        >>> (`Map.withoutKeys` namespaceBindings.types)
                                         >>> Map.filter keepType
                                     )
                                   & Branch.fromUnconflictedDefns
@@ -434,24 +423,6 @@ getExistingReferencesNamed defns names =
     fromTypes =
       foldMap \name ->
         Relation.lookupDom name (Names.types names)
-
--- @getTermAndDeclNames file@ returns the names of the terms and decls defined in a typechecked Unison file.
-getTermAndDeclNames :: (Var v) => TypecheckedUnisonFile v a -> DefnsF Set Name Name
-getTermAndDeclNames tuf =
-  Defns (terms <> effectCtors <> dataCtors) (effects <> datas)
-  where
-    terms =
-      UF.hashTermsId tuf
-        & Map.foldMapWithKey \var (_, _, wk, _, _) ->
-          if WK.watchKindShouldBeStoredInDatabase wk
-            then Set.singleton (Name.unsafeParseVar var)
-            else Set.empty
-    effects = keysToNames $ UF.effectDeclarationsId' tuf
-    datas = keysToNames $ UF.dataDeclarationsId' tuf
-    effectCtors = foldMap ctorsToNames $ fmap (Decl.toDataDecl . snd) $ UF.effectDeclarationsId' tuf
-    dataCtors = foldMap ctorsToNames $ fmap snd $ UF.dataDeclarationsId' tuf
-    keysToNames = Set.map Name.unsafeParseVar . Map.keysSet
-    ctorsToNames = Set.fromList . map Name.unsafeParseVar . Decl.constructorVars
 
 -- The big picture behind PPE building, though there are many details:
 --
