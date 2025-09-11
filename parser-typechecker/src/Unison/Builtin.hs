@@ -254,8 +254,8 @@ builtinTypesSrc =
     B' "ListenSocket" CT.Data,
     B' "ClientSockAddr" CT.Data,
     B' "PinnedByteArray" CT.Data,
-    B' "BigInt" CT.Data,
-    B' "BigNat" CT.Data
+    B' "Integer" CT.Data,
+    B' "Natural" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -743,61 +743,61 @@ builtinsSrc =
     B "Char.Class.letter" charClass,
     B "Char.Class.is" $ charClass --> char --> boolean,
     B "Text.patterns.char" $ charClass --> pat text,
-    B "BigInt.fromText" $ text --> optionalt bigInt,
-    B "BigNat.fromText" $ text --> optionalt bigNat,
-    B "BigInt.unsafeFromText" $ text --> bigInt,
-    B "BigNat.unsafeFromText" $ text --> bigNat,
-    B "BigInt.toText" $ bigInt --> text,
-    B "BigNat.toText" $ bigNat --> text,
-    B "BigInt.fromInt" $ int --> bigInt,
-    B "BigNat.fromNat" $ nat --> bigNat,
-    B "BigInt.toInt" $ bigInt --> int,
-    B "BigNat.toNat" $ bigNat --> nat,
-    B "BigInt.add" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.sub" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.mul" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.div" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.mod" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.pow" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.shiftLeft" $ bigInt --> nat --> bigInt,
-    B "BigInt.shiftRight" $ bigInt --> nat --> bigInt,
-    B "BigInt.and" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.or" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.xor" $ bigInt --> bigInt --> bigInt,
-    B "BigInt.not" $ bigInt --> bigInt,
-    B "BigInt.popCount" $ bigInt --> nat,
-    B "BigInt.eq" $ bigInt --> bigInt --> boolean,
-    B "BigInt.lt" $ bigInt --> bigInt --> boolean,
-    B "BigInt.lteq" $ bigInt --> bigInt --> boolean,
-    B "BigInt.gt" $ bigInt --> bigInt --> boolean,
-    B "BigInt.gteq" $ bigInt --> bigInt --> boolean,
-    B "BigInt.neg" $ bigInt --> bigInt,
-    B "BigInt.abs" $ bigInt --> bigInt,
-    B "BigInt.signum" $ bigInt --> int,
-    B "BigInt.toFloat" $ bigInt --> float,
-    B "BigInt.isEven" $ bigInt --> boolean,
-    B "BigInt.isOdd" $ bigInt --> boolean,
-    B "BigNat.add" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.sub" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.mul" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.div" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.mod" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.pow" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.shiftLeft" $ bigNat --> nat --> bigNat,
-    B "BigNat.shiftRight" $ bigNat --> nat --> bigNat,
-    B "BigNat.and" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.or" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.xor" $ bigNat --> bigNat --> bigNat,
-    B "BigNat.not" $ bigNat --> bigNat,
-    B "BigNat.popCount" $ bigNat --> nat,
-    B "BigNat.eq" $ bigNat --> bigNat --> boolean,
-    B "BigNat.lt" $ bigNat --> bigNat --> boolean,
-    B "BigNat.lteq" $ bigNat --> bigNat --> boolean,
-    B "BigNat.gt" $ bigNat --> bigNat --> boolean,
-    B "BigNat.gteq" $ bigNat --> bigNat --> boolean,
-    B "BigNat.toFloat" $ bigNat --> float,
-    B "BigNat.isEven" $ bigNat --> boolean,
-    B "BigNat.isOdd" $ bigNat --> boolean
+    B "Integer.fromText" $ text --> optionalt integer,
+    B "Natural.fromText" $ text --> optionalt natural,
+    B "Integer.unsafeFromText" $ text --> integer,
+    B "Natural.unsafeFromText" $ text --> natural,
+    B "Integer.toText" $ integer --> text,
+    B "Natural.toText" $ natural --> text,
+    B "Integer.fromInt" $ int --> integer,
+    B "Natural.fromNat" $ nat --> natural,
+    B "Integer.toInt" $ integer --> int,
+    B "Natural.toNat" $ natural --> nat,
+    B "Integer.add" $ integer --> integer --> integer,
+    B "Integer.sub" $ integer --> integer --> integer,
+    B "Integer.mul" $ integer --> integer --> integer,
+    B "Integer.div" $ integer --> integer --> integer,
+    B "Integer.mod" $ integer --> integer --> integer,
+    B "Integer.pow" $ integer --> integer --> integer,
+    B "Integer.shiftLeft" $ integer --> nat --> integer,
+    B "Integer.shiftRight" $ integer --> nat --> integer,
+    B "Integer.and" $ integer --> integer --> integer,
+    B "Integer.or" $ integer --> integer --> integer,
+    B "Integer.xor" $ integer --> integer --> integer,
+    B "Integer.not" $ integer --> integer,
+    B "Integer.popCount" $ integer --> nat,
+    B "Integer.eq" $ integer --> integer --> boolean,
+    B "Integer.lt" $ integer --> integer --> boolean,
+    B "Integer.lteq" $ integer --> integer --> boolean,
+    B "Integer.gt" $ integer --> integer --> boolean,
+    B "Integer.gteq" $ integer --> integer --> boolean,
+    B "Integer.neg" $ integer --> integer,
+    B "Integer.abs" $ integer --> integer,
+    B "Integer.signum" $ integer --> int,
+    B "Integer.toFloat" $ integer --> float,
+    B "Integer.isEven" $ integer --> boolean,
+    B "Integer.isOdd" $ integer --> boolean,
+    B "Natural.add" $ natural --> natural --> natural,
+    B "Natural.sub" $ natural --> natural --> natural,
+    B "Natural.mul" $ natural --> natural --> natural,
+    B "Natural.div" $ natural --> natural --> natural,
+    B "Natural.mod" $ natural --> natural --> natural,
+    B "Natural.pow" $ natural --> natural --> natural,
+    B "Natural.shiftLeft" $ natural --> nat --> natural,
+    B "Natural.shiftRight" $ natural --> nat --> natural,
+    B "Natural.and" $ natural --> natural --> natural,
+    B "Natural.or" $ natural --> natural --> natural,
+    B "Natural.xor" $ natural --> natural --> natural,
+    B "Natural.not" $ natural --> natural,
+    B "Natural.popCount" $ natural --> nat,
+    B "Natural.eq" $ natural --> natural --> boolean,
+    B "Natural.lt" $ natural --> natural --> boolean,
+    B "Natural.lteq" $ natural --> natural --> boolean,
+    B "Natural.gt" $ natural --> natural --> boolean,
+    B "Natural.gteq" $ natural --> natural --> boolean,
+    B "Natural.toFloat" $ natural --> float,
+    B "Natural.isEven" $ natural --> boolean,
+    B "Natural.isOdd" $ natural --> boolean
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1217,7 +1217,7 @@ bmode = DD.bufferModeType ()
 smode = DD.seekModeType ()
 stdhandle = DD.stdHandleType ()
 
-int, nat, bytes, text, boolean, float, char, bigInt, bigNat :: Type
+int, nat, bytes, text, boolean, float, char, integer, natural :: Type
 int = Type.int ()
 nat = Type.nat ()
 bytes = Type.bytes ()
@@ -1225,8 +1225,8 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
-bigInt = Type.ref () Type.bigIntRef
-bigNat = Type.ref () Type.bigNatRef
+integer = Type.ref () Type.integerRef
+natural = Type.ref () Type.naturalRef
 
 anyt, code, value, termLink :: Type
 anyt = Type.ref () Type.anyRef
