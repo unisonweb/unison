@@ -4,6 +4,7 @@ import Control.Concurrent.STM as STM
 import Control.Exception
 import Data.Atomics qualified as Atomic
 import Data.Bits
+import Data.Digest.Murmur64 (asWord64, hash64)
 import Data.IORef (IORef)
 import Data.IORef qualified as IORef
 import Data.Map.Strict qualified as M
@@ -15,6 +16,7 @@ import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF (Code, Value, codeGroup)
+import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
@@ -105,6 +107,7 @@ prim1 env !stk LKUP i = prim1wrap (lkup env) stk i
 prim1 env !stk CVLD i = prim1wrap (cvld env) stk i
 prim1 _env !stk TLTT i = prim1wrap tltt stk i
 prim1 env !stk DBTX i = prim1wrap (dbtx env) stk i
+prim1 _env !stk MRMR i = prim1wrap mrmr stk i
 -- handled elsewhere
 prim1 _env !stk CACH _ = pure stk
 prim1 _env !stk LOAD _ = pure stk
@@ -890,3 +893,8 @@ sdbx env stk allowed0 c = checkSandboxing env allowed c >>= pokeBool stk
   where
     allowed = allowed0 >>= \case (Ref r) -> [r]; _ -> []
 {-# INLINE sdbx #-}
+
+mrmr :: Stack -> Referenced Value -> IO ()
+mrmr stk v =
+  pokeN stk . asWord64 . hash64 . ANF.serializeValueForHash $ dereference v
+{-# INLINE mrmr #-}

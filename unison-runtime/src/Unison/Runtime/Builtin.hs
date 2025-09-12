@@ -643,6 +643,10 @@ murmur'hash instr =
   where
     (x, vl) = fresh
 
+murmur'hash'p :: SuperNormal ref Symbol
+murmur'hash'p = unop0 1 \[x, vl] ->
+  TLetD vl BX (TPrm VALU [x]) $ TPrm MRMR [vl]
+
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
   ([BX, BX, BX],)
@@ -875,7 +879,8 @@ builtinLookup =
         ("Ref.Ticket.read", (Tracked, ref'ticket'read)),
         ("Ref.readForCas", (Tracked, ref'readForCas)),
         ("Scope.ref", (Untracked, ref'new)),
-        ("IO.ref", (Tracked, ref'new))
+        ("IO.ref", (Tracked, ref'new)),
+        ("Universal.murmurHash", (Untracked, murmur'hash'p))
       ]
       ++ foreignWrappers
 
@@ -1225,7 +1230,7 @@ declareForeigns = do
 
   declareForeign Untracked 3 Crypto_Rsa_verify_impl
 
-  declareForeignWrap Untracked murmur'hash Universal_murmurHash
+  -- declareForeignWrap Untracked murmur'hash Universal_murmurHash
   declareForeign Tracked 1 IO_randomBytes
   declareForeign Untracked 1 Bytes_zlib_compress
   declareForeign Untracked 1 Bytes_gzip_compress

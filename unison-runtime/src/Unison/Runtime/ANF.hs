@@ -1636,6 +1636,7 @@ data POp
   | NOTB -- not
   | ANDB -- and
   | IORB -- or
+  | MRMR
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 type ANormal ref = ABTN.Term (ANormalF ref)

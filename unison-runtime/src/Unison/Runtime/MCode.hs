@@ -372,6 +372,7 @@ data Prim1
   | REFR -- Ref.read
   | RRFC
   | TIKR
+  | MRMR
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
@@ -1422,6 +1423,7 @@ emitPOp ANF.BLDS = Seq
 emitPOp ANF.NOTB = emitP1 NOTB
 emitPOp ANF.ANDB = emitP2 ANDB
 emitPOp ANF.IORB = emitP2 IORB
+emitPOp ANF.MRMR = emitP1 MRMR
 emitPOp ANF.FORK = \case
   VArg1 i -> Fork i
   _ -> internalBug [] "fork takes exactly one boxed argument"
