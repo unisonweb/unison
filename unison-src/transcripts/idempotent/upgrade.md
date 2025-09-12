@@ -21,7 +21,7 @@ thingy = lib.old.foo + 10
 ```
 
 ``` ucm
-proj/main> add
+proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -85,25 +85,104 @@ lib.new.foo = +18
 thingy = lib.old.foo + 10
 ```
 
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.new.foo : Int
+  + lib.old.foo : Nat
+  + thingy      : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
 ``` ucm
 proj/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 ```
 
 ``` ucm :error
 proj/main> upgrade old new
+
+  I couldn't automatically upgrade old to new. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+  When you're done, you can run
+
+    update
+
+  to merge your changes back into main and delete the temporary
+  branch. Or, if you decide to cancel the upgrade instead, you
+  can run
+
+    delete.branch /upgrade-old-to-new
+
+  to delete the temporary branch and switch back to main.
+```
+
+``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
+thingy : Nat
+thingy =
+  use Nat +
+  foo + 10
+
 ```
 
 Resolve the error and run `update` to finish the upgrade.
+
+(Don't know why the following stanza gets deleted, so we repeat it).
 
 ``` unison
 thingy = foo + +10
 ```
 
+``` unison
+thingy = foo + +10
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ thingy : Int
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
 ``` ucm
 proj/upgrade-old-to-new> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  I fast-forward merged proj/upgrade-old-to-new into proj/main.
+
+  Done.
+
 proj/main> view thingy
+
+  thingy : Int
+  thingy =
+    use Int +
+    foo + +10
+
 proj/main> ls lib
+
+  1. builtin. (664 terms, 103 types)
+  2. new.     (1 term)
+
 proj/main> branches
+
+       Branch   Remote branch
+  1.   main     
 ```
 
 ``` ucm :hide
@@ -122,19 +201,102 @@ lib.new.foo = +18
 thingy = lib.old.foo + 10
 ```
 
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.new.foo : Int
+  + lib.old.foo : Nat
+  + thingy      : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
 ``` ucm
 proj/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
 ```
 
 ``` ucm :error
 proj/main> upgrade old new
+
+  I couldn't automatically upgrade old to new. However, I've
+  added the definitions that need attention to the top of
+  scratch.u.
+
+  When you're done, you can run
+
+    update
+
+  to merge your changes back into main and delete the temporary
+  branch. Or, if you decide to cancel the upgrade instead, you
+  can run
+
+    delete.branch /upgrade-old-to-new
+
+  to delete the temporary branch and switch back to main.
+```
+
+``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
+thingy : Nat
+thingy =
+  use Nat +
+  foo + 10
+
+```
+
+Resolve the error and run `update` to finish the upgrade.
+
+(Don't know why the following stanza gets deleted, so we repeat it).
+
+``` unison
+thingy = foo + +10
+```
+
+``` unison
+thingy = foo + +10
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ thingy : Int
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
 proj/upgrade-old-to-new> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  I fast-forward merged proj/upgrade-old-to-new into proj/main.
+
+  Done.
+
 proj/main> ls lib
+
+  1. builtin. (664 terms, 103 types)
+  2. new.     (1 term)
+
 proj/main> ls .
+
+  1. lib.   (665 terms, 103 types)
+  2. thingy (Int)
+
 proj/main> branches
+
+       Branch   Remote branch
+  1.   main     
 ```
 
 ``` ucm :hide
@@ -225,7 +387,7 @@ bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ``` ucm
-myproject/main> add
+myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -242,7 +404,7 @@ myproject/main> upgrade old new
 
   When you're done, you can run
 
-    upgrade.commit
+    update
 
   to merge your changes back into main and delete the temporary
   branch. Or, if you decide to cancel the upgrade instead, you
@@ -287,6 +449,15 @@ If `foo#old` exists in old, and `foo#new` exists in new, you might think `upgrad
 foo/main> builtins.merge lib.builtin
 ```
 
+(Don't know why the following stanza gets deleted, so we repeat it).
+
+``` unison
+lib.old.foo = 18
+lib.new.other = 18
+lib.new.foo = 19
+mything = lib.old.foo + lib.old.foo
+```
+
 ``` unison
 lib.old.foo = 18
 lib.new.other = 18
@@ -306,7 +477,7 @@ mything = lib.old.foo + lib.old.foo
 ```
 
 ``` ucm
-foo/main> add
+foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -354,7 +525,7 @@ lib.dep__2.foo = 2
 ```
 
 ``` ucm
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -399,7 +570,7 @@ lib.dep__2.foo = 3
 ```
 
 ``` ucm
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
