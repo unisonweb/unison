@@ -246,7 +246,7 @@ cloneInto localProjectBranch remoteProjectBranch = do
       Queries.insertProjectBranch
         description
         causalHashId
-        Sqlite.ProjectBranch
+        Sqlite.ProjectBranchRow
           { projectId = localProjectId,
             branchId = localBranchId,
             name = localProjectBranch.branch,

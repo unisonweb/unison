@@ -10,7 +10,7 @@ import Data.Text qualified as Text
 import System.Random.Shuffle qualified as RandomShuffle
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Project (Project (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranchRow (..))
 import U.Codebase.Sqlite.Queries (expectCausalHashIdByCausalHash)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.DownloadUtils (downloadProjectBranchFromShare)

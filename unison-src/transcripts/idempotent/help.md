@@ -968,18 +968,6 @@
   `upgrade old new` upgrades library dependency `lib.old` to
   `lib.new`, and, if successful, deletes `lib.old`.
 
-  upgrade.commit (or commit.upgrade)
-  `upgrade.commit` merges a temporary branch created by the
-  `upgrade` command back into its parent branch, and removes the
-  temporary branch.
-
-  For example, if you've done `upgrade foo bar` from main, then
-  `upgrade.commit` is equivalent to doing
-
-    * switch /main
-    * merge /upgrade-foo-to-bar
-    * delete.branch /upgrade-foo-to-bar
-
   version
   Print the version of unison you're running
 

@@ -46,7 +46,7 @@ openUI path' = do
 openUIForProject :: Server.BaseUrl -> PP.ProjectPath -> Path.Absolute -> Cli ()
 openUIForProject url pp@(PP.ProjectPath project projectBranch perspective) defnPath = do
   mayDefinitionRef <- getDefinitionRef perspective
-  let projectBranchNames = bimap Project.name ProjectBranch.name (ProjectAndBranch project projectBranch)
+  let projectBranchNames = bimap (.name) (.name) (ProjectAndBranch project projectBranch)
   _success <- liftIO . openBrowser . Text.unpack $ Server.urlFor (Server.ProjectBranchUI projectBranchNames perspective mayDefinitionRef) url
   pure ()
   where

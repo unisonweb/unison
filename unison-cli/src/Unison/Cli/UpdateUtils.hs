@@ -5,11 +5,14 @@
 module Unison.Cli.UpdateUtils
   ( -- * Getting dependents in a namespace
     getNamespaceDependentsOf,
-    getNamespaceDependentsOf2,
+    subtractDependents,
 
     -- * Hydrating definitions
     hydrateRefs,
     nameHydratedRefIds,
+
+    -- * Unique type guids
+    makeUniqueTypeGuids,
 
     -- * Parsing and typechecking
     parseAndTypecheck,
@@ -18,20 +21,21 @@ where
 
 import Control.Monad.Reader (ask)
 import Data.Bitraversable (bitraverse)
+import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
+import U.Codebase.Decl qualified as V2.Decl
+import U.Codebase.Reference (Reference' (..), TermReferenceId, TypeReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
-import Unison.Names (Names)
-import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -50,8 +54,6 @@ import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
 import Unison.Util.Map qualified as Map (thenInsertPair)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Prelude hiding (unzip, zip, zipWith)
 
@@ -61,28 +63,10 @@ import Prelude hiding (unzip, zip, zipWith)
 -- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
 -- (transitive) dependents of the dependencies.
 getNamespaceDependentsOf ::
-  Names ->
-  Set Reference ->
-  Transaction (DefnsF (Relation Name) TermReferenceId TypeReferenceId)
-getNamespaceDependentsOf names dependencies = do
-  dependents <- Operations.transitiveDependentsWithinScope (Names.referenceIds names) dependencies
-  pure (bimap (foldMap nameTerm) (foldMap nameType) dependents)
-  where
-    nameTerm :: TermReferenceId -> Relation Name TermReferenceId
-    nameTerm ref =
-      Relation.fromManyDom (Relation.lookupRan (Referent.fromTermReferenceId ref) (Names.terms names)) ref
-
-    nameType :: TypeReferenceId -> Relation Name TypeReferenceId
-    nameType ref =
-      Relation.fromManyDom (Relation.lookupRan (Reference.fromId ref) (Names.types names)) ref
-
--- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
--- (transitive) dependents of the dependencies.
-getNamespaceDependentsOf2 ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
   Set Reference ->
   Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
-getNamespaceDependentsOf2 defns dependencies = do
+getNamespaceDependentsOf defns dependencies = do
   let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
   let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
   let scope = bimap toTermScope toTypeScope defns
@@ -98,6 +82,25 @@ getNamespaceDependentsOf2 defns dependencies = do
     addTypes acc0 ref =
       let names = BiMultimap.lookupDom (Reference.fromId ref) defns.types
        in Set.foldl' (\acc name -> Map.insert name ref acc) acc0 names
+
+subtractDependents ::
+  DefnsF Set TermReferenceId TypeReferenceId ->
+  DefnsF (Map Name) Referent TypeReference ->
+  DefnsF (Map Name) Referent TypeReference
+subtractDependents dependents =
+  bimap (Map.filter keepTerm) (Map.filter keepType)
+  where
+    keepType :: TypeReference -> Bool
+    keepType = \case
+      ReferenceBuiltin _ -> True
+      ReferenceDerived refId -> not (Set.member refId dependents.types)
+    keepTerm :: Referent -> Bool
+    keepTerm = \case
+      Referent.Con (ConstructorReference ref _) _ -> keepType ref
+      Referent.Ref ref ->
+        case ref of
+          ReferenceBuiltin _ -> True
+          ReferenceDerived refId -> not (Set.member refId dependents.terms)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Hydrating definitions
@@ -136,6 +139,35 @@ nameHydratedRefIds =
     f :: Map name Reference.Id -> Map Reference.Id defn -> Map name (Reference.Id, defn)
     f nameToRef refToDefn =
       Map.mapMaybe (\ref -> (ref,) <$> Map.lookup ref refToDefn) nameToRef
+
+------------------------------------------------------------------------------------------------------------------------
+-- Unique type guids
+
+-- Make a unique type name to guid mapping from definitions, by looking up each decl individually. Maybe there will be
+-- a more efficient way to accomplish this some day, but this is how it works for now.
+makeUniqueTypeGuids :: Map Name TypeReference -> Transaction (Map Name Text)
+makeUniqueTypeGuids types = do
+  let step :: Map TypeReferenceId Text -> TypeReferenceId -> Transaction (Map TypeReferenceId Text)
+      step acc refId = do
+        decl <- Operations.expectDeclByReference refId
+        pure case decl.modifier of
+          V2.Decl.Unique guid -> Map.insert refId guid acc
+          V2.Decl.Structural -> acc
+
+  uniqueTypeGuidsByRef <-
+    Foldable.foldlM step Map.empty (foldMap toRefIds types)
+
+  let refToUniqueTypeGuid :: TypeReference -> Maybe Text
+      refToUniqueTypeGuid = \case
+        ReferenceDerived refId -> Map.lookup refId uniqueTypeGuidsByRef
+        ReferenceBuiltin _ -> Nothing
+
+  pure (Map.mapMaybe refToUniqueTypeGuid types)
+  where
+    toRefIds :: TypeReference -> Set TypeReferenceId
+    toRefIds = \case
+      ReferenceDerived refId -> Set.singleton refId
+      ReferenceBuiltin _ -> Set.empty
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Parsing and typechecking

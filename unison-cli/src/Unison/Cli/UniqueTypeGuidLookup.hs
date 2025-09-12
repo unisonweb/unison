@@ -33,21 +33,25 @@ loadUniqueTypeGuid pp name = do
     Just guid -> pure (Just guid)
     Nothing ->
       Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
-        Just parentCausalHashId -> loadUniqueTypeGuidFromUpdateParent name parentCausalHashId
+        Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
         Nothing ->
-          Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
-            Nothing -> pure Nothing
-            Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
-              loadUniqueTypeGuidFromMergeParents
-                pp
-                name
-                bobMaybeBranchId
-                bobCausalHashId
-                aliceMaybeBranchId
-                aliceCausalHashId
+          Queries.loadUpgradeBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
+            Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
+            Nothing ->
+              Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
+                Nothing -> pure Nothing
+                Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
+                  loadUniqueTypeGuidFromMergeParents
+                    pp
+                    name
+                    bobMaybeBranchId
+                    bobCausalHashId
+                    aliceMaybeBranchId
+                    aliceCausalHashId
 
-loadUniqueTypeGuidFromUpdateParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)
-loadUniqueTypeGuidFromUpdateParent name causalHashId = do
+-- update or upgrade parent
+loadUniqueTypeGuidFromParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)
+loadUniqueTypeGuidFromParent name causalHashId = do
   namespaceHashId <- Queries.expectCausalValueHashId causalHashId
   Queries.loadNamespaceUniqueTypeGuid namespaceHashId name
 

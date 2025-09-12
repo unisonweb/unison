@@ -36,8 +36,7 @@ module Unison.UnisonFile
     typecheckedUnisonFile,
     Unison.UnisonFile.rewrite,
     prepareRewrite,
-    termNamespaceBindings,
-    typeNamespaceBindings,
+    namespaceBindings,
   )
 where
 
@@ -461,17 +460,22 @@ constructorsForDecls types uf =
           & concatMap DD.constructorVars
    in Set.fromList (dataConstructors <> effectConstructors)
 
+namespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> DefnsF Set v v
+namespaceBindings uf =
+  Defns {terms = termNamespaceBindings uf, types = typeNamespaceBindings uf}
+
 -- | All bindings in the term namespace: terms, test watches (since those are the only watches that are actually stored
 -- in the codebase), data constructors, and effect constructors.
 termNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
 termNamespaceBindings uf =
-  terms <> tests <> datacons <> effcons
+  terms <> datacons <> effcons
   where
-    terms = foldMap (Set.fromList . map (view _1)) uf.topLevelComponents'
-    tests =
-      uf.watchComponents & foldMap \case
-        (WatchKind.TestWatch, watches) -> Set.fromList (map (view _1) watches)
-        _ -> Set.empty
+    terms =
+      hashTermsId uf
+        & Map.foldMapWithKey \var (_, _, wk, _, _) ->
+          if WatchKind.watchKindShouldBeStoredInDatabase wk
+            then Set.singleton var
+            else Set.empty
     datacons = foldMap (Set.fromList . DataDeclaration.constructorVars . view _2) uf.dataDeclarationsId'
     effcons =
       foldMap

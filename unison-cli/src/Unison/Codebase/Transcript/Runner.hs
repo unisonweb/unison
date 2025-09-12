@@ -28,7 +28,7 @@ import System.IO qualified as IO
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Project (Project (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..), ProjectBranchRow (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -322,16 +322,16 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                         Q.insertProject projectId projectName
                         pure $ Project {projectId, name = projectName}
                       Just project -> pure project
-                projectBranch <-
+                projectAndBranchIds <-
                   Q.loadProjectBranchByName projectId branchName >>= \case
                     Nothing -> do
                       branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
-                      let projectBranch =
-                            ProjectBranch {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                      Q.insertProjectBranch "Branch Created" emptyCausalHashId projectBranch
-                      pure projectBranch
-                    Just projBranch -> pure projBranch
-                let projectAndBranchIds = ProjectAndBranch projectBranch.projectId projectBranch.branchId
+                      Q.insertProjectBranch
+                        "Branch Created"
+                        emptyCausalHashId
+                        ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
+                      pure (ProjectAndBranch projectId branchId)
+                    Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
                 pure
                   if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
                     then Nothing
