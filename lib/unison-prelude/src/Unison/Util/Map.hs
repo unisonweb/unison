@@ -14,7 +14,7 @@ module Unison.Util.Map
     for_,
     fromSetA,
     insertLookup,
-    invertInjective,
+    invert,
     lookupJust,
     mergeMap,
     unionWithM,
@@ -85,8 +85,8 @@ insertLookup k v =
 
 -- | Invert a map's keys and values. This probably only makes sense with injective maps, but otherwise, later key/value
 -- pairs (ordered by the original map's keys) overwrite earlier ones.
-invertInjective :: (Ord v) => Map k v -> Map v k
-invertInjective =
+invert :: (Ord v) => Map k v -> Map v k
+invert =
   Map.foldlWithKey' (\m k v -> Map.insert v k m) Map.empty
 
 -- | Like 'Map.lookup', but asserts the key is in the map.
