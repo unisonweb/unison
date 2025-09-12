@@ -432,7 +432,6 @@ data Output
   | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
-  | NoUpgradeInProgress
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
@@ -673,7 +672,6 @@ isFailure o = case o of
   MergeConflictInvolvingBuiltin {} -> True
   MergeDefnsInLib {} -> True
   InstalledLibdep {} -> False
-  NoUpgradeInProgress {} -> True
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True

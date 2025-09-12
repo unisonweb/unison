@@ -2015,7 +2015,7 @@ notifyUser dir = \case
           "",
           P.wrap "When you're done, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
           "",
           P.wrap $
             "to merge your changes back into"
@@ -2135,8 +2135,6 @@ notifyUser dir = \case
         <> prettyProjectAndBranchName libdep
         <> "into"
         <> P.group (P.text $ into @Text $ Path.fromList [NameSegment.libSegment, segment])
-  NoUpgradeInProgress ->
-    pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
   UseLibInstallNotPull libdep ->
     pure . P.wrap $
       "The use of"

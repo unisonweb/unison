@@ -85,101 +85,32 @@ lib.new.foo = +18
 thingy = lib.old.foo + 10
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + lib.new.foo : Int
-  + lib.old.foo : Nat
-  + thingy      : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
 ``` ucm
-proj/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
+proj/main> update
 ```
 
 ``` ucm :error
 proj/main> upgrade old new
-
-  I couldn't automatically upgrade old to new. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
-
-  When you're done, you can run
-
-    upgrade.commit
-
-  to merge your changes back into main and delete the temporary
-  branch. Or, if you decide to cancel the upgrade instead, you
-  can run
-
-    delete.branch /upgrade-old-to-new
-
-  to delete the temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
--- The definitions below no longer typecheck after upgrading.
--- Please fix the errors, then run `update`.
-
-thingy : Nat
-thingy =
-  use Nat +
-  foo + 10
-
-```
-
-Resolve the error and commit the upgrade.
+Resolve the error and run `update` to finish the upgrade.
 
 ``` unison
 thingy = foo + +10
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  ~ thingy : Int
-
-  ~ (modified)
-
-  Run `update` to apply these changes to your codebase.
-```
-
 ``` ucm
 proj/upgrade-old-to-new> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-proj/upgrade-old-to-new> upgrade.commit
-
-  I fast-forward merged proj/upgrade-old-to-new into proj/main.
-
 proj/main> view thingy
-
-  thingy : Int
-  thingy =
-    use Int +
-    foo + +10
-
 proj/main> ls lib
-
-  1. builtin. (664 terms, 103 types)
-  2. new.     (1 term)
-
 proj/main> branches
-
-       Branch   Remote branch
-  1.   main     
 ```
+
+``` ucm :hide
+proj/main> project.delete proj
+```
+
+# Upgrade sad path (showing delete on upgrade branch)
 
 ``` ucm :hide
 proj/main> builtins.merge lib.builtin
@@ -191,103 +122,19 @@ lib.new.foo = +18
 thingy = lib.old.foo + 10
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + lib.old.foo : Nat
-  ~ thingy : Nat
-
-  (and 1 unchanged term)
-
-  + (added), ~ (modified)
-
-  Run `update` to apply these changes to your codebase.
-```
-
 ``` ucm
-proj/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
+proj/main> update
 ```
 
 ``` ucm :error
 proj/main> upgrade old new
-
-  I couldn't automatically upgrade old to new. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
-
-  When you're done, you can run
-
-    upgrade.commit
-
-  to merge your changes back into main and delete the temporary
-  branch. Or, if you decide to cancel the upgrade instead, you
-  can run
-
-    delete.branch /upgrade-old-to-new
-
-  to delete the temporary branch and switch back to main.
-```
-
-``` unison :added-by-ucm scratch.u
--- The definitions below no longer typecheck after upgrading.
--- Please fix the errors, then run `update`.
-
-thingy : Nat
-thingy =
-  use Nat +
-  foo + 10
-
-```
-
-Resolve the error and commit the upgrade.
-
-``` unison
-thingy = foo + +10
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  ~ thingy : Int
-
-  ~ (modified)
-
-  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
 proj/upgrade-old-to-new> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-proj/upgrade-old-to-new> upgrade.commit
-
-  I fast-forward merged proj/upgrade-old-to-new into proj/main.
-
-proj/main> view thingy
-
-  thingy : Int
-  thingy =
-    use Int +
-    foo + +10
-
 proj/main> ls lib
-
-  1. builtin. (664 terms, 103 types)
-  2. new.     (1 term)
-
+proj/main> ls .
 proj/main> branches
-
-       Branch   Remote branch
-  1.   main     
 ```
 
 ``` ucm :hide
