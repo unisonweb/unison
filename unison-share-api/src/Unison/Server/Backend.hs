@@ -48,6 +48,7 @@ module Unison.Server.Backend
     termListEntry,
     Codebase.termReferentsByShortHash,
     termSummaryForReferent,
+    typeSummaryForReference,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
@@ -1252,7 +1253,13 @@ resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName Projec
 resolveProjectRootHash codebase projectAndBranchName = do
   resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
 
-termSummaryForReferent :: Codebase IO Symbol Ann -> Referent -> Maybe Name -> (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) -> Maybe Width -> Backend IO TermSummary
+termSummaryForReferent ::
+  Codebase IO Symbol Ann ->
+  Referent ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TermSummary
 termSummaryForReferent codebase referent mayName mkPPE mayWidth = do
   let shortHash = Referent.toShortHash referent
   let termReference = Referent.toReference referent
@@ -1278,3 +1285,29 @@ termSummaryForReferent codebase referent mayName mkPPE mayWidth = do
       if Reference.isBuiltin reference
         then BuiltinObject termSig
         else UserObject termSig
+
+typeSummaryForReference ::
+  Codebase IO Symbol Ann ->
+  Reference ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TypeSummary
+typeSummaryForReference codebase reference mayName mkPPED mayWidth = do
+  let shortHash = Reference.toShortHash reference
+  lift do
+    Codebase.runTransaction codebase do
+      pped <- mkPPED $ Set.singleton (LD.TypeReference reference)
+      let displayName = PPE.typeName (PPED.unsuffixifiedPPE pped) reference
+      tag <- getTypeTag codebase reference
+      displayDecl <- displayType codebase reference
+      let syntaxHeader = typeToSyntaxHeader width displayName displayDecl
+      pure $
+        TypeSummary
+          { displayName = (maybe displayName HQ.NameOnly mayName),
+            hash = shortHash,
+            summary = bimap mungeSyntaxText mungeSyntaxText syntaxHeader,
+            tag = tag
+          }
+  where
+    width = mayDefaultWidth mayWidth

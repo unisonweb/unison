@@ -141,7 +141,6 @@ import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation (builtinAnnotation))
 import Unison.Codebase.Path
 import Unison.Codebase.Path qualified as Path
@@ -156,7 +155,6 @@ import Unison.Core.Project (ProjectAndBranch)
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
-import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
@@ -164,8 +162,6 @@ import Unison.Name qualified as Name
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
-import Unison.PrettyPrintEnv qualified as PPE
-import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
@@ -173,7 +169,6 @@ import Unison.Referent qualified as Referent
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -532,36 +527,16 @@ dependentsOfComponent h =
     <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
 -- | Find all dependents of any provided definitions which are within the provided branch.
-dependentsWithinBranchScope :: Branch.Branch0 m -> (DefnsF Set Referent.Referent Reference.TypeReference) -> Sqlite.Transaction (DefnsF [] (HQ'.HashQualified Name, HQ'.HashQualified Name) (HQ'.HashQualified Name, HQ'.HashQualified Name))
+--
+-- Note: You may wish to delete lib deps beforehand.
+dependentsWithinBranchScope :: Branch.Branch0 m -> (DefnsF Set Referent.Referent Reference.TypeReference) -> Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
 dependentsWithinBranchScope branch0 refs = do
-  let namespaceWithoutLibdeps = Branch.deleteLibdeps branch0
-  let ppeWithoutLibdeps =
-        let names = Branch.toNames namespaceWithoutLibdeps
-         in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-  dependents <-
-    Operations.directDependentsWithinScope
-      ( Set.union
-          (Set.mapMaybe Reference.toId (Branch.deepTypeReferences namespaceWithoutLibdeps))
-          (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents namespaceWithoutLibdeps))
-      )
-      (bifoldMap (Set.map Referent.toReference) id refs)
-
-  let dependentNames ::
-        DefnsF
-          []
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-      dependentNames =
-        bimap
-          (f (Referent.fromTermReferenceId >>> PPE.termNames ppeWithoutLibdeps))
-          (f (Reference.fromId >>> PPE.typeNames ppeWithoutLibdeps))
-          dependents
-        where
-          f g =
-            Set.toList
-              >>> mapMaybe (g >>> listToMaybe)
-              >>> Name.sortByText (fst >>> HQ'.toText)
-  pure dependentNames
+  Operations.directDependentsWithinScope
+    ( Set.union
+        (Set.mapMaybe Reference.toId (Branch.deepTypeReferences branch0))
+        (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents branch0))
+    )
+    (bifoldMap (Set.map Referent.toReference) id refs)
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)

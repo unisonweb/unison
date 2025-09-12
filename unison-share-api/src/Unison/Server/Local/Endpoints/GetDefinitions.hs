@@ -1,11 +1,14 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Unison.Server.Local.Endpoints.GetDefinitions where
 
+import Data.Bifoldable (Bifoldable (..))
+import Data.Bitraversable (Bitraversable (..))
 import Data.Set qualified as Set
 import Servant
   ( QueryParam,
@@ -22,6 +25,7 @@ import Servant.Docs
     noSamples,
   )
 import U.Codebase.Causal qualified as Causal
+import U.Codebase.Reference (TermReferenceId)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
@@ -32,7 +36,12 @@ import Unison.Name (Name)
 import Unison.NamesWithHistory (SearchType (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project
+import Unison.Reference qualified as Reference
+import Unison.Referent qualified as Referent
 import Unison.Runtime (Runtime)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Local.Definitions qualified as Local
@@ -43,9 +52,11 @@ import Unison.Server.Types
   ( APIGet,
     APIHeaders,
     DefinitionDisplayResults,
-    DefinitionSearchResults,
+    DefinitionSearchResult (..),
+    DefinitionSearchResults (..),
     RequiredQueryParam,
     Suffixify (..),
+    TermOrTypeSummary (..),
     defaultWidth,
     setCacheControl,
   )
@@ -137,10 +148,10 @@ getDefinitionDependentsEndpoint ::
   HQ.HashQualified Name ->
   Maybe Width ->
   Backend.Backend IO (APIHeaders DefinitionSearchResults)
-getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath hqn _width = do
+getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath hqn mayWidth = do
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   rootCausal <- Backend.resolveProjectRoot codebase projectAndBranch
-  Backend.hoistBackend (Codebase.runTransaction codebase) $ do
+  (dependents, names) <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
     names <- lift $ Codebase.namesAtPath (Causal.valueHash rootCausal) (Path.fromList [])
     branch0 <- Branch.head <$> lift (Codebase.expectBranchForHashTx codebase (Causal.causalHash rootCausal))
     let nameSearch = makeNameSearch hqLength names
@@ -151,9 +162,44 @@ getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath hqn 
             Tm TermResult {referent} -> Defns {terms = (Set.singleton referent), types = Set.empty}
 
     dependents <- lift $ Codebase.dependentsWithinBranchScope branch0 defs
-    dependents & bifoldMapM _ _
-    pure ()
-  pure $ setCacheControl undefined
+    pure (dependents, names)
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) PPE.dontSuffixify
+  definitionSearchResults <-
+    dependents
+      & bitraverse (wither (doTerm pped) . Set.toList) (wither (doType pped) . Set.toList)
+  definitionSearchResults
+    & bifold
+    & DefinitionSearchResults
+    & setCacheControl
+    & pure
+  where
+    project = projectAndBranch.project
+    branchRef = projectAndBranch.branch
+    doTerm :: PPED.PrettyPrintEnvDecl -> TermReferenceId -> Backend.Backend IO (Maybe DefinitionSearchResult)
+    doTerm pped refId = runMaybeT do
+      let referent = Referent.fromTermReferenceId refId
+      fqn <- hoistMaybe $ HQ.toName $ PPE.termName (PPED.unsuffixifiedPPE pped) referent
+      summary <- lift $ Backend.termSummaryForReferent codebase referent Nothing (\_ -> pure pped) mayWidth
+      pure $
+        DefinitionSearchResult
+          { fqn,
+            summary = ToTTermSummary summary,
+            project,
+            branchRef
+          }
+
+    doType pped refId = do
+      runMaybeT do
+        let reference = Reference.fromId refId
+        fqn <- hoistMaybe $ HQ.toName $ PPE.typeName (PPED.unsuffixifiedPPE pped) reference
+        summary <- lift $ Backend.typeSummaryForReference codebase reference Nothing (\_ -> pure pped) mayWidth
+        pure $
+          DefinitionSearchResult
+            { fqn,
+              summary = ToTTypeSummary summary,
+              project,
+              branchRef
+            }
 
 getDefinitionsEndpoint ::
   Runtime Symbol ->
