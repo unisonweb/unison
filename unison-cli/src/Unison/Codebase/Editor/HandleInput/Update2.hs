@@ -10,7 +10,6 @@ where
 import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
-import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -18,9 +17,7 @@ import Data.Text qualified as Text
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Builder qualified
-import U.Codebase.Decl qualified as V2.Decl
-import U.Codebase.Reference (Reference, Reference' (..), TermReferenceId)
-import U.Codebase.Sqlite.Operations qualified as Operations
+import U.Codebase.Reference (Reference, TermReferenceId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -29,9 +26,9 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, nameHydratedRefIds, parseAndTypecheck)
+import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0)
+import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
@@ -44,7 +41,6 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
-import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
@@ -62,7 +58,6 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
-import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
@@ -101,14 +96,11 @@ handleUpdate2 = do
     Branch.asUnconflicted currentBranch0
       & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
 
-  -- Assert that the namespace doesn't have any incoherent decls, and get whether we are on an "update" branch already
-  (declNameLookup, onUpdateBranchAlready) <-
+  -- Assert that the namespace doesn't have any incoherent decls
+  declNameLookup <-
     Cli.runTransactionWithRollback \rollback -> do
-      declNameLookup <-
-        Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentBranch) unconflictedView
-          & onLeftM (rollback . Output.IncoherentDeclDuringUpdate . DeclCoherencyCheck.asOneRandomIncoherentDeclReason)
-      onUpdateBranchAlready <- Queries.projectBranchIsUpdateBranch projectId pp.branch.branchId
-      pure (declNameLookup, onUpdateBranchAlready)
+      Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentBranch) unconflictedView
+        & onLeftM (rollback . Output.IncoherentDeclDuringUpdate . DeclCoherencyCheck.asOneRandomIncoherentDeclReason)
 
   let namespaceBindings :: DefnsF Set Name Name
       namespaceBindings =
@@ -120,7 +112,7 @@ handleUpdate2 = do
         respondRegion $
           Output.Literal (Pretty.wrap "Okay, I'm searching the branch for code that needs to be updated...")
 
-        (dependents, hydratedDependents) <-
+        (dependents, dependentsRefs, hydratedDependents) <-
           Cli.runTransaction do
             -- Get all dependents of things being updated
             dependents0 <-
@@ -136,18 +128,18 @@ handleUpdate2 = do
                     (`Map.withoutKeys` namespaceBindings.types)
                     dependents0
 
-            -- Hydrate the dependents for rendering
-            hydratedDependents <-
-              let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
-                  dependentsRefs =
-                    bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents1
-               in nameHydratedRefIds dependents1
-                    <$> hydrateRefs
-                      (Codebase.unsafeGetTermComponent env.codebase)
-                      Operations.expectDeclComponent
-                      dependentsRefs
+            let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
+                dependentsRefs =
+                  bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents1
 
-            pure (dependents1, hydratedDependents)
+            -- Hydrate the dependents for rendering
+            hydratedDependents0 <-
+              hydrateRefs (Codebase.unsafeGetTermComponent env.codebase) Operations.expectDeclComponent dependentsRefs
+
+            let hydratedDependents1 =
+                  nameHydratedRefIds dependents1 hydratedDependents0
+
+            pure (dependents1, dependentsRefs, hydratedDependents1)
 
         secondTuf <- do
           case defnsAreEmpty dependents of
@@ -173,43 +165,18 @@ handleUpdate2 = do
                 parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
                   if useUpdateV2
                     then do
-                      let dependentRefs :: DefnsF Set TermReferenceId TypeReferenceId
-                          dependentRefs =
-                            bimap (Map.elems >>> Set.fromList) (Map.elems >>> Set.fromList) dependents
+                      let nextNamespace :: Branch IO
+                          nextNamespace =
+                            unconflictedView.defns
+                              & bimap
+                                (BiMultimap.range >>> (`Map.withoutKeys` namespaceBindings.terms))
+                                (BiMultimap.range >>> (`Map.withoutKeys` namespaceBindings.types))
+                              & subtractDependents dependentsRefs
+                              & Branch.fromUnconflictedDefns
+                              & Branch.setLibdeps (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentBranch0)
+                              & (`Branch.cons` currentBranch)
 
-                      let namespaceWithoutDependents :: Branch0 IO
-                          namespaceWithoutDependents =
-                            let keepType :: TypeReference -> Bool
-                                keepType = \case
-                                  ReferenceBuiltin _ -> True
-                                  ReferenceDerived refId -> not (Set.member refId dependentRefs.types)
-                                keepTerm :: Referent -> Bool
-                                keepTerm = \case
-                                  Referent.Con (ConstructorReference ref _) _ -> keepType ref
-                                  Referent.Ref ref ->
-                                    case ref of
-                                      ReferenceBuiltin _ -> True
-                                      ReferenceDerived refId -> not (Set.member refId dependentRefs.terms)
-                             in unconflictedView.defns
-                                  & bimap
-                                    ( BiMultimap.range
-                                        >>> (`Map.withoutKeys` namespaceBindings.terms)
-                                        >>> Map.filter keepTerm
-                                    )
-                                    ( BiMultimap.range
-                                        >>> (`Map.withoutKeys` namespaceBindings.types)
-                                        >>> Map.filter keepType
-                                    )
-                                  & Branch.fromUnconflictedDefns
-                                  & Branch.setLibdeps
-                                    ( currentBranch0
-                                        & Branch.getAt0 (Path.singleton NameSegment.libSegment)
-                                    )
-
-                      let nextNamespace =
-                            Branch.cons namespaceWithoutDependents currentBranch
-
-                      if onUpdateBranchAlready
+                      if pp.branch.isUpdate || pp.branch.isUpgrade
                         then do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                           scratchFilePath <- fst <$> Cli.expectLatestFile
@@ -259,9 +226,9 @@ handleUpdate2 = do
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
 
-        -- Special case: we are running a successful `update` on an update branch that has a parent (an update branch
-        -- only won't have a parent if the parent has been deleted for some reason).
-        case (onUpdateBranchAlready, pp.branch.parentBranchId) of
+        -- Special case: we are running a successful `update` on an update/upgrade branch that has a parent (such
+        -- branches won't have a parent only if the parent has been deleted for some reason).
+        case (pp.branch.isUpdate || pp.branch.isUpgrade, pp.branch.parentBranchId) of
           (True, Just parentBranchId) -> do
             -- Switch to the parent branch
             parentBranch <-
@@ -277,9 +244,10 @@ handleUpdate2 = do
                   bob = ProjectAndBranch pp.project pp.branch
                 }
 
-            -- If the merge succeeded, delete the update branch. We may want to try to delete it even if the merge
-            -- fails, because otherwise the user will have to manually clean it up, which isn't as nice as a successful
-            -- `update` on an update branch. However, it's very likely that the merge is simply a fast-forward.
+            -- If the merge succeeded, delete the current (update or upgrade) branch. We may want to try to delete it
+            -- even if the merge fails, because otherwise the user will have to manually clean it up, which isn't as
+            -- nice as a successful `update` on an update branch. However, it's very likely that the merge is simply a
+            -- fast-forward.
 
             DeleteBranch.doDeleteProjectBranch (ProjectAndBranch pp.project pp.branch)
           _ -> pure ()
@@ -287,32 +255,6 @@ handleUpdate2 = do
         pure Output.Success
 
   Cli.respond finalOutput
-
--- Make a unique type name to guid mapping from definitions, by looking up each decl individually. Maybe there will be
--- a more efficient way to accomplish this some day, but this is how it works for now.
-makeUniqueTypeGuids :: Map Name TypeReference -> Transaction (Map Name Text)
-makeUniqueTypeGuids types = do
-  let step :: Map TypeReferenceId Text -> TypeReferenceId -> Transaction (Map TypeReferenceId Text)
-      step acc refId = do
-        decl <- Operations.expectDeclByReference refId
-        pure case decl.modifier of
-          V2.Decl.Unique guid -> Map.insert refId guid acc
-          V2.Decl.Structural -> acc
-
-  uniqueTypeGuidsByRef <-
-    Foldable.foldlM step Map.empty (foldMap toRefIds types)
-
-  let refToUniqueTypeGuid :: TypeReference -> Maybe Text
-      refToUniqueTypeGuid = \case
-        ReferenceDerived refId -> Map.lookup refId uniqueTypeGuidsByRef
-        ReferenceBuiltin _ -> Nothing
-
-  pure (Map.mapMaybe refToUniqueTypeGuid types)
-  where
-    toRefIds :: TypeReference -> Set TypeReferenceId
-    toRefIds = \case
-      ReferenceDerived refId -> Set.singleton refId
-      ReferenceBuiltin _ -> Set.empty
 
 makePrettyUnisonFile :: Pretty ColorText -> DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
 makePrettyUnisonFile originalFile dependents =

@@ -35,7 +35,7 @@ import U.Codebase.Sqlite.Operations (NamesInPerspective (..))
 import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.Project qualified as Project
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranchRow (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Builtin qualified as Builtins
@@ -102,8 +102,10 @@ createSchema = do
   Q.addMergeBranchTables
   Q.addUpdateBranchTable
   Q.addDerivedDependentsByDependencyIndex
+  Q.addUpgradeBranchTable
   (_, emptyCausalHashId) <- emptyCausalHash
-  (_, ProjectBranch {projectId, branchId}) <- insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
+  (_, ProjectBranchRow {projectId, branchId}) <-
+    insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
   Q.setCurrentProjectPath projectId branchId []
   where
     scratchProjectName = UnsafeProjectName "scratch"
@@ -747,8 +749,13 @@ makeMaybeCachedTransaction cache action x = do
   conn <- Sqlite.unsafeGetConnection
   Sqlite.unsafeIO (Cache.applyDefined cache (\x -> Sqlite.unsafeUnTransaction (action x) conn) x)
 
--- | Creates a project by name if one doesn't already exist, creates a branch in that project, then returns the project and branch ids. Fails if a branch by that name already exists in the project.
-insertProjectAndBranch :: ProjectName -> ProjectBranchName -> Db.CausalHashId -> Sqlite.Transaction (Project, ProjectBranch)
+-- | Creates a project by name if one doesn't already exist, creates a branch in that project, then returns the project
+-- and branch ids. Fails if a branch by that name already exists in the project.
+insertProjectAndBranch ::
+  ProjectName ->
+  ProjectBranchName ->
+  Db.CausalHashId ->
+  Sqlite.Transaction (Project, ProjectBranchRow)
 insertProjectAndBranch projectName branchName chId = do
   projectId <- whenNothingM (fmap Project.projectId <$> Q.loadProjectByName projectName) do
     projectId <- Sqlite.unsafeIO (Db.ProjectId <$> UUID.nextRandom)
@@ -756,7 +763,7 @@ insertProjectAndBranch projectName branchName chId = do
     pure projectId
   branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
   let projectBranch =
-        ProjectBranch
+        ProjectBranchRow
           { projectId,
             branchId,
             name = branchName,
@@ -767,7 +774,10 @@ insertProjectAndBranch projectName branchName chId = do
     chId
     projectBranch
   Q.setMostRecentBranch projectId branchId
-  pure (Project {name = projectName, projectId}, ProjectBranch {projectId, name = branchName, branchId, parentBranchId = Nothing})
+  pure
+    ( Project {name = projectName, projectId},
+      ProjectBranchRow {projectId, name = branchName, branchId, parentBranchId = Nothing}
+    )
 
 -- | Often we need to assign something to an empty causal, this ensures the empty causal
 -- exists in the codebase and returns its hash.

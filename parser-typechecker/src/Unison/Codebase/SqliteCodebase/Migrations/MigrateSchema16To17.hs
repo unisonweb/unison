@@ -15,7 +15,7 @@ import Data.UUID qualified as UUID
 import U.Codebase.Branch.Type qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.Sqlite.DbId (CausalHashId, ProjectBranchId (..), ProjectId (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranchRow(..), ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
@@ -23,10 +23,10 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.SqliteCodebase.Branch.Cache qualified as BranchCache
 import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
-import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
+import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.Debug qualified as Debug
 import Unison.NameSegment (NameSegment)
-import Unison.NameSegment.Internal (NameSegment (NameSegment))
+import Unison.NameSegment.Internal (NameSegment (..))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
@@ -49,7 +49,7 @@ import UnliftIO qualified as UnsafeIO
 -- It requires a Connection argument rather than working inside a Transaction because it needs to temporarily disable
 -- foreign key checking, and the foreign_key pragma cannot be set within a transaction.
 migrateSchema16To17 :: Sqlite.Connection -> IO ()
-migrateSchema16To17 conn = withDisabledForeignKeys $ do
+migrateSchema16To17 conn = withDisabledForeignKeys do
   Q.expectSchemaVersion 16
   Q.addProjectBranchReflogTable
   Debug.debugLogM Debug.Migration "Adding causal hashes to project branches table."
@@ -57,13 +57,13 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
   Debug.debugLogM Debug.Migration "Making legacy project from loose code."
   makeLegacyProjectFromLooseCode
   Debug.debugLogM Debug.Migration "Adding scratch project"
-  scratchMain <-
+  (scratchMainProjectId, scratchMainBranchId) <-
     Q.loadProjectBranchByNames scratchProjectName scratchBranchName >>= \case
-      Just pb -> pure pb
+      Just pb -> pure (pb.projectId, pb.branchId)
       Nothing -> do
         (_, emptyCausalHashId) <- Codebase.emptyCausalHash
         (_proj, pb) <- Ops.insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
-        pure pb
+        pure (pb.projectId, pb.branchId)
 
   -- Try to set the recent project branch to what it was, default back to scratch if it doesn't exist or the user is in
   -- loose code.
@@ -80,7 +80,7 @@ migrateSchema16To17 conn = withDisabledForeignKeys $ do
   case mayRecentProjectBranch of
     Just (projectId, branchId) ->
       initializeCurrentProjectPath projectId branchId []
-    Nothing -> initializeCurrentProjectPath scratchMain.projectId scratchMain.branchId []
+    Nothing -> initializeCurrentProjectPath scratchMainProjectId scratchMainBranchId []
   Debug.debugLogM Debug.Migration "Done migrating to version 17"
   Q.setSchemaVersion 17
   where

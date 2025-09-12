@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Upgrade
   )
 where
 
+import Control.Lens ((?=))
 import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
@@ -21,7 +22,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
-import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, nameHydratedRefIds, parseAndTypecheck)
+import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -56,7 +57,8 @@ import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnconflictedLocalDefnsView qualified
-import Unison.Util.Defns (DefnsF)
+import Unison.Util.BiMultimap qualified as BiMultimap
+import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -73,9 +75,9 @@ handleUpgrade oldName newName = do
   env <- ask
   pp <- Cli.getCurrentProjectPath
 
-  -- onUpdateBranchAlready <-
-  --   Cli.runTransaction do
-  --     Queries.projectBranchIsUpdateBranch pp.project.projectId pp.branch.branchId
+  when (pp.branch.isUpdate || pp.branch.isUpgrade) do
+    Cli.returnEarly $
+      Output.Literal "Sorry, I can't do that during an upgrade. Please complete the upgrade, then try again."
 
   let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
   let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
@@ -133,7 +135,7 @@ handleUpgrade oldName newName = do
   --
   --     mything#mything2 = #newfoo + 10
 
-  (declNameLookup, dependents, hydratedDependents) <-
+  (declNameLookup, dependents, dependentsRefs, hydratedDependents) <-
     Cli.runTransactionWithRollback \rollback -> do
       -- Assert that the namespace doesn't have any incoherent decls
       declNameLookup <-
@@ -151,59 +153,71 @@ handleUpgrade oldName newName = do
               ]
           )
 
-      hydratedDependents <-
-        let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
-            dependentsRefs =
-              bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents
-         in nameHydratedRefIds dependents
-              <$> hydrateRefs
-                (Codebase.unsafeGetTermComponent env.codebase)
-                Operations.expectDeclComponent
-                dependentsRefs
+      let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
+          dependentsRefs =
+            bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents
 
-      pure (declNameLookup, dependents, hydratedDependents)
+      hydratedDependents0 <-
+        hydrateRefs
+          (Codebase.unsafeGetTermComponent env.codebase)
+          Operations.expectDeclComponent
+          dependentsRefs
 
-  let printPPE =
-        let ppe1 =
-              makeOldDepPPE
-                oldName
-                newName
-                currentDeepNamesSansOld
-                (Branch.toNames oldNamespace)
-                (Branch.toNames oldLocalNamespace)
-                (Branch.toNames newLocalNamespace)
-            ppe2 =
-              PPED.makePPED
-                (PPE.namer (Names.fromUnconflictedReferenceIds dependents))
-                (PPE.suffixifyByName currentDeepNamesSansOld)
-            ppe3 =
-              PPED.makePPED
-                (PPE.hqNamer 10 currentDeepNamesSansOld)
-                (PPE.suffixifyByHash currentDeepNamesSansOld)
-         in PPED.leftBiased [ppe1, ppe2, ppe3]
+      let hydratedDependents1 =
+            nameHydratedRefIds dependents hydratedDependents0
+
+      pure (declNameLookup, dependents, dependentsRefs, hydratedDependents1)
 
   let prettyUnisonFile =
         makePrettyUnisonFile $
           renderDefnsForUnisonFile
             declNameLookup
-            printPPE
+            ( PPED.leftBiased
+                [ makeOldDepPPE
+                    oldName
+                    newName
+                    currentDeepNamesSansOld
+                    (Branch.toNames oldNamespace)
+                    (Branch.toNames oldLocalNamespace)
+                    (Branch.toNames newLocalNamespace),
+                  PPED.makePPED
+                    (PPE.namer (Names.fromUnconflictedReferenceIds dependents))
+                    (PPE.suffixifyByName currentDeepNamesSansOld),
+                  PPED.makePPED
+                    (PPE.hqNamer 10 currentDeepNamesSansOld)
+                    (PPE.suffixifyByHash currentDeepNamesSansOld)
+                ]
+            )
             Set.empty
             (over (#terms . Lens.mapped) snd hydratedDependents)
 
   parsingEnv <- Cli.makeParsingEnv pp currentDeepNamesSansOld
   typecheckedUnisonFile <- do
     parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
-      let getTemporaryBranchName = findTemporaryBranchName pp.project.projectId oldName newName
+      uniqueTypeGuidsByName <-
+        Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
+
       (_temporaryBranchId, temporaryBranchName) <-
         HandleInput.Branch.createBranch
           textualDescriptionOfUpgrade
-          (CreateFrom'NamespaceWithParent pp.branch currentNamespaceSansOld)
+          ( CreateFrom'Upgrade
+              (pp.branch, Branch.headHash currentNamespace, uniqueTypeGuidsByName)
+              ( unconflictedView.defns
+                  & bimap BiMultimap.range BiMultimap.range
+                  & subtractDependents dependentsRefs
+                  & Branch.fromUnconflictedDefns
+                  & Branch.setLibdeps
+                    (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentNamespaceSansOld0)
+                  & (`Branch.cons` currentNamespace)
+              )
+          )
           pp.project
-          getTemporaryBranchName
+          (findTemporaryBranchName pp.project.projectId oldName newName)
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
+      #latestFile ?= (scratchFilePath, True)
       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
       Cli.returnEarly (Output.UpgradeFailure pp.branch.name temporaryBranchName scratchFilePath oldName newName)
 
