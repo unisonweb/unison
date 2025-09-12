@@ -6,7 +6,6 @@
 
 module Unison.Server.Local.Endpoints.GetDefinitions where
 
-import Data.Bifoldable (Bifoldable (..))
 import Data.Set qualified as Set
 import Servant
   ( QueryParam,

@@ -21,14 +21,13 @@ import Control.Monad.Reader
 import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
+import Servant (Capture, QueryParam, (:>))
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
-import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
@@ -36,13 +35,12 @@ import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
-import Unison.Referent qualified as Referent
 import Unison.Server.Backend (Backend)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Types
   ( APIGet,
-    TermSummary(..),
-    TypeSummary(..),
+    TermSummary (..),
+    TypeSummary (..),
     mayDefaultWidth,
   )
 import Unison.Symbol (Symbol)
@@ -71,33 +69,13 @@ serveTermSummary ::
   Maybe Width ->
   Backend IO TermSummary
 serveTermSummary codebase referent mayName root relativeTo mayWidth = do
-  let shortHash = Referent.toShortHash referent
-  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
   let relativeToPath = fromMaybe mempty relativeTo
-  let termReference = Referent.toReference referent
-  let v2Referent = Cv.referent1to2 referent
-
-  (root, sig) <-
-    Backend.hoistBackend (Codebase.runTransaction codebase) do
-      root <- Backend.normaliseRootCausalHash root
-      sig <- lift (Backend.loadReferentType codebase referent)
-      pure (root, sig)
-  case sig of
-    Nothing ->
-      throwError (Backend.MissingSignatureForTerm termReference)
-    Just typeSig -> do
-      (_localNames, ppe) <- Backend.namesAtPathFromRootBranchHash codebase root relativeToPath
-      let formattedTermSig = Backend.formatSuffixedType ppe width typeSig
-      let summary = mkSummary termReference formattedTermSig
-      tag <- lift $ Backend.getTermTag codebase v2Referent sig
-      pure $ TermSummary displayName shortHash summary tag
-  where
-    width = mayDefaultWidth mayWidth
-
-    mkSummary reference termSig =
-      if Reference.isBuiltin reference
-        then BuiltinObject termSig
-        else UserObject termSig
+  namesPerspective <- Backend.hoistBackend (Codebase.runTransaction codebase) do
+    root <- Backend.normaliseRootCausalHash root
+    namesPerspective <- lift $ Ops.namesPerspectiveForRootAndPath (V2Causal.valueHash root) (coerce $ Path.toList relativeToPath)
+    pure namesPerspective
+  let mkPPED deps = PPESqlite.ppedForReferences namesPerspective deps
+  Backend.termSummaryForReferent codebase referent mayName mkPPED mayWidth
 
 type TypeSummaryAPI =
   "definitions"

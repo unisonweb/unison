@@ -47,6 +47,7 @@ module Unison.Server.Backend
     termEntryLabeledDependencies,
     termListEntry,
     Codebase.termReferentsByShortHash,
+    termSummaryForReferent,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
@@ -257,9 +258,9 @@ hoistBackend f (Backend m) =
   Backend (mapReaderT (mapExceptT f) m)
 
 loadReferentType ::
-  Codebase m Symbol a ->
+  Codebase m Symbol Ann ->
   Referent ->
-  Sqlite.Transaction (Maybe (Type Symbol a))
+  Sqlite.Transaction (Maybe (Type Symbol Ann))
 loadReferentType codebase = \case
   Referent.Ref r -> Codebase.getTypeOfTerm codebase r
   Referent.Con r _ -> getTypeOfConstructor r
@@ -1251,10 +1252,9 @@ resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName Projec
 resolveProjectRootHash codebase projectAndBranchName = do
   resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
 
-termSummaryForReferent :: Codebase IO Symbol Ann -> Referent -> Maybe Name -> PPED.PrettyPrintEnvDecl -> Backend IO TermSummary
-termSummaryForReferent codebase referent mayName ppe = do
+termSummaryForReferent :: Codebase IO Symbol Ann -> Referent -> Maybe Name -> (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) -> Maybe Width -> Backend IO TermSummary
+termSummaryForReferent codebase referent mayName mkPPE mayWidth = do
   let shortHash = Referent.toShortHash referent
-  let displayName = maybe (HQ.HashOnly shortHash) HQ.NameOnly mayName
   let termReference = Referent.toReference referent
   let v2Referent = Cv.referent1to2 referent
 
@@ -1265,12 +1265,15 @@ termSummaryForReferent codebase referent mayName ppe = do
     Nothing ->
       throwError (MissingSignatureForTerm termReference)
     Just typeSig -> do
-      let formattedTermSig = formatSuffixedType ppe width typeSig
+      let deps = Type.labeledDependencies typeSig
+      pped <- lift . Codebase.runTransaction codebase $ mkPPE deps
+      let formattedTermSig = formatSuffixedType pped width typeSig
       let summary = mkSummary termReference formattedTermSig
       tag <- lift $ getTermTag codebase v2Referent sig
-      pure $ TermSummary displayName shortHash summary tag
+      let displayName = PPE.termName (PPED.unsuffixifiedPPE pped) referent
+      pure $ TermSummary (maybe displayName HQ.NameOnly mayName) shortHash summary tag
   where
-    width = defaultWidth
+    width = mayDefaultWidth mayWidth
     mkSummary reference termSig =
       if Reference.isBuiltin reference
         then BuiltinObject termSig
