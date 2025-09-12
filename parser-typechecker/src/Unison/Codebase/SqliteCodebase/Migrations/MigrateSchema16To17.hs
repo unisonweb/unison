@@ -15,7 +15,7 @@ import Data.UUID qualified as UUID
 import U.Codebase.Branch.Type qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.Sqlite.DbId (CausalHashId, ProjectBranchId (..), ProjectId (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranchRow(..), ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..), ProjectBranchRow (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
