@@ -78,9 +78,9 @@ scratch/main> reflog
        history.
 
        Branch         Hash          Description
-  1.   scratch/main   #1tpab662os   update
-  2.   scratch/main   #2geqs41tol   update
-  3.   scratch/main   #q86mk6lpdv   builtins.merge scratch/main:lib.builtins
+  1.   scratch/main   #vvq703i6ea   update
+  2.   scratch/main   #qktu1nf9od   update
+  3.   scratch/main   #2l64d3b1eg   builtins.merge scratch/main:lib.builtins
   4.   scratch/main   #sg60bvjo91   Project Created
 ```
 
@@ -97,11 +97,11 @@ scratch/main> project.reflog
        history.
 
        Branch          Hash          Description
-  1.   scratch/other   #v7sh3ueu1j   alias.term y scratch/other:z
-  2.   scratch/other   #1tpab662os   Branch created from scratch/main
-  3.   scratch/main    #1tpab662os   update
-  4.   scratch/main    #2geqs41tol   update
-  5.   scratch/main    #q86mk6lpdv   builtins.merge scratch/main:lib.builtins
+  1.   scratch/other   #0e8ocqkruq   alias.term y scratch/other:z
+  2.   scratch/other   #vvq703i6ea   Branch created from scratch/main
+  3.   scratch/main    #vvq703i6ea   update
+  4.   scratch/main    #qktu1nf9od   update
+  5.   scratch/main    #2l64d3b1eg   builtins.merge scratch/main:lib.builtins
   6.   scratch/main    #sg60bvjo91   Project Created
 ```
 
@@ -118,13 +118,13 @@ scratch/main> reflog.global
        history.
 
        Branch            Hash          Description
-  1.   newproject/main   #58kf6sibmh   alias.term lib.builtins.Nat newproject/main:MyNat
-  2.   newproject/main   #q86mk6lpdv   builtins.merge newproject/main:lib.builtins
+  1.   newproject/main   #as12r7l0c9   alias.term lib.builtins.Nat newproject/main:MyNat
+  2.   newproject/main   #2l64d3b1eg   builtins.merge newproject/main:lib.builtins
   3.   newproject/main   #sg60bvjo91   Branch Created
-  4.   scratch/other     #v7sh3ueu1j   alias.term y scratch/other:z
-  5.   scratch/other     #1tpab662os   Branch created from scratch/main
-  6.   scratch/main      #1tpab662os   update
-  7.   scratch/main      #2geqs41tol   update
-  8.   scratch/main      #q86mk6lpdv   builtins.merge scratch/main:lib.builtins
+  4.   scratch/other     #0e8ocqkruq   alias.term y scratch/other:z
+  5.   scratch/other     #vvq703i6ea   Branch created from scratch/main
+  6.   scratch/main      #vvq703i6ea   update
+  7.   scratch/main      #qktu1nf9od   update
+  8.   scratch/main      #2l64d3b1eg   builtins.merge scratch/main:lib.builtins
   9.   scratch/main      #sg60bvjo91   Project Created
 ```

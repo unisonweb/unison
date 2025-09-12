@@ -1203,7 +1203,7 @@ doCompile profile output main = do
     ( liftIO $
         Runtime.compileTo runtime copts codeLookup ppe ref outf
     )
-    (Cli.returnEarly . EvaluationFailure)
+    (Cli.returnEarly . EvaluationFailure id)
 
 delete ::
   Input ->
@@ -1333,7 +1333,7 @@ displayI outputLoc hq = do
       let suffixifiedFilePPE = PPE.biasTo bias $ PPE.suffixifiedPPE filePPED
       (_, watches) <-
         evalUnisonFile Sandboxed suffixifiedFilePPE unisonFile [] & onLeftM \err ->
-          Cli.returnEarly (Output.EvaluationFailure err)
+          Cli.returnEarly (Output.EvaluationFailure id err)
       (_, _, _, _, tm, _) <-
         Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> Text.unpack (HQ.toText hq))
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names

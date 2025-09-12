@@ -26,7 +26,6 @@ import Language.LSP.Server qualified as LSP
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
@@ -38,6 +37,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Referent (Referent)
 import Unison.Result (Note)
+import Unison.Runtime (Runtime)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite

@@ -46,7 +46,11 @@ newtype ShortNamespaceHash = ShortNamespaceHash {shortNamespaceHashToText :: Tex
 -- if a constructor id is provided on the right-hand side, the left-hand side
 -- needs to match exactly (as of this commit).
 isPrefixOf :: ShortHash -> ShortHash -> Bool
-isPrefixOf (Builtin t) (Builtin t2) = t `Text.isPrefixOf` t2
+-- For builtins, we only check if the text is exactly the same,
+-- since e.g. ##Nat.not is not a shorter version of ##Nat.notEquals.
+-- This is so that we can have builtins like e.g. ##Nat and ##Natural
+-- without ##Nat being ambiguous.
+isPrefixOf (Builtin t) (Builtin t2) = t == t2
 isPrefixOf (ShortHash h n cid) (ShortHash h2 n2 cid2) =
   Text.isPrefixOf h h2 && maybePrefixOf n n2 && maybePrefixOf cid cid2
   where
