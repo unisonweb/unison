@@ -66,13 +66,13 @@ import Unison.Term
 import Unison.Term qualified as Term
 import Unison.Type
   ( anyRef,
-    bigIntRef,
-    bigNatRef,
     booleanRef,
     hmapRef,
     iarrayRef,
     ibytearrayRef,
+    integerRef,
     listRef,
+    naturalRef,
     termLinkRef,
     typeLinkRef,
   )
@@ -191,9 +191,9 @@ decompileForeign backref topTerms f
       let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
       kvs <- traverse (uncurry decompileEntry) (Map.toList m)
       pure $ app () map_fromList (list () kvs)
-  | Just n <- maybeUnwrapForeign bigNatRef f =
+  | Just n <- maybeUnwrapForeign naturalRef f =
       pure $ app () naturalFromText (text () $ DT.pack (show (n :: Natural)))
-  | Just i <- maybeUnwrapForeign bigIntRef f =
+  | Just i <- maybeUnwrapForeign integerRef f =
       pure $ app () integerFromText (text () $ DT.pack (show (i :: Integer)))
 decompileForeign _ _ (Wrap r _) =
   err (BadForeign r) $ bug text

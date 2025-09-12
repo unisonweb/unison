@@ -157,21 +157,21 @@ tmlCmp :: Referent -> Referent -> Ordering
 tmlCmp r l = compare r l
 {-# NOINLINE tmlCmp #-}
 
-bigIntEq :: Integer -> Integer -> Bool
-bigIntEq l r = l == r
-{-# NOINLINE bigIntEq #-}
+integerEq :: Integer -> Integer -> Bool
+integerEq l r = l == r
+{-# NOINLINE integerEq #-}
 
-bigIntCmp :: Integer -> Integer -> Ordering
-bigIntCmp = compare
-{-# NOINLINE bigIntCmp #-}
+integerCmp :: Integer -> Integer -> Ordering
+integerCmp = compare
+{-# NOINLINE integerCmp #-}
 
-bigNatEq :: Natural -> Natural -> Bool
-bigNatEq l r = l == r
-{-# NOINLINE bigNatEq #-}
+naturalEq :: Natural -> Natural -> Bool
+naturalEq l r = l == r
+{-# NOINLINE naturalEq #-}
 
-bigNatCmp :: Natural -> Natural -> Ordering
-bigNatCmp = compare
-{-# NOINLINE bigNatCmp #-}
+naturalCmp :: Natural -> Natural -> Ordering
+naturalCmp = compare
+{-# NOINLINE naturalCmp #-}
 
 ref2eq :: Reference -> Maybe (a -> b -> Bool)
 ref2eq r
@@ -195,8 +195,8 @@ ref2eq r
   | r == Ty.patternRef = Just $ promote cpatEq
   | r == Ty.charClassRef = Just $ promote charClassEq
   | r == Ty.codeRef = Just $ promote codeEq
-  | r == Ty.bigIntRef = Just $ promote bigIntEq
-  | r == Ty.bigNatRef = Just $ promote bigNatEq
+  | r == Ty.integerRef = Just $ promote integerEq
+  | r == Ty.naturalRef = Just $ promote naturalEq
   | otherwise = Nothing
 
 ref2cmp :: Reference -> Maybe (a -> b -> Ordering)
@@ -209,8 +209,8 @@ ref2cmp r
   | r == Ty.ibytearrayRef = Just $ promote barrCmp
   | r == Ty.patternRef = Just $ promote cpatCmp
   | r == Ty.charClassRef = Just $ promote charClassCmp
-  | r == Ty.bigIntRef = Just $ promote bigIntCmp
-  | r == Ty.bigNatRef = Just $ promote bigNatCmp
+  | r == Ty.integerRef = Just $ promote integerCmp
+  | r == Ty.naturalRef = Just $ promote naturalCmp
   | otherwise = Nothing
 
 ptrEq :: a -> b -> Bool
@@ -357,11 +357,11 @@ instance BuiltinForeign ByteArray where
 
 instance BuiltinForeign Integer where
   foreignName = Tagged "Integer"
-  foreignRef = Tagged Ty.bigIntRef
+  foreignRef = Tagged Ty.integerRef
 
 instance BuiltinForeign Natural where
   foreignName = Tagged "Natural"
-  foreignRef = Tagged Ty.bigNatRef
+  foreignRef = Tagged Ty.naturalRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm

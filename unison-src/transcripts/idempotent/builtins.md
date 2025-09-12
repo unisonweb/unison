@@ -171,58 +171,58 @@ test> Nat.tests.conversions =
 ## `Natural` functions (arbitrary-precision natural numbers)
 
 ``` unison :hide
-use BigNat eq
+use Natural eq
 
-test> BigNat.tests.arithmetic =
+test> Natural.tests.arithmetic =
       checks [
-        BigNat.eq (BigNat.add (BigNat.fromText "123456789012345678901234567890" |> Optional.getOrBug "Invalid natural") (BigNat.fromText "987654321098765432109876543210" |> Optional.getOrBug "Invalid natural")) (BigNat.fromText "1111111110111111111011111111100" |> Optional.getOrBug "Invalid natural"),
-        eq (BigNat.sub (BigNat.fromNat 1000) (BigNat.fromNat 500)) (BigNat.fromNat 500),
-        eq (BigNat.mul (BigNat.fromNat 123456789) (BigNat.fromNat 987654321)) (BigNat.fromText "121932631112635269" |> Optional.getOrBug "Invalid natural"),
-        eq (BigNat.div (BigNat.fromNat 1000) (BigNat.fromNat 3)) (BigNat.fromNat 333),
-        eq (BigNat.mod (BigNat.fromNat 1000) (BigNat.fromNat 3)) (BigNat.fromNat 1),
-        eq (BigNat.pow (BigNat.fromNat 2) (BigNat.fromNat 64)) (BigNat.fromText "18446744073709551616" |> Optional.getOrBug "Invalid natural"),
-        BigNat.gt (BigNat.fromNat 1000) (BigNat.fromNat 500),
-        BigNat.lt (BigNat.fromNat 500) (BigNat.fromNat 1000),
-        BigNat.lteq (BigNat.fromNat 500) (BigNat.fromNat 500),
-        BigNat.lteq (BigNat.fromNat 500) (BigNat.fromNat 1000),
-        BigNat.gteq (BigNat.fromNat 1000) (BigNat.fromNat 500),
-        BigNat.gteq (BigNat.fromNat 1000) (BigNat.fromNat 1000),
-        BigNat.eq (BigNat.fromNat 1000) (BigNat.fromNat 1000),
-        not (BigNat.eq (BigNat.fromNat 1000) (BigNat.fromNat 999))
+        Natural.eq (Natural.add (Natural.fromText "123456789012345678901234567890" |> Optional.getOrBug "Invalid natural") (Natural.fromText "987654321098765432109876543210" |> Optional.getOrBug "Invalid natural")) (Natural.fromText "1111111110111111111011111111100" |> Optional.getOrBug "Invalid natural"),
+        eq (Natural.sub (Natural.fromNat 1000) (Natural.fromNat 500)) (Natural.fromNat 500),
+        eq (Natural.mul (Natural.fromNat 123456789) (Natural.fromNat 987654321)) (Natural.fromText "121932631112635269" |> Optional.getOrBug "Invalid natural"),
+        eq (Natural.div (Natural.fromNat 1000) (Natural.fromNat 3)) (Natural.fromNat 333),
+        eq (Natural.mod (Natural.fromNat 1000) (Natural.fromNat 3)) (Natural.fromNat 1),
+        eq (Natural.pow (Natural.fromNat 2) (Natural.fromNat 64)) (Natural.fromText "18446744073709551616" |> Optional.getOrBug "Invalid natural"),
+        Natural.gt (Natural.fromNat 1000) (Natural.fromNat 500),
+        Natural.lt (Natural.fromNat 500) (Natural.fromNat 1000),
+        Natural.lteq (Natural.fromNat 500) (Natural.fromNat 500),
+        Natural.lteq (Natural.fromNat 500) (Natural.fromNat 1000),
+        Natural.gteq (Natural.fromNat 1000) (Natural.fromNat 500),
+        Natural.gteq (Natural.fromNat 1000) (Natural.fromNat 1000),
+        Natural.eq (Natural.fromNat 1000) (Natural.fromNat 1000),
+        not (Natural.eq (Natural.fromNat 1000) (Natural.fromNat 999))
         ]
 
-test> BigNat.tests.bitwise =
+test> Natural.tests.bitwise =
       checks [
-        eq (BigNat.and (BigNat.fromNat 5) (BigNat.fromNat 4)) (BigNat.fromNat 4),
-        eq (BigNat.and (BigNat.fromNat 5) (BigNat.fromNat 1)) (BigNat.fromNat 1),
-        eq (BigNat.or (BigNat.fromNat 4) (BigNat.fromNat 1)) (BigNat.fromNat 5),
-        eq (BigNat.xor (BigNat.fromNat 5) (BigNat.fromNat 1)) (BigNat.fromNat 4),
-        BigNat.popCount (BigNat.fromNat 1) Universal.== 1,
-        BigNat.popCount (BigNat.fromNat 2) Universal.== 1,
-        BigNat.popCount (BigNat.fromNat 4) Universal.== 1,
-        BigNat.popCount (BigNat.fromNat 5) Universal.== 2,
-        eq (BigNat.shiftLeft (BigNat.fromNat 1) 6) (BigNat.fromNat 64),
-        eq (BigNat.shiftRight (BigNat.fromNat 64) 6) (BigNat.fromNat 1)
+        eq (Natural.and (Natural.fromNat 5) (Natural.fromNat 4)) (Natural.fromNat 4),
+        eq (Natural.and (Natural.fromNat 5) (Natural.fromNat 1)) (Natural.fromNat 1),
+        eq (Natural.or (Natural.fromNat 4) (Natural.fromNat 1)) (Natural.fromNat 5),
+        eq (Natural.xor (Natural.fromNat 5) (Natural.fromNat 1)) (Natural.fromNat 4),
+        Natural.popCount (Natural.fromNat 1) Universal.== 1,
+        Natural.popCount (Natural.fromNat 2) Universal.== 1,
+        Natural.popCount (Natural.fromNat 4) Universal.== 1,
+        Natural.popCount (Natural.fromNat 5) Universal.== 2,
+        eq (Natural.shiftLeft (Natural.fromNat 1) 6) (Natural.fromNat 64),
+        eq (Natural.shiftRight (Natural.fromNat 64) 6) (Natural.fromNat 1)
         ]
 
-test> BigNat.tests.conversions =
+test> Natural.tests.conversions =
       checks [
-        isSome (BigNat.fromText "123456789012345678901234567890"),
-        BigNat.fromText "0" Universal.== Some (BigNat.fromNat 0),
-        BigNat.fromText "invalid" Universal.== None,
-        BigNat.fromText "-1" Universal.== None,
-        BigNat.toText (BigNat.fromNat 0) Universal.== "0",
-        BigNat.toText (BigNat.fromText "123456789" |> Optional.getOrBug "Invalid natural") Universal.== "123456789",
-        BigNat.toFloat (BigNat.fromText "123456789" |> Optional.getOrBug "Invalid natural") Universal.== 123456789.0,
-        BigNat.toFloat (BigNat.fromNat 0) Universal.== 0.0
+        isSome (Natural.fromText "123456789012345678901234567890"),
+        Natural.fromText "0" Universal.== Some (Natural.fromNat 0),
+        Natural.fromText "invalid" Universal.== None,
+        Natural.fromText "-1" Universal.== None,
+        Natural.toText (Natural.fromNat 0) Universal.== "0",
+        Natural.toText (Natural.fromText "123456789" |> Optional.getOrBug "Invalid natural") Universal.== "123456789",
+        Natural.toFloat (Natural.fromText "123456789" |> Optional.getOrBug "Invalid natural") Universal.== 123456789.0,
+        Natural.toFloat (Natural.fromNat 0) Universal.== 0.0
         ]
 
-test> BigNat.tests.parity =
+test> Natural.tests.parity =
       checks [
-        not (BigNat.isEven (BigNat.fromNat 99)),
-        BigNat.isEven (BigNat.fromNat 100),
-        BigNat.isOdd (BigNat.fromNat 105),
-        not (BigNat.isOdd (BigNat.fromNat 108))
+        not (Natural.isEven (Natural.fromNat 99)),
+        Natural.isEven (Natural.fromNat 100),
+        Natural.isOdd (Natural.fromNat 105),
+        not (Natural.isOdd (Natural.fromNat 108))
         ]
 ```
 
@@ -233,60 +233,60 @@ test> BigNat.tests.parity =
 ## `Integer` functions (arbitrary-precision integers)
 
 ``` unison :hide
-use BigInt eq
+use Integer eq
 
-test> BigInt.tests.arithmetic =
+test> Integer.tests.arithmetic =
       checks [
-          BigInt.eq (BigInt.add (BigInt.fromText "123456789012345678901234567890" |> Optional.getOrBug "Invalid integer") (BigInt.fromText "987654321098765432109876543210" |> Optional.getOrBug "Invalid integer")) (BigInt.fromText "1111111110111111111011111111100" |> Optional.getOrBug "Invalid integer"),
-        eq (BigInt.sub (BigInt.fromInt +1000) (BigInt.fromInt +500)) (BigInt.fromInt +500),
-        eq (BigInt.mul (BigInt.fromInt +123456789) (BigInt.fromInt +987654321)) (BigInt.fromText "121932631112635269" |> Optional.getOrBug "Invalid integer"),
-        eq (BigInt.div (BigInt.fromInt +1000) (BigInt.fromInt +3)) (BigInt.fromInt +333),
-        eq (BigInt.mod (BigInt.fromInt +1000) (BigInt.fromInt +3)) (BigInt.fromInt +1),
-        eq (BigInt.pow (BigInt.fromInt +2) (BigInt.fromInt +64)) (BigInt.fromText "18446744073709551616" |> Optional.getOrBug "Invalid integer"),
-        BigInt.gt (BigInt.fromInt +1000) (BigInt.fromInt +500),
-        BigInt.lt (BigInt.fromInt +500) (BigInt.fromInt +1000),
-        BigInt.lteq (BigInt.fromInt +500) (BigInt.fromInt +500),
-        BigInt.lteq (BigInt.fromInt +500) (BigInt.fromInt +1000),
-        BigInt.gteq (BigInt.fromInt +1000) (BigInt.fromInt +500),
-        BigInt.gteq (BigInt.fromInt +1000) (BigInt.fromInt +1000),
-        BigInt.eq (BigInt.fromInt +1000) (BigInt.fromInt +1000),
-        not (BigInt.eq (BigInt.fromInt +1000) (BigInt.fromInt +999)),
-        eq (BigInt.abs (BigInt.fromInt +1000)) (BigInt.fromInt +1000),
-        eq (BigInt.abs (BigInt.fromInt -1000)) (BigInt.fromInt +1000)
+          Integer.eq (Integer.add (Integer.fromText "123456789012345678901234567890" |> Optional.getOrBug "Invalid integer") (Integer.fromText "987654321098765432109876543210" |> Optional.getOrBug "Invalid integer")) (Integer.fromText "1111111110111111111011111111100" |> Optional.getOrBug "Invalid integer"),
+        eq (Integer.sub (Integer.fromInt +1000) (Integer.fromInt +500)) (Integer.fromInt +500),
+        eq (Integer.mul (Integer.fromInt +123456789) (Integer.fromInt +987654321)) (Integer.fromText "121932631112635269" |> Optional.getOrBug "Invalid integer"),
+        eq (Integer.div (Integer.fromInt +1000) (Integer.fromInt +3)) (Integer.fromInt +333),
+        eq (Integer.mod (Integer.fromInt +1000) (Integer.fromInt +3)) (Integer.fromInt +1),
+        eq (Integer.pow (Integer.fromInt +2) (Integer.fromInt +64)) (Integer.fromText "18446744073709551616" |> Optional.getOrBug "Invalid integer"),
+        Integer.gt (Integer.fromInt +1000) (Integer.fromInt +500),
+        Integer.lt (Integer.fromInt +500) (Integer.fromInt +1000),
+        Integer.lteq (Integer.fromInt +500) (Integer.fromInt +500),
+        Integer.lteq (Integer.fromInt +500) (Integer.fromInt +1000),
+        Integer.gteq (Integer.fromInt +1000) (Integer.fromInt +500),
+        Integer.gteq (Integer.fromInt +1000) (Integer.fromInt +1000),
+        Integer.eq (Integer.fromInt +1000) (Integer.fromInt +1000),
+        not (Integer.eq (Integer.fromInt +1000) (Integer.fromInt +999)),
+        eq (Integer.abs (Integer.fromInt +1000)) (Integer.fromInt +1000),
+        eq (Integer.abs (Integer.fromInt -1000)) (Integer.fromInt +1000)
         ]
 
-test> BigInt.tests.bitwise =
+test> Integer.tests.bitwise =
       checks [
-        eq (BigInt.and (BigInt.fromInt +5) (BigInt.fromInt +4)) (BigInt.fromInt +4),
-        eq (BigInt.and (BigInt.fromInt +5) (BigInt.fromInt +1)) (BigInt.fromInt +1),
-        eq (BigInt.or (BigInt.fromInt +4) (BigInt.fromInt +1)) (BigInt.fromInt +5),
-        eq (BigInt.xor (BigInt.fromInt +5) (BigInt.fromInt +1)) (BigInt.fromInt +4),
-        BigInt.popCount (BigInt.fromInt +1) Universal.== 1,
-        BigInt.popCount (BigInt.fromInt +2) Universal.== 1,
-        BigInt.popCount (BigInt.fromInt +4) Universal.== 1,
-        BigInt.popCount (BigInt.fromInt +5) Universal.== 2,
-        eq (BigInt.shiftLeft (BigInt.fromInt +1) 6) (BigInt.fromInt +64),
-        eq (BigInt.shiftRight (BigInt.fromInt +64) 6) (BigInt.fromInt +1)
+        eq (Integer.and (Integer.fromInt +5) (Integer.fromInt +4)) (Integer.fromInt +4),
+        eq (Integer.and (Integer.fromInt +5) (Integer.fromInt +1)) (Integer.fromInt +1),
+        eq (Integer.or (Integer.fromInt +4) (Integer.fromInt +1)) (Integer.fromInt +5),
+        eq (Integer.xor (Integer.fromInt +5) (Integer.fromInt +1)) (Integer.fromInt +4),
+        Integer.popCount (Integer.fromInt +1) Universal.== 1,
+        Integer.popCount (Integer.fromInt +2) Universal.== 1,
+        Integer.popCount (Integer.fromInt +4) Universal.== 1,
+        Integer.popCount (Integer.fromInt +5) Universal.== 2,
+        eq (Integer.shiftLeft (Integer.fromInt +1) 6) (Integer.fromInt +64),
+        eq (Integer.shiftRight (Integer.fromInt +64) 6) (Integer.fromInt +1)
         ]
 
-test> BigInt.tests.conversions =
+test> Integer.tests.conversions =
       checks [
-        isSome (BigInt.fromText "123456789012345678901234567890"),
-        BigInt.fromText "0" Universal.== Some (BigInt.fromInt +0),
-        BigInt.fromText "invalid" Universal.== None,
-        BigInt.fromText "-1" Universal.== Some (BigInt.fromInt -1),
-        BigInt.toText (BigInt.fromInt +0) Universal.== "0",
-        BigInt.toText (BigInt.fromText "123456789" |> Optional.getOrBug "Invalid integer") Universal.== "123456789",
-        BigInt.toFloat (BigInt.fromText "123456789" |> Optional.getOrBug "Invalid integer") Universal.== 123456789.0,
-        BigInt.toFloat (BigInt.fromInt +0) Universal.== 0.0
+        isSome (Integer.fromText "123456789012345678901234567890"),
+        Integer.fromText "0" Universal.== Some (Integer.fromInt +0),
+        Integer.fromText "invalid" Universal.== None,
+        Integer.fromText "-1" Universal.== Some (Integer.fromInt -1),
+        Integer.toText (Integer.fromInt +0) Universal.== "0",
+        Integer.toText (Integer.fromText "123456789" |> Optional.getOrBug "Invalid integer") Universal.== "123456789",
+        Integer.toFloat (Integer.fromText "123456789" |> Optional.getOrBug "Invalid integer") Universal.== 123456789.0,
+        Integer.toFloat (Integer.fromInt +0) Universal.== 0.0
         ]
 
-test> BigInt.tests.parity =
+test> Integer.tests.parity =
       checks [
-        not (BigInt.isEven (BigInt.fromInt +99)),
-        BigInt.isEven (BigInt.fromInt +100),
-        BigInt.isOdd (BigInt.fromInt +105),
-        not (BigInt.isOdd (BigInt.fromInt +108))
+        not (Integer.isEven (Integer.fromInt +99)),
+        Integer.isEven (Integer.fromInt +100),
+        Integer.isOdd (Integer.fromInt +105),
+        not (Integer.isOdd (Integer.fromInt +108))
         ]
 ```
 
@@ -856,28 +856,28 @@ Now that all the tests have been added to the codebase, let's view the test repo
 
     1.  Any.test1                           ◉ Passed
     2.  Any.test2                           ◉ Passed
-    3.  BigInt.tests.arithmetic             ◉ Passed
-    4.  BigInt.tests.bitwise                ◉ Passed
-    5.  BigInt.tests.conversions            ◉ Passed
-    6.  BigInt.tests.parity                 ◉ Passed
-    7.  BigNat.tests.arithmetic             ◉ Passed
-    8.  BigNat.tests.bitwise                ◉ Passed
-    9.  BigNat.tests.conversions            ◉ Passed
-    10. BigNat.tests.parity                 ◉ Passed
-    11. Boolean.tests.andTable              ◉ Passed
-    12. Boolean.tests.notTable              ◉ Passed
-    13. Boolean.tests.orTable               ◉ Passed
-    14. Bytes.tests.at                      ◉ Passed
-    15. Bytes.tests.byteArray               ◉ Passed
-    16. Bytes.tests.compression             ◉ Passed
-    17. Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
-    18. Bytes.tests.indexOf                 ◉ Passed
-    19. Int.tests.arithmetic                ◉ Passed
-    20. Int.tests.bitTwiddling              ◉ Passed
-    21. Int.tests.conversions               ◉ Passed
-    22. Nat.tests.arithmetic                ◉ Passed
-    23. Nat.tests.bitTwiddling              ◉ Passed
-    24. Nat.tests.conversions               ◉ Passed
+    3.  Boolean.tests.andTable              ◉ Passed
+    4.  Boolean.tests.notTable              ◉ Passed
+    5.  Boolean.tests.orTable               ◉ Passed
+    6.  Bytes.tests.at                      ◉ Passed
+    7.  Bytes.tests.byteArray               ◉ Passed
+    8.  Bytes.tests.compression             ◉ Passed
+    9.  Bytes.tests.fromBase64UrlUnpadded   ◉ Passed
+    10. Bytes.tests.indexOf                 ◉ Passed
+    11. Int.tests.arithmetic                ◉ Passed
+    12. Int.tests.bitTwiddling              ◉ Passed
+    13. Int.tests.conversions               ◉ Passed
+    14. Integer.tests.arithmetic            ◉ Passed
+    15. Integer.tests.bitwise               ◉ Passed
+    16. Integer.tests.conversions           ◉ Passed
+    17. Integer.tests.parity                ◉ Passed
+    18. Nat.tests.arithmetic                ◉ Passed
+    19. Nat.tests.bitTwiddling              ◉ Passed
+    20. Nat.tests.conversions               ◉ Passed
+    21. Natural.tests.arithmetic            ◉ Passed
+    22. Natural.tests.bitwise               ◉ Passed
+    23. Natural.tests.conversions           ◉ Passed
+    24. Natural.tests.parity                ◉ Passed
     25. Sandbox.test1                       ◉ Passed
     26. Sandbox.test2                       ◉ Passed
     27. Sandbox.test3                       ◉ Passed
