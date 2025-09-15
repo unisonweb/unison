@@ -185,7 +185,7 @@ defaultLSPConfig = Config {..}
 
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
-lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
+lspBackend = liftIO . runExceptT . flip runReaderT Backend.BackendEnv . Backend.runBackend
 
 sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => TNotificationMessage m -> Lsp ()
 sendNotification notif = do

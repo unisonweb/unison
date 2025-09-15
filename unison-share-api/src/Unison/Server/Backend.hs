@@ -101,7 +101,6 @@ import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Referent qualified as V2Referent
-import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
 import Unison.Builtin.Decls qualified as Decls
@@ -243,10 +242,7 @@ data BackendError
   | ProjectBranchNameNotFound ProjectName ProjectBranchName
   deriving stock (Show)
 
-newtype BackendEnv = BackendEnv
-  { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
-    useNamesIndex :: Bool
-  }
+data BackendEnv = BackendEnv
 
 newtype Backend m a = Backend {runBackend :: ReaderT BackendEnv (ExceptT BackendError m) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader BackendEnv, MonadError BackendError)
@@ -988,17 +984,9 @@ namesAtPathFromRootBranchHash ::
   Path ->
   Backend m (Names, PPED.PrettyPrintEnvDecl)
 namesAtPathFromRootBranchHash codebase cb path = do
-  shouldUseNamesIndex <- asks useNamesIndex
-  let (rootBranchHash, rootCausalHash) = (V2Causal.valueHash cb, V2Causal.causalHash cb)
-  haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
+  let rootCausalHash = V2Causal.causalHash cb
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
-  names <-
-    if shouldUseNamesIndex
-      then do
-        when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
-        lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
-      else do
-        Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
+  names <- Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
   let pped = PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
   pure (names, pped)
 
