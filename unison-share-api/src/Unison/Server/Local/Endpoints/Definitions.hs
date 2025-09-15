@@ -81,8 +81,7 @@ type GetDefinitionEndpoint =
     :> APIGet DefinitionDisplayResults
 
 type GetDefinitionDependentsEndpoint =
-  QueryParam "relativeTo" Path.Path
-    :> RequiredQueryParam "name" (HQ.HashQualified Name)
+  RequiredQueryParam "name" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
     :> APIGet DefinitionSearchResults
 
@@ -146,30 +145,31 @@ getDefinitionDependentsEndpoint ::
   Runtime Symbol ->
   Codebase IO Symbol Ann ->
   ProjectAndBranch ProjectName ProjectBranchName ->
-  Maybe Path.Path ->
   HQ.HashQualified Name ->
   Maybe Width ->
   Backend.Backend IO (APIHeaders DefinitionSearchResults)
-getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath hqn mayWidth = do
+getDefinitionDependentsEndpoint _rt codebase projectAndBranch hqn mayWidth = do
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   rootCausal <- Backend.resolveProjectRoot codebase projectAndBranch
-  (dependents, names) <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
+  (dependents, namesWithoutLibdeps) <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
     rootBranch <- lift $ Codebase.expectBranchForHashTx codebase (Causal.causalHash rootCausal)
     let rootBranch0 = Branch.head rootBranch
-    let names = Branch.toNames $ rootBranch0
-    Debug.debugM Debug.Temp "getDefinitionDependentsEndpoint: names" names
-    let nameSearch = makeNameSearch hqLength names
-    Debug.debugM Debug.Temp "getDefinitionDependentsEndpoint: hqn" hqn
+    let rootBranch0WithoutLibdeps = Branch.deleteLibdeps rootBranch0
+    let namesWithoutLibdeps = Branch.toNames $ Branch.deleteLibdeps rootBranch0
+    let nameSearch = makeNameSearch hqLength namesWithoutLibdeps
     QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
-    Debug.debugM Debug.Temp "getDefinitionDependentsEndpoint: hits" hits
+
+    Debug.debugM Debug.Temp "hits" hits
     let defs =
           hits & foldMap \case
             Tp TypeResult {reference} -> Defns {terms = Set.empty, types = (Set.singleton reference)}
             Tm TermResult {referent} -> Defns {terms = (Set.singleton referent), types = Set.empty}
 
-    dependents <- lift $ Codebase.dependentsWithinBranchScope rootBranch0 defs
-    pure (dependents, names)
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) PPE.dontSuffixify
+    dependents <- lift $ Codebase.dependentsWithinBranchScope rootBranch0WithoutLibdeps defs
+    pure (dependents, namesWithoutLibdeps)
+  Debug.debugM Debug.Temp "dependents" dependents
+
+  let pped = PPED.makePPED (PPE.hqNamer 10 namesWithoutLibdeps) PPE.dontSuffixify
   definitionSearchResults <-
     dependents
       & bitraverse (wither (doTerm pped) . Set.toList) (wither (doType pped) . Set.toList)

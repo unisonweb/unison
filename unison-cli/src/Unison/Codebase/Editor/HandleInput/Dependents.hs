@@ -35,12 +35,12 @@ handleDependents hq = do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
   namespace <- Cli.getCurrentProjectRoot0
-  dependents <- Cli.runTransaction $ Codebase.dependentsWithinBranchScope namespace refs
-
   let namespaceWithoutLibdeps = Branch.deleteLibdeps namespace
   let ppeWithoutLibdeps =
         let names = Branch.toNames namespaceWithoutLibdeps
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+  dependents <- Cli.runTransaction $ Codebase.dependentsWithinBranchScope namespaceWithoutLibdeps refs
+
 
   let dependentNames ::
         DefnsF

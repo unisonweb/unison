@@ -526,7 +526,7 @@ dependentsOfComponent h =
     . Set.map Reference.DerivedId
     <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
--- | Find all dependents of any provided definitions which are within the provided branch.
+-- | Find direct dependents of any provided definitions which are within the provided branch.
 --
 -- Note: You may wish to delete lib deps beforehand.
 dependentsWithinBranchScope :: Branch.Branch0 m -> (DefnsF Set Referent.Referent Reference.TypeReference) -> Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
