@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Unison.Server.NameSearch.Sqlite
   ( resolveShortHash,
     typeReferencesByShortHash,
@@ -11,7 +13,7 @@ import Control.Lens
 import Data.Set qualified as Set
 import U.Codebase.Sqlite.NameLookups (PathSegments (..), ReversedName (..))
 import U.Codebase.Sqlite.NamedRef qualified as NamedRef
-import U.Codebase.Sqlite.Operations qualified as Ops
+import U.Codebase.Sqlite.NamesPerspectives.Operations qualified as Ops
 import Unison.Builtin qualified as Builtin
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -34,6 +36,7 @@ import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Set qualified as Set
 
+{-# DEPRECATED nameSearchForPerspective "UCM does not currently maintain name lookup indices" #-}
 nameSearchForPerspective :: Codebase m v a -> Ops.NamesPerspective -> (NameSearch Sqlite.Transaction)
 nameSearchForPerspective codebase namesPerspective@Ops.NamesPerspective {pathToMountedNameLookup} = do
   NameSearch {typeSearch, termSearch}

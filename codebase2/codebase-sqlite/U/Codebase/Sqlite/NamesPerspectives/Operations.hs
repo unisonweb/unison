@@ -1,10 +1,12 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- | Code for working with NamesPerspectives in SQLite.
 --
 -- NOTE:
 -- These implementations are from when we used SQLite in Share. Now they're unused, but there's a non-zero
 -- chance we'll use these indexes in UCM in the future. However, we don't currently maintain the required indexes, so
 -- they won't work as expected.
-module U.Codebase.Sqlite.NamesPerspectives {-# DEPRECATED "See module doc" #-} where
+module U.Codebase.Sqlite.NamesPerspectives.Operations {-# DEPRECATED "See module doc" #-} where
 
 import Control.Lens hiding (children)
 import Data.List.Extra qualified as List
@@ -19,6 +21,7 @@ import U.Codebase.Sqlite.NameLookups (PathSegments (..))
 import U.Codebase.Sqlite.NameLookups qualified as NameLookups
 import U.Codebase.Sqlite.NameLookups qualified as S
 import U.Codebase.Sqlite.NamedRef qualified as S
+import U.Codebase.Sqlite.NamesPerspectives.Queries qualified as Q
 import U.Codebase.Sqlite.Operations
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Prelude

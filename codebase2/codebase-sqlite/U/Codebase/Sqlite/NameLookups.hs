@@ -1,7 +1,13 @@
 -- | Types related to working with NameLookups.
 -- We define these low-level types rather than use Path's because we don't have
 -- access to those domain types given the package dependency tree.
+--
+-- NOTE:
+-- These implementations are from when we used SQLite in Share. Now they're unused, but there's a non-zero
+-- chance we'll use these indexes in UCM in the future. However, we don't currently maintain the required indexes, so
+-- they won't work as expected.
 module U.Codebase.Sqlite.NameLookups
+  {-# DEPRECATED "See module doc" #-}
   ( ReversedName (..),
     ReversedPath (..),
     PathSegments (..),

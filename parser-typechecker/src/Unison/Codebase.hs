@@ -71,9 +71,6 @@ module Unison.Codebase
     getBranchPartialDeclNameLookup,
     getBranchDeclNameLookup,
 
-    -- * Root branch
-    SqliteCodebase.Operations.namesAtPath,
-
     -- * Patches
     SqliteCodebase.Operations.patchExists,
     SqliteCodebase.Operations.getPatch,

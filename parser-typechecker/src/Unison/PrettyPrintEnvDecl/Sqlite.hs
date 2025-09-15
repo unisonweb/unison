@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Unison.PrettyPrintEnvDecl.Sqlite
   ( ppedForReferences,
   )
@@ -5,10 +7,10 @@ where
 
 import U.Codebase.Sqlite.NameLookups (ReversedName (..))
 import U.Codebase.Sqlite.NamedRef (NamedRef (..))
-import U.Codebase.Sqlite.Operations (NamesPerspective)
-import U.Codebase.Sqlite.Operations qualified as Ops
-import Unison.Codebase qualified as Codebase
+import U.Codebase.Sqlite.NamesPerspectives.Operations (NamesPerspective)
+import U.Codebase.Sqlite.NamesPerspectives.Operations qualified as Ops
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.Codebase.SqliteCodebase.Operations qualified as Codebase
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
@@ -25,6 +27,7 @@ import Unison.Util.Monoid (foldMapM)
 
 -- | Given a set of references, return a PPE which contains names for only those references.
 -- Names are limited to those within the provided perspective
+{-# DEPRECATED ppedForReferences "This requires Name Lookup indexes, which are not currently maintained in UCM." #-}
 ppedForReferences :: NamesPerspective -> Set LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl
 ppedForReferences namesPerspective refs = do
   hashLen <- Codebase.hashLength

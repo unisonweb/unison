@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -70,6 +70,7 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
+      Unison.Codebase.SqliteCodebase.NamesPerspectives.Operations
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
