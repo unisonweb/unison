@@ -28,9 +28,9 @@ library
       Unison.Server.Local
       Unison.Server.Local.Definitions
       Unison.Server.Local.Endpoints.Current
+      Unison.Server.Local.Endpoints.Definitions
       Unison.Server.Local.Endpoints.DefinitionSummary
       Unison.Server.Local.Endpoints.FuzzyFind
-      Unison.Server.Local.Endpoints.GetDefinitions
       Unison.Server.Local.Endpoints.NamespaceDetails
       Unison.Server.Local.Endpoints.NamespaceListing
       Unison.Server.Local.Endpoints.Projects

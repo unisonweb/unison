@@ -105,8 +105,8 @@ import Unison.Server.Backend.DefinitionDiff qualified as DefinitionDiff
 import Unison.Server.Errors (backendError)
 import Unison.Server.Local.Definitions qualified as Defn
 import Unison.Server.Local.Endpoints.DefinitionSummary (TermSummaryAPI, TypeSummaryAPI, serveTermSummary, serveTypeSummary)
+import Unison.Server.Local.Endpoints.Definitions (DefinitionsAPI, serveDefinitionsServer)
 import Unison.Server.Local.Endpoints.FuzzyFind (FuzzyFindAPI, serveFuzzyFind)
-import Unison.Server.Local.Endpoints.GetDefinitions (DefinitionsAPI, serveDefinitionsServer)
 import Unison.Server.Local.Endpoints.NamespaceDetails qualified as NamespaceDetails
 import Unison.Server.Local.Endpoints.NamespaceListing qualified as NamespaceListing
 import Unison.Server.Local.Endpoints.Projects (ListProjectBranchesEndpoint, ListProjectsEndpoint, projectBranchListingEndpoint, projectListingEndpoint)

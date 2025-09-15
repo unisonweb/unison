@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Server.Local.Endpoints.GetDefinitions where
+module Unison.Server.Local.Endpoints.Definitions where
 
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
@@ -29,8 +29,10 @@ import U.Codebase.Reference (TermReferenceId)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NamesWithHistory (SearchType (..))
@@ -152,16 +154,20 @@ getDefinitionDependentsEndpoint _rt codebase projectAndBranch _relativePath hqn 
   hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
   rootCausal <- Backend.resolveProjectRoot codebase projectAndBranch
   (dependents, names) <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
-    names <- lift $ Codebase.namesAtPath (Causal.valueHash rootCausal) (Path.fromList [])
-    branch0 <- Branch.head <$> lift (Codebase.expectBranchForHashTx codebase (Causal.causalHash rootCausal))
+    rootBranch <- lift $ Codebase.expectBranchForHashTx codebase (Causal.causalHash rootCausal)
+    let rootBranch0 = Branch.head rootBranch
+    let names = Branch.toNames $ rootBranch0
+    Debug.debugM Debug.Temp "getDefinitionDependentsEndpoint: names" names
     let nameSearch = makeNameSearch hqLength names
+    Debug.debugM Debug.Temp "getDefinitionDependentsEndpoint: hqn" hqn
     QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
+    Debug.debugM Debug.Temp "getDefinitionDependentsEndpoint: hits" hits
     let defs =
           hits & foldMap \case
             Tp TypeResult {reference} -> Defns {terms = Set.empty, types = (Set.singleton reference)}
             Tm TermResult {referent} -> Defns {terms = (Set.singleton referent), types = Set.empty}
 
-    dependents <- lift $ Codebase.dependentsWithinBranchScope branch0 defs
+    dependents <- lift $ Codebase.dependentsWithinBranchScope rootBranch0 defs
     pure (dependents, names)
   let pped = PPED.makePPED (PPE.hqNamer 10 names) PPE.dontSuffixify
   definitionSearchResults <-
