@@ -309,6 +309,60 @@ data ForeignFunc
   | Json_unconsText
   | Json_tryUnconsText
   | Avro_decodeBinary
+  | Integer_fromText
+  | Integer_unsafeFromText
+  | Integer_toText
+  | Integer_fromInt
+  | Integer_toInt
+  | Integer_add
+  | Integer_sub
+  | Integer_mul
+  | Integer_div
+  | Integer_mod
+  | Integer_pow
+  | Integer_shl
+  | Integer_shr
+  | Integer_and
+  | Integer_or
+  | Integer_xor
+  | Integer_eq
+  | Integer_lt
+  | Integer_le
+  | Integer_gt
+  | Integer_ge
+  | Integer_neg
+  | Integer_abs
+  | Integer_signum
+  | Integer_toFloat
+  | Integer_popCount
+  | Integer_truncate0
+  | Integer_isEven
+  | Integer_isOdd
+  | Natural_fromText
+  | Natural_unsafeFromText
+  | Natural_toText
+  | Natural_fromNat
+  | Natural_toNat
+  | Natural_toFloat
+  | Natural_add
+  | Natural_sub
+  | Natural_mul
+  | Natural_div
+  | Natural_mod
+  | Natural_pow
+  | Natural_shl
+  | Natural_shr
+  | Natural_and
+  | Natural_or
+  | Natural_xor
+  | Natural_eq
+  | Natural_lt
+  | Natural_le
+  | Natural_gt
+  | Natural_ge
+  | Natural_popCount
+  | Natural_isEven
+  | Natural_isOdd
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -614,3 +668,57 @@ foreignFuncBuiltinName = \case
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
   Avro_decodeBinary -> "avro.Value.tryDecodeBytes"
+  Integer_toText -> "Integer.toText"
+  Integer_fromText -> "Integer.fromText"
+  Integer_unsafeFromText -> "Integer.unsafeFromText"
+  Integer_fromInt -> "Integer.fromInt"
+  Integer_toInt -> "Integer.toInt"
+  Integer_add -> "Integer.add"
+  Integer_sub -> "Integer.sub"
+  Integer_mul -> "Integer.mul"
+  Integer_div -> "Integer.div"
+  Integer_mod -> "Integer.mod"
+  Integer_pow -> "Integer.pow"
+  Integer_shl -> "Integer.shiftLeft"
+  Integer_shr -> "Integer.shiftRight"
+  Integer_and -> "Integer.and"
+  Integer_or -> "Integer.or"
+  Integer_xor -> "Integer.xor"
+  Integer_eq -> "Integer.eq"
+  Integer_lt -> "Integer.lt"
+  Integer_le -> "Integer.lteq"
+  Integer_gt -> "Integer.gt"
+  Integer_ge -> "Integer.gteq"
+  Integer_neg -> "Integer.neg"
+  Integer_abs -> "Integer.abs"
+  Integer_signum -> "Integer.signum"
+  Integer_toFloat -> "Integer.toFloat"
+  Integer_popCount -> "Integer.popCount"
+  Integer_truncate0 -> "Integer.truncate0"
+  Integer_isEven -> "Integer.isEven"
+  Integer_isOdd -> "Integer.isOdd"
+  Natural_toText -> "Natural.toText"
+  Natural_fromText -> "Natural.fromText"
+  Natural_unsafeFromText -> "Natural.unsafeFromText"
+  Natural_fromNat -> "Natural.fromNat"
+  Natural_toNat -> "Natural.toNat"
+  Natural_toFloat -> "Natural.toFloat"
+  Natural_add -> "Natural.add"
+  Natural_sub -> "Natural.sub"
+  Natural_mul -> "Natural.mul"
+  Natural_div -> "Natural.div"
+  Natural_mod -> "Natural.mod"
+  Natural_pow -> "Natural.pow"
+  Natural_shl -> "Natural.shiftLeft"
+  Natural_shr -> "Natural.shiftRight"
+  Natural_and -> "Natural.and"
+  Natural_or -> "Natural.or"
+  Natural_xor -> "Natural.xor"
+  Natural_eq -> "Natural.eq"
+  Natural_lt -> "Natural.lt"
+  Natural_le -> "Natural.lteq"
+  Natural_gt -> "Natural.gt"
+  Natural_ge -> "Natural.gteq"
+  Natural_popCount -> "Natural.popCount"
+  Natural_isEven -> "Natural.isEven"
+  Natural_isOdd -> "Natural.isOdd"

@@ -87,16 +87,16 @@ bar.test =
 
 
 
-  Error while evaluating test `bar.test`
+  Error while evaluating test `bar.test`:
 
-  💔💥
-
-  I've encountered a call to builtin.bug with the following
-  value:
-
-    "pure code can't perform I/O"
-
-  Stack trace:
-    #1k885m4e7g
-    #tnbpslc0n3
+    💔💥
+    
+    I've encountered a call to builtin.bug with the following
+    value:
+    
+      "pure code can't perform I/O"
+    
+    Stack trace:
+      #1k885m4e7g
+      #tnbpslc0n3
 ```

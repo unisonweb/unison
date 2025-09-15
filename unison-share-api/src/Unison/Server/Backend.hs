@@ -67,6 +67,7 @@ module Unison.Server.Backend
     -- * Re-exported for Share Server
     termsToSyntax,
     termsToSyntaxOf,
+    typeToSyntax,
     typesToSyntax,
     typesToSyntaxOf,
     definitionResultsDependencies,
@@ -149,6 +150,8 @@ import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Runtime (Runtime)
+import Unison.Runtime.Decompile (DecompError)
 import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.Doc.AsHtml qualified as DocHtml
@@ -533,10 +536,7 @@ formatTypeName ppe =
   fmap Syntax.convertElement . formatTypeName' ppe
 
 formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> SyntaxText
-formatTypeName' ppe r =
-  Pretty.renderUnbroken
-    . NP.styleHashQualified id
-    $ PPE.typeName ppe r
+formatTypeName' ppe = Pretty.render 0 . NP.styleHashQualified id . PPE.typeName ppe
 
 termEntryToNamedTerm ::
   (Var v) => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
@@ -787,12 +787,12 @@ mkTermDefinition codebase termPPED width r docs tm = do
 
 -- | Evaluate the doc at the given reference and return its evaluated-but-not-rendered form.
 evalDocRef ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   TermReference ->
   -- Evaluation always produces a doc, (it just might have error messages in it).
   -- We still return the errors for logging and debugging.
-  IO (Doc.EvaluatedDoc Symbol, [Rt.Error])
+  IO (Doc.EvaluatedDoc Symbol, [DecompError])
 evalDocRef rt codebase r = do
   let tm = Term.ref () r
   errsVar <- UnliftIO.newTVarIO []
@@ -864,9 +864,9 @@ renderDocRefs ::
   PPED.PrettyPrintEnvDecl ->
   Width ->
   Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   t TermReference ->
-  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [Rt.Error]))
+  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [DecompError]))
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   for eDocs \(ref, (eDoc, docEvalErrs)) -> do
@@ -876,13 +876,13 @@ renderDocRefs pped width codebase rt docRefs = do
     pure (name, hash, renderedDoc, docEvalErrs)
 
 docsInBranchToHtmlFiles ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Branch IO ->
   FilePath ->
-  -- Returns any doc evaluation errors which may have occurred.
-  -- Note that all docs will still be rendered even if there are errors.
-  IO [Rt.Error]
+  -- | Returns any doc evaluation errors which may have occurred.
+  --   Note that all docs will still be rendered even if there are errors.
+  IO [DecompError]
 docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
@@ -1136,15 +1136,12 @@ termsToSyntax suff width ppe0 terms =
   terms
     <&> \(r, dispObj) ->
       let n = PPE.termName ppeDecl . Referent.Ref $ r
-       in (r,) case dispObj of
-            DisplayObject.BuiltinObject typ ->
-              DisplayObject.BuiltinObject $
-                formatType' (ppeBody r) width typ
-            DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
-            DisplayObject.UserObject tm ->
-              DisplayObject.UserObject
-                . Pretty.render width
-                $ TermPrinter.prettyBinding (ppeBody r) n tm
+       in ( r,
+            bimap
+              (formatType' (ppeBody r) width)
+              (Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n)
+              dispObj
+          )
   where
     ppeBody r =
       if suffixified suff
@@ -1181,23 +1178,29 @@ typesToSyntaxOf suff width ppe0 trav s =
 
 -- | Converts Type Display Objects into Syntax Text.
 typesToSyntax ::
-  (Var v) =>
-  (Ord a) =>
+  (Var v, Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
   [(TypeReference, (DisplayObject () (DD.Decl v a)))] ->
   [(TypeReference, (DisplayObject SyntaxText SyntaxText))]
-typesToSyntax suff width ppe0 types =
-  types
-    <&> \(r, dispObj) ->
-      let n = PPE.typeName ppeDecl r
-       in (r,) $ case dispObj of
-            BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
-            MissingObject sh -> MissingObject sh
-            UserObject d ->
-              UserObject . Pretty.render width $
-                DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n d
+typesToSyntax suff width ppe0 =
+  fmap \(r, dispObj) -> (r, typeToSyntax suff width ppe0 r dispObj)
+
+-- | Converts a Type Display Object into Syntax Text.
+typeToSyntax ::
+  (Var v, Ord a) =>
+  Suffixify ->
+  Width ->
+  PPED.PrettyPrintEnvDecl ->
+  TypeReference ->
+  DisplayObject () (DD.Decl v a) ->
+  DisplayObject SyntaxText SyntaxText
+typeToSyntax suff width ppe0 r =
+  let n = PPE.typeName ppeDecl r
+   in bimap
+        (\() -> formatTypeName' ppeDecl r)
+        (Pretty.render width . DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n)
   where
     ppeDecl =
       if suffixified suff
@@ -1218,15 +1221,10 @@ typeToSyntaxHeader ::
   HQ.HashQualified Name ->
   DisplayObject () (DD.Decl Symbol Ann) ->
   DisplayObject SyntaxText SyntaxText
-typeToSyntaxHeader width hqName obj =
-  case obj of
-    BuiltinObject _ ->
-      let syntaxName = Pretty.renderUnbroken . NP.styleHashQualified id $ hqName
-       in BuiltinObject syntaxName
-    MissingObject sh -> MissingObject sh
-    UserObject d ->
-      UserObject . Pretty.render width $
-        DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hqName d
+typeToSyntaxHeader width hqName =
+  bimap
+    (\() -> Pretty.render 0 $ NP.styleHashQualified id hqName)
+    (Pretty.render width . DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hqName)
 
 loadSearchResults ::
   Codebase m Symbol Ann ->

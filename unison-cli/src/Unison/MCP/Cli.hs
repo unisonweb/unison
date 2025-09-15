@@ -83,7 +83,7 @@ cliToMCP projCtx cli = do
   outputVar <- newTVarIO Seq.empty
   sourceCodeUpdatesVar <- newTVarIO Seq.empty
   let notify output = do
-        pretty <- Output.notifyUser workDir output
+        pretty <- Output.notifyUser workDir Output.fetchIssueFromGitHub output
         atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
   let notifyNumbered output = do
         let (pretty, nargs) = Output.notifyNumbered output
@@ -128,7 +128,7 @@ cliToMCP projCtx cli = do
     sourceCodeUpdates <- toList <$> readTVar sourceCodeUpdatesVar
     let outputMessages =
           msgs
-            & fmap (Text.pack . Pretty.toPlainUnbroken)
+            & fmap (Text.pack . Pretty.toPlain 0)
             & toList
     pure $
       ( CliOutput

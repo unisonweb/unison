@@ -9,7 +9,7 @@ import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
 import System.FilePath.Find (always, extension, find, (==?))
 import Unison.Builtin qualified as Builtin
-import Unison.Codebase.Runtime (Runtime, evaluateWatches)
+import Unison.Codebase.Runtime (evaluateWatches)
 import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -28,7 +28,7 @@ import Unison.Test.Common qualified as Common
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (intercalateMap)
-import Unison.Util.Pretty (toPlain)
+import Unison.Util.Pretty qualified as Pretty
 
 type Note = Result.Note Symbol Ann
 
@@ -77,7 +77,7 @@ shouldPassLater = find always (extension ==? ".uu") shouldPassPath
 shouldFailLater :: IO [FilePath]
 shouldFailLater = find always (extension ==? ".uu") shouldFailPath
 
-go :: Runtime Symbol -> IO [FilePath] -> (EitherResult -> Test TFile) -> Test ()
+go :: RTI.Runtime Symbol -> IO [FilePath] -> (EitherResult -> Test TFile) -> Test ()
 go rt files how = do
   files' <- liftIO files
   tests (makePassingTest rt how <$> files')
@@ -103,8 +103,7 @@ decodeResult source (Result notes (Just (Left uf))) =
 decodeResult _source (Result _notes (Just (Right uf))) =
   Right uf
 
-makePassingTest ::
-  Runtime Symbol -> (EitherResult -> Test TFile) -> FilePath -> Test ()
+makePassingTest :: RTI.Runtime Symbol -> (EitherResult -> Test TFile) -> FilePath -> Test ()
 makePassingTest rt how filepath = scope (shortName filepath) $ do
   uf <- typecheckingTest how filepath
   resultTest rt uf filepath
@@ -117,33 +116,26 @@ typecheckingTest how filepath = scope "typecheck" $ do
   source <- io $ unpack <$> readUtf8 filepath
   how . decodeResult source $ parseAndSynthesizeAsFile [] (shortName filepath) source
 
-resultTest ::
-  Runtime Symbol -> TFile -> FilePath -> Test ()
+resultTest :: RTI.Runtime Symbol -> TFile -> FilePath -> Test ()
 resultTest rt uf filepath = do
   let valueFile = replaceExtension filepath "ur"
   rFileExists <- io $ doesFileExist valueFile
   if rFileExists
     then scope "result" $ do
       values <- io $ unpack <$> readUtf8 valueFile
-      let term = runIdentity (Parsers.parseTerm values parsingEnv)
-      let report e = throwIO (userError $ toPlain 10000 e)
+      let report = throwIO . userError . Pretty.toPlain 0 <=< RTI.prettyError (pure . Pretty.shown)
       (bindings, _, watches) <-
-        io $
-          either report pure
-            =<< evaluateWatches
-              Builtin.codeLookup
-              PPE.empty
-              NoProf
-              (const $ pure Nothing)
-              rt
-              uf
-      case term of
-        Right tm -> do
-          -- compare the watch expression from the .u with the expr in .ur
-          let watchResult = head (view _5 <$> Map.elems watches)
-              tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) watchResult
-          -- note . show $ tm'
-          -- note . show $ Term.amap (const ()) tm
-          expectEqual tm' (Term.amap (const ()) tm)
-        Left e -> crash $ PrintError.renderParseErrorAsANSI 80 values e
+        io $ either report pure =<< evaluateWatches Builtin.codeLookup PPE.empty NoProf (const $ pure Nothing) rt uf
+      either
+        (crash . PrintError.renderParseErrorAsANSI 80 values)
+        ( \tm -> do
+            -- compare the watch expression from the .u with the expr in .ur
+            let watchResult = head (view _5 <$> Map.elems watches)
+                tm' = Term.letRec' False (bindings <&> \(sym, tm) -> (sym, (), tm)) watchResult
+            -- note . show $ tm'
+            -- note . show $ Term.amap (const ()) tm
+            expectEqual tm' (Term.amap (const ()) tm)
+        )
+        . runIdentity
+        $ Parsers.parseTerm values parsingEnv
     else pure ()

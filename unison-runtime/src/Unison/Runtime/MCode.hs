@@ -77,7 +77,6 @@ import Unison.Runtime.ANF
     PackedTag (..),
     SuperGroup (..),
     SuperNormal (..),
-    internalBug,
     packTags,
     pattern TApp,
     pattern TBLit,
@@ -97,6 +96,7 @@ import Unison.Runtime.ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
+import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -285,7 +285,7 @@ argsToLists = \case
   VArg2 i j -> [i, j]
   VArgR i l -> take l [i ..]
   VArgN us -> primArrayToList us
-  VArgV _ -> internalBug "argsToLists: DArgV"
+  VArgV _ -> internalBug [] "argsToLists: DArgV"
 {-# INLINEABLE argsToLists #-}
 
 countArgs :: Args -> Int
@@ -294,7 +294,7 @@ countArgs (VArg1 {}) = 1
 countArgs (VArg2 {}) = 2
 countArgs (VArgR _ l) = l
 countArgs (VArgN us) = sizeofPrimArray us
-countArgs (VArgV {}) = internalBug "countArgs: DArgV"
+countArgs (VArgV {}) = internalBug [] "countArgs: DArgV"
 {-# INLINEABLE countArgs #-}
 
 data Prim1
@@ -649,7 +649,7 @@ data RefNums = RN
 emptyRNs :: RefNums
 emptyRNs = RN mt mt (const Nothing)
   where
-    mt _ = internalBug "RefNums: empty"
+    mt _ = internalBug [] "RefNums: empty"
 
 type Comb = GComb Void CombIx
 
@@ -1099,11 +1099,11 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
     MatchSum cs <- bs =
       emitSumMatching rns grpr grpn rec ctx v i cs
   | Just (_, cc) <- ctxResolve ctx v =
-      internalBug $
+      internalBug [] $
         "emitSection: mismatched calling convention for match: "
           ++ matchCallingError cc bs
   | otherwise =
-      internalBug $
+      internalBug [] $
         "emitSection: could not resolve match variable: " ++ show (ctx, v)
 emitSection rns grpr grpn rec ctx (THnd rs nh ah b) =
   case ctxResolve ctx nh of
@@ -1111,7 +1111,7 @@ emitSection rns grpr grpn rec ctx (THnd rs nh ah b) =
       Nothing -> case ah of
         Just v -> emitSectionVErr v
         Nothing ->
-          internalBug "emitSection: ctxResolve failed without variable"
+          internalBug [] "emitSection: ctxResolve failed without variable"
       Just mj ->
         Ins (Reset (EC.setFromList ws) i (fst <$> mj))
           <$> emitSection rns grpr grpn rec ctx b
@@ -1125,11 +1125,11 @@ emitSection _ _ _ _ ctx (TFrc v)
   | Just (i, BX) <- ctxResolve ctx v =
       countCtx ctx $ App False (Stk i) ZArgs
   | Just _ <- ctxResolve ctx v =
-      internalBug $
+      internalBug [] $
         "emitSection: values to be forced must be boxed: " ++ show v
   | otherwise = emitSectionVErr v
 emitSection _ _ _ _ _ tm =
-  internalBug $ "emitSection: unhandled code: " ++ show tm
+  internalBug [] $ "emitSection: unhandled code: " ++ show tm
 
 -- Emit the code for a function call
 emitFunction ::
@@ -1179,9 +1179,9 @@ emitFunction rns _grpr _ _ _ (FReq r e) as =
 emitFunction _ _grpr _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
-  | otherwise = internalBug $ "emitFunction: continuations are boxed"
+  | otherwise = internalBug [] $ "emitFunction: continuations are boxed"
 emitFunction _ _grpr _ _ _ (FPrim _) _ =
-  internalBug "emitFunction: impossible"
+  internalBug [] "emitFunction: impossible"
 
 countBlock :: Ctx v -> Int
 countBlock = go 0
@@ -1204,12 +1204,12 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v =
-  internalBug $
+  internalBug [] $
     "emitSection: could not resolve function variable: " ++ show v
 
 emitFunctionVErr :: (Var v, HasCallStack) => v -> a
 emitFunctionVErr v =
-  internalBug $
+  internalBug [] $
     "emitFunction: could not resolve function variable: " ++ show v
 
 -- Emit machine code for a let expression. Some expressions do not
@@ -1252,7 +1252,7 @@ emitLet _ _ _ _ _ _ ctx (TUpdate ind r v)
       fmap (Ins $ SetAff ind i j)
 emitLet rns grpr grpn rec d vcs ctx bnd
   | Direct <- d =
-      internalBug $ "unsupported compound direct let: " ++ show bnd
+      internalBug [] $ "unsupported compound direct let: " ++ show bnd
   | Indirect w <- d =
       \esect ->
         f
@@ -1424,19 +1424,19 @@ emitPOp ANF.ANDB = emitP2 ANDB
 emitPOp ANF.IORB = emitP2 IORB
 emitPOp ANF.FORK = \case
   VArg1 i -> Fork i
-  _ -> internalBug "fork takes exactly one boxed argument"
+  _ -> internalBug [] "fork takes exactly one boxed argument"
 emitPOp ANF.ATOM = \case
   VArg1 i -> Atomically i
-  _ -> internalBug "atomically takes exactly one boxed argument"
+  _ -> internalBug [] "atomically takes exactly one boxed argument"
 emitPOp ANF.PRNT = \case
   VArg1 i -> Print i
-  _ -> internalBug "print takes exactly one boxed argument"
+  _ -> internalBug [] "print takes exactly one boxed argument"
 emitPOp ANF.INFO = \case
   ZArgs -> Info "debug"
-  _ -> internalBug "info takes no arguments"
+  _ -> internalBug [] "info takes no arguments"
 emitPOp ANF.TFRC = \case
   VArg1 i -> TryForce i
-  _ -> internalBug "tryEval takes exactly one boxed argument"
+  _ -> internalBug [] "tryEval takes exactly one boxed argument"
 
 -- handled in emitSection because Die is not an instruction
 
@@ -1452,21 +1452,21 @@ emitFOp fop = ForeignCall True fop
 emitP1 :: Prim1 -> Args -> Instr
 emitP1 p (VArg1 i) = Prim1 p i
 emitP1 p a =
-  internalBug $
+  internalBug [] $
     "wrong number of args for unary unboxed primop: "
       ++ show (p, a)
 
 emitP2 :: Prim2 -> Args -> Instr
 emitP2 p (VArg2 i j) = Prim2 p i j
 emitP2 p a =
-  internalBug $
+  internalBug [] $
     "wrong number of args for binary unboxed primop: "
       ++ show (p, a)
 
 refCAS :: Args -> Instr
 refCAS (VArgN (primArrayToList -> [i, j, k])) = RefCAS i j k
 refCAS a =
-  internalBug $
+  internalBug [] $
     "wrong number of args for refCAS: "
       ++ show a
 
@@ -1614,13 +1614,13 @@ emitClosures grpr grpn rec ctx args k =
           let cix = (CIx grpr grpn n)
            in Ins (Name (Env cix cix) ZArgs) <$> allocate (Var a BX ctx) as k
       | otherwise =
-          internalBug $ "emitClosures: unknown reference: " ++ show a ++ show grpr
+          internalBug [] $ "emitClosures: unknown reference: " ++ show a ++ show grpr
 
 emitArgs :: (Var v) => Word64 -> Ctx v -> [v] -> Args
 emitArgs grpn ctx args
   | Just l <- traverse (ctxResolve ctx) args = demuxArgs l
   | otherwise =
-      internalBug $
+      internalBug [] $
         "emitArgs["
           ++ show grpn
           ++ "]: "

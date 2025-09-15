@@ -24,7 +24,6 @@ import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.Codebase.Type (Codebase (..))
@@ -33,33 +32,36 @@ import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Runtime (Error (UnstructuredError), Runtime)
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
-import Unison.Util.Pretty qualified as P
 
-execute ::
-  Codebase.Codebase IO Symbol Ann ->
-  Runtime Symbol ->
-  PP.ProjectPathNames ->
-  IO (Either Runtime.Error ())
+execute :: Codebase.Codebase IO Symbol Ann -> Runtime Symbol -> PP.ProjectPathNames -> IO (Either Error ())
 execute codebase runtime mainPath =
   (`finally` Runtime.terminate runtime) . runExceptT $ do
     (project, branch) <- ExceptT $ (Codebase.runTransactionWithRollback codebase) \rollback -> do
-      project <- Q.loadProjectByName mainPath.project `whenNothingM` rollback (Left . P.text $ ("Project not found: " <> into @Text mainPath.project))
-      branch <- Q.loadProjectBranchByName project.projectId mainPath.branch `whenNothingM` rollback (Left . P.text $ ("Branch not found: " <> into @Text mainPath.branch))
+      project <-
+        Q.loadProjectByName mainPath.project
+          `whenNothingM` rollback (Left . UnstructuredError $ "Project not found: " <> into @Text mainPath.project)
+      branch <-
+        Q.loadProjectBranchByName project.projectId mainPath.branch
+          `whenNothingM` rollback (Left . UnstructuredError $ "Branch not found: " <> into @Text mainPath.branch)
       pure . Right $ (project, branch)
-    projectRootNames <- fmap (Branch.toNames . Branch.head) . liftIO $ Codebase.expectProjectBranchRoot codebase project.projectId branch.branchId
+    projectRootNames <-
+      fmap (Branch.toNames . Branch.head) . liftIO $
+        Codebase.expectProjectBranchRoot codebase project.projectId branch.branchId
     let loadTypeOfTerm = Codebase.getTypeOfTerm codebase
     let mainType = Runtime.mainType runtime
     mainName <- case Path.toName (mainPath ^. PP.path_) of
       Just n -> pure (HQ.NameOnly n)
-      Nothing -> throwError ("Path must lead to an executable term: " <> P.text (Path.toText (PP.path mainPath)))
+      Nothing ->
+        throwError . UnstructuredError $ "Path must lead to an executable term: " <> Path.toText (PP.path mainPath)
 
     mt <- liftIO $ Codebase.runTransaction codebase $ getMainTerm loadTypeOfTerm projectRootNames mainName mainType
     case mt of
-      MainTerm.NotFound s -> throwError ("Not found: " <> P.text (HQ.toText s))
-      MainTerm.BadType s _ -> throwError (P.text (HQ.toText s) <> " is not of type '{IO} ()")
+      MainTerm.NotFound s -> throwError . UnstructuredError $ "Not found: " <> HQ.toText s
+      MainTerm.BadType s _ -> throwError . UnstructuredError $ HQ.toText s <> " is not of type '{IO} ()"
       MainTerm.Success _ tm _ -> do
         let codeLookup = codebaseToCodeLookup codebase
             ppe = PPE.empty

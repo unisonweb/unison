@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -34,8 +35,8 @@ module Unison.Runtime.ANF
     pattern TDiscard,
     pattern TLocal,
     pattern TUpdate,
-    CompileExn (..),
-    internalBug,
+    FloatName (..),
+    prettyFloatName,
     Mem (..),
     Lit (..),
     Cacheability (..),
@@ -95,7 +96,6 @@ module Unison.Runtime.ANF
   )
 where
 
-import Control.Exception (throw)
 import Control.Lens (snoc, unsnoc)
 import Control.Monad.Reader (ReaderT (..), ask, local)
 import Control.Monad.State (MonadState (..), State, gets, modify, runState)
@@ -107,7 +107,6 @@ import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
-import GHC.Stack (CallStack, callStack)
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -117,15 +116,17 @@ import Unison.Hashing.V2.Convert (hashTermComponentsWithoutTypes)
 import Unison.Pattern (SeqOp (..))
 import Unison.Pattern qualified as P
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv, termName)
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
 import Unison.ReferentPrime qualified as Rfn
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
+import Unison.Runtime.InternalError (internalBug)
 import Unison.Runtime.Referenced (Referential (..))
 import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), maskTags, packTags, unpackTags)
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
-import Unison.Syntax.NamePrinter (prettyShortHash)
+import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
 import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
@@ -136,15 +137,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-
--- For internal errors
-data CompileExn = CE CallStack (Pretty.Pretty Pretty.ColorText)
-  deriving (Show)
-
-instance Exception CompileExn
-
-internalBug :: (HasCallStack) => String -> a
-internalBug = throw . CE callStack . Pretty.lit . fromString
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
@@ -401,7 +393,76 @@ close keep tm = ABT.visitPure (enclose keep close) tm
 open :: (Var v, Monoid a) => Term v a -> Term v a
 open x = ABT.visitPure (beta open) x
 
-type FloatM v a r = State (Set v, [(v, Term v a)], [(v, Term v a)]) r
+data FloatSeg v = FSRef Reference | FSText Text | FSVar v
+
+data FloatName v = FloatName [FloatSeg v]
+
+extendName :: FloatSeg v -> FloatName v -> FloatName v
+extendName s (FloatName ss) = FloatName $ s : ss
+
+prettyFloatName ::
+  (Var v) => PrettyPrintEnv -> FloatName v -> Pretty.Pretty Pretty.ColorText
+prettyFloatName ppe (FloatName ts) =
+  Pretty.sep "$" . fmap prettySeg $ reverse ts
+  where
+    prettySeg (FSText tx) = Pretty.text tx
+    prettySeg (FSVar v) = Pretty.text $ Var.name v
+    prettySeg (FSRef r) =
+      Pretty.syntaxToColor
+        . prettyHashQualified
+        . termName ppe
+        $ Rfn.Ref' r
+
+data FloatState v a = FS
+  { lambdas :: Int,
+    path :: FloatName v,
+    ctxVars :: Set v,
+    floated :: [(v, Term v a)],
+    floatNames :: [(v, FloatName v)],
+    decomp :: [(v, Term v a)]
+  }
+
+emptyState :: FloatState v a
+emptyState = FS 0 (FloatName []) Set.empty [] [] []
+
+type FloatM v a r = State (FloatState v a) r
+
+addVars :: (Ord v) => Set v -> FloatM v a ()
+addVars new = modify \st -> st {ctxVars = new <> ctxVars st}
+
+inLocal :: FloatSeg v -> FloatM v a r -> FloatM v a r
+inLocal nm act = do
+  st <- get
+  put $
+    st
+      { path = extendName nm $ path st,
+        lambdas = 0
+      }
+  r <- act
+  modify \st' -> st' {path = path st, lambdas = lambdas st}
+  pure r
+
+inLocalLam :: FloatM v a r -> FloatM v a r
+inLocalLam act = do
+  n <- gets lambdas
+  inLocal (FSText $ "Lambda" <> Data.Text.pack (show n)) act
+
+addFloated ::
+  [(v, FloatSeg v, Term v a)] -> [(v, Term v a)] -> FloatM v a ()
+addFloated fln dc = modify \st ->
+  let fl = fln <&> \(v, _, tm) -> (v, tm)
+      fn = fln <&> \(v, n, _) -> (v, extendName n $ path st)
+   in st
+        { floated = fl <> floated st,
+          floatNames = fn <> floatNames st,
+          decomp = dc <> decomp st
+        }
+
+nameLambda :: (Var v) => Maybe v -> FloatM v a Text
+nameLambda (Just v) = pure $ Var.name v
+nameLambda Nothing = state \st ->
+  let n = lambdas st
+   in ("Lambda" <> Data.Text.pack (show n), st {lambdas = n + 1})
 
 freshFloat :: (Var v) => Set v -> v -> v
 freshFloat avoid (Var.freshIn avoid -> v0) =
@@ -422,7 +483,7 @@ groupFloater ::
   [(v, Term v a)] ->
   FloatM v a (Map v v)
 groupFloater rec vbs = do
-  cvs <- gets (\(vs, _, _) -> vs)
+  cvs <- gets ctxVars
   let shadows =
         [ (v, freshFloat cvs v)
           | (v, _) <- vbs,
@@ -431,10 +492,14 @@ groupFloater rec vbs = do
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
       shvs = Set.fromList $ map (rn . fst) vbs
-  modify $ \(cvs, ctx, dcmp) -> (cvs <> shvs, ctx, dcmp)
-  fvbs <- traverse (\(v, b) -> (,) (rn v) <$> rec' (ABT.renames shadowMap b)) vbs
+      h (v, b) =
+        (rn v,nm,) <$> inLocal nm (rec' (ABT.renames shadowMap b))
+        where
+          nm = FSVar v
+  addVars shvs
+  fvnbs <- traverse h vbs
   let dvbs = fmap (\(v, b) -> (rn v, deannotate b)) vbs
-  modify $ \(vs, ctx, dcmp) -> (vs, ctx ++ fvbs, dcmp <> dvbs)
+  addFloated fvnbs dvbs
   pure shadowMap
   where
     rec' b
@@ -464,24 +529,25 @@ lamFloater ::
   Term v a ->
   FloatM v a v
 lamFloater closed tm mv a vs bd =
-  state $ \trip@(cvs, ctx, dcmp) -> case find p ctx of
-    Just (v, _) -> (v, trip)
-    Nothing ->
-      let v = ABT.freshIn cvs $ fromMaybe (typed Var.Float) mv
-       in ( v,
-            ( Set.insert v cvs,
-              ctx <> [(v, lamWithoutBindingAnns a vs bd)],
-              floatDecomp closed v tm dcmp
-            )
-          )
+  get >>= \FS {ctxVars, floated} ->
+    case find p floated of
+      Just (v, _) -> pure v
+      Nothing -> do
+        let v = ABT.freshIn ctxVars $ fromMaybe (typed Var.Float) mv
+        nm <- nameLambda mv
+        addVars $ Set.singleton v
+        addFloated
+          [(v, FSText nm, lamWithoutBindingAnns a vs bd)]
+          (floatDecomp closed v tm)
+        pure v
   where
     tgt = unannotate (lamWithoutBindingAnns a vs bd)
     p (_, flam) = unannotate flam == tgt
 
 floatDecomp ::
-  Bool -> v -> Term v a -> [(v, Term v a)] -> [(v, Term v a)]
-floatDecomp True v b dcmp = (v, b) : dcmp
-floatDecomp False _ _ dcmp = dcmp
+  Bool -> v -> Term v a -> [(v, Term v a)]
+floatDecomp True v b = [(v, b)]
+floatDecomp False _ _ = []
 
 floater ::
   (Var v, Monoid a) =>
@@ -509,9 +575,9 @@ floater _ rec (Let1Named' v b e)
   where
     a = ABT.annotation b
 floater top rec tm@(LamsAnnot vs0 mty vs1 bd)
-  | top = Just $ lamsAnnot a vs0 mty vs1 <$> rec bd
+  | top = Just $ lamsAnnot a vs0 mty vs1 <$> inLocalLam (rec bd)
   | otherwise = Just $ do
-      bd <- rec bd
+      bd <- inLocalLam $ rec bd
       lv <- lamFloater True tm Nothing a (vs0 ++ vs1) bd
       pure $ var a lv
   where
@@ -522,17 +588,19 @@ postFloat ::
   (Var v) =>
   (Monoid a) =>
   Map v Reference ->
-  (Set v, [(v, Term v a)], [(v, Term v a)]) ->
+  FloatState v a ->
   ( [(v, Term v a)],
     [(v, Id)],
+    [(Reference, FloatName v)],
     [(Reference, Term v a)],
     [(Reference, Term v a)]
   )
-postFloat orig (_, bs, dcmp) =
+postFloat orig (FS {floatNames, floated, decomp}) =
   ( subs,
     subvs,
-    fmap (first DerivedId) tops,
-    dcmp >>= \(v, tm) ->
+    mapMaybe (fmap $ fmap originals) nms,
+    tops,
+    decomp >>= \(v, tm) ->
       let stm = open $ ABT.substs dsubs tm
        in (subm Map.! v, stm) : [(r, stm) | Just r <- [Map.lookup v orig]]
   )
@@ -541,26 +609,45 @@ postFloat orig (_, bs, dcmp) =
       fmap (fmap deannotate)
         . hashTermComponentsWithoutTypes
         . Map.fromList
-        $ bs
+        $ floated
+    vname = Map.fromList floatNames
     trips = Map.toList m
-    f (v, (id, tm)) = ((v, id), (v, idtm), (id, tm))
+    f (v, (id, tm)) =
+      ((v, id), (rf,) <$> Map.lookup v vname, (v, idtm), (rf, tm))
       where
-        idtm = ref (ABT.annotation tm) (DerivedId id)
-    (subvs, subs, tops) = unzip3 $ map f trips
+        rf = DerivedId id
+        idtm = ref (ABT.annotation tm) rf
+    unzip4 [] = ([], [], [], [])
+    unzip4 ((a, b, c, d) : (unzip4 -> ~(as, bs, cs, ds))) =
+      (a : as, b : bs, c : cs, d : ds)
+    (subvs, nms, subs, tops) = unzip4 $ map f trips
     subm = fmap DerivedId (Map.fromList subvs)
     dsubs = Map.toList $ Map.map (ref mempty) orig <> Map.fromList subs
+
+    originals (FloatName ss) =
+      FloatName $
+        ss <&> \case
+          FSVar v
+            | Just r <- Map.lookup v orig -> FSRef r
+          seg -> seg
 
 float ::
   (Var v) =>
   (Monoid a) =>
   Map v Reference ->
   Term v a ->
-  (Term v a, Map Reference Reference, [(Reference, Term v a)], [(Reference, Term v a)])
-float orig tm = case runState go0 (Set.empty, [], []) of
+  ( Term v a,
+    Map Reference Reference,
+    Map Reference (FloatName v),
+    [(Reference, Term v a)],
+    [(Reference, Term v a)]
+  )
+float orig tm = case runState go0 emptyState of
   (bd, st) -> case postFloat orig st of
-    (subs, subvs, tops, dcmp) ->
+    (subs, subvs, fnames, tops, dcmp) ->
       ( letRec' True [] . ABT.substs subs . deannotate $ bd,
         Map.fromList . mapMaybe f $ subvs,
+        Map.fromList fnames,
         tops,
         dcmp
       )
@@ -574,10 +661,14 @@ floatGroup ::
   (Monoid a) =>
   Map v Reference ->
   [(v, Term v a)] ->
-  ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
-floatGroup orig grp = case runState go0 (Set.empty, [], []) of
+  ( [(v, Id)],
+    [(Reference, FloatName v)],
+    [(Reference, Term v a)],
+    [(Reference, Term v a)]
+  )
+floatGroup orig grp = case runState go0 emptyState of
   (_, st) -> case postFloat orig st of
-    (_, subvs, tops, dcmp) -> (subvs, tops, dcmp)
+    (_, subvs, fnames, tops, dcmp) -> (subvs, fnames, tops, dcmp)
   where
     go = ABT.visit $ floater False go
     go0 = groupFloater go grp
@@ -632,7 +723,12 @@ lamLift ::
   (Monoid a) =>
   Map v Reference ->
   Term v a ->
-  (Term v a, Map Reference Reference, [(Reference, Term v a)], [(Reference, Term v a)])
+  ( Term v a,
+    Map Reference Reference,
+    Map Reference (FloatName v),
+    [(Reference, Term v a)],
+    [(Reference, Term v a)]
+  )
 lamLift orig = float orig . close Set.empty
 
 lamLiftGroup ::
@@ -640,7 +736,11 @@ lamLiftGroup ::
   (Monoid a) =>
   Map v Reference ->
   [(v, Term v a)] ->
-  ([(v, Id)], [(Reference, Term v a)], [(Reference, Term v a)])
+  ( [(v, Id)],
+    [(Reference, FloatName v)],
+    [(Reference, Term v a)],
+    [(Reference, Term v a)]
+  )
 lamLiftGroup orig gr = floatGroup orig . (fmap . fmap) (close keep) $ gr
   where
     keep = Set.fromList $ map fst gr
@@ -738,7 +838,7 @@ minimizeCyclesOrCrash :: (Var v, Ord a) => Term v a -> Term v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e ->
-    internalBug $
+    internalBug [] $
       "tried to minimize let rec with duplicate definitions: "
         ++ show (fst <$> toList e)
 
@@ -1312,26 +1412,24 @@ instance Semigroup (BranchAccum v) where
     AccumSeqView el (eml <|> Just emr) cnl
   AccumSeqView el eml cnl <> AccumSeqView er emr _
     | el /= er =
-        internalBug "AccumSeqView: trying to merge views of opposite ends"
+        internalBug [] "AccumSeqView: trying to merge views of opposite ends"
     | otherwise = AccumSeqView el (eml <|> emr) cnl
   AccumSeqView _ _ _ <> AccumDefault _ =
-    internalBug "seq views may not have defaults"
+    internalBug [] "seq views may not have defaults"
   AccumDefault _ <> AccumSeqView _ _ _ =
-    internalBug "seq views may not have defaults"
+    internalBug [] "seq views may not have defaults"
   AccumSeqSplit el nl dl bl <> AccumSeqSplit er nr dr _
     | el /= er =
-        internalBug
-          "AccumSeqSplit: trying to merge splits at opposite ends"
+        internalBug [] "AccumSeqSplit: trying to merge splits at opposite ends"
     | nl /= nr =
-        internalBug
-          "AccumSeqSplit: trying to merge splits at different positions"
+        internalBug [] "AccumSeqSplit: trying to merge splits at different positions"
     | otherwise =
         AccumSeqSplit el nl (dl <|> dr) bl
   AccumDefault dl <> AccumSeqSplit er nr _ br =
     AccumSeqSplit er nr (Just dl) br
   AccumSeqSplit el nl dl bl <> AccumDefault dr =
     AccumSeqSplit el nl (dl <|> Just dr) bl
-  _ <> _ = internalBug $ "cannot merge data cases for different types"
+  _ <> _ = internalBug [] "cannot merge data cases for different types"
 
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
@@ -1773,7 +1871,7 @@ toSuperNormal :: (Var v) => Term v a -> ANFM v (SuperNormal Reference v)
 toSuperNormal tm = do
   grp <- groupVars
   if not . Set.null . (Set.\\ grp) $ freeVars tm
-    then internalBug $ "free variables in supercombinator: " ++ show tm
+    then internalBug [] $ "free variables in supercombinator: " ++ show tm
     else
       Lambda (BX <$ vs) . ABTN.TAbss vs . snd
         <$> bindLocal vs (anfTerm body)
@@ -1986,7 +2084,7 @@ anfBlock (Handle' h body) =
       (ctx, (_, TVar v)) | floatableCtx ctx -> do
         pure (hctx <> ctx, (Indirect (), TApp (FVar vh) [v]))
       p@(_, _) ->
-        internalBug $ "handle body should be a simple call: " ++ show p
+        internalBug [] $ "handle body should be a simple call: " ++ show p
 anfBlock (Match' scrut cas) = do
   (sctx, sc) <- anfBlock scrut
   (cx, v) <- contextualize sc
@@ -1995,7 +2093,7 @@ anfBlock (Match' scrut cas) = do
     AccumDefault (TBinds (directed -> dctx) df) -> do
       pure (sctx <> cx <> dctx, pure df)
     AccumRequest _ Nothing ->
-      internalBug "anfBlock: AccumRequest without default"
+      internalBug [] "anfBlock: AccumRequest without default"
     AccumPure (ABTN.TAbss us bd)
       | [u] <- us,
         TBinds (directed -> bx) bd <- bd ->
@@ -2005,8 +2103,8 @@ anfBlock (Match' scrut cas) = do
               pure (sctx <> pure [ST1 d0 u BX (TFrc v)] <> bx, pure bd)
             (d0, [ST1 d1 _ BX tm]) ->
               pure (sctx <> (d0, [ST1 d1 u BX tm]) <> bx, pure bd)
-            _ -> internalBug "anfBlock|AccumPure: impossible"
-      | otherwise -> internalBug "pure handler with too many variables"
+            _ -> internalBug [] "anfBlock|AccumPure: impossible"
+      | otherwise -> internalBug [] "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
       (r, vs) <- do
         r <- fresh
@@ -2018,7 +2116,7 @@ anfBlock (Match' scrut cas) = do
       let (d, msc)
             | (d, [ST1 _ _ BX tm]) <- cx = (d, tm)
             | (_, [ST _ _ _ _]) <- cx =
-                internalBug "anfBlock: impossible"
+                internalBug [] "anfBlock: impossible"
             | otherwise = (Indirect (), TFrc v)
       pure
         ( sctx <> pure [LZ hv (Right r) vs],
@@ -2031,7 +2129,7 @@ anfBlock (Match' scrut cas) = do
     AccumData r df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchData r cs df)
     AccumSeqEmpty _ ->
-      internalBug "anfBlock: non-exhaustive AccumSeqEmpty"
+      internalBug [] "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
       r <- fresh
       let op
@@ -2052,7 +2150,7 @@ anfBlock (Match' scrut cas) = do
               )
         )
     AccumSeqView {} ->
-      internalBug "anfBlock: non-exhaustive AccumSeqView"
+      internalBug [] "anfBlock: non-exhaustive AccumSeqView"
     AccumSeqSplit en n mdf bd -> do
       i <- fresh
       r <- fresh
@@ -2143,7 +2241,7 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
-anfBlock t = internalBug $ "anf: unhandled term: " ++ show t
+anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =
   Map Reference (EnumMap CTag ([Mem], ANormal ref v))
@@ -2168,7 +2266,7 @@ anfInitCase ::
   MatchCase p (Term v a) ->
   ANFD v (BranchAccum v)
 anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
-  | Just _ <- guard = internalBug "anfInitCase: unexpected guard"
+  | Just _ <- guard = internalBug [] "anfInitCase: unexpected guard"
   | P.Unbound _ <- p,
     [] <- vs =
       AccumDefault <$> anfBody bd
@@ -2176,7 +2274,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
     [v] <- vs =
       AccumDefault . ABTN.rename v u <$> anfBody bd
   | P.Var _ <- p =
-      internalBug $ "vars: " ++ show (length vs)
+      internalBug [] $ "vars: " ++ show (length vs)
   | P.Int _ (fromIntegral -> i) <- p =
       AccumIntegral Ty.intRef Nothing . EC.mapSingleton i <$> anfBody bd
   | P.Nat _ i <- p =
@@ -2211,7 +2309,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
         <*> anfBody bd
         <&> \(exp, kf, bd) ->
           let (us, uk) =
-                maybe (internalBug "anfInitCase: unsnoc impossible") id $
+                maybe (internalBug [] "anfInitCase: unsnoc impossible") id $
                   unsnoc exp
               jn = Builtin "jumpCont"
            in flip AccumRequest Nothing
@@ -2240,7 +2338,7 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
   where
     anfBody tm = Compose . bindLocal vs $ anfTerm tm
 anfInitCase _ (MatchCase p _ _) =
-  internalBug $ "anfInitCase: unexpected pattern: " ++ show p
+  internalBug [] $ "anfInitCase: unexpected pattern: " ++ show p
 
 valueTermLinks :: (Ord ref) => Value ref -> [ref]
 valueTermLinks = Set.toList . valueLinks f
@@ -2532,7 +2630,7 @@ expandBindings' _ _ _ =
 expandBindings :: (Var v) => [P.Pattern p] -> [v] -> ANFD v [v]
 expandBindings ps vs =
   Compose . state $ \(fr, bnd, co) -> case expandBindings' fr ps vs of
-    Left err -> internalBug $ err ++ " " ++ show (ps, vs)
+    Left err -> internalBug [] $ err ++ " " ++ show (ps, vs)
     Right (fr, l) -> (pure l, (fr, bnd, co))
 
 anfCases ::
@@ -2592,8 +2690,8 @@ prettyLVars (c : cs) (v : vs) =
   showString " "
     . showParen True (pvar v . showString ":" . shows c)
     . prettyLVars cs vs
-prettyLVars [] (_ : _) = internalBug "more variables than conventions"
-prettyLVars (_ : _) [] = internalBug "more conventions than variables"
+prettyLVars [] (_ : _) = internalBug [] "more variables than conventions"
+prettyLVars (_ : _) [] = internalBug [] "more conventions than variables"
 
 prettyRBind :: (Var v) => [v] -> ShowS
 prettyRBind [] = showString "()"
@@ -2707,7 +2805,7 @@ prettyFunc (FPrim op) = either shows shows op . showString " "
 
 showsShort :: Reference -> ShowS
 showsShort =
-  showString . Pretty.toPlainUnbroken . prettyShortHash . shortenTo 10 . toShortHash
+  showString . Pretty.toPlain 0 . prettyShortHash . shortenTo 10 . toShortHash
 
 prettyBranches ::
   (Var v) => Int -> Branched Reference (ANormal Reference v) -> ShowS

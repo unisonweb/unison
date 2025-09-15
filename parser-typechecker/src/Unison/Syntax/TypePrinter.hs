@@ -32,7 +32,6 @@ import Unison.Referent (Referent)
 import Unison.Settings qualified as Settings
 import Unison.Syntax.NamePrinter (styleHashQualified'')
 import Unison.Type
-import Unison.Util.ColorText (toPlain)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
 import Unison.Util.Pretty qualified as PP
 import Unison.Util.SyntaxText qualified as S
@@ -42,16 +41,13 @@ import Unison.Var qualified as Var
 type SyntaxText = S.SyntaxText' Reference
 
 pretty :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe t = PP.syntaxToColor $ prettySyntax ppe t
+pretty ppe = PP.syntaxToColor . prettySyntax ppe
 
 prettySyntax :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettySyntax ppe = runPretty ppe . pretty0 Map.empty (-1)
 
-prettyStr :: (Var v) => Maybe Width -> PrettyPrintEnv -> Type v a -> String
-prettyStr (Just width) ppe t =
-  toPlain . PP.render width . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
-prettyStr Nothing ppe t =
-  toPlain . PP.render maxBound . PP.syntaxToColor . runPretty ppe $ pretty0 Map.empty (-1) t
+prettyStr :: (Var v) => Width -> PrettyPrintEnv -> Type v a -> String
+prettyStr width ppe = PP.toPlain width . pretty ppe
 
 {- Explanation of precedence handling
 

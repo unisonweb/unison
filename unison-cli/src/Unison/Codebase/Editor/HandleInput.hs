@@ -51,7 +51,6 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.CommitMerge (handleCommitMerge)
-import Unison.Codebase.Editor.HandleInput.CommitUpgrade (handleCommitUpgrade)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
@@ -761,7 +760,8 @@ loop e = do
         BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
         ReleaseDraftI semver -> handleReleaseDraft semver
         UpgradeI old new -> handleUpgrade old new
-        UpgradeCommitI -> handleCommitUpgrade
+        UpgradeCommitI ->
+          Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
         LibInstallI remind libdep -> handleInstallLib remind libdep
         LibInstallLocalI src destLibName -> handleInstallLocalLib src destLibName
         DebugSynhashTermI name -> handleDebugSynhashTerm name
@@ -1203,7 +1203,7 @@ doCompile profile output main = do
     ( liftIO $
         Runtime.compileTo runtime copts codeLookup ppe ref outf
     )
-    (Cli.returnEarly . EvaluationFailure)
+    (Cli.returnEarly . EvaluationFailure id)
 
 delete ::
   Input ->
@@ -1333,7 +1333,7 @@ displayI outputLoc hq = do
       let suffixifiedFilePPE = PPE.biasTo bias $ PPE.suffixifiedPPE filePPED
       (_, watches) <-
         evalUnisonFile Sandboxed suffixifiedFilePPE unisonFile [] & onLeftM \err ->
-          Cli.returnEarly (Output.EvaluationFailure err)
+          Cli.returnEarly (Output.EvaluationFailure id err)
       (_, _, _, _, tm, _) <-
         Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> Text.unpack (HQ.toText hq))
       let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names

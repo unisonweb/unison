@@ -134,6 +134,7 @@ module U.Codebase.Sqlite.Queries
     setProjectBranchHead,
     loadProjectBranchHead,
     expectProjectBranchHead,
+    expectProjectBranchHeadHash,
     setMostRecentBranch,
     loadMostRecentBranch,
     loadProjectBranchParent,
@@ -145,9 +146,14 @@ module U.Codebase.Sqlite.Queries
     existsAnyNamespaceUniqueTypeGuidForNamespace,
     ensureUniqueTypeToGuidMappingForCausalHashId,
     insertNamespaceUniqueTypeGuid,
-    projectBranchIsUpdateBranch,
+
+    -- *** update branches
     loadUpdateBranchParentCausalHashId,
     setProjectBranchIsUpdateBranch,
+
+    -- *** upgrade branches
+    loadUpgradeBranchParentCausalHashId,
+    setProjectBranchIsUpgradeBranch,
 
     -- ** remote projects
     loadRemoteProject,
@@ -274,6 +280,7 @@ module U.Codebase.Sqlite.Queries
     addMergeBranchTables,
     addUpdateBranchTable,
     addDerivedDependentsByDependencyIndex,
+    addUpgradeBranchTable,
 
     -- ** schema version
     currentSchemaVersion,
@@ -391,7 +398,7 @@ import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
 import U.Codebase.Sqlite.Project (Project (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..), ProjectBranchRow (..))
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import U.Codebase.Sqlite.Reference qualified as S
 import U.Codebase.Sqlite.Reference qualified as S.Reference
@@ -443,7 +450,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 21
+currentSchemaVersion = 22
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -524,6 +531,10 @@ addUpdateBranchTable =
 addDerivedDependentsByDependencyIndex :: Transaction ()
 addDerivedDependentsByDependencyIndex =
   executeStatements $(embedProjectStringFile "sql/018-add-derived-dependents-by-dependency-index.sql")
+
+addUpgradeBranchTable :: Transaction ()
+addUpgradeBranchTable =
+  executeStatements $(embedProjectStringFile "sql/019-add-upgrade-branch-table.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -3704,11 +3715,11 @@ projectBranchExistsByName projectId name =
 
 loadProjectBranch :: ProjectId -> ProjectBranchId -> Transaction (Maybe ProjectBranch)
 loadProjectBranch projectId branchId =
-  queryMaybeRow (loadProjectBranchSql projectId branchId)
+  fmap mungeLoadProjectBranchResult <$> queryMaybeRow (loadProjectBranchSql projectId branchId)
 
 expectProjectBranch :: ProjectId -> ProjectBranchId -> Transaction ProjectBranch
 expectProjectBranch projectId branchId =
-  queryOneRow (loadProjectBranchSql projectId branchId)
+  mungeLoadProjectBranchResult <$> queryOneRow (loadProjectBranchSql projectId branchId)
 
 loadProjectBranchSql :: ProjectId -> ProjectBranchId -> Sql
 loadProjectBranchSql projectId branchId =
@@ -3717,7 +3728,9 @@ loadProjectBranchSql projectId branchId =
       project_branch.project_id,
       project_branch.branch_id,
       project_branch.name,
-      project_branch_parent.parent_branch_id
+      project_branch_parent.parent_branch_id,
+      EXISTS (SELECT 1 FROM update_branch WHERE project_id = :projectId AND branch_id = :branchId),
+      EXISTS (SELECT 1 FROM upgrade_branch WHERE project_id = :projectId AND branch_id = :branchId)
     FROM
       project_branch
       LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
@@ -3727,42 +3740,68 @@ loadProjectBranchSql projectId branchId =
       AND project_branch.branch_id = :branchId
   |]
 
+mungeLoadProjectBranchResult ::
+  (ProjectId, ProjectBranchId, ProjectBranchName, Maybe ProjectBranchId, Bool, Bool) ->
+  ProjectBranch
+mungeLoadProjectBranchResult (projectId, branchId, name, parentBranchId, isUpdate, isUpgrade) =
+  ProjectBranch {projectId, branchId, name, parentBranchId, isUpdate, isUpgrade}
+
 loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
-loadProjectBranchByName projectId name =
-  queryMaybeRow
-    [sql|
-      SELECT
-        project_branch.project_id,
-        project_branch.branch_id,
-        project_branch.name,
-        project_branch_parent.parent_branch_id
-      FROM
-        project_branch
-        LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
-          AND project_branch.branch_id = project_branch_parent.branch_id
-      WHERE
-        project_branch.project_id = :projectId
-        AND project_branch.name = :name
-    |]
+loadProjectBranchByName projectId name = do
+  maybeProjectBranchRow <-
+    queryMaybeRow
+      [sql|
+        SELECT
+          project_branch.project_id,
+          project_branch.branch_id,
+          project_branch.name,
+          project_branch_parent.parent_branch_id
+        FROM project_branch
+          LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+            AND project_branch.branch_id = project_branch_parent.branch_id
+        WHERE
+          project_branch.project_id = :projectId
+          AND project_branch.name = :name
+      |]
+  case maybeProjectBranchRow of
+    Just projectBranchRow -> Just <$> loadProjectBranchByProjectBranchRow projectBranchRow
+    Nothing -> pure Nothing
+
+loadProjectBranchByProjectBranchRow :: ProjectBranchRow -> Transaction ProjectBranch
+loadProjectBranchByProjectBranchRow branch = do
+  isUpdate <- projectBranchIsUpdateBranch branch.projectId branch.branchId
+  isUpgrade <- projectBranchIsUpgradeBranch branch.projectId branch.branchId
+  pure
+    ProjectBranch
+      { projectId = branch.projectId,
+        branchId = branch.branchId,
+        name = branch.name,
+        parentBranchId = branch.parentBranchId,
+        isUpdate,
+        isUpgrade
+      }
 
 loadProjectBranchByNames :: ProjectName -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
-loadProjectBranchByNames projectName branchName =
-  queryMaybeRow
-    [sql|
-      SELECT
-        project_branch.project_id,
-        project_branch.branch_id,
-        project_branch.name,
-        project_branch_parent.parent_branch_id
-      FROM
-        project
-        JOIN project_branch ON project.id = project_branch.project_id
-        LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
-          AND project_branch.branch_id = project_branch_parent.branch_id
-      WHERE
-        project.name = :projectName
-        AND project_branch.name = :branchName
-    |]
+loadProjectBranchByNames projectName branchName = do
+  maybeProjectBranchRow <-
+    queryMaybeRow
+      [sql|
+        SELECT
+          project_branch.project_id,
+          project_branch.branch_id,
+          project_branch.name,
+          project_branch_parent.parent_branch_id
+        FROM project
+          JOIN project_branch ON project.id = project_branch.project_id
+          LEFT JOIN project_branch_parent ON project_branch.project_id = project_branch_parent.project_id
+            AND project_branch.branch_id = project_branch_parent.branch_id
+        WHERE
+          project.name = :projectName
+          AND project_branch.name = :branchName
+      |]
+  case maybeProjectBranchRow of
+    Just projectBranchRow -> Just <$> loadProjectBranchByProjectBranchRow projectBranchRow
+    Nothing -> pure Nothing
 
 -- | Load all branch id/name pairs in a project whose name matches an optional prefix.
 loadAllProjectBranchesBeginningWith :: ProjectId -> Maybe Text -> Transaction [(ProjectBranchId, ProjectBranchName)]
@@ -3871,8 +3910,13 @@ loadProjectAndBranchNames projectId branchId =
     |]
 
 -- | Insert a project branch.
-insertProjectBranch :: (HasCallStack) => Text -> CausalHashId -> ProjectBranch -> Transaction ()
-insertProjectBranch description causalHashId (ProjectBranch projectId branchId branchName maybeParentBranchId) = do
+insertProjectBranch :: (HasCallStack) => Text -> CausalHashId -> ProjectBranchRow -> Transaction ()
+insertProjectBranch description causalHashId branch = do
+  let projectId = branch.projectId
+  let branchId = branch.branchId
+  let branchName = branch.name
+  let maybeParentBranchId = branch.parentBranchId
+
   -- Ensure we never point at a causal we don't have the branch for.
   _ <- expectBranchObjectIdByCausalHashId causalHashId
 
@@ -4000,6 +4044,11 @@ loadProjectBranchHead projectId branchId =
 expectProjectBranchHead :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction CausalHashId
 expectProjectBranchHead projectId branchId =
   queryOneCol (loadProjectBranchHeadSql projectId branchId)
+
+expectProjectBranchHeadHash :: (HasCallStack) => ProjectId -> ProjectBranchId -> Transaction CausalHash
+expectProjectBranchHeadHash projectId branchId = do
+  headHashId <- expectProjectBranchHead projectId branchId
+  expectCausalHash headHashId
 
 loadProjectBranchHeadSql :: ProjectId -> ProjectBranchId -> Sql
 loadProjectBranchHeadSql projectId branchId =
@@ -4574,7 +4623,7 @@ insertNamespaceUniqueTypeGuid namespaceHashId typeName typeGuid =
         & map NameSegment.toUnescapedText
         & Aeson.encode
 
--- | Get whether or not a project branch is an "update branch". Returns false if the branch either isn't a project
+-- | Get whether or not a project branch is an "update branch". Returns false if the branch either isn't an update
 -- branch (likely) or doesn't exist at all (weird).
 projectBranchIsUpdateBranch :: ProjectId -> ProjectBranchId -> Transaction Bool
 projectBranchIsUpdateBranch projectId branchId =
@@ -4605,6 +4654,40 @@ setProjectBranchIsUpdateBranch projectId branchId parentCausalHashId =
   execute
     [sql|
       INSERT INTO update_branch (project_id, branch_id, parent_causal_hash_id)
+      VALUES (:projectId, :branchId, :parentCausalHashId)
+    |]
+
+-- | Get whether or not a project branch is an "upgrade branch". Returns false if the branch either isn't an upgrade
+-- branch (likely) or doesn't exist at all (weird).
+projectBranchIsUpgradeBranch :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchIsUpgradeBranch projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM upgrade_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
+    |]
+
+-- | Load whether the given branch is an upgrade branch, and if it is, return its parent's causal hash id.
+loadUpgradeBranchParentCausalHashId :: ProjectId -> ProjectBranchId -> Transaction (Maybe CausalHashId)
+loadUpgradeBranchParentCausalHashId projectId branchId =
+  queryMaybeCol
+    [sql|
+      SELECT parent_causal_hash_id
+      FROM upgrade_branch
+      WHERE project_id = :projectId
+        AND branch_id = :branchId
+    |]
+
+-- | Record that a project branch is an "upgrade branch".
+setProjectBranchIsUpgradeBranch :: ProjectId -> ProjectBranchId -> CausalHashId -> Transaction ()
+setProjectBranchIsUpgradeBranch projectId branchId parentCausalHashId =
+  execute
+    [sql|
+      INSERT INTO upgrade_branch (project_id, branch_id, parent_causal_hash_id)
       VALUES (:projectId, :branchId, :parentCausalHashId)
     |]
 

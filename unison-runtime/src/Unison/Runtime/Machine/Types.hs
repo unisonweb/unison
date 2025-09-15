@@ -21,7 +21,6 @@ import GHC.Event (getSystemTimerManager, registerTimeout)
 #else
 import System.CPUTime
 #endif
-import GHC.Stack
 import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
@@ -29,7 +28,6 @@ import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF
   ( Cacheability (..),
     Code (..),
-    CompileExn (..),
     SuperGroup (..),
     Value,
     foldGroupLinks,
@@ -37,15 +35,15 @@ import Unison.Runtime.ANF
   )
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
-import Unison.Runtime.Exception hiding (die)
+import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.Foreign (Failure (..))
+import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Symbol
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty qualified as P
 import Unison.Util.Text as UText
 
 -- | A ref storing every currently active thread.
@@ -83,18 +81,6 @@ refLookup s m r
   | Just w <- M.lookup r m = w
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
-
-die :: (HasCallStack) => String -> IO a
-die s = do
-  void . throwIO . PE callStack . P.lit . fromString $ s
-  -- This is unreachable, but we need it to fix some quirks in GHC's
-  -- worker/wrapper optimization, specifically, it seems that when throwIO's polymorphic return
-  -- value is specialized to a type like 'Stack' which we want GHC to unbox, it will sometimes
-  -- fail to unbox it, possibly because it can't unbox it when it's strictly a type application.
-  -- For whatever reason, this seems to fix it while still allowing us to throw exceptions in IO
-  -- like we prefer.
-  error "unreachable"
-{-# INLINE die #-}
 
 -- A class parameterizing profiling. The interpreter loop can be
 -- specialized to a class, which allows the same code to be used for both
@@ -194,7 +180,7 @@ refNumTm :: CCache prof -> Reference -> IO Word64
 refNumTm cc r =
   refNumsTm cc >>= \case
     (M.lookup r -> Just w) -> pure w
-    _ -> die $ "refNumTm: unknown reference: " ++ show r
+    _ -> Exception.die [] $ "refNumTm: unknown reference: " ++ show r
 
 baseCCache :: Bool -> IO (CCache ())
 baseCCache sandboxed = do
@@ -238,7 +224,7 @@ lookupCode env (Ref link) =
     <*> readTVarIO (refTm env)
     <*> readTVarIO (cacheableCombs env)
     >>= traverse canonicalizeCodeRefs
-lookupCode _ _ = die "lookupCode: Expected Ref"
+lookupCode _ _ = Exception.die [] "lookupCode: Expected Ref"
 
 -- Traverses a `Code`, calculating the used references within, and
 -- canonicalizing them in memory.
@@ -332,7 +318,7 @@ codeValidate cc tml = do
       rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
-    `catch` \(CE cs perr) ->
-      let msg = UText.pack $ P.toPlainUnbroken perr
+    `catch` \(CE cs _issues perr) ->
+      let msg = UText.pack perr
           extra = UText.pack $ show cs
        in pure . Just $ Failure ioFailureRef msg extra

@@ -939,9 +939,71 @@ declareUdpForeigns = do
 
   declareForeign Tracked 3 IO_UDP_ListenSocket_sendTo_impl_v1
 
+declareIntegerForeigns :: FDecl Symbol ()
+declareIntegerForeigns = do
+  declareForeign Untracked 1 Integer_fromText
+  declareForeign Untracked 1 Integer_unsafeFromText
+  declareForeign Untracked 1 Integer_toText
+  declareForeign Untracked 1 Integer_fromInt
+  declareForeign Untracked 1 Integer_toInt
+  declareForeign Untracked 2 Integer_add
+  declareForeign Untracked 2 Integer_sub
+  declareForeign Untracked 2 Integer_mul
+  declareForeign Untracked 2 Integer_div
+  declareForeign Untracked 2 Integer_mod
+  declareForeign Untracked 2 Integer_pow
+  declareForeign Untracked 2 Integer_shl
+  declareForeign Untracked 2 Integer_shr
+  declareForeign Untracked 2 Integer_and
+  declareForeign Untracked 2 Integer_or
+  declareForeign Untracked 2 Integer_xor
+  declareForeign Untracked 1 Integer_popCount
+  declareForeign Untracked 1 Integer_truncate0
+  declareForeign Untracked 1 Integer_isEven
+  declareForeign Untracked 1 Integer_isOdd
+  declareForeign Untracked 2 Integer_eq
+  declareForeign Untracked 2 Integer_lt
+  declareForeign Untracked 2 Integer_le
+  declareForeign Untracked 2 Integer_gt
+  declareForeign Untracked 2 Integer_ge
+  declareForeign Untracked 1 Integer_neg
+  declareForeign Untracked 1 Integer_abs
+  declareForeign Untracked 1 Integer_signum
+  declareForeign Untracked 1 Integer_toFloat
+
+declareNaturalForeigns :: FDecl Symbol ()
+declareNaturalForeigns = do
+  declareForeign Untracked 1 Natural_fromText
+  declareForeign Untracked 1 Natural_unsafeFromText
+  declareForeign Untracked 1 Natural_toText
+  declareForeign Untracked 1 Natural_fromNat
+  declareForeign Untracked 1 Natural_toNat
+  declareForeign Untracked 2 Natural_add
+  declareForeign Untracked 2 Natural_sub
+  declareForeign Untracked 2 Natural_mul
+  declareForeign Untracked 2 Natural_div
+  declareForeign Untracked 2 Natural_mod
+  declareForeign Untracked 2 Natural_pow
+  declareForeign Untracked 2 Natural_shl
+  declareForeign Untracked 2 Natural_shr
+  declareForeign Untracked 2 Natural_and
+  declareForeign Untracked 2 Natural_or
+  declareForeign Untracked 2 Natural_xor
+  declareForeign Untracked 1 Natural_popCount
+  declareForeign Untracked 1 Natural_isEven
+  declareForeign Untracked 1 Natural_isOdd
+  declareForeign Untracked 2 Natural_eq
+  declareForeign Untracked 2 Natural_lt
+  declareForeign Untracked 2 Natural_le
+  declareForeign Untracked 2 Natural_gt
+  declareForeign Untracked 2 Natural_ge
+  declareForeign Untracked 1 Natural_toFloat
+
 declareForeigns :: FDecl Symbol ()
 declareForeigns = do
   declareUdpForeigns
+  declareIntegerForeigns
+  declareNaturalForeigns
   declareForeign Tracked 2 IO_openFile_impl_v3
 
   declareForeign Tracked 1 IO_closeFile_impl_v3

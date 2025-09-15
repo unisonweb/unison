@@ -510,7 +510,7 @@ bindConstructorsInPattern =
                   | otherwise ->
                       failCommitted $
                         ResolutionFailures
-                          [ TermResolutionFailure
+                          [ ConstructorResolutionFailure
                               (L.payload hqName)
                               (ann hqName)
                               if Set.null s
@@ -518,7 +518,7 @@ bindConstructorsInPattern =
                                 else
                                   Ambiguous
                                     names
-                                    (Set.map (\ref -> Referent.Con ref ct) s)
+                                    (Set.map (,ct) s)
                                     -- Eh, here we're saying there are no "local" constructors – they're all from "the
                                     -- namespace". That's not necessarily true, but it doesn't (currently) affect the error
                                     -- message any, and we have already parsed and hashed local constructors (so they aren't

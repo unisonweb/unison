@@ -36,7 +36,6 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
-      Unison.Name.Forward
       Unison.Name.Internal
       Unison.Names
       Unison.Names.ResolutionResult

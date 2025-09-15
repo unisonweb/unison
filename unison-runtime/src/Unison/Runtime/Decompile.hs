@@ -8,15 +8,15 @@ module Unison.Runtime.Decompile
   ( decompile,
     DecompResult,
     DecompError (..),
-    renderDecompError,
   )
 where
 
 import Data.Map qualified as Map
 import Data.Set (singleton)
+import Data.Text qualified as DT
+import Numeric.Natural (Natural)
 import Unison.ABT (substs)
 import Unison.Builtin.Decls qualified as DD
-import Unison.Codebase.Runtime (Error)
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
 import Unison.Reference (Reference, pattern Builtin)
@@ -44,7 +44,6 @@ import Unison.Runtime.Stack
     pattern DataC,
     pattern PApV,
   )
-import Unison.Syntax.NamePrinter (prettyReference)
 import Unison.Term
   ( Term,
     app,
@@ -71,12 +70,13 @@ import Unison.Type
     hmapRef,
     iarrayRef,
     ibytearrayRef,
+    integerRef,
     listRef,
+    naturalRef,
     termLinkRef,
     typeLinkRef,
   )
 import Unison.Util.Bytes qualified as By
-import Unison.Util.Pretty (indentN, lines, lit, shown, syntaxToColor, wrap)
 import Unison.Util.Text qualified as Text
 import Unison.Var (Var)
 import Prelude hiding (lines)
@@ -104,54 +104,6 @@ data DecompError
   deriving (Eq, Ord)
 
 type DecompResult v = (Set DecompError, Term v ())
-
-prf :: Reference -> Error
-prf = syntaxToColor . prettyReference 10
-
-printUnboxedTypeTag :: UnboxedTypeTag -> Error
-printUnboxedTypeTag = shown
-
-renderDecompError :: DecompError -> Error
-renderDecompError (BadBool n) =
-  lines
-    [ wrap "A boolean value had an unexpected constructor tag:",
-      indentN 2 . lit . fromString $ show n
-    ]
-renderDecompError (BadUnboxed tt) =
-  lines
-    [ wrap "An apparent numeric type had an unrecognized packed tag:",
-      indentN 2 $ printUnboxedTypeTag tt
-    ]
-renderDecompError (BadForeign rf) =
-  lines
-    [ wrap "A foreign value with no decompiled representation was encountered:",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (BadData rf) =
-  lines
-    [ wrap
-        "A data type with no decompiled representation was encountered:",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (BadPAp rf) =
-  lines
-    [ wrap "A partial function application could not be decompiled: ",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (UnkComb rf) =
-  lines
-    [ wrap "A reference to an unknown function was encountered: ",
-      indentN 2 $ prf rf
-    ]
-renderDecompError (UnkLocal rf n) =
-  lines
-    [ "A reference to an unknown portion to a function was encountered: ",
-      indentN 2 $ "function: " <> prf rf,
-      indentN 2 $ "section: " <> lit (fromString $ show n)
-    ]
-renderDecompError Cont = "A continuation value was encountered"
-renderDecompError Exn = "An exception value was encountered"
-renderDecompError Aff = "An affine info value was encountered"
 
 decompile ::
   forall v.
@@ -239,12 +191,28 @@ decompileForeign backref topTerms f
       let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
       kvs <- traverse (uncurry decompileEntry) (Map.toList m)
       pure $ app () map_fromList (list () kvs)
+  | Just n <- maybeUnwrapForeign naturalRef f =
+      pure $ app () naturalFromText (text () $ DT.pack (show (n :: Natural)))
+  | Just i <- maybeUnwrapForeign integerRef f =
+      pure $ app () integerFromText (text () $ DT.pack (show (i :: Integer)))
 decompileForeign _ _ (Wrap r _) =
   err (BadForeign r) $ bug text
   where
     text
       | Builtin name <- r = "<" <> name <> ">"
       | otherwise = "<Foreign>"
+
+naturalFromText :: (Var v) => Term v ()
+naturalFromText =
+  case Referent.fromText "##Natural.unsafeFromText" of
+    Just r -> Term.fromReferent () r
+    Nothing -> error "Natural_unsafeFromText"
+
+integerFromText :: (Var v) => Term v ()
+integerFromText =
+  case Referent.fromText "##Integer.unsafeFromText" of
+    Just r -> Term.fromReferent () r
+    Nothing -> error "Integer_unsafeFromText"
 
 map_fromList :: (Var v) => Term v ()
 map_fromList =

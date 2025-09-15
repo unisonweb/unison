@@ -73,7 +73,7 @@ import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception hiding (die)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -93,7 +93,6 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
@@ -187,7 +186,7 @@ apply0 !callback env !threadTracker !i = do
     topHEnv cmbs rfTy rfTm
   r <- case EC.lookup i cmbrs of
     Just r -> pure r
-    Nothing -> die "apply0: missing reference to entry point"
+    Nothing -> die [] "apply0: missing reference to entry point"
   let entryCix = (CIx r i 0)
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
@@ -315,7 +314,7 @@ exec _ henv !_activeThreads !stk !k _ (SetAff u i j) =
             evaluate $ henv {aenv = aenv}
           else pure henv
       pure (False, henv, stk, k)
-    _ -> die "SetAff called with bad handler reference"
+    _ -> die [] "SetAff called with bad handler reference"
 exec _ henv !_activeThreads !stk !k _ (Capture p) = do
   (cap, denv, stk, k) <- splitCont (denv henv) stk k p
   stk <- bump stk
@@ -328,16 +327,16 @@ exec _ _henv !_activeThreads !stk !k _ (Discard i) = do
       (aenv, stk, k) <- abortCont stk k r
       henv <- evaluate $ HEnv aenv mempty
       pure (False, henv, stk, k)
-    _ -> die "Discard called with bad handler reference"
+    _ -> die [] "Discard called with bad handler reference"
 exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
     Affine _ aenv _ -> do
       (stk, a) <- saveArgs stk
       henv <- evaluate $ HEnv aenv mempty
       pure (False, henv, stk, Local henv0 a k)
-    v -> die $ "InLocal called with bad handler reference\n" ++ show v
+    v -> die [] $ "InLocal called with bad handler reference\n" ++ show v
 exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
-  | sandboxed env = die "attempted to use sandboxed operation: cache"
+  | sandboxed env = die [] "attempted to use sandboxed operation: cache"
   | otherwise = do
       arg <- peekOffS stk i
       news <- decodeCacheArgument arg
@@ -348,7 +347,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
         (Sq.fromList $ encodeVal . Ref <$> unknown)
       pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
-  | sandboxed env = die "attempted to use sandboxed operation: load"
+  | sandboxed env = die [] "attempted to use sandboxed operation: load"
   | otherwise = do
       v <- peekOffBi stk i
       stk <- bumpn stk 2
@@ -373,12 +372,12 @@ exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
 exec _ _ !_activeThreads !stk !k cix (Prim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- peekOff stk j
-  () <- throwIO (BU (traceK r k) (Util.Text.toText name) x)
+  () <- throwIO $ BU (traceK r k) (Util.Text.toText name) x
   error "throwIO should never return"
   where
     r = combRef cix
 exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
-  | sandboxed env = die "attempted to use sandboxed operation: trace"
+  | sandboxed env = die [] "attempted to use sandboxed operation: trace"
   | otherwise = do
       tx <- peekOffBi stk i
       clo <- peekOff stk j
@@ -400,7 +399,7 @@ exec env henv !_trackThreads !stk !k _ (Prim2 op i j) = do
   stk <- primxx env stk op i j
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (RefCAS refI ticketI valI)
-  | sandboxed env = die "attempted to use sandboxed operation: Ref.cas"
+  | sandboxed env = die [] "attempted to use sandboxed operation: Ref.cas"
   | otherwise = do
       (ref :: IORef Val) <- peekOffBi stk refI
       -- Note that the CAS machinery is extremely fussy w/r to whether things are forced because it
@@ -455,21 +454,21 @@ exec _env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
   (b, stk) <- exStackIOToIO $ foreignCall func args (unpackXStack stk)
   pure (b, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Fork i)
-  | sandboxed env = die "attempted to use sandboxed operation: fork"
+  | sandboxed env = die [] "attempted to use sandboxed operation: fork"
   | otherwise = do
       tid <- forkEval env activeThreads =<< peekOff stk i
       stk <- bump stk
       bpoke stk . Foreign . Wrap Rf.threadIdRef $ tid
       pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Atomically i)
-  | sandboxed env = die $ "attempted to use sandboxed operation: atomically"
+  | sandboxed env = die [] $ "attempted to use sandboxed operation: atomically"
   | otherwise = do
       v <- peekOff stk i
       stk <- bump stk
       atomicEval env activeThreads (poke stk) v
       pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (TryForce i)
-  | sandboxed env = die $ "attempted to use sandboxed operation: tryForce"
+  | sandboxed env = die [] $ "attempted to use sandboxed operation: tryForce"
   | otherwise = do
       v <- peekOff stk i
       stk <- bump stk -- Bump the boxed stack to make a slot for the result, which will be written in the callback if we succeed.
@@ -477,7 +476,7 @@ exec env henv !activeThreads !stk !k _ (TryForce i)
       stk <- encodeExn stk ev
       pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
-  die $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
+  die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
 
 encodeExn ::
@@ -500,13 +499,14 @@ encodeExn stk exc = do
       pokeOffBi stk 2 msg
       stk <$ pokeOff stk 3 extra
       where
-        disp e = Util.Text.pack $ show e
+        disp :: (Exception e) => e -> Util.Text.Text
+        disp = Util.Text.pack . show
         (link, msg, extra)
           | Just (ioe :: IOException) <- fromException exn =
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
-              PE _stk msg ->
-                (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
+              PE _stk _issues msg ->
+                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlain 0 msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
@@ -611,7 +611,7 @@ eval' !yld env henv !activeThreads !stk !k r (Ins i nx) = do
           apply yld env henv activeThreads stk kk False (VArg1 0) eh
       | otherwise -> eval yld env henv activeThreads stk k r nx
 eval' !_ _ _ !_ !_activeThreads !_ _ Exit = pure ()
-eval' !_ _ _ !_ !_activeThreads !_ _ (Die s) = die s
+eval' !_ _ _ !_ !_activeThreads !_ _ (Die s) = die [] s
 {-# INLINE eval' #-}
 
 eval ::
@@ -665,7 +665,7 @@ fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
 
 unhandledAbilityRequest :: (HasCallStack) => IO a
-unhandledAbilityRequest = error . show . PE callStack . P.lit . fromString $ "eval: unhandled ability request"
+unhandledAbilityRequest = exn [2922, 5400] "eval: unhandled ability request"
 
 forkEval ::
   (RuntimeProfiler prof) =>
@@ -757,7 +757,7 @@ name !stk !args = \case
     stk <- bump stk
     bpoke stk $ PAp cix comb seg
     pure stk
-  v -> die $ "naming non-function: " ++ show v
+  v -> die [] $ "naming non-function: " ++ show v
 {-# INLINE name #-}
 
 extendPAp :: Val -> Val -> IO Closure
@@ -777,7 +777,7 @@ extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
     ussz = sizeofByteArray useg0
     bssz = sizeofArray bseg0
 extendPAp v _ =
-  die $ "extendPAp: non partial application" ++ show v
+  die [] $ "extendPAp: non partial application" ++ show v
 {-# INLINE extendPAp #-}
 
 -- slow path application
@@ -826,7 +826,7 @@ apply !yld env henv !activeThreads !stk !k !ck !args !val =
           stk <- bump stk
           poke stk v
           yield yld env henv activeThreads stk k
-      | otherwise = die $ "applying non-function: " ++ show v
+      | otherwise = die [] $ "applying non-function: " ++ show v
 {-# INLINE apply #-}
 
 jump ::
@@ -848,7 +848,7 @@ jump !yld env henv !activeThreads !stk !k !args clo = case clo of
     stk <- dumpSeg stk seg $ F (countArgs args) a
     stk <- adjustArgs stk p
     repush yld env activeThreads stk henv sk k
-  _ -> die "jump: non-cont"
+  _ -> die [] "jump: non-cont"
   where
     -- Adjusts a repushed continuation to account for pending arguments. If
     -- there are any frames in the pushed continuation, the nearest one needs to
@@ -883,9 +883,9 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
         cs' = EC.restrictKeys denv ps
     go !denv (Push n a cix f rsect sk) !k =
       go denv sk $ Push n a cix f rsect k
-    go !_ (Local {}) !_ = die "repush: captured Local frame"
-    go !_ (AMark {}) !_ = die "repush: captured AMark frame"
-    go !_ (CB _) !_ = die "repush: impossible"
+    go !_ (Local {}) !_ = die [] "repush: captured Local frame"
+    go !_ (AMark {}) !_ = die [] "repush: captured AMark frame"
+    go !_ (CB _) !_ = die [] "repush: impossible"
 {-# INLINE repush #-}
 
 moveArgs ::
@@ -968,7 +968,7 @@ dumpDataValNoTag ::
 dumpDataValNoTag stk (BoxedVal c) =
   (closureTag c,) <$> dumpDataNoTag Nothing stk c
 dumpDataValNoTag _ v =
-  die $ "dumpDataValNoTag: unboxed val: " ++ show v
+  die [] $ "dumpDataValNoTag: unboxed val: " ++ show v
 {-# INLINE dumpDataValNoTag #-}
 
 -- Dumps a data type closure to the stack without writing its tag.
@@ -992,7 +992,7 @@ dumpDataNoTag !mr !stk = \case
     stk <$ poke stk x
   DataG _ _ seg -> dumpSeg stk seg S
   clo ->
-    die $
+    die [3320] $
       "dumpDataNoTag: bad closure: "
         ++ show clo
         ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
@@ -1195,14 +1195,14 @@ dumpBin sz k e l r stk = do
 
 dataBranchClosureError :: Maybe Reference -> Closure -> IO a
 dataBranchClosureError mrf clo =
-  die $
+  die [] $
     "dataBranch: bad closure: "
       ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mrf
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
-  die $ "dataBranch: unexpected branch: " ++ show br
+  die [] $ "dataBranch: unexpected branch: " ++ show br
 
 -- Splits off a portion of the continuation up to a given prompt.
 --
@@ -1228,13 +1228,13 @@ splitCont !denv !stk !k !p =
     asz = asize stk
     walk :: DEnv -> SZ -> K -> K -> IO (Val, DEnv, Stack, K)
     walk !denv !sz !ck KE =
-      die "fell off stack" >> finish denv sz 0 ck KE
+      die [] "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (CB _) =
-      die "fell off stack" >> finish denv sz 0 ck KE
+      die [] "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Local {}) =
-      die "splitCont: Local frame" >> finish denv sz 0 ck KE
+      die [] "splitCont: Local frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (AMark {}) =
-      die "splitCont: AMark frame" >> finish denv sz 0 ck KE
+      die [] "splitCont: AMark frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Mark a ps cs k)
       | EC.member p ps = finish denv' sz a ck k
       | otherwise = walk denv' (sz + a) (Mark a ps cs' ck) k
@@ -1264,8 +1264,8 @@ abortCont !stk !k !r = walk (asize stk) k
   where
     walk :: SZ -> K -> IO (AEnv, Stack, K)
     walk !sz = \case
-      KE -> die "abortCont: fell off stack"
-      (CB _) -> die "abortCont: fell off stack"
+      KE -> die [] "abortCont: fell off stack"
+      (CB _) -> die [] "abortCont: fell off stack"
       (Local _ a k) -> walk (sz + a) k
       (Push n a _ _ _ k) -> walk (sz + n + a) k
       -- dynamic mark cannot match
@@ -1296,7 +1296,7 @@ unhandledErr fname env i =
     Just r -> bomb (show r)
     Nothing -> bomb (show i)
   where
-    bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
+    bomb sh = die [] $ fname ++ ": unhandled ability request: " ++ sh
 
 rCombSection :: EnumMap Word64 MCombs -> CombIx -> MComb
 rCombSection combs (CIx r n i) =
@@ -1324,7 +1324,7 @@ decodeCacheArgument :: USeq -> IO [(Reference, Code Reference)]
 decodeCacheArgument s = traverse (f <=< decodeVal) $ toList s
   where
     f (Ref r, rco) = pure (r, dereference rco)
-    f _ = die "decodeCacheArgument: Con reference"
+    f _ = die [] "decodeCacheArgument: Con reference"
 
 addRefs ::
   TVar Word64 ->
@@ -1473,7 +1473,7 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
 -- exceptions for top-level constant dependencies of docs and such, in
 -- case the docs don't actually evaluate them.
 isSandboxingException :: RuntimeExn -> Bool
-isSandboxingException (PE _ (P.toPlainUnbroken -> msg)) =
+isSandboxingException (PE _ _ (P.toPlain 0 -> msg)) =
   List.isPrefixOf sdbx1 msg || List.isPrefixOf sdbx2 msg
   where
     sdbx1 = "attempted to use sandboxed operation"
@@ -1555,7 +1555,7 @@ reflectValue env val = do
   tmr <- readTVarIO (combRefs env)
   reflectValue0 tyr tmr val
     `catch` \(ReflectExn problem) ->
-      die $ err problem rendered
+      die [] $ err problem rendered
   where
     err s v =
       "reflectValue: cannot prepare value for serialization: "
@@ -1761,11 +1761,11 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
     ixTy (RefNum i)
       | 0 <= i, i < sizeofArray tya = pure $ indexArray tya i
-      | otherwise = die . err $ "type ref index out of bounds: " ++ show i
+      | otherwise = die [] . err $ "type ref index out of bounds: " ++ show i
 
     ixTm (RefNum i)
       | 0 <= i, i < sizeofArray tma = pure $ indexArray tma i
-      | otherwise = die . err $ "term ref index out of bounds: " ++ show i
+      | otherwise = die [] . err $ "term ref index out of bounds: " ++ show i
 
     numToRef :: Bool -> RefNum -> IO Reference
     numToRef True = ixTy
@@ -1773,11 +1773,11 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
     refTy r = case HM.lookup r rty of
       Just w -> pure w
-      _ -> die . err $ "unknown type reference: " ++ show r
+      _ -> die [] . err $ "unknown type reference: " ++ show r
 
     refTm r = case HM.lookup r rtm of
       Just w -> pure w
-      _ -> die . err $ "unknown term reference: " ++ show r
+      _ -> die [] . err $ "unknown term reference: " ++ show r
 
     goIx :: ANF.GroupRef RefNum -> IO (CombIx, MComb)
     goIx (ANF.GR rn i) = do
@@ -1792,7 +1792,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
         (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
-          | otherwise -> die . err $ msg
+          | otherwise -> die [] . err $ msg
           where
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data rn t0 vs) = do
@@ -1830,7 +1830,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
             sect
             <$> goK k
         (CIx r _ _, _) ->
-          die . err $
+          die [] . err $
             "tried to reify a continuation with a cached value resumption"
               ++ show r
 
@@ -1863,10 +1863,10 @@ reifyValue0 (combs, rty, rtm) = goV
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
       | Just w <- M.lookup r rty = pure w
-      | otherwise = die . err $ "unknown type reference: " ++ show r
+      | otherwise = die [] . err $ "unknown type reference: " ++ show r
     refTm r
       | Just w <- M.lookup r rtm = pure w
-      | otherwise = die . err $ "unknown term reference: " ++ show r
+      | otherwise = die [] . err $ "unknown term reference: " ++ show r
     goIx :: ANF.GroupRef Reference -> IO (CombIx, MComb)
     goIx (ANF.GR r0 i) =
       refTm r <&> \n ->
@@ -1881,7 +1881,7 @@ reifyValue0 (combs, rty, rtm) = goV
         (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
-          | otherwise -> die . err $ msg
+          | otherwise -> die [] . err $ msg
           where
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
@@ -1918,7 +1918,7 @@ reifyValue0 (combs, rty, rtm) = goV
             sect
             <$> goK k
         (CIx r _ _, _) ->
-          die . err $
+          die [] . err $
             "tried to reify a continuation with a cached value resumption"
               ++ show r
 
