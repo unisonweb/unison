@@ -191,16 +191,17 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
           [] -> []
           _ ->
             [ Right . CreateMessage . P.warnCallout $
-                P.wrap "These project names will all be considered invalid in an upcoming UCM release:"
+
+                P.wrap "We're updating UCM's project naming rules, and these names won’t be supported much longer:"
                   <> P.newline
                   <> P.newline
                   <> P.group (P.commas (map P.prettyProjectName invalidProjectNames))
                   <> P.newline
                   <> P.newline
                   <> P.wrap
-                    ( "Please rename them using"
+                    ( "Please"
                         <> IP.makeExample IP.projectRenameInputPattern []
-                        <> "to contain only ASCII letters, digits, and hyphens, of length 2-40 characters."
+                        <> "them using only ASCII letters, numbers, and hyphens, of length 2-40 characters."
                     )
             ]
 
