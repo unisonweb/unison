@@ -1878,6 +1878,9 @@ getDirectDependenciesOfScope isBuiltinType scope = do
           SELECT object_id, component_index
           FROM $tempTableName
         )
+          AND
+            -- Filter out self-dependencies
+            ((d.dependency_object_id, d.dependency_component_index) IS DISTINCT FROM (d.dependent_object_id, d.dependent_component_index))
       |]
 
   -- Drop the temporary table
@@ -1930,6 +1933,9 @@ getDirectDependentsWithinScope scope query = do
             ON d.dependent_object_id = s.object_id
             AND d.dependent_component_index = s.component_index
           JOIN object o ON s.object_id = o.id
+          WHERE
+            -- Filter out self-dependents
+            ((d.dependency_object_id, d.dependency_component_index) IS DISTINCT FROM (d.dependent_object_id, d.dependent_component_index))
       |]
 
   -- Drop the temporary tables
@@ -1995,6 +2001,8 @@ getTransitiveDependentsWithinScope scope query = do
             SELECT object_id, component_index
             FROM $scopeTableName
           )
+          -- Ignore self-dependents
+          AND ((d.dependency_object_id, d.dependency_component_index) IS DISTINCT FROM (d.dependent_object_id, d.dependent_component_index))
         ),
         transitive_dependents (object_id, component_index, type_id) AS (
           SELECT d.dependent_object_id, d.dependent_component_index, o.type_id
