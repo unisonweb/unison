@@ -18,11 +18,13 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Util.Defns (Defns (..), DefnsF)
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -55,8 +57,6 @@ handleDependents hq = do
             Set.toList
               >>> mapMaybe (g >>> listToMaybe)
               >>> Name.sortByText (fst >>> HQ'.toText)
-  pure dependentNames
-
   -- Set numbered args
   (dependentNames.types ++ dependentNames.terms)
     & map (SA.HashQualified . HQ'.toHQ . fst)
