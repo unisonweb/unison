@@ -1,4 +1,4 @@
-```ucm
+``` ucm :hide
 scratch/main> builtins.merge
 ```
 
