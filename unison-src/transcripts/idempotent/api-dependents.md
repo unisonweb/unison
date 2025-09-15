@@ -72,39 +72,6 @@ RESPONSE:
               "fqn": "myCase",
               "kind": "term",
               "projectRef": "scratch"
-          },
-          {
-              "branchRef": "main",
-              "definition": {
-                  "displayName": "MyType",
-                  "hash": "#0qbc2dfom7m4pputtdojo849g2mp5kkr00kvsvjktb07tcmo1jql53bg73bqiib35vja4a7059rcet0raf7jsh4d8vg5582ibinpqj8",
-                  "summary": {
-                      "contents": [
-                          {
-                              "annotation": {
-                                  "tag": "DataTypeKeyword"
-                              },
-                              "segment": "type"
-                          },
-                          {
-                              "annotation": null,
-                              "segment": " "
-                          },
-                          {
-                              "annotation": {
-                                  "contents": "MyType",
-                                  "tag": "HashQualifier"
-                              },
-                              "segment": "MyType"
-                          }
-                      ],
-                      "tag": "UserObject"
-                  },
-                  "tag": "Data"
-              },
-              "fqn": "MyType",
-              "kind": "type",
-              "projectRef": "scratch"
           }
       ]
   }
