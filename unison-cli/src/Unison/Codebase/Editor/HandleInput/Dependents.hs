@@ -41,7 +41,6 @@ handleDependents hq = do
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   dependents <- Cli.runTransaction $ Codebase.dependentsWithinBranchScope namespaceWithoutLibdeps refs
 
-
   let dependentNames ::
         DefnsF
           []
