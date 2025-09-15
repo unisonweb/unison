@@ -191,7 +191,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
           [] -> []
           _ ->
             [ Right . CreateMessage . P.warnCallout $
-
                 P.wrap "We're updating UCM's project naming rules, and these names won’t be supported much longer:"
                   <> P.newline
                   <> P.newline
