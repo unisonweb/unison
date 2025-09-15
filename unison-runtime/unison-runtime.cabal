@@ -40,6 +40,7 @@ flag stackchecks
 library
   exposed-modules:
       Unison.Codebase.Execute
+      Unison.Runtime
       Unison.Runtime.ANF
       Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
@@ -130,7 +131,6 @@ library
     , directory
     , exceptions
     , filepath
-    , github
     , hashable
     , inspection-testing
     , iproute

@@ -113,7 +113,6 @@ module Unison.CommandLine.InputPatterns
     update,
     updateBuiltins,
     upgrade,
-    upgradeCommitInputPattern,
     view,
     viewGlobal,
     deprecatedViewRootReflog,
@@ -3452,7 +3451,7 @@ upgradeCommitInputPattern =
   InputPattern
     { patternName = "upgrade.commit",
       aliases = ["commit.upgrade"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       params = noParams,
       help =
         let mainBranch = defaultBranchName

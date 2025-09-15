@@ -13,11 +13,11 @@ import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Runtime (Runtime)
 import Unison.Server.Backend
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc qualified as Doc
@@ -42,7 +42,7 @@ instance ToCapture (Capture "namespace" Text) where
       "The fully qualified name of a namespace. The leading `.` is optional."
 
 namespaceDetails ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Path.Path ->
   Either ShortCausalHash CausalHash ->

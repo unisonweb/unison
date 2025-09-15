@@ -41,15 +41,15 @@ type UsesFoo = UsesFoo Foo
 
     ❓
     
-    I couldn't resolve any of these symbols:
+    I couldn't resolve any of these names:
     
         2 | type UsesFoo = UsesFoo Foo
     
     
-    Symbol   Suggestions
-             
-    Foo      File.Foo
-             Namespace.Foo
+    Name   Type   Suggestions
+                  
+    Foo    type   File.Foo
+                  Namespace.Foo
 ```
 
 ``` unison

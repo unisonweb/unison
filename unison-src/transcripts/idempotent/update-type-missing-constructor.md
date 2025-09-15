@@ -57,5 +57,5 @@ unique type Foo = Bar Nat Nat
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try the update again.
+  each unnamed constructor, and then try updating again.
 ```

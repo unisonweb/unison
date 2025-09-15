@@ -14,15 +14,18 @@ import Data.List.NonEmpty (pattern (:|))
 import System.Console.Regions qualified as Console.Regions
 import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.Operations qualified as Ops
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Codebase.Editor.HandleInput.AuthLogin (ensureAuthenticatedWithCodeserver)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.RemoteRepo (ReadShareLooseCode, shareUserHandleToText)
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
+import Unison.Codebase.ProjectPath (ProjectBranch (..))
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
@@ -53,8 +56,11 @@ downloadProjectBranchFromShare ::
   (HasCallStack) =>
   Share.IncludeSquashedHead ->
   Share.RemoteProjectBranch ->
+  -- | Whether this download is part of a pull operation. If 'True', we will
+  --   show the from and to causal hashes.
+  Bool ->
   Cli (Either Output.ShareError CausalHash)
-downloadProjectBranchFromShare useSquashed branch =
+downloadProjectBranchFromShare useSquashed branch isPull =
   Cli.labelE \done -> do
     let remoteProjectBranchName = branch.branchName
     causalHashJwt <-
@@ -62,7 +68,8 @@ downloadProjectBranchFromShare useSquashed branch =
         (Share.IncludeSquashedHead, Nothing) -> done Output.ShareExpectedSquashedHead
         (Share.IncludeSquashedHead, Just squashedHead) -> pure squashedHead
         (Share.NoSquashedHead, _) -> pure branch.branchHead
-    exists <- Cli.runTransaction (Queries.causalExistsByHash32 (Share.hashJWTHash causalHashJwt))
+    let causalHash32 = Share.hashJWTHash causalHashJwt
+    exists <- Cli.runTransaction (Queries.causalExistsByHash32 causalHash32)
     when (not exists) do
       case syncVersion of
         SyncV1 -> do
@@ -78,6 +85,10 @@ downloadProjectBranchFromShare useSquashed branch =
         SyncV2 -> do
           let branchRef = SyncV2.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
           let shouldValidate = Codeserver.isCustomCodeserver Codeserver.defaultCodeserver
+          when isPull $ do
+            pb <- Cli.getCurrentProjectBranch
+            currentCausalHash <- Cli.runTransaction $ Ops.expectProjectBranchHead pb.projectId pb.branchId
+            Cli.respond $ Output.SyncingFromTo currentCausalHash (Sync.Common.hash32ToCausalHash causalHash32)
           result <- SyncV2.syncFromCodeserver shouldValidate Share.hardCodedBaseUrl branchRef causalHashJwt
           void result & onLeft \err0 -> do
             done case err0 of

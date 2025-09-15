@@ -4,6 +4,7 @@ module Unison.PrettyPrintEnvDecl
     biasTo,
     empty,
     addFallback,
+    leftBiased,
   )
 where
 
@@ -50,3 +51,11 @@ empty = PrettyPrintEnvDecl PPE.empty PPE.empty
 addFallback :: PrettyPrintEnvDecl -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
 addFallback (PrettyPrintEnvDecl unsuff1 suff1) (PrettyPrintEnvDecl unsuff2 suff2) =
   PrettyPrintEnvDecl (unsuff1 `PPE.addFallback` unsuff2) (suff1 `PPE.addFallback` suff2)
+
+leftBiased :: [PrettyPrintEnvDecl] -> PrettyPrintEnvDecl
+leftBiased = \case
+  [] -> empty
+  ppe : ppes ->
+    case ppes of
+      [] -> ppe
+      _ -> ppe `addFallback` leftBiased ppes

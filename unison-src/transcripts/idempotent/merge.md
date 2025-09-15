@@ -2131,7 +2131,7 @@ scratch/alice> merge /bob
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try the merge again.
+  each unnamed constructor, and then try merging again.
 ```
 
 ``` ucm :hide
@@ -2262,7 +2262,7 @@ scratch/alice> merge bob
   On scratch/alice, the constructor AliasOutsideFooNamespace is
   not nested beneath the corresponding type name. Please either
   use `move` to move it, or if it's an extra copy, you can
-  simply `delete` it. Then try the merge again.
+  simply `delete` it. Then try merging again.
 ```
 
 ``` ucm :hide
