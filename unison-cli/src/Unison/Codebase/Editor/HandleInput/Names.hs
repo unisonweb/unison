@@ -39,7 +39,7 @@ handleNames ::
   Cli ()
 handleNames _ (nameQuery, Left errMsg) = do
   Cli.respond $
-    PrintMessage $
+    Literal $
       P.lines [prettyNameQuery, errMsg]
   where
     prettyNameQuery =

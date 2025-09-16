@@ -50,7 +50,7 @@ modeProfSpec (Permissive prof) = prof
 
 displayDecompileErrors :: [DecompError] -> Cli ()
 displayDecompileErrors =
-  Cli.respond . PrintMessage . msg . fmap (P.indentN 2 . P.indentN 2 . renderDecompError)
+  Cli.respond . Literal . msg . fmap (P.indentN 2 . P.indentN 2 . renderDecompError)
   where
     msg em = do
       P.lines $
@@ -97,7 +97,7 @@ evalUnisonTermE mode ppe useCache tm = do
 displayResponse :: Runtime.Response DecompError -> Cli ()
 displayResponse (Runtime.DecompErrs errs)
   | not $ null errs = displayDecompileErrors errs
-displayResponse (Runtime.Profile prof) = Cli.respond (PrintMessage msg)
+displayResponse (Runtime.Profile prof) = Cli.respond (Literal msg)
   where
     msg = P.lines ["Profile Results:", ""] <> prof
 displayResponse _ = pure ()
