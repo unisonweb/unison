@@ -3431,7 +3431,7 @@ upgrade :: InputPattern
 upgrade =
   InputPattern
     { patternName = "lib.upgrade",
-      aliases = ["upgrade", "upgrade.lib"],
+      aliases = ["upgrade.lib", "upgrade"],
       visibility = I.Visible,
       params =
         Parameters [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)] $
