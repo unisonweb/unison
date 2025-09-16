@@ -30,10 +30,11 @@ E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to f
       "command": "<path-to-ucm>",
       "args": ["mcp"]
     }
+  }
 }
 ```
 
-E.g. my complete file on Mac looks like this:
+_e.g._ my complete file on macOS looks like this:
 
 ``` json
 {
