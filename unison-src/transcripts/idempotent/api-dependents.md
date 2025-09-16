@@ -167,11 +167,71 @@ RESPONSE:
 
 ```
 
+Has no dependents:
+
 ``` api
 GET /api/projects/scratch/branches/main/getDefinitionDependents?name=mySum
 RESPONSE:
   {
       "results": []
+  }
+
+```
+
+Can also get dependents by a hash-only:
+
+``` api
+GET /api/projects/scratch/branches/main/getDefinitionDependents?name=@0qbc2dfom7
+RESPONSE:
+  {
+      "results": [
+          {
+              "branchRef": "main",
+              "definition": {
+                  "displayName": "myVal",
+                  "hash": "#88n7vpiqu9qhuj8v444iq3h7v93qvi7kei7dmmjojg3kc52v1aisg435t9bfedqakhk5fv8hu15daf379c7ovrfci9q627s6e3r7h1g",
+                  "summary": {
+                      "contents": [
+                          {
+                              "annotation": {
+                                  "contents": "#0qbc2dfom7m4pputtdojo849g2mp5kkr00kvsvjktb07tcmo1jql53bg73bqiib35vja4a7059rcet0raf7jsh4d8vg5582ibinpqj8",
+                                  "tag": "TypeReference"
+                              },
+                              "segment": "MyType"
+                          }
+                      ],
+                      "tag": "UserObject"
+                  },
+                  "tag": "Plain"
+              },
+              "fqn": "myVal",
+              "kind": "term",
+              "projectRef": "scratch"
+          },
+          {
+              "branchRef": "main",
+              "definition": {
+                  "displayName": "myCase",
+                  "hash": "#le6cur61p625qb7qfsaq836ln4l20u3ecngthot7io4p762ijb5t5hiv0c59eab9b8lktjp8l0j70r53ci43s89hjjik6hfsvkbjv28",
+                  "summary": {
+                      "contents": [
+                          {
+                              "annotation": {
+                                  "contents": "##Nat",
+                                  "tag": "TypeReference"
+                              },
+                              "segment": "builtin.Nat"
+                          }
+                      ],
+                      "tag": "UserObject"
+                  },
+                  "tag": "Plain"
+              },
+              "fqn": "myCase",
+              "kind": "term",
+              "projectRef": "scratch"
+          }
+      ]
   }
 
 ```

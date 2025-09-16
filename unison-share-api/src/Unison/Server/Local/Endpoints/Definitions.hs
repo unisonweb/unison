@@ -32,7 +32,6 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.NamesWithHistory (SearchType (..))
@@ -159,7 +158,6 @@ getDefinitionDependentsEndpoint _rt codebase projectAndBranch hqn mayWidth = do
     let nameSearch = makeNameSearch hqLength namesWithoutLibdeps
     QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
 
-    Debug.debugM Debug.Temp "hits" hits
     let defs =
           hits & foldMap \case
             Tp TypeResult {reference} -> Defns {terms = Set.empty, types = (Set.singleton reference)}
@@ -167,7 +165,6 @@ getDefinitionDependentsEndpoint _rt codebase projectAndBranch hqn mayWidth = do
 
     dependents <- lift $ Codebase.dependentsWithinBranchScope rootBranch0WithoutLibdeps defs
     pure (dependents, namesWithoutLibdeps)
-  Debug.debugM Debug.Temp "dependents" dependents
 
   let pped = PPED.makePPED (PPE.hqNamer 10 namesWithoutLibdeps) PPE.dontSuffixify
   definitionSearchResults <-
