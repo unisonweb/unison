@@ -69,6 +69,7 @@ import Unison.Util.Pretty (Width)
 type DefinitionsAPI =
   ("getDefinition" :> GetDefinitionEndpoint)
     :<|> ("getDefinitionDependents" :> GetDefinitionDependentsEndpoint)
+    :<|> ("getDefinitionDependencies" :> GetDefinitionDependenciesEndpoint)
 
 -- More endpoints could go here in the future
 
@@ -80,6 +81,11 @@ type GetDefinitionEndpoint =
     :> APIGet DefinitionDisplayResults
 
 type GetDefinitionDependentsEndpoint =
+  RequiredQueryParam "name" (HQ.HashQualified Name)
+    :> QueryParam "renderWidth" Width
+    :> APIGet DefinitionSearchResults
+
+type GetDefinitionDependenciesEndpoint =
   RequiredQueryParam "name" (HQ.HashQualified Name)
     :> QueryParam "renderWidth" Width
     :> APIGet DefinitionSearchResults
@@ -236,3 +242,4 @@ serveDefinitionsServer ::
 serveDefinitionsServer rt codebase projectAndBranch = do
   getDefinitionsEndpoint rt codebase projectAndBranch
     :<|> getDefinitionDependentsEndpoint rt codebase projectAndBranch
+    :<|> getDefinitionDependenciesEndpoint rt codebase projectAndBranch
