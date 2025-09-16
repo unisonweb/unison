@@ -194,7 +194,7 @@ loop e = do
           pp <- Cli.getCurrentProjectPath
           whenJust env.serverBaseUrl \baseUrl ->
             Cli.respond $
-              PrintMessage $
+              Literal $
                 P.lines
                   [ "The API information is as follows:",
                     P.newline,
@@ -203,7 +203,7 @@ loop e = do
                     P.indentN 2 (P.hiBlue ("API: " <> Pretty.text (Server.urlFor Server.Api baseUrl)))
                   ]
         CreateMessage pretty ->
-          Cli.respond $ PrintMessage pretty
+          Cli.respond $ Literal pretty
         ShowRootReflogI -> do
           let numEntriesToShow = 500
           (schLength, entries) <-
