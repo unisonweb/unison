@@ -181,18 +181,18 @@ import UnliftIO.Directory qualified as Directory
 
 loop :: Either Event Input -> Cli ()
 loop e = do
+  env <- ask
   case e of
     Left (UnisonFileChanged sourceName text) -> Cli.time "UnisonFileChanged" do
-      -- We skip this update if it was programmatically generated
+      -- We skip this update if it was programmatically generated and we aren't running a transcript
       Cli.getLatestFile >>= \case
-        Just (_, True) -> (#latestFile . _Just . _2) .= False
+        Just (_, True) | not env.isTranscriptTest -> (#latestFile . _Just . _2) .= False
         _ -> loadUnisonFile sourceName text
     Right input ->
       Cli.time "InputPattern" case input of
         ApiI -> do
           pp <- Cli.getCurrentProjectPath
-          Cli.Env {serverBaseUrl} <- ask
-          whenJust serverBaseUrl \baseUrl ->
+          whenJust env.serverBaseUrl \baseUrl ->
             Cli.respond $
               PrintMessage $
                 P.lines
@@ -339,28 +339,25 @@ loop e = do
         DocToMarkdownI docName -> do
           names <- Cli.currentNames
           let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-          Cli.Env {codebase, runtime} <- ask
           docRefs <- Cli.runTransaction do
             hqLength <- Codebase.hashLength
             let nameSearch = NameSearch.makeNameSearch hqLength names
-            Backend.docsForDefinitionName codebase nameSearch Names.IncludeSuffixes docName
+            Backend.docsForDefinitionName env.codebase nameSearch Names.IncludeSuffixes docName
           mdText <- liftIO $ do
             for docRefs \docRef -> do
-              Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) codebase runtime (Identity docRef)
+              Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) env.codebase env.runtime (Identity docRef)
               pure . Md.toText $ Md.toMarkdown doc
           Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
         DocsToHtmlI namespacePath' sourceDirectory -> do
-          Cli.Env {codebase, sandboxedRuntime} <- ask
           projPath <- ProjectUtils.resolveBranchRelativePath namespacePath'
           branch <- Cli.getBranchFromProjectPath projPath
-          _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles sandboxedRuntime codebase branch sourceDirectory)
+          _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles env.sandboxedRuntime env.codebase branch sourceDirectory)
           pure ()
         AliasTermI force src' dest' -> do
-          Cli.Env {codebase} <- ask
           src <- traverse (traverse Cli.resolveSplit') src'
           srcTerms <-
             either
-              (Cli.runTransaction . Backend.termReferentsByShortHash codebase)
+              (Cli.runTransaction . Backend.termReferentsByShortHash env.codebase)
               Cli.getTermsAt
               src
           srcTerm <-
@@ -465,7 +462,6 @@ loop e = do
         DocsI srcs -> do
           for_ srcs docsI
         CreateAuthorI authorNameSegment authorFullName -> do
-          Cli.Env {codebase} <- ask
           initialBranch <- Cli.getCurrentBranch
           AuthorInfo
             guid@(guidRef, _, _)
@@ -474,7 +470,7 @@ loop e = do
             AuthorInfo.createAuthorInfo Ann.External authorFullName
           description <- inputDescription input
           -- add the new definitions to the codebase and to the namespace
-          Cli.runTransaction (traverse_ (uncurry3 (Codebase.putTerm codebase)) [guid, author, copyrightHolder])
+          Cli.runTransaction (traverse_ (uncurry3 (Codebase.putTerm env.codebase)) [guid, author, copyrightHolder])
           authorPath <- Cli.resolveSplit' authorPath'
           copyrightHolderPath <-
             Cli.resolveSplit' (Path.descend base NameSegment.copyrightHoldersSegment, authorNameSegment)
@@ -537,7 +533,6 @@ loop e = do
         --   checkTodo
 
         MergeBuiltinsI opath -> do
-          Cli.Env {codebase} <- ask
           description <- inputDescription input
           -- these were added once, but maybe they've changed and need to be
           -- added again.
@@ -547,7 +542,7 @@ loop e = do
                   (Map.fromList Builtin.builtinEffectDecls)
                   [Builtin.builtinTermsSrc Intrinsic]
                   mempty
-          Cli.runTransaction (Codebase.addDefsToCodebase codebase uf)
+          Cli.runTransaction (Codebase.addDefsToCodebase env.codebase uf)
           -- add the names; note, there are more names than definitions
           -- due to builtin terms; so we don't just reuse `uf` above.
           let srcb = BranchUtil.fromNames Builtin.names
@@ -557,10 +552,9 @@ loop e = do
                 Nothing -> Path.descend currentPath NameSegment.builtinSegment
           pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
           _ <- Cli.updateAtM description pp \destb ->
-            liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
+            liftIO (Branch.merge'' (Codebase.lca env.codebase) Branch.RegularMerge srcb destb)
           Cli.respond Success
         MergeIOBuiltinsI opath -> do
-          Cli.Env {codebase} <- ask
           description <- inputDescription input
           -- these were added once, but maybe they've changed and need to be
           -- added again.
@@ -571,9 +565,9 @@ loop e = do
                   [Builtin.builtinTermsSrc Intrinsic]
                   mempty
           Cli.runTransaction do
-            Codebase.addDefsToCodebase codebase uf
+            Codebase.addDefsToCodebase env.codebase uf
             -- these have not necessarily been added yet
-            Codebase.addDefsToCodebase codebase IOSource.typecheckedFile'
+            Codebase.addDefsToCodebase env.codebase IOSource.typecheckedFile'
           -- add the names; note, there are more names than definitions
           -- due to builtin terms; so we don't just reuse `uf` above.
           let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
@@ -584,7 +578,7 @@ loop e = do
                 Nothing -> Path.descend currentPath NameSegment.builtinSegment
           pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
           _ <- Cli.updateAtM description pp \destb ->
-            liftIO (Branch.merge'' (Codebase.lca codebase) Branch.RegularMerge srcb destb)
+            liftIO (Branch.merge'' (Codebase.lca env.codebase) Branch.RegularMerge srcb destb)
           Cli.respond Success
         PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
         PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
@@ -611,15 +605,13 @@ loop e = do
               terms = [(Name.unsafeParseVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
           Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
         DebugTabCompletionI inputs -> do
-          Cli.Env {authHTTPClient, codebase} <- ask
           pp <- Cli.getCurrentProjectPath
-          let completionFunc = Completion.haskelineTabComplete IP.patternMap codebase authHTTPClient pp
+          let completionFunc = Completion.haskelineTabComplete IP.patternMap env.codebase env.authHTTPClient pp
           (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
           Cli.respond (DisplayDebugCompletions completions)
         DebugLSPNameCompletionI prefix -> do
           LSPDebug.debugLspNameCompletion prefix
         DebugFuzzyOptionsI command args -> do
-          Cli.Env {codebase} <- ask
           currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
           case Map.lookup command InputPatterns.patternMap of
             Just IP.InputPattern {params} ->
@@ -632,7 +624,7 @@ loop e = do
                             (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName ["<files>"])
                           Just (IP.FetchOptions getOptions) -> do
                             pp <- Cli.getCurrentProjectPath
-                            results <- liftIO $ getOptions codebase pp currentBranch
+                            results <- liftIO $ getOptions env.codebase pp currentBranch
                             (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName (Text.unpack <$> results))
                           Nothing -> (,[]) <$> Cli.respond DebugFuzzyOptionsNoResolver
                         else pure ((), [])
@@ -642,7 +634,6 @@ loop e = do
                   args
             Nothing -> Cli.respond $ DebugFuzzyOptionsNoCommand command
         DebugFormatI -> do
-          env <- ask
           void $ runMaybeT do
             (filePath, _) <- MaybeT Cli.getLatestFile
             pf <- lift Cli.getLatestParsedFile
@@ -746,9 +737,7 @@ loop e = do
         UpdateBuiltinsI -> Cli.respond NotImplemented
         QuitI -> Cli.haltRepl
         AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
-        VersionI -> do
-          Cli.Env {ucmVersion} <- ask
-          Cli.respond $ PrintVersion ucmVersion
+        VersionI -> Cli.respond $ PrintVersion env.ucmVersion
         ProjectRenameI name -> handleProjectRename name
         ProjectSwitchI name -> projectSwitch name
         ProjectCreateI tryDownloadingBase name -> void $ projectCreate tryDownloadingBase name

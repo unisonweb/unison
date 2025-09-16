@@ -137,12 +137,6 @@ thingy =
 
 Resolve the error and run `update` to finish the upgrade.
 
-(Don't know why the following stanza gets deleted, so we repeat it).
-
-``` unison
-thingy = foo + +10
-```
-
 ``` unison
 thingy = foo + +10
 ```
@@ -252,12 +246,6 @@ thingy =
 ```
 
 Resolve the error and run `update` to finish the upgrade.
-
-(Don't know why the following stanza gets deleted, so we repeat it).
-
-``` unison
-thingy = foo + +10
-```
 
 ``` unison
 thingy = foo + +10
@@ -447,15 +435,6 @@ If `foo#old` exists in old, and `foo#new` exists in new, you might think `upgrad
 
 ``` ucm :hide
 foo/main> builtins.merge lib.builtin
-```
-
-(Don't know why the following stanza gets deleted, so we repeat it).
-
-``` unison
-lib.old.foo = 18
-lib.new.other = 18
-lib.new.foo = 19
-mything = lib.old.foo + lib.old.foo
 ```
 
 ``` unison
