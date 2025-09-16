@@ -210,6 +210,69 @@ getDefinitionDependentsEndpoint _rt codebase projectAndBranch hqn mayWidth = do
               branchRef
             }
 
+getDefinitionDependenciesEndpoint ::
+  Runtime Symbol ->
+  Codebase IO Symbol Ann ->
+  ProjectAndBranch ProjectName ProjectBranchName ->
+  HQ.HashQualified Name ->
+  Maybe Width ->
+  Backend.Backend IO (APIHeaders DefinitionSearchResults)
+getDefinitionDependenciesEndpoint _rt codebase projectAndBranch hqn mayWidth = do
+  hqLength <- liftIO $ Codebase.runTransaction codebase $ Codebase.hashLength
+  rootCausal <- Backend.resolveProjectRoot codebase projectAndBranch
+  (dependencies, names) <- Backend.hoistBackend (Codebase.runTransaction codebase) $ do
+    rootBranch <- lift $ Codebase.expectBranchForHashTx codebase (Causal.causalHash rootCausal)
+    let rootBranch0 = Branch.head rootBranch
+    let names = Branch.toNames rootBranch0
+    let nameSearch = makeNameSearch hqLength names
+    QueryResult {hits} <- lift $ Backend.hqNameQuery codebase nameSearch ExactName [hqn]
+
+    let defs =
+          hits & foldMap \case
+            Tp TypeResult {reference} -> Defns {terms = Set.empty, types = (Set.singleton reference)}
+            Tm TermResult {referent} -> Defns {terms = (Set.singleton referent), types = Set.empty}
+
+    dependencies <- lift $ Codebase.directDependencies defs
+    pure (dependencies, names)
+
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) PPE.dontSuffixify
+  definitionSearchResults <-
+    dependencies
+      & bitraverse (wither (doTerm pped) . Set.toList) (wither (doType pped) . Set.toList)
+  definitionSearchResults
+    & bifold
+    & DefinitionSearchResults
+    & setCacheControl
+    & pure
+  where
+    project = projectAndBranch.project
+    branchRef = projectAndBranch.branch
+    doTerm :: PPED.PrettyPrintEnvDecl -> Reference.TermReference -> Backend.Backend IO (Maybe DefinitionSearchResult)
+    doTerm pped reference = runMaybeT do
+      let referent = Referent.fromTermReference reference
+      fqn <- hoistMaybe $ HQ.toName $ PPE.termName (PPED.unsuffixifiedPPE pped) referent
+      summary <- lift $ Backend.termSummaryForReferent codebase referent Nothing (\_ -> pure pped) mayWidth
+      pure $
+        DefinitionSearchResult
+          { fqn,
+            summary = ToTTermSummary summary,
+            project,
+            branchRef
+          }
+
+    doType :: PPED.PrettyPrintEnvDecl -> Reference.TypeReference -> Backend.Backend IO (Maybe DefinitionSearchResult)
+    doType pped reference = do
+      runMaybeT do
+        fqn <- hoistMaybe $ HQ.toName $ PPE.typeName (PPED.unsuffixifiedPPE pped) reference
+        summary <- lift $ Backend.typeSummaryForReference codebase reference Nothing (\_ -> pure pped) mayWidth
+        pure $
+          DefinitionSearchResult
+            { fqn,
+              summary = ToTTypeSummary summary,
+              project,
+              branchRef
+            }
+
 getDefinitionsEndpoint ::
   Runtime Symbol ->
   Codebase IO Symbol Ann ->
