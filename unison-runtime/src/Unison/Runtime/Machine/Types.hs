@@ -5,8 +5,13 @@ module Unison.Runtime.Machine.Types where
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
 import Control.Exception hiding (Handler)
+#if !defined(mingw32_HOST_OS)
 import Data.IORef
   (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
+#else
+import Data.IORef
+  (IORef, newIORef, readIORef, writeIORef)
+#endif
 import Data.Kind (Type)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
@@ -143,7 +148,7 @@ tickCallback interval ptick ticker cancel = body
 -- CPUTime based profiler for Windows
 instance RuntimeProfiler ProfileComm where
   data Ticker ProfileComm = TPC !Tick !(IORef Word8)
-  startTicker (PC pf _ _) = (, pure ()) . TPC pf  <$> newIORef 1
+  startTicker (PC pf _ _) = (, pure ()) . TPC (pf False)  <$> newIORef 1
 
   checkTicker (TPC tick r) cix k = do
     n <- readIORef r
