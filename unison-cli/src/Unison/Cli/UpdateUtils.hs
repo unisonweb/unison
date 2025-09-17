@@ -36,6 +36,7 @@ import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
 import Unison.Name (Name)
+import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -67,10 +68,7 @@ getNamespaceDependentsOf ::
   Set Reference ->
   Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf defns dependencies = do
-  let toTermScope = Set.mapMaybe Referent.toReferenceId . BiMultimap.dom
-  let toTypeScope = Set.mapMaybe Reference.toId . BiMultimap.dom
-  let scope = bimap toTermScope toTypeScope defns
-  Operations.transitiveDependentsWithinScope scope dependencies
+  Operations.transitiveDependentsWithinScope (Names.unconflictedReferenceIds defns) dependencies
     <&> bimap (Set.foldl' addTerms Map.empty) (Set.foldl' addTypes Map.empty)
   where
     addTerms :: Map Name TermReferenceId -> TermReferenceId -> Map Name TermReferenceId

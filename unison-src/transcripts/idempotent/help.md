@@ -631,9 +631,6 @@
   names/hashes to list, which requires that `fzf` can be found
   within your PATH.
 
-  namespace.dependencies
-  List the external dependencies of the specified namespace.
-
   project.create (or create.project)
   `project.create`      creates a project with a random name
   `project.create foo`  creates a project named `foo`
