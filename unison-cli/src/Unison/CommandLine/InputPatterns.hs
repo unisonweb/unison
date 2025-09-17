@@ -1624,7 +1624,7 @@ libInstallInputPattern :: InputPattern
 libInstallInputPattern =
   InputPattern
     { patternName = "lib.install",
-      aliases = ["install.lib"],
+      aliases = ["install.lib", "install"],
       visibility = I.Visible,
       params = Parameters [("library name", remoteProjectBranchOrReleaseArg)] $ Optional [] Nothing,
       help =
@@ -3430,8 +3430,8 @@ releaseDraft =
 upgrade :: InputPattern
 upgrade =
   InputPattern
-    { patternName = "upgrade",
-      aliases = [],
+    { patternName = "lib.upgrade",
+      aliases = ["upgrade.lib", "upgrade"],
       visibility = I.Visible,
       params =
         Parameters [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)] $
