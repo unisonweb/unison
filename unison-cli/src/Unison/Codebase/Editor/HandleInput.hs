@@ -54,6 +54,9 @@ import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefi
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
 import Unison.Codebase.Editor.HandleInput.Delete (handleDelete)
+import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
+import Unison.Codebase.Editor.HandleInput.DeleteNamespace (handleDeleteNamespace)
+import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.Dependencies (handleDependencies)
 import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
 import Unison.Codebase.Editor.HandleInput.EditDependents (handleEditDependents)
@@ -493,7 +496,10 @@ loop e = do
           hasConfirmed <- confirmedCommand input
           desc <- inputDescription input
           handleMoveAll hasConfirmed src' dest' desc
+        DeleteBranchI name -> handleDeleteBranch name
         DeleteI target -> handleDelete target
+        DeleteNamespaceI insistence path -> handleDeleteNamespace input insistence path
+        DeleteProjectI name -> handleDeleteProject name
         DisplayI outputLoc namesToDisplay -> traverse_ (displayI outputLoc) namesToDisplay
         ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
         EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
@@ -821,7 +827,10 @@ inputDescription input =
     DebugSynhashTermI {} -> wat
     DebugTabCompletionI {} -> wat
     DebugTypecheckedUnisonFileI {} -> wat
-    DeleteI _ -> wat
+    DeleteBranchI {} -> wat
+    DeleteI {} -> wat
+    DeleteNamespaceI {} -> wat
+    DeleteProjectI {} -> wat
     DiffNamespaceI {} -> wat
     DisplayI {} -> wat
     DocsI {} -> wat

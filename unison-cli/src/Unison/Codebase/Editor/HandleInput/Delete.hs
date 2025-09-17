@@ -15,9 +15,7 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
-import Unison.Codebase.Editor.HandleInput.DeleteNamespace (getEndangeredDependents, handleDeleteNamespace)
-import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
+import Unison.Codebase.Editor.HandleInput.DeleteNamespace (getEndangeredDependents)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -52,9 +50,6 @@ handleDelete target = do
     DeleteTarget'Type doutput hqs ->
       let description = Text.unwords (foldOutput "delete.type" "delete.type.verbose" doutput : map targetToText hqs)
        in delete description doutput (const (pure Set.empty)) getTypes hqs
-    DeleteTarget'Namespace insistence path -> handleDeleteNamespace (DeleteI target) insistence path
-    DeleteTarget'ProjectBranch name -> handleDeleteBranch name
-    DeleteTarget'Project name -> handleDeleteProject name
   where
     foldOutput :: a -> a -> DeleteOutput -> a
     foldOutput noDiff yesDiff = \case

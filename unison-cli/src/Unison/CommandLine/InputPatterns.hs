@@ -1370,7 +1370,7 @@ deleteProject =
           [ ("`delete.project foo`", "deletes the local project `foo`")
           ],
       parse = \case
-        name : _ -> Input.DeleteI . DeleteTarget'Project <$> handleProjectArg name
+        name : _ -> Input.DeleteProjectI <$> handleProjectArg name
         args -> wrongArgsLength "exactly one argument" args
     }
 
@@ -1387,7 +1387,7 @@ deleteBranch =
             ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
           ],
       parse = \case
-        name : _ -> Input.DeleteI . DeleteTarget'ProjectBranch <$> handleMaybeProjectBranchArg name
+        name : _ -> Input.DeleteBranchI <$> handleMaybeProjectBranchArg name
         args -> wrongArgsLength "exactly one argument" args
     }
   where
@@ -1559,8 +1559,8 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: Input.Insistence -> I.Arguments -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser insistence = \case
-  [Left "."] -> first fromString . pure $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
-  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence . pure <$> handleSplitArg p
+  [Left "."] -> first fromString . pure $ Input.DeleteNamespaceI insistence Nothing
+  [p] -> Input.DeleteNamespaceI insistence . pure <$> handleSplitArg p
   args -> wrongArgsLength "exactly one argument" args
 
 renameBranch :: InputPattern
