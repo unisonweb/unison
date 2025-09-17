@@ -121,8 +121,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
             Left e -> do
               Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
               let testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
-                  e' = P.callout ("Error while evaluating test " <> P.backticked testName) e
-              Cli.returnEarly (EvaluationFailure e')
+              Cli.returnEarly $ EvaluationFailure (P.callout ("Error while evaluating test " <> P.backticked testName <> ":") . P.indentN 2) e
             Right tm' -> do
               -- After evaluation, cache the result of the test
               Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
@@ -145,9 +144,13 @@ handleIOTest main = do
   (fails, oks) <-
     Foldable.foldrM
       ( \(ref, typ) (f, o) -> do
-          when (not $ isIOTest typ) $
-            Cli.returnEarly (BadMainFunction "io.test" main typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
-          bimap (\ts -> if null ts then f else Map.insert ref ts f) (\ts -> if null ts then o else Map.insert ref ts o) <$> runIOTest suffixifiedPPE ref
+          when (not $ isIOTest typ)
+            . Cli.returnEarly
+            . BadMainFunction "io.test" main typ suffixifiedPPE
+            . Foldable.toList
+            $ Runtime.ioTestTypes runtime
+          bimap (\ts -> if null ts then f else Map.insert ref ts f) (\ts -> if null ts then o else Map.insert ref ts o)
+            <$> runIOTest suffixifiedPPE ref
       )
       (Map.empty, Map.empty)
       refs

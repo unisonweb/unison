@@ -12,10 +12,13 @@ This approach allows agents to connect to UCM's MCP server directly via stdin/st
 
 Note that this causes an additional UCM to run as an entirely independent process for each agent you're using.
 
+#### Claude Code
+
 To configure the MCP for use with Claude (and any tools which read Claude's json config), edit your Claude Desktop config JSON file, which is found:
 
 * On Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
 * On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+* On Linux: `$HOME/.claude.json`
 
 Configure a `unison` key in your `mcpServers` object as below. Replace `<path-to-ucm>` with the path to your `ucm` executable.
 E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to find your UCM executable path.
@@ -27,12 +30,13 @@ E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to f
       "command": "<path-to-ucm>",
       "args": ["mcp"]
     }
+  }
 }
 ```
 
-E.g. my complete file on Mac looks like this:
+_e.g._ my complete file on macOS looks like this:
 
-```
+``` json
 {
   "mcpServers": {
     "unison": {
@@ -45,6 +49,32 @@ E.g. my complete file on Mac looks like this:
 
 After saving the file, restart the Claude Desktop app. You should then see a new "unison" option in the MCP server list.
 
+#### Codex
+
+Codex is primarily used for OpenAI models, but can be used with other model providers that support the OpenAI API.
+
+Configuration is similar to Claude Code; locate your Codex config file:
+
+* On Linux: `$HOME/.codex/config.toml`
+
+``` toml
+[mcp_servers.unison]
+command = "/path/to/ucm"
+args = ["mcp"]
+```
+
+Restart `codex`; you should now be able to see the Unison MCP server by entering `/mcp` in Codex:
+
+```
+/mcp
+
+🔌  MCP Tools
+
+  • Server: unison
+    • Command: /home/bbarker/.nix-profile/bin/ucm mcp
+    • Tools: docs, get-current-project-context, lib-install, list-definition-dependencies, list-definition-dependents, list-library-definitions, list-local-projects, list-project-branches,
+list-project-definitions, list-project-libraries, search-by-type, search-definitions-by-name, share-project-readme, share-project-search, typecheck-code, view-definitions
+```
 
 ### Connecting to a running UCM executable (not recommended)
 

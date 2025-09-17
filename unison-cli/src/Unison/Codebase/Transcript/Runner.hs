@@ -28,7 +28,7 @@ import System.IO qualified as IO
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Project (Project (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..), ProjectBranchRow (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -43,7 +43,6 @@ import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Transcript
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
@@ -52,7 +51,7 @@ import Unison.CommandLine
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
 import Unison.Debug qualified as Debug
 import Unison.MCP qualified as MCP
@@ -134,7 +133,7 @@ withRunner isTest verbosity ucmVersion action = do
                   credMan
                   stanzas
   where
-    withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
+    withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
@@ -153,8 +152,8 @@ run ::
   Bool ->
   Verbosity ->
   Codebase IO Symbol Ann ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
   UCMVersion ->
   Text ->
   AuthN.AuthenticatedHttpClient ->
@@ -323,16 +322,16 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                         Q.insertProject projectId projectName
                         pure $ Project {projectId, name = projectName}
                       Just project -> pure project
-                projectBranch <-
+                projectAndBranchIds <-
                   Q.loadProjectBranchByName projectId branchName >>= \case
                     Nothing -> do
                       branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
-                      let projectBranch =
-                            ProjectBranch {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                      Q.insertProjectBranch "Branch Created" emptyCausalHashId projectBranch
-                      pure projectBranch
-                    Just projBranch -> pure projBranch
-                let projectAndBranchIds = ProjectAndBranch projectBranch.projectId projectBranch.branchId
+                      Q.insertProjectBranch
+                        "Branch Created"
+                        emptyCausalHashId
+                        ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
+                      pure (ProjectAndBranch projectId branchId)
+                    Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
                 pure
                   if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
                     then Nothing
@@ -461,7 +460,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       print o = do
         -- NB: We have a directory, but we don’t pass it to the notifier because it’s a temp dir, and if it ends up in
         --     transcript output, it makes transcripts non-reproducible.
-        msg <- notifyUser Nothing o
+        msg <- notifyUser Nothing showIssueUrl o
         outputUcmResult msg
         when (Output.isFailure o) $ maybeDieWithMsg msg
 

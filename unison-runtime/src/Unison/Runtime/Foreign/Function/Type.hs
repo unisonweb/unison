@@ -309,60 +309,60 @@ data ForeignFunc
   | Json_unconsText
   | Json_tryUnconsText
   | Avro_decodeBinary
-  | BigInt_fromText
-  | BigInt_unsafeFromText
-  | BigInt_toText
-  | BigInt_fromInt
-  | BigInt_toInt
-  | BigInt_add
-  | BigInt_sub
-  | BigInt_mul
-  | BigInt_div
-  | BigInt_mod
-  | BigInt_pow
-  | BigInt_shl
-  | BigInt_shr
-  | BigInt_and
-  | BigInt_or
-  | BigInt_xor
-  | BigInt_eq
-  | BigInt_lt
-  | BigInt_le
-  | BigInt_gt
-  | BigInt_ge
-  | BigInt_neg
-  | BigInt_abs
-  | BigInt_signum
-  | BigInt_toFloat
-  | BigInt_popCount
-  | BigInt_truncate0
-  | BigInt_isEven
-  | BigInt_isOdd
-  | BigNat_fromText
-  | BigNat_unsafeFromText
-  | BigNat_toText
-  | BigNat_fromNat
-  | BigNat_toNat
-  | BigNat_toFloat
-  | BigNat_add
-  | BigNat_sub
-  | BigNat_mul
-  | BigNat_div
-  | BigNat_mod
-  | BigNat_pow
-  | BigNat_shl
-  | BigNat_shr
-  | BigNat_and
-  | BigNat_or
-  | BigNat_xor
-  | BigNat_eq
-  | BigNat_lt
-  | BigNat_le
-  | BigNat_gt
-  | BigNat_ge
-  | BigNat_popCount
-  | BigNat_isEven
-  | BigNat_isOdd
+  | Integer_fromText
+  | Integer_unsafeFromText
+  | Integer_toText
+  | Integer_fromInt
+  | Integer_toInt
+  | Integer_add
+  | Integer_sub
+  | Integer_mul
+  | Integer_div
+  | Integer_mod
+  | Integer_pow
+  | Integer_shl
+  | Integer_shr
+  | Integer_and
+  | Integer_or
+  | Integer_xor
+  | Integer_eq
+  | Integer_lt
+  | Integer_le
+  | Integer_gt
+  | Integer_ge
+  | Integer_neg
+  | Integer_abs
+  | Integer_signum
+  | Integer_toFloat
+  | Integer_popCount
+  | Integer_truncate0
+  | Integer_isEven
+  | Integer_isOdd
+  | Natural_fromText
+  | Natural_unsafeFromText
+  | Natural_toText
+  | Natural_fromNat
+  | Natural_toNat
+  | Natural_toFloat
+  | Natural_add
+  | Natural_sub
+  | Natural_mul
+  | Natural_div
+  | Natural_mod
+  | Natural_pow
+  | Natural_shl
+  | Natural_shr
+  | Natural_and
+  | Natural_or
+  | Natural_xor
+  | Natural_eq
+  | Natural_lt
+  | Natural_le
+  | Natural_gt
+  | Natural_ge
+  | Natural_popCount
+  | Natural_isEven
+  | Natural_isOdd
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -668,57 +668,57 @@ foreignFuncBuiltinName = \case
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
   Avro_decodeBinary -> "avro.Value.tryDecodeBytes"
-  BigInt_toText -> "BigInt.toText"
-  BigInt_fromText -> "BigInt.fromText"
-  BigInt_unsafeFromText -> "BigInt.unsafeFromText"
-  BigInt_fromInt -> "BigInt.fromInt"
-  BigInt_toInt -> "BigInt.toInt"
-  BigInt_add -> "BigInt.add"
-  BigInt_sub -> "BigInt.sub"
-  BigInt_mul -> "BigInt.mul"
-  BigInt_div -> "BigInt.div"
-  BigInt_mod -> "BigInt.mod"
-  BigInt_pow -> "BigInt.pow"
-  BigInt_shl -> "BigInt.shiftLeft"
-  BigInt_shr -> "BigInt.shiftRight"
-  BigInt_and -> "BigInt.and"
-  BigInt_or -> "BigInt.or"
-  BigInt_xor -> "BigInt.xor"
-  BigInt_eq -> "BigInt.eq"
-  BigInt_lt -> "BigInt.lt"
-  BigInt_le -> "BigInt.lteq"
-  BigInt_gt -> "BigInt.gt"
-  BigInt_ge -> "BigInt.gteq"
-  BigInt_neg -> "BigInt.neg"
-  BigInt_abs -> "BigInt.abs"
-  BigInt_signum -> "BigInt.signum"
-  BigInt_toFloat -> "BigInt.toFloat"
-  BigInt_popCount -> "BigInt.popCount"
-  BigInt_truncate0 -> "BigInt.truncate0"
-  BigInt_isEven -> "BigInt.isEven"
-  BigInt_isOdd -> "BigInt.isOdd"
-  BigNat_toText -> "BigNat.toText"
-  BigNat_fromText -> "BigNat.fromText"
-  BigNat_unsafeFromText -> "BigNat.unsafeFromText"
-  BigNat_fromNat -> "BigNat.fromNat"
-  BigNat_toNat -> "BigNat.toNat"
-  BigNat_toFloat -> "BigNat.toFloat"
-  BigNat_add -> "BigNat.add"
-  BigNat_sub -> "BigNat.sub"
-  BigNat_mul -> "BigNat.mul"
-  BigNat_div -> "BigNat.div"
-  BigNat_mod -> "BigNat.mod"
-  BigNat_pow -> "BigNat.pow"
-  BigNat_shl -> "BigNat.shiftLeft"
-  BigNat_shr -> "BigNat.shiftRight"
-  BigNat_and -> "BigNat.and"
-  BigNat_or -> "BigNat.or"
-  BigNat_xor -> "BigNat.xor"
-  BigNat_eq -> "BigNat.eq"
-  BigNat_lt -> "BigNat.lt"
-  BigNat_le -> "BigNat.lteq"
-  BigNat_gt -> "BigNat.gt"
-  BigNat_ge -> "BigNat.gteq"
-  BigNat_popCount -> "BigNat.popCount"
-  BigNat_isEven -> "BigNat.isEven"
-  BigNat_isOdd -> "BigNat.isOdd"
+  Integer_toText -> "Integer.toText"
+  Integer_fromText -> "Integer.fromText"
+  Integer_unsafeFromText -> "Integer.unsafeFromText"
+  Integer_fromInt -> "Integer.fromInt"
+  Integer_toInt -> "Integer.toInt"
+  Integer_add -> "Integer.add"
+  Integer_sub -> "Integer.sub"
+  Integer_mul -> "Integer.mul"
+  Integer_div -> "Integer.div"
+  Integer_mod -> "Integer.mod"
+  Integer_pow -> "Integer.pow"
+  Integer_shl -> "Integer.shiftLeft"
+  Integer_shr -> "Integer.shiftRight"
+  Integer_and -> "Integer.and"
+  Integer_or -> "Integer.or"
+  Integer_xor -> "Integer.xor"
+  Integer_eq -> "Integer.eq"
+  Integer_lt -> "Integer.lt"
+  Integer_le -> "Integer.lteq"
+  Integer_gt -> "Integer.gt"
+  Integer_ge -> "Integer.gteq"
+  Integer_neg -> "Integer.neg"
+  Integer_abs -> "Integer.abs"
+  Integer_signum -> "Integer.signum"
+  Integer_toFloat -> "Integer.toFloat"
+  Integer_popCount -> "Integer.popCount"
+  Integer_truncate0 -> "Integer.truncate0"
+  Integer_isEven -> "Integer.isEven"
+  Integer_isOdd -> "Integer.isOdd"
+  Natural_toText -> "Natural.toText"
+  Natural_fromText -> "Natural.fromText"
+  Natural_unsafeFromText -> "Natural.unsafeFromText"
+  Natural_fromNat -> "Natural.fromNat"
+  Natural_toNat -> "Natural.toNat"
+  Natural_toFloat -> "Natural.toFloat"
+  Natural_add -> "Natural.add"
+  Natural_sub -> "Natural.sub"
+  Natural_mul -> "Natural.mul"
+  Natural_div -> "Natural.div"
+  Natural_mod -> "Natural.mod"
+  Natural_pow -> "Natural.pow"
+  Natural_shl -> "Natural.shiftLeft"
+  Natural_shr -> "Natural.shiftRight"
+  Natural_and -> "Natural.and"
+  Natural_or -> "Natural.or"
+  Natural_xor -> "Natural.xor"
+  Natural_eq -> "Natural.eq"
+  Natural_lt -> "Natural.lt"
+  Natural_le -> "Natural.lteq"
+  Natural_gt -> "Natural.gt"
+  Natural_ge -> "Natural.gteq"
+  Natural_popCount -> "Natural.popCount"
+  Natural_isEven -> "Natural.isEven"
+  Natural_isOdd -> "Natural.isOdd"

@@ -53,7 +53,6 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
       Unison.Codebase.Editor.HandleInput.CommitMerge
-      Unison.Codebase.Editor.HandleInput.CommitUpgrade
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
@@ -77,7 +76,6 @@ library
       Unison.Codebase.Editor.HandleInput.MoveTerm
       Unison.Codebase.Editor.HandleInput.MoveType
       Unison.Codebase.Editor.HandleInput.Names
-      Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
       Unison.Codebase.Editor.HandleInput.ProjectClone
       Unison.Codebase.Editor.HandleInput.ProjectCreate
@@ -96,7 +94,6 @@ library
       Unison.Codebase.Editor.HandleInput.Tests
       Unison.Codebase.Editor.HandleInput.Todo
       Unison.Codebase.Editor.HandleInput.UI
-      Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
       Unison.Codebase.Editor.HandleInput.Upgrade
       Unison.Codebase.Editor.Input
@@ -236,6 +233,7 @@ library
     , frontmatter
     , fsnotify
     , generic-lens
+    , github
     , haskeline
     , hs-mcp
     , http-client >=0.7.6

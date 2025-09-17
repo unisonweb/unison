@@ -195,9 +195,7 @@ data Input
   | MergeIOBuiltinsI (Maybe Path.Relative)
   | ListDependenciesI (HQ.HashQualified Name)
   | ListDependentsI (HQ.HashQualified Name)
-  | -- | List all external dependencies of a given namespace, or the current namespace if
-    -- no path is provided.
-    NamespaceDependenciesI (Maybe Path')
+  | NamespaceDependenciesI (Maybe Path')
   | DebugTabCompletionI [String] -- The raw arguments provided
   | DebugLSPNameCompletionI Text -- The raw arguments provided
   | DebugFuzzyOptionsI String [String] -- cmd and arguments

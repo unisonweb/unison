@@ -150,6 +150,8 @@ import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Runtime (Runtime)
+import Unison.Runtime.Decompile (DecompError)
 import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.Doc.AsHtml qualified as DocHtml
@@ -785,12 +787,12 @@ mkTermDefinition codebase termPPED width r docs tm = do
 
 -- | Evaluate the doc at the given reference and return its evaluated-but-not-rendered form.
 evalDocRef ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   TermReference ->
   -- Evaluation always produces a doc, (it just might have error messages in it).
   -- We still return the errors for logging and debugging.
-  IO (Doc.EvaluatedDoc Symbol, [Rt.Error])
+  IO (Doc.EvaluatedDoc Symbol, [DecompError])
 evalDocRef rt codebase r = do
   let tm = Term.ref () r
   errsVar <- UnliftIO.newTVarIO []
@@ -862,9 +864,9 @@ renderDocRefs ::
   PPED.PrettyPrintEnvDecl ->
   Width ->
   Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   t TermReference ->
-  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [Rt.Error]))
+  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [DecompError]))
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   for eDocs \(ref, (eDoc, docEvalErrs)) -> do
@@ -874,13 +876,13 @@ renderDocRefs pped width codebase rt docRefs = do
     pure (name, hash, renderedDoc, docEvalErrs)
 
 docsInBranchToHtmlFiles ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Branch IO ->
   FilePath ->
-  -- Returns any doc evaluation errors which may have occurred.
-  -- Note that all docs will still be rendered even if there are errors.
-  IO [Rt.Error]
+  -- | Returns any doc evaluation errors which may have occurred.
+  --   Note that all docs will still be rendered even if there are errors.
+  IO [DecompError]
 docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively

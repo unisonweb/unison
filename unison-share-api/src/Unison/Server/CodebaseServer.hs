@@ -92,7 +92,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Runtime qualified as Rt
 import Unison.HashQualified
 import Unison.HashQualified qualified as HQ
 import Unison.Name as Name (Name, segments)
@@ -102,6 +101,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
+import Unison.Runtime (Runtime)
 import Unison.Server.Backend (Backend, BackendEnv, runBackend)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Backend.DefinitionDiff qualified as DefinitionDiff
@@ -394,7 +394,7 @@ appAPI = Proxy
 
 app ::
   BackendEnv ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
@@ -457,7 +457,7 @@ startServer ::
   Bool ->
   BackendEnv ->
   CodebaseServerOpts ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   MCPServer ->
   (Maybe BaseUrl -> IO a) ->
@@ -566,7 +566,7 @@ corsPolicy allowCorsHost =
 
 server ::
   BackendEnv ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   FilePath ->
   Strict.ByteString ->
@@ -582,7 +582,7 @@ server backendEnv rt codebase uiPath expectedToken mcpServer =
         :<|> serveUnisonAndDocs backendEnv rt codebase
         :<|> mcpServer
 
-serveUnisonAndDocs :: BackendEnv -> Rt.Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
+serveUnisonAndDocs :: BackendEnv -> Runtime Symbol -> Codebase IO Symbol Ann -> Server UnisonAndDocsAPI
 serveUnisonAndDocs env rt codebase = serveUnisonLocal env codebase rt :<|> serveOpenAPI :<|> Tagged serveDocs
 
 serveDocs :: Application
@@ -599,7 +599,7 @@ hoistWithAuth api expectedToken server token = hoistServer @api @Handler @Handle
 
 serveProjectsCodebaseServerAPI ::
   Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   ProjectName ->
   ProjectBranchName ->
   ServerT CodebaseServerAPI (Backend IO)
@@ -646,7 +646,7 @@ resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName Projec
 resolveProjectRootHash codebase projectAndBranchName = do
   resolveProjectRoot codebase projectAndBranchName <&> Causal.causalHash
 
-serveProjectDiffTermsEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TermDiffResponse
+serveProjectDiffTermsEndpoint :: Codebase IO Symbol Ann -> Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TermDiffResponse
 serveProjectDiffTermsEndpoint codebase rt projectName oldBranchRef newBranchRef oldTerm newTerm = do
   (oldPPED, oldNameSearch) <- contextForProjectBranch codebase projectName oldBranchRef
   (newPPED, newNameSearch) <- contextForProjectBranch codebase projectName newBranchRef
@@ -675,7 +675,7 @@ contextForProjectBranch codebase projectName branchName = do
   let nameSearch = Names.makeNameSearch hashLength names
   pure (pped, nameSearch)
 
-serveProjectDiffTypesEndpoint :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TypeDiffResponse
+serveProjectDiffTypesEndpoint :: Codebase IO Symbol Ann -> Runtime Symbol -> ProjectName -> ProjectBranchName -> ProjectBranchName -> Name -> Name -> Backend IO TypeDiffResponse
 serveProjectDiffTypesEndpoint codebase rt projectName oldBranchRef newBranchRef oldType newType = do
   (oldPPED, oldNameSearch) <- contextForProjectBranch codebase projectName oldBranchRef
   (newPPED, newNameSearch) <- contextForProjectBranch codebase projectName newBranchRef
@@ -694,7 +694,7 @@ serveProjectDiffTypesEndpoint codebase rt projectName oldBranchRef newBranchRef 
   where
     width = Pretty.Width 80
 
-serveProjectsAPI :: Codebase IO Symbol Ann -> Rt.Runtime Symbol -> ServerT ProjectsAPI (Backend IO)
+serveProjectsAPI :: Codebase IO Symbol Ann -> Runtime Symbol -> ServerT ProjectsAPI (Backend IO)
 serveProjectsAPI codebase rt =
   projectListingEndpoint codebase
     :<|> ( \projectName ->
@@ -709,7 +709,7 @@ serveProjectsAPI codebase rt =
 serveUnisonLocal ::
   BackendEnv ->
   Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Server UnisonLocalAPI
 serveUnisonLocal env codebase rt =
   hoistServer (Proxy @UnisonLocalAPI) (backendHandler env) $

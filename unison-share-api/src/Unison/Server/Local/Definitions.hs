@@ -17,7 +17,6 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.DisplayObject (DisplayObject)
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Runtime qualified as Rt
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -30,6 +29,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Runtime (Runtime)
 import Unison.Server.Backend
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Doc qualified as Doc
@@ -59,7 +59,7 @@ prettyDefinitionsForHQName ::
   -- | Whether to suffixify bindings in the rendered syntax
   Suffixify ->
   -- | Runtime used to evaluate docs. This should be sandboxed if run on the server.
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   -- | The name, hash, or both, of the definition to display.
   HQ.HashQualified Name ->
@@ -129,7 +129,7 @@ termDefinitionByName ::
   PPED.PrettyPrintEnvDecl ->
   NameSearch Sqlite.Transaction ->
   Width ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Name ->
   Backend IO (Maybe TermDefinition)
 termDefinitionByName codebase pped nameSearch width rt name = runMaybeT $ do
@@ -158,7 +158,7 @@ typeDefinitionByName ::
   PPED.PrettyPrintEnvDecl ->
   NameSearch Sqlite.Transaction ->
   Width ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Name ->
   Backend IO (Maybe TypeDefinition)
 typeDefinitionByName codebase pped nameSearch width rt name = runMaybeT $ do

@@ -22,7 +22,6 @@ import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.Runtime qualified as Rt
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
@@ -30,6 +29,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.Runtime (Runtime)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.Local.Definitions qualified as Local
 import Unison.Server.Types
@@ -107,7 +107,7 @@ instance ToSample DefinitionDisplayResults where
   toSamples _ = noSamples
 
 serveDefinitions ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Either ShortCausalHash CausalHash ->
   Maybe Path.Path ->

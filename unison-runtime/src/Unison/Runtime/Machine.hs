@@ -73,7 +73,7 @@ import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, peStr, prettyRuntimeExnSansCtx)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -372,7 +372,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
 exec _ _ !_activeThreads !stk !k cix (Prim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- peekOff stk j
-  () <- throwIO (BU (traceK r k) (Util.Text.toText name) x)
+  () <- throwIO $ BU (traceK r k) (Util.Text.toText name) x
   error "throwIO should never return"
   where
     r = combRef cix
@@ -496,21 +496,18 @@ encodeExn stk exc = do
       stk <- bumpn stk 3
       pokeTag stk 0
       bpokeOff stk 1 $ Foreign (Wrap Rf.typeLinkRef link)
-      pokeOffBi stk 2 =<< msg
+      pokeOffBi stk 2 msg
       stk <$ pokeOff stk 3 extra
       where
-        disp :: (Exception e) => e -> IO Util.Text.Text
-        disp = pure . Util.Text.pack . show
+        disp :: (Exception e) => e -> Util.Text.Text
+        disp = Util.Text.pack . show
         (link, msg, extra)
           | Just (ioe :: IOException) <- fromException exn =
               (Rf.ioFailureRef, disp ioe, unitValue)
-          | Just re <- fromException exn =
-              ( Rf.runtimeFailureRef,
-                Util.Text.pack . P.toPlain 0 <$> prettyRuntimeExnSansCtx re,
-                case re of
-                  PE _ _ _ -> unitValue
-                  BU _ _ val -> val
-              )
+          | Just re <- fromException exn = case re of
+              PE _stk _issues msg ->
+                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlain 0 msg, unitValue)
+              BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
           | Just (nae :: NestedAtomically) <- fromException exn =
@@ -523,7 +520,7 @@ encodeExn stk exc = do
               (Rf.threadKilledFailureRef, disp ie, unitValue)
           | Just (Panic msg v) <- fromException exn,
             msg <- Util.Text.pack $ "panic: " ++ msg =
-              (Rf.miscFailureRef, pure msg, fromMaybe unitValue v)
+              (Rf.miscFailureRef, msg, fromMaybe unitValue v)
           | otherwise = (Rf.miscFailureRef, disp exn, unitValue)
 
 -- | Evaluate a section
@@ -669,7 +666,7 @@ fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
 
 unhandledAbilityRequest :: (HasCallStack) => IO a
-unhandledAbilityRequest = error . displayException $ peStr [2922, 5400] "eval: unhandled ability request"
+unhandledAbilityRequest = exn [2922, 5400] "eval: unhandled ability request"
 
 forkEval ::
   (RuntimeProfiler prof) =>

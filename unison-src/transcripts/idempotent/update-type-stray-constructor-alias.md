@@ -51,5 +51,5 @@ unique type Foo = Bar Nat Nat
   The constructor Stray.BarAlias is not nested beneath the
   corresponding type name. Please either use `move` to move it,
   or if it's an extra copy, you can simply `delete` it. Then try
-  the update again.
+  updating again.
 ```

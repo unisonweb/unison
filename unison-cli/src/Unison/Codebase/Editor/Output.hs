@@ -13,7 +13,6 @@ module Unison.Codebase.Editor.Output
     MoreEntriesThanShown (..),
     UndoFailureReason (..),
     ShareError (..),
-    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -75,6 +74,7 @@ import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
+import Unison.Runtime (Error)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResultPrime (SearchResult')
 import Unison.Share.Sync.Types qualified as Sync
@@ -178,8 +178,6 @@ data Output
     Success
   | -- User did `update` before typechecking a file?
     NoUnisonFile
-  | -- Used in Welcome module to instruct user
-    PrintMessage (P.Pretty P.ColorText)
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
@@ -273,7 +271,10 @@ data Output
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
-  | EvaluationFailure Runtime.Error
+  | EvaluationFailure
+      -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
+      (P.Pretty P.ColorText -> P.Pretty P.ColorText)
+      Error
   | Evaluated
       SourceFileContents
       PPE.PrettyPrintEnv
@@ -423,7 +424,6 @@ data Output
   | ProjectHasNoReleases ProjectName
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
-  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
@@ -434,7 +434,6 @@ data Output
   | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
-  | NoUpgradeInProgress
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
@@ -442,6 +441,7 @@ data Output
   | ConflictedDefn !Text {- what operation? -} !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
+  | IncoherentDeclDuringUpgrade !IncoherentDeclReason
   | -- | A literal output message. Use this if it's too cumbersome to create a new Output constructor, e.g. for
     -- ephemeral progress messages that are just simple strings like "Loading branch..."
     Literal !(P.Pretty P.ColorText)
@@ -451,11 +451,10 @@ data Output
   | UCMServerNotRunning
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
   | BranchUpdate'BranchChanged
+  | SyncingFromTo CausalHash CausalHash
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
-
-data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --
@@ -510,7 +509,6 @@ isFailure :: Output -> Bool
 isFailure o = case o of
   UpdateTypecheckingFailure {} -> True
   UpdateTypecheckingFailure2 {} -> True
-  UpdateIncompleteConstructorSet {} -> True
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False
@@ -518,7 +516,6 @@ isFailure o = case o of
   SaveTermNameConflict {} -> True
   RunResult {} -> False
   Success {} -> False
-  PrintMessage {} -> False
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
   SourceLoadFailed {} -> True
@@ -677,7 +674,6 @@ isFailure o = case o of
   MergeConflictInvolvingBuiltin {} -> True
   MergeDefnsInLib {} -> True
   InstalledLibdep {} -> False
-  NoUpgradeInProgress {} -> True
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
@@ -685,6 +681,7 @@ isFailure o = case o of
   ConflictedDefn {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
+  IncoherentDeclDuringUpgrade {} -> True
   Literal _ -> False
   SyncPullError {} -> True
   SyncFromCodebaseMissingProjectBranch {} -> True
@@ -692,6 +689,7 @@ isFailure o = case o of
   UCMServerNotRunning -> True
   BranchSquashSuccess {} -> False
   BranchUpdate'BranchChanged {} -> True
+  SyncingFromTo {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

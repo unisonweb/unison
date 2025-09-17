@@ -113,7 +113,6 @@ module Unison.CommandLine.InputPatterns
     update,
     updateBuiltins,
     upgrade,
-    upgradeCommitInputPattern,
     view,
     viewGlobal,
     deprecatedViewRootReflog,
@@ -1625,7 +1624,7 @@ libInstallInputPattern :: InputPattern
 libInstallInputPattern =
   InputPattern
     { patternName = "lib.install",
-      aliases = ["install.lib"],
+      aliases = ["install.lib", "install"],
       visibility = I.Visible,
       params = Parameters [("library name", remoteProjectBranchOrReleaseArg)] $ Optional [] Nothing,
       help =
@@ -2707,12 +2706,13 @@ dependencies =
       [thing] -> Input.ListDependenciesI <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args
 
+-- Hidden before removing entirely, so we can say "use todo instead"
 namespaceDependencies :: InputPattern
 namespaceDependencies =
   InputPattern
     "namespace.dependencies"
     []
-    I.Visible
+    I.Hidden
     (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
     "List the external dependencies of the specified namespace."
     \case
@@ -3431,8 +3431,8 @@ releaseDraft =
 upgrade :: InputPattern
 upgrade =
   InputPattern
-    { patternName = "upgrade",
-      aliases = [],
+    { patternName = "lib.upgrade",
+      aliases = ["upgrade.lib", "upgrade"],
       visibility = I.Visible,
       params =
         Parameters [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)] $
@@ -3451,7 +3451,7 @@ upgradeCommitInputPattern =
   InputPattern
     { patternName = "upgrade.commit",
       aliases = ["commit.upgrade"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       params = noParams,
       help =
         let mainBranch = defaultBranchName

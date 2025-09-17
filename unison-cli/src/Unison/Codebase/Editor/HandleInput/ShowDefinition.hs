@@ -47,7 +47,7 @@ import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.UnisonFile (TypecheckedUnisonFile (..), UnisonFile (..))
+import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty (Pretty)
@@ -153,16 +153,7 @@ showDefinitions outputLoc pped terms types misses = do
                       { terms = boundTermNames <> boundTestWatchNames,
                         types = boundDataDeclNames <> boundEffectDeclNames
                       }
-              Just (Right typecheckedUnisonFile) ->
-                let boundTermNames = foldMap (Set.fromList . map (view _1)) typecheckedUnisonFile.topLevelComponents'
-                    boundTestWatchNames =
-                      typecheckedUnisonFile.watchComponents & foldMap \case
-                        (WatchKind.TestWatch, watches) -> Set.fromList (map (view _1) watches)
-                        _ -> Set.empty
-                 in Defns
-                      { terms = boundTermNames <> boundTestWatchNames,
-                        types = UnisonFile.typeNamespaceBindings typecheckedUnisonFile
-                      }
+              Just (Right typecheckedUnisonFile) -> UnisonFile.namespaceBindings typecheckedUnisonFile
 
       -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
       testRefs <-

@@ -21,6 +21,7 @@ import System.Console.Haskeline.History qualified as Line
 import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
+import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -35,17 +36,18 @@ import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
+import Unison.Project qualified as Project
+import Unison.Runtime (Runtime)
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Share.Codeserver (isCustomCodeserver)
@@ -137,8 +139,8 @@ main ::
   Welcome.Welcome ->
   PP.ProjectPathIds ->
   [Either Event Input] ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
+  Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
@@ -172,8 +174,38 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 ShouldWatchFiles -> allow
           )
 
+      -- On startup, we tell the user about any existing project names that don't pass the new project name regex,
+      -- which isn't enforced yet.
+
+      invalidProjectNamesInputs <- do
+        projects <- Codebase.runTransaction codebase Queries.loadAllProjects
+        let invalidProjectNames =
+              mapMaybe
+                ( \project ->
+                    if Project.isValidNewProjectName project.name
+                      then Nothing
+                      else Just project.name
+                )
+                projects
+        pure case invalidProjectNames of
+          [] -> []
+          _ ->
+            [ Right . CreateMessage . P.warnCallout $
+                P.wrap "We're updating UCM's project naming rules, and these names won’t be supported much longer:"
+                  <> P.newline
+                  <> P.newline
+                  <> P.group (P.commas (map P.prettyProjectName invalidProjectNames))
+                  <> P.newline
+                  <> P.newline
+                  <> P.wrap
+                    ( "Please"
+                        <> IP.makeExample IP.projectRenameInputPattern []
+                        <> "them using only ASCII letters, numbers, and hyphens, of length 2-40 characters."
+                    )
+            ]
+
       let initialState = Cli.loopState0 ppIds
-      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
+      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs ++ invalidProjectNamesInputs
       pageOutput <- newIORef True
 
       initialEcho <- hGetEcho stdin
@@ -207,7 +239,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               else return Cli.InvalidSourceNameError
       let notify :: Output -> IO ()
           notify =
-            notifyUser (pure dir)
+            notifyUser (pure dir) fetchIssueFromGitHub
               >=> ( \o ->
                       ifM
                         (readIORef pageOutput)
