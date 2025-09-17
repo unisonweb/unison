@@ -16,7 +16,7 @@ addSample wait c k (Prof count trie refs) =
     (addPath wait (fst <$> cmbs) trie)
     (M.union refs $ M.fromList cmbs)
   where
-    inc b (m, n) = pair (m+1) (if b then n+1 else n)
+    inc b (m, n) = pair (m + 1) (if b then n + 1 else n)
     pair !m !n = (m, n)
 
     cixToPair (CIx r i _) = (i, r)

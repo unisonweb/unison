@@ -53,8 +53,8 @@ demux tr = (trimEmpty $ fst <$> tr, trimEmpty $ snd <$> tr)
 
 -- A profile pairs the above arbitrary key based profile trie with a
 -- decoding of the integers to references and a total sample count.
-data Profile k =
-  Prof !(Int, Int) !(ProfTrie k (Int, Int)) !(Map k Reference)
+data Profile k
+  = Prof !(Int, Int) !(ProfTrie k (Int, Int)) !(Map k Reference)
 
 -- Abstracts over the exact key type used in a profile.
 data SomeProfile = forall k. (Ord k) => SomeProf (Profile k)
@@ -69,7 +69,7 @@ zero :: (Int, Int)
 zero = (0, 0)
 
 inc :: Bool -> (Int, Int) -> (Int, Int)
-inc b (m, n) = pair (m+1) (if b then n+1 else n)
+inc b (m, n) = pair (m + 1) (if b then n + 1 else n)
   where
     pair !x !y = (x, y)
 
@@ -322,11 +322,12 @@ miniProfile ppe misc (Prof (total, wtotal) tr refs) =
       profileTreeHeader <> dispProfTrie ppe misc refs ag,
       "",
       if wtotal > 0
-      then
-        overallHeader "Post-wakeup Profile" wtotal <> newline
-          <> profileTreeHeader
-          <> dispProfTrie ppe misc refs agw
-      else "Threads never missed ticks"
+        then
+          overallHeader "Post-wakeup Profile" wtotal
+            <> newline
+            <> profileTreeHeader
+            <> dispProfTrie ppe misc refs agw
+        else "Threads never missed ticks"
     ]
   where
     (full, wait) = demux tr
@@ -347,10 +348,12 @@ fullProfile ppe misc (Prof (total, wtotal) tr0 refs) =
     (comp, wait) = demux tr0
 
     make label tot tr =
-      overallHeader label tot <> newline
+      overallHeader label tot
+        <> newline
         <> profileTopHeader
         <> dispTop ppe misc refs top
-        <> newline <> newline
+        <> newline
+        <> newline
         <> profileTreeHeader
         <> dispProfTrie ppe misc refs ag
       where
