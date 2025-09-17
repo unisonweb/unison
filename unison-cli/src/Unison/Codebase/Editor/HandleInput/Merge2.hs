@@ -15,7 +15,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (mapped, _1)
+import Control.Lens (mapped, (?=), _1)
 import Control.Monad.Reader (ask)
 import Data.Algorithm.Diff qualified as Diff
 import Data.List qualified as List
@@ -395,6 +395,7 @@ doMerge info = do
                   Cli.getLatestFile <&> \case
                     Nothing -> "scratch.u"
                     Just (file, _) -> file
+                #latestFile ?= (scratchFilePath, True)
                 liftIO $
                   env.writeSource
                     (Text.pack scratchFilePath)
