@@ -571,7 +571,8 @@ eval' !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
         | otherwise -> unhandledAbilityRequest
 eval' !yld env henv !activeThreads !stk !k here (Yield args)
   | asize stk > 0,
-    VArg1 i <- args =
+    VArg1 i <- args = do
+      checkTicker yld here k
       peekOff stk i >>= apply yld env henv activeThreads stk k False ZArgs
   | otherwise = do
       checkTicker yld here k
