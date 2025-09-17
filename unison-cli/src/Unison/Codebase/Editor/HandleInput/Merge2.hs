@@ -24,10 +24,11 @@ import Data.Semialign (zipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import System.Directory (canonicalizePath, getTemporaryDirectory, removeFile)
+import System.Directory (canonicalizePath, getCurrentDirectory, getTemporaryDirectory, removeFile)
 import System.Environment (lookupEnv)
 import System.FilePath ((</>))
 import System.IO.Temp qualified as Temporary
+import System.OsPath qualified
 import System.Process qualified as Process
 import Text.ANSI qualified as Text
 import Text.Builder qualified
@@ -419,7 +420,16 @@ doMerge info = do
                             alice = aliceFilenameSlug <> ".u",
                             bob = bobFilenameSlug <> ".u"
                           }
-                let mergedFilename = Text.Builder.run (aliceFilenameSlug <> "-" <> bobFilenameSlug <> "-merged.u")
+                mergedFilename <- do
+                  cwd <- liftIO getCurrentDirectory
+                  pure $
+                    Text.Builder.run $
+                      Text.Builder.string cwd
+                        <> Text.Builder.char (System.OsPath.toChar System.OsPath.pathSeparator)
+                        <> aliceFilenameSlug
+                        <> "-"
+                        <> bobFilenameSlug
+                        <> "-merged.u"
                 let mergetool =
                       mergetool0
                         & Text.pack
