@@ -9,13 +9,16 @@ import Unison.Codebase.Runtime.Profile
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack
 
-addSample :: CombIx -> K -> Profile Word64 -> Profile Word64
-addSample c k (Prof count trie refs) =
+addSample :: Bool -> CombIx -> K -> Profile Word64 -> Profile Word64
+addSample wait c k (Prof count trie refs) =
   Prof
-    (1 + count)
-    (addPath (fst <$> cmbs) trie)
+    (inc wait count)
+    (addPath wait (fst <$> cmbs) trie)
     (M.union refs $ M.fromList cmbs)
   where
+    inc b (m, n) = pair (m + 1) (if b then n + 1 else n)
+    pair !m !n = (m, n)
+
     cixToPair (CIx r i _) = (i, r)
 
     cmbs = combs [cixToPair c] k
@@ -27,8 +30,10 @@ addSample c k (Prof count trie refs) =
     combs acc (Local _ _ k) = combs acc k
     combs acc (Push _ _ c _ _ k) = combs (cixToPair c : acc) k
 
-addSamples :: [(CombIx, K)] -> Profile Word64 -> Profile Word64
-addSamples ts p = foldl' (flip . uncurry $ addSample) p ts
+addSamples :: [(Bool, CombIx, K)] -> Profile Word64 -> Profile Word64
+addSamples ts p = foldl' (flip . uncurry3 $ addSample) p ts
+  where
+    uncurry3 f (x, y, z) = f x y z
 
 -- For communication between execution and a profiling thread. `Final`
 -- indicates that execution is complete and the profiling thread should
@@ -36,10 +41,10 @@ addSamples ts p = foldl' (flip . uncurry $ addSample) p ts
 data TickComm
   = Empty
   | Finished
-  | Ticks [(CombIx, K)]
-  | Final [(CombIx, K)]
+  | Ticks [(Bool, CombIx, K)]
+  | Final [(Bool, CombIx, K)]
 
-readInput :: TVar TickComm -> IO (Bool, [(CombIx, K)])
+readInput :: TVar TickComm -> IO (Bool, [(Bool, CombIx, K)])
 readInput input =
   atomically $
     readTVar input >>= \case
@@ -60,13 +65,13 @@ profileLoop input output prof = do
     then profileLoop input output prof
     else atomically $ putTMVar output prof
 
-enqueue :: TVar TickComm -> CombIx -> K -> IO ()
-enqueue comm c k = atomically $
+enqueue :: TVar TickComm -> Bool -> CombIx -> K -> IO ()
+enqueue comm b c k = atomically $
   modifyTVar comm \case
-    Empty -> Ticks [(c, k)]
-    Finished -> Final [(c, k)]
-    Ticks ts -> Ticks ((c, k) : ts)
-    Final ts -> Final ((c, k) : ts)
+    Empty -> Ticks [(b, c, k)]
+    Finished -> Final [(b, c, k)]
+    Ticks ts -> Ticks ((b, c, k) : ts)
+    Final ts -> Final ((b, c, k) : ts)
 
 finish :: TVar TickComm -> IO ()
 finish comm = atomically $
@@ -78,7 +83,7 @@ finish comm = atomically $
 
 data ProfileComm
   = PC
-      (CombIx -> K -> IO ())
+      (Bool -> CombIx -> K -> IO ())
       (IO ())
       (IO (Profile Word64))
 
