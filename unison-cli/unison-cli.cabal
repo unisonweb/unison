@@ -77,7 +77,6 @@ library
       Unison.Codebase.Editor.HandleInput.MoveTerm
       Unison.Codebase.Editor.HandleInput.MoveType
       Unison.Codebase.Editor.HandleInput.Names
-      Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
       Unison.Codebase.Editor.HandleInput.ProjectClone
       Unison.Codebase.Editor.HandleInput.ProjectCreate

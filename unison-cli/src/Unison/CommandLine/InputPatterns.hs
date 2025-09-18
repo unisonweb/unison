@@ -2706,12 +2706,13 @@ dependencies =
       [thing] -> Input.ListDependenciesI <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args
 
+-- Hidden before removing entirely, so we can say "use todo instead"
 namespaceDependencies :: InputPattern
 namespaceDependencies =
   InputPattern
     "namespace.dependencies"
     []
-    I.Visible
+    I.Hidden
     (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
     "List the external dependencies of the specified namespace."
     \case
