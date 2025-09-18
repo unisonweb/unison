@@ -1996,8 +1996,8 @@ getTransitiveDependentsWithinScope scope query = do
         WITH RECURSIVE
         dependents_index_in_scope AS (
           SELECT *
-          FROM dependents_index
-          WHERE (dependent_object_id, dependent_component_index) IN (
+          FROM dependents_index d
+          WHERE (d.dependent_object_id, d.dependent_component_index) IN (
             SELECT object_id, component_index
             FROM $scopeTableName
           )

@@ -22,7 +22,6 @@ import Servant (Capture, QueryParam, throwError, (:>))
 import Servant.Docs (ToSample (..), noSamples)
 import Servant.OpenApi ()
 import Servant (Capture, QueryParam, (:>))
-import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
@@ -70,11 +69,10 @@ serveTermSummary ::
   Backend IO TermSummary
 serveTermSummary codebase referent mayName root relativeTo mayWidth = do
   let relativeToPath = fromMaybe mempty relativeTo
-  namesPerspective <- Backend.hoistBackend (Codebase.runTransaction codebase) do
-    root <- Backend.normaliseRootCausalHash root
-    namesPerspective <- lift $ Ops.namesPerspectiveForRootAndPath (V2Causal.valueHash root) (coerce $ Path.toList relativeToPath)
-    pure namesPerspective
-  let mkPPED deps = PPESqlite.ppedForReferences namesPerspective deps
+  root <- Backend.hoistBackend (Codebase.runTransaction codebase) do
+    Backend.normaliseRootCausalHash root
+  (_, ppe) <- Backend.namesAtPathFromRootBranchHash codebase root relativeToPath
+  let mkPPED _deps = pure ppe
   Backend.termSummaryForReferent codebase referent mayName mkPPED mayWidth
 
 type TypeSummaryAPI =
