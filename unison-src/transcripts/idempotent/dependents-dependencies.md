@@ -79,6 +79,7 @@ scratch/main> dependents A
        the above list.
 
 -- For better or worse, we don't have constructor-level granularity yet, so myVal shows here.
+
 scratch/main> dependents B
 
   Dependents of: B

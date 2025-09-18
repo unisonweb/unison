@@ -96,10 +96,6 @@ Expected: `x` is now `3` and `X` has constructor `Three`. UCM tells you the old 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  That's done. Now I'm making sure everything typechecks...
-
-  Everything typechecks, so I'm saving the results...
-
   Done.
 ```
 
