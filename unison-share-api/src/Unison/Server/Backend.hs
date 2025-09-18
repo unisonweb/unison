@@ -46,14 +46,14 @@ module Unison.Server.Backend
     termEntryToNamedTerm,
     termEntryLabeledDependencies,
     termListEntry,
-    termReferentsByShortHash,
+    Codebase.termReferentsByShortHash,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
     typeEntryToNamedType,
     typeEntryLabeledDependencies,
     typeListEntry,
-    typeReferencesByShortHash,
+    Codebase.typeReferencesByShortHash,
     typeToSyntaxHeader,
     renderDocRefs,
     docsForDefinitionName,
@@ -155,7 +155,6 @@ import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.Doc.AsHtml qualified as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch)
-import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult qualified as SR
 import Unison.Server.SearchResultPrime qualified as SR'
@@ -612,13 +611,13 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
   termRefs <-
     filter (not . Set.null . snd) . zip hashes
       <$> traverse
-        (termReferentsByShortHash codebase)
+        (Codebase.termReferentsByShortHash codebase)
         hashes
   -- Find types with those hashes.
   typeRefs <-
     filter (not . Set.null . snd) . zip hashes
       <$> traverse
-        typeReferencesByShortHash
+        Codebase.typeReferencesByShortHash
         hashes
   -- Now do the name queries.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty

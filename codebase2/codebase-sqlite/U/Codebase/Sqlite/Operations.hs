@@ -100,8 +100,6 @@ module U.Codebase.Sqlite.Operations
     s2cTextReference,
     c2sTextReferent,
     s2cTextReferent,
-    c2sConstructorType,
-    s2cConstructorType,
 
     -- * somewhat unexpectedly unused definitions
     c2sReferenceId,
@@ -158,7 +156,6 @@ import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
 import U.Codebase.Sqlite.LocalIds (LocalIds, WatchLocalIds)
 import U.Codebase.Sqlite.LocalizeObject qualified as LocalizeObject
-import U.Codebase.Sqlite.NamedRef qualified as S
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Patch.Diff qualified as S
 import U.Codebase.Sqlite.Patch.Format qualified as S
@@ -306,16 +303,6 @@ s2cReferent = bitraverse s2cReference s2cReference
 
 s2cTextReferent :: S.TextReferent -> C.Referent
 s2cTextReferent = bimap s2cTextReference s2cTextReference
-
-s2cConstructorType :: S.ConstructorType -> C.ConstructorType
-s2cConstructorType = \case
-  S.DataConstructor -> C.DataConstructor
-  S.EffectConstructor -> C.EffectConstructor
-
-c2sConstructorType :: C.ConstructorType -> S.ConstructorType
-c2sConstructorType = \case
-  C.DataConstructor -> S.DataConstructor
-  C.EffectConstructor -> S.EffectConstructor
 
 s2cReferentId :: S.Referent.Id -> Transaction C.Referent.Id
 s2cReferentId = bitraverse Q.expectPrimaryHashByObjectId Q.expectPrimaryHashByObjectId

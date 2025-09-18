@@ -70,7 +70,6 @@ library
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema5To6
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema6To7
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema7To8
-      Unison.Codebase.SqliteCodebase.NamesPerspectives.Operations
       Unison.Codebase.SqliteCodebase.Operations
       Unison.Codebase.SqliteCodebase.Paths
       Unison.Codebase.SqliteCodebase.SyncEphemeral
@@ -120,7 +119,6 @@ library
       Unison.PrettyPrintEnv.Names
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
-      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Share.Types
