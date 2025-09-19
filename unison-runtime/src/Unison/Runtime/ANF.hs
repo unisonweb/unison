@@ -2699,4 +2699,3 @@ prettyCase ind sc (ABTN.TAbss vs e) r =
     . showString " ->"
     . prettyANF True (ind + 1) e
     . r
-

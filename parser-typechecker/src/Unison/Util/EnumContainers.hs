@@ -173,7 +173,7 @@ foldMapWithKey :: (EnumKey k) => (Monoid m) => (k -> a -> m) -> EnumMap k a -> m
 foldMapWithKey f (EM m) = IM.foldMapWithKey (f . intToKey) m
 
 {-# INLINE foldlWithKey #-}
-foldlWithKey :: EnumKey k => (r -> k -> a -> r) -> r -> EnumMap k a -> r
+foldlWithKey :: (EnumKey k) => (r -> k -> a -> r) -> r -> EnumMap k a -> r
 foldlWithKey f z (EM m) =
   IM.foldlWithKey' (\r k x -> f r (intToKey k) x) z m
 

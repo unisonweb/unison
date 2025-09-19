@@ -1,4 +1,3 @@
-
 module Unison.Runtime.ANF.POp where
 
 import Data.Map.Strict hiding (map)
@@ -174,7 +173,6 @@ data POp
   | IORB -- or
   deriving (Show, Eq, Ord, Enum, Bounded)
 
-
 pOpCode :: POp -> Word16
 pOpCode op = case op of
   ADDI -> 0
@@ -336,4 +334,3 @@ word2pop :: Map Word16 POp
 word2pop = fromList $ swap <$> pOpAssoc
   where
     swap (x, y) = (y, x)
-

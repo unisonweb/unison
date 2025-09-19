@@ -1,14 +1,18 @@
-
 module Unison.Runtime.ANF.MurmurHash.Untyped where
 
+import Data.ByteString.Short qualified as SBS
 import Data.Digest.Murmur64
-  (Hash64, Hashable64 (..), hash64, combine, hash64AddInt)
+  ( Hash64,
+    Hashable64 (..),
+    combine,
+    hash64,
+    hash64AddInt,
+  )
 import Data.List as List (foldl')
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
-import Data.ByteString.Short qualified as SBS
-import Data.Word
 import Data.Text qualified as DT
+import Data.Word
 import Unison.ABT.Normalized (pattern TAbs, pattern TAbss)
 import Unison.ConstructorReference
 import Unison.ConstructorType qualified as CT
@@ -17,13 +21,13 @@ import Unison.Reference
 import Unison.ReferentPrime
 import Unison.Runtime.ANF
 import Unison.Runtime.ANF.POp
-import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
+import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Referenced
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
-import Unison.Util.Text as UT hiding (pattern Text, reverse)
+import Unison.Util.Text as UT hiding (reverse, pattern Text)
 import Unison.Var (Var)
 
 hash64ValueUntyped :: Referenced Value -> Hash64
@@ -72,20 +76,20 @@ hash64AddTermRefs rf = flip $ foldl' (flip $ hash64AddTypeRef rf)
 hash64AddTypeRefs :: HRefs r -> [r] -> Hash64 -> Hash64
 hash64AddTypeRefs rf = flip $ foldl' (flip $ hash64AddTypeRef rf)
 
-hash64AddValue :: Show r => HRefs r -> Value r -> Hash64 -> Hash64
+hash64AddValue :: (Show r) => HRefs r -> Value r -> Hash64 -> Hash64
 hash64AddValue rs = \case
   Partial gr vals ->
-    hash64AddInt 1 `combine`
-    hash64AddGroupRef rs gr `combine`
-    hash64AddValues rs vals
+    hash64AddInt 1
+      `combine` hash64AddGroupRef rs gr
+      `combine` hash64AddValues rs vals
   Data _ t vals ->
-    hash64AddInt 2 `combine`
-    hash64Add t `combine`
-    hash64AddValues rs vals
+    hash64AddInt 2
+      `combine` hash64Add t
+      `combine` hash64AddValues rs vals
   Cont vals k ->
-    hash64AddInt 3 `combine`
-    hash64AddValues rs vals `combine`
-    hash64AddCont rs k
+    hash64AddInt 3
+      `combine` hash64AddValues rs vals
+      `combine` hash64AddCont rs k
   BLit (Map assocs) ->
     hash64AddUMap rs (M.fromDistinctAscList assocs)
   BLit lit ->
@@ -96,32 +100,32 @@ hash64AddGroupRef rs (GR i k) =
   hash64AddTermRef rs i `combine` hash64Add k
 
 hash64AddValues ::
-  Show r => Foldable f => HRefs r -> f (Value r) -> Hash64 -> Hash64
+  (Show r) => (Foldable f) => HRefs r -> f (Value r) -> Hash64 -> Hash64
 hash64AddValues rs vs h = foldl' (flip $ hash64AddValue rs) h vs
 
 hash64AddCont :: HRefs r -> Cont r -> Hash64 -> Hash64
 hash64AddCont rs = \case
   KE -> hash64AddInt 1
   Mark n _ps _vs k ->
-    hash64AddInt 2 `combine`
-    hash64Add n `combine`
-    hash64AddCont rs k
+    hash64AddInt 2
+      `combine` hash64Add n
+      `combine` hash64AddCont rs k
   Push m n g k ->
-    hash64AddInt 3 `combine`
-    hash64Add m `combine`
-    hash64Add n `combine`
-    hash64AddGroupRef rs g `combine`
-    hash64AddCont rs k
+    hash64AddInt 3
+      `combine` hash64Add m
+      `combine` hash64Add n
+      `combine` hash64AddGroupRef rs g
+      `combine` hash64AddCont rs k
 
 hash64AddReferent :: HRefs r -> Referent' r -> Hash64 -> Hash64
 hash64AddReferent rs (Ref' i) =
-  hash64AddInt 1 `combine`
-  hash64AddTermRef rs i
+  hash64AddInt 1
+    `combine` hash64AddTermRef rs i
 hash64AddReferent rs (Con' (ConstructorReference i j) ct) =
-  hash64AddInt 2 `combine`
-  hash64AddTypeRef rs i `combine`
-  hash64Add j `combine`
-  hash64AddInt k
+  hash64AddInt 2
+    `combine` hash64AddTypeRef rs i
+    `combine` hash64Add j
+    `combine` hash64AddInt k
   where
     k = case ct of
       CT.Data -> 1
@@ -136,14 +140,14 @@ hash64AddByteArray bs = go 0
     sz = PA.sizeofByteArray bs
     go i !h
       | i >= sz = h
-      | b <- PA.indexByteArray bs i = go (i+1) (hash64AddWord8 b h)
+      | b <- PA.indexByteArray bs i = go (i + 1) (hash64AddWord8 b h)
 
 hash64AddDouble :: Double -> Hash64 -> Hash64
 hash64AddDouble d = hash64AddInt i
   where
     i = PA.indexByteArray (PA.byteArrayFromList [d]) 0
 
-hash64AddBLit :: Show r => HRefs r -> BLit r -> Hash64 -> Hash64
+hash64AddBLit :: (Show r) => HRefs r -> BLit r -> Hash64 -> Hash64
 hash64AddBLit rs = \case
   Text tx ->
     hash64AddInt 1 `combine` UT.hash64AddText tx
@@ -174,12 +178,12 @@ hash64AddBLit rs = \case
   Map _ ->
     exn [] "hash64AddBLit: encountered Map, should be impossible"
 
-hash64AddCode :: Show r => HRefs r -> Code r -> Hash64 -> Hash64
+hash64AddCode :: (Show r) => HRefs r -> Code r -> Hash64 -> Hash64
 hash64AddCode rs (CodeRep sg _) = hash64AddGroup rs sg
 
 hash64AddGroup ::
-  Show r =>
-  Var v =>
+  (Show r) =>
+  (Var v) =>
   HRefs r ->
   SuperGroup r v ->
   Hash64 ->
@@ -191,8 +195,8 @@ hash64AddGroup rs (Rec bs bd) h =
     ctx = reverse us
 
 hash64AddSuper ::
-  Show r =>
-  Var v =>
+  (Show r) =>
+  (Var v) =>
   HRefs r ->
   [v] ->
   Hash64 ->
@@ -203,87 +207,87 @@ hash64AddSuper rs ctx h (Lambda (length -> n) bd) =
 
 -- Note: seemingly reversed order to add the left-most parts first.
 hash64AddNormal ::
-  Show r => Var v => HRefs r -> [v] -> ANormal r v -> Hash64 -> Hash64
+  (Show r) => (Var v) => HRefs r -> [v] -> ANormal r v -> Hash64 -> Hash64
 hash64AddNormal rs ctx = \case
   TLets _ vs (length -> n) bn bd ->
-    hash64AddInt 1 `combine`
-    hash64AddInt n `combine`
-    hash64AddNormal rs ctx bn `combine`
-    hash64AddNormal rs (pushCtx vs ctx) bd
+    hash64AddInt 1
+      `combine` hash64AddInt n
+      `combine` hash64AddNormal rs ctx bn
+      `combine` hash64AddNormal rs (pushCtx vs ctx) bd
   TName v rf as bd ->
-    hash64AddInt 2 `combine`
-    hash64AddEither (hash64AddTermRef rs) (hash64AddVar ctx) rf `combine`
-    hash64AddVars ctx as `combine`
-    hash64AddNormal rs (pushCtx [v] ctx) bd
+    hash64AddInt 2
+      `combine` hash64AddEither (hash64AddTermRef rs) (hash64AddVar ctx) rf
+      `combine` hash64AddVars ctx as
+      `combine` hash64AddNormal rs (pushCtx [v] ctx) bd
   TLit l ->
-    hash64AddInt 3 `combine`
-    hash64AddLit rs l
+    hash64AddInt 3
+      `combine` hash64AddLit rs l
   TBLit l ->
-    hash64AddInt 4 `combine`
-    hash64AddLit rs l
+    hash64AddInt 4
+      `combine` hash64AddLit rs l
   TMatch sc brs ->
-    hash64AddInt 5 `combine`
-    hash64AddVar ctx sc `combine`
-    hash64AddBranches rs ctx brs
+    hash64AddInt 5
+      `combine` hash64AddVar ctx sc
+      `combine` hash64AddBranches rs ctx brs
   TShift p v bd ->
-    hash64AddInt 6 `combine`
-    hash64AddTypeRef rs p `combine`
-    hash64AddNormal rs (pushCtx [v] ctx) bd
+    hash64AddInt 6
+      `combine` hash64AddTypeRef rs p
+      `combine` hash64AddNormal rs (pushCtx [v] ctx) bd
   THnd is hn ha bd ->
-    hash64AddInt 7 `combine`
-    hash64AddTypeRefs rs is `combine`
-    hash64AddVar ctx hn `combine`
-    hash64AddMaybe (hash64AddVar ctx) ha `combine`
-    hash64AddNormal rs ctx bd
+    hash64AddInt 7
+      `combine` hash64AddTypeRefs rs is
+      `combine` hash64AddVar ctx hn
+      `combine` hash64AddMaybe (hash64AddVar ctx) ha
+      `combine` hash64AddNormal rs ctx bd
   TApp fn as ->
-    hash64AddInt 8 `combine`
-    hash64AddFunc rs ctx fn `combine`
-    hash64AddVars ctx as
+    hash64AddInt 8
+      `combine` hash64AddFunc rs ctx fn
+      `combine` hash64AddVars ctx as
   TFrc v ->
-    hash64AddInt 9 `combine`
-    hash64AddVar ctx v
+    hash64AddInt 9
+      `combine` hash64AddVar ctx v
   TVar v ->
-    hash64AddInt 10 `combine`
-    hash64AddVar ctx v
+    hash64AddInt 10
+      `combine` hash64AddVar ctx v
   TAbs v (TAbss vs body) ->
-    hash64AddNormal rs (pushCtx (v:vs) ctx) body
+    hash64AddNormal rs (pushCtx (v : vs) ctx) body
   v -> exn [] ("hash64AddNormal: unsupported value: " ++ show v)
 
-hash64AddVar :: Var v => [v] -> v -> Hash64 -> Hash64
+hash64AddVar :: (Var v) => [v] -> v -> Hash64 -> Hash64
 hash64AddVar ctx v h
   | Just i <- index 0 ctx = hash64AddInt i h
   | otherwise = exn [] "hash64AddVar: variable not in context"
   where
     index !_ [] = Nothing
-    index !n (u:us)
+    index !n (u : us)
       | v == u = Just n
-      | otherwise = index (n+1) us
+      | otherwise = index (n + 1) us
 
-hash64AddVars :: Var v => [v] -> [v] -> Hash64 -> Hash64
+hash64AddVars :: (Var v) => [v] -> [v] -> Hash64 -> Hash64
 hash64AddVars ctx = flip $ foldl' (flip $ hash64AddVar ctx)
 
-hash64AddFunc :: Var v => HRefs r -> [v] -> Func r v -> Hash64 -> Hash64
+hash64AddFunc :: (Var v) => HRefs r -> [v] -> Func r v -> Hash64 -> Hash64
 hash64AddFunc rf ctx = \case
   FVar v ->
-    hash64AddInt 1 `combine`
-    hash64AddVar ctx v
+    hash64AddInt 1
+      `combine` hash64AddVar ctx v
   FComb i ->
-    hash64AddInt 2 `combine`
-    hash64AddTermRef rf i
+    hash64AddInt 2
+      `combine` hash64AddTermRef rf i
   FCont v ->
-    hash64AddInt 3 `combine`
-    hash64AddVar ctx v
+    hash64AddInt 3
+      `combine` hash64AddVar ctx v
   FCon i t ->
-    hash64AddInt 4 `combine`
-    hash64AddTermRef rf i `combine`
-    hash64Add (rawTag t)
+    hash64AddInt 4
+      `combine` hash64AddTermRef rf i
+      `combine` hash64Add (rawTag t)
   FReq i t ->
-    hash64AddInt 5 `combine`
-    hash64AddTermRef rf i `combine`
-    hash64Add (rawTag t)
+    hash64AddInt 5
+      `combine` hash64AddTermRef rf i
+      `combine` hash64Add (rawTag t)
   FPrim ins ->
-    hash64AddInt 6 `combine`
-    hash64AddEither hash64AddPOp hash64AddForeign ins
+    hash64AddInt 6
+      `combine` hash64AddEither hash64AddPOp hash64AddForeign ins
 
 hash64AddLit :: HRefs r -> Lit r -> Hash64 -> Hash64
 hash64AddLit rs = \case
@@ -296,8 +300,8 @@ hash64AddLit rs = \case
   LY i -> hash64AddInt 7 `combine` hash64AddTypeRef rs i
 
 hash64AddBranches ::
-  Show r =>
-  Var v =>
+  (Show r) =>
+  (Var v) =>
   HRefs r ->
   [v] ->
   Branched r (ANormal r v) ->
@@ -306,32 +310,32 @@ hash64AddBranches ::
 hash64AddBranches rs ctx = \case
   MatchEmpty -> hash64AddInt 1
   MatchIntegral bs df ->
-    hash64AddInt 2 `combine`
-    hash64AddEMap (hash64AddNAssoc rs ctx) bs `combine`
-    hash64AddMaybe (hash64AddNormal rs ctx) df
+    hash64AddInt 2
+      `combine` hash64AddEMap (hash64AddNAssoc rs ctx) bs
+      `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
   MatchText bs df ->
-    hash64AddInt 3 `combine`
-    hash64AddMap (hash64AddTAssoc rs ctx) bs `combine`
-    hash64AddMaybe (hash64AddNormal rs ctx) df
+    hash64AddInt 3
+      `combine` hash64AddMap (hash64AddTAssoc rs ctx) bs
+      `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
   MatchRequest bs pur ->
-    hash64AddInt 4 `combine`
-    hash64AddAssocs (hash64AddRAssoc rs ctx) bs `combine`
-    hash64AddNormal rs ctx pur
+    hash64AddInt 4
+      `combine` hash64AddAssocs (hash64AddRAssoc rs ctx) bs
+      `combine` hash64AddNormal rs ctx pur
   MatchData _ bs df ->
-    hash64AddInt 5 `combine`
-    hash64AddEMap (hash64AddDAssoc rs ctx) bs `combine`
-    hash64AddMaybe (hash64AddNormal rs ctx) df
+    hash64AddInt 5
+      `combine` hash64AddEMap (hash64AddDAssoc rs ctx) bs
+      `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
   MatchSum bs ->
-    hash64AddInt 6 `combine`
-    hash64AddEMap (hash64AddSAssoc rs ctx) bs
+    hash64AddInt 6
+      `combine` hash64AddEMap (hash64AddSAssoc rs ctx) bs
   MatchNumeric _ bs df ->
-    hash64AddInt 7 `combine`
-    hash64AddEMap (hash64AddNAssoc rs ctx) bs `combine`
-    hash64AddMaybe (hash64AddNormal rs ctx) df
+    hash64AddInt 7
+      `combine` hash64AddEMap (hash64AddNAssoc rs ctx) bs
+      `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
 
 hash64AddNAssoc ::
-  Show r =>
-  Var v =>
+  (Show r) =>
+  (Var v) =>
   HRefs r ->
   [v] ->
   Word64 ->
@@ -342,8 +346,8 @@ hash64AddNAssoc rs ctx n tm =
   hash64Add n `combine` hash64AddNormal rs ctx tm
 
 hash64AddTAssoc ::
-  Show r =>
-  Var v =>
+  (Show r) =>
+  (Var v) =>
   HRefs r ->
   [v] ->
   UT.Text ->
@@ -354,8 +358,8 @@ hash64AddTAssoc rs ctx t tm =
   UT.hash64AddText t `combine` hash64AddNormal rs ctx tm
 
 hash64AddDAssoc ::
-  Show r =>
-  Var v =>
+  (Show r) =>
+  (Var v) =>
   HRefs r ->
   [v] ->
   CTag ->
@@ -363,27 +367,27 @@ hash64AddDAssoc ::
   Hash64 ->
   Hash64
 hash64AddDAssoc rs ctx (rawTag -> t) (length -> n, tm) =
-  hash64Add t `combine`
-  hash64AddInt n `combine`
-  hash64AddNormal rs ctx tm
+  hash64Add t
+    `combine` hash64AddInt n
+    `combine` hash64AddNormal rs ctx tm
 
 hash64AddSAssoc ::
-  Show r => Var v => HRefs r -> [v] -> Word64 -> ([Mem], ANormal r v) -> Hash64 -> Hash64
+  (Show r) => (Var v) => HRefs r -> [v] -> Word64 -> ([Mem], ANormal r v) -> Hash64 -> Hash64
 hash64AddSAssoc rs ctx t (length -> n, tm) =
-  hash64Add t `combine`
-  hash64AddInt n `combine`
-  hash64AddNormal rs ctx tm
+  hash64Add t
+    `combine` hash64AddInt n
+    `combine` hash64AddNormal rs ctx tm
 
 hash64AddRAssoc ::
-  Show r => Var v => HRefs r -> [v] -> r -> EC.EnumMap CTag ([Mem], ANormal r v) -> Hash64 -> Hash64
+  (Show r) => (Var v) => HRefs r -> [v] -> r -> EC.EnumMap CTag ([Mem], ANormal r v) -> Hash64 -> Hash64
 hash64AddRAssoc rs ctx i bs =
-  hash64AddTypeRef rs i `combine`
-  hash64AddEMap addInner bs
+  hash64AddTypeRef rs i
+    `combine` hash64AddEMap addInner bs
   where
     addInner t (length -> n, tm) =
-      hash64Add (rawTag t) `combine`
-      hash64AddInt n `combine`
-      hash64AddNormal rs ctx tm
+      hash64Add (rawTag t)
+        `combine` hash64AddInt n
+        `combine` hash64AddNormal rs ctx tm
 
 hash64AddPOp :: POp -> Hash64 -> Hash64
 hash64AddPOp p = hash64AddInt . fromIntegral $ pOpCode p
@@ -394,7 +398,9 @@ hash64AddForeign _f = id
 hash64AddEither ::
   (a -> Hash64 -> Hash64) ->
   (b -> Hash64 -> Hash64) ->
-  Either a b -> Hash64 -> Hash64
+  Either a b ->
+  Hash64 ->
+  Hash64
 hash64AddEither l r = \case
   Left x -> l x . hash64AddInt 1
   Right y -> r y . hash64AddInt 2
@@ -412,8 +418,11 @@ hash64AddAssocs ::
 hash64AddAssocs f = flip $ foldl' (flip $ uncurry f)
 
 hash64AddEMap ::
-  EC.EnumKey k =>
-  (k -> v -> Hash64 -> Hash64) -> EC.EnumMap k v -> Hash64 -> Hash64
+  (EC.EnumKey k) =>
+  (k -> v -> Hash64 -> Hash64) ->
+  EC.EnumMap k v ->
+  Hash64 ->
+  Hash64
 hash64AddEMap f = flip $ EC.foldlWithKey (rot f)
 
 hash64AddMap ::
@@ -422,19 +431,19 @@ hash64AddMap f = flip $ M.foldlWithKey' (rot f)
 
 -- Serializes a map as if it were a unison data type
 hash64AddUMap ::
-  Show r => HRefs r -> M.Map (Value r) (Value r) -> Hash64 -> Hash64
+  (Show r) => HRefs r -> M.Map (Value r) (Value r) -> Hash64 -> Hash64
 hash64AddUMap rs m h = case m of
   M.Tip -> hash64AddInt 2 h
   M.Bin sz k v l r ->
-    hash64AddUMap rs r .
-    hash64AddUMap rs l .
-    hash64AddValue rs v .
-    hash64AddValue rs k .
-    hash64AddInt sz $
-    hash64AddInt 2 h
+    hash64AddUMap rs r
+      . hash64AddUMap rs l
+      . hash64AddValue rs v
+      . hash64AddValue rs k
+      . hash64AddInt sz
+      $ hash64AddInt 2 h
 
 hash64AddAssoc ::
-  Hashable64 k =>
+  (Hashable64 k) =>
   (k -> Hash64 -> Hash64) ->
   (v -> Hash64 -> Hash64) ->
   (k -> v -> Hash64 -> Hash64)
