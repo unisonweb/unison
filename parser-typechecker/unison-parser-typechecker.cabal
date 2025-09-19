@@ -215,6 +215,7 @@ library
     , megaparsec
     , mmorph
     , mtl
+    , murmur-hash
     , mutable-containers
     , network-uri
     , nonempty-containers

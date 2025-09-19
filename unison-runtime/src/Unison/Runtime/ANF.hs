@@ -119,6 +119,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv, termName)
 import Unison.Reference (Id, Reference, Reference' (Builtin, DerivedId), toShortHash)
 import Unison.ReferentPrime qualified as Rfn
+import Unison.Runtime.ANF.POp (POp (..))
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.InternalError (internalBug)
@@ -1468,176 +1469,6 @@ litRef (C _) = Ty.charRef
 litRef (LM _) = Ty.termLinkRef
 litRef (LY _) = Ty.typeLinkRef
 
--- Note: Enum/Bounded instances should only be used for things like
--- getting a list of all ops. Using auto-generated numberings for
--- serialization, for instance, could cause observable changes to
--- formats that we want to control and version.
-data POp
-  = -- Int
-    ADDI -- +
-  | SUBI -- -
-  | MULI
-  | DIVI -- /
-  | SGNI -- sgn
-  | NEGI -- neg
-  | MODI -- mod
-  | POWI -- pow
-  | SHLI -- shiftl
-  | SHRI -- shiftr
-  | ANDI -- and
-  | IORI -- or
-  | XORI -- xor
-  | COMI -- complement
-  | INCI -- inc
-  | DECI -- dec
-  | LEQI -- <=
-  | LESI -- <
-  | EQLI -- ==
-  | NEQI -- !=
-  | TRNC -- truncate0
-  -- Nat
-  | ADDN -- +
-  | SUBN -- -
-  | DRPN -- drop
-  | MULN
-  | DIVN -- /
-  | MODN -- mod
-  | TZRO -- trailingZeros
-  | LZRO -- leadingZeros
-  | POPC -- popCount
-  | POWN -- pow
-  | SHLN -- shiftl
-  | SHRN -- shiftr
-  | ANDN -- and
-  | IORN -- or
-  | XORN -- xor
-  | COMN -- complement
-  | INCN -- inc
-  | DECN -- dec
-  | LEQN -- <=
-  | LESN -- <
-  | EQLN -- ==
-  | NEQN -- !=
-  -- Float
-  | ADDF -- +
-  | SUBF -- -
-  | MULF
-  | DIVF -- /
-  | MINF -- min
-  | MAXF -- max
-  | LEQF -- <=
-  | LESF -- <
-  | EQLF -- ==
-  | NEQF -- !=
-  | POWF -- pow
-  | EXPF -- exp
-  | SQRT -- sqrt
-  | LOGF -- log
-  | LOGB -- logBase
-  | ABSF -- abs
-  | CEIL -- ceil
-  | FLOR -- floor
-  | TRNF -- truncate
-  | RNDF -- round
-  -- Trig
-  | COSF -- cos
-  | ACOS -- acos
-  | COSH -- cosh
-  | ACSH -- acosh
-  | SINF -- sin
-  | ASIN -- asin
-  | SINH -- sinh
-  | ASNH -- asinh
-  | TANF -- tan
-  | ATAN -- atan
-  | TANH -- tanh
-  | ATNH -- atanh
-  | ATN2 -- atan2
-  -- Text
-  | CATT -- ++
-  | TAKT -- take
-  | DRPT -- drop
-  | SIZT -- size
-  | IXOT -- indexOf
-  | UCNS -- uncons
-  | USNC -- unsnoc
-  | EQLT -- ==
-  | LEQT -- <=
-  | PAKT -- pack
-  | UPKT -- unpack
-  -- Sequence
-  | CATS -- ++
-  | TAKS -- take
-  | DRPS -- drop
-  | SIZS -- size
-  | CONS -- cons
-  | SNOC -- snoc
-  | IDXS -- at
-  | BLDS -- build
-  | VWLS -- viewl
-  | VWRS -- viewr
-  | SPLL -- splitl
-  | SPLR -- splitr
-  -- Bytes
-  | PAKB -- pack
-  | UPKB -- unpack
-  | TAKB -- take
-  | DRPB -- drop
-  | IXOB -- indexOf
-  | IDXB -- index
-  | SIZB -- size
-  | FLTB -- flatten
-  | CATB -- append
-  -- Conversion
-  | ITOF -- intToFloat
-  | NTOF -- natToFloat
-  | ITOT -- intToText
-  | NTOT -- natToText
-  | TTOI -- textToInt
-  | TTON -- textToNat
-  | TTOF -- textToFloat
-  | FTOT -- floatToText
-  | CAST -- runtime type cast for unboxed values.
-  | -- Concurrency
-    FORK -- fork
-  | -- Universal operations
-    EQLU -- ==
-  | CMPU -- compare
-  | LEQU -- <=
-  | LESU -- <
-  | EROR -- error
-  | -- Code
-    MISS -- isMissing
-  | CACH -- cache_
-  | LKUP -- lookup
-  | LOAD -- load
-  | CVLD -- validate
-  | SDBX -- sandbox
-  | VALU -- value
-  | TLTT -- Term.Link.toText
-  -- Debug
-  | PRNT -- print
-  | INFO -- info
-  | TRCE -- trace
-  | DBTX -- debugText
-  | -- STM
-    ATOM -- atomically
-  | TFRC -- try force
-  | SDBL -- sandbox link list
-  | SDBV -- sandbox check for Values
-  -- Refs
-  | REFN -- Ref.new
-  | REFR -- Ref.read
-  | REFW -- Ref.write
-  | RCAS -- Ref.cas
-  | RRFC -- Ref.readForCas
-  | TIKR -- Ref.Ticket.read
-  -- Bools
-  | NOTB -- not
-  | ANDB -- and
-  | IORB -- or
-  deriving (Show, Eq, Ord, Enum, Bounded)
-
 type ANormal ref = ABTN.Term (ANormalF ref)
 
 type Cte v = CTE v (ANormal Reference v)
@@ -2868,3 +2699,4 @@ prettyCase ind sc (ABTN.TAbss vs e) r =
     . showString " ->"
     . prettyANF True (ind + 1) e
     . r
+

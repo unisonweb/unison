@@ -363,6 +363,7 @@ data ForeignFunc
   | Natural_popCount
   | Natural_isEven
   | Natural_isOdd
+  | Universal_murmurHashUntyped
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -722,3 +723,4 @@ foreignFuncBuiltinName = \case
   Natural_popCount -> "Natural.popCount"
   Natural_isEven -> "Natural.isEven"
   Natural_isOdd -> "Natural.isOdd"
+  Universal_murmurHashUntyped -> "Universal.murmurHashUntyped"

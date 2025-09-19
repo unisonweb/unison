@@ -17,6 +17,7 @@ library:
     - bytestring-to-vector
     - deepseq
     - memory
+    - murmur-hash
     - primitive
     - stringsearch
     - text
