@@ -25,6 +25,7 @@ import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Referenced
+import Unison.Runtime.TypeTags (mapTipTag, mapBinTag)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Util.Text as UT hiding (reverse, pattern Text)
@@ -433,13 +434,16 @@ hash64AddMap f = flip $ M.foldlWithKey' (rot f)
 hash64AddUMap ::
   (Show r) => HRefs r -> M.Map (Value r) (Value r) -> Hash64 -> Hash64
 hash64AddUMap rs m h = case m of
-  M.Tip -> hash64AddInt 2 h
+  M.Tip ->
+    hash64Add (maskTags mapTipTag) $
+    hash64AddInt 2 h -- data type
   M.Bin sz k v l r ->
     hash64AddUMap rs r
       . hash64AddUMap rs l
       . hash64AddValue rs v
       . hash64AddValue rs k
       . hash64AddInt sz
+      . hash64Add (maskTags mapBinTag)
       $ hash64AddInt 2 h
 
 hash64AddAssoc ::
