@@ -32,6 +32,9 @@ module Unison.Codebase
     termsMentioningType,
     SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
+    termReferentsByShortHash,
+    typeReferencesByShortHash,
+    resolveShortHash,
 
     -- * Type declarations
     getTypeDeclaration,
@@ -70,9 +73,6 @@ module Unison.Codebase
     getBranchDeclNumConstructors,
     getBranchPartialDeclNameLookup,
     getBranchDeclNameLookup,
-
-    -- * Root branch
-    SqliteCodebase.Operations.namesAtPath,
 
     -- * Patches
     SqliteCodebase.Operations.patchExists,
@@ -154,6 +154,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.LabeledDependency qualified as LD
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
@@ -161,6 +162,7 @@ import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, P
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -664,3 +666,31 @@ preloadProjectBranch codebase (ProjectAndBranch projectId branchId) = do
     causalHashId <- Q.expectProjectBranchHead projectId branchId
     Q.expectCausalHash causalHashId
   preloadBranch codebase ch
+
+-- | Look up types in the codebase by short hash, and include builtins.
+typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)
+typeReferencesByShortHash sh = do
+  fromCodebase <- SqliteCodebase.Operations.typeReferencesByPrefix sh
+  let fromBuiltins =
+        Set.filter
+          (\r -> sh == Reference.toShortHash r)
+          Builtin.intrinsicTypeReferences
+  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+
+-- | Look up terms in the codebase by short hash, and include builtins.
+termReferentsByShortHash :: Codebase m v a -> SH.ShortHash -> Sqlite.Transaction (Set Referent.Referent)
+termReferentsByShortHash codebase sh = do
+  fromCodebase <- termReferentsByPrefix codebase sh
+  let fromBuiltins =
+        Set.map Referent.Ref $
+          Set.filter
+            (\r -> sh == Reference.toShortHash r)
+            Builtin.intrinsicTermReferences
+  pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
+
+-- | Resolves a shorthash into any possible matches.
+resolveShortHash :: Codebase m v a -> SH.ShortHash -> Sqlite.Transaction (Set LD.LabeledDependency)
+resolveShortHash codebase sh = do
+  terms <- Set.map LD.TermReferent <$> termReferentsByShortHash codebase sh
+  types <- Set.map LD.TypeReference <$> typeReferencesByShortHash sh
+  pure $ terms <> types
