@@ -18,10 +18,8 @@ module Unison.Server.Local.Endpoints.DefinitionSummary
 where
 
 import Control.Monad.Reader
-import Servant (Capture, QueryParam, throwError, (:>))
-import Servant.Docs (ToSample (..), noSamples)
-import Servant.OpenApi ()
 import Servant (Capture, QueryParam, (:>))
+import Servant.OpenApi ()
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
