@@ -25,7 +25,7 @@ import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type
 import Unison.Runtime.Referenced
-import Unison.Runtime.TypeTags (mapTipTag, mapBinTag)
+import Unison.Runtime.TypeTags (mapBinTag, mapTipTag)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Util.Text as UT hiding (reverse, pattern Text)
@@ -436,7 +436,7 @@ hash64AddUMap ::
 hash64AddUMap rs m h = case m of
   M.Tip ->
     hash64Add (maskTags mapTipTag) $
-    hash64AddInt 2 h -- data type
+      hash64AddInt 2 h -- data type
   M.Bin sz k v l r ->
     hash64AddUMap rs r
       . hash64AddUMap rs l
