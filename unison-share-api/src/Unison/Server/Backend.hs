@@ -47,6 +47,8 @@ module Unison.Server.Backend
     termEntryLabeledDependencies,
     termListEntry,
     Codebase.termReferentsByShortHash,
+    termSummaryForReferent,
+    typeSummaryForReference,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
@@ -58,6 +60,8 @@ module Unison.Server.Backend
     renderDocRefs,
     docsForDefinitionName,
     normaliseRootCausalHash,
+    resolveProjectRootHash,
+    resolveProjectRoot,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -97,6 +101,7 @@ import System.Directory
 import System.FilePath
 import Text.FuzzyFind qualified as FZF
 import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
@@ -144,7 +149,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -1236,3 +1241,73 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
+
+resolveProjectRoot :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO (V2.CausalBranch Sqlite.Transaction)
+resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
+  mayCB <- liftIO . Codebase.runTransaction codebase $ Codebase.getShallowProjectRootByNames projectAndBranchName
+  case mayCB of
+    Nothing -> throwError (ProjectBranchNameNotFound projectName branchName)
+    Just cb -> pure cb
+
+resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO CausalHash
+resolveProjectRootHash codebase projectAndBranchName = do
+  resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
+
+termSummaryForReferent ::
+  Codebase IO Symbol Ann ->
+  Referent ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TermSummary
+termSummaryForReferent codebase referent mayName mkPPE mayWidth = do
+  let shortHash = Referent.toShortHash referent
+  let termReference = Referent.toReference referent
+  let v2Referent = Cv.referent1to2 referent
+
+  sig <- hoistBackend (Codebase.runTransaction codebase) do
+    sig <- lift (loadReferentType codebase referent)
+    pure sig
+  case sig of
+    Nothing ->
+      throwError (MissingSignatureForTerm termReference)
+    Just typeSig -> do
+      let deps = Type.labeledDependencies typeSig
+      pped <- lift . Codebase.runTransaction codebase $ mkPPE deps
+      let formattedTermSig = formatSuffixedType pped width typeSig
+      let summary = mkSummary termReference formattedTermSig
+      tag <- lift $ getTermTag codebase v2Referent sig
+      let displayName = PPE.termName (PPED.unsuffixifiedPPE pped) referent
+      pure $ TermSummary (maybe displayName HQ.NameOnly mayName) shortHash summary tag
+  where
+    width = mayDefaultWidth mayWidth
+    mkSummary reference termSig =
+      if Reference.isBuiltin reference
+        then BuiltinObject termSig
+        else UserObject termSig
+
+typeSummaryForReference ::
+  Codebase IO Symbol Ann ->
+  Reference ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TypeSummary
+typeSummaryForReference codebase reference mayName mkPPED mayWidth = do
+  let shortHash = Reference.toShortHash reference
+  lift do
+    Codebase.runTransaction codebase do
+      pped <- mkPPED $ Set.singleton (LD.TypeReference reference)
+      let displayName = PPE.typeName (PPED.unsuffixifiedPPE pped) reference
+      tag <- getTypeTag codebase reference
+      displayDecl <- displayType codebase reference
+      let syntaxHeader = typeToSyntaxHeader width displayName displayDecl
+      pure $
+        TypeSummary
+          { displayName = (maybe displayName HQ.NameOnly mayName),
+            hash = shortHash,
+            summary = bimap mungeSyntaxText mungeSyntaxText syntaxHeader,
+            tag = tag
+          }
+  where
+    width = mayDefaultWidth mayWidth

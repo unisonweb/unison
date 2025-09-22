@@ -96,9 +96,11 @@ module Unison.Codebase
     SqliteCodebase.Operations.hashLength,
     SqliteCodebase.Operations.branchHashLength,
 
-    -- * Dependents
+    -- * Dependents/Dependencies
     dependents,
     dependentsOfComponent,
+    dependentsWithinBranchScope,
+    directDependencies,
 
     -- * Sync
 
@@ -124,6 +126,7 @@ module Unison.Codebase
 where
 
 import Control.Monad.Except (ExceptT)
+import Data.Bifoldable (Bifoldable (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -173,8 +176,10 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns qualified as Defns
 import Unison.Util.Recursion (XNor (Both, Neither), cata)
 import Unison.Util.Relation qualified as Rel
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 
@@ -520,6 +525,36 @@ dependentsOfComponent h =
   Set.union (Builtin.builtinTypeDependentsOfComponent h)
     . Set.map Reference.DerivedId
     <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
+
+-- | Find direct dependents of any provided definitions which are within the provided branch.
+--
+-- Note: You may wish to delete lib deps beforehand.
+dependentsWithinBranchScope :: Branch.Branch0 m -> (DefnsF Set Referent.Referent Reference.TypeReference) -> Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
+dependentsWithinBranchScope branch0 refs = do
+  Operations.directDependentsWithinScope
+    ( Set.union
+        (Set.mapMaybe Reference.toId (Branch.deepTypeReferences branch0))
+        (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents branch0))
+    )
+    (bifoldMap (Set.map Referent.toReference) id refs)
+
+directDependencies ::
+  (DefnsF Set Referent.Referent Reference.TypeReference) ->
+  Sqlite.Transaction (DefnsF Set TermReference TypeReference)
+directDependencies refs = do
+  Operations.directDependenciesOfScope
+    Builtin.isBuiltinType
+    ( let refToIds :: Reference -> Set Reference.Id
+          refToIds =
+            maybe Set.empty Set.singleton . Reference.toId
+       in bifoldMap
+            ( foldMap \case
+                Referent.Con ref _ -> Defns.fromTypes (refToIds (ref ^. ConstructorReference.reference_))
+                Referent.Ref ref -> Defns.fromTerms (refToIds ref)
+            )
+            (foldMap (refToIds >>> Defns.fromTypes))
+            refs
+    )
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
