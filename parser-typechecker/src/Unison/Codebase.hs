@@ -32,6 +32,9 @@ module Unison.Codebase
     termsMentioningType,
     SqliteCodebase.Operations.termReferencesByPrefix,
     termReferentsByPrefix,
+    termReferentsByShortHash,
+    typeReferencesByShortHash,
+    resolveShortHash,
 
     -- * Type declarations
     getTypeDeclaration,
@@ -71,9 +74,6 @@ module Unison.Codebase
     getBranchPartialDeclNameLookup,
     getBranchDeclNameLookup,
 
-    -- * Root branch
-    SqliteCodebase.Operations.namesAtPath,
-
     -- * Patches
     SqliteCodebase.Operations.patchExists,
     SqliteCodebase.Operations.getPatch,
@@ -96,9 +96,11 @@ module Unison.Codebase
     SqliteCodebase.Operations.hashLength,
     SqliteCodebase.Operations.branchHashLength,
 
-    -- * Dependents
+    -- * Dependents/Dependencies
     dependents,
     dependentsOfComponent,
+    dependentsWithinBranchScope,
+    directDependencies,
 
     -- * Sync
 
@@ -124,6 +126,7 @@ module Unison.Codebase
 where
 
 import Control.Monad.Except (ExceptT)
+import Data.Bifoldable (Bifoldable (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -154,6 +157,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.LabeledDependency qualified as LD
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
@@ -161,6 +165,7 @@ import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, P
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -171,8 +176,10 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns qualified as Defns
 import Unison.Util.Recursion (XNor (Both, Neither), cata)
 import Unison.Util.Relation qualified as Rel
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.WatchKind qualified as WK
 
@@ -519,6 +526,36 @@ dependentsOfComponent h =
     . Set.map Reference.DerivedId
     <$> SqliteCodebase.Operations.dependentsOfComponentImpl h
 
+-- | Find direct dependents of any provided definitions which are within the provided branch.
+--
+-- Note: You may wish to delete lib deps beforehand.
+dependentsWithinBranchScope :: Branch.Branch0 m -> (DefnsF Set Referent.Referent Reference.TypeReference) -> Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
+dependentsWithinBranchScope branch0 refs = do
+  Operations.directDependentsWithinScope
+    ( Set.union
+        (Set.mapMaybe Reference.toId (Branch.deepTypeReferences branch0))
+        (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents branch0))
+    )
+    (bifoldMap (Set.map Referent.toReference) id refs)
+
+directDependencies ::
+  (DefnsF Set Referent.Referent Reference.TypeReference) ->
+  Sqlite.Transaction (DefnsF Set TermReference TypeReference)
+directDependencies refs = do
+  Operations.directDependenciesOfScope
+    Builtin.isBuiltinType
+    ( let refToIds :: Reference -> Set Reference.Id
+          refToIds =
+            maybe Set.empty Set.singleton . Reference.toId
+       in bifoldMap
+            ( foldMap \case
+                Referent.Con ref _ -> Defns.fromTypes (refToIds (ref ^. ConstructorReference.reference_))
+                Referent.Ref ref -> Defns.fromTerms (refToIds ref)
+            )
+            (foldMap (refToIds >>> Defns.fromTypes))
+            refs
+    )
+
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
 termsOfType c ty = termsOfTypeByReference c $ Hashing.typeToReference ty
@@ -664,3 +701,31 @@ preloadProjectBranch codebase (ProjectAndBranch projectId branchId) = do
     causalHashId <- Q.expectProjectBranchHead projectId branchId
     Q.expectCausalHash causalHashId
   preloadBranch codebase ch
+
+-- | Look up types in the codebase by short hash, and include builtins.
+typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)
+typeReferencesByShortHash sh = do
+  fromCodebase <- SqliteCodebase.Operations.typeReferencesByPrefix sh
+  let fromBuiltins =
+        Set.filter
+          (\r -> sh == Reference.toShortHash r)
+          Builtin.intrinsicTypeReferences
+  pure (fromBuiltins <> Set.map Reference.DerivedId fromCodebase)
+
+-- | Look up terms in the codebase by short hash, and include builtins.
+termReferentsByShortHash :: Codebase m v a -> SH.ShortHash -> Sqlite.Transaction (Set Referent.Referent)
+termReferentsByShortHash codebase sh = do
+  fromCodebase <- termReferentsByPrefix codebase sh
+  let fromBuiltins =
+        Set.map Referent.Ref $
+          Set.filter
+            (\r -> sh == Reference.toShortHash r)
+            Builtin.intrinsicTermReferences
+  pure (fromBuiltins <> Set.mapMonotonic (over Referent.reference_ Reference.DerivedId) fromCodebase)
+
+-- | Resolves a shorthash into any possible matches.
+resolveShortHash :: Codebase m v a -> SH.ShortHash -> Sqlite.Transaction (Set LD.LabeledDependency)
+resolveShortHash codebase sh = do
+  terms <- Set.map LD.TermReferent <$> termReferentsByShortHash codebase sh
+  types <- Set.map LD.TypeReference <$> typeReferencesByShortHash sh
+  pure $ terms <> types

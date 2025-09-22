@@ -503,7 +503,7 @@
   `io.test.all`  runs unit tests for the current branch that use
                  IO
 
-  lib.install (or install.lib)
+  lib.install (or install.lib, install)
   The `lib.install` command installs a dependency into the `lib`
   namespace.
 
@@ -573,6 +573,10 @@
                                                            at
                                                            `lib.myproject_dev`
 
+  lib.upgrade (or upgrade.lib, upgrade)
+  `upgrade old new` upgrades library dependency `lib.old` to
+  `lib.new`, and, if successful, deletes `lib.old`.
+
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current
                namespace.
@@ -626,9 +630,6 @@
   `names` without arguments invokes a search to select
   names/hashes to list, which requires that `fzf` can be found
   within your PATH.
-
-  namespace.dependencies
-  List the external dependencies of the specified namespace.
 
   project.create (or create.project)
   `project.create`      creates a project with a random name
@@ -963,10 +964,6 @@
   accordingly. If the process can't be completed automatically,
   the dependents will be added back to the scratch file for your
   review.
-
-  upgrade
-  `upgrade old new` upgrades library dependency `lib.old` to
-  `lib.new`, and, if successful, deletes `lib.old`.
 
   version
   Print the version of unison you're running

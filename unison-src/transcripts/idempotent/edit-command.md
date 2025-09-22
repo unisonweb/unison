@@ -88,6 +88,16 @@ bar = 18
 baz = 19
 ```
 
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + bar : Nat
+  + baz : Nat
+  + foo : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
 ``` unison
 foo = 17
 bar = 18

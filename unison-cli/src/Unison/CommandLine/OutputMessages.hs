@@ -559,7 +559,6 @@ notifyUser dir issueFn = \case
         <> "to evaluate something before attempting"
         <> "to save it."
   Success -> pure $ P.bold "Done."
-  PrintMessage pretty -> pure pretty
   NamespaceEmpty p ->
     case p of
       (p0 NEList.:| []) ->

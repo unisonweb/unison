@@ -109,7 +109,7 @@ withRunner isTest verbosity ucmVersion action = do
       mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
       Server.startServer
         isTest
-        Backend.BackendEnv {Backend.useNamesIndex = False}
+        Backend.BackendEnv
         Server.defaultCodebaseServerOpts
         runtime
         codebase

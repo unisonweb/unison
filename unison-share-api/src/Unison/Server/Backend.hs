@@ -46,18 +46,22 @@ module Unison.Server.Backend
     termEntryToNamedTerm,
     termEntryLabeledDependencies,
     termListEntry,
-    termReferentsByShortHash,
+    Codebase.termReferentsByShortHash,
+    termSummaryForReferent,
+    typeSummaryForReference,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
     typeEntryToNamedType,
     typeEntryLabeledDependencies,
     typeListEntry,
-    typeReferencesByShortHash,
+    Codebase.typeReferencesByShortHash,
     typeToSyntaxHeader,
     renderDocRefs,
     docsForDefinitionName,
     normaliseRootCausalHash,
+    resolveProjectRootHash,
+    resolveProjectRoot,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -97,11 +101,11 @@ import System.Directory
 import System.FilePath
 import Text.FuzzyFind qualified as FZF
 import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Referent qualified as V2Referent
-import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
 import Unison.Builtin.Decls qualified as Decls
@@ -145,7 +149,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
@@ -156,7 +160,6 @@ import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.Doc.AsHtml qualified as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch)
-import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult qualified as SR
 import Unison.Server.SearchResultPrime qualified as SR'
@@ -243,10 +246,7 @@ data BackendError
   | ProjectBranchNameNotFound ProjectName ProjectBranchName
   deriving stock (Show)
 
-newtype BackendEnv = BackendEnv
-  { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
-    useNamesIndex :: Bool
-  }
+data BackendEnv = BackendEnv
 
 newtype Backend m a = Backend {runBackend :: ReaderT BackendEnv (ExceptT BackendError m) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader BackendEnv, MonadError BackendError)
@@ -616,13 +616,13 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
   termRefs <-
     filter (not . Set.null . snd) . zip hashes
       <$> traverse
-        (termReferentsByShortHash codebase)
+        (Codebase.termReferentsByShortHash codebase)
         hashes
   -- Find types with those hashes.
   typeRefs <-
     filter (not . Set.null . snd) . zip hashes
       <$> traverse
-        typeReferencesByShortHash
+        Codebase.typeReferencesByShortHash
         hashes
   -- Now do the name queries.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
@@ -988,17 +988,9 @@ namesAtPathFromRootBranchHash ::
   Path ->
   Backend m (Names, PPED.PrettyPrintEnvDecl)
 namesAtPathFromRootBranchHash codebase cb path = do
-  shouldUseNamesIndex <- asks useNamesIndex
-  let (rootBranchHash, rootCausalHash) = (V2Causal.valueHash cb, V2Causal.causalHash cb)
-  haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
+  let rootCausalHash = V2Causal.causalHash cb
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
-  names <-
-    if shouldUseNamesIndex
-      then do
-        when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
-        lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
-      else do
-        Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
+  names <- Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
   let pped = PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
   pure (names, pped)
 
@@ -1249,3 +1241,73 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
+
+resolveProjectRoot :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO (V2.CausalBranch Sqlite.Transaction)
+resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
+  mayCB <- liftIO . Codebase.runTransaction codebase $ Codebase.getShallowProjectRootByNames projectAndBranchName
+  case mayCB of
+    Nothing -> throwError (ProjectBranchNameNotFound projectName branchName)
+    Just cb -> pure cb
+
+resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO CausalHash
+resolveProjectRootHash codebase projectAndBranchName = do
+  resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
+
+termSummaryForReferent ::
+  Codebase IO Symbol Ann ->
+  Referent ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TermSummary
+termSummaryForReferent codebase referent mayName mkPPE mayWidth = do
+  let shortHash = Referent.toShortHash referent
+  let termReference = Referent.toReference referent
+  let v2Referent = Cv.referent1to2 referent
+
+  sig <- hoistBackend (Codebase.runTransaction codebase) do
+    sig <- lift (loadReferentType codebase referent)
+    pure sig
+  case sig of
+    Nothing ->
+      throwError (MissingSignatureForTerm termReference)
+    Just typeSig -> do
+      let deps = Type.labeledDependencies typeSig
+      pped <- lift . Codebase.runTransaction codebase $ mkPPE deps
+      let formattedTermSig = formatSuffixedType pped width typeSig
+      let summary = mkSummary termReference formattedTermSig
+      tag <- lift $ getTermTag codebase v2Referent sig
+      let displayName = PPE.termName (PPED.unsuffixifiedPPE pped) referent
+      pure $ TermSummary (maybe displayName HQ.NameOnly mayName) shortHash summary tag
+  where
+    width = mayDefaultWidth mayWidth
+    mkSummary reference termSig =
+      if Reference.isBuiltin reference
+        then BuiltinObject termSig
+        else UserObject termSig
+
+typeSummaryForReference ::
+  Codebase IO Symbol Ann ->
+  Reference ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TypeSummary
+typeSummaryForReference codebase reference mayName mkPPED mayWidth = do
+  let shortHash = Reference.toShortHash reference
+  lift do
+    Codebase.runTransaction codebase do
+      pped <- mkPPED $ Set.singleton (LD.TypeReference reference)
+      let displayName = PPE.typeName (PPED.unsuffixifiedPPE pped) reference
+      tag <- getTypeTag codebase reference
+      displayDecl <- displayType codebase reference
+      let syntaxHeader = typeToSyntaxHeader width displayName displayDecl
+      pure $
+        TypeSummary
+          { displayName = (maybe displayName HQ.NameOnly mayName),
+            hash = shortHash,
+            summary = bimap mungeSyntaxText mungeSyntaxText syntaxHeader,
+            tag = tag
+          }
+  where
+    width = mayDefaultWidth mayWidth
