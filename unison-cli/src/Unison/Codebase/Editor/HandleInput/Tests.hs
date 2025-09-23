@@ -32,6 +32,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -114,13 +115,15 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
           Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
           pure []
         Just tm -> do
+          let testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
+          Debug.whenDebug Debug.Tests $
+            liftIO (putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
-          tm' <- RuntimeUtils.evalPureUnison fqnPPE False tm
+          tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalPureUnison fqnPPE False tm
           case tm' of
             Left e -> do
               Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
-              let testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
               Cli.returnEarly $ EvaluationFailure (P.callout ("Error while evaluating test " <> P.backticked testName <> ":") . P.indentN 2) e
             Right tm' -> do
               -- After evaluation, cache the result of the test
