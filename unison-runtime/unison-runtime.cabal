@@ -42,6 +42,8 @@ library
       Unison.Codebase.Execute
       Unison.Runtime
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.MurmurHash.Untyped
+      Unison.Runtime.ANF.POp
       Unison.Runtime.ANF.Optimize
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize

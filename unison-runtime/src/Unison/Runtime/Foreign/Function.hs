@@ -170,6 +170,7 @@ import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF.MurmurHash.Untyped as ANFH
 import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
@@ -656,6 +657,8 @@ foreignCallHelper = \case
   Universal_murmurHash ->
     mkForeign $
       pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
+  Universal_murmurHashUntyped ->
+    mkForeign $ pure . asWord64 . ANFH.hash64ValueUntyped
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress

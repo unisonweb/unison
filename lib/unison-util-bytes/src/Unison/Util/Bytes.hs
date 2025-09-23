@@ -53,6 +53,7 @@ module Unison.Util.Bytes
     zlibDecompress,
     gzipCompress,
     gzipDecompress,
+    hash64AddBytes,
   )
 where
 
@@ -68,6 +69,7 @@ import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as LB
 import Data.ByteString.Lazy.Search qualified as SS
 import Data.Char
+import Data.Digest.Murmur64 (Hash64, hash64AddInt)
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
     copyByteArrayToPtr,
@@ -417,6 +419,13 @@ toWord8s bs = chunks bs >>= V.toList
 
 fromWord8s :: [Word8] -> Bytes
 fromWord8s bs = snoc empty (V.fromList bs)
+
+-- Adds the bytes of the value to a hash. This does not depend on the
+-- chunking or splitting of the bytes values, just on the bytes.
+hash64AddBytes :: Bytes -> Hash64 -> Hash64
+hash64AddBytes bs h = foldl' addChunk h $ underlying bs
+  where
+    addChunk = V.foldl' (\h b -> hash64AddInt (fromIntegral b) h)
 
 instance Show Bytes where
   show bs = toWord8s (toBase16 bs) >>= \w -> [chr (fromIntegral w)]

@@ -1226,6 +1226,8 @@ declareForeigns = do
   declareForeign Untracked 3 Crypto_Rsa_verify_impl
 
   declareForeignWrap Untracked murmur'hash Universal_murmurHash
+  declareForeignWrap Untracked murmur'hash Universal_murmurHashUntyped
+
   declareForeign Tracked 1 IO_randomBytes
   declareForeign Untracked 1 Bytes_zlib_compress
   declareForeign Untracked 1 Bytes_gzip_compress
