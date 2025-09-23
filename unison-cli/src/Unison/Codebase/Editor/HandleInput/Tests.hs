@@ -115,7 +115,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
           Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
           pure []
         Just tm -> do
-          let testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
+          let testName = Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r)
           Debug.whenDebug Debug.Tests $
             liftIO (putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
