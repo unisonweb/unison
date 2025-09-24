@@ -82,6 +82,8 @@ module Unison.Codebase.Branch
     edits_,
 
     -- ** Term/type queries
+    deepDefns,
+    deepDefnsIds,
     deepTerms,
     deepTypes,
     deepPaths,
@@ -111,6 +113,7 @@ import Unison.Codebase.Branch.Type
     UnwrappedBranch,
     branch0,
     children_,
+    deepDefns,
     deepPaths,
     deepTerms,
     deepTypes,
@@ -245,6 +248,10 @@ deepReferents = R.dom . deepTerms
 deepTermReferences :: Branch0 m -> Set TermReference
 deepTermReferences =
   Set.mapMaybe Referent.toTermReference . deepReferents
+
+deepDefnsIds :: Branch0 m -> DefnsF Set TermReferenceId TypeReferenceId
+deepDefnsIds branch =
+  Defns { terms = deepTermReferenceIds branch, types = deepTypeReferenceIds branch }
 
 deepTermReferenceIds :: Branch0 m -> Set TermReferenceId
 deepTermReferenceIds =

@@ -193,7 +193,7 @@ import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.ShortHash (ShortCausalHash (..), ShortNamespaceHash (..))
 import Unison.Sqlite
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (DefnsF, defnsAreEmpty)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Set qualified as Set
@@ -1101,45 +1101,43 @@ dependents selector r = do
       sIds <- Q.getDependentsForDependency selector r'
       Set.traverse s2cReferenceId sIds
 
--- | `directDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
--- including `query` itself).
+-- | `directDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (excluding
+-- self-references).
 directDependentsWithinScope ::
-  Set C.Reference.Id ->
-  Set C.Reference ->
-  Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
-directDependentsWithinScope scope0 query0 = do
-  -- Convert C -> S
-  scope1 <- Set.traverse c2sReferenceId scope0
-  query1 <- Set.traverse c2sReference query0
-
-  -- Do the query
-  dependents0 <- Q.getDirectDependentsWithinScope scope1 query1
-
-  -- Convert S -> C
-  dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
-
-  pure dependents1
-
--- | `transitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope` (not
--- including `query` itself).
-transitiveDependentsWithinScope ::
   DefnsF Set C.TermReferenceId C.TypeReferenceId ->
-  Set C.Reference ->
+  DefnsF Set C.TermReference C.TypeReference ->
   Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
-transitiveDependentsWithinScope scope0 query0
-  | (Set.null scope0.terms && Set.null scope0.types) || Set.null query0 = pure (Defns Set.empty Set.empty)
+directDependentsWithinScope scope0 query0
+  | defnsAreEmpty scope0 || defnsAreEmpty query0 = mempty
   | otherwise = do
       -- Convert C -> S
       scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
-      query1 <- Set.traverse c2sReference query0
+      query1 <- bitraverse (Set.traverse c2sReference) (Set.traverse c2sReference) query0
 
       -- Do the query
-      dependents0 <- Q.getTransitiveDependentsWithinScope scope1 query1
+      dependents <- Q.getDirectDependentsWithinScope scope1 query1
 
       -- Convert S -> C
-      dependents1 <- bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents0
+      bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents
 
-      pure dependents1
+-- | `transitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`
+-- (excluding self-references).
+transitiveDependentsWithinScope ::
+  DefnsF Set C.TermReferenceId C.TypeReferenceId ->
+  DefnsF Set C.TermReference C.TypeReference ->
+  Transaction (DefnsF Set C.TermReferenceId C.TypeReferenceId)
+transitiveDependentsWithinScope scope0 query0
+  | defnsAreEmpty scope0 || defnsAreEmpty query0 = mempty
+  | otherwise = do
+      -- Convert C -> S
+      scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
+      query1 <- bitraverse (Set.traverse c2sReference) (Set.traverse c2sReference) query0
+
+      -- Do the query
+      dependents <- Q.getTransitiveDependentsWithinScope scope1 query1
+
+      -- Convert S -> C
+      bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

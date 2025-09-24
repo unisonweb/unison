@@ -496,7 +496,7 @@ loop e = do
           desc <- inputDescription input
           handleMoveAll hasConfirmed src' dest' desc
         DeleteBranchI name -> handleDeleteBranch name
-        DeleteI target -> handleDelete target
+        DeleteI force which target -> handleDelete force which target
         DeleteNamespaceI insistence path -> handleDeleteNamespace input insistence path
         DeleteProjectI name -> handleDeleteProject name
         DisplayI outputLoc namesToDisplay -> traverse_ (displayI outputLoc) namesToDisplay
@@ -517,10 +517,6 @@ loop e = do
         MakeStandaloneI output main -> doCompile False output main
         IOTestI main -> Tests.handleIOTest main
         IOTestAllI -> Tests.handleAllIOTests
-        -- UpdateBuiltinsI -> do
-        --   stepAt updateBuiltins
-        --   checkTodo
-
         MergeBuiltinsI opath -> do
           description <- inputDescription input
           -- these were added once, but maybe they've changed and need to be

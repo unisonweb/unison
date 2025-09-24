@@ -1903,21 +1903,23 @@ getDirectDependenciesOfScope isBuiltinType scope = do
 
   pure dependencies1
 
--- | `getDirectDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
--- including `query` itself).
+-- | `getDirectDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope`.
 getDirectDependentsWithinScope ::
-  Set S.Reference.Id ->
-  Set S.Reference ->
+  DefnsF Set S.TermReferenceId S.TypeReferenceId ->
+  DefnsF Set S.TermReference S.TypeReference ->
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getDirectDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   let scopeTableName = [sql| dependents_search_scope |]
   createTemporaryTableOfReferenceIds scopeTableName
-  for_ scope \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.terms \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.types \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
 
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
-  createTemporaryTableOfReferences queryTableName query
+  createTemporaryTableOfReferences queryTableName
+  for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+  for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
 
   -- Get their direct dependents (tagged with object type)
   dependents0 <-
@@ -1955,11 +1957,10 @@ getDirectDependentsWithinScope scope query = do
 
   pure dependents1
 
--- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`
--- (not including `query` itself).
+-- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`.
 getTransitiveDependentsWithinScope ::
   DefnsF Set S.TermReferenceId S.TypeReferenceId ->
-  Set S.Reference ->
+  DefnsF Set S.TermReference S.TypeReference ->
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getTransitiveDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
@@ -1970,7 +1971,9 @@ getTransitiveDependentsWithinScope scope query = do
 
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
-  createTemporaryTableOfReferences queryTableName query
+  createTemporaryTableOfReferences queryTableName
+  for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+  for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
 
   -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
   --
@@ -2040,8 +2043,8 @@ getTransitiveDependentsWithinScope scope query = do
 
   pure result1
 
-createTemporaryTableOfReferences :: Sql -> Set S.Reference -> Transaction ()
-createTemporaryTableOfReferences tableName refs = do
+createTemporaryTableOfReferences :: Sql -> Transaction ()
+createTemporaryTableOfReferences tableName = do
   execute
     [sql|
       CREATE TEMPORARY TABLE $tableName (
@@ -2052,9 +2055,6 @@ createTemporaryTableOfReferences tableName refs = do
         CHECK ((object_id IS NULL) = (component_index IS NULL))
       )
     |]
-
-  for_ refs \ref ->
-    execute [sql| INSERT INTO $tableName VALUES (@ref, @, @) |]
 
 createTemporaryTableOfReferenceIds :: Sql -> Transaction ()
 createTemporaryTableOfReferenceIds tableName = do

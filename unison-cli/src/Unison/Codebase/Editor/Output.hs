@@ -109,7 +109,6 @@ type HashLength = Int
 data NumberedOutput
   = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -123,8 +122,6 @@ data NumberedOutput
       (Map TermReferenceId [Text]) -- oks
       (Map TermReferenceId [Text]) -- fails
   | Output'Todo !TodoOutput
-  | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
-    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
@@ -214,8 +211,7 @@ data Output
   | BranchNotFound Path'
   | EmptyLooseCodePush Path'
   | EmptyProjectBranchPush (ProjectAndBranch ProjectName ProjectBranchName)
-  | NameNotFound (HQ'.HashQualified (Path.Split Path'))
-  | NamesNotFound [Name]
+  | TermAndOrTypeNameNotFound !(Maybe (Defn () ())) !(HQ'.HashQualified Name)
   | TypeNotFound (HQ'.HashQualified (Path.Split Path'))
   | TermNotFound (HQ'.HashQualified (Path.Split Path'))
   | MoveNothingFound Path'
@@ -422,6 +418,7 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | DeleteFailure !FilePath !ProjectBranchName !ProjectBranchName
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
   | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
@@ -438,7 +435,8 @@ data Output
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
   | Output'DebugSynhashTerm !TermReference !Hash !Text
-  | ConflictedDefn !Text {- what operation? -} !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | ConflictedDefn !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | IncoherentDeclDuringDelete !IncoherentDeclReason
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
   | IncoherentDeclDuringUpgrade !IncoherentDeclReason
@@ -452,6 +450,8 @@ data Output
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
   | BranchUpdate'BranchChanged
   | SyncingFromTo CausalHash CausalHash
+  | CantDeleteConstructor !(NESet Name)
+  | DeletedDefinitions (DefnsF Set Name Name)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -507,6 +507,7 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  DeleteFailure {} -> True
   UpdateTypecheckingFailure {} -> True
   UpdateTypecheckingFailure2 {} -> True
   AmbiguousCloneLocal {} -> True
@@ -542,8 +543,7 @@ isFailure o = case o of
   BadName {} -> True
   BadNamespace {} -> True
   BranchNotFound {} -> True
-  NameNotFound {} -> True
-  NamesNotFound _ -> True
+  TermAndOrTypeNameNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
@@ -679,6 +679,7 @@ isFailure o = case o of
   NoMergeInProgress {} -> True
   Output'DebugSynhashTerm {} -> False
   ConflictedDefn {} -> True
+  IncoherentDeclDuringDelete {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
   IncoherentDeclDuringUpgrade {} -> True
@@ -690,12 +691,13 @@ isFailure o = case o of
   BranchSquashSuccess {} -> False
   BranchUpdate'BranchChanged {} -> True
   SyncingFromTo {} -> False
+  CantDeleteConstructor {} -> True
+  DeletedDefinitions {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
   AmbiguousReset {} -> True
   AmbiguousSwitch {} -> True
-  CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
   History {} -> False
@@ -703,7 +705,6 @@ isNumberedFailure = \case
   ListProjects {} -> False
   ShowDiffAfterCreateAuthor {} -> False
   ShowDiffAfterDeleteBranch {} -> False
-  ShowDiffAfterDeleteDefinitions {} -> False
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False

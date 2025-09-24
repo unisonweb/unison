@@ -32,14 +32,14 @@ module Unison.CommandLine.InputPatterns
     debugType,
     delete,
     deleteBranch,
+    deleteForce,
     deleteNamespace,
     deleteNamespaceForce,
     deleteProject,
     deleteTerm,
-    deleteTermVerbose,
+    deleteTermForce,
     deleteType,
-    deleteTypeVerbose,
-    deleteVerbose,
+    deleteTypeForce,
     dependencies,
     dependents,
     diffNamespace,
@@ -169,7 +169,7 @@ import Unison.Cli.Pretty
   )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
+import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
@@ -227,6 +227,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
 import Unison.Syntax.HashQualified qualified as HQ (parseText, toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.ColorText qualified as CT
@@ -1308,8 +1309,14 @@ renameType =
         Left $ P.wrap "`rename.type` takes two arguments, like `rename.type oldname newname`."
 
 deleteGen ::
-  Maybe String -> ParameterType -> String -> ([HQ'.HashQualified (Path.Split Path')] -> DeleteTarget) -> InputPattern
-deleteGen suffix queryCompletionArg target mkTarget =
+  Maybe String ->
+  ParameterType ->
+  (I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)) ->
+  String ->
+  Bool ->
+  DeleteTarget ->
+  InputPattern
+deleteGen suffix queryCompletionArg parseArg target force which =
   let cmd = maybe "delete" ("delete." <>) suffix
       info =
         P.wrapColumn2
@@ -1338,25 +1345,104 @@ deleteGen suffix queryCompletionArg target mkTarget =
         I.Visible
         (Parameters [] $ OnePlus ("definition to delete", queryCompletionArg))
         info
-        $ fmap (Input.DeleteI . mkTarget) . traverse handleHashQualifiedSplit'Arg
+        $ fmap (Input.DeleteI force which) . traverse parseArg
+
+handleDeleteArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteArg =
+  either parseHashQualifiedName' \case
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTermEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.termEntryHQName entry)
+    SA.ShallowListEntry prefix (ShallowTypeEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.typeEntryHQName entry)
+    SA.SearchResult mpath (SR.Tm' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) ref)
+    SA.SearchResult mpath (SR.Tp' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) (Referent.Ref ref))
+    otherArgType -> Left (wrongStructuredArgument "a term or type name" otherArgType)
+
+handleDeleteTermArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteTermArg =
+  either parseHashQualifiedName' \case
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTermEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.termEntryHQName entry)
+    SA.SearchResult mpath (SR.Tm' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) ref)
+    otherArgType -> Left (wrongStructuredArgument "a term name" otherArgType)
+
+handleDeleteTypeArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteTypeArg =
+  either parseHashQualifiedName' \case
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTypeEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.typeEntryHQName entry)
+    SA.SearchResult mpath (SR.Tp' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) (Referent.Ref ref))
+    otherArgType -> Left (wrongStructuredArgument "a type name" otherArgType)
 
 delete :: InputPattern
-delete = deleteGen Nothing exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+delete =
+  deleteGen
+    Nothing
+    exactDefinitionTypeOrTermQueryArg
+    handleDeleteArg
+    "term or type"
+    False
+    DeleteTarget'TermOrType
 
-deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteForce :: InputPattern
+deleteForce =
+  deleteGen
+    (Just "force")
+    exactDefinitionTypeOrTermQueryArg
+    handleDeleteArg
+    "term or type"
+    True
+    DeleteTarget'TermOrType
 
 deleteTerm :: InputPattern
-deleteTerm = deleteGen (Just "term") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+deleteTerm =
+  deleteGen
+    (Just "term")
+    exactDefinitionTermQueryArg
+    handleDeleteTermArg
+    "term"
+    False
+    DeleteTarget'Term
 
-deleteTermVerbose :: InputPattern
-deleteTermVerbose = deleteGen (Just "term.verbose") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'Diff)
+deleteTermForce :: InputPattern
+deleteTermForce =
+  deleteGen
+    (Just "term.force")
+    exactDefinitionTermQueryArg
+    handleDeleteTermArg
+    "term"
+    True
+    DeleteTarget'Term
 
 deleteType :: InputPattern
-deleteType = deleteGen (Just "type") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+deleteType =
+  deleteGen
+    (Just "type")
+    exactDefinitionTypeQueryArg
+    handleDeleteTypeArg
+    "type"
+    False
+    DeleteTarget'Type
 
-deleteTypeVerbose :: InputPattern
-deleteTypeVerbose = deleteGen (Just "type.verbose") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'Diff)
+deleteTypeForce :: InputPattern
+deleteTypeForce =
+  deleteGen
+    (Just "type.force")
+    exactDefinitionTypeQueryArg
+    handleDeleteTypeArg
+    "type"
+    True
+    DeleteTarget'Type
 
 deleteProject :: InputPattern
 deleteProject =
@@ -3533,18 +3619,18 @@ validInputs =
       debugNumberedArgs,
       debugTabCompletion,
       debugLspNameCompletion,
-      debugFuzzyOptions,
       debugFormat,
+      debugFuzzyOptions,
       delete,
       deleteBranch,
-      deleteProject,
+      deleteForce,
       deleteNamespace,
       deleteNamespaceForce,
+      deleteProject,
       deleteTerm,
-      deleteTermVerbose,
+      deleteTermForce,
       deleteType,
-      deleteTypeVerbose,
-      deleteVerbose,
+      deleteTypeForce,
       dependencies,
       dependents,
       diffNamespace,
@@ -4207,6 +4293,18 @@ parseHashQualifiedName s =
     )
     Right
     $ HQ.parseText (Text.pack s)
+
+parseHashQualifiedName' :: String -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+parseHashQualifiedName' s =
+  maybe
+    ( Left
+        . P.wrap
+        $ P.string s
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    )
+    Right
+    $ HQ'.parseText (Text.pack s)
 
 explainRemote :: PushPull -> P.Pretty CT.ColorText
 explainRemote pushPull =

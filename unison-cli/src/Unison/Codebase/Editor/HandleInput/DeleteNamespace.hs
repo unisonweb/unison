@@ -1,6 +1,5 @@
 module Unison.Codebase.Editor.HandleInput.DeleteNamespace
   ( handleDeleteNamespace,
-    getEndangeredDependents,
   )
 where
 

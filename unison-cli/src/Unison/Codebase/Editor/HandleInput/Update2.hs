@@ -10,14 +10,13 @@ where
 import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
 import Data.Bifoldable (bifoldMap)
-import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Builder qualified
-import U.Codebase.Reference (Reference, TermReferenceId)
+import U.Codebase.Reference (TermReferenceId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -48,7 +47,7 @@ import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
+import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -56,7 +55,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
-import Unison.Reference (TypeReference, TypeReferenceId)
+import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
@@ -67,6 +66,7 @@ import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
@@ -94,7 +94,7 @@ handleUpdate2 = do
   -- Assert that the namespace doesn't have any conflicted names
   unconflictedView <-
     Branch.asUnconflicted currentBranch0
-      & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
+      & onLeft (Cli.returnEarly . Output.ConflictedDefn)
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
@@ -118,7 +118,12 @@ handleUpdate2 = do
             dependents0 <-
               getNamespaceDependentsOf
                 unconflictedView.defns
-                (getExistingReferencesNamed namespaceBindings unconflictedView.names)
+                ( Names.references
+                    Names
+                      { terms = Relation.restrictDom namespaceBindings.terms unconflictedView.names.terms,
+                        types = Relation.restrictDom namespaceBindings.types unconflictedView.names.types
+                      }
+                )
 
             -- Throw away the dependents that are shadowed by the file itself
             let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
@@ -275,7 +280,7 @@ makePrettyUnisonFile originalFile dependents =
     inAlphabeticalOrder =
       bimap f f
       where
-        f = map snd . List.sortOn (Name.toText . fst) . Map.toList
+        f = map snd . sortAlphabeticallyOn fst . Map.toList
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
@@ -349,22 +354,6 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
 
     splitVar :: Symbol -> Path.Split Path
     splitVar = Path.splitFromName . Name.unsafeParseVar
-
--- | get references from `names` that have the same names as in `defns`
--- For constructors, we get the type reference.
-getExistingReferencesNamed :: DefnsF Set Name Name -> Names -> Set Reference
-getExistingReferencesNamed defns names =
-  bifoldMap fromTerms fromTypes defns
-  where
-    fromTerms :: Set Name -> Set Reference
-    fromTerms =
-      foldMap \name ->
-        Set.map Referent.toReference (Relation.lookupDom name (Names.terms names))
-
-    fromTypes :: Set Name -> Set TypeReference
-    fromTypes =
-      foldMap \name ->
-        Relation.lookupDom name (Names.types names)
 
 -- The big picture behind PPE building, though there are many details:
 --

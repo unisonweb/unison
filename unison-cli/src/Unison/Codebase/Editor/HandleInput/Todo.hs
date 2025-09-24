@@ -28,6 +28,7 @@ import Unison.Reference (TermReference)
 import Unison.Syntax.Name qualified as Name
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Set qualified as Set
+import qualified Unison.Util.Defns as Defns
 
 handleTodo :: Cli ()
 handleTodo = do
@@ -59,8 +60,8 @@ handleTodo = do
       -- All type-and-term dependents of the `todo` builtin, but we know they're all terms.
       dependentsOfTodo <-
         Operations.directDependentsWithinScope
-          (Branch.deepTermReferenceIds currentNamespaceWithoutLibdeps)
-          (Set.singleton todoReference)
+          (Defns.fromTerms (Branch.deepTermReferenceIds currentNamespaceWithoutLibdeps))
+          (Defns.fromTerms (Set.singleton todoReference))
 
       directDependencies <-
         Operations.directDependenciesOfScope

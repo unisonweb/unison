@@ -6,7 +6,7 @@ module Unison.Merge.Mergeblob
 where
 
 import Control.Monad.Trans.Except qualified as Except
-import Data.Bifoldable (bifold, bifoldMap)
+import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
 import Data.Map.Merge.Strict qualified as Map
@@ -39,7 +39,7 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -82,7 +82,10 @@ makeMergeblob ::
   ( ThreeWay (DefnsF Set TermReferenceId TypeReferenceId) ->
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
   ) ->
-  (DefnsF Set TermReferenceId TypeReferenceId -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
+  ( DefnsF Set TermReferenceId TypeReferenceId ->
+    DefnsF Set TermReference TypeReference ->
+    m (DefnsF Set TermReferenceId TypeReferenceId)
+  ) ->
   m (Updated Names) ->
   (DefnsF Set TermReference TypeReference -> m (TypeLookup Symbol Ann)) ->
   Diffblob libdep ->
@@ -113,7 +116,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
 
     dependentsIds <- do
       for ((,) <$> ThreeWay.forgetLca blob.defnsIds <*> coreDependencies) \(defns, deps) ->
-        loadDependents defns (bifold deps)
+        loadDependents defns deps
 
     hydratedDefnsById <- do
       let unhydratedConflictsAndDependentsIds :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId)
