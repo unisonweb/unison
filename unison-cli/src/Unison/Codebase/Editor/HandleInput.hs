@@ -321,8 +321,8 @@ loop e = do
                     b' <- fmap Branch.Branch $ snd tail
                     let elem = (Branch.headHash b, Branch.namesDiff b' b)
                     doHistory schLength (n + 1) b' (elem : acc)
-        AnnotateI toAnnotate -> do
-          handleAnnotate toAnnotate
+        AnnotateI toAnnotate mayMsg -> do
+          handleAnnotate toAnnotate mayMsg
         UndoI -> do
           rootBranch <- Cli.getCurrentProjectRoot
           (_, prev) <-
@@ -845,6 +845,9 @@ inputDescription input =
     HistoryI {} -> wat
     IOTestAllI -> wat
     IOTestI {} -> wat
+    AnnotateI mayBranchId mayMsg -> do
+      hashTxt <- traverse bid2 mayBranchId
+      pure $ "annotate" <> fromMaybe "" hashTxt <> fromMaybe "" mayMsg
     LibInstallI {} -> wat
     LibInstallLocalI {} -> wat
     ListDependenciesI {} -> wat

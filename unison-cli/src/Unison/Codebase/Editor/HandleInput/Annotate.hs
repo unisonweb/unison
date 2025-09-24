@@ -22,8 +22,8 @@ import UnliftIO.Directory (findExecutable)
 import UnliftIO.Environment qualified as Env
 import UnliftIO.Process qualified as Proc
 
-handleAnnotate :: Maybe BranchId2 -> Cli ()
-handleAnnotate mayThingToAnnotate = do
+handleAnnotate :: Maybe BranchId2 -> Maybe Text -> Cli ()
+handleAnnotate mayThingToAnnotate mayMsg = do
   pp <- Cli.getCurrentProjectPath
   causalHash <- case mayThingToAnnotate of
     Nothing -> do
@@ -44,7 +44,7 @@ handleAnnotate mayThingToAnnotate = do
       UnqualifiedPath {} -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
   causalHashId <- Cli.runTransaction $ Q.expectCausalHashIdByCausalHash causalHash
 
-  mayNewMessage <- liftIO $ editMessage annotationTemplate
+  mayNewMessage <- liftIO $ editMessage (mayMsg <|> annotationTemplate)
   case mayNewMessage of
     Nothing -> Cli.respond $ AnnotationAborted
     Just newMessage -> do
