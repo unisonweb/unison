@@ -302,33 +302,40 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
+      displayComment prefixSpacer mayComment = case mayComment of
+        Nothing -> []
+        Just comment ->
+          Monoid.whenM prefixSpacer [""] <> [P.indentN 2 (P.yellow $ P.text comment) <> P.newline]
       handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
-        E.EndOfLog h ->
-          ( P.lines
+        (mayComment, E.EndOfLog h) ->
+          ( P.lines $
               [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
-              ],
+              ]
+                <> displayComment True mayComment,
             [h]
           )
-        E.MergeTail h hs ->
-          ( P.lines
+        (mayComment, E.MergeTail h hs) ->
+          ( P.lines $
               [ P.wrap $ "This segment of history starts with a merge." <> ex,
                 "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                "⑃",
-                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
-              ],
+                "⊙ " <> showNum n <> prettySCH (toSCH h)
+              ]
+                <> displayComment True mayComment
+                <> [ "⑃",
+                     P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
+                   ],
             h : hs
           )
-        E.PageEnd h _n ->
-          ( P.lines
+        (mayComment, E.PageEnd h _n) ->
+          ( P.lines $
               [ P.wrap $ "There's more history before the versions shown here." <> ex,
                 "",
                 dots,
                 "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                ""
-              ],
+                "⊙ " <> showNum n <> prettySCH (toSCH h)
+              ]
+                <> displayComment True mayComment,
             [h]
           )
       dots = "⠇"
@@ -337,12 +344,7 @@ notifyNumbered = \case
           [ "⊙ " <> showNum i <> prettySCH sch,
             ""
           ]
-            <> case mayComment of
-              Nothing -> []
-              Just comment ->
-                [ P.indentN 2 (P.yellow $ P.text comment),
-                  ""
-                ]
+            <> displayComment False mayComment
             <> [ P.indentN 2 $ prettyDiff diff
                ]
       ex =

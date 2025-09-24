@@ -32,16 +32,22 @@ handleHistory resultsCap diffCap from = do
     doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe Text, Names.Diff)] -> Cli.Cli NumberedOutput
     doHistory schLength !n b acc =
       if maybe False (n >=) resultsCap
-        then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
+        then do
+          mayComment <- getComment $ Branch.headHash b
+          pure (History diffCap schLength acc (mayComment, PageEnd (Branch.headHash b) n))
         else case Branch._history b of
-          Causal.One {} -> pure (History diffCap schLength acc (EndOfLog $ Branch.headHash b))
-          Causal.Merge _ _ _ tails ->
-            pure (History diffCap schLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
+          Causal.One {} -> do
+            mayComment <- getComment $ Branch.headHash b
+            pure (History diffCap schLength acc (mayComment, EndOfLog $ Branch.headHash b))
+          Causal.Merge _ _ _ tails -> do
+            mayComment <- getComment $ Branch.headHash b
+            pure (History diffCap schLength acc (mayComment, MergeTail (Branch.headHash b) $ Map.keys tails))
           Causal.Cons _ _ _ tail -> do
             b' <- liftIO $ fmap Branch.Branch $ snd tail
             let causalHash = Branch.headHash b
-            mayComment <- Cli.runTransaction $ do
-              causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
-              fmap snd <$> Q.getLatestCausalAnnotation causalHashId
+            mayComment <- getComment causalHash
             let elem = (causalHash, mayComment, Branch.namesDiff b' b)
             doHistory schLength (n + 1) b' (elem : acc)
+    getComment ch = Cli.runTransaction $ do
+      causalHashId <- Q.expectCausalHashIdByCausalHash ch
+      fmap snd <$> Q.getLatestCausalAnnotation causalHashId
