@@ -2374,7 +2374,7 @@ notifyUser dir issueFn = \case
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
   InvalidAnnotationTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
-  AnnotatedSuccessfully -> pure (P.wrap "Done.")
+  AnnotatedSuccessfully -> pure $ P.bold "Done."
   AnnotationAborted -> pure (P.wrap "Annotation aborted.")
 
 

@@ -10,7 +10,7 @@ CREATE TABLE change_comments (
   -- Remember that SQLITE doesn't have any actual 'time' type,
   -- This column contains TEXT values formatted as ISO8601 strings
   -- ("YYYY-MM-DD HH:MM:SS.SSS")
-  created_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );
 
 CREATE INDEX change_comments_by_project_and_causal_hash_id ON change_comments(project_id, causal_hash_id);

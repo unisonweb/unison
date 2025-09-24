@@ -235,6 +235,7 @@ module U.Codebase.Sqlite.Queries
 
     -- * Annotations
     annotateCausal,
+    getLatestCausalAnnotation,
 
     -- * migrations
     runCreateSql,
@@ -4030,6 +4031,19 @@ saveSquashResult bhId chId =
         :chId
         )
       ON CONFLICT DO NOTHING
+    |]
+
+getLatestCausalAnnotation :: ProjectId -> CausalHashId -> Transaction (Maybe (ChangeCommentId, Text))
+getLatestCausalAnnotation projectId causalHashId =
+  queryMaybeRow
+    [sql|
+      SELECT cc.id, ccr.contents
+        FROM change_comments AS cc
+        JOIN change_comment_revisions AS ccr ON cc.id = ccr.comment_id
+        WHERE cc.project_id = :projectId
+          AND cc.causal_hash_id = :causalHashId
+        ORDER BY ccr.created_at DESC
+        LIMIT 1
     |]
 
 annotateCausal :: ProjectId -> CausalHashId -> Text -> Transaction ()

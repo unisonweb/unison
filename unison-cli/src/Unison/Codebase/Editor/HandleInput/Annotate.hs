@@ -42,9 +42,16 @@ handleAnnotate mayThingToAnnotate mayMsg = do
             Cli.runTransaction $ ProjectUtils.getProjectBranchCausalHash pab.branch
         | otherwise -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
       UnqualifiedPath {} -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
-  causalHashId <- Cli.runTransaction $ Q.expectCausalHashIdByCausalHash causalHash
+  (causalHashId, mayExistingCommentText) <- Cli.runTransaction $ do
+    causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
+    mayExistingCommentInfo <- Q.getLatestCausalAnnotation pp.project.projectId causalHashId
+    let mayExistingCommentText = snd <$> mayExistingCommentInfo
+    pure (causalHashId, mayExistingCommentText)
 
-  mayNewMessage <- liftIO $ editMessage (mayMsg <|> annotationTemplate)
+  mayNewMessage <- case mayMsg of
+    Just newMsg -> pure $ Just newMsg
+    Nothing -> do
+      liftIO (editMessage (mayExistingCommentText <|> annotationTemplate))
   case mayNewMessage of
     Nothing -> Cli.respond $ AnnotationAborted
     Just newMessage -> do
