@@ -1123,7 +1123,7 @@ foreignCallHelper = \case
   Integer_ge -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l >= r)
   Integer_neg -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (-n)
   Integer_abs -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (abs n)
-  Integer_signum -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (signum n)
+  Integer_signum -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral (signum n) :: Int)
   Integer_toFloat -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Double)
   Natural_unsafeFromText -> mkForeign $ \(txt :: Text) -> case readMaybe (unpack txt) of
     Just n -> pure $ encodeVal (n :: Natural)
