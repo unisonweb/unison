@@ -2373,6 +2373,10 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  InvalidAnnotationTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  AnnotatedSuccessfully -> pure (P.wrap "Done.")
+  AnnotationAborted -> pure (P.wrap "Annotation aborted.")
+
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
