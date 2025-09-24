@@ -42,6 +42,6 @@ handleHistory resultsCap diffCap from = do
             let causalHash = Branch.headHash b
             mayComment <- Cli.runTransaction $ do
               causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
-              snd <$> Q.getLatestCausalAnnotation causalHashId
+              fmap snd <$> Q.getLatestCausalAnnotation causalHashId
             let elem = (causalHash, mayComment, Branch.namesDiff b' b)
             doHistory schLength (n + 1) b' (elem : acc)

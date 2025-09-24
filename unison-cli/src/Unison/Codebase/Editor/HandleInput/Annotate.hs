@@ -11,9 +11,6 @@ import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (BranchId2)
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.ProjectPath
-  ( ProjectPathG (..),
-  )
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Prelude
@@ -50,14 +47,14 @@ handleAnnotate mayThingToAnnotate mayMsg = do
   mayNewMessage <- case mayMsg of
     Just newMsg -> pure $ Just newMsg
     Nothing -> do
-      liftIO (editMessage (mayExistingCommentText <|> annotationTemplate))
+      liftIO (editMessage (((annotationTemplate <>) <$> mayExistingCommentText) <|> Just annotationTemplate))
   case mayNewMessage of
     Nothing -> Cli.respond $ AnnotationAborted
     Just newMessage -> do
       Cli.runTransaction $ Q.annotateCausal causalHashId newMessage
       Cli.respond $ AnnotatedSuccessfully
   where
-    annotationTemplate = Nothing
+    annotationTemplate = "# Enter your comment below, then save and quit your editor to continue.\n"
 
 unisonEditorEnvVar :: String
 unisonEditorEnvVar = "UNISON_EDITOR"
@@ -91,6 +88,12 @@ editMessage initialMessage = runMaybeT do
     liftIO (UnliftIO.tryAny (Proc.callProcess editorProg [tempFilePath])) >>= \case
       Left _ -> empty
       Right () -> pure ()
-    result <- liftIO $ readUtf8 tempFilePath
-    guard $ not (Text.null (Text.strip result))
-    pure result
+    result <- liftIO (readUtf8 tempFilePath)
+    let cleanedResult =
+          result
+            & Text.lines
+            & filter (not . Text.isPrefixOf "#")
+            & Text.unlines
+            & Text.strip
+    guard $ not (Text.null cleanedResult)
+    pure cleanedResult

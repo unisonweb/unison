@@ -5,9 +5,10 @@
 CREATE TABLE change_comments (
   id INTEGER PRIMARY KEY,
   causal_hash_id INTEGER REFERENCES hash(id) NOT NULL,
+
   -- Remember that SQLITE doesn't have any actual 'time' type,
-  -- This column contains TEXT values formatted as ISO8601 strings
-  -- ("YYYY-MM-DD HH:MM:SS.SSS")
+  -- This column contains float values constructed
+  -- using strftime('%s', 'now', 'subsec')
   created_at TEXT NOT NULL
 );
 
@@ -18,8 +19,8 @@ CREATE TABLE change_comment_revisions (
   contents TEXT NOT NULL,
 
   -- Remember that SQLITE doesn't have any actual 'time' type,
-  -- This column contains TEXT values formatted as ISO8601 strings
-  -- ("YYYY-MM-DD HH:MM:SS.SSS")
+  -- This column contains float values constructed
+  -- using strftime('%s', 'now', 'subsec')
   created_at TEXT NOT NULL,
 
   -- - In a distributed system you really can’t ever truly delete comments,
