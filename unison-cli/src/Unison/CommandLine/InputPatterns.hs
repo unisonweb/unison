@@ -67,6 +67,7 @@ module Unison.CommandLine.InputPatterns
     help,
     helpTopics,
     history,
+    annotate,
     ioTest,
     ioTestAll,
     libInstallInputPattern,
@@ -1693,6 +1694,34 @@ history =
     \case
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (BranchAtPath Path.Current')
       src : _ -> Input.HistoryI (Just 10) (Just 10) <$> handleBranchIdArg src
+
+annotate :: InputPattern
+annotate =
+  InputPattern
+    "annotate"
+    []
+    I.Visible
+    (Parameters [] $ Optional [("hash or branch to annotate", namespaceOrProjectBranchArg config)] Nothing)
+    ( P.wrapColumn2
+        [ ( makeExample annotate [],
+            "Annotates the head of the current branch."
+          ),
+          ( makeExample annotate ["/main"],
+            "Annotates the current head of the `main` branch."
+          )
+        ]
+    )
+    \case
+      [] -> pure $ Input.AnnotateI Nothing
+      [src] -> Input.AnnotateI . Just <$> handleBranchId2Arg src
+      _ -> wrongArgsLength "at most one argument" []
+  where
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 forkLocal :: InputPattern
 forkLocal =
@@ -3677,6 +3706,7 @@ validInputs =
       help,
       helpTopics,
       history,
+      annotate,
       ioTest,
       ioTestAll,
       libInstallInputPattern,
