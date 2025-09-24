@@ -254,6 +254,7 @@ module U.Codebase.Sqlite.Queries
     addUpdateBranchTable,
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
+    addChangeComments,
 
     -- ** schema version
     currentSchemaVersion,
@@ -498,6 +499,10 @@ addDerivedDependentsByDependencyIndex =
 addUpgradeBranchTable :: Transaction ()
 addUpgradeBranchTable =
   executeStatements $(embedProjectStringFile "sql/019-add-upgrade-branch-table.sql")
+
+addChangeComments :: Transaction ()
+addChangeComments =
+  executeStatements $(embedProjectStringFile "sql/020-add-change-comments.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
