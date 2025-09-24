@@ -252,7 +252,8 @@ test> Integer.tests.arithmetic =
         Integer.eq (Integer.fromInt +1000) (Integer.fromInt +1000),
         not (Integer.eq (Integer.fromInt +1000) (Integer.fromInt +999)),
         eq (Integer.abs (Integer.fromInt +1000)) (Integer.fromInt +1000),
-        eq (Integer.abs (Integer.fromInt -1000)) (Integer.fromInt +1000)
+        eq (Integer.abs (Integer.fromInt -1000)) (Integer.fromInt +1000),
+        not (Int.eq (Integer.signum (Integer.fromInt +1)) (Integer.signum (Integer.fromInt -1)))
         ]
 
 test> Integer.tests.bitwise =
