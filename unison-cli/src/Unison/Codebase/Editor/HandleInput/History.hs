@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.HandleInput.History (handleHistory) where
 
 import Data.Map qualified as Map
 import U.Codebase.HashTags
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Codebase qualified as Codebase
@@ -25,10 +26,10 @@ handleHistory resultsCap diffCap from = do
         Cli.getBranchFromProjectPath pp
       BranchAtProjectPath pp -> Cli.getBranchFromProjectPath pp
   schLength <- Cli.runTransaction Codebase.branchHashLength
-  history <- liftIO (doHistory schLength 0 branch [])
+  history <- doHistory schLength 0 branch []
   Cli.respondNumbered history
   where
-    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Names.Diff)] -> IO NumberedOutput
+    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe Text, Names.Diff)] -> Cli.Cli NumberedOutput
     doHistory schLength !n b acc =
       if maybe False (n >=) resultsCap
         then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
@@ -37,6 +38,10 @@ handleHistory resultsCap diffCap from = do
           Causal.Merge _ _ _ tails ->
             pure (History diffCap schLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
           Causal.Cons _ _ _ tail -> do
-            b' <- fmap Branch.Branch $ snd tail
-            let elem = (Branch.headHash b, Branch.namesDiff b' b)
+            b' <- liftIO $ fmap Branch.Branch $ snd tail
+            let causalHash = Branch.headHash b
+            mayComment <- Cli.runTransaction $ do
+              causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
+              snd <$> Q.getLatestCausalAnnotation causalHashId
+            let elem = (causalHash, mayComment, Branch.namesDiff b' b)
             doHistory schLength (n + 1) b' (elem : acc)

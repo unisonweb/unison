@@ -289,12 +289,12 @@ notifyNumbered = \case
           P.lines
             [ note $ "The most recent namespace hash is immediately below this message.",
               "",
-              P.sep "\n\n" [go i (toSCH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              P.sep "\n\n" [displayCausal i (toSCH h) mayComment diff | (i, (h, mayComment, diff)) <- zip [1 ..] reversedHistory],
               "",
               tailMsg
             ]
         branchHashes :: [CausalHash]
-        branchHashes = (fst <$> reversedHistory) <> tailHashes
+        branchHashes = (view _1 <$> reversedHistory) <> tailHashes
      in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
@@ -332,12 +332,19 @@ notifyNumbered = \case
             [h]
           )
       dots = "⠇"
-      go i sch diff =
-        P.lines
+      displayCausal i sch mayComment diff =
+        P.lines $
           [ "⊙ " <> showNum i <> prettySCH sch,
-            "",
-            P.indentN 2 $ prettyDiff diff
+            ""
           ]
+            <> case mayComment of
+              Nothing -> []
+              Just comment ->
+                [ P.indentN 2 (P.yellow $ P.text comment),
+                  ""
+                ]
+            <> [ P.indentN 2 $ prettyDiff diff
+               ]
       ex =
         "Use"
           <> IP.makeExample IP.history ["#som3n4m3space"]
@@ -898,7 +905,6 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -2376,7 +2382,6 @@ notifyUser dir issueFn = \case
   InvalidAnnotationTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
   AnnotatedSuccessfully -> pure $ P.bold "Done."
   AnnotationAborted -> pure (P.wrap "Annotation aborted.")
-
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

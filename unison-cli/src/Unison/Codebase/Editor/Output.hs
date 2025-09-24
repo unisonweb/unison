@@ -130,7 +130,7 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(CausalHash, Names.Diff)]
+      [(CausalHash, Maybe Text {- change comments -}, Names.Diff)]
       HistoryTail -- 'origin point' of this view of history.
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
