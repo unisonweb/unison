@@ -68,6 +68,7 @@ library
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
       Unison.Codebase.Editor.HandleInput.Global
+      Unison.Codebase.Editor.HandleInput.History
       Unison.Codebase.Editor.HandleInput.InstallLib
       Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.Ls
