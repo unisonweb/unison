@@ -5,15 +5,13 @@
 CREATE TABLE change_comments (
   id INTEGER PRIMARY KEY,
   causal_hash_id INTEGER REFERENCES hash(id) NOT NULL,
-  -- Comments are scoped to a specific project.
-  project_id UUID NOT NULL,
   -- Remember that SQLITE doesn't have any actual 'time' type,
   -- This column contains TEXT values formatted as ISO8601 strings
   -- ("YYYY-MM-DD HH:MM:SS.SSS")
   created_at TEXT NOT NULL
 );
 
-CREATE INDEX change_comments_by_project_and_causal_hash_id ON change_comments(project_id, causal_hash_id);
+CREATE INDEX change_comments_by_causal_hash_id ON change_comments(causal_hash_id);
 
 CREATE TABLE change_comment_revisions (
   comment_id INTEGER REFERENCES change_comments(id),

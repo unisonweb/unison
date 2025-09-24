@@ -24,7 +24,6 @@ import UnliftIO.Process qualified as Proc
 
 handleAnnotate :: Maybe BranchId2 -> Maybe Text -> Cli ()
 handleAnnotate mayThingToAnnotate mayMsg = do
-  pp <- Cli.getCurrentProjectPath
   causalHash <- case mayThingToAnnotate of
     Nothing -> do
       Branch.headHash <$> Cli.getCurrentProjectRoot
@@ -44,7 +43,7 @@ handleAnnotate mayThingToAnnotate mayMsg = do
       UnqualifiedPath {} -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
   (causalHashId, mayExistingCommentText) <- Cli.runTransaction $ do
     causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
-    mayExistingCommentInfo <- Q.getLatestCausalAnnotation pp.project.projectId causalHashId
+    mayExistingCommentInfo <- Q.getLatestCausalAnnotation causalHashId
     let mayExistingCommentText = snd <$> mayExistingCommentInfo
     pure (causalHashId, mayExistingCommentText)
 
@@ -55,7 +54,7 @@ handleAnnotate mayThingToAnnotate mayMsg = do
   case mayNewMessage of
     Nothing -> Cli.respond $ AnnotationAborted
     Just newMessage -> do
-      Cli.runTransaction $ Q.annotateCausal pp.project.projectId causalHashId newMessage
+      Cli.runTransaction $ Q.annotateCausal causalHashId newMessage
       Cli.respond $ AnnotatedSuccessfully
   where
     annotationTemplate = Nothing
