@@ -90,7 +90,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   81. UDPSocket           (builtin type)
   82. Unit                (type)
   83. Unit.               (1 term)
-  84. Universal.          (7 terms)
+  84. Universal.          (8 terms)
   85. Value               (builtin type)
   86. Value.              (6 terms)
   87. avro.               (95 terms, 22 types)

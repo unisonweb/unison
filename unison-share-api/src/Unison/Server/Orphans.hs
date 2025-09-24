@@ -376,6 +376,14 @@ instance ToSchema Path.Path where
 instance ToSchema Path.Absolute where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
+instance ToParam (QueryParam' opts "name" (HQ.HashQualified Name)) where
+  toParam _ =
+    DocQueryParam
+      "name"
+      []
+      "A name, hash, or hash-qualified name."
+      Normal
+
 instance ToJSON (HQ.HashQualified Name) where
   toJSON = Aeson.String . HQ.toTextWith Name.toText
 

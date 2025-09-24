@@ -7,14 +7,15 @@ import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
 import Data.Foldable (traverse_)
 import Data.Functor ((<&>))
-import Data.Map as Map (Map, fromList, lookup)
+import Data.Map.Strict as Map (lookup)
 import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put qualified as SPut
-import Data.Word (Word16, Word64)
+import Data.Word (Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
+import Unison.Runtime.ANF.POp as ANF
 import Unison.Runtime.ANF.Serialize.Tags
 import Unison.Runtime.Exception
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
@@ -342,168 +343,6 @@ getPOp =
   getWord16be >>= \w -> case Map.lookup w word2pop of
     Just op -> pure op
     Nothing -> exn [] "getPOp: unknown enum code"
-
-pOpCode :: POp -> Word16
-pOpCode op = case op of
-  ADDI -> 0
-  SUBI -> 1
-  MULI -> 2
-  DIVI -> 3
-  SGNI -> 4
-  NEGI -> 5
-  MODI -> 6
-  POWI -> 7
-  SHLI -> 8
-  SHRI -> 9
-  INCI -> 10
-  DECI -> 11
-  LEQI -> 12
-  EQLI -> 13
-  ADDN -> 14
-  SUBN -> 15
-  MULN -> 16
-  DIVN -> 17
-  MODN -> 18
-  TZRO -> 19
-  LZRO -> 20
-  POWN -> 21
-  SHLN -> 22
-  SHRN -> 23
-  ANDN -> 24
-  IORN -> 25
-  XORN -> 26
-  COMN -> 27
-  INCN -> 28
-  DECN -> 29
-  LEQN -> 30
-  EQLN -> 31
-  ADDF -> 32
-  SUBF -> 33
-  MULF -> 34
-  DIVF -> 35
-  MINF -> 36
-  MAXF -> 37
-  LEQF -> 38
-  EQLF -> 39
-  POWF -> 40
-  EXPF -> 41
-  SQRT -> 42
-  LOGF -> 43
-  LOGB -> 44
-  ABSF -> 45
-  CEIL -> 46
-  FLOR -> 47
-  TRNF -> 48
-  RNDF -> 49
-  COSF -> 50
-  ACOS -> 51
-  COSH -> 52
-  ACSH -> 53
-  SINF -> 54
-  ASIN -> 55
-  SINH -> 56
-  ASNH -> 57
-  TANF -> 58
-  ATAN -> 59
-  TANH -> 60
-  ATNH -> 61
-  ATN2 -> 62
-  CATT -> 63
-  TAKT -> 64
-  DRPT -> 65
-  SIZT -> 66
-  UCNS -> 67
-  USNC -> 68
-  EQLT -> 69
-  LEQT -> 70
-  PAKT -> 71
-  UPKT -> 72
-  CATS -> 73
-  TAKS -> 74
-  DRPS -> 75
-  SIZS -> 76
-  CONS -> 77
-  SNOC -> 78
-  IDXS -> 79
-  BLDS -> 80
-  VWLS -> 81
-  VWRS -> 82
-  SPLL -> 83
-  SPLR -> 84
-  PAKB -> 85
-  UPKB -> 86
-  TAKB -> 87
-  DRPB -> 88
-  IDXB -> 89
-  SIZB -> 90
-  FLTB -> 91
-  CATB -> 92
-  ITOF -> 93
-  NTOF -> 94
-  ITOT -> 95
-  NTOT -> 96
-  TTOI -> 97
-  TTON -> 98
-  TTOF -> 99
-  FTOT -> 100
-  FORK -> 101
-  EQLU -> 102
-  CMPU -> 103
-  EROR -> 104
-  PRNT -> 105
-  INFO -> 106
-  POPC -> 107
-  MISS -> 108
-  CACH -> 109
-  LKUP -> 110
-  LOAD -> 111
-  CVLD -> 112
-  SDBX -> 113
-  VALU -> 114
-  TLTT -> 115
-  TRCE -> 116
-  ATOM -> 117
-  TFRC -> 118
-  DBTX -> 119
-  IXOT -> 120
-  IXOB -> 121
-  SDBL -> 122
-  SDBV -> 123
-  CAST -> 124
-  ANDI -> 125
-  IORI -> 126
-  XORI -> 127
-  COMI -> 128
-  DRPN -> 129
-  TRNC -> 130
-  REFN -> 131
-  REFR -> 132
-  REFW -> 133
-  RCAS -> 134
-  RRFC -> 135
-  TIKR -> 136
-  LESI -> 137
-  NEQI -> 138
-  LESN -> 139
-  NEQN -> 140
-  LESF -> 141
-  NEQF -> 142
-  LEQU -> 143
-  LESU -> 144
-  NOTB -> 145
-  ANDB -> 146
-  IORB -> 147
-
-pOpAssoc :: [(POp, Word16)]
-pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]
-
-pop2word :: Map POp Word16
-pop2word = fromList pOpAssoc
-
-word2pop :: Map Word16 POp
-word2pop = fromList $ swap <$> pOpAssoc
-  where
-    swap (x, y) = (y, x)
 
 putLit :: (MonadPut m) => Lit RefNum -> m ()
 putLit = \case

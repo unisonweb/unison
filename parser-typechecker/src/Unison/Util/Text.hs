@@ -4,6 +4,7 @@
 
 module Unison.Util.Text where
 
+import Data.Digest.Murmur64 (Hash64, Hashable64 (..))
 import Data.Foldable (toList)
 import Data.List (foldl', unfoldr)
 import Data.List qualified as L
@@ -183,6 +184,15 @@ dropWhileMax p = go 0
               | otherwise -> (total + i, fromText rest <> t)
       | otherwise = (total, empty)
 {-# INLINE dropWhileMax #-}
+
+-- Adds the codepoints of the Text into a murmur hash. This depends only
+-- on the characters, so adding texts chunked in different ways, or
+-- multiple texts that would concatenate to the same text will give the
+-- same result.
+hash64AddText :: Text -> Hash64 -> Hash64
+hash64AddText (Text tx) h = foldl' addChunk h tx
+  where
+    addChunk h (Chunk _ tx) = T.foldl' (flip hash64Add) h tx
 
 instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
 

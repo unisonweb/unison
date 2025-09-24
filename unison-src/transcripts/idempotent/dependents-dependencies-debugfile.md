@@ -75,9 +75,8 @@ But wait, there's more.  I can check the dependencies and dependents of a defini
     Types:
 
     1. builtin.Int
-    2. outside.B
 
-  Tip: Try `view 2` to see the source of any numbered item in
+  Tip: Try `view 1` to see the source of any numbered item in
        the above list.
 
 > dependencies d

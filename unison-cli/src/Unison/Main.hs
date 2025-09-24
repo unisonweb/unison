@@ -334,7 +334,7 @@ main version = do
               mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
               Server.startServer
                 isTest
-                Backend.BackendEnv {Backend.useNamesIndex = False}
+                Backend.BackendEnv
                 codebaseServerOpts
                 sbRuntime
                 theCodebase

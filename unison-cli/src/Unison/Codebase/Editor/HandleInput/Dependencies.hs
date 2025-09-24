@@ -6,16 +6,14 @@ where
 import Control.Arrow ((***))
 import Data.Bifoldable (bifoldMap, binull)
 import Data.Set qualified as Set
-import U.Codebase.Sqlite.Operations qualified as Operations
-import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NameResolutionUtils (resolveHQName)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
-import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency qualified as LD
@@ -25,11 +23,9 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
-import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Util.Defns (Defns (..), DefnsF)
-import Unison.Util.Defns qualified as Defns
 
 handleDependencies :: HQ.HashQualified Name -> Cli ()
 handleDependencies hq = do
@@ -44,20 +40,7 @@ handleDependencies hq = do
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
 
   dependencies <- do
-    Cli.runTransaction do
-      Operations.directDependenciesOfScope
-        Builtin.isBuiltinType
-        ( let refToIds :: Reference -> Set Reference.Id
-              refToIds =
-                maybe Set.empty Set.singleton . Reference.toId
-           in bifoldMap
-                ( foldMap \case
-                    Referent.Con ref _ -> Defns.fromTypes (refToIds (ref ^. ConstructorReference.reference_))
-                    Referent.Ref ref -> Defns.fromTerms (refToIds ref)
-                )
-                (foldMap (refToIds >>> Defns.fromTypes))
-                refs
-        )
+    Cli.runTransaction $ Codebase.directDependencies refs
 
   let dependencyNames ::
         DefnsF
