@@ -233,6 +233,9 @@ module U.Codebase.Sqlite.Queries
     expectCurrentProjectPath,
     setCurrentProjectPath,
 
+    -- * Annotations
+    annotateCausal,
+
     -- * migrations
     runCreateSql,
     addTempEntityTables,
@@ -335,6 +338,7 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
+    ChangeCommentId,
     HashId (..),
     HashVersion,
     ObjectId (..),
@@ -4026,4 +4030,29 @@ saveSquashResult bhId chId =
         :chId
         )
       ON CONFLICT DO NOTHING
+    |]
+
+annotateCausal :: ProjectId -> CausalHashId -> Text -> Transaction ()
+annotateCausal projectId causalHashId contents = do
+  mayExistingCommentId <-
+    queryMaybeCol @ChangeCommentId
+      [sql|
+      SELECT id
+        FROM change_comments
+        WHERE project_id = :projectId
+          AND causal_hash_id = :causalHashId
+    |]
+  commentId <- case mayExistingCommentId of
+    Nothing ->
+      queryOneCol @ChangeCommentId
+        [sql|
+            INSERT INTO change_comments (project_id, causal_hash_id, created_at)
+            VALUES (:projectId, :causalHashId, strftime('%s', 'now', 'subsec'))
+            RETURNING id
+          |]
+    Just cid -> pure cid
+  execute
+    [sql|
+      INSERT INTO change_comment_revisions (comment_id, contents, created_at)
+      VALUES (:commentId, :contents, strftime('%s', 'now', 'subsec'))
     |]
