@@ -27,8 +27,8 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference (TermReference)
 import Unison.Syntax.Name qualified as Name
 import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns qualified as Defns
 import Unison.Util.Set qualified as Set
-import qualified Unison.Util.Defns as Defns
 
 handleTodo :: Cli ()
 handleTodo = do

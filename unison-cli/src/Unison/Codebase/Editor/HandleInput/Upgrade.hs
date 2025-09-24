@@ -55,6 +55,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnconflictedLocalDefnsView qualified
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Map qualified as Map
@@ -64,7 +65,6 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
-import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldName newName = do

@@ -251,7 +251,7 @@ deepTermReferences =
 
 deepDefnsIds :: Branch0 m -> DefnsF Set TermReferenceId TypeReferenceId
 deepDefnsIds branch =
-  Defns { terms = deepTermReferenceIds branch, types = deepTypeReferenceIds branch }
+  Defns {terms = deepTermReferenceIds branch, types = deepTypeReferenceIds branch}
 
 deepTermReferenceIds :: Branch0 m -> Set TermReferenceId
 deepTermReferenceIds =

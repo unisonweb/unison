@@ -47,7 +47,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Reference (TypeReference, TermReference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
 import Unison.UnconflictedLocalDefnsView qualified as UnconflictedLocalDefnsView
@@ -160,7 +160,7 @@ isEmpty0 = _isEmpty0
 
 deepDefns :: Branch0 m -> Defns (Relation Referent Name) (Relation TypeReference Name)
 deepDefns branch =
-  Defns { terms = _deepTerms branch, types = _deepTypes branch }
+  Defns {terms = _deepTerms branch, types = _deepTypes branch}
 
 deepTerms :: Branch0 m -> Relation Referent Name
 deepTerms = _deepTerms
