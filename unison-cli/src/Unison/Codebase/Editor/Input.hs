@@ -115,121 +115,49 @@ data PullMode
 type IsGlobal = Bool
 
 data Input
-  = -- names stuff:
-    -- directory ops
-    -- `Link` must describe a repo and a source path within that repo.
-    -- clone w/o merge, error if would clobber
-    ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
-  | DiffNamespaceI BranchId2 BranchId2 -- old new
-  | PullI !PullSourceTarget !PullMode
-  | PushRemoteBranchI PushRemoteBranchInput
-  | SyncToFileI FilePath (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
-  | SyncFromFileI FilePath UnresolvedProjectBranch
-  | -- | Sync from a codebase project branch to this codebase's project branch
-    SyncFromCodebaseI FilePath (ProjectAndBranch ProjectName ProjectBranchName) UnresolvedProjectBranch
-  | ResetI (BranchId2 {- namespace to reset it to -}) (Maybe UnresolvedProjectBranch {- ProjectBranch to reset -})
-  | -- | used in Welcome module to give directions to user
-    --
-    -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
-    --          Does it make sense to fork from not-the-root of a Github repo?
-    CreateMessage (P.Pretty P.ColorText)
-  | -- Change directory.
-    SwitchBranchI Path'
-  | UpI
-  | PopBranchI
-  | -- > names foo
-    -- > names foo.bar
-    -- > names .foo.bar
-    -- > names .foo.bar#asdflkjsdf
-    -- > names #sdflkjsdfhsdf
-    -- > names foo.bar foo.baz #sdflkjsdfhsdf
-    NamesI IsGlobal [(RawQuery, ErrorMessageOrName)]
+  = AliasManyI [HQ'.HashQualified (Path.Split Path)] Path'
   | AliasTermI !Bool (HQ'.HashOrHQ (Path.Split Path')) (Path.Split Path') -- bool = force?
   | AliasTypeI !Bool (HQ'.HashOrHQ (Path.Split Path')) (Path.Split Path') -- bool = force?
-  | AliasManyI [HQ'.HashQualified (Path.Split Path)] Path'
-  | MoveAllI Path.Path' Path.Path'
-  | MoveTermI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
-  | MoveTypeI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
-  | MoveBranchI Path.Path' Path.Path'
-  | -- delete = unname
-    DeleteI DeleteTarget
-  | -- edits stuff:
-    LoadI (Maybe FilePath)
-  | ClearI
-  | Update2I
-  | TodoI
-  | UndoI
-  | -- First `Maybe Int` is cap on number of results, if any
-    -- Second `Maybe Int` is cap on diff elements shown, if any
-    HistoryI (Maybe Int) (Maybe Int) BranchId
-  | -- execute an IO thunk with args; boolean indicates profiling
-    ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
-  | -- save the result of a previous Execute
-    SaveExecuteResultI Name
-  | -- execute an IO [Result]
-    IOTestI (HQ.HashQualified Name)
-  | -- execute all in-scope IO tests
-    IOTestAllI
-  | -- make a standalone binary file
-    MakeStandaloneI String (HQ.HashQualified Name)
-  | TestI TestInput
-  | CreateAuthorI NameSegment {- identifier -} Text {- name -}
-  | -- Display provided definitions.
-    DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
-  | -- Display docs for provided terms.
-    DocsI (NonEmpty Name)
-  | -- other
-    FindI Bool FindScope [String] -- FindI isVerbose findScope query
-  | FindShallowI Path'
-  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
-  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
-  | TextFindI Bool [String] -- TextFindI allowLib tokens
-  | -- Show provided definitions.
-    ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
-  | ShowRootReflogI {- Deprecated -}
-  | ShowGlobalReflogI
-  | ShowProjectReflogI (Maybe ProjectName)
-  | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
-  | UpdateBuiltinsI
-  | MergeBuiltinsI (Maybe Path.Relative)
-  | MergeIOBuiltinsI (Maybe Path.Relative)
-  | ListDependenciesI (HQ.HashQualified Name)
-  | ListDependentsI (HQ.HashQualified Name)
-  | NamespaceDependenciesI (Maybe Path')
-  | DebugTabCompletionI [String] -- The raw arguments provided
-  | DebugLSPNameCompletionI Text -- The raw arguments provided
-  | DebugFuzzyOptionsI String [String] -- cmd and arguments
-  | DebugFormatI
-  | DebugNumberedArgsI
-  | DebugTypecheckedUnisonFileI
-  | DebugDumpNamespacesI
-  | DebugDumpNamespaceSimpleI
-  | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
-  | DebugTypeI (HQ.HashQualified Name)
-  | DebugLSPFoldRangesI
-  | DebugClearWatchI
-  | DebugDoctorI
-  | DebugNameDiffI ShortCausalHash ShortCausalHash
-  | QuitI
   | ApiI
-  | UiI Path'
-  | DocToMarkdownI Name
-  | DocsToHtmlI BranchRelativePath FilePath
   | AuthLoginI
-  | VersionI
-  | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
-  | ProjectRenameI ProjectName
-  | ProjectSwitchI ProjectAndBranchNames
-  | ProjectsI
   | BranchI BranchSourceI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | BranchRenameI ProjectBranchName
+  | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | BranchesI (Maybe ProjectName)
+  | ClearI
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
-  | ReleaseDraftI Semver
-  | UpgradeI !NameSegment !NameSegment
+  | CreateAuthorI NameSegment {- identifier -} Text {- name -}
+  | CreateMessage (P.Pretty P.ColorText)
+  | DebugClearWatchI
+  | DebugDoctorI
+  | DebugDumpNamespaceSimpleI
+  | DebugDumpNamespacesI
+  | DebugFormatI
+  | DebugFuzzyOptionsI String [String] -- cmd and arguments
+  | DebugLSPFoldRangesI
+  | DebugLSPNameCompletionI Text -- The raw arguments provided
+  | DebugNameDiffI ShortCausalHash ShortCausalHash
+  | DebugNumberedArgsI
+  | DebugSynhashTermI !Name
+  | DebugTabCompletionI [String] -- The raw arguments provided
+  | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
+  | DebugTypeI (HQ.HashQualified Name)
+  | DebugTypecheckedUnisonFileI
+  | DeleteI DeleteTarget
+  | DiffNamespaceI BranchId2 BranchId2 -- old new
+  | DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
+  | DocToMarkdownI Name
+  | DocsI (NonEmpty Name)
+  | DocsToHtmlI BranchRelativePath FilePath
+  | EditDependentsI !(HQ.HashQualified Name)
   | EditNamespaceI [Path.Path']
-  | -- New merge algorithm: merge the given project branch into the current one.
-    MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
+  | FindI Bool FindScope [String] -- isVerbose, findScope, query
+  | FindShallowI Path'
+  | ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
+  | HistoryI (Maybe Int {- cap on number of results -}) (Maybe Int {- cap on diff elements shown -}) BranchId
+  | IOTestAllI
+  | IOTestI (HQ.HashQualified Name)
   | LibInstallI
       !Bool -- Remind the user to use `lib.install` next time, not `pull`?
       !(ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
@@ -238,11 +166,54 @@ data Input
       !(ProjectAndBranch ProjectName ProjectBranchName)
       -- The destination lib name
       (Maybe NameSegment)
-  | UpgradeCommitI
+  | ListDependenciesI (HQ.HashQualified Name)
+  | ListDependentsI (HQ.HashQualified Name)
+  | LoadI (Maybe FilePath)
+  | MakeStandaloneI String (HQ.HashQualified Name)
+  | MergeBuiltinsI (Maybe Path.Relative)
   | MergeCommitI
-  | DebugSynhashTermI !Name
-  | EditDependentsI !(HQ.HashQualified Name)
-  | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | MergeIOBuiltinsI (Maybe Path.Relative)
+  | MoveAllI Path.Path' Path.Path'
+  | MoveBranchI Path.Path' Path.Path'
+  | MoveTermI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
+  | MoveTypeI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
+  | NamesI IsGlobal [(RawQuery, ErrorMessageOrName)]
+  | NamespaceDependenciesI (Maybe Path')
+  | PopBranchI
+  | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)
+  | ProjectRenameI ProjectName
+  | ProjectSwitchI ProjectAndBranchNames
+  | ProjectsI
+  | PullI !PullSourceTarget !PullMode
+  | PushRemoteBranchI PushRemoteBranchInput
+  | QuitI
+  | ReleaseDraftI Semver
+  | ResetI BranchId2 {- namespace to reset it to -} (Maybe UnresolvedProjectBranch {- ProjectBranch to reset -})
+  | SaveExecuteResultI Name
+  | ShowDefinitionI OutputLocation ShowDefinitionScope (NonEmpty (HQ.HashQualified Name))
+  | ShowGlobalReflogI
+  | ShowProjectBranchReflogI (Maybe (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
+  | ShowProjectReflogI (Maybe ProjectName)
+  | ShowRootReflogI {- Deprecated -}
+  | StructuredFindI FindScope (HQ.HashQualified Name) -- sfind findScope query
+  | StructuredFindReplaceI (HQ.HashQualified Name) -- sfind.replace rewriteQuery
+  | SwitchBranchI Path'
+  | -- | Sync from a codebase project branch to this codebase's project branch
+    SyncFromCodebaseI FilePath (ProjectAndBranch ProjectName ProjectBranchName) UnresolvedProjectBranch
+  | SyncFromFileI FilePath UnresolvedProjectBranch
+  | SyncToFileI FilePath (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
+  | TestI TestInput
+  | TextFindI Bool [String] -- TextFindI allowLib tokens
+  | TodoI
+  | UiI Path'
+  | UndoI
+  | UpI
+  | Update2I
+  | UpdateBuiltinsI
+  | UpgradeCommitI
+  | UpgradeI !NameSegment !NameSegment
+  | VersionI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.
