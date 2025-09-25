@@ -452,6 +452,7 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | DeletedDefinitions (DefnsF Set Name Name)
+  | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -693,6 +694,7 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   DeletedDefinitions {} -> False
+  CantDoThatDuring {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

@@ -2362,6 +2362,14 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> undoTip
+  CantDoThatDuring aVerb verb ->
+    pure $
+      P.wrap $
+        "Sorry, I can't do that during"
+          <> (P.group (P.text aVerb) <> ".")
+          <> "Please complete the"
+          <> (P.group (P.text verb) <> ",")
+          <> "then try again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

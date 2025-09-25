@@ -77,8 +77,10 @@ handleDelete False {- force? -} which targetNames = do
   projectAndBranch <- Cli.getCurrentProjectAndBranch
 
   when (projectAndBranch.branch.isUpdate || projectAndBranch.branch.isUpgrade) do
-    Cli.returnEarly $
-      Output.Literal "Sorry, I can't do that during an update or upgrade. Please complete the update or upgrade, then try again."
+    Cli.returnEarly
+      if projectAndBranch.branch.isUpdate
+        then Output.CantDoThatDuring "an update" "update"
+        else Output.CantDoThatDuring "an upgrade" "upgrade"
 
   currentNamespace <- Cli.getCurrentProjectRoot
   let currentNamespace0 = Branch.head currentNamespace

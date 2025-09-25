@@ -75,8 +75,10 @@ handleUpgrade oldName newName = do
   pp <- Cli.getCurrentProjectPath
 
   when (pp.branch.isUpdate || pp.branch.isUpgrade) do
-    Cli.returnEarly $
-      Output.Literal "Sorry, I can't do that during an update or upgrade. Please complete the update or upgrade, then try again."
+    Cli.returnEarly
+      if pp.branch.isUpdate
+        then Output.CantDoThatDuring "an update" "update"
+        else Output.CantDoThatDuring "an upgrade" "upgrade"
 
   let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
   let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
