@@ -126,7 +126,6 @@ module Unison.Codebase
 where
 
 import Control.Monad.Except (ExceptT)
-import Data.Bifoldable (Bifoldable (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -178,7 +177,6 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Defns (Defns (..), DefnsF)
-import Unison.Util.Defns qualified as Defns
 import Unison.Util.Recursion (XNor (Both, Neither), cata)
 import Unison.Util.Relation qualified as Rel
 import Unison.Util.Set qualified as Set
