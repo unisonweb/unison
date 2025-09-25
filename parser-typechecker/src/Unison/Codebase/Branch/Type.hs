@@ -47,7 +47,7 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Reference (TermReference, TypeReference)
+import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
 import Unison.UnconflictedLocalDefnsView qualified as UnconflictedLocalDefnsView
