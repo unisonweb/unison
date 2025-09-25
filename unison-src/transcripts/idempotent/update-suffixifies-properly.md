@@ -56,7 +56,7 @@ foo = +30
   That's done. Now I'm making sure everything typechecks...
 
   Some definitions don't typecheck with your changes. I've
-  update the file scratch.u with the definitions that need
+  updated the file scratch.u with the definitions that need
   fixing. Once the file is compiling, try `update` again.
 
   I've also switched you to a new branch update-main for this

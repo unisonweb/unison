@@ -2201,7 +2201,17 @@ notifyUser dir issueFn = \case
           TypeDefn (Conflicted name _refs) -> "type with the name" <> P.group (P.backticked (prettyName name) <> ".")
       )
         <> P.newline
-        <> "Please rename all but one of them, then try again."
+        <> "Please"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.renameTerm
+               TypeDefn _ -> IP.renameType
+           )
+        <> "or"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.deleteTermForce
+               TypeDefn _ -> IP.deleteTypeForce
+           )
+        <> "all but one of them, then try again."
   IncoherentDeclDuringDelete reason ->
     case reason of
       IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
@@ -2327,7 +2337,10 @@ notifyUser dir issueFn = \case
           <> P.newline
           <> P.wrap
             ( "You may only delete terms and types with"
-                <> P.group (IP.makeExample IP.renameTerm [] <> ".")
+                <> P.group (IP.makeExample' IP.delete <> ".")
+                <> "Use"
+                <> IP.makeExample' IP.deleteForce
+                <> "instead."
             )
   DeletedDefinitions defns ->
     pure $
@@ -2811,8 +2824,8 @@ renderNameConflicts hashLen conflictedNames = do
               <> " or "
               <> makeExample'
                 ( if (not . null) conflictedTypeNames
-                    then IP.deleteType
-                    else IP.deleteTerm
+                    then IP.deleteTypeForce
+                    else IP.deleteTermForce
                 )
               <> "to resolve the conflicts."
         ]

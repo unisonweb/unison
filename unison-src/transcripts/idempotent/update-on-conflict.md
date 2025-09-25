@@ -32,9 +32,14 @@ temp = 2
 
   Done.
 
-> delete.term temp
+> delete.term.force temp
 
-  Done.
+  I deleted these definitions:
+
+    term temp
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
@@ -54,7 +59,7 @@ x = 3
 ``` ucm :error
 > update
 
-  This branch has more than one term with the name `x`. Please
-  delete or rename all but one of them, then try the update
-  again.
+  Sorry, I can't do that right now, because there's more than
+  one term with the name `x`. Please rename all but one of them,
+  then try again.
 ```
