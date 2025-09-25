@@ -139,6 +139,7 @@ nameHydratedRefIds =
     f nameToRef refToDefn =
       Map.mapMaybe (\ref -> (ref,) <$> Map.lookup ref refToDefn) nameToRef
 
+-- | Like 'nameHydratedRefIds', but takes the entire namespace as a first argument, which includes constructors.
 nameHydratedRefIds2 ::
   forall name term typ.
   (Ord name) =>
