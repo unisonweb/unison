@@ -6,6 +6,7 @@ where
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
+import Data.Containers.ListUtils qualified as List (nubOrd)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
@@ -70,8 +71,19 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 
+-- Note: we de-dupe input because we might be feeding in from numbered arg that have duplicates, e.g. if the previous
+-- output was
+--
+-- I deleted these types:
+--
+--   1. foo
+--
+-- I deleted these terms:
+--
+--   2. foo
+
 handleDelete :: Bool -> DeleteTarget -> [HQ'.HashQualified Name] -> Cli ()
-handleDelete False {- force? -} which targetNames = do
+handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
   env <- ask
 
   projectAndBranch <- Cli.getCurrentProjectAndBranch
@@ -252,7 +264,7 @@ handleDelete False {- force? -} which targetNames = do
 
   Cli.stepManyAt projectAndBranch.branch description deleteActions
 
-  Cli.respond (DeletedDefinitions (bimap BiMultimap.ran BiMultimap.ran target))
+  Cli.respondNumbered (DeletedDefinitions (bimap BiMultimap.ran BiMultimap.ran target))
 -- A force-delete is muuch simpler: don't care if we leave nameless dependencies, just nuke things from the namespace.
 -- You also have to use this version when deleting a constructor, which doesn't happen often, but could (e.g. if you
 -- have an incoherent decl due to extra constructor alias).
@@ -287,7 +299,7 @@ handleDelete True {- force? -} which targetNames = do
 
   Cli.stepManyAt projectAndBranch.branch description deleteActions
 
-  Cli.respond (DeletedDefinitions (bimap Relation.dom Relation.dom target))
+  Cli.respondNumbered (DeletedDefinitions (bimap Relation.dom Relation.dom target))
 
 resolveTarget ::
   DeleteTarget ->

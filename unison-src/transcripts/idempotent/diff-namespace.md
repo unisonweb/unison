@@ -141,9 +141,9 @@ scratch/ns1> debug.alias.term.force junk fromJust
 
 scratch/ns1> delete.term.force junk
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term junk
+    1. junk
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -294,9 +294,9 @@ scratch/ns2> alias.term fromJust' yoohoo
 
 scratch/ns2> delete.term fromJust'
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term fromJust'
+    1. fromJust'
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.

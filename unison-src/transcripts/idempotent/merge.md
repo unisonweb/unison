@@ -494,9 +494,9 @@ Bob's changes:
 ``` ucm
 scratch/bob> delete.term foo
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term foo
+    1. foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -795,9 +795,9 @@ Alice's delete:
 ``` ucm
 scratch/alice> delete.term foo
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term foo
+    1. foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -1429,9 +1429,9 @@ Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.
 ``` ucm
 scratch/bob> delete.term Foo.Bar
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Bar
+    1. Foo.Bar
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -2112,9 +2112,9 @@ scratch/alice> add
 ``` ucm
 scratch/alice> delete.term.force Foo.Bar
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Bar
+    1. Foo.Bar
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -2374,9 +2374,9 @@ scratch/main> update
 
 scratch/main> delete.term.force Foo.Baz
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Baz
+    1. Foo.Baz
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -2394,18 +2394,18 @@ scratch/main> branch alice
 
 scratch/alice> delete.type.force Foo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type Foo
+    1. Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
 scratch/alice> delete.term.force Foo.Bar
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Bar
+    1. Foo.Bar
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -2445,18 +2445,18 @@ scratch/main> branch bob
 
 scratch/bob> delete.type.force Foo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type Foo
+    1. Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
 scratch/bob> delete.term.force Foo.Bar
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Bar
+    1. Foo.Bar
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -2543,9 +2543,9 @@ scratch/main> branch alice
 
 scratch/alice> delete.term bar
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term bar
+    1. bar
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.

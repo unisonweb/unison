@@ -44,18 +44,18 @@ scratch/main> update
 
 scratch/main> delete foo
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term foo
+    1. foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
 scratch/main> delete Foo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type Foo
+    1. Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -105,11 +105,14 @@ scratch/main> update
 
 scratch/main> delete x
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type foo.x
-    term bar.x
-    term foo.x
+    1. foo.x
+
+  I deleted these terms:
+
+    2. bar.x
+    3. foo.x
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -160,9 +163,9 @@ scratch/main> delete Foo.Foo
 ``` ucm
 scratch/main> delete.force Foo.Foo
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Foo
+    1. Foo.Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -216,16 +219,16 @@ A delete should remove both versions of the term.
 scratch/main> delete a.foo
 
   Sorry, I can't do that right now, because there's more than
-  one term with the name `a.foo`. Please rename all but one of
-  them, then try again.
+  one term with the name `a.foo`. Please `move.term` or
+  `delete.term.force` all but one of them, then try again.
 ```
 
 ``` ucm
 scratch/main> delete.force a.foo
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term a.foo
+    1. a.foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -276,25 +279,25 @@ scratch/main> debug.alias.type.force a.Bar a.Foo
 scratch/main> delete a.Foo
 
   Sorry, I can't do that right now, because there's more than
-  one type with the name `a.Foo`. Please rename all but one of
-  them, then try again.
+  one type with the name `a.Foo`. Please `move.type` or
+  `delete.type.force` all but one of them, then try again.
 ```
 
 ``` ucm
 scratch/main> delete.force a.Foo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type a.Foo
+    1. a.Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
 
 scratch/main> delete.force a.Foo.Foo
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term a.Foo.Foo
+    1. a.Foo.Foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -335,10 +338,13 @@ scratch/main> update
 
 scratch/main> delete foo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type foo
-    term foo
+    1. foo
+
+  I deleted these terms:
+
+    2. foo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -384,11 +390,11 @@ scratch/main> update
 
 scratch/main> delete a b c
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term a
-    term b
-    term c
+    1. a
+    2. b
+    3. c
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -433,12 +439,15 @@ scratch/main> update
 
 scratch/main> delete a b c Foo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type Foo
-    term a
-    term b
-    term c
+    1. Foo
+
+  I deleted these terms:
+
+    2. a
+    3. b
+    4. c
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -541,12 +550,12 @@ scratch/main> add
 
 scratch/main> delete e f g h
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term e
-    term f
-    term g
-    term h
+    1. e
+    2. f
+    3. g
+    4. h
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -590,10 +599,13 @@ scratch/main> update
 
 scratch/main> delete Foo incrementFoo
 
-  I deleted these definitions:
+  I deleted these types:
 
-    type Foo
-    term incrementFoo
+    1. Foo
+
+  I deleted these terms:
+
+    2. incrementFoo
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.

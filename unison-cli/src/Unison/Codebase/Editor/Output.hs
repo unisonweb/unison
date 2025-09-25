@@ -145,6 +145,7 @@ data NumberedOutput
       (Maybe UTCTime {- current time, omitted in transcript tests to be more deterministic -})
       MoreEntriesThanShown
       [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
+  | DeletedDefinitions (DefnsF Set Name Name)
 
 data TodoOutput = TodoOutput
   { defnsInLib :: !Bool,
@@ -451,7 +452,6 @@ data Output
   | BranchUpdate'BranchChanged
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
-  | DeletedDefinitions (DefnsF Set Name Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
@@ -693,7 +693,6 @@ isFailure o = case o of
   BranchUpdate'BranchChanged {} -> True
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
-  DeletedDefinitions {} -> False
   CantDoThatDuring {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
@@ -715,3 +714,4 @@ isNumberedFailure = \case
   TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False
   ShowProjectBranchReflog {} -> False
+  DeletedDefinitions {} -> False

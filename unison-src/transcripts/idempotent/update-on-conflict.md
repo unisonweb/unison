@@ -34,9 +34,9 @@ temp = 2
 
 > delete.term.force temp
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term temp
+    1. temp
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
@@ -60,6 +60,6 @@ x = 3
 > update
 
   Sorry, I can't do that right now, because there's more than
-  one term with the name `x`. Please rename all but one of them,
-  then try again.
+  one term with the name `x`. Please `move.term` or
+  `delete.term.force` all but one of them, then try again.
 ```

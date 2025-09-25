@@ -272,9 +272,9 @@ scratch/main> add
 
 scratch/main> delete.term.force Foo.Bar
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term Foo.Bar
+    1. Foo.Bar
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.

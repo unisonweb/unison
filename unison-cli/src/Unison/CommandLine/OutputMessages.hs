@@ -488,6 +488,29 @@ notifyNumbered = \case
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
   ShowProjectBranchReflog now moreToShow entries -> displayProjectBranchReflogEntries now moreToShow entries
+  DeletedDefinitions defns ->
+    let typesList = sortAlphabetically (Set.toList defns.types)
+        termsList = sortAlphabetically (Set.toList defns.terms)
+        deletedTheseTypes =
+          P.wrap "I deleted these types:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedList (map prettyName typesList))
+        deletedTheseTerms =
+          P.wrap "I deleted these terms:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedListFrom (Set.size defns.types) (map prettyName termsList))
+     in ( ( case (Set.null defns.types, Set.null defns.terms) of
+              (True, _) -> deletedTheseTerms
+              (_, True) -> deletedTheseTypes
+              _ -> deletedTheseTypes <> P.newline <> P.newline <> deletedTheseTerms
+          )
+            <> P.newline
+            <> P.newline
+            <> undoTip,
+          map SA.Name (typesList ++ termsList)
+        )
   where
     absPathToBranchId = BranchAtPath
 
@@ -2342,26 +2365,6 @@ notifyUser dir issueFn = \case
                 <> IP.makeExample' IP.deleteForce
                 <> "instead."
             )
-  DeletedDefinitions defns ->
-    pure $
-      P.wrap "I deleted these definitions:"
-        <> P.newline
-        <> P.newline
-        <> P.indentN
-          2
-          ( P.lines $
-              fold
-                [ map
-                    (\name -> "type " <> prettyName name)
-                    (sortAlphabetically (Set.toList defns.types)),
-                  map
-                    (\name -> "term " <> prettyName name)
-                    (sortAlphabetically (Set.toList defns.terms))
-                ]
-          )
-        <> P.newline
-        <> P.newline
-        <> undoTip
   CantDoThatDuring aVerb verb ->
     pure $
       P.wrap $

@@ -33,9 +33,9 @@ structural type a.b.Baz = Boo
 
 > delete.term a.b.one
 
-  I deleted these definitions:
+  I deleted these terms:
 
-    term a.b.one
+    1. a.b.one
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.
