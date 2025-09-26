@@ -37,6 +37,7 @@ import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -310,4 +311,4 @@ inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
 inAlphabeticalOrder =
   bimap f f
   where
-    f = map snd . List.sortOn (Name.toText . fst) . Map.toList
+    f = map snd . sortAlphabeticallyOn fst . Map.toList

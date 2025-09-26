@@ -494,7 +494,12 @@ Bob's changes:
 ``` ucm
 scratch/bob> delete.term foo
 
-  Done.
+  I deleted these terms:
+
+    1. foo
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Merge result:
@@ -790,7 +795,12 @@ Alice's delete:
 ``` ucm
 scratch/alice> delete.term foo
 
-  Done.
+  I deleted these terms:
+
+    1. foo
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` ucm :hide
@@ -1419,7 +1429,12 @@ Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.
 ``` ucm
 scratch/bob> delete.term Foo.Bar
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison :hide
@@ -1504,10 +1519,6 @@ Alice deletes this type entirely, and repurposes its constructor names for other
 
 ``` ucm :hide
 scratch/alice> delete.type Foo
-
-scratch/alice> delete.term Foo.Bar.Baz
-
-scratch/alice> delete.term Foo.Bar.Qux
 ```
 
 ``` unison :hide
@@ -2068,8 +2079,8 @@ scratch/alice> merge /bob
     * Foo.Bar
     * Foo.some.other.Alias
 
-  Please delete all but one name for each constructor, and then
-  try merging again.
+  Please `delete.force` all but one name for each constructor,
+  and then try merging again.
 ```
 
 ``` ucm :hide
@@ -2099,9 +2110,14 @@ scratch/alice> add
 ```
 
 ``` ucm
-scratch/alice> delete.term Foo.Bar
+scratch/alice> delete.term.force Foo.Bar
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Bob's branch:
@@ -2191,8 +2207,8 @@ scratch/alice> merge /bob
 
   On scratch/alice, the type A.inner.X is an alias of A. I'm not
   able to perform a merge when a type exists nested under an
-  alias of itself. Please separate them or delete one copy, and
-  then try merging again.
+  alias of itself. Please separate them or `delete.force` one
+  copy, and then try merging again.
 ```
 
 ``` ucm :hide
@@ -2262,7 +2278,7 @@ scratch/alice> merge bob
   On scratch/alice, the constructor AliasOutsideFooNamespace is
   not nested beneath the corresponding type name. Please either
   use `move` to move it, or if it's an extra copy, you can
-  simply `delete` it. Then try merging again.
+  simply `delete.force` it. Then try merging again.
 ```
 
 ``` ucm :hide
@@ -2349,16 +2365,21 @@ structural type Foo = Bar Nat | Baz Nat Nat
 ```
 
 ``` ucm
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.term Foo.Baz
+scratch/main> delete.term.force Foo.Baz
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Baz
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Alice's branch:
@@ -2371,13 +2392,23 @@ scratch/main> branch alice
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-scratch/alice> delete.type Foo
+scratch/alice> delete.type.force Foo
 
-  Done.
+  I deleted these types:
 
-scratch/alice> delete.term Foo.Bar
+    1. Foo
 
-  Done.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
+
+scratch/alice> delete.term.force Foo.Bar
+
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
@@ -2412,13 +2443,23 @@ scratch/main> branch bob
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
-scratch/bob> delete.type Foo
+scratch/bob> delete.type.force Foo
 
-  Done.
+  I deleted these types:
 
-scratch/bob> delete.term Foo.Bar
+    1. Foo
 
-  Done.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
+
+scratch/bob> delete.term.force Foo.Bar
+
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
@@ -2502,7 +2543,12 @@ scratch/main> branch alice
 
 scratch/alice> delete.term bar
 
-  Done.
+  I deleted these terms:
+
+    1. bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison

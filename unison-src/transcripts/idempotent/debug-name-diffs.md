@@ -31,11 +31,11 @@ structural type a.b.Baz = Boo
 
   Done.
 
-> delete.term.verbose a.b.one
+> delete.term a.b.one
 
-  Removed definitions:
+  I deleted these terms:
 
-    1. a.b.one : ##Nat
+    1. a.b.one
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.

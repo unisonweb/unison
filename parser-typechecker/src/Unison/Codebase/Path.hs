@@ -203,8 +203,9 @@ ancestors (Absolute (Path segments)) = Absolute . Path <$> Seq.inits segments
 -- >>> splitFromName "foo"
 -- (,foo)
 splitFromName :: Name -> Split Path
-splitFromName name = case Name.reverseSegments name of
-  h :| t -> (fromList $ reverse t, h)
+splitFromName name =
+  case Name.reverseSegments name of
+    h :| t -> (fromList $ reverse t, h)
 
 -- | Remove a path prefix from a name.
 -- Returns 'Nothing' if there are no remaining segments to construct the name from.

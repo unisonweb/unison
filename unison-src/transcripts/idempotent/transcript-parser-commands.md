@@ -36,8 +36,7 @@ z
 
   ⚠️
 
-  The following names were not found in the codebase. Check your spelling.
-    foo
+  I couldn't find any terms or types that match the name foo.
 ```
 
 ``` ucm :error
@@ -45,8 +44,8 @@ z
 
   ⚠️
 
-  The following names were not found in the codebase. Check your spelling.
-    lineToken.call
+  I couldn't find any terms or types that match the name
+  lineToken.call.
 ```
 
 However handling of blocks of other languages should be supported.

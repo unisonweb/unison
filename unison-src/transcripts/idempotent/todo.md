@@ -149,7 +149,7 @@ scratch/main> todo
     1. bar#14ibahkll6
     2. bar#cq22mm4sca
 
-  Tip: Use `move.term` or `delete.term` to resolve the
+  Tip: Use `move.term` or `delete.term.force` to resolve the
        conflicts.
 ```
 
@@ -270,9 +270,14 @@ scratch/main> add
 
   Done.
 
-scratch/main> delete.term Foo.Bar
+scratch/main> delete.term.force Foo.Bar
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 
 scratch/main> todo
 

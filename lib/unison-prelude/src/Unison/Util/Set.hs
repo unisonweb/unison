@@ -14,6 +14,8 @@ module Unison.Util.Set
     forMaybe,
     thenInsert,
     thenInsertMaybe,
+    unalignWith,
+    unzipWith,
   )
 where
 
@@ -25,6 +27,7 @@ import Data.Maybe qualified as Maybe
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Set.Internal qualified as Set.Internal (Set (..), merge)
+import Data.These (These (..))
 import Unison.Util.Monoid (foldMapM)
 
 -- | Get the only member of a set, iff it's a singleton.
@@ -111,3 +114,26 @@ thenInsertMaybe :: (Ord a) => Set a -> Maybe a -> Set a
 thenInsertMaybe xs = \case
   Just x -> Set.insert x xs
   Nothing -> xs
+
+unalignWith :: (Ord b, Ord c) => (a -> These b c) -> Set a -> (Set b, Set c)
+unalignWith p =
+  Set.foldl' f (Set.empty, Set.empty)
+  where
+    f (ys, zs) x =
+      case p x of
+        This y -> let !ys1 = Set.insert y ys in (ys1, zs)
+        That z -> let !zs1 = Set.insert z zs in (ys, zs1)
+        These y z ->
+          let !ys1 = Set.insert y ys
+              !zs1 = Set.insert z zs
+           in (ys1, zs1)
+
+unzipWith :: (Ord b, Ord c) => (a -> (b, c)) -> Set a -> (Set b, Set c)
+unzipWith p =
+  Set.foldl' f (Set.empty, Set.empty)
+  where
+    f (ys, zs) x =
+      let (y, z) = p x
+          !ys1 = Set.insert y ys
+          !zs1 = Set.insert z zs
+       in (ys1, zs1)

@@ -13,6 +13,7 @@ module Unison.Codebase.Branch.Type
     history_,
     edits_,
     isEmpty0,
+    deepDefns,
     deepTerms,
     deepTypes,
     deepPaths,
@@ -156,6 +157,10 @@ types_ =
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = _isEmpty0
+
+deepDefns :: Branch0 m -> Defns (Relation Referent Name) (Relation TypeReference Name)
+deepDefns branch =
+  Defns {terms = _deepTerms branch, types = _deepTypes branch}
 
 deepTerms :: Branch0 m -> Relation Referent Name
 deepTerms = _deepTerms

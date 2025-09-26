@@ -10,6 +10,7 @@ module Unison.Cli.UpdateUtils
     -- * Hydrating definitions
     hydrateRefs,
     nameHydratedRefIds,
+    nameHydratedRefIds2,
 
     -- * Unique type guids
     makeUniqueTypeGuids,
@@ -40,7 +41,7 @@ import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.Reference (Reference, TypeReference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -61,11 +62,11 @@ import Prelude hiding (unzip, zip, zipWith)
 ------------------------------------------------------------------------------------------------------------------------
 -- Getting dependents in a namespace
 
--- | Given a namespace and a set of dependencies, return the subset of the namespace that consists of only the
--- (transitive) dependents of the dependencies.
+-- | Given an unconflicted namespace and a set of dependencies, return the subset of the namespace that consists of only
+-- the (transitive) dependents of the dependencies.
 getNamespaceDependentsOf ::
   Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
-  Set Reference ->
+  DefnsF Set TermReference TypeReference ->
   Transaction (DefnsF (Map Name) TermReferenceId TypeReferenceId)
 getNamespaceDependentsOf defns dependencies = do
   Operations.transitiveDependentsWithinScope (Names.unconflictedReferenceIds defns) dependencies
@@ -137,6 +138,42 @@ nameHydratedRefIds =
     f :: Map name Reference.Id -> Map Reference.Id defn -> Map name (Reference.Id, defn)
     f nameToRef refToDefn =
       Map.mapMaybe (\ref -> (ref,) <$> Map.lookup ref refToDefn) nameToRef
+
+-- | Like 'nameHydratedRefIds', but takes the entire namespace as a first argument, which includes constructors.
+nameHydratedRefIds2 ::
+  forall name term typ.
+  (Ord name) =>
+  Defns (BiMultimap Referent name) (BiMultimap TypeReference name) ->
+  Defns (Map TermReferenceId term) (Map TypeReferenceId typ) ->
+  DefnsF (Map name) (TermReferenceId, term) (TypeReferenceId, typ)
+nameHydratedRefIds2 =
+  zipDefnsWith (f Referent.fromTermReferenceId) (f Reference.fromId)
+  where
+    f ::
+      forall defn ref refId.
+      (Ord ref) =>
+      (refId -> ref) ->
+      BiMultimap ref name ->
+      Map refId defn ->
+      Map name (refId, defn)
+    f toRef defns =
+      Map.foldlWithKey' (g toRef defns) Map.empty
+
+    g ::
+      forall defn ref refId.
+      (Ord ref) =>
+      (refId -> ref) ->
+      BiMultimap ref name ->
+      Map name (refId, defn) ->
+      refId ->
+      defn ->
+      Map name (refId, defn)
+    g toRef defns acc ref defn =
+      Map.union (Map.fromSet (\_ -> (ref, defn)) names) acc
+      where
+        names :: Set name
+        names =
+          BiMultimap.lookupDom (toRef ref) defns
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Unique type guids

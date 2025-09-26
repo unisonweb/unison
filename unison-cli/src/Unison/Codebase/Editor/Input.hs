@@ -23,7 +23,6 @@ module Unison.Codebase.Editor.Input
     FindScope (..),
     ShowDefinitionScope (..),
     IsGlobal,
-    DeleteOutput (..),
     DeleteTarget (..),
 
     -- * Type aliases
@@ -144,7 +143,10 @@ data Input
   | DebugTermI (Bool {- Verbose mode -}) (HQ.HashQualified Name)
   | DebugTypeI (HQ.HashQualified Name)
   | DebugTypecheckedUnisonFileI
-  | DeleteI DeleteTarget
+  | DeleteBranchI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | DeleteI !Bool {- force? -} !DeleteTarget ![HQ'.HashQualified Name]
+  | DeleteNamespaceI Insistence (Maybe (Path.Split Path.Relative))
+  | DeleteProjectI ProjectName
   | DiffBranchI !DiffBranchTarget !DiffBranchTarget
   | DiffNamespaceI BranchId2 BranchId2 -- old new
   | DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
@@ -292,16 +294,8 @@ data ShowDefinitionScope
   | ShowDefinitionGlobal
   deriving stock (Eq, Show)
 
-data DeleteOutput
-  = DeleteOutput'Diff
-  | DeleteOutput'NoDiff
-  deriving stock (Eq, Show)
-
 data DeleteTarget
-  = DeleteTarget'TermOrType DeleteOutput [HQ'.HashQualified (Path.Split Path')]
-  | DeleteTarget'Term DeleteOutput [HQ'.HashQualified (Path.Split Path')]
-  | DeleteTarget'Type DeleteOutput [HQ'.HashQualified (Path.Split Path')]
-  | DeleteTarget'Namespace Insistence (Maybe (Path.Split Path.Relative))
-  | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | DeleteTarget'Project ProjectName
+  = DeleteTarget'TermOrType
+  | DeleteTarget'Term
+  | DeleteTarget'Type
   deriving stock (Eq, Show)

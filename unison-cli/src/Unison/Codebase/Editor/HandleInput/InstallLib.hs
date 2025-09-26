@@ -150,7 +150,7 @@ handleInstallLocalLib srcPAB@(ProjectAndBranch projName branchName) mayDestLibNa
   sourcePAB <- ProjectUtils.expectProjectAndBranchByTheseNames (These projName branchName)
   causalBranchToSquash <- Cli.runTransaction $ Codebase.expectProjectBranchRootCausal sourcePAB.branch
   squashResult <- Cli.runTransaction $ UCausal.squashCausal HH.v2HashHandle causalBranchToSquash
-  let reflogDescription = "lib.install " <> into @Text srcPAB <> maybe "" (\n -> " " <> NameSegment.toEscapedText n) mayDestLibName
+  let reflogDescription = "lib.install.local " <> into @Text srcPAB <> maybe "" (\n -> " " <> NameSegment.toEscapedText n) mayDestLibName
   Cli.Env {codebase} <- ask
   squashedBranchIO <- liftIO $ Codebase.expectBranchForHash codebase squashResult.causalHash
   libSegmentName <- attachNewLib reflogDescription squashedBranchIO projName branchName mayDestLibName

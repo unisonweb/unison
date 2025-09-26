@@ -19,6 +19,7 @@ import Data.Ord (comparing)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Set.NonEmpty qualified as Set.Nonempty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -91,7 +92,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -182,16 +184,6 @@ notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
-  ShowDiffAfterDeleteDefinitions ppe diff ->
-    first
-      ( \p ->
-          P.lines
-            [ p,
-              "",
-              undoTip
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diff)
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first
       ( \p ->
@@ -279,15 +271,6 @@ notifyNumbered = \case
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
-  CantDeleteDefinitions ppeDecl endangerments ->
-    ( P.warnCallout $
-        P.lines
-          [ P.wrap "I didn't delete the following definitions because they are still in use:",
-            "",
-            endangeredDependentsTable ppeDecl endangerments
-          ],
-      numberedArgsForEndangerments ppeDecl endangerments
-    )
   CantDeleteNamespace ppeDecl endangerments ->
     ( P.warnCallout $
         P.lines
@@ -505,6 +488,29 @@ notifyNumbered = \case
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
   ShowProjectBranchReflog now moreToShow entries -> displayProjectBranchReflogEntries now moreToShow entries
+  DeletedDefinitions defns ->
+    let typesList = sortAlphabetically (Set.toList defns.types)
+        termsList = sortAlphabetically (Set.toList defns.terms)
+        deletedTheseTypes =
+          P.wrap "I deleted these types:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedList (map prettyName typesList))
+        deletedTheseTerms =
+          P.wrap "I deleted these terms:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedListFrom (Set.size defns.types) (map prettyName termsList))
+     in ( ( case (Set.null defns.types, Set.null defns.terms) of
+              (True, _) -> deletedTheseTerms
+              (_, True) -> deletedTheseTypes
+              _ -> deletedTheseTypes <> P.newline <> P.newline <> deletedTheseTerms
+          )
+            <> P.newline
+            <> P.newline
+            <> undoTip,
+          map SA.Name (typesList ++ termsList)
+        )
   where
     absPathToBranchId = BranchAtPath
 
@@ -635,13 +641,17 @@ notifyUser dir issueFn = \case
           P.warnCallout typeOrTermMsg
             <> P.newline
             <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
-  NameNotFound _ ->
-    pure . P.warnCallout $ "I don't know about that name."
-  NamesNotFound hqs ->
+  TermAndOrTypeNameNotFound which name ->
     pure $
-      P.warnCallout "The following names were not found in the codebase. Check your spelling."
-        <> P.newline
-        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs)))
+      P.warnCallout $
+        P.wrap $
+          "I couldn't find any"
+            <> case which of
+              Nothing -> "terms or types"
+              Just (TermDefn ()) -> "terms"
+              Just (TypeDefn ()) -> "types"
+            <> "that match the name"
+            <> P.group (P.syntaxToColor (prettyHashQualified' name) <> ".")
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
@@ -1992,6 +2002,25 @@ notifyUser dir issueFn = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  DeleteFailure scratchFile0 baseBranch updateBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap
+        ( "Some definitions depend on the ones you're trying to delete. I've added them to"
+            <> P.group (scratchFile <> ",")
+            <> "where you can fix them or comment them out. Once the file is compiling, run"
+            <> P.group (makeExample' IP.update <> ".")
+        )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "I've also switched you to a new branch"
+              <> prettyProjectBranchName updateBranch
+              <> "for this work. On"
+              <> P.group (makeExample' IP.update <> ",")
+              <> "it will be merged back into"
+              <> P.group (prettyProjectBranchName baseBranch <> ".")
+          )
   UpdateTypecheckingFailure ->
     pure . P.wrap $
       "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
@@ -2004,7 +2033,7 @@ notifyUser dir issueFn = \case
     scratchFile <- renderFileName scratchFile0
     pure $
       P.wrap
-        ( "Some definitions don't typecheck with your changes. I've update the file"
+        ( "Some definitions don't typecheck with your changes. I've updated the file"
             <> scratchFile
             <> "with the definitions that need fixing. Once the file is compiling, try"
             <> makeExample' IP.update
@@ -2188,16 +2217,34 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> "Synhash tokens: "
         <> P.text filename
-  ConflictedDefn operation defn ->
+  ConflictedDefn defn ->
     pure . P.wrap $
-      ( "This branch has more than one" <> case defn of
+      ( "Sorry, I can't do that right now, because there's more than one" <> case defn of
           TermDefn (Conflicted name _refs) -> "term with the name" <> P.group (P.backticked (prettyName name) <> ".")
           TypeDefn (Conflicted name _refs) -> "type with the name" <> P.group (P.backticked (prettyName name) <> ".")
       )
         <> P.newline
-        <> "Please delete or rename all but one of them, then try the"
-        <> P.text operation
-        <> "again."
+        <> "Please"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.renameTerm
+               TypeDefn _ -> IP.renameType
+           )
+        <> "or"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.deleteTermForce
+               TypeDefn _ -> IP.deleteTypeForce
+           )
+        <> "all but one of them, then try again."
+  IncoherentDeclDuringDelete reason ->
+    case reason of
+      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+        pure $ constructorAliasError "delete" "The type" "a delete" "deleting" typeName conName1 conName2
+      IncoherentDeclReason'MissingConstructorName name ->
+        pure $ missingConstructorNameError "delete" "The type" "a delete" "deleting" name
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+        pure $ nestedDeclAliasError "The type" "a delete" "deleting" shorterName longerName
+      IncoherentDeclReason'StrayConstructor _typeRef name ->
+        pure $ strayConstructorError "delete" "The constructor" "deleting" name
   IncoherentDeclDuringMerge aliceOrBob reason ->
     case reason of
       IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
@@ -2301,6 +2348,31 @@ notifyUser dir issueFn = \case
           <> P.green (prettySCH $ SCH.fromHash 10 fromCausalHash)
           <> "to"
           <> P.group (P.green $ prettySCH $ SCH.fromHash 10 toCausalHash)
+  CantDeleteConstructor names ->
+    pure $
+      P.warnCallout $
+        ( case NEList.toList (Set.NonEmpty.toList names) of
+            [name] -> P.wrap ("I can't delete the constructor" <> P.group (prettyName name <> "."))
+            names ->
+              P.wrap ("I can't delete the constructors" <> P.group (P.commas (map prettyName names) <> "."))
+        )
+          <> P.newline
+          <> P.newline
+          <> P.wrap
+            ( "You may only delete terms and types with"
+                <> P.group (IP.makeExample' IP.delete <> ".")
+                <> "Use"
+                <> IP.makeExample' IP.deleteForce
+                <> "instead."
+            )
+  CantDoThatDuring aVerb verb ->
+    pure $
+      P.wrap $
+        "Sorry, I can't do that during"
+          <> (P.group (P.text aVerb) <> ".")
+          <> "Please complete the"
+          <> (P.group (P.text verb) <> ",")
+          <> "then try again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -2763,8 +2835,8 @@ renderNameConflicts hashLen conflictedNames = do
               <> " or "
               <> makeExample'
                 ( if (not . null) conflictedTypeNames
-                    then IP.deleteType
-                    else IP.deleteTerm
+                    then IP.deleteTypeForce
+                    else IP.deleteTermForce
                 )
               <> "to resolve the conflicts."
         ]
@@ -3830,7 +3902,9 @@ constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
       P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
       "",
       P.wrap $
-        "Please delete all but one name for each constructor, and then try"
+        "Please"
+          <> IP.makeExample' IP.deleteForce
+          <> "all but one name for each constructor, and then try"
           <> verbing
           <> "again."
     ]
@@ -3866,7 +3940,9 @@ nestedDeclAliasError theType aVerb verbing shorterName longerName =
       <> P.group (prettyName shorterName <> ".")
       <> "I'm not able to perform"
       <> aVerb
-      <> "when a type exists nested under an alias of itself. Please separate them or delete one copy, and then try"
+      <> "when a type exists nested under an alias of itself. Please separate them or"
+      <> IP.makeExample' IP.deleteForce
+      <> "one copy, and then try"
       <> verbing
       <> "again."
 
@@ -3884,7 +3960,7 @@ strayConstructorError verb theConstructor verbing name =
           <> "is not nested beneath the corresponding type name. Please either use"
           <> IP.makeExample' IP.moveAll
           <> "to move it, or if it's an extra copy, you can simply"
-          <> IP.makeExample' IP.delete
+          <> IP.makeExample' IP.deleteForce
           <> "it. Then try"
           <> verbing
           <> "again."
