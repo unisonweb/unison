@@ -202,4 +202,8 @@ prettyCyclicUVarKind ppe constraints uvar theUVarStyle =
 
 prettySolveError :: (SolveError loc) -> P.Pretty P.ColorText
 prettySolveError = \case
-  MissingBuiltin _loc builtin -> "Encountered unknown builtin when kind-checking: " <> P.shown builtin <> ", try upgrading ucm."
+  MissingBuiltin _loc builtin ->
+    P.lines
+      [ "Encountered unknown builtin when kind-checking: " <> P.shown builtin,
+        "✨ Hint: Upgrading to the latest ucm may resolve this issue."
+      ]
