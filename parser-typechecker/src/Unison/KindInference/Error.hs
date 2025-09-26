@@ -37,6 +37,7 @@ lspLoc = \case
   ArgumentMismatchArrow _ ConstraintConflict' {conflictedVar} _ -> varLoc conflictedVar
   EffectListMismatch ConstraintConflict' {conflictedVar} _ -> varLoc conflictedVar
   ConstraintConflict gen _ _ -> gen ^. Unsolved.loc
+  SolveError e -> mempty
   where
     varLoc var = ABT.annotation $ uvarType var
 

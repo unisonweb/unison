@@ -64,6 +64,7 @@ data Descriptor v loc = Descriptor
 
 data SolveError
   = MissingBuiltin Text
+  deriving stock (Show, Eq)
 
 newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.StateT (SolveState v loc) (Except SolveError)) a}
   deriving newtype

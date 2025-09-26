@@ -16,6 +16,7 @@ import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
 import Control.Monad.Trans.Except
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as Nel
 import Data.Set qualified as Set
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Debug (DebugFlag (KindInference), shouldDebug)
@@ -83,8 +84,9 @@ step e st cs =
               Left e -> pure (Left e)
               Right _ -> do
                 Left <$> traverse improveError (e :| es)
-   in case runSolve e st action of
-        (res, finalState) -> case res of
+   in do
+        (res, finalState) <- mapLeft (Nel.singleton . SolveError) $ runSolve e st action
+        case res of
           Left e -> Left e
           Right () -> Right finalState
 
@@ -317,8 +319,9 @@ verify st =
 
 initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) => Env -> SolveState v loc
 initialState env =
-  let ((), finalState) = runSolve env emptyState initializeState
-   in finalState
+  case runSolve env emptyState initializeState of
+    Left err -> error $ "initialState: unexpected error: " <> show err
+    Right ((), finalState) -> finalState
 
 initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Show loc, Var v) => Solve v loc ()
 initializeState = assertGen do

@@ -41,6 +41,7 @@ data GenState v loc = GenState
   deriving stock (Generic)
 
 data GenError = MissingBuiltin Text
+  deriving stock (Show, Eq)
 
 newtype Gen v loc a = Gen
   { unGen :: StateT (GenState v loc) (Except GenError) a
