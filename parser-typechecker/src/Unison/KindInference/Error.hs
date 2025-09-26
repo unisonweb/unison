@@ -15,6 +15,7 @@ import Unison.KindInference.Generate.Monad (GeneratedConstraint)
 import Unison.KindInference.Solve.Monad
   ( ConstraintMap,
     Solve (..),
+    SolveError,
   )
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
@@ -83,6 +84,7 @@ data KindError v loc
       (ConstraintConflict v loc)
       -- | in this context
       (ConstraintMap v loc)
+  | SolveError SolveError
 
 -- | Transform generic constraint conflicts into more specific error
 -- by examining its @ConstraintContext@.

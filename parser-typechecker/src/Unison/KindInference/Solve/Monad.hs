@@ -2,6 +2,7 @@ module Unison.KindInference.Solve.Monad
   ( Solve (..),
     Env (..),
     SolveState (..),
+    SolveError (..),
     Descriptor (..),
     ConstraintMap,
     liftGen,
@@ -106,7 +107,7 @@ runGen gena = do
         res <- gena
         st <- M.get
         pure (res, Gen.newVars st)
-  (cs, vs) <- zoom genStateL $ gena'
+  (cs, vs) <- liftGen gena'
   traverse_ addUnconstrainedVar vs
   M.modify \st -> st {newUnifVars = vs ++ newUnifVars st}
   pure cs
@@ -121,11 +122,12 @@ addUnconstrainedVar uvar = do
   M.put st {constraints = constraints'}
 
 -- | Runner for the @Solve@ monad
-runSolve :: Env -> SolveState v loc -> Solve v loc a -> (a, SolveState v loc)
+runSolve :: Env -> SolveState v loc -> Solve v loc a -> Either SolveError (a, SolveState v loc)
 runSolve e st action =
   unSolve action
     & flip M.runReaderT e
-    & flip M.runState st
+    & flip M.runStateT st
+    & runExcept
 
 -- | Initial solve state
 emptyState :: SolveState v loc
