@@ -30,6 +30,7 @@ import Unison.KindInference.UVar (UVar (..))
 import Unison.PatternMatchCoverage.UFMap qualified as U
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.Reference (Reference)
 import Unison.Symbol
 import Unison.Type qualified as T
 import Unison.Var
@@ -62,11 +63,11 @@ data Descriptor v loc = Descriptor
   { descriptorConstraint :: Maybe (Constraint (UVar v loc) v loc)
   }
 
-data SolveError
-  = MissingBuiltin Text
+data SolveError loc
+  = MissingBuiltin loc Reference
   deriving stock (Show, Eq)
 
-newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.StateT (SolveState v loc) (Except SolveError)) a}
+newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.StateT (SolveState v loc) (Except (SolveError loc))) a}
   deriving newtype
     ( Functor,
       Applicative,
@@ -81,9 +82,9 @@ liftGen :: Gen v loc a -> Solve v loc a
 liftGen (Gen action) = Solve $ do
   lift $ zoom genStateL $ M.mapStateT (withExcept genErrorToSolveError) $ action
   where
-    genErrorToSolveError :: Gen.GenError -> SolveError
+    genErrorToSolveError :: Gen.GenError loc -> (SolveError loc)
     genErrorToSolveError = \case
-      Gen.MissingBuiltin builtin -> MissingBuiltin builtin
+      Gen.MissingBuiltin ann builtin -> MissingBuiltin ann builtin
 
 -- | Helper for inteleaving constraint generation and solving
 genStateL :: Lens' (SolveState v loc) (Gen.GenState v loc)
@@ -123,7 +124,7 @@ addUnconstrainedVar uvar = do
   M.put st {constraints = constraints'}
 
 -- | Runner for the @Solve@ monad
-runSolve :: Env -> SolveState v loc -> Solve v loc a -> Either SolveError (a, SolveState v loc)
+runSolve :: Env -> SolveState v loc -> Solve v loc a -> Either (SolveError loc) (a, SolveState v loc)
 runSolve e st action =
   unSolve action
     & flip M.runReaderT e

@@ -25,6 +25,7 @@ import Unison.KindInference.Constraint.Provenance (Provenance)
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
+import Unison.Reference (Reference)
 import Unison.Symbol
 import Unison.Type qualified as T
 import Unison.Var
@@ -40,22 +41,22 @@ data GenState v loc = GenState
   }
   deriving stock (Generic)
 
-data GenError = MissingBuiltin Text
+data GenError loc = MissingBuiltin loc Reference
   deriving stock (Show, Eq)
 
 newtype Gen v loc a = Gen
-  { unGen :: StateT (GenState v loc) (Except GenError) a
+  { unGen :: StateT (GenState v loc) (Except (GenError loc)) a
   }
   deriving newtype
     ( Functor,
       Applicative,
       Monad,
       MonadState (GenState v loc),
-      MonadError GenError
+      MonadError (GenError loc)
     )
 
 -- | @Gen@ monad runner
-run :: Gen v loc a -> GenState v loc -> Either GenError (a, GenState v loc)
+run :: Gen v loc a -> GenState v loc -> Either (GenError loc) (a, GenState v loc)
 run (Gen ma) st0 =
   runStateT ma st0
     & runExcept

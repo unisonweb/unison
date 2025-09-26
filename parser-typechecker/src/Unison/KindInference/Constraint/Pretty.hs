@@ -82,7 +82,7 @@ prettyCyclicUVarKindWorker prec u nameMap visitingSet =
 -- | Pretty print the kind constraint on the given @UVar@.
 --
 -- __Precondition:__ The @ConstraintMap@ is acyclic.
-tryPrettyUVarKind :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> Either SolveError (P.Pretty P.ColorText)
+tryPrettyUVarKind :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> Either (SolveError loc) (P.Pretty P.ColorText)
 tryPrettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
   prettyUVarKind' arrPrec uvar
 
@@ -106,7 +106,7 @@ tryPrettySolvedConstraint ::
   PrettyPrintEnv ->
   ConstraintMap v loc ->
   Solved.Constraint (UVar v loc) v loc ->
-  Either SolveError (P.Pretty P.ColorText)
+  Either (SolveError loc) (P.Pretty P.ColorText)
 tryPrettySolvedConstraint ppe constraints c =
   ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
 
@@ -137,7 +137,7 @@ prettySolvedConstraint' prec = \case
 -- constraint map, but no constraints are added. This runner just
 -- allows running pretty printers outside of the @Solve@ monad by
 -- discarding the resulting state.
-ppRunner :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> Either SolveError r)
+ppRunner :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> Either (SolveError loc) r)
 ppRunner ppe constraints =
   let st =
         SolveState
@@ -161,7 +161,7 @@ tryPrettyCyclicUVarKind ::
   -- | A function to style the cyclic @UVar@'s variable name
   (P.Pretty P.ColorText -> P.Pretty P.ColorText) ->
   -- | (the pretty @UVar@ variable, the generating equation)
-  Either SolveError (P.Pretty P.ColorText, P.Pretty P.ColorText)
+  Either (SolveError loc) (P.Pretty P.ColorText, P.Pretty P.ColorText)
 tryPrettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraints do
   find uvar >>= \case
     Nothing -> explode
@@ -200,6 +200,6 @@ prettyCyclicUVarKind ppe constraints uvar theUVarStyle =
     Left solveErr -> (prettySolveError solveErr, prettySolveError solveErr)
     Right pp -> pp
 
-prettySolveError :: SolveError -> P.Pretty P.ColorText
+prettySolveError :: (SolveError loc) -> P.Pretty P.ColorText
 prettySolveError = \case
-  MissingBuiltin builtin -> "Encountered unknown builtin when kind-checking: " <> P.text builtin <> ", try upgrading ucm."
+  MissingBuiltin _loc builtin -> "Encountered unknown builtin when kind-checking: " <> P.shown builtin <> ", try upgrading ucm."
