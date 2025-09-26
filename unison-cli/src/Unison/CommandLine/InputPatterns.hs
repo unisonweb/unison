@@ -42,6 +42,7 @@ module Unison.CommandLine.InputPatterns
     deleteVerbose,
     dependencies,
     dependents,
+    diffBranch,
     diffNamespace,
     display,
     displayTo,
@@ -2247,6 +2248,41 @@ mergeCommitInputPattern =
       parse = const $ pure Input.MergeCommitI
     }
 
+diffBranch :: InputPattern
+diffBranch =
+  InputPattern
+    { patternName = "diff.branch",
+      aliases = ["branch.diff"],
+      visibility = I.Hidden,
+      params =
+        Parameters
+          { requiredParams =
+              let completion =
+                    projectBranchNameArg
+                      ProjectBranchSuggestionsConfig
+                        { showProjectCompletions = False,
+                          projectInclusion = OnlyWithinCurrentProject,
+                          branchInclusion = ExcludeCurrentBranch
+                        }
+               in [ ("first branch", completion),
+                    ("second branch", completion)
+                  ],
+            trailingParams = Optional [] Nothing
+          },
+      help = "TODO",
+      parse = \case
+        [branch1, branch2] ->
+          Input.DiffBranchI
+            <$> handleDiffBranchTargetArg branch1
+            <*> handleDiffBranchTargetArg branch2
+        args -> wrongArgsLength "two arguments" args
+    }
+  where
+    -- TODO handle causal hash
+    handleDiffBranchTargetArg :: I.Argument -> Either (P.Pretty P.ColorText) Input.DiffBranchTarget
+    handleDiffBranchTargetArg arg =
+      Input.DiffBranchTarget'Branch <$> handleMaybeProjectBranchArg arg
+
 diffNamespace :: InputPattern
 diffNamespace =
   InputPattern
@@ -3547,6 +3583,7 @@ validInputs =
       deleteVerbose,
       dependencies,
       dependents,
+      diffBranch,
       diffNamespace,
       display,
       displayTo,

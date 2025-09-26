@@ -1,5 +1,6 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
+    DiffBranchTarget (..),
     BranchSourceI (..),
     PullSourceTarget (..),
     PushRemoteBranchInput (..),
@@ -144,6 +145,7 @@ data Input
   | DebugTypeI (HQ.HashQualified Name)
   | DebugTypecheckedUnisonFileI
   | DeleteI DeleteTarget
+  | DiffBranchI !DiffBranchTarget !DiffBranchTarget
   | DiffNamespaceI BranchId2 BranchId2 -- old new
   | DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | DocToMarkdownI Name
@@ -224,6 +226,11 @@ data BranchSourceI
     BranchSourceI'Empty
   | -- | Create a branch from this other branch
     BranchSourceI'UnresolvedProjectBranch UnresolvedProjectBranch
+  deriving stock (Eq, Show)
+
+data DiffBranchTarget
+  = DiffBranchTarget'Branch !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | DiffBranchTarget'Hash !ShortCausalHash
   deriving stock (Eq, Show)
 
 -- | Pull source and target: either neither is specified, or only a source, or both.

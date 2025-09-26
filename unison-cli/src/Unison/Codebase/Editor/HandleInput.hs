@@ -861,6 +861,7 @@ inputDescription input =
     DebugFormatI -> pure "debug.format"
     EditNamespaceI paths ->
       pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
+    DiffBranchI _ _ -> wundefined
     -- wat land
     ApiI -> wat
     AuthLoginI {} -> wat
