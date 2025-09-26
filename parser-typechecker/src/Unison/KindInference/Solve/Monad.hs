@@ -4,16 +4,18 @@ module Unison.KindInference.Solve.Monad
     SolveState (..),
     Descriptor (..),
     ConstraintMap,
+    liftGen,
     runSolve,
     emptyState,
     find,
-    genStateL,
     runGen,
     addUnconstrainedVar,
   )
 where
 
-import Control.Lens (Lens', (%%~))
+import Control.Lens (Lens')
+import Control.Lens.Zoom
+import Control.Monad.Except
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
@@ -59,8 +61,11 @@ data Descriptor v loc = Descriptor
   { descriptorConstraint :: Maybe (Constraint (UVar v loc) v loc)
   }
 
-newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.State (SolveState v loc)) a}
-  deriving
+data SolveError
+  = MissingBuiltin Text
+
+newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.StateT (SolveState v loc) (Except SolveError)) a}
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -68,7 +73,15 @@ newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.State (SolveState v l
       M.MonadReader Env,
       M.MonadState (SolveState v loc)
     )
-    via M.ReaderT Env (M.State (SolveState v loc))
+
+-- Run a Gen action in the Solve monad
+liftGen :: Gen v loc a -> Solve v loc a
+liftGen (Gen action) = Solve $ do
+  lift $ zoom genStateL $ M.mapStateT (withExcept genErrorToSolveError) $ action
+  where
+    genErrorToSolveError :: Gen.GenError -> SolveError
+    genErrorToSolveError = \case
+      Gen.MissingBuiltin builtin -> MissingBuiltin builtin
 
 -- | Helper for inteleaving constraint generation and solving
 genStateL :: Lens' (SolveState v loc) (Gen.GenState v loc)
@@ -89,13 +102,11 @@ genStateL f st =
 -- | Interleave constraint generation into constraint solving
 runGen :: (Var v) => Gen v loc a -> Solve v loc a
 runGen gena = do
-  st <- M.get
   let gena' = do
         res <- gena
         st <- M.get
         pure (res, Gen.newVars st)
-  let ((cs, vs), st') = st & genStateL %%~ Gen.run gena'
-  M.put st'
+  (cs, vs) <- zoom genStateL $ gena'
   traverse_ addUnconstrainedVar vs
   M.modify \st -> st {newUnifVars = vs ++ newUnifVars st}
   pure cs
