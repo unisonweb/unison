@@ -28,7 +28,7 @@ import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
 import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
 import Unison.KindInference.Solve (KindError, defaultUnconstrainedVars, initialState, step, verify)
-import Unison.KindInference.Solve.Monad (Env (..), SolveState, run, runGen)
+import Unison.KindInference.Solve.Monad (Env (..), SolveState, runGen, runSolve)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.Reference
@@ -44,7 +44,7 @@ kindCheckAnnotations ::
   Term.Term v loc ->
   Either (NonEmpty (KindError v loc)) ()
 kindCheckAnnotations ppe st t =
-  let (cs, st') = run env st (runGen $ termConstraints t)
+  let (cs, st') = runSolve env st (runGen $ termConstraints t)
       env = Env ppe
    in step env st' cs $> ()
 
@@ -66,7 +66,7 @@ inferDecls ppe declMap =
         [(Reference, Decl v loc)] ->
         Either (NonEmpty (KindError v loc)) (SolveState v loc)
       handleComponent s c =
-        let (cs, st) = run env s (runGen $ declComponentConstraints c)
+        let (cs, st) = runSolve env s (runGen $ declComponentConstraints c)
          in step env st cs
 
       handleComponents ::

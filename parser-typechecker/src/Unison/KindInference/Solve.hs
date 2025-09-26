@@ -33,8 +33,8 @@ import Unison.KindInference.Solve.Monad
     Solve (..),
     SolveState (..),
     emptyState,
-    run,
     runGen,
+    runSolve,
   )
 import Unison.KindInference.UVar (UVar (..))
 import Unison.PatternMatchCoverage.Pretty as P
@@ -83,7 +83,7 @@ step e st cs =
               Left e -> pure (Left e)
               Right _ -> do
                 Left <$> traverse improveError (e :| es)
-   in case unSolve action e st of
+   in case runSolve e st action of
         (res, finalState) -> case res of
           Left e -> Left e
           Right () -> Right finalState
@@ -317,7 +317,7 @@ verify st =
 
 initialState :: forall v loc. (BuiltinAnnotation loc, Show loc, Ord loc, Var v) => Env -> SolveState v loc
 initialState env =
-  let ((), finalState) = run env emptyState initializeState
+  let ((), finalState) = runSolve env emptyState initializeState
    in finalState
 
 initializeState :: forall v loc. (BuiltinAnnotation loc, Ord loc, Show loc, Var v) => Solve v loc ()

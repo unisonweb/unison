@@ -17,7 +17,7 @@ import Unison.KindInference.Solve.Monad
     Solve (..),
     SolveState (..),
     find,
-    run,
+    runSolve,
   )
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
@@ -123,7 +123,7 @@ ppRunner ppe constraints =
             typeMap = mempty
           }
       env = Env ppe
-   in \solve -> fst (run env st solve)
+   in \solve -> fst (runSolve env st solve)
 
 -- | A pretty printer for cyclic kind constraints on a
 -- @UVar@. Expresses the infinite kind by a generating equation.

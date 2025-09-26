@@ -38,7 +38,7 @@ data GenState v loc = GenState
   deriving stock (Generic)
 
 newtype Gen v loc a = Gen
-  { unGen :: GenState v loc -> (a, GenState v loc)
+  { unGen :: State (GenState v loc) a
   }
   deriving
     ( Functor,
@@ -50,7 +50,7 @@ newtype Gen v loc a = Gen
 
 -- | @Gen@ monad runner
 run :: Gen v loc a -> GenState v loc -> (a, GenState v loc)
-run (Gen ma) st0 = ma st0
+run (Gen ma) st0 = runState ma st0
 
 -- | Create a unique @UVar@ associated with @typ@
 freshVar :: (Var v) => T.Type v loc -> Gen v loc (UVar v loc)

@@ -4,7 +4,7 @@ module Unison.KindInference.Solve.Monad
     SolveState (..),
     Descriptor (..),
     ConstraintMap,
-    run,
+    runSolve,
     emptyState,
     find,
     genStateL,
@@ -17,7 +17,6 @@ import Control.Lens (Lens', (%%~))
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
-import Data.Functor.Identity
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as Set
@@ -60,7 +59,7 @@ data Descriptor v loc = Descriptor
   { descriptorConstraint :: Maybe (Constraint (UVar v loc) v loc)
   }
 
-newtype Solve v loc a = Solve {unSolve :: Env -> SolveState v loc -> (a, SolveState v loc)}
+newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.State (SolveState v loc)) a}
   deriving
     ( Functor,
       Applicative,
@@ -111,8 +110,11 @@ addUnconstrainedVar uvar = do
   M.put st {constraints = constraints'}
 
 -- | Runner for the @Solve@ monad
-run :: Env -> SolveState v loc -> Solve v loc a -> (a, SolveState v loc)
-run e st action = unSolve action e st
+runSolve :: Env -> SolveState v loc -> Solve v loc a -> (a, SolveState v loc)
+runSolve e st action =
+  unSolve action
+    & flip M.runReaderT e
+    & flip M.runState st
 
 -- | Initial solve state
 emptyState :: SolveState v loc
