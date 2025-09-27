@@ -33,6 +33,7 @@ import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
 import Crypto.Random (getRandomBytes)
+import Data.Array.Byte qualified as BA
 import Data.Avro qualified as Avro
 import Data.Avro.Encoding.FromAvro qualified as FromAvro
 import Data.Avro.Schema.ReadSchema qualified as ReadSchema
@@ -64,6 +65,8 @@ import Data.Time.Clock.POSIX as SYS
   )
 import Data.Time.LocalTime (TimeZone (..), getTimeZone)
 import Data.Vector qualified as Vector
+import Data.Vector.Primitive.Mutable qualified as MPV
+import Data.Vector.Algorithms.Merge qualified as MRG
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
@@ -767,6 +770,62 @@ foreignCallHelper = \case
                       src
                       (fromIntegral soff)
                       (fromIntegral l)
+  ImmutableArray_at1s -> mkForeign $
+    PA.arrayMap (extractFst "ImmutableArray.at1s")
+  ImmutableArray_at2s -> mkForeign $
+    PA.arrayMap (extractSnd "ImmutableArray.at2s")
+  ImmutableArray_fromList -> mkForeign $ \(seq :: Seq Val) ->
+    pure $ PA.arrayFromListN (length seq) (toList seq)
+  ImmutableArray_fromListAt1 -> mkForeign $
+    PA.arrayMapFromSeq (extractFst "ImmutableArray.fromListAt1")
+  ImmutableArray_fromListAt2 -> mkForeign $
+    PA.arrayMapFromSeq (extractSnd "ImmutableArray.fromListAt2")
+  ImmutableArray_toList -> mkForeign $ pure . PA.arrayToSeq @Val
+  ImmutableArray_toLists -> mkForeign $
+    PA.arrayMap \case
+      ArrVal a -> evaluate . SeqVal $ PA.arrayToSeq @Val a
+      _ -> die [] "ImmutableArray.toLists: unexpected value"
+  ImmutableArray_pick -> mkForeignExn pick
+  ImmutableArray_pick1 -> mkForeignExn pick1
+  ImmutableArray_pick1Or -> mkForeignExn pick1Or
+  ImmutableArray_sortIx -> mkForeign sortIx
+  ImmutableArray_zipAppend -> mkForeign $
+    \(l :: PA.Array Val, r :: PA.Array Val) -> do
+      let sz = min (PA.sizeofArray l) (PA.sizeofArray r)
+      dst <- PA.newArray sz emptyVal
+      let fill i
+            | i < sz = case (PA.indexArray l i, PA.indexArray r i) of
+                (SeqVal sl, SeqVal sr) -> do
+                  PA.writeArray dst i (SeqVal $ sl <> sr)
+                  fill (i+1)
+                _ -> die [] "ImmutableArray.zipAppend: non-list elements"
+            | otherwise = PA.unsafeFreezeArray dst
+      fill 0
+  ImmutableArray_runsIx -> mkForeign collectRuns
+  ImmutableArray_chop -> mkForeignExn chopArr
+  ImmutableArray_intersectIx -> mkForeign intersectArrs
+  ImmutableArray_outerJoinIx -> mkForeign outerJoinArrs
+  ImmutableArray_murmurHashesUntyped -> mkForeign $
+    fmap PA.NArr . PA.arrayMapToPrim \v -> do
+      v <- decodeVal v
+      pure . asWord64 $ ANFH.hash64ValueUntyped v
+  UnboxedArray_fromNatList -> mkForeign $ \(src :: Seq Val) -> do
+    src <- traverse (extractNat "UnboxedArray.fromNatList") src
+    PA.NArr <$> PA.primArrayFromSeq src
+  UnboxedArray_modR -> mkForeign $ \(PA.NArr arr, n) ->
+    PA.NArr <$> PA.primArrayMap (pure . (`mod` n)) arr
+  UnboxedArray_multiplyR -> mkForeign $ \(PA.NArr arr, n) ->
+    PA.NArr <$> PA.primArrayMap (pure . (* n)) arr
+  UnboxedArray_divideR -> mkForeign $ \(PA.NArr arr, n) ->
+    PA.NArr <$> PA.primArrayMap (pure . (`div` n)) arr
+  UnboxedArray_size -> mkForeign $ \(PA.NArr arr) ->
+    evaluate $ PA.sizeofPrimArray arr
+  UnboxedArray_toList -> mkForeign $ \(PA.NArr src) ->
+    pure . fmap NatVal $ PA.primArrayToSeq src
+  UnboxedArray_occurrences -> mkForeign occurrences
+  UnboxedArray_pick -> mkForeignExn upick
+  UnboxedArray_pick1 -> mkForeignExn upick1
+  UnboxedArray_pick1Or -> mkForeignExn upick1Or
   MutableArray_read ->
     mkForeignExn $
       checkedRead "MutableArray.read"
@@ -1179,6 +1238,24 @@ foreignCallHelper = \case
       pure $ case e of
         Left se -> Left (Util.Text.pack (show se))
         Right a -> Right a
+
+-- Given a `Val` representing a tuple, yields the first component `Val`.
+-- Might fail if the value is actually ill-formed.
+extractFst :: String -> Val -> IO Val
+extractFst name = \case
+  BData2 _ (TT.maskTags -> 0) x _ -> pure x
+  _ -> die [] (name ++ ": unexpected value")
+
+-- As above, but for the second component of a tuple
+extractSnd :: String -> Val -> IO Val
+extractSnd name = \case
+  BData2 _ (TT.maskTags -> 0) _ (BData2 _ (TT.maskTags -> 0) y _) ->
+    pure y
+  _ -> die [] (name ++ ": unexpected value")
+
+extractNat :: String -> Val -> IO Word64
+extractNat _ (NatVal n) = pure n
+extractNat name _ = die [] (name ++ ": non-nat value")
 
 {-# INLINE mkHashAlgorithm #-}
 mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => Data.Text.Text -> alg -> Args -> Stack -> IO (Bool, Stack)
@@ -1681,6 +1758,346 @@ checkedIndex64 byteOrder name (arr, i) =
               I# off# ->
                 W64# (indexWord8ArrayAsWord64# ba# off#)
     pure $ Right (fromIntegral (fixEndianness w))
+
+pick ::
+  (PA.SomePrimArr, PA.Array Val) ->
+  IO (Either (F.Failure (PA.Array Val, Val)) (PA.Array Val))
+pick (PA.NArr ixs, src) = do
+  dst <- PA.newArray szi emptyVal
+
+  let fill j
+        | j < szi = case PA.indexPrimArray ixs j of
+            ix0
+              | ix <- fromIntegral ix0,
+                0 <= ix, ix < szs -> do
+                  PA.writeArray dst j (PA.indexArray src ix)
+                  fill (j+1)
+              | otherwise -> badIndex ix0
+        | otherwise = Right <$> PA.unsafeFreezeArray dst
+
+  fill 0
+  where
+    szi = PA.sizeofPrimArray ixs
+    szs = PA.sizeofArray src
+
+    badIndex ix =
+      pure . Left $ F.Failure Ty.arrayFailureRef msg (src, natValue ix)
+
+    msg = "ImmutableArray.pick: index out of bounds"
+
+upick ::
+  (PA.SomePrimArr, PA.SomePrimArr) ->
+  IO (Either (F.Failure (PA.SomePrimArr, Val)) PA.SomePrimArr)
+upick (PA.NArr ixs, src0@(PA.NArr src)) = do
+  dst <- PA.newPrimArray szi
+
+  let fill j
+        | j < szi = case PA.indexPrimArray ixs j of
+            ix0
+              | ix <- fromIntegral ix0,
+                0 <= ix, ix < szs -> do
+                  PA.writePrimArray dst j (PA.indexPrimArray src ix)
+                  fill (j+1)
+              | otherwise -> badIndex ix0
+        | otherwise = Right . PA.NArr <$> PA.unsafeFreezePrimArray dst
+
+  fill 0
+  where
+    szi = PA.sizeofPrimArray ixs
+    szs = PA.sizeofPrimArray src
+
+    badIndex ix =
+      pure . Left $ F.Failure Ty.arrayFailureRef msg (src0, natValue ix)
+
+    msg = "UnboxedArray.pick: index out of bounds"
+
+pick1Or ::
+  (Val, PA.SomePrimArr, PA.Array Val) ->
+  IO (Either (F.Failure (PA.Array Val, Val)) (PA.Array Val))
+pick1Or (dflt, PA.NArr ixs, src) = do
+  dst <- PA.newArray szi dflt
+
+  let fill j
+        | j < szi = case PA.indexPrimArray ixs j of
+            ix0
+              | ix0 == 0 -> fill (j+1)
+              | ix <- fromIntegral ix0,
+                0 < ix, ix <= szs -> do
+                  PA.writeArray dst j (PA.indexArray src (ix - 1))
+                  fill (j+1)
+              | otherwise -> badIndex ix0
+        | otherwise = Right <$> PA.unsafeFreezeArray dst
+
+  fill 0
+  where
+    szi = PA.sizeofPrimArray ixs
+    szs = PA.sizeofArray src
+
+    badIndex ix =
+      pure . Left $ F.Failure Ty.arrayFailureRef msg (src, natValue ix)
+
+    msg = "ImmutableArray.pick: index out of bounds"
+
+upick1Or ::
+  (PA.SomePrimArr, PA.SomePrimArr) ->
+  IO (Either (F.Failure (PA.SomePrimArr, Val)) PA.SomePrimArr)
+upick1Or (PA.NArr ixs, src0@(PA.NArr src)) = do
+  dst <- PA.newPrimArray szi
+
+  let fill j
+        | j < szi = case PA.indexPrimArray ixs j of
+            ix0
+              | ix0 == 0 -> fill (j+1)
+              | ix <- fromIntegral ix0,
+                0 < ix, ix <= szs -> do
+                  PA.writePrimArray dst j $
+                    PA.indexPrimArray src (ix - 1)
+                  fill (j+1)
+              | otherwise -> badIndex ix0
+        | otherwise = Right . PA.NArr <$> PA.unsafeFreezePrimArray dst
+
+  fill 0
+  where
+    szi = PA.sizeofPrimArray ixs
+    szs = PA.sizeofPrimArray src
+
+    badIndex ix =
+      pure . Left $ F.Failure Ty.arrayFailureRef msg (src0, natValue ix)
+
+    msg = "UnboxedArray.pick: index out of bounds"
+
+pick1 ::
+  (PA.SomePrimArr, PA.Array Val) ->
+  IO (Either (F.Failure (PA.Array Val, Val)) (PA.Array Val))
+pick1 (PA.NArr ixs, src) = do
+  dst <- PA.newArray szd emptyVal
+
+  let fill j !k
+        | j < szi = case PA.indexPrimArray ixs j of
+            ix0
+              | ix0 == 0 -> fill (j+1) k
+              | ix <- fromIntegral ix0,
+                0 < ix, ix <= szs -> do
+                  PA.writeArray dst k (PA.indexArray src (ix - 1))
+                  fill (j+1) (k+1)
+              | otherwise -> badIndex ix0
+        | otherwise = Right <$> PA.unsafeFreezeArray dst
+
+  fill 0 0
+  where
+    szi = PA.sizeofPrimArray ixs
+    szs = PA.sizeofArray src
+    szd = cnz 0 0
+
+    cnz !acc i
+      | i < szi =
+          cnz (acc + signum (PA.indexPrimArray ixs i)) (i+1)
+      | otherwise = fromIntegral acc
+
+    badIndex ix =
+      pure . Left $ F.Failure Ty.arrayFailureRef msg (src, natValue ix)
+
+    msg = "ImmutableArray.pick1: index out of bounds"
+
+upick1 ::
+  (PA.SomePrimArr, PA.SomePrimArr) ->
+  IO (Either (F.Failure (PA.SomePrimArr, Val)) PA.SomePrimArr)
+upick1 (PA.NArr ixs, src0@(PA.NArr src)) = do
+  dst <- PA.newPrimArray szd
+
+  let fill j !k
+        | j < szi = case PA.indexPrimArray ixs j of
+            ix0
+              | ix0 == 0 -> fill (j+1) k
+              | ix <- fromIntegral ix0,
+                0 < ix, ix <= szs -> do
+                  PA.writePrimArray dst k $
+                    PA.indexPrimArray src (ix - 1)
+                  fill (j+1) (k+1)
+              | otherwise -> badIndex ix0
+        | otherwise = Right . PA.NArr <$> PA.unsafeFreezePrimArray dst
+
+  fill 0 0
+  where
+    szi = PA.sizeofPrimArray ixs
+    szs = PA.sizeofPrimArray src
+    szd = cnz 0 0
+
+    cnz !acc i
+      | i < szi =
+          cnz (acc + signum (PA.indexPrimArray ixs i)) (i+1)
+      | otherwise = fromIntegral acc
+
+    badIndex ix =
+      pure . Left $ F.Failure Ty.arrayFailureRef msg (src0, natValue ix)
+
+    msg = "UnboxedArray.pick1: index out of bounds"
+
+collectRuns :: PA.Array Val -> IO (PA.SomePrimArr, PA.SomePrimArr)
+collectRuns src
+  | sz == 0 = pure (emptyNArr, emptyNArr)
+  | v <- PA.indexArray src 0 = collect [0] [] v 1 1
+  where
+    sz = PA.sizeofArray src
+
+    emptyNArr = PA.NArr PA.emptyPrimArray
+
+    mkArr l = evaluate . PA.NArr $ PA.primArrayFromList l
+
+    collect ixs lens v !n i
+      | i >= sz =
+          (,) <$> (mkArr $ reverse ixs) <*> (mkArr . reverse $ n:lens)
+      | u <- PA.indexArray src i =
+        if v == u
+          then collect ixs lens v (n+1) (i+1)
+          else collect (fromIntegral i:ixs) (n:lens) u 1 (i+1)
+
+chopArr ::
+  (PA.SomePrimArr, PA.SomePrimArr, PA.Array Val) ->
+  IO (Either (F.Failure Val) (PA.Array Val))
+chopArr (PA.NArr ixs, PA.NArr lens, src)
+  | isz /= PA.sizeofPrimArray lens =
+      pure . Left $
+        F.Failure
+          Ty.arrayFailureRef
+          "ImmutableArray.chop: mismatched index array lengths"
+          unitVal
+  | otherwise = validate 0
+  where
+    isz = PA.sizeofPrimArray ixs
+    ssz = PA.sizeofArray src
+
+    slice i n arr
+      | i >= n = PA.unsafeFreezeArray arr
+      | otherwise = do
+          PA.writeArray arr i (PA.indexArray src i)
+          slice (i+1) n arr
+
+    slices i arr
+      | i >= isz = Right <$> PA.unsafeFreezeArray arr
+      | ix <- fromIntegral $ PA.indexPrimArray ixs i,
+        ln <- fromIntegral $ PA.indexPrimArray lens i = do
+          PA.writeArray arr i . encodeVal @(PA.Array Val)
+            =<< slice ix (ix+ln)
+            =<< PA.newArray ln emptyVal
+          slices (i+1) arr
+
+    validate i
+      | i >= isz = PA.newArray isz emptyVal >>= slices 0
+      | ix <- PA.indexPrimArray ixs i,
+        ln <- PA.indexPrimArray lens i,
+        ix + ln >= fromIntegral ssz =
+          pure . Left $
+            F.Failure
+              Ty.arrayFailureRef
+              "chop: indices out of bounds"
+              (encodeVal (ix, ln))
+      | otherwise = validate (i+1)
+
+occurrences :: PA.SomePrimArr -> IO (PA.Array Val)
+occurrences (PA.NArr src)
+  | sz == 0 = pure PA.emptyArray
+  | ixs <- collect Map.empty 0 = case Map.lookupMax ixs of
+      Nothing -> pure PA.emptyArray
+      Just (mx, _) -> do
+        dst <- PA.newArray (fromIntegral $ mx+1) emptyNArr
+        let fill i
+              | i > mx = pure ()
+              | Just is <- Map.lookup i ixs = do
+                  PA.writeArray dst (fromIntegral i)
+                    (encodeVal . PA.NArr . PA.primArrayFromList $ reverse is)
+                  fill (i+1)
+              | otherwise = fill (i+1)
+        fill 0
+        PA.unsafeFreezeArray dst
+  where
+    sz = PA.sizeofPrimArray src
+
+    emptyNArr = encodeVal $ PA.NArr PA.emptyPrimArray
+
+    collect :: Map Word64 [Word64] -> Int -> Map Word64 [Word64]
+    collect !acc i
+      | i < sz,
+        j <- PA.indexPrimArray src i =
+          collect (Map.insertWith (++) j [fromIntegral i] acc) (i+1)
+      | otherwise = acc
+
+intersectArrs ::
+  (PA.Array Val, PA.Array Val) -> IO (PA.SomePrimArr, PA.SomePrimArr)
+intersectArrs (srcl, srcr) = do
+  ixsl <- sortIx0 srcl
+  ixsr <- sortIx0 srcr
+  let align ls rs i j
+        | i >= szl || j >= szr = (ls, rs)
+        | il <- PA.indexPrimArray ixsl i,
+          ir <- PA.indexPrimArray ixsr j,
+          u <- PA.indexArray srcl (fromIntegral il),
+          v <- PA.indexArray srcr (fromIntegral ir) =
+            if u < v
+            then align ls rs (i+1) j
+            else if u > v
+            then align ls rs i (j+1)
+            else align (il:ls) (ir:rs) (i+1) (j+1)
+  case align [] [] 0 0 of
+    (ils, irs) -> (,) <$> mkArr ils <*> mkArr irs
+  where
+    szl = PA.sizeofArray srcl
+    szr = PA.sizeofArray srcr
+
+    mkArr = evaluate . PA.NArr . PA.primArrayFromList . reverse
+
+-- TODO: what should happen for duplicate values?
+outerJoinArrs ::
+  (PA.Array Val, PA.Array Val) -> IO (PA.SomePrimArr, PA.SomePrimArr)
+outerJoinArrs (srcl, srcr) = do
+  ixsl <- sortIx0 srcl
+  ixsr <- sortIx0 srcr
+  let align ls rs i j
+        | i >= szl || j >= szr = (ls, rs)
+        | il <- PA.indexPrimArray ixsl i,
+          ir <- PA.indexPrimArray ixsr j,
+          u <- PA.indexArray srcl (fromIntegral il),
+          v <- PA.indexArray srcr (fromIntegral ir) =
+            if u < v
+            then align (0:ls) rs (i+1) j
+            else if u > v
+            then align ls (0:rs) i (j+1)
+            else align (1+il:ls) (1+ir:rs) (i+1) (j+1)
+  case align [] [] 0 0 of
+    (ils, irs) -> (,) <$> mkArr ils <*> mkArr irs
+  where
+    szl = PA.sizeofArray srcl
+    szr = PA.sizeofArray srcr
+
+    mkArr = evaluate . PA.NArr . PA.primArrayFromList . reverse
+
+sortIx0 :: PA.Array Val -> IO (PA.PrimArray Word64)
+sortIx0 src = do
+  ixs <- PA.newPrimArray sz
+
+  let fill n
+        | n < sz =
+            PA.writePrimArray ixs n (fromIntegral n) *> fill (n+1)
+        | otherwise = pure ()
+  fill 0
+
+  MRG.sortBy cmp (unsafePrimVectorFromPrimArray sz ixs)
+
+  PA.unsafeFreezePrimArray ixs
+  where
+    sz = PA.sizeofArray src
+
+    srcIx i = PA.indexArray src (fromIntegral i)
+
+    cmp i j = compare (srcIx i) (srcIx j)
+
+sortIx :: PA.Array Val -> IO PA.SomePrimArr
+sortIx src = PA.NArr <$> sortIx0 src
+
+unsafePrimVectorFromPrimArray ::
+  Int -> PA.MutablePrimArray s t -> MPV.MVector s t
+unsafePrimVectorFromPrimArray sz (PA.MutablePrimArray bv) =
+  MPV.MVector 0 sz (BA.MutableByteArray bv)
 
 -- JSON replacement implementations
 jsonNull, jsonTrue, jsonFalse :: Val

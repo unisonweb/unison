@@ -169,6 +169,7 @@ library
     , unliftio
     , unordered-containers
     , vector
+    , vector-algorithms
   default-language: Haskell2010
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK

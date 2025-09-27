@@ -67,8 +67,12 @@ module Unison.Runtime.Stack
         DoubleVal,
         IntVal,
         BoolVal,
+        SeqVal,
+        ArrVal,
         UnboxedVal,
-        BoxedVal
+        BoxedVal,
+        BData1,
+        BData2
       ),
     emptyVal,
     falseVal,
@@ -426,8 +430,10 @@ pattern Enum :: Reference -> PackedTag -> Closure
 pattern Enum r t = Closure (GEnum r t)
 
 pattern Data1 r t i = Closure (GData1 r t i)
+pattern BData1 r t i = BoxedVal (Data1 r t i)
 
 pattern Data2 r t i j = Closure (GData2 r t i j)
+pattern BData2 r t i j = BoxedVal (Data2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
@@ -617,6 +623,18 @@ falseVal = BoxedVal (Enum Ty.booleanRef TT.falseTag)
 trueVal :: Val
 trueVal = BoxedVal (Enum Ty.booleanRef TT.trueTag)
 {-# NOINLINE trueVal #-}
+
+pattern SeqVal :: Seq Val -> Val
+pattern SeqVal s <-
+  BoxedVal (Foreign (maybeUnwrapBuiltin @(Seq Val) -> Just s))
+  where
+    SeqVal s = BoxedVal (Foreign (wrapBuiltin s))
+
+pattern ArrVal :: PA.Array Val -> Val
+pattern ArrVal a <-
+  BoxedVal (Foreign (maybeUnwrapBuiltin @(PA.Array Val) -> Just a))
+  where
+    ArrVal a = BoxedVal (Foreign (wrapBuiltin a))
 
 doubleToInt :: Double -> Int
 doubleToInt d = indexByteArray (BA.byteArrayFromList [d]) 0
@@ -874,6 +892,10 @@ instance Eq Val where
 
 instance Ord Val where
   compare = universalCompare compare
+
+instance BuiltinForeign (Seq Val) where
+  foreignName = Tagged "Seq"
+  foreignRef = Tagged Ty.listRef
 
 instance BuiltinForeign (Map Val Val) where
   foreignName = Tagged "Map"

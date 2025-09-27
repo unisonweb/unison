@@ -366,6 +366,11 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
   stk <- bump stk
   pokeBi stk =<< reflectValue env c
   pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Prim1 VALS i) = do
+  cs <- peekOffBi stk i
+  stk <- bump stk
+  pokeBi stk =<< reflectValues env cs
+  pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
   pure (False, henv, stk, k)
@@ -1548,6 +1553,10 @@ canonicalizeReferenced ::
   (Referential t) => Referenced t -> Reflect (t RefNum)
 canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
+
+reflectValues :: CCache p -> PA.Array Val -> IO (PA.Array Val)
+reflectValues env arr =
+  PA.arrayMap (fmap encodeVal . reflectValue env) arr
 
 reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do

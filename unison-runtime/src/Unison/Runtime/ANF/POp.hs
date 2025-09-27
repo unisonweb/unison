@@ -149,6 +149,7 @@ data POp
   | CVLD -- validate
   | SDBX -- sandbox
   | VALU -- value
+  | VALS -- values
   | TLTT -- Term.Link.toText
   -- Debug
   | PRNT -- print
@@ -323,6 +324,7 @@ pOpCode op = case op of
   NOTB -> 145
   ANDB -> 146
   IORB -> 147
+  VALS -> 148
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

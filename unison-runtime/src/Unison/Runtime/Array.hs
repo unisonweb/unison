@@ -26,6 +26,14 @@ module Unison.Runtime.Array
     readPrimArray,
     writePrimArray,
     indexPrimArray,
+    arrayMap,
+    arrayMapFromSeq,
+    arrayMapToPrim,
+    arrayToSeq,
+    SomePrimArr (..),
+    primArrayFromSeq,
+    primArrayMap,
+    primArrayToSeq,
   )
 where
 
@@ -55,7 +63,8 @@ import Data.Primitive.PrimArray as EPA hiding
   )
 import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
-import Data.Word (Word8)
+import Data.Sequence (Seq, pattern (:<|), pattern Empty, (|>))
+import Data.Word (Word8, Word64)
 import GHC.IsList (toList)
 
 #ifdef ARRAY_CHECK
@@ -427,3 +436,89 @@ indexPrimArray = checkIPArray "indexPrimArray" PA.indexPrimArray
 
 byteArrayToList :: ByteArray -> [Word8]
 byteArrayToList = toList
+
+-- Builds a new array by applying a function to each element of an input
+-- array. The type is more like traverse, as it occurs in a `PrimMonad`
+-- for array creation, and we can permit the function to have effects in
+-- that monad. One thing this means is that you can throw IO exceptions if
+-- you want.
+arrayMap :: PrimMonad m => (a -> m b) -> PA.Array a -> m (Array b)
+arrayMap f ia = do
+  oa <- PA.newArray sz (error "arrayMap: dummy value")
+  let go n
+        | n <= sz = pure ()
+        | otherwise = do
+            PA.writeArray oa n =<< f (PA.indexArray ia n)
+            go (n+1)
+  go 0
+  PA.unsafeFreezeArray oa
+  where
+    sz = PA.sizeofArray ia
+{-# INLINE arrayMap #-}
+
+arrayMapFromSeq :: PrimMonad m => (a -> m b) -> Seq a -> m (Array b)
+arrayMapFromSeq f s = do
+  dst <- PA.newArray sz (error "arrayMapFromSeq: dummy value")
+  let go !_ Empty = PA.unsafeFreezeArray dst
+      go !n (x :<| xs) = do
+        PA.writeArray dst n =<< f x
+        go (n+1) xs
+  go 0 s
+  where
+    sz = length s
+{-# INLINE arrayMapFromSeq #-}
+
+arrayToSeq :: Array a -> Seq a
+arrayToSeq = fromList . toList
+
+-- TODO: more cases
+newtype SomePrimArr = NArr (PrimArray Word64)
+
+primArrayFromSeq :: (Prim a, PrimMonad m) => Seq a -> m (PrimArray a)
+primArrayFromSeq s = do
+  dst <- newPrimArray sz
+  let go !_ Empty = unsafeFreezePrimArray dst
+      go !n (x :<| xs) = writePrimArray dst n x *> go (n+1) xs
+  go 0 s
+  where
+    sz = length s
+{-# INLINE primArrayFromSeq #-}
+
+primArrayMap ::
+  (Prim a, Prim b, PrimMonad m) =>
+  (a -> m b) -> PrimArray a -> m (PrimArray b)
+primArrayMap f src = do
+  dst <- newPrimArray sz
+  let go n
+        | n >= sz = unsafeFreezePrimArray dst
+        | otherwise = do
+            writePrimArray dst n =<< f (indexPrimArray src n)
+            go (n+1)
+  go 0
+  where
+    sz = sizeofPrimArray src
+{-# INLINE primArrayMap #-}
+
+primArrayToSeq :: Prim a => PrimArray a -> Seq a
+primArrayToSeq src = go mempty 0
+  where
+    sz = sizeofPrimArray src
+
+    go acc n
+      | n < sz = go (acc |> indexPrimArray src n) (n+1)
+      | otherwise = acc
+{-# INLINE primArrayToSeq #-}
+
+arrayMapToPrim ::
+  (Prim b, PrimMonad m) => (a -> m b) -> Array a -> m (PrimArray b)
+arrayMapToPrim f src = do
+  dst <- newPrimArray sz
+  let go n
+        | n >= sz = unsafeFreezePrimArray dst
+        | otherwise = do
+            writePrimArray dst n =<< f (indexArray src n)
+            go (n+1)
+  go 0
+  where
+    sz = sizeofArray src
+{-# INLINE arrayMapToPrim #-}

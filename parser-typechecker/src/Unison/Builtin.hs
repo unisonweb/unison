@@ -255,7 +255,8 @@ builtinTypesSrc =
     B' "ClientSockAddr" CT.Data,
     B' "PinnedByteArray" CT.Data,
     B' "Integer" CT.Data,
-    B' "Natural" CT.Data
+    B' "Natural" CT.Data,
+    B' "UnboxedArray" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -676,29 +677,29 @@ builtinsSrc =
         --> nat
         --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableArray.read" . forall1 "a" $ \a ->
-      iarrayt a --> nat --> Type.effect1 () (DD.exceptionType ()) a,
+      iarrayt a --> nat --> exnt a,
     B "ImmutableByteArray.read8" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read16be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read24be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read32be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read40be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read64be" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read16le" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read24le" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read32le" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read40le" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "ImmutableByteArray.read64le" $
-      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+      ibytearrayt --> nat --> exnt nat,
     B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> Type.effect1 () g (iarrayt a),
     B "MutableByteArray.freeze!" . forall1 "g" $ \g ->
@@ -798,7 +799,78 @@ builtinsSrc =
     B "Natural.gteq" $ natural --> natural --> boolean,
     B "Natural.toFloat" $ natural --> float,
     B "Natural.isEven" $ natural --> boolean,
-    B "Natural.isOdd" $ natural --> boolean
+    B "Natural.isOdd" $ natural --> boolean,
+
+    B "ImmutableArray.at1s" $
+      forall2 "a" "b" $ \a b -> iarrayt (pair a b) --> iarrayt a,
+    B "ImmutableArray.at2s" $
+      forall3 "a" "b" "c" $ \a b c ->
+        iarrayt (pair a (pair b c)) --> iarrayt b,
+    B "ImmutableArray.chop" $
+      forall1 "a" $ \a ->
+        uarrayt nat --> uarrayt nat --> iarrayt a -->
+        exnt (iarrayt (iarrayt a)),
+    B "ImmutableArray.fromListAt1" $
+      forall2 "a" "b" $ \a b ->
+        list (pair a b) --> iarrayt a,
+    B "ImmutableArray.fromListAt2" $
+      forall3 "a" "b" "c" $ \a b c ->
+        list (pair a (pair b c)) --> iarrayt b,
+    B "ImmutableArray.fromList" $
+      forall1 "a" $ \a -> list a --> iarrayt a,
+    B "ImmutableArray.intersectIx" $
+      forall1 "a" $ \a ->
+        list a --> list a --> tuple [uarrayt nat, uarrayt nat],
+    B "ImmutableArray.murmurHashesUntyped" $
+      forall1 "a" $ \a ->
+        iarrayt a --> uarrayt nat,
+    B "ImmutableArray.outerJoinIx" $
+      forall1 "a" $ \a ->
+        iarrayt a --> iarrayt a --> tuple [uarrayt nat, uarrayt nat],
+    B "ImmutableArray.pick" $
+      forall1 "a" $ \a ->
+        uarrayt nat --> iarrayt a --> exnt (iarrayt a),
+    B "ImmutableArray.pick1" $
+      forall1 "a" $ \a ->
+        uarrayt nat --> iarrayt a --> exnt (iarrayt a),
+    B "ImmutableArray.pick1Or" $
+      forall1 "a" $ \a ->
+        a --> uarrayt nat --> iarrayt a --> exnt (iarrayt a),
+    B "ImmutableArray.runsIx" $
+      forall1 "a" $ \a ->
+        iarrayt a --> tuple [uarrayt nat, uarrayt nat],
+    B "ImmutableArray.sortIx" $
+      forall1 "a" $ \a ->
+        iarrayt a --> uarrayt nat,
+    B "ImmutableArray.toLists" $
+      forall1 "a" $ \a ->
+        iarrayt (iarrayt a) --> iarrayt (list a),
+    B "ImmutableArray.toList" $
+      forall1 "a" $ \a ->
+        iarrayt a --> list a,
+    B "ImmutableArray.zipWithAppend" $
+      forall1 "a" $ \a ->
+        iarrayt (list a) --> iarrayt (list a) --> iarrayt (list a),
+    B "UnboxedArray.fromNatList" $
+      list nat --> uarrayt nat,
+    B "UnboxedArray.modR" $ uarrayt nat --> nat --> uarrayt nat,
+    B "UnboxedArray.multiplyR" $ uarrayt nat --> nat --> uarrayt nat,
+    B "UnboxedArray.divideR" $ uarrayt nat --> nat --> uarrayt nat,
+    B "UnboxedArray.occurrences" $
+      uarrayt nat --> iarrayt (uarrayt nat),
+    B "UnboxedArray.pick" $
+      forall1 "a" $ \a ->
+        uarrayt nat --> uarrayt a --> exnt (uarrayt a),
+    B "UnboxedArray.pick1" $
+      forall1 "a" $ \a ->
+        uarrayt nat --> uarrayt a --> exnt (uarrayt a),
+    B "UnboxedArray.pick1Or" $
+      forall1 "a" $ \a ->
+        a --> uarrayt nat --> uarrayt a --> exnt (uarrayt a),
+    B "UnboxedArray.size" $
+      forall1 "a" $ \a -> uarrayt a --> nat,
+    B "UnboxedArray.toList" $
+      forall1 "a" $ \a -> uarrayt a --> list a
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1118,6 +1190,17 @@ forall2 na nb body = Type.foralls () [a, b] (body ta tb)
     ta = Type.var () a
     tb = Type.var () b
 
+forall3 ::
+  Text -> Text -> Text -> (Type -> Type -> Type -> Type) -> Type
+forall3 na nb nc body = Type.foralls () [a,b,c] (body ta tb tc)
+  where
+    a = Var.named na
+    b = Var.named nb
+    c = Var.named nc
+    ta = Type.var () a
+    tb = Type.var () b
+    tc = Type.var () c
+
 forall4 ::
   Text ->
   Text ->
@@ -1190,6 +1273,12 @@ iarrayt a = Type.iarrayType () `app` a
 
 marrayt :: Type -> Type -> Type
 marrayt g a = Type.marrayType () `app` g `app` a
+
+uarrayt :: Type -> Type
+uarrayt a = Type.uarrayType () `app` a
+
+exnt :: Type -> Type
+exnt = Type.effect1 () (DD.exceptionType ())
 
 socket, threadId, handle, phandle, unit :: Type
 socket = Type.socket ()
