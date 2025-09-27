@@ -64,6 +64,7 @@ syn match uBoolean "\<\(true\|false\)\>"
 
 syn match uType "\<\C[A-Z][0-9A-Za-z_'!]*\>"
 syn match uName "\<\C[a-z_][0-9A-Za-z_'!]*\>" contains=ALL
+syn match uDef "^\C[A-Za-z_][0-9A-Za-z_'!]*:"
 
 " Comments
 syn match   uLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
@@ -125,6 +126,7 @@ if version >= 508 || !exists("did_u_syntax_inits")
    HiLink       uLineComment                     Comment
    HiLink       uLink                            Type
    HiLink       uName                            Identifier
+   HiLink       uDef                             Typedef
    HiLink       uNumber                          Number
    HiLink       uOperator                        Operator
    HiLink       uPragma                          SpecialComment
