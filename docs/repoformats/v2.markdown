@@ -129,7 +129,7 @@ An example:
 ``` unison
 type Tree = Branch Tree Tree | INode (Optional ##Int) | BNode Boolean
 ```
-This gives us a decl with two constructor types:
+This gives us a decl with three constructor types:
 - `Tree -> Tree -> Tree`
 - `Optional Int -> Tree`
 - `Boolean -> Tree`
