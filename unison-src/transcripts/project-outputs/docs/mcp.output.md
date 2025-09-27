@@ -100,7 +100,9 @@ After saving the file, restart the Claude Desktop app. You should now see a new 
 
 ## Usage
 
-By default, Claude will now automatically use the Unison MCP server when it deems it appropriate, however
-if you're planning to ask Claude to write some Unison code it's recommended you use one of the Unison MCP prompts
-to kick off your interaction. You can find them by clicking the "plus" icon next to the prompt input box, and then
+By default, your coding assistant will automatically use the Unison MCP server when it deems it appropriate, however
+you'll get much better results with additional prompting. You may wish to start with the prompts [in this repository](https://github.com/unisoncomputing/unison-llm-support/tree/main), in particular this [main prompt](https://github.com/unisoncomputing/unison-llm-support/blob/main/instructions.md) which delegates to one of several "modes" depending on the situation, with clear instructions for each.
+
+There are also some prompts available in the MCP server itself (for instance, there is a Unison language guide).
+If you're using Claude Desktop, you can find these prompts by clicking the "plus" icon next to the prompt input box, and then
 choosing `Add from unison` and selecting the appropriate prompt.
