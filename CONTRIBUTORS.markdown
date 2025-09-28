@@ -92,3 +92,4 @@ The format for this list: name, GitHub handle
 * Brandon Barker (@bbarker)
 * Manish Bhasin (@xmbhasin)
 * Erik Schnetter (@eschnett)
+* Régis Kuckaertz (@regiskuckaertz)
