@@ -92,7 +92,7 @@ newProjectNameParser = do
   where
     projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
     projectSlugParser = do
-      name <- Megaparsec.takeWhile1P Nothing \c -> Char.isAscii c || Char.isDigit c || c == '-' || c == '_'
+      name <- Megaparsec.takeWhile1P Nothing \c -> Char.isAsciiLower c || Char.isAsciiUpper c || Char.isDigit c || c == '-' || c == '_'
       when (name == "p" || name == "code") do
         fail ("Project cannot be named 'code' or 'p'")
       pure (Text.Builder.text name)
