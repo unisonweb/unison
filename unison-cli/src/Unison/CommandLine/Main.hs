@@ -200,7 +200,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                   <> P.wrap
                     ( "Please"
                         <> IP.makeExample IP.projectRenameInputPattern []
-                        <> "them using only ASCII letters, numbers, and hyphens, of length 2-40 characters."
+                        <> "them using only ASCII letters, numbers, hyphens, and underscores. (You also can't use the name 'code' or 'p')."
                     )
             ]
 
