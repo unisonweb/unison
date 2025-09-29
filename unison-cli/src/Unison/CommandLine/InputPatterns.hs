@@ -1272,7 +1272,7 @@ renameTerm :: InputPattern
 renameTerm =
   InputPattern
     "move.term"
-    ["rename.term"]
+    ["rename.term", "mv.term"]
     I.Visible
     ( Parameters [("definition to move", exactDefinitionTermQueryArg), ("new location", newNameArg)] $
         Optional [] Nothing
@@ -1286,7 +1286,7 @@ moveAll :: InputPattern
 moveAll =
   InputPattern
     "move"
-    ["rename"]
+    ["rename", "mv"]
     I.Visible
     (Parameters [("definition to move", namespaceOrDefinitionArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move foo bar` renames the term, type, and namespace foo to bar."
@@ -1298,7 +1298,7 @@ renameType :: InputPattern
 renameType =
   InputPattern
     "move.type"
-    ["rename.type"]
+    ["rename.type", "mv.type"]
     I.Visible
     (Parameters [("type to move", exactDefinitionTypeQueryArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move.type foo bar` renames `foo` to `bar`."
@@ -1311,6 +1311,7 @@ deleteGen ::
   Maybe String -> ParameterType -> String -> ([HQ'.HashQualified (Path.Split Path')] -> DeleteTarget) -> InputPattern
 deleteGen suffix queryCompletionArg target mkTarget =
   let cmd = maybe "delete" ("delete." <>) suffix
+      alias = maybe "rm" ("rm." <>) suffix
       info =
         P.wrapColumn2
           [ ( P.sep
@@ -1334,7 +1335,7 @@ deleteGen suffix queryCompletionArg target mkTarget =
           ]
    in InputPattern
         cmd
-        []
+        [alias]
         I.Visible
         (Parameters [] $ OnePlus ("definition to delete", queryCompletionArg))
         info
@@ -1362,7 +1363,7 @@ deleteProject :: InputPattern
 deleteProject =
   InputPattern
     { patternName = "delete.project",
-      aliases = ["project.delete"],
+      aliases = ["project.delete", "rm.project"],
       visibility = I.Visible,
       params = Parameters [("project to delete", projectNameArg)] $ Optional [] Nothing,
       help =
@@ -1378,7 +1379,7 @@ deleteBranch :: InputPattern
 deleteBranch =
   InputPattern
     { patternName = "delete.branch",
-      aliases = ["branch.delete"],
+      aliases = ["branch.delete", "rm.branch"],
       visibility = I.Visible,
       params = Parameters [("branch to delete", projectBranchNameArg suggestionsConfig)] $ Optional [] Nothing,
       help =
@@ -1539,7 +1540,7 @@ deleteNamespace :: InputPattern
 deleteNamespace =
   InputPattern
     "delete.namespace"
-    []
+    ["rm.namespace"]
     I.Visible
     (Parameters [("namespace to delete", namespaceArg)] $ Optional [] Nothing)
     "`delete.namespace <foo>` deletes the namespace `foo`"
@@ -1549,7 +1550,7 @@ deleteNamespaceForce :: InputPattern
 deleteNamespaceForce =
   InputPattern
     "delete.namespace.force"
-    []
+    ["rm.namespace.force"]
     I.Visible
     (Parameters [("namespace to delete", namespaceArg)] $ Optional [] Nothing)
     ( "`delete.namespace.force <foo>` deletes the namespace `foo`,"
@@ -1567,7 +1568,7 @@ renameBranch :: InputPattern
 renameBranch =
   InputPattern
     "move.namespace"
-    ["rename.namespace"]
+    ["rename.namespace", "mv.namespace"]
     I.Visible
     (Parameters [("namespace to move", namespaceArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move.namespace foo bar` renames the path `foo` to `bar`."
