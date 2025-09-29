@@ -2059,9 +2059,9 @@ outerJoinArrs (srcl, srcr) = do
           u <- PA.indexArray srcl (fromIntegral il),
           v <- PA.indexArray srcr (fromIntegral ir) =
             if u < v
-            then align (0:ls) rs (i+1) j
+            then align (1+il:ls) (0:rs) (i+1) j
             else if u > v
-            then align ls (0:rs) i (j+1)
+            then align (0:ls) (1+ir:rs) i (j+1)
             else align (1+il:ls) (1+ir:rs) (i+1) (j+1)
   case align [] [] 0 0 of
     (ils, irs) -> (,) <$> mkArr ils <*> mkArr irs
