@@ -9,6 +9,7 @@ module Unison.Builtin
     builtinTypeDependents,
     builtinTypeDependentsOfComponent,
     builtinTypes,
+    builtinTypeRefs,
     builtinTermsByType,
     builtinTermsByTypeMention,
     intrinsicTermReferences,
@@ -185,6 +186,9 @@ builtinTypes =
             error . Text.unpack $
               "tried to alias `" <> r <> "` before it was declared."
           Just t -> Map.insert name t m
+
+builtinTypeRefs :: Set R.Reference
+builtinTypeRefs = Set.fromList . fmap snd $ builtinTypes
 
 -- WARNING: Don't delete any of these lines, only add corrections.
 builtinTypesSrc :: [BuiltinTypeDSL]

@@ -8,7 +8,8 @@ import Unison.Name (Name)
 import Unison.Prelude
 
 data ResolvesTo ref
-  = ResolvesToNamespace ref
+  = -- Not literally a namespace, it resolves to a reference in the codebase
+    ResolvesToNamespace ref
   | ResolvesToLocal Name
   deriving stock (Eq, Ord, Show)
 

@@ -29,6 +29,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (TermReference, TypeReference)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result (CompilerBug (..), Note (..), ResultT, pattern Result)
@@ -47,6 +48,7 @@ import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.List qualified as List
 import Unison.Util.Map qualified as Map (upsert)
+import Unison.Util.Recursion qualified as Recursive
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Rel
 import Unison.Var (Var)
@@ -178,7 +180,11 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
                     case TL.typeOfReferent typeLookup ref of
                       Just ty ->
                         let v = Right (Typechecker.NamedReference name ty (Context.ReplacementRef ref))
-                         in Map.upsert (maybe [v] (v :)) shortname acc
+                            containsUnknownBuiltins = not . Set.null $ Set.difference (builtinRefsInType ty) Builtin.builtinTypeRefs
+                         in -- Omit terms from TDNR if they depend on builtins our current UCM doesn't support.
+                            if containsUnknownBuiltins
+                              then acc
+                              else Map.upsert (maybe [v] (v :)) shortname acc
                       Nothing -> acc
               )
               Map.empty
@@ -194,6 +200,19 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             freeNameToFuzzyTermsByShortName,
             topLevelComponents = Map.empty
           }
+
+-- | Find all the type reference to builtins in a type
+builtinRefsInType :: Type v -> Set TypeReference
+builtinRefsInType =
+  Recursive.cata
+    ( ABT.out' >>> \case
+        ABT.Var _ -> mempty
+        ABT.Cycle r -> r
+        ABT.Abs _ r -> r
+        ABT.Tm fr -> case fr of
+          Type.Ref builtinRef@(Reference.ReferenceBuiltin {}) -> Set.singleton builtinRef
+          other -> fold other
+    )
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.
 --
