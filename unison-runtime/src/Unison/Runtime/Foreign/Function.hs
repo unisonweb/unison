@@ -2053,7 +2053,8 @@ outerJoinArrs (srcl, srcr) = do
   ixsl <- sortIx0 srcl
   ixsr <- sortIx0 srcr
   let align ls rs i j
-        | i >= szl || j >= szr = (ls, rs)
+        | i >= szl = extendr ls rs j
+        | j >= szr = extendl ls rs i
         | il <- PA.indexPrimArray ixsl i,
           ir <- PA.indexPrimArray ixsr j,
           u <- PA.indexArray srcl (fromIntegral il),
@@ -2063,6 +2064,16 @@ outerJoinArrs (srcl, srcr) = do
             else if u > v
             then align (0:ls) (1+ir:rs) i (j+1)
             else align (1+il:ls) (1+ir:rs) (i+1) (j+1)
+
+      extendr ls rs j
+        | j < szr, ir <- PA.indexPrimArray ixsr j
+        = extendr (0:ls) (1+ir:rs) (j+1)
+        | otherwise = (ls, rs)
+      extendl ls rs i
+        | i < szl, il <- PA.indexPrimArray ixsl i
+        = extendl (1+il:ls) (0:rs) (i+1)
+        | otherwise = (ls, rs)
+
   case align [] [] 0 0 of
     (ils, irs) -> (,) <$> mkArr ils <*> mkArr irs
   where
