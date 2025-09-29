@@ -27,6 +27,8 @@ import Unison.Runtime.Array
   ( Array,
     ByteArray,
     byteArrayToList,
+    SomePrimArr (..),
+    primArrayToList,
   )
 import Unison.Runtime.Foreign
   ( Foreign (..),
@@ -185,6 +187,7 @@ decompileForeign backref topTerms f
           ()
           (ref () ibarrayFromBytesRef)
           (decompileBytes . By.fromWord8s $ byteArrayToList a)
+  | Just a <- maybeUnwrapBuiltin f = pure $ decompilePrimArr a
   | Just s <- unwrapSeq f =
       list' () <$> traverse (decompile backref topTerms) s
   | Just m <- maybeUnwrapForeign hmapRef f = do
@@ -237,6 +240,14 @@ decompileBytes =
 
 decompileHashAlgorithm :: (Var v) => HashAlgorithm -> Term v ()
 decompileHashAlgorithm (HashAlgorithm r _) = ref () r
+
+decompilePrimArr :: (Var v) => SomePrimArr -> Term v ()
+decompilePrimArr (NArr ns) =
+  app () (builtin () $ fromString "UnboxedArray.fromNatList")
+    . list ()
+    . fmap (nat () . fromIntegral)
+    . primArrayToList
+    $ ns
 
 unwrapSeq :: Foreign -> Maybe USeq
 unwrapSeq = maybeUnwrapForeign listRef
