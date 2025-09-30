@@ -3,8 +3,10 @@
 ### For applications, there is only `main`, but there are packages that are treated as independent libraries (often
 ### under `Unison.Util`) and there is an API used by Share.
 
+
 ## NB: The strings are triple-single-quoted to allow them to contain single quotes. It’s easier to be consistent than to
 ##     special case each one.
+root-instances = []
 roots = [
     '''^Main\.main$''',
     '''^Paths_.*$''',
@@ -791,3 +793,4 @@ roots = [
     '''^Unison\.Test\.UriParser\.sch$''',
 ]
 type-class-roots = true
+unused-types = false
