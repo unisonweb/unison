@@ -4,9 +4,18 @@ module U.Codebase.Sqlite.Branch.Format
     HashBranchFormat,
     BranchLocalIds,
     BranchLocalIds' (..),
+    branchLocalIdsText_,
+    branchLocalIdsDefn_,
+    branchLocalIdsPatch_,
+    branchLocalIdsChildren_,
     HashBranchLocalIds,
     SyncBranchFormat,
     SyncBranchFormat' (..),
+    syncBranchFormatTexts_,
+    syncBranchFormatDefns_,
+    syncBranchFormatPatches_,
+    syncBranchFormatChildren_,
+    syncBranchFormatParents_,
     LocalBranchBytes (..),
     localToDbBranch,
     localToDbDiff,
@@ -16,6 +25,7 @@ module U.Codebase.Sqlite.Branch.Format
   )
 where
 
+import Control.Lens
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import U.Codebase.HashTags
@@ -103,6 +113,18 @@ data BranchLocalIds' t d p c = LocalIds
   }
   deriving (Show, Eq)
 
+branchLocalIdsText_ :: Traversal (BranchLocalIds' t d p c) (BranchLocalIds' t' d p c) t t'
+branchLocalIdsText_ f (LocalIds t d p c) = LocalIds <$> traverse f t <*> pure d <*> pure p <*> pure c
+
+branchLocalIdsDefn_ :: Traversal (BranchLocalIds' t d p c) (BranchLocalIds' t d' p c) d d'
+branchLocalIdsDefn_ f (LocalIds t d p c) = LocalIds <$> pure t <*> traverse f d <*> pure p <*> pure c
+
+branchLocalIdsPatch_ :: Traversal (BranchLocalIds' t d p c) (BranchLocalIds' t d p' c) p p'
+branchLocalIdsPatch_ f (LocalIds t d p c) = LocalIds <$> pure t <*> pure d <*> traverse f p <*> pure c
+
+branchLocalIdsChildren_ :: Traversal (BranchLocalIds' t d p c) (BranchLocalIds' t d p c') c c'
+branchLocalIdsChildren_ f (LocalIds t d p c) = LocalIds <$> pure t <*> pure d <*> pure p <*> traverse f c
+
 -- | Bytes encoding a LocalBranch
 newtype LocalBranchBytes = LocalBranchBytes ByteString
   deriving (Show, Eq, Ord)
@@ -111,6 +133,31 @@ data SyncBranchFormat' parent text defn patch child
   = SyncFull (BranchLocalIds' text defn patch child) LocalBranchBytes
   | SyncDiff parent (BranchLocalIds' text defn patch child) LocalBranchBytes
   deriving (Eq, Show)
+
+syncBranchFormatTexts_ :: Traversal (SyncBranchFormat' parent text defn patch child) (SyncBranchFormat' parent text' defn patch child) text text'
+syncBranchFormatTexts_ f = \case
+  SyncFull li bytes -> SyncFull <$> (li & branchLocalIdsText_ %%~ f) <*> pure bytes
+  SyncDiff parent li bytes -> SyncDiff parent <$> (li & branchLocalIdsText_ %%~ f) <*> pure bytes
+
+syncBranchFormatDefns_ :: Traversal (SyncBranchFormat' parent text defn patch child) (SyncBranchFormat' parent text defn' patch child) defn defn'
+syncBranchFormatDefns_ f = \case
+  SyncFull li bytes -> SyncFull <$> (li & branchLocalIdsDefn_ %%~ f) <*> pure bytes
+  SyncDiff parent li bytes -> SyncDiff parent <$> (li & branchLocalIdsDefn_ %%~ f) <*> pure bytes
+
+syncBranchFormatPatches_ :: Traversal (SyncBranchFormat' parent text defn patch child) (SyncBranchFormat' parent text defn patch' child) patch patch'
+syncBranchFormatPatches_ f = \case
+  SyncFull li bytes -> SyncFull <$> (li & branchLocalIdsPatch_ %%~ f) <*> pure bytes
+  SyncDiff parent li bytes -> SyncDiff parent <$> (li & branchLocalIdsPatch_ %%~ f) <*> pure bytes
+
+syncBranchFormatChildren_ :: Traversal (SyncBranchFormat' parent text defn patch child) (SyncBranchFormat' parent text defn patch child') child child'
+syncBranchFormatChildren_ f = \case
+  SyncFull li bytes -> SyncFull <$> (li & branchLocalIdsChildren_ %%~ f) <*> pure bytes
+  SyncDiff parent li bytes -> SyncDiff parent <$> (li & branchLocalIdsChildren_ %%~ f) <*> pure bytes
+
+syncBranchFormatParents_ :: Traversal (SyncBranchFormat' parent text defn patch child) (SyncBranchFormat' parent' text defn patch child) parent parent'
+syncBranchFormatParents_ f = \case
+  SyncFull li bytes -> pure $ SyncFull li bytes
+  SyncDiff parent li bytes -> SyncDiff <$> f parent <*> pure li <*> pure bytes
 
 type SyncBranchFormat = SyncBranchFormat' BranchObjectId TextId ObjectId PatchObjectId (BranchObjectId, CausalHashId)
 

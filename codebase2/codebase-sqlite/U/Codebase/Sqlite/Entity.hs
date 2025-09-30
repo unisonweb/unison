@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.Entity where
 
+import Control.Lens
 import U.Codebase.Sqlite.Branch.Format qualified as Namespace
 import U.Codebase.Sqlite.Causal qualified as Causal
 import U.Codebase.Sqlite.DbId (BranchHashId, BranchObjectId, CausalHashId, HashId, ObjectId, PatchObjectId, TextId)
@@ -33,3 +34,35 @@ entityType = \case
   N _ -> NamespaceType
   P _ -> PatchType
   C _ -> CausalType
+
+texts_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text' hash defn patch branchh branch causal) text text'
+texts_ f = \case
+  TC tcf -> TC <$> Term.syncTermFormatTexts_ f tcf
+  DC dcf -> DC <$> Decl.syncDeclFormatTexts_ f dcf
+  N ncf -> N <$> Namespace.syncBranchFormatTexts_ f ncf
+  P pcf -> P <$> Patch.syncPatchFormatTexts_ f pcf
+  C ccf -> pure (C ccf)
+
+hashes_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text hash' defn patch branchh branch causal) hash hash'
+hashes_ f = \case
+  TC tcf -> pure (TC tcf)
+  DC dcf -> pure (DC dcf)
+  N ncf -> pure (N ncf)
+  P pcf -> P <$> Patch.syncPatchFormatHashes_ f pcf
+  C ccf -> pure (C ccf)
+
+defns_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text hash defn' patch branchh branch causal) defn defn'
+defns_ f = \case
+  TC tcf -> TC <$> Term.syncTermFormatDefns_ f tcf
+  DC dcf -> DC <$> Decl.syncDeclFormatDefns_ f dcf
+  N ncf -> N <$> Namespace.syncBranchFormatDefns_ f ncf
+  P pcf -> P <$> Patch.syncPatchFormatDefns_ f pcf
+  C ccf -> pure (C ccf)
+
+patches_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text hash defn patch' branchh branch causal) patch patch'
+patches_ f = \case
+  TC tcf -> pure (TC tcf)
+  DC dcf -> pure (DC dcf)
+  N ncf -> N <$> Namespace.syncBranchFormatPatches_ f ncf
+  P pcf -> P <$> Patch.syncPatchFormatParents_ f pcf
+  C ccf -> pure (C ccf)

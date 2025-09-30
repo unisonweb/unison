@@ -2,6 +2,7 @@
 
 module U.Codebase.Sqlite.Term.Format where
 
+import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -9,6 +10,7 @@ import U.Codebase.Reference (Reference')
 import U.Codebase.Referent (Referent')
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId, WatchLocalIds)
+import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Reference qualified as Sqlite
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Term qualified as Term
@@ -50,6 +52,14 @@ newtype LocallyIndexedComponent' t d = LocallyIndexedComponent
 newtype SyncLocallyIndexedComponent' t d
   = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
   deriving stock (Eq, Show)
+
+syncLocallyIndexedComponentTexts_ :: Traversal (SyncLocallyIndexedComponent' t d) (SyncLocallyIndexedComponent' t' d) t t'
+syncLocallyIndexedComponentTexts_ f (SyncLocallyIndexedComponent v) =
+  SyncLocallyIndexedComponent <$> (v & traversed . _1 . LocalIds.t_ %%~ f)
+
+syncLocallyIndexedComponentDefns :: Traversal (SyncLocallyIndexedComponent' t d) (SyncLocallyIndexedComponent' t d') d d'
+syncLocallyIndexedComponentDefns f (SyncLocallyIndexedComponent v) =
+  SyncLocallyIndexedComponent <$> (v & traversed . _1 . LocalIds.h_ %%~ f)
 
 {-
 message = "hello, world"     -> ABT { ... { Term.F.Text "hello, world" } }    -> hashes to (#abc, 0)
@@ -129,6 +139,14 @@ type SyncTermFormat = SyncTermFormat' TextId ObjectId
 
 data SyncTermFormat' t d = SyncTerm (SyncLocallyIndexedComponent' t d)
   deriving stock (Eq, Show)
+
+syncTermFormatTexts_ :: Traversal (SyncTermFormat' t d) (SyncTermFormat' t' d) t t'
+syncTermFormatTexts_ f (SyncTerm slic) =
+  SyncTerm <$> (slic & syncLocallyIndexedComponentTexts_ %%~ f)
+
+syncTermFormatDefns_ :: Traversal (SyncTermFormat' t d) (SyncTermFormat' t d') d d'
+syncTermFormatDefns_ f (SyncTerm slic) =
+  SyncTerm <$> (slic & syncLocallyIndexedComponentDefns %%~ f)
 
 data WatchResultFormat
   = WatchResult WatchLocalIds Term

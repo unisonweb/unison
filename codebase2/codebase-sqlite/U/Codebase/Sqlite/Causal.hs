@@ -3,9 +3,12 @@ module U.Codebase.Sqlite.Causal
     GDbCausal (..),
     SyncCausalFormat,
     SyncCausalFormat' (..),
+    syncCausalFormatCausalHash_,
+    syncCausalFormatValueHash_,
   )
 where
 
+import Control.Lens
 import Data.Vector (Vector)
 import U.Codebase.Sqlite.DbId (BranchHashId, CausalHashId)
 import Unison.Prelude
@@ -23,5 +26,11 @@ data SyncCausalFormat' causalHash valueHash = SyncCausalFormat
     parents :: Vector causalHash
   }
   deriving stock (Eq, Show)
+
+syncCausalFormatCausalHash_ :: Traversal (SyncCausalFormat' causalHash valueHash) (SyncCausalFormat' causalHash' valueHash) causalHash causalHash'
+syncCausalFormatCausalHash_ f (SyncCausalFormat v p) = SyncCausalFormat v <$> traverse f p
+
+syncCausalFormatValueHash_ :: Lens (SyncCausalFormat' causalHash valueHash) (SyncCausalFormat' causalHash valueHash') valueHash valueHash'
+syncCausalFormatValueHash_ f (SyncCausalFormat v p) = (\v' -> SyncCausalFormat v' p) <$> f v
 
 type SyncCausalFormat = SyncCausalFormat' CausalHashId BranchHashId

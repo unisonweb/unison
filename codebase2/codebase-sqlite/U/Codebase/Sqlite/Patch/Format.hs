@@ -2,9 +2,16 @@ module U.Codebase.Sqlite.Patch.Format
   ( PatchFormat (..),
     PatchLocalIds,
     PatchLocalIds' (..),
+    patchLocalIdsTexts_,
+    patchLocalIdsHashes_,
+    patchLocalIdsDefns_,
     HashPatchLocalIds,
     SyncPatchFormat,
     SyncPatchFormat' (..),
+    syncPatchFormatParents_,
+    syncPatchFormatTexts_,
+    syncPatchFormatHashes_,
+    syncPatchFormatDefns_,
     applyPatchDiffs,
     localPatchToPatch,
     localPatchToPatch',
@@ -13,6 +20,7 @@ module U.Codebase.Sqlite.Patch.Format
   )
 where
 
+import Control.Lens
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Vector (Vector)
@@ -42,6 +50,15 @@ data PatchLocalIds' t h d = LocalIds
   }
   deriving stock (Eq, Show)
 
+patchLocalIdsTexts_ :: Traversal (PatchLocalIds' t h d) (PatchLocalIds' t' h d) t t'
+patchLocalIdsTexts_ f (LocalIds t h d) = LocalIds <$> traverse f t <*> pure h <*> pure d
+
+patchLocalIdsHashes_ :: Traversal (PatchLocalIds' t h d) (PatchLocalIds' t h' d) h h'
+patchLocalIdsHashes_ f (LocalIds t h d) = LocalIds <$> pure t <*> traverse f h <*> pure d
+
+patchLocalIdsDefns_ :: Traversal (PatchLocalIds' t h d) (PatchLocalIds' t h d') d d'
+patchLocalIdsDefns_ f (LocalIds t h d) = LocalIds <$> pure t <*> pure h <*> traverse f d
+
 type SyncPatchFormat = SyncPatchFormat' PatchObjectId TextId HashId ObjectId
 
 data SyncPatchFormat' parent text hash defn
@@ -49,6 +66,26 @@ data SyncPatchFormat' parent text hash defn
   | -- | p is the identity of the thing that the diff is relative to
     SyncDiff parent (PatchLocalIds' text hash defn) ByteString
   deriving stock (Eq, Show)
+
+syncPatchFormatParents_ :: Traversal (SyncPatchFormat' p text hash defn) (SyncPatchFormat' p' text hash defn) p p'
+syncPatchFormatParents_ f = \case
+  (SyncDiff p li b) -> SyncDiff <$> f p <*> pure li <*> pure b
+  (SyncFull li b) -> SyncFull <$> pure li <*> pure b
+
+syncPatchFormatTexts_ :: Traversal (SyncPatchFormat' p text hash defn) (SyncPatchFormat' p text' hash defn) text text'
+syncPatchFormatTexts_ f = \case
+  (SyncDiff p li b) -> SyncDiff p <$> (li & patchLocalIdsTexts_ %%~ f) <*> pure b
+  (SyncFull li b) -> SyncFull <$> (li & patchLocalIdsTexts_ %%~ f) <*> pure b
+
+syncPatchFormatHashes_ :: Traversal (SyncPatchFormat' p text hash defn) (SyncPatchFormat' p text hash' defn) hash hash'
+syncPatchFormatHashes_ f = \case
+  (SyncDiff p li b) -> SyncDiff p <$> (li & patchLocalIdsHashes_ %%~ f) <*> pure b
+  (SyncFull li b) -> SyncFull <$> (li & patchLocalIdsHashes_ %%~ f) <*> pure b
+
+syncPatchFormatDefns_ :: Traversal (SyncPatchFormat' p text hash defn) (SyncPatchFormat' p text hash defn') defn defn'
+syncPatchFormatDefns_ f = \case
+  (SyncDiff p li b) -> SyncDiff p <$> (li & patchLocalIdsDefns_ %%~ f) <*> pure b
+  (SyncFull li b) -> SyncFull <$> (li & patchLocalIdsDefns_ %%~ f) <*> pure b
 
 -- | Apply a list of patch diffs to a patch, left to right.
 applyPatchDiffs :: Patch -> [PatchDiff] -> Patch

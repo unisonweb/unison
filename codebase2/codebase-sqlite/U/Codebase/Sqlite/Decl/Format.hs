@@ -2,11 +2,13 @@
 
 module U.Codebase.Sqlite.Decl.Format where
 
+import Control.Lens
 import Data.Vector (Vector)
 import U.Codebase.Decl (DeclR)
 import U.Codebase.Reference (Reference')
 import U.Codebase.Sqlite.DbId (ObjectId, TextId)
 import U.Codebase.Sqlite.LocalIds (LocalDefnId, LocalIds', LocalTextId)
+import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Symbol (Symbol)
 import U.Codebase.Type qualified as Type
 import U.Core.ABT qualified as ABT
@@ -38,9 +40,23 @@ data SyncDeclFormat' t d
   = SyncDecl (SyncLocallyIndexedComponent' t d)
   deriving stock (Eq, Show)
 
+syncDeclFormatTexts_ :: Traversal (SyncDeclFormat' t d) (SyncDeclFormat' t' d) t t'
+syncDeclFormatTexts_ f (SyncDecl c) = SyncDecl <$> syncLocallyIndexedComponentTexts_ f c
+
+syncDeclFormatDefns_ :: Traversal (SyncDeclFormat' t d) (SyncDeclFormat' t d') d d'
+syncDeclFormatDefns_ f (SyncDecl c) = SyncDecl <$> syncLocallyIndexedComponentDefns_ f c
+
 newtype SyncLocallyIndexedComponent' t d
   = SyncLocallyIndexedComponent (Vector (LocalIds' t d, ByteString))
   deriving stock (Eq, Show)
+
+syncLocallyIndexedComponentTexts_ :: Traversal (SyncLocallyIndexedComponent' t d) (SyncLocallyIndexedComponent' t' d) t t'
+syncLocallyIndexedComponentTexts_ f (SyncLocallyIndexedComponent v) =
+  SyncLocallyIndexedComponent <$> (v & traversed . _1 . LocalIds.t_ %%~ f)
+
+syncLocallyIndexedComponentDefns_ :: Traversal (SyncLocallyIndexedComponent' t d) (SyncLocallyIndexedComponent' t d') d d'
+syncLocallyIndexedComponentDefns_ f (SyncLocallyIndexedComponent v) =
+  SyncLocallyIndexedComponent <$> (v & traversed . _1 . LocalIds.h_ %%~ f)
 
 -- [OldDecl] ==map==> [NewDecl] ==number==> [(NewDecl, Int)] ==sort==> [(NewDecl, Int)] ==> permutation is map snd of that
 
