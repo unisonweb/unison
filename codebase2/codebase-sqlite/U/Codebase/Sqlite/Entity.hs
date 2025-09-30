@@ -91,3 +91,20 @@ branches_ f = \case
       <&> N
   P pcf -> pure (P pcf)
   C ccf -> pure (C ccf)
+
+causalHashes_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text hash defn patch branchh branch causal') causal causal'
+causalHashes_ f = \case
+  TC tcf -> pure (TC tcf)
+  DC dcf -> pure (DC dcf)
+  N ncf ->
+    ( case ncf of
+        Namespace.SyncFull li bytes -> Namespace.SyncFull <$> (li & Namespace.branchLocalIdsChildren_ . _2 %%~ f) <*> pure bytes
+        Namespace.SyncDiff parent li bytes ->
+          Namespace.SyncDiff
+            <$> (pure parent)
+            <*> (li & Namespace.branchLocalIdsChildren_ . _2 %%~ f)
+            <*> pure bytes
+    )
+      <&> N
+  P pcf -> pure (P pcf)
+  C ccf -> C <$> Causal.syncCausalFormatCausalHash_ f ccf
