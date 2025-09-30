@@ -6,7 +6,36 @@
 
 ## NB: The strings are triple-single-quoted to allow them to contain single quotes. It’s easier to be consistent than to
 ##     special case each one.
-root-instances = []
+root-instances = [
+    ## Allow “negative” instances, which are necessarily unused.
+    { instance = '''^\((.* )?TypeError .*\) => .*''' },
+    ## Principled classes – even if we’re not using them, they have a single reasaonable implementation, and many of
+    ## them can be derived.
+    ##
+    ## NB: These classes aren’t always in the module you might expect, but it’s the canonical one.
+    { class = '''^Data\.Bifoldable\.Bifoldable$''' },
+    { class = '''^Data\.Bifunctor\.Bifunctor$''' },
+    { class = '''^Data\.Bitraversable\.Bitraversable$''' },
+    { class = '''^Data\.Foldable\.Foldable$''' },
+    { class = '''^Data\.Functor\.Classes\.Eq1$''' },
+    { class = '''^Data\.Functor\.Classes\.Eq2$''' },
+    { class = '''^Data\.Functor\.Classes\.Ord1$''' },
+    { class = '''^Data\.Functor\.Classes\.Ord2$''' },
+    { class = '''^Data\.Functor\.Classes\.Read1$''' },
+    { class = '''^Data\.Functor\.Classes\.Read2$''' },
+    { class = '''^Data\.Functor\.Classes\.Show1$''' },
+    { class = '''^Data\.Functor\.Classes\.Show2$''' },
+    { class = '''^Data\.Traversable\.Traversable$''' },
+    { class = '''^GHC\.Base\.Functor$''' },
+    { class = '''^GHC\.Base\.Monoid$''' },
+    { class = '''^GHC\.Classes\.Eq$''' },
+    { class = '''^GHC\.Classes\.Ord$''' },
+    { class = '''^GHC\.Generics\.Generic$''' },
+    { class = '''^GHC\.Generics\.Generic1$''' },
+    { class = '''^GHC\.Read\.Read$''' },
+    { class = '''^GHC\.Show\.Show$''' },
+    { class = '''^GHC\Base\.Semigroup$''' },
+]
 roots = [
     '''^Main\.main$''',
     '''^Paths_.*$''',
