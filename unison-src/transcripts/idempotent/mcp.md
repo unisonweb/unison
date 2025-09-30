@@ -195,7 +195,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"outputMessages\":[\"1. builtins. (838 terms, 121 types)\"],\"sourceCodeUpdates\":[]}",
+                  "text": "{\"outputMessages\":[\"1. builtins. (864 terms, 122 types)\"],\"sourceCodeUpdates\":[]}",
                   "type": "text"
               }
           ],
