@@ -66,3 +66,28 @@ patches_ f = \case
   N ncf -> N <$> Namespace.syncBranchFormatPatches_ f ncf
   P pcf -> P <$> Patch.syncPatchFormatParents_ f pcf
   C ccf -> pure (C ccf)
+
+branchHashes_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text hash defn patch branchh' branch causal) branchh branchh'
+branchHashes_ f = \case
+  TC tcf -> pure (TC tcf)
+  DC dcf -> pure (DC dcf)
+  N ncf -> pure (N ncf)
+  P pcf -> pure (P pcf)
+  C ccf -> C <$> Causal.syncCausalFormatValueHash_ f ccf
+
+branches_ :: Traversal (SyncEntity' text hash defn patch branchh branch causal) (SyncEntity' text hash defn patch branchh branch' causal) branch branch'
+branches_ f = \case
+  TC tcf -> pure (TC tcf)
+  DC dcf -> pure (DC dcf)
+  N ncf ->
+    ( case ncf of
+        Namespace.SyncFull li bytes -> Namespace.SyncFull <$> (li & Namespace.branchLocalIdsChildren_ . _1 %%~ f) <*> pure bytes
+        Namespace.SyncDiff parent li bytes ->
+          Namespace.SyncDiff
+            <$> (f parent)
+            <*> (li & Namespace.branchLocalIdsChildren_ . _1 %%~ f)
+            <*> pure bytes
+    )
+      <&> N
+  P pcf -> pure (P pcf)
+  C ccf -> pure (C ccf)
