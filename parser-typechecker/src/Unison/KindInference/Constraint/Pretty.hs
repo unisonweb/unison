@@ -4,7 +4,10 @@
 module Unison.KindInference.Constraint.Pretty
   ( prettyUVarKind,
     prettySolvedConstraint,
+    tryPrettySolvedConstraint,
+    tryPrettyUVarKind,
     prettyCyclicUVarKind,
+    prettySolveError,
   )
 where
 
@@ -15,9 +18,10 @@ import Unison.KindInference.Solve.Monad
   ( ConstraintMap,
     Env (..),
     Solve (..),
+    SolveError (..),
     SolveState (..),
     find,
-    run,
+    runSolve,
   )
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
@@ -78,15 +82,33 @@ prettyCyclicUVarKindWorker prec u nameMap visitingSet =
 -- | Pretty print the kind constraint on the given @UVar@.
 --
 -- __Precondition:__ The @ConstraintMap@ is acyclic.
-prettyUVarKind :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
-prettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
+tryPrettyUVarKind :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> Either (SolveError loc) (P.Pretty P.ColorText)
+tryPrettyUVarKind ppe constraints uvar = ppRunner ppe constraints do
   prettyUVarKind' arrPrec uvar
+
+prettyUVarKind :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> UVar v loc -> P.Pretty P.ColorText
+prettyUVarKind ppe constraints uvar =
+  case tryPrettyUVarKind ppe constraints uvar of
+    Left solveErr -> prettySolveError solveErr
+    Right pp -> pp
 
 prettyUVarKind' :: (Var v) => Int -> UVar v loc -> Solve v loc (P.Pretty P.ColorText)
 prettyUVarKind' prec u =
   find u >>= \case
     Nothing -> pure (prettyUnknown prec)
     Just c -> prettySolvedConstraint' prec c
+
+-- | Pretty print a 'Solved.Constraint'
+--
+-- __Precondition:__ The @ConstraintMap@ is acyclic.
+tryPrettySolvedConstraint ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  ConstraintMap v loc ->
+  Solved.Constraint (UVar v loc) v loc ->
+  Either (SolveError loc) (P.Pretty P.ColorText)
+tryPrettySolvedConstraint ppe constraints c =
+  ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
 
 -- | Pretty print a 'Solved.Constraint'
 --
@@ -98,7 +120,9 @@ prettySolvedConstraint ::
   Solved.Constraint (UVar v loc) v loc ->
   P.Pretty P.ColorText
 prettySolvedConstraint ppe constraints c =
-  ppRunner ppe constraints (prettySolvedConstraint' arrPrec c)
+  case tryPrettySolvedConstraint ppe constraints c of
+    Left solveErr -> prettySolveError solveErr
+    Right pp -> pp
 
 prettySolvedConstraint' :: (Var v) => Int -> Solved.Constraint (UVar v loc) v loc -> Solve v loc (P.Pretty P.ColorText)
 prettySolvedConstraint' prec = \case
@@ -113,7 +137,7 @@ prettySolvedConstraint' prec = \case
 -- constraint map, but no constraints are added. This runner just
 -- allows running pretty printers outside of the @Solve@ monad by
 -- discarding the resulting state.
-ppRunner :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> r)
+ppRunner :: (Var v) => PrettyPrintEnv -> ConstraintMap v loc -> (forall r. Solve v loc r -> Either (SolveError loc) r)
 ppRunner ppe constraints =
   let st =
         SolveState
@@ -123,13 +147,13 @@ ppRunner ppe constraints =
             typeMap = mempty
           }
       env = Env ppe
-   in \solve -> fst (run env st solve)
+   in \solve -> fst <$> (runSolve env st solve)
 
 -- | A pretty printer for cyclic kind constraints on a
 -- @UVar@. Expresses the infinite kind by a generating equation.
 --
 -- __Precondition:__ The @UVar@ has a cyclic constraint.
-prettyCyclicUVarKind ::
+tryPrettyCyclicUVarKind ::
   (Var v) =>
   PrettyPrintEnv ->
   ConstraintMap v loc ->
@@ -137,8 +161,8 @@ prettyCyclicUVarKind ::
   -- | A function to style the cyclic @UVar@'s variable name
   (P.Pretty P.ColorText -> P.Pretty P.ColorText) ->
   -- | (the pretty @UVar@ variable, the generating equation)
-  (P.Pretty P.ColorText, P.Pretty P.ColorText)
-prettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraints do
+  Either (SolveError loc) (P.Pretty P.ColorText, P.Pretty P.ColorText)
+tryPrettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraints do
   find uvar >>= \case
     Nothing -> explode
     Just c -> do
@@ -157,3 +181,29 @@ prettyCyclicUVarKind ppe constraints uvar theUVarStyle = ppRunner ppe constraint
         Just n -> pure (n, P.wrap (n <> "=" <> pp))
   where
     explode = error ("[prettyCyclicUVarKind] called with non-cyclic uvar: " <> show uvar)
+
+-- | A pretty printer for cyclic kind constraints on a
+-- @UVar@. Expresses the infinite kind by a generating equation.
+--
+-- __Precondition:__ The @UVar@ has a cyclic constraint.
+prettyCyclicUVarKind ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  ConstraintMap v loc ->
+  UVar v loc ->
+  -- | A function to style the cyclic @UVar@'s variable name
+  (P.Pretty P.ColorText -> P.Pretty P.ColorText) ->
+  -- | (the pretty @UVar@ variable, the generating equation)
+  (P.Pretty P.ColorText, P.Pretty P.ColorText)
+prettyCyclicUVarKind ppe constraints uvar theUVarStyle =
+  case tryPrettyCyclicUVarKind ppe constraints uvar theUVarStyle of
+    Left solveErr -> (prettySolveError solveErr, prettySolveError solveErr)
+    Right pp -> pp
+
+prettySolveError :: (SolveError loc) -> P.Pretty P.ColorText
+prettySolveError = \case
+  MissingBuiltin _loc builtin ->
+    P.lines
+      [ "Encountered unknown builtin when kind-checking: " <> P.shown builtin,
+        "✨ Hint: Upgrading to the latest ucm may resolve this issue."
+      ]

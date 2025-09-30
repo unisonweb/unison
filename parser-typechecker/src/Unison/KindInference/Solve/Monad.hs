@@ -2,22 +2,24 @@ module Unison.KindInference.Solve.Monad
   ( Solve (..),
     Env (..),
     SolveState (..),
+    SolveError (..),
     Descriptor (..),
     ConstraintMap,
-    run,
+    liftGen,
+    runSolve,
     emptyState,
     find,
-    genStateL,
     runGen,
     addUnconstrainedVar,
   )
 where
 
-import Control.Lens (Lens', (%%~))
+import Control.Lens (Lens')
+import Control.Lens.Zoom
+import Control.Monad.Except
 import Control.Monad.Fix (MonadFix (..))
 import Control.Monad.Reader qualified as M
 import Control.Monad.State.Strict qualified as M
-import Data.Functor.Identity
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as Set
@@ -28,6 +30,7 @@ import Unison.KindInference.UVar (UVar (..))
 import Unison.PatternMatchCoverage.UFMap qualified as U
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.Reference (Reference)
 import Unison.Symbol
 import Unison.Type qualified as T
 import Unison.Var
@@ -60,8 +63,12 @@ data Descriptor v loc = Descriptor
   { descriptorConstraint :: Maybe (Constraint (UVar v loc) v loc)
   }
 
-newtype Solve v loc a = Solve {unSolve :: Env -> SolveState v loc -> (a, SolveState v loc)}
-  deriving
+data SolveError loc
+  = MissingBuiltin loc Reference
+  deriving stock (Show, Eq)
+
+newtype Solve v loc a = Solve {unSolve :: M.ReaderT Env (M.StateT (SolveState v loc) (Except (SolveError loc))) a}
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -69,7 +76,15 @@ newtype Solve v loc a = Solve {unSolve :: Env -> SolveState v loc -> (a, SolveSt
       M.MonadReader Env,
       M.MonadState (SolveState v loc)
     )
-    via M.ReaderT Env (M.State (SolveState v loc))
+
+-- Run a Gen action in the Solve monad
+liftGen :: Gen v loc a -> Solve v loc a
+liftGen (Gen action) = Solve $ do
+  lift $ zoom genStateL $ M.mapStateT (withExcept genErrorToSolveError) $ action
+  where
+    genErrorToSolveError :: Gen.GenError loc -> (SolveError loc)
+    genErrorToSolveError = \case
+      Gen.MissingBuiltin ann builtin -> MissingBuiltin ann builtin
 
 -- | Helper for inteleaving constraint generation and solving
 genStateL :: Lens' (SolveState v loc) (Gen.GenState v loc)
@@ -90,13 +105,11 @@ genStateL f st =
 -- | Interleave constraint generation into constraint solving
 runGen :: (Var v) => Gen v loc a -> Solve v loc a
 runGen gena = do
-  st <- M.get
   let gena' = do
         res <- gena
         st <- M.get
         pure (res, Gen.newVars st)
-  let ((cs, vs), st') = st & genStateL %%~ Gen.run gena'
-  M.put st'
+  (cs, vs) <- liftGen gena'
   traverse_ addUnconstrainedVar vs
   M.modify \st -> st {newUnifVars = vs ++ newUnifVars st}
   pure cs
@@ -111,8 +124,12 @@ addUnconstrainedVar uvar = do
   M.put st {constraints = constraints'}
 
 -- | Runner for the @Solve@ monad
-run :: Env -> SolveState v loc -> Solve v loc a -> (a, SolveState v loc)
-run e st action = unSolve action e st
+runSolve :: Env -> SolveState v loc -> Solve v loc a -> Either (SolveError loc) (a, SolveState v loc)
+runSolve e st action =
+  unSolve action
+    & flip M.runReaderT e
+    & flip M.runStateT st
+    & runExcept
 
 -- | Initial solve state
 emptyState :: SolveState v loc

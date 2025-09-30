@@ -23,12 +23,13 @@ where
 import Data.Foldable (foldlM)
 import Data.Graph (flattenSCC, stronglyConnCompR)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as Nel
 import Data.Map.Strict qualified as Map
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.DataDeclaration
 import Unison.KindInference.Generate (declComponentConstraints, termConstraints)
-import Unison.KindInference.Solve (KindError, defaultUnconstrainedVars, initialState, step, verify)
-import Unison.KindInference.Solve.Monad (Env (..), SolveState, run, runGen)
+import Unison.KindInference.Solve (KindError (..), defaultUnconstrainedVars, initialState, step, verify)
+import Unison.KindInference.Solve.Monad (Env (..), SolveState, runGen, runSolve)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.Reference
@@ -43,10 +44,10 @@ kindCheckAnnotations ::
   SolveState v loc ->
   Term.Term v loc ->
   Either (NonEmpty (KindError v loc)) ()
-kindCheckAnnotations ppe st t =
-  let (cs, st') = run env st (runGen $ termConstraints t)
-      env = Env ppe
-   in step env st' cs $> ()
+kindCheckAnnotations ppe st t = do
+  let env = Env ppe
+  (cs, st') <- mapLeft (Nel.singleton . SolveError) $ runSolve env st (runGen $ termConstraints t)
+  step env st' cs $> ()
 
 -- | Infer the kinds of all decl vars
 inferDecls ::
@@ -65,9 +66,9 @@ inferDecls ppe declMap =
         SolveState v loc ->
         [(Reference, Decl v loc)] ->
         Either (NonEmpty (KindError v loc)) (SolveState v loc)
-      handleComponent s c =
-        let (cs, st) = run env s (runGen $ declComponentConstraints c)
-         in step env st cs
+      handleComponent s c = do
+        (cs, st) <- mapLeft (Nel.singleton . SolveError) $ runSolve env s (runGen $ declComponentConstraints c)
+        step env st cs
 
       handleComponents ::
         [[(Reference, Decl v loc)]] ->
