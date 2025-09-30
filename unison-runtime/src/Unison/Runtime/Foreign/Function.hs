@@ -789,7 +789,7 @@ foreignCallHelper = \case
   ImmutableArray_pick1 -> mkForeignExn pick1
   ImmutableArray_pick1Or -> mkForeignExn pick1Or
   ImmutableArray_sortIx -> mkForeign sortIx
-  ImmutableArray_zipAppend -> mkForeign $
+  ImmutableArray_zipWithAppend -> mkForeign $
     \(l :: PA.Array Val, r :: PA.Array Val) -> do
       let sz = min (PA.sizeofArray l) (PA.sizeofArray r)
       dst <- PA.newArray sz emptyVal
@@ -798,7 +798,7 @@ foreignCallHelper = \case
                 (SeqVal sl, SeqVal sr) -> do
                   PA.writeArray dst i (SeqVal $ sl <> sr)
                   fill (i+1)
-                _ -> die [] "ImmutableArray.zipAppend: non-list elements"
+                _ -> die [] "ImmutableArray.zipWithAppend: non-list elements"
             | otherwise = PA.unsafeFreezeArray dst
       fill 0
   ImmutableArray_runsIx -> mkForeign collectRuns
@@ -819,7 +819,7 @@ foreignCallHelper = \case
   UnboxedArray_divideR -> mkForeign $ \(PA.NArr arr, n) ->
     PA.NArr <$> PA.primArrayMap (pure . (`div` n)) arr
   UnboxedArray_size -> mkForeign $ \(PA.NArr arr) ->
-    evaluate $ PA.sizeofPrimArray arr
+    evaluate . fromIntegral @Int @Word64 $ PA.sizeofPrimArray arr
   UnboxedArray_toList -> mkForeign $ \(PA.NArr src) ->
     pure . fmap NatVal $ PA.primArrayToSeq src
   UnboxedArray_occurrences -> mkForeign occurrences
@@ -1839,19 +1839,20 @@ pick1Or (dflt, PA.NArr ixs, src) = do
     msg = "ImmutableArray.pick: index out of bounds"
 
 upick1Or ::
-  (PA.SomePrimArr, PA.SomePrimArr) ->
+  (Word64, PA.SomePrimArr, PA.SomePrimArr) ->
   IO (Either (F.Failure (PA.SomePrimArr, Val)) PA.SomePrimArr)
-upick1Or (PA.NArr ixs, src0@(PA.NArr src)) = do
+upick1Or (df, PA.NArr ixs, src0@(PA.NArr src)) = do
   dst <- PA.newPrimArray szi
 
   let fill j
         | j < szi = case PA.indexPrimArray ixs j of
             ix0
-              | ix0 == 0 -> fill (j+1)
               | ix <- fromIntegral ix0,
-                0 < ix, ix <= szs -> do
+                0 <= ix, ix <= szs -> do
                   PA.writePrimArray dst j $
-                    PA.indexPrimArray src (ix - 1)
+                    if ix0 == 0
+                    then df
+                    else PA.indexPrimArray src (ix - 1)
                   fill (j+1)
               | otherwise -> badIndex ix0
         | otherwise = Right . PA.NArr <$> PA.unsafeFreezePrimArray dst
@@ -1967,18 +1968,16 @@ chopArr (PA.NArr ixs, PA.NArr lens, src)
     isz = PA.sizeofPrimArray ixs
     ssz = PA.sizeofArray src
 
-    slice i n arr
-      | i >= n = PA.unsafeFreezeArray arr
-      | otherwise = do
-          PA.writeArray arr i (PA.indexArray src i)
-          slice (i+1) n arr
+    slice i n arr = do
+      PA.copyArray arr 0 src i n
+      PA.unsafeFreezeArray arr
 
     slices i arr
       | i >= isz = Right <$> PA.unsafeFreezeArray arr
       | ix <- fromIntegral $ PA.indexPrimArray ixs i,
         ln <- fromIntegral $ PA.indexPrimArray lens i = do
           PA.writeArray arr i . encodeVal @(PA.Array Val)
-            =<< slice ix (ix+ln)
+            =<< slice ix ln
             =<< PA.newArray ln emptyVal
           slices (i+1) arr
 
@@ -1986,7 +1985,7 @@ chopArr (PA.NArr ixs, PA.NArr lens, src)
       | i >= isz = PA.newArray isz emptyVal >>= slices 0
       | ix <- PA.indexPrimArray ixs i,
         ln <- PA.indexPrimArray lens i,
-        ix + ln >= fromIntegral ssz =
+        ix + ln > fromIntegral ssz =
           pure . Left $
             F.Failure
               Ty.arrayFailureRef

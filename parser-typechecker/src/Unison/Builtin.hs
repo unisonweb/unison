@@ -818,7 +818,7 @@ builtinsSrc =
         list (pair a (pair b c)) --> iarrayt b,
     B "ImmutableArray.intersectIx" $
       forall1 "a" $ \a ->
-        list a --> list a --> tuple [uarrayt nat, uarrayt nat],
+        iarrayt a --> iarrayt a --> tuple [uarrayt nat, uarrayt nat],
     B "ImmutableArray.murmurHashesUntyped" $
       forall1 "a" $ \a ->
         iarrayt a --> uarrayt nat,

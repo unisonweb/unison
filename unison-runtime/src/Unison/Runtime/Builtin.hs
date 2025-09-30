@@ -1429,7 +1429,7 @@ declareForeigns = do
   declareForeign Untracked 1 ImmutableArray_runsIx
   declareForeign Untracked 1 ImmutableArray_toList
   declareForeign Untracked 1 ImmutableArray_toLists
-  declareForeign Untracked 2 ImmutableArray_zipAppend
+  declareForeign Untracked 2 ImmutableArray_zipWithAppend
   declareForeign Untracked 1 ImmutableArray_sortIx
   declareForeign Untracked 1 UnboxedArray_fromNatList
   declareForeign Untracked 2 UnboxedArray_modR

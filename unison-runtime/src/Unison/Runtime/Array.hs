@@ -446,12 +446,11 @@ arrayMap :: PrimMonad m => (a -> m b) -> PA.Array a -> m (Array b)
 arrayMap f ia = do
   oa <- PA.newArray sz (error "arrayMap: dummy value")
   let go n
-        | n <= sz = pure ()
-        | otherwise = do
+        | n < sz = do
             PA.writeArray oa n =<< f (PA.indexArray ia n)
             go (n+1)
+        | otherwise = PA.unsafeFreezeArray oa
   go 0
-  PA.unsafeFreezeArray oa
   where
     sz = PA.sizeofArray ia
 {-# INLINE arrayMap #-}

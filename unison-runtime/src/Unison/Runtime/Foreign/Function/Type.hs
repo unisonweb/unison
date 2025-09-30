@@ -379,7 +379,7 @@ data ForeignFunc
   | ImmutableArray_runsIx
   | ImmutableArray_toList
   | ImmutableArray_toLists
-  | ImmutableArray_zipAppend
+  | ImmutableArray_zipWithAppend
   | ImmutableArray_sortIx
   | UnboxedArray_fromNatList
   | UnboxedArray_modR
@@ -761,7 +761,7 @@ foreignFuncBuiltinName = \case
   ImmutableArray_pick -> "ImmutableArray.pick"
   ImmutableArray_pick1 -> "ImmutableArray.pick1"
   ImmutableArray_pick1Or -> "ImmutableArray.pick1Or"
-  ImmutableArray_zipAppend -> "ImmutableArray.zipAppend"
+  ImmutableArray_zipWithAppend -> "ImmutableArray.zipWithAppend"
   ImmutableArray_runsIx -> "ImmutableArray.runsIx"
   ImmutableArray_toList -> "ImmutableArray.toList"
   ImmutableArray_toLists -> "ImmutableArray.toLists"
