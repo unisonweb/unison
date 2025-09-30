@@ -159,6 +159,11 @@ jobs:
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
 
+      - name: check for dead code
+        uses: freckle/weeder-action@8a97af19a69ef455f26d1fa8b0c19f9a2a90209a # v3
+        with:
+          ghc-version: "9.6.5" # This needs to match the resolver in stack.yaml
+
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: echo | stack ghci
