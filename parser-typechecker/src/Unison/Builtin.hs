@@ -816,8 +816,6 @@ builtinsSrc =
     B "ImmutableArray.fromListAt2" $
       forall3 "a" "b" "c" $ \a b c ->
         list (pair a (pair b c)) --> iarrayt b,
-    B "ImmutableArray.fromList" $
-      forall1 "a" $ \a -> list a --> iarrayt a,
     B "ImmutableArray.intersectIx" $
       forall1 "a" $ \a ->
         list a --> list a --> tuple [uarrayt nat, uarrayt nat],

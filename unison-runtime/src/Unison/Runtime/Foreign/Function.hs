@@ -3560,6 +3560,10 @@ functionReplacementList =
     ( "01csmdujt5ot550j9t0o1gfop4ephtssv358rkfqdo2e01knekgds",
       0,
       Avro_decodeBinary
+    ),
+    ( "034ipv7raca929hir3gd1e2tmhe6o583rnhfd2ti5u71lj92v2jcg",
+      0,
+      ImmutableArray_fromList
     )
   ]
 
