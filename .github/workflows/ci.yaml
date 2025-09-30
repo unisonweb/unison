@@ -160,6 +160,7 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
 
       - name: check for dead code
+        if: runner.arch == 'x64' && runner.os == 'Linux'
         uses: freckle/weeder-action@8a97af19a69ef455f26d1fa8b0c19f9a2a90209a # v3
         with:
           ghc-version: "9.6.5" # This needs to match the resolver in stack.yaml
