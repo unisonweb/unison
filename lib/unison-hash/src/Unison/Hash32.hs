@@ -18,6 +18,7 @@ module Unison.Hash32
   )
 where
 
+import Data.Hashable (Hashable)
 import U.Util.Base32Hex (Base32Hex (..))
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
@@ -30,7 +31,7 @@ import Unison.Prelude
 --   * @unison-util-base32hex-orphans-aeson@
 --   * @unison-util-base32hex-orphans-sqlite@
 newtype Hash32 = UnsafeFromBase32Hex Base32Hex
-  deriving (Eq, Ord, Show) via (Text)
+  deriving (Eq, Ord, Show, Hashable) via (Text)
 
 instance From Hash32 Text where
   from = toText

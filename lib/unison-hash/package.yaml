@@ -10,6 +10,7 @@ dependencies:
   - deepseq
   - unison-prelude
   - unison-util-base32hex
+  - hashable
 
 library:
   source-dirs: src
