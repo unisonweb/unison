@@ -15,6 +15,7 @@ module Unison.Cli.ProjectUtils
     getProjectAndBranchByNames,
     getProjectByName,
     expectProjectAndBranchByTheseNames,
+    expectProjectAndBranchByTheseNamesTx,
     getProjectBranchCausalHash,
 
     -- * Loading remote project info
@@ -203,6 +204,29 @@ expectProjectAndBranchByTheseNames = \case
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
 
+-- | Like 'expectProjectAndBranchByTheseNames', but in Transaction, and takes the current project and a rollback
+-- function as arguments.
+expectProjectAndBranchByTheseNamesTx ::
+  (forall void. Output -> Sqlite.Transaction void) ->
+  Sqlite.Project ->
+  These ProjectName ProjectBranchName ->
+  Sqlite.Transaction (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+expectProjectAndBranchByTheseNamesTx rollback currentProject = \case
+  This projectName -> expectProjectAndBranchByTheseNamesTx rollback currentProject (These projectName defaultBranchName)
+  That branchName -> do
+    branch <-
+      Queries.loadProjectBranchByName currentProject.projectId branchName & onNothingM do
+        rollback (LocalProjectBranchDoesntExist (ProjectAndBranch currentProject.name branchName))
+    pure (ProjectAndBranch currentProject branch)
+  These projectName branchName -> do
+    maybeProjectAndBranch <-
+      runMaybeT do
+        project <- MaybeT (Queries.loadProjectByName projectName)
+        branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
+        pure (ProjectAndBranch project branch)
+    maybeProjectAndBranch & onNothing do
+      rollback (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+
 -- | Expect/resolve branch reference with the following rules:
 --
 --   1. If the project is missing, use the provided project.
@@ -212,8 +236,7 @@ resolveProjectBranchInProject :: Project -> ProjectAndBranch (Maybe ProjectName)
 resolveProjectBranchInProject defaultProj (ProjectAndBranch mayProjectName mayBranchName) = do
   let branchName = fromMaybe defaultBranchName mayBranchName
   let projectName = fromMaybe (defaultProj ^. #name) mayProjectName
-  projectAndBranch <- expectProjectAndBranchByTheseNames (These projectName branchName)
-  pure projectAndBranch
+  expectProjectAndBranchByTheseNames (These projectName branchName)
 
 getProjectByName :: ProjectName -> Cli (Maybe Sqlite.Project)
 getProjectByName projectName = do

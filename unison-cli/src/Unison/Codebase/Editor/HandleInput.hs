@@ -59,6 +59,7 @@ import Unison.Codebase.Editor.HandleInput.DeleteNamespace (handleDeleteNamespace
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.Dependencies (handleDependencies)
 import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
+import Unison.Codebase.Editor.HandleInput.DiffBranch (handleDiffBranch)
 import Unison.Codebase.Editor.HandleInput.EditDependents (handleEditDependents)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
@@ -441,18 +442,11 @@ loop e = do
         DebugLSPFoldRangesI -> DebugFoldRanges.debugFoldRanges
         DebugLSPNameCompletionI prefix -> LSPDebug.debugLspNameCompletion prefix
         DebugNameDiffI fromSCH toSCH -> do
-          (schLen, fromCHs, toCHs) <-
-            Cli.runTransaction do
-              schLen <- Codebase.branchHashLength
-              fromCHs <- Codebase.causalHashesByPrefix fromSCH
-              toCHs <- Codebase.causalHashesByPrefix toSCH
-              pure (schLen, fromCHs, toCHs)
-          (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
-            ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash schLen) fromCHs)
-            ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSCH
-            (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSCH
-            (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash schLen) toCHs)
-            ([fromCH], [toCH]) -> pure (fromCH, toCH)
+          (fromCH, toCH) <-
+            Cli.runTransactionWithRollback \abort -> do
+              fromCH <- Cli.resolveShortCausalHashToCausalHash abort fromSCH
+              toCH <- Cli.resolveShortCausalHashToCausalHash abort toSCH
+              pure (fromCH, toCH)
           output <-
             Cli.runTransaction do
               fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
@@ -485,7 +479,7 @@ loop e = do
         DeleteI force which target -> handleDelete force which target
         DeleteNamespaceI insistence path -> handleDeleteNamespace input insistence path
         DeleteProjectI name -> handleDeleteProject name
-        DiffBranchI _ _ -> wundefined
+        DiffBranchI alice bob -> handleDiffBranch alice bob
         DiffNamespaceI before after -> do
           beforeLoc <- traverse ProjectUtils.resolveBranchRelativePath before
           beforeBranch0 <- Branch.head <$> resolveBranchId2 before

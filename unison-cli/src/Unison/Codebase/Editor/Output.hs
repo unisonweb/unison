@@ -437,7 +437,8 @@ data Output
   | NoMergeInProgress
   | Output'DebugSynhashTerm !TermReference !Hash !Text
   | ConflictedDefn !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
-  | IncoherentDeclDuringDelete !IncoherentDeclReason
+  | IncoherentDeclDuringDelete !DeleteTarget !IncoherentDeclReason
+  | IncoherentDeclDuringDiffBranch !DiffBranchArg !IncoherentDeclReason
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
   | IncoherentDeclDuringUpgrade !IncoherentDeclReason
@@ -681,6 +682,7 @@ isFailure o = case o of
   Output'DebugSynhashTerm {} -> False
   ConflictedDefn {} -> True
   IncoherentDeclDuringDelete {} -> True
+  IncoherentDeclDuringDiffBranch {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
   IncoherentDeclDuringUpgrade {} -> True

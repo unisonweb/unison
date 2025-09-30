@@ -1,7 +1,7 @@
 module Unison.Codebase.Editor.Input
   ( Input (..),
-    DiffBranchTarget (..),
     BranchSourceI (..),
+    DiffBranchArg (..),
     PullSourceTarget (..),
     PushRemoteBranchInput (..),
     PushSourceTarget (..),
@@ -147,7 +147,7 @@ data Input
   | DeleteI !Bool {- force? -} !DeleteTarget ![HQ'.HashQualified Name]
   | DeleteNamespaceI Insistence (Maybe (Path.Split Path.Relative))
   | DeleteProjectI ProjectName
-  | DiffBranchI !DiffBranchTarget !DiffBranchTarget
+  | DiffBranchI !DiffBranchArg !DiffBranchArg
   | DiffNamespaceI BranchId2 BranchId2 -- old new
   | DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | DocToMarkdownI Name
@@ -230,9 +230,9 @@ data BranchSourceI
     BranchSourceI'UnresolvedProjectBranch UnresolvedProjectBranch
   deriving stock (Eq, Show)
 
-data DiffBranchTarget
-  = DiffBranchTarget'Branch !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | DiffBranchTarget'Hash !ShortCausalHash
+data DiffBranchArg
+  = DiffBranchArg'Branch !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | DiffBranchArg'Hash !ShortCausalHash
   deriving stock (Eq, Show)
 
 -- | Pull source and target: either neither is specified, or only a source, or both.

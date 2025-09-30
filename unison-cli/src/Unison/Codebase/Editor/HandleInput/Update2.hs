@@ -39,7 +39,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
@@ -139,7 +138,7 @@ handleUpdate2 = do
 
             -- Hydrate the dependents for rendering
             hydratedDependents0 <-
-              hydrateRefs (Codebase.unsafeGetTermComponent env.codebase) Operations.expectDeclComponent dependentsRefs
+              hydrateRefs env.codebase dependentsRefs
 
             let hydratedDependents1 =
                   nameHydratedRefIds dependents1 hydratedDependents0

@@ -32,7 +32,6 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
@@ -145,11 +144,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
           -- (1)
           transitiveDependents <- Operations.transitiveDependentsWithinScope scope nameless
           uniqueTypeGuidsByName <- makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types)
-          hydratedDependents <-
-            hydrateRefs
-              (Codebase.unsafeGetTermComponent env.codebase)
-              Operations.expectDeclComponent
-              transitiveDependents
+          hydratedDependents <- hydrateRefs env.codebase transitiveDependents
           pure (Left (uniqueTypeGuidsByName, hydratedDependents))
 
   declTypes <-

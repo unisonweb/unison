@@ -28,6 +28,7 @@ module U.Codebase.Reference
     toId,
     unsafeId,
     component,
+    getComponentElem,
   )
 where
 
@@ -173,3 +174,9 @@ component :: H.Hash -> [k] -> [(k, Id)]
 component h ks =
   let
    in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
+
+-- | Get a single element out of a component.
+getComponentElem :: (HasCallStack) => [a] -> Pos -> a
+getComponentElem (x : _) 0 = x
+getComponentElem (_ : xs) p = getComponentElem xs (p - 1)
+getComponentElem _ _ = error (reportBug "E898558" "Component position out of bounds")

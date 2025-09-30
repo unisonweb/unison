@@ -63,7 +63,6 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
@@ -259,10 +258,7 @@ doMerge info = do
                 | defnsAreEmpty refs = pure (Defns Map.empty Map.empty)
                 | otherwise = do
                     Sqlite.unsafeIO (respondRegion (Output.Literal message))
-                    hydrateRefs
-                      (Codebase.unsafeGetTermComponent env.codebase)
-                      Operations.expectDeclComponent
-                      refs
+                    hydrateRefs env.codebase refs
                 where
                   refs = fold refs0
 

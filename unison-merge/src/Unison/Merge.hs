@@ -2,6 +2,7 @@ module Unison.Merge
   ( Diffblob (..),
     makeDiffblob,
     DiffblobLog (..),
+    emptyDiffblobLog,
     Mergeblob (..),
     MergeblobError (..),
     makeMergeblob,
@@ -28,7 +29,7 @@ where
 
 import Unison.Merge.CombineDiffs (CombinedDiffOp (..))
 import Unison.Merge.DiffOp (DiffOp (..))
-import Unison.Merge.Diffblob (Diffblob (..), DiffblobLog (..), makeDiffblob)
+import Unison.Merge.Diffblob (Diffblob (..), DiffblobLog (..), emptyDiffblobLog, makeDiffblob)
 import Unison.Merge.EitherWay (EitherWay (..))
 import Unison.Merge.EitherWayI (EitherWayI (..))
 import Unison.Merge.Libdeps (LibdepDiffOp (..))

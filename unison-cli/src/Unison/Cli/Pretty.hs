@@ -17,14 +17,15 @@ module Unison.Cli.Pretty
     prettyHash32,
     prettyHumanReadableTime,
     prettyLabeledDependencies,
-    prettyPath,
+    prettyMaybeProjectAndBranchName,
     prettyMergeSource,
     prettyMergeSourceOrTarget,
+    prettyNamespaceKey,
+    prettyPath,
     prettyProjectAndBranchName,
     prettyProjectBranchName,
     prettyProjectName,
     prettyProjectNameSlash,
-    prettyNamespaceKey,
     prettyReadRemoteNamespace,
     prettyReadRemoteNamespaceWith,
     prettyRemoteBranchInfo,
@@ -246,6 +247,14 @@ prettySlashProjectBranchName branch =
 prettyProjectAndBranchName :: ProjectAndBranch ProjectName ProjectBranchName -> Pretty
 prettyProjectAndBranchName (ProjectAndBranch project branch) =
   P.group (prettyProjectName project <> P.hiBlack "/" <> prettyProjectBranchName branch)
+
+prettyMaybeProjectAndBranchName :: ProjectAndBranch (Maybe ProjectName) ProjectBranchName -> Pretty
+prettyMaybeProjectAndBranchName (ProjectAndBranch maybeProject branch) =
+  P.group case maybeProject of
+    Nothing -> suffix
+    Just project -> prettyProjectName project <> suffix
+  where
+    suffix = P.hiBlack "/" <> prettyProjectBranchName branch
 
 prettyBranchRelativePath :: BranchRelativePath -> Pretty
 prettyBranchRelativePath = P.blue . P.text . into @Text

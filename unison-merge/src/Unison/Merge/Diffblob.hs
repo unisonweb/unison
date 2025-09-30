@@ -2,6 +2,7 @@ module Unison.Merge.Diffblob
   ( Diffblob (..),
     makeDiffblob,
     DiffblobLog (..),
+    emptyDiffblobLog,
   )
 where
 
@@ -89,6 +90,10 @@ data DiffblobLog m = DiffblobLog
     logDiffsFromLCA :: TwoWay (DefnsF3 (Map Name) DiffOp Synhashed Referent TypeReference) -> m (),
     logDiff :: DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference -> m ()
   }
+
+emptyDiffblobLog :: (Applicative m) => DiffblobLog m
+emptyDiffblobLog =
+  let f _ = pure () in DiffblobLog f f f f f
 
 makeDiffblob ::
   forall libdep m.

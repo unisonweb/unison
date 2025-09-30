@@ -1,6 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module Unison.Codebase.SqliteCodebase
   ( Unison.Codebase.SqliteCodebase.init,
     Unison.Codebase.SqliteCodebase.initWithSetup,
@@ -35,6 +32,7 @@ import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
 import Unison.Codebase.SqliteCodebase.Paths
 import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.Codebase.Type qualified as C
+import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
 import Unison.DeclCoherencyCheck (IncoherentDeclReasons, checkAllDeclCoherency, lenientCheckDeclCoherency)
 import Unison.DeclNameLookup (DeclNameLookup)
@@ -42,10 +40,8 @@ import Unison.Hash (Hash)
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
-import Unison.Reference (Reference, Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference, Reference' (..), TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
-import Unison.Referent qualified as Referent
-import Unison.ShortHash (ShortHash)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -54,16 +50,12 @@ import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Cache qualified as Cache
 import Unison.Util.Defns (Defns (..))
-import Unison.WatchKind qualified as UF
 import UnliftIO (finally)
 import UnliftIO qualified as UnliftIO
 import UnliftIO.Concurrent qualified as UnliftIO
 import UnliftIO.Directory (createDirectoryIfMissing, doesFileExist)
 import UnliftIO.Environment (lookupEnv)
 import UnliftIO.STM
-
-debug :: Bool
-debug = False
 
 init ::
   (HasCallStack, MonadUnliftIO m) =>
@@ -166,32 +158,24 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
   -- stores ALL the subnamespaces of those branches, deduping them when loading from the DB.
   rootBranchCache <- Cache.semispaceCache 10
   rootBranchCacheTx <- Cache.semispaceCache 10
+
+  branchDeclNameLookupCache <- Cache.semispaceCache 10
+  branchDeclNumConstructorsCache <- Cache.semispaceCache 10
+  branchPartialDeclNameLookupCache <- Cache.semispaceCache 10
+  declComponentCache <- Cache.semispaceCache 8192
+  declNumConstructorsCache <- Cache.semispaceCache 8192
   declTypeCache <- Cache.semispaceCache 2048
+  termComponentWithTypesCache <- Cache.semispaceCache 8192
+
   let getDeclType = CodebaseOps.makeCachedTransaction declTypeCache CodebaseOps.getDeclType
+
   -- The v1 codebase interface has operations to read and write individual definitions
   -- whereas the v2 codebase writes them as complete components.  These two fields buffer
   -- the individual definitions until a complete component has been written.
   termBuffer :: TVar (Map Hash CodebaseOps.TermBufferEntry) <- newTVarIO Map.empty
   declBuffer :: TVar (Map Hash CodebaseOps.DeclBufferEntry) <- newTVarIO Map.empty
 
-  result <- withConn \conn -> do
-    Sqlite.runTransaction conn Migrations.checkCodebaseIsUpToDate >>= \case
-      Migrations.CodebaseUpToDate -> pure $ Right ()
-      Migrations.CodebaseUnknownSchemaVersion sv -> pure $ Left (OpenCodebaseUnknownSchemaVersion sv)
-      Migrations.CodebaseRequiresMigration fromSv toSv ->
-        case migrationStrategy of
-          DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
-          MigrateAfterPrompt backupStrategy vacuumStrategy -> do
-            shouldPrompt <-
-              lookupEnv "UNISON_MIGRATION" >>= \case
-                Just (fmap Char.toLower -> "auto") -> pure False
-                _ -> pure True
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
-          MigrateAutomatically backupStrategy vacuumStrategy -> do
-            let shouldPrompt = False
-            Migrations.ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer shouldPrompt backupStrategy vacuumStrategy conn
-
-  case result of
+  ensureMigrated debugName root localOrRemote migrationStrategy getDeclType termBuffer declBuffer >>= \case
     Left err -> pure $ Left err
     Right () -> do
       let finalizer :: (MonadIO m) => m ()
@@ -207,18 +191,17 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
             printBuffer "Terms:" terms
 
       flip finally finalizer do
-        termCache <- Cache.semispaceCache 8192
-        let getTerm = CodebaseOps.makeMaybeCachedTransaction termCache (CodebaseOps.getTerm getDeclType)
-        typeOfTermCache <- Cache.semispaceCache 8192
-        let getTypeOfTermImpl = CodebaseOps.makeMaybeCachedTransaction typeOfTermCache CodebaseOps.getTypeOfTermImpl
-        typeDeclarationCache <- Cache.semispaceCache 1024
-        let getTypeDeclaration = CodebaseOps.makeMaybeCachedTransaction typeDeclarationCache CodebaseOps.getTypeDeclaration
-        declNumConstructorsCache <- Cache.semispaceCache 1024
-        let expectDeclNumConstructors = CodebaseOps.makeCachedTransaction declNumConstructorsCache Operations.expectDeclNumConstructors
-        let getBranchForHashTx = CodebaseOps.makeMaybeCachedTransaction rootBranchCacheTx (CodebaseOps.getBranchForHash branchLoadCache getDeclType)
+        let expectDeclNumConstructors :: TypeReferenceId -> Sqlite.Transaction Int
+            expectDeclNumConstructors =
+              CodebaseOps.makeCachedTransaction declNumConstructorsCache Operations.expectDeclNumConstructors
 
-        branchDeclNumConstructorsCache <- Cache.semispaceCache 10
-        let getBranchDeclNumConstructors0 :: Keyed BranchHash (Set TypeReference) -> Sqlite.Transaction (Map TypeReferenceId Int)
+        let getBranchForHashTx :: CausalHash -> Sqlite.Transaction (Maybe (Branch Sqlite.Transaction))
+            getBranchForHashTx =
+              CodebaseOps.makeMaybeCachedTransaction rootBranchCacheTx (CodebaseOps.getBranchForHash branchLoadCache getDeclType)
+
+        let getBranchDeclNumConstructors0 ::
+              Keyed BranchHash (Set TypeReference) ->
+              Sqlite.Transaction (Map TypeReferenceId Int)
             getBranchDeclNumConstructors0 =
               CodebaseOps.makeCachedTransaction branchDeclNumConstructorsCache \k ->
                 k.value
@@ -232,69 +215,7 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                     )
                     Map.empty
 
-        let getBranchDeclNumConstructors :: BranchHash -> Set TypeReference -> Sqlite.Transaction (Map TypeReferenceId Int)
-            getBranchDeclNumConstructors namespaceHash refs =
-              getBranchDeclNumConstructors0 (Keyed namespaceHash refs)
-
-        branchPartialDeclNameLookupCache <- Cache.semispaceCache 10
-        let getBranchPartialDeclNameLookup ::
-              BranchHash ->
-              UnconflictedLocalDefnsView ->
-              Sqlite.Transaction PartialDeclNameLookup
-            getBranchPartialDeclNameLookup =
-              let get :: Keyed BranchHash UnconflictedLocalDefnsView -> Sqlite.Transaction PartialDeclNameLookup
-                  get =
-                    CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k -> do
-                      numConstructors <- getBranchDeclNumConstructors0 (Keyed k.key (BiMultimap.dom k.value.defns.types))
-                      pure (lenientCheckDeclCoherency k.value.nametree numConstructors)
-               in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView)
-
-        branchDeclNameLookupCache <- Cache.semispaceCache 10
-        let getBranchDeclNameLookup ::
-              BranchHash ->
-              UnconflictedLocalDefnsView ->
-              Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
-            getBranchDeclNameLookup =
-              let get ::
-                    Keyed BranchHash UnconflictedLocalDefnsView ->
-                    Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
-                  get =
-                    CodebaseOps.makeCachedTransaction branchDeclNameLookupCache \k -> do
-                      numConstructors <- getBranchDeclNumConstructors0 (Keyed k.key (BiMultimap.dom k.value.defns.types))
-                      pure (checkAllDeclCoherency k.value.nametree numConstructors)
-               in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView)
-
-        let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
-            getTermComponentWithTypes =
-              CodebaseOps.getTermComponentWithTypes getDeclType
-
-            -- putTermComponent :: MonadIO m => Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> m ()
-            -- putTerms :: MonadIO m => Map Reference.Id (Term Symbol Ann, Type Symbol Ann) -> m () -- dies horribly if missing dependencies?
-
-            -- option 1: tweak putTerm to incrementally notice the cycle length until each component is full
-            -- option 2: switch codebase interface from putTerm to putTerms -- buffering can be local to the function
-            -- option 3: switch from putTerm to putTermComponent -- needs to buffer dependencies non-locally (or require application to manage + die horribly)
-
-            putTerm :: Reference.Id -> Term Symbol Ann -> Type Symbol Ann -> Sqlite.Transaction ()
-            putTerm id tm tp | debug && trace ("SqliteCodebase.putTerm " ++ show id ++ " " ++ show tm ++ " " ++ show tp) False = undefined
-            putTerm id tm tp =
-              CodebaseOps.putTerm termBuffer declBuffer id tm tp
-
-            putTermComponent :: Hash -> [(Term Symbol Ann, Type Symbol Ann)] -> Sqlite.Transaction ()
-            putTermComponent =
-              CodebaseOps.putTermComponent termBuffer declBuffer
-
-            putTypeDeclaration :: Reference.Id -> Decl Symbol Ann -> Sqlite.Transaction ()
-            putTypeDeclaration =
-              CodebaseOps.putTypeDeclaration termBuffer declBuffer
-
-            putTypeDeclarationComponent :: Hash -> [Decl Symbol Ann] -> Sqlite.Transaction ()
-            putTypeDeclarationComponent =
-              CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer
-
-            -- if this blows up on cromulent hashes, then switch from `hashToHashId`
-            -- to one that returns Maybe.
-            getBranchForHash :: CausalHash -> m (Maybe (Branch m))
+        let getBranchForHash :: CausalHash -> m (Maybe (Branch m))
             getBranchForHash hash =
               runTransaction (fmap (Branch.transform runTransaction) <$> (getBranchForHashTx hash))
 
@@ -305,82 +226,95 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
                   Cache.insert rootBranchCache (Branch.headHash branch) branch
                   runTransaction (CodebaseOps.putBranch (Branch.transform (Sqlite.unsafeIO . runInIO) branch))
 
-            putBranchTx :: Branch Sqlite.Transaction -> Sqlite.Transaction ()
-            putBranchTx branch = do
-              Sqlite.unsafeIO (Cache.insert rootBranchCacheTx (Branch.headHash branch) branch)
-              CodebaseOps.putBranch branch
-
             preloadBranch :: CausalHash -> m ()
-            preloadBranch h = do
+            preloadBranch hash = do
               void . UnliftIO.forkIO $ void $ do
-                getBranchForHash h >>= \case
+                getBranchForHash hash >>= \case
                   Nothing -> pure ()
                   Just b -> do
                     UnliftIO.evaluate b
                     pure ()
 
-            getWatch :: UF.WatchKind -> Reference.Id -> Sqlite.Transaction (Maybe (Term Symbol Ann))
-            getWatch =
-              CodebaseOps.getWatch getDeclType
+        let getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term Symbol Ann, Type Symbol Ann)])
+            getTermComponentWithTypes =
+              CodebaseOps.makeMaybeCachedTransaction
+                termComponentWithTypesCache
+                (CodebaseOps.getTermComponentWithTypes getDeclType)
 
-            termsOfTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
-            termsOfTypeImpl =
-              CodebaseOps.termsOfTypeImpl getDeclType
-
-            filterTermsByReferentIdHavingTypeImpl :: Reference -> Set Referent.Id -> Sqlite.Transaction (Set Referent.Id)
-            filterTermsByReferentIdHavingTypeImpl =
-              CodebaseOps.filterReferentsHavingTypeImpl getDeclType
-
-            filterTermsByReferenceIdHavingTypeImpl :: Reference -> Set TermReferenceId -> Sqlite.Transaction (Set TermReferenceId)
-            filterTermsByReferenceIdHavingTypeImpl =
-              CodebaseOps.filterReferencesHavingTypeImpl
-
-            termsMentioningTypeImpl :: Reference -> Sqlite.Transaction (Set Referent.Id)
-            termsMentioningTypeImpl =
-              CodebaseOps.termsMentioningTypeImpl getDeclType
-
-            referentsByPrefix :: ShortHash -> Sqlite.Transaction (Set Referent.Id)
-            referentsByPrefix =
-              CodebaseOps.referentsByPrefix getDeclType
+        let getTypeDeclarationComponent :: Hash -> Sqlite.Transaction (Maybe [Decl Symbol Ann])
+            getTypeDeclarationComponent =
+              CodebaseOps.makeMaybeCachedTransaction
+                declComponentCache
+                CodebaseOps.getDeclComponent
 
         let codebase =
               C.Codebase
-                { getTerm,
-                  getTypeOfTermImpl,
-                  getTypeDeclaration,
+                { getTerm =
+                    \(Reference.Id hash pos) -> do
+                      getTermComponentWithTypes hash <&> \case
+                        Just component -> Just (fst (Reference.getComponentElem component pos))
+                        Nothing -> Nothing,
+                  getTypeOfTermImpl =
+                    \(Reference.Id hash pos) -> do
+                      getTermComponentWithTypes hash <&> \case
+                        Just component -> Just (snd (Reference.getComponentElem component pos))
+                        Nothing -> Nothing,
+                  getTypeDeclaration =
+                    \(Reference.Id hash pos) -> do
+                      getTypeDeclarationComponent hash <&> \case
+                        Just component -> Just (Reference.getComponentElem component pos)
+                        Nothing -> Nothing,
+                  getTypeDeclarationComponent,
                   getDeclType,
                   expectDeclNumConstructors,
-                  putTerm,
-                  putTermComponent,
-                  putTypeDeclaration,
-                  putTypeDeclarationComponent,
+                  putTerm = CodebaseOps.putTerm termBuffer declBuffer,
+                  putTermComponent = CodebaseOps.putTermComponent termBuffer declBuffer,
+                  putTypeDeclaration = CodebaseOps.putTypeDeclaration termBuffer declBuffer,
+                  putTypeDeclarationComponent = CodebaseOps.putTypeDeclarationComponent termBuffer declBuffer,
                   getTermComponentWithTypes,
                   getBranchForHash,
                   getBranchForHashTx,
-                  getBranchDeclNumConstructors,
-                  getBranchPartialDeclNameLookup,
-                  getBranchDeclNameLookup,
+                  getBranchDeclNumConstructors =
+                    \namespaceHash refs -> getBranchDeclNumConstructors0 (Keyed namespaceHash refs),
+                  getBranchPartialDeclNameLookup =
+                    let get :: Keyed BranchHash UnconflictedLocalDefnsView -> Sqlite.Transaction PartialDeclNameLookup
+                        get =
+                          CodebaseOps.makeCachedTransaction branchPartialDeclNameLookupCache \k -> do
+                            numConstructors <-
+                              getBranchDeclNumConstructors0
+                                (Keyed k.key (BiMultimap.dom k.value.defns.types))
+                            pure (lenientCheckDeclCoherency k.value.nametree numConstructors)
+                     in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView),
+                  getBranchDeclNameLookup =
+                    let get ::
+                          Keyed BranchHash UnconflictedLocalDefnsView ->
+                          Sqlite.Transaction (Either IncoherentDeclReasons DeclNameLookup)
+                        get =
+                          CodebaseOps.makeCachedTransaction branchDeclNameLookupCache \k -> do
+                            numConstructors <-
+                              getBranchDeclNumConstructors0
+                                (Keyed k.key (BiMultimap.dom k.value.defns.types))
+                            pure (checkAllDeclCoherency k.value.nametree numConstructors)
+                     in \namespaceHash unconflictedView -> get (Keyed namespaceHash unconflictedView),
                   putBranch,
-                  putBranchTx,
-                  getWatch,
-                  termsOfTypeImpl,
-                  termsMentioningTypeImpl,
-                  filterTermsByReferenceIdHavingTypeImpl,
-                  filterTermsByReferentIdHavingTypeImpl,
-                  termReferentsByPrefix = referentsByPrefix,
-                  withConnection = withConn,
+                  putBranchTx = \branch -> do
+                    Sqlite.unsafeIO (Cache.insert rootBranchCacheTx (Branch.headHash branch) branch)
+                    CodebaseOps.putBranch branch,
+                  getWatch = CodebaseOps.getWatch getDeclType,
+                  termsOfTypeImpl = CodebaseOps.termsOfTypeImpl getDeclType,
+                  termsMentioningTypeImpl = CodebaseOps.termsMentioningTypeImpl getDeclType,
+                  filterTermsByReferenceIdHavingTypeImpl = CodebaseOps.filterReferencesHavingTypeImpl,
+                  filterTermsByReferentIdHavingTypeImpl = CodebaseOps.filterReferentsHavingTypeImpl getDeclType,
+                  termReferentsByPrefix = CodebaseOps.referentsByPrefix getDeclType,
+                  withConnection = withConnection debugName root,
                   withConnectionIO = withConnection debugName root,
                   preloadBranch
                 }
         Right <$> action codebase
   where
-    withConn :: (Sqlite.Connection -> m a) -> m a
-    withConn =
-      withConnection debugName root
-
     runTransaction :: Sqlite.Transaction a -> m a
     runTransaction action =
-      withConn \conn -> Sqlite.runTransaction conn action
+      withConnection debugName root \conn -> Sqlite.runTransaction conn action
 
     handleLockOption ma = case lockOption of
       DontLock -> ma
@@ -388,6 +322,44 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) <&> \case
           Nothing -> Left OpenCodebaseFileLockFailed
           Just x -> x
+
+ensureMigrated ::
+  (MonadUnliftIO m) =>
+  Codebase.DebugName ->
+  CodebasePath ->
+  LocalOrRemote ->
+  MigrationStrategy ->
+  (Reference -> Sqlite.Transaction ConstructorType) ->
+  TVar (Map Hash CodebaseOps.TermBufferEntry) ->
+  TVar (Map Hash CodebaseOps.DeclBufferEntry) ->
+  m (Either OpenCodebaseError ())
+ensureMigrated debugName root localOrRemote migrationStrategy getDeclType termBuffer declBuffer = do
+  withConnection debugName root \conn -> do
+    Sqlite.runTransaction conn Migrations.checkCodebaseIsUpToDate >>= \case
+      Migrations.CodebaseUpToDate -> pure $ Right ()
+      Migrations.CodebaseUnknownSchemaVersion sv -> pure $ Left (OpenCodebaseUnknownSchemaVersion sv)
+      Migrations.CodebaseRequiresMigration fromSv toSv ->
+        case migrationStrategy of
+          DontMigrate -> pure $ Left (OpenCodebaseRequiresMigration fromSv toSv)
+          MigrateAfterPrompt backupStrategy vacuumStrategy -> do
+            shouldPrompt <-
+              lookupEnv "UNISON_MIGRATION" >>= \case
+                Just (fmap Char.toLower -> "auto") -> pure False
+                _ -> pure True
+            doMigrate shouldPrompt backupStrategy vacuumStrategy
+          MigrateAutomatically backupStrategy vacuumStrategy -> doMigrate False backupStrategy vacuumStrategy
+        where
+          doMigrate shouldPrompt backupStrategy vacuumStrategy =
+            Migrations.ensureCodebaseIsUpToDate
+              localOrRemote
+              root
+              getDeclType
+              termBuffer
+              declBuffer
+              shouldPrompt
+              backupStrategy
+              vacuumStrategy
+              conn
 
 data Entity m
   = B CausalHash (m (Branch m))

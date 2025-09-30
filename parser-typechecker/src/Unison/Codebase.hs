@@ -39,7 +39,8 @@ module Unison.Codebase
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
-    SqliteCodebase.Operations.getDeclComponent,
+    getTypeDeclarationComponent,
+    expectTypeDeclarationComponent,
     putTypeDeclaration,
     putTypeDeclarationComponent,
     SqliteCodebase.Operations.typeReferencesByPrefix,
@@ -696,8 +697,15 @@ unsafeGetTermComponent ::
   Sqlite.Transaction [(Term v a, Type v a)]
 unsafeGetTermComponent codebase hash =
   getTermComponentWithTypes codebase hash <&> \case
-    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
     Just terms -> terms
+    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
+
+-- | Like 'getTypeDeclarationComponent', for when the type decl component is known to exist in the codebase.
+expectTypeDeclarationComponent :: (HasCallStack) => Codebase m v a -> Hash -> Sqlite.Transaction [Decl v a]
+expectTypeDeclarationComponent codebase hash =
+  getTypeDeclarationComponent codebase hash <&> \case
+    Just component -> component
+    Nothing -> error (reportBug "E101611" ("decl component " ++ show hash ++ " not found"))
 
 expectCurrentProjectPath :: (HasCallStack) => Sqlite.Transaction PP.ProjectPath
 expectCurrentProjectPath = do

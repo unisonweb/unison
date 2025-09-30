@@ -2365,9 +2365,9 @@ diffBranch =
     }
   where
     -- TODO handle causal hash
-    handleDiffBranchTargetArg :: I.Argument -> Either (P.Pretty P.ColorText) Input.DiffBranchTarget
+    handleDiffBranchTargetArg :: I.Argument -> Either (P.Pretty P.ColorText) Input.DiffBranchArg
     handleDiffBranchTargetArg arg =
-      Input.DiffBranchTarget'Branch <$> handleMaybeProjectBranchArg arg
+      Input.DiffBranchArg'Branch <$> handleMaybeProjectBranchArg arg
 
 diffNamespace :: InputPattern
 diffNamespace =

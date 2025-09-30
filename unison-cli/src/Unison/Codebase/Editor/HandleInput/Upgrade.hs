@@ -31,7 +31,6 @@ import Unison.Codebase.Editor.HandleInput.Update2 (typecheckedUnisonFileToBranch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -164,10 +163,7 @@ handleUpgrade oldName newName = do
             bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents
 
       hydratedDependents0 <-
-        hydrateRefs
-          (Codebase.unsafeGetTermComponent env.codebase)
-          Operations.expectDeclComponent
-          dependentsRefs
+        hydrateRefs env.codebase dependentsRefs
 
       let hydratedDependents1 =
             nameHydratedRefIds dependents hydratedDependents0

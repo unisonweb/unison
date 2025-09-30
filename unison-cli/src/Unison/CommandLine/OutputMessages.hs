@@ -2235,71 +2235,107 @@ notifyUser dir issueFn = \case
                TypeDefn _ -> IP.deleteTypeForce
            )
         <> "all but one of them, then try again."
-  IncoherentDeclDuringDelete reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "delete" "The type" "a delete" "deleting" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "delete" "The type" "a delete" "deleting" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "a delete" "deleting" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "delete" "The constructor" "deleting" name
+  IncoherentDeclDuringDelete target reason ->
+    let command =
+          case target of
+            Input.DeleteTarget'TermOrType -> IP.makeExample' IP.delete
+            Input.DeleteTarget'Term -> IP.makeExample' IP.deleteTerm
+            Input.DeleteTarget'Type -> IP.makeExample' IP.deleteType
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
+  IncoherentDeclDuringDiffBranch diffBranchArg reason ->
+    let command = IP.makeExample' IP.diffBranch
+        which =
+          case diffBranchArg of
+            Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
+            Input.DiffBranchArg'Hash hash -> prettySCH hash
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $
+              constructorAliasError
+                command
+                ("On" <> P.group (which <> ",") <> "the type")
+                typeName
+                conName1
+                conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $
+              missingConstructorNameError
+                command
+                ("On" <> P.group (which <> ",") <> "the type")
+                name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $
+              nestedDeclAliasError
+                ("On" <> P.group (which <> ",") <> "the type")
+                command
+                shorterName
+                longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $
+              strayConstructorError
+                command
+                ("On" <> P.group (which <> ",") <> "the constructor")
+                name
   IncoherentDeclDuringMerge aliceOrBob reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $
-          constructorAliasError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            typeName
-            conName1
-            conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $
-          missingConstructorNameError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $
-          nestedDeclAliasError
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            shorterName
-            longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $
-          strayConstructorError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
-            "merging"
-            name
+    let command = IP.makeExample' IP.mergeInputPattern
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $
+              constructorAliasError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                typeName
+                conName1
+                conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $
+              missingConstructorNameError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $
+              nestedDeclAliasError
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                command
+                shorterName
+                longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $
+              strayConstructorError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
+                name
   IncoherentDeclDuringUpdate reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "update" "The type" "an update" "updating" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "update" "The type" "an update" "updating" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "an update" "updating" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "update" "The constructor" "updating" name
+    let command = IP.makeExample' IP.update
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
   IncoherentDeclDuringUpgrade reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "upgrade" "The type" "an upgrade" "upgrading" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "upgrade" "The type" "an upgrade" "upgrading" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "an upgrade" "upgrading" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "upgrade" "The constructor" "upgrading" name
+    let command = IP.makeExample' IP.upgrade
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
   Literal message -> pure message
   SyncPullError syncErr ->
     case syncErr of
@@ -3887,16 +3923,16 @@ displayProjectBranchReflogEntries mayNow _ entries =
       (short, "") -> short
       (short, _) -> short <> "..."
 
-constructorAliasError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Name -> Name -> Pretty
-constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
+constructorAliasError :: Pretty -> Pretty -> Name -> Name -> Name -> Pretty
+constructorAliasError verb theType typeName conName1 conName2 =
   P.lines $
     [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
       "",
       P.wrap $
         theType
           <> prettyName typeName
-          <> "has a constructor with multiple names, and I can't perform"
-          <> aVerb
+          <> "has a constructor with multiple names, and I can't"
+          <> verb
           <> "in this situation:",
       "",
       P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
@@ -3905,20 +3941,20 @@ constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
         "Please"
           <> IP.makeExample' IP.deleteForce
           <> "all but one name for each constructor, and then try"
-          <> verbing
+          <> verb
           <> "again."
     ]
 
-missingConstructorNameError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Pretty
-missingConstructorNameError verb theType aVerb verbing name =
+missingConstructorNameError :: Pretty -> Pretty -> Name -> Pretty
+missingConstructorNameError command theType name =
   P.lines $
-    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
+    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (command <> ":"),
       "",
       P.wrap $
         theType
           <> prettyName name
-          <> "has some constructors with missing names, and I can't perform"
-          <> aVerb
+          <> "has some constructors with missing names, and I can't"
+          <> command
           <> "in this situation.",
       "",
       P.wrap $
@@ -3927,27 +3963,27 @@ missingConstructorNameError verb theType aVerb verbing name =
           <> "and"
           <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
           <> "to give names to each unnamed constructor, and then try"
-          <> verbing
+          <> command
           <> "again."
     ]
 
-nestedDeclAliasError :: Pretty -> Pretty -> Pretty -> Name -> Name -> Pretty
-nestedDeclAliasError theType aVerb verbing shorterName longerName =
+nestedDeclAliasError :: Pretty -> Pretty -> Name -> Name -> Pretty
+nestedDeclAliasError theType verb shorterName longerName =
   P.wrap $
     theType
       <> prettyName longerName
       <> "is an alias of"
       <> P.group (prettyName shorterName <> ".")
-      <> "I'm not able to perform"
-      <> aVerb
+      <> "I'm not able to"
+      <> verb
       <> "when a type exists nested under an alias of itself. Please separate them or"
       <> IP.makeExample' IP.deleteForce
       <> "one copy, and then try"
-      <> verbing
+      <> verb
       <> "again."
 
-strayConstructorError :: Pretty -> Pretty -> Pretty -> Name -> Pretty
-strayConstructorError verb theConstructor verbing name =
+strayConstructorError :: Pretty -> Pretty -> Name -> Pretty
+strayConstructorError verb theConstructor name =
   P.lines
     [ P.wrap $
         "Sorry, I wasn't able to perform the"
@@ -3962,6 +3998,6 @@ strayConstructorError verb theConstructor verbing name =
           <> "to move it, or if it's an extra copy, you can simply"
           <> IP.makeExample' IP.deleteForce
           <> "it. Then try"
-          <> verbing
+          <> verb
           <> "again."
     ]
