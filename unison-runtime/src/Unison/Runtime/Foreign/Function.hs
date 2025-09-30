@@ -663,10 +663,13 @@ foreignCallHelper = \case
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress
   Bytes_gzip_compress -> mkForeign $ pure . Bytes.gzipCompress
+  Bytes_zstd_compress -> mkForeign $ \(level, bs) -> pure $ Bytes.zstdCompress level bs
   Bytes_zlib_decompress -> mkForeign $ \bs ->
     catchAll (pure (Bytes.zlibDecompress bs))
   Bytes_gzip_decompress -> mkForeign $ \bs ->
     catchAll (pure (Bytes.gzipDecompress bs))
+  Bytes_zstd_decompress -> mkForeign $ \bs ->
+    catchAll (pure (Bytes.zstdDecompress bs))
   Bytes_toBase16 -> mkForeign $ pure . Bytes.toBase16
   Bytes_toBase32 -> mkForeign $ pure . Bytes.toBase32
   Bytes_toBase64 -> mkForeign $ pure . Bytes.toBase64
