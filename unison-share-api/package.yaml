@@ -65,6 +65,7 @@ library:
     - wai
     - wai-cors
     - warp
+    - websockets
     - yaml
 
 tests:
