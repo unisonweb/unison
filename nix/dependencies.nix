@@ -1,5 +1,5 @@
-{nixpkgs-release}: final: prev: let
-  pinned-pkgs = import nixpkgs-release {inherit (final) system;};
+{nixpkgs}: final: prev: let
+  pinned-pkgs = nixpkgs.legacyPackages.${final.system};
 in {
   stack = pinned-pkgs.stack;
 

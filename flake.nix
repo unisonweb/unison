@@ -12,7 +12,7 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     haskellNix.url = "github:input-output-hk/haskell.nix";
-    nixpkgs-haskellNix.follows = "haskellNix/nixpkgs-unstable";
+    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
     nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
     systems.follows = "flake-utils/systems";
   };
@@ -20,32 +20,32 @@
   outputs = {
     flake-utils,
     haskellNix,
-    nixpkgs-haskellNix,
+    nixpkgs,
     nixpkgs-release,
     self,
     systems,
   }:
     flake-utils.lib.eachSystem (import systems)
     (system: let
-      versions = import ./nix/versions.nix {inherit (nixpkgs-haskellNix) lib;};
-      pkgs = import nixpkgs-haskellNix {
+      versions = import ./nix/versions.nix {inherit (nixpkgs) lib;};
+      pkgs = import nixpkgs {
         inherit system;
         inherit (haskellNix) config;
         overlays = [
           haskellNix.overlay
-          (import ./nix/dependencies.nix {inherit nixpkgs-release;})
+          (import ./nix/dependencies.nix {nixpkgs = nixpkgs-release;})
         ];
       };
       unison-project = import ./nix/unison-project.nix {
-        inherit (nixpkgs-haskellNix) lib;
+        inherit (nixpkgs) lib;
         inherit (pkgs) haskell-nix;
       };
       haskell-nix-flake = import ./nix/haskell-nix-flake.nix {
         inherit pkgs unison-project versions;
-        inherit (nixpkgs-haskellNix) lib;
+        inherit (nixpkgs) lib;
       };
       renameAttrs = fn:
-        nixpkgs-haskellNix.lib.mapAttrs' (name: value: {
+        nixpkgs.lib.mapAttrs' (name: value: {
           inherit value;
           name = fn name;
         });
