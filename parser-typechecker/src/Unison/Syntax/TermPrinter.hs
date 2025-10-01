@@ -317,24 +317,23 @@ pretty0
                         <> fmt S.ControlKeyword "with"
                           `hangHandler` ph
                     ]
-          Delay' x
-            | Match' _ _ <- x -> do
-                px <- pretty0 (ac Annotation Block im doc) x
-                let hang = if isSoftHangable x then PP.softHang else PP.hang
-                pure . paren (p > Control) $
-                  fmt S.ControlKeyword "do" `hang` px
-            | otherwise -> do
-                let (im0', uses0) = calcImports im x
-                let allowUses = isLet x || (p == Bottom)
-                let im' = if allowUses then im0' else im
-                let uses = if allowUses then uses0 else []
-                let soft = isSoftHangable x && null uses && p < Annotation
-                let hang = if soft then PP.softHang else PP.hang
-                px <- pretty0 (ac Annotation Block im' doc) x
-                -- this makes sure we get proper indentation if `px` spills onto
-                -- multiple lines, since `do` introduces layout block
-                let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
-                pure . paren (p > Control) $
+          Delay' x@(Match' scrutinee cs) | not (isDestructuringBind scrutinee cs) -> do
+            px <- pretty0 (ac Annotation Block im doc) x
+            let hang = if isSoftHangable x then PP.softHang else PP.hang
+            pure . paren (p > Control) $
+              fmt S.ControlKeyword "do" `hang` px
+          Delay' x -> do 
+            let (im0', uses0) = calcImports im x
+            let allowUses = isLet x || (p == Bottom)
+            let im' = if allowUses then im0' else im
+            let uses = if allowUses then uses0 else []
+            let soft = isSoftHangable x && null uses && p < Annotation
+            let hang = if soft then PP.softHang else PP.hang
+            px <- pretty0 (ac Annotation Block im' doc) x
+            -- this makes sure we get proper indentation if `px` spills onto
+            -- multiple lines, since `do` introduces layout block
+            let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
+            pure . paren (p > Control) $
                   fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
           List' xs -> do
             let listLink p = fmt (S.TypeReference Type.listRef) p
@@ -1628,9 +1627,10 @@ isSoftHangable (LamsNamedMatch' [] _) = True
 isSoftHangable (Match' scrute cases) = not (isDestructuringBind scrute cases)
 isSoftHangable _ = False
 
-isLet :: Term2 vt at ap v a -> Bool
+isLet :: (Ord v) => Term2 vt at ap v a -> Bool
 isLet (Let1Named' {}) = True
 isLet (LetRecNamed' {}) = True
+isLet (Match' scrutinee cs) = isDestructuringBind scrutinee cs
 isLet _ = False
 
 -- Matches with a single case, no variable shadowing, and where the pattern
