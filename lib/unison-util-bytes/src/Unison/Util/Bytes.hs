@@ -183,9 +183,10 @@ data ZstdDecompressException = ZstdDecompressException String deriving (Show, Ex
 
 zstdDecompress :: Bytes -> Bytes
 zstdDecompress = fromByteString . getOrThrow . Zstd.decompress . toByteString
-  where getOrThrow (Zstd.Decompress bs) = bs
-        getOrThrow Zstd.Skip = B.empty
-        getOrThrow (Zstd.Error err) = throw $ ZstdDecompressException err
+  where
+    getOrThrow (Zstd.Decompress bs) = bs
+    getOrThrow Zstd.Skip = B.empty
+    getOrThrow (Zstd.Error err) = throw $ ZstdDecompressException err
 
 toLazyByteString :: Bytes -> LB.ByteString
 toLazyByteString b = LB.fromChunks $ map chunkToByteString $ chunks b
