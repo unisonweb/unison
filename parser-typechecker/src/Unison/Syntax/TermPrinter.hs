@@ -322,7 +322,7 @@ pretty0
             let hang = if isSoftHangable x then PP.softHang else PP.hang
             pure . paren (p > Control) $
               fmt S.ControlKeyword "do" `hang` px
-          Delay' x -> do 
+          Delay' x -> do
             let (im0', uses0) = calcImports im x
             let allowUses = isLet x || (p == Bottom)
             let im' = if allowUses then im0' else im
@@ -334,7 +334,7 @@ pretty0
             -- multiple lines, since `do` introduces layout block
             let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
             pure . paren (p > Control) $
-                  fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
+              fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
           List' xs -> do
             let listLink p = fmt (S.TypeReference Type.listRef) p
             let comma = listLink ", " `PP.orElse` ("\n" <> listLink ", ")
