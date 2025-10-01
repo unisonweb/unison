@@ -228,6 +228,7 @@ module U.Codebase.Sqlite.Queries
     expectTempEntity,
     deleteTempEntity,
     clearTempEntityTables,
+    streamTempEntitiesSyncV3,
 
     -- * elaborate hashes
     elaborateHashes,
@@ -4219,3 +4220,13 @@ getConfigValue key =
       FROM config
       WHERE key = :key
     |]
+
+streamTempEntitiesSyncV3 :: Hash32 -> (Transaction (Maybe (Hash32, BL.ByteString)) -> Transaction a) -> Transaction a
+streamTempEntitiesSyncV3 rootCausalHash action = do
+  Sqlite.queryStreamRow @(Hash32, BL.ByteString)
+    [sql|
+    SELECT entity_hash, entity_data
+      WHERE root_causal = :rootCausalHash
+      ORDER BY entity_depth ASC
+    |]
+    action

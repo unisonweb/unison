@@ -105,6 +105,7 @@ library:
     - wai
     - warp
     - websockets
+    - wuss
     - witch
     - witherable
 

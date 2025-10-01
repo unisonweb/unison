@@ -139,6 +139,7 @@ data SyncError
   | EncodingFailure Text
   | -- The caller asked for a Hash they shouldn't have access to.
     ForbiddenEntityRequest (Set (EntityKind, Hash32))
+  deriving (Show, Eq)
 
 instance CBOR.Serialise SyncError where
   encode = \case
@@ -167,18 +168,6 @@ data FromEmitterMessage hash text
   = EmitterErrorMsg SyncError
   | EmitterEntityMsg (Entity hash text)
   | EmitterDoneMsg
-
-instance (CBOR.Serialise hash, CBOR.Serialise text) => WebSocketsData (FromEmitterMessage hash text) where
-  fromLazyByteString bytes =
-    CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes bytes)
-      & either (\err -> EmitterErrorMsg . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) id
-
-  toLazyByteString = CBOR.serialise
-
-  fromDataMessage dm = do
-    case dm of
-      WS.Text bytes _ -> WS.fromLazyByteString bytes
-      WS.Binary bytes -> WS.fromLazyByteString bytes
 
 data HashMappings hash smallHash = HashMappings
   { hashMappings :: Map smallHash hash
@@ -346,7 +335,7 @@ instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError er
       1 -> Err <$> CBOR.decode
       _ -> fail $ "Unknown MsgOrError tag: " <> show tag
 
-instance (CBOR.Serialise sh, ToJSON ah, FromJSON ah) => WebSocketsData (MsgOrError SyncError (FromReceiverMessage ah sh)) where
+instance (Serialise msg) => WebSocketsData (MsgOrError SyncError msg) where
   fromLazyByteString bytes =
     CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes bytes)
       & either (\err -> Err . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) Msg

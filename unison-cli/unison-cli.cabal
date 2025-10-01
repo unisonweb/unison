@@ -310,6 +310,7 @@ library
     , websockets
     , witch
     , witherable
+    , wuss
   default-language: Haskell2010
   if !os(windows)
     build-depends:

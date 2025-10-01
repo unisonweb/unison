@@ -9,26 +9,30 @@ import Data.Set qualified as Set
 import Data.Set.Lens qualified as Lens
 import GHC.Natural
 import Ki qualified
-import Network.WebSockets.Client qualified as WS
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
+import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
+import Unison.Server.Orphans ()
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.Sync.Common qualified as Sync
 import Unison.SyncV3.Types
 import Unison.SyncV3.Types as SyncV3
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Websockets (Queues (..), withQueues)
 import UnliftIO.STM
+import Wuss qualified
+import Network.WebSockets qualified as WS
 
 -- Websocket send/receive buffer sizes
 inputBuffer :: Natural
@@ -36,6 +40,9 @@ inputBuffer = 1000
 
 outputBuffer :: Natural
 outputBuffer = 1000
+
+transactionBatchSize :: Natural
+transactionBatchSize = 1000
 
 syncV3ClientVersion :: Int32
 syncV3ClientVersion = 1
@@ -49,13 +56,18 @@ syncFromCodeserver ::
   -- | The hash to download.
   Share.HashJWT ->
   Cli (Either (Sync.SyncError SyncV3.SyncError) (CausalHash, CausalHashId))
-syncFromCodeserver shouldValidate shareCodeserver branchRef hashJwt = do
-  Cli.Env {authHTTPClient, codebase} <- ask
+syncFromCodeserver _shouldValidate shareCodeserver branchRef hashJwt = do
+  Cli.Env {codebase} <- ask
   let host = Codeserver.codeserverRegName shareCodeserver
   let tlsPort = 443
-  let port = fromMaybe tlsPort $ Codeserver.codeserverPort shareCodeserver
+  let port = maybe tlsPort fromIntegral $ (Codeserver.codeserverPort) shareCodeserver
   let syncV3Path = "/ucm/v3/sync"
-  Cli.with (WS.runClient host port syncV3Path) \conn -> do
+  let rootCausalHash = Share.hashJWTHash hashJwt
+  -- Enable compression
+  let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
+  -- TODO: Add authentication headers manually.
+  let headers = []
+  liftIO $ (Wuss.runSecureClientWith host port syncV3Path connectionOptions headers) \conn -> do
     withQueues inputBuffer outputBuffer conn $ \queues@Queues {send} -> do
       let initMsg =
             InitMsg
@@ -64,15 +76,24 @@ syncFromCodeserver shouldValidate shareCodeserver branchRef hashJwt = do
                 initMsgRootCausal = hashJwt,
                 initMsgRequestedDepth = Nothing
               }
-      atomically $ send $ InitStream initMsg
-      pendingRequestsVar <- newTVarIO (Set.singleton $ Share.hashJWTHash $ hashJwt)
-      let initState = SyncState {pendingRequestsVar}
+      atomically $ send $ Msg $ ReceiverInitStream initMsg
+      pendingRequestsVar <- newTVarIO (Set.singleton (CausalEntity, rootCausalHash))
+      yetToRequestVar <- newTVarIO Set.empty
+      toIngestQueue <- newTBQueueIO transactionBatchSize
+      let initState =
+            SyncState
+              { pendingRequestsVar,
+                yetToRequestVar,
+                toIngestQueue,
+                rootCausalHash
+              }
+
       liftIO (doSync codebase initState queues) >>= \case
         -- TODO: proper error handling
         Left err -> error $ show err
         Right () -> pure ()
       causalId <- liftIO $ flushTemp codebase (Share.hashJWTHash hashJwt)
-      _
+      pure $ Right (Sync.hash32ToCausalHash rootCausalHash, causalId)
 
 data SyncState = SyncState
   { pendingRequestsVar :: TVar (Set (EntityKind, Hash32)),
@@ -82,7 +103,7 @@ data SyncState = SyncState
   }
 
 -- | Given a stream that's already been initialized, receive entities and issue requests as needed.
-doSync :: Codebase IO v a -> SyncState -> Queues () (FromEmitterMessage Hash32 Text) -> IO (Either SyncError ())
+doSync :: Codebase IO v a -> SyncState -> Queues (MsgOrError SyncError (FromReceiverMessage Share.HashJWT Hash32)) (MsgOrError SyncError (FromEmitterMessage Hash32 Text)) -> IO (Either SyncError ())
 doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, rootCausalHash} (Queues {send, receive, shutdown}) = Ki.scoped \scope -> do
   errorVar <- newEmptyTMVarIO
   let onErr err = do
@@ -96,38 +117,36 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
     receiverWorker :: (SyncError -> IO ()) -> IO ()
     receiverWorker onErr = do
       atomically receive >>= \case
-        EmitterErrorMsg err -> onErr err
-        EmitterEntityMsg entity -> do
+        Msg (EmitterErrorMsg err) -> onErr err
+        Msg (EmitterEntityMsg entity) -> do
           atomically $ do
-            toIngestQueue
-          missingDeps <- Codebase.runTransaction codebase $ saveEntity codebase entity
-          atomically $ do
-            pending <- readTVar pendingRequestsVar
-            let newDeps = Set.difference missingDeps pending
-            modifyTVar' pendingRequestsVar (Set.union newDeps)
+            writeTBQueue toIngestQueue entity
           receiverWorker onErr
-        EmitterDoneMsg -> return ()
+        Msg EmitterDoneMsg -> return ()
+        Err err -> onErr err
     requesterWorker :: (SyncError -> IO ()) -> IO ()
-    requesterWorker onErr = forever do
+    requesterWorker _onErr = forever do
       atomically $ do
         requests <- readTVar yetToRequestVar
         writeTVar yetToRequestVar Set.empty
         modifyTVar' pendingRequestsVar (Set.union requests)
-        for_ requests $ \h -> send $ ReceiverEntityRequestMsg h
+        send $ Msg $ ReceiverEntityRequest $ EntityRequestMsg (Set.toList requests)
 
     ingestionWorker :: (SyncError -> IO ()) -> IO ()
-    ingestionWorker onErr = forever do
+    ingestionWorker _onErr = forever do
       newEntities <- atomically $ do
         flushTBQueue toIngestQueue
+      Codebase.runTransaction codebase $ do
+        -- TODO: do hash validation based on shouldValidate
+        for_ newEntities $ \(Entity {entityKind, entityHash, entityDepth, entityData = CBOR.CBORBytes entityBytes}) -> do
+          Q.insertTempEntitySyncV3 rootCausalHash (tShow entityKind) entityHash (unEntityDepth entityDepth) entityBytes
+
       tempEntities <- case for newEntities (CBOR.deserialiseOrFailCBORBytes . entityData) of
         -- TODO: proper error handling
         Left err -> error $ show err
         Right tempEntities -> pure tempEntities
-      Codebase.runTransaction codebase $ do
-        for_ newEntities $ \newEntity@(Entity {entityKind, entityHash, entityDepth, entityData = CBOR.CBORBytes entityBytes}) -> do
-          Q.insertTempEntitySyncV3 rootCausalHash (tShow entityKind) entityHash (unEntityDepth entityDepth) entityBytes
-
       let allDeps = foldMap tempEntityDependencies tempEntities
+      -- TODO: double-check whether it's okay to have this as a separate atomic block.
       alreadyRequestedEntities <- atomically $ do
         pending <- readTVar pendingRequestsVar
         reqs <- readTVar yetToRequestVar
@@ -152,7 +171,22 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
 
 flushTemp :: Codebase IO v a -> Hash32 -> IO CausalHashId
 flushTemp codebase rootCausalHash = do
-  _
+  Codebase.runTransaction codebase $ do
+    Q.streamTempEntitiesSyncV3 rootCausalHash \next ->
+      do
+        let loop = do
+              next >>= \case
+                Nothing -> pure ()
+                Just (hash, tempEntityBytes) ->
+                  do
+                    tempEntity <- case CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes tempEntityBytes) of
+                      -- TODO: proper error handling
+                      Left err -> error $ show err
+                      Right tempEntity -> pure tempEntity
+                    void $ Q.saveTempEntityInMain v2HashHandle hash tempEntity
+                    loop
+        loop
+    Q.expectCausalHashIdByCausalHash (Sync.hash32ToCausalHash rootCausalHash)
 
 tempEntityDependencies :: TempEntity -> Set (EntityKind, Hash32)
 tempEntityDependencies entity = do
