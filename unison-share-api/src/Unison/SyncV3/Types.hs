@@ -33,6 +33,7 @@ import U.Codebase.Sqlite.TempEntity
 import Unison.Hash32 (Hash32)
 import Unison.Prelude (tShow)
 import Unison.Server.Orphans ()
+import Unison.Sqlite qualified as Sqlite
 import Unison.Util.Servant.CBOR qualified as CBOR
 
 data InitMsg authedHash = InitMsg
@@ -189,6 +190,24 @@ data EntityKind
   | DefnComponentEntity
   | PatchEntity
   deriving stock (Show, Eq, Ord)
+
+instance Sqlite.ToField EntityKind where
+  toField =
+    Sqlite.toField . \case
+      CausalEntity -> (0 :: Int)
+      NamespaceEntity -> 1
+      DefnComponentEntity -> 2
+      PatchEntity -> 3
+
+instance Sqlite.FromField EntityKind where
+  fromField field = do
+    tag <- Sqlite.fromField field
+    case tag of
+      (0 :: Int) -> pure CausalEntity
+      1 -> pure NamespaceEntity
+      2 -> pure DefnComponentEntity
+      3 -> pure PatchEntity
+      _ -> fail $ "Unknown EntityKind tag: " <> show tag
 
 instance CBOR.Serialise EntityKind where
   encode = \case

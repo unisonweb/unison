@@ -315,6 +315,7 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.Text qualified as Aeson
 import Data.Bitraversable (bitraverse)
 import Data.ByteString.Lazy (LazyByteString)
+import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Bytes.Put (runPutS)
 import Data.Foldable qualified as Foldable
 import Data.List qualified as List
@@ -2402,7 +2403,7 @@ insertTempEntity entityHash entity missingDependencies = do
     entityType =
       Entity.entityType entity
 
-insertTempEntitySyncV3 :: Hash32 -> Text -> Hash32 -> Int32 -> ByteString -> Transaction ()
+insertTempEntitySyncV3 :: Hash32 -> Text -> Hash32 -> Int64 -> BL.ByteString -> Transaction ()
 insertTempEntitySyncV3 rootCausal entityKind entityHash entityDepth entityBlob = do
   execute
     [sql|

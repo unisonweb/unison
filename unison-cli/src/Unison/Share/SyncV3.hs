@@ -3,17 +3,13 @@ module Unison.Share.SyncV3
   )
 where
 
+import Control.Arrow ((&&&))
 import Control.Monad.Reader
-import Data.Int (Int32)
-import Data.Maybe (fromMaybe)
-import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Set.Lens qualified as Lens
-import Data.Text (Text)
 import GHC.Natural
 import Ki qualified
 import Network.WebSockets.Client qualified as WS
-import Servant.Client qualified as Servant
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Entity qualified as Entity
@@ -23,16 +19,13 @@ import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Sync.Types qualified as Sync
-import Unison.Sqlite qualified as Sqlite
 import Unison.SyncV3.Types
 import Unison.SyncV3.Types as SyncV3
-import Unison.Util.Servant.CBOR (CBORBytes)
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Websockets (Queues (..), withQueues)
 import UnliftIO.STM
@@ -74,10 +67,12 @@ syncFromCodeserver shouldValidate shareCodeserver branchRef hashJwt = do
       atomically $ send $ InitStream initMsg
       pendingRequestsVar <- newTVarIO (Set.singleton $ Share.hashJWTHash $ hashJwt)
       let initState = SyncState {pendingRequestsVar}
-      liftIO $ doSync codebase initState queues
-      causalId <- flushTemp codebase (Share.hashJWTHash hashJwt)
+      liftIO (doSync codebase initState queues) >>= \case
+        -- TODO: proper error handling
+        Left err -> error $ show err
+        Right () -> pure ()
+      causalId <- liftIO $ flushTemp codebase (Share.hashJWTHash hashJwt)
       _
-    _ -- Get the final causalHashId
 
 data SyncState = SyncState
   { pendingRequestsVar :: TVar (Set (EntityKind, Hash32)),
@@ -103,6 +98,8 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
       atomically receive >>= \case
         EmitterErrorMsg err -> onErr err
         EmitterEntityMsg entity -> do
+          atomically $ do
+            toIngestQueue
           missingDeps <- Codebase.runTransaction codebase $ saveEntity codebase entity
           atomically $ do
             pending <- readTVar pendingRequestsVar
@@ -116,7 +113,7 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
         requests <- readTVar yetToRequestVar
         writeTVar yetToRequestVar Set.empty
         modifyTVar' pendingRequestsVar (Set.union requests)
-        for_ requests $ \h -> send $ EntityRequestMsg h
+        for_ requests $ \h -> send $ ReceiverEntityRequestMsg h
 
     ingestionWorker :: (SyncError -> IO ()) -> IO ()
     ingestionWorker onErr = forever do
@@ -127,27 +124,33 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
         Left err -> error $ show err
         Right tempEntities -> pure tempEntities
       Codebase.runTransaction codebase $ do
-        for_ newEntities $ \newEntity@(Entity {entityKind, entityHash, entityDepth, entityData}) -> do
-          case CBOR.deserialiseOrFailCBORBytes entityData of
-            -- TODO: proper error handling
-            Left err -> error $ show err
-            Right tempEntity -> do
-              Q.insertTempEntitySyncV3 rootCausalHash entityKind entityHash entityDepth entityData
+        for_ newEntities $ \newEntity@(Entity {entityKind, entityHash, entityDepth, entityData = CBOR.CBORBytes entityBytes}) -> do
+          Q.insertTempEntitySyncV3 rootCausalHash (tShow entityKind) entityHash (unEntityDepth entityDepth) entityBytes
 
       let allDeps = foldMap tempEntityDependencies tempEntities
+      alreadyRequestedEntities <- atomically $ do
+        pending <- readTVar pendingRequestsVar
+        reqs <- readTVar yetToRequestVar
+        pure $ Set.union pending reqs
+      let unrequestedDeps = Set.difference allDeps alreadyRequestedEntities
       missingDeps <-
-        (Set.toList allDeps) & filterM \(_depKind, depHash) -> do
+        (Set.toList unrequestedDeps) & filterA \(_depKind, depHash) -> do
           Codebase.runTransaction codebase (Q.entityLocationSyncV3 depHash) <&> \case
             Nothing -> True
             _ -> False
+      let newlyInserted =
+            newEntities
+              <&> (entityKind &&& entityHash)
+              & Set.fromList
       -- Request any deps we're missing which also haven't already been requested
       atomically $ do
         pending <- readTVar pendingRequestsVar
         let missingDepsSet = Set.fromList missingDeps
         let unRequestedDeps = Set.difference missingDepsSet pending
         modifyTVar' yetToRequestVar (Set.union unRequestedDeps)
+        modifyTVar' pendingRequestsVar (\pending -> Set.difference pending newlyInserted)
 
-flushTemp :: Codebase IO v a -> CausalHash -> IO CausalHashId
+flushTemp :: Codebase IO v a -> Hash32 -> IO CausalHashId
 flushTemp codebase rootCausalHash = do
   _
 
