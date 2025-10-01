@@ -649,7 +649,11 @@
           "haskellNix",
           "nixpkgs-unstable"
         ],
-        "nixpkgs-release": "nixpkgs-release"
+        "nixpkgs-release": "nixpkgs-release",
+        "systems": [
+          "flake-utils",
+          "systems"
+        ]
       }
     },
     "stackage": {

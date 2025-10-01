@@ -10,25 +10,22 @@
   };
 
   inputs = {
+    flake-utils.url = "github:numtide/flake-utils";
     haskellNix.url = "github:input-output-hk/haskell.nix";
     nixpkgs-haskellNix.follows = "haskellNix/nixpkgs-unstable";
     nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
-    flake-utils.url = "github:numtide/flake-utils";
+    systems.follows = "flake-utils/systems";
   };
 
   outputs = {
-    self,
+    flake-utils,
     haskellNix,
     nixpkgs-haskellNix,
     nixpkgs-release,
-    flake-utils,
+    self,
+    systems,
   }:
-    flake-utils.lib.eachSystem [
-      "x86_64-linux"
-      "x86_64-darwin"
-      "aarch64-darwin"
-      "aarch64-linux"
-    ]
+    flake-utils.lib.eachSystem (import systems)
     (system: let
       versions = import ./nix/versions.nix {inherit (nixpkgs-haskellNix) lib;};
       pkgs = import nixpkgs-haskellNix {
