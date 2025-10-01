@@ -10,16 +10,18 @@ module Unison.SyncV3.Types
     EntityDepth (..),
     HashMappings (..),
     HashTag (..),
+    BranchRef (..),
   )
 where
 
+import Codec.Serialise (Serialise)
 import Codec.Serialise qualified as CBOR
 import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as BL
-import Data.Int (Int64)
+import Data.Int (Int32, Int64)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -34,18 +36,18 @@ import Unison.Server.Orphans ()
 import Unison.Util.Servant.CBOR qualified as CBOR
 
 data InitMsg authedHash = InitMsg
-  { initMsgClientVersion :: Text,
-    initMsgProjectId :: Text,
+  { initMsgClientVersion :: Int32,
+    initMsgBranchRef :: BranchRef,
     initMsgRootCausal :: authedHash,
     initMsgRequestedDepth :: Maybe Int64
   }
   deriving (Show, Eq)
 
 instance (ToJSON authedHash) => ToJSON (InitMsg authedHash) where
-  toJSON (InitMsg {initMsgClientVersion, initMsgProjectId, initMsgRootCausal, initMsgRequestedDepth}) =
+  toJSON (InitMsg {initMsgClientVersion, initMsgBranchRef, initMsgRootCausal, initMsgRequestedDepth}) =
     object
       [ "clientVersion" .= initMsgClientVersion,
-        "projectId" .= initMsgProjectId,
+        "branchRef" .= initMsgBranchRef,
         "rootCausal" .= initMsgRootCausal,
         "requestedDepth" .= initMsgRequestedDepth
       ]
@@ -54,7 +56,7 @@ instance (FromJSON authedHash) => FromJSON (InitMsg authedHash) where
   parseJSON = withObject "InitMsg" $ \o ->
     InitMsg
       <$> o .: "clientVersion"
-      <*> o .: "projectId"
+      <*> o .: "branchRef"
       <*> o .: "rootCausal"
       <*> o .:? "requestedDepth"
 
@@ -72,25 +74,32 @@ instance (CBOR.Serialise sh) => CBOR.Serialise (EntityRequestMsg sh) where
     pure $ EntityRequestMsg {hashes}
 
 data FromReceiverMessageTag
-  = InitStreamTag
-  | EntityRequestTag
+  = ReceiverInitStreamTag
+  | ReceiverEntityRequestTag
+  | ReceiverDoneTag
 
 instance CBOR.Serialise FromReceiverMessageTag where
   encode = \case
-    InitStreamTag -> CBOR.encode (0 :: Int)
-    EntityRequestTag -> CBOR.encode (1 :: Int)
+    ReceiverInitStreamTag -> CBOR.encode (0 :: Int)
+    ReceiverEntityRequestTag -> CBOR.encode (1 :: Int)
+    ReceiverDoneTag -> CBOR.encode (2 :: Int)
 
   decode = do
     tag <- CBOR.decode @Int
     case tag of
-      0 -> pure InitStreamTag
-      1 -> pure EntityRequestTag
+      0 -> pure ReceiverInitStreamTag
+      1 -> pure ReceiverEntityRequestTag
+      2 -> pure ReceiverDoneTag
       _ -> fail $ "Unknown FromReceiverMessageTag: " <> show tag
 
 -- A message sent from the downloader to the emitter.
 data FromReceiverMessage ah hash
-  = InitStream (InitMsg ah)
-  | EntityRequest (EntityRequestMsg hash)
+  = -- Initialize the stream
+    ReceiverInitStream (InitMsg ah)
+  | -- Request more entities by hash.
+    ReceiverEntityRequest (EntityRequestMsg hash)
+  | -- Sent when the receiver has no outstanding requests.
+    ReceiverDone
   deriving (Show, Eq)
 
 instance (ToJSON ah, FromJSON ah) => CBOR.Serialise (InitMsg ah) where
@@ -109,17 +118,19 @@ instance (ToJSON ah, FromJSON ah) => CBOR.Serialise (InitMsg ah) where
 
 instance (CBOR.Serialise h, ToJSON ah, FromJSON ah) => CBOR.Serialise (FromReceiverMessage ah h) where
   encode = \case
-    InitStream initMsg ->
-      CBOR.encode InitStreamTag
+    ReceiverInitStream initMsg ->
+      CBOR.encode ReceiverInitStreamTag
         <> CBOR.encode initMsg
-    EntityRequest msg ->
-      CBOR.encode EntityRequestTag
+    ReceiverEntityRequest msg ->
+      CBOR.encode ReceiverEntityRequestTag
         <> CBOR.encode msg
+    ReceiverDone -> CBOR.encode ReceiverDoneTag
   decode = do
     tag <- CBOR.decode @FromReceiverMessageTag
     case tag of
-      InitStreamTag -> InitStream <$> CBOR.decode @(InitMsg ah)
-      EntityRequestTag -> EntityRequest <$> CBOR.decode @(EntityRequestMsg h)
+      ReceiverInitStreamTag -> ReceiverInitStream <$> CBOR.decode @(InitMsg ah)
+      ReceiverEntityRequestTag -> ReceiverEntityRequest <$> CBOR.decode @(EntityRequestMsg h)
+      ReceiverDoneTag -> pure ReceiverDone
 
 data SyncError
   = InitializationError Text
@@ -152,14 +163,14 @@ instance CBOR.Serialise SyncError where
 
 -- A message sent from the emitter to the downloader.
 data FromEmitterMessage hash text
-  = ErrorMsg SyncError
-  | -- | HashMappingsMsg (HashMappings hash smallHash)
-    EntityMsg (Entity hash text)
+  = EmitterErrorMsg SyncError
+  | EmitterEntityMsg (Entity hash text)
+  | EmitterDoneMsg
 
 instance (CBOR.Serialise hash, CBOR.Serialise text) => WebSocketsData (FromEmitterMessage hash text) where
   fromLazyByteString bytes =
     CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes bytes)
-      & either (\err -> ErrorMsg . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) id
+      & either (\err -> EmitterErrorMsg . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) id
 
   toLazyByteString = CBOR.serialise
 
@@ -175,8 +186,7 @@ data HashMappings hash smallHash = HashMappings
 data EntityKind
   = CausalEntity
   | NamespaceEntity
-  | TermEntity
-  | TypeEntity
+  | DefnComponentEntity
   | PatchEntity
   deriving stock (Show, Eq, Ord)
 
@@ -184,18 +194,16 @@ instance CBOR.Serialise EntityKind where
   encode = \case
     CausalEntity -> CBOR.encode (0 :: Int)
     NamespaceEntity -> CBOR.encode (1 :: Int)
-    TermEntity -> CBOR.encode (2 :: Int)
-    TypeEntity -> CBOR.encode (3 :: Int)
-    PatchEntity -> CBOR.encode (4 :: Int)
+    DefnComponentEntity -> CBOR.encode (2 :: Int)
+    PatchEntity -> CBOR.encode (3 :: Int)
 
   decode = do
     tag <- CBOR.decode @Int
     case tag of
       0 -> pure CausalEntity
       1 -> pure NamespaceEntity
-      2 -> pure TermEntity
-      3 -> pure TypeEntity
-      4 -> pure PatchEntity
+      2 -> pure DefnComponentEntity
+      3 -> pure PatchEntity
       _ -> fail $ "Unknown EntityKind tag: " <> show tag
 
 -- | The number of _levels_ of dependencies an entity has,
@@ -269,34 +277,38 @@ instance (Ord smallHash, CBOR.Serialise hash, CBOR.Serialise smallHash) => CBOR.
 
 instance (CBOR.Serialise hash, CBOR.Serialise text) => CBOR.Serialise (FromEmitterMessage hash text) where
   encode = \case
-    ErrorMsg err -> CBOR.encode ErrorMsgTag <> CBOR.encode err
+    EmitterErrorMsg err -> CBOR.encode EmitterErrorMsgTag <> CBOR.encode err
     -- HashMappingsMsg msg -> CBOR.encode HashMappingsTag <> CBOR.encode msg
-    EntityMsg msg -> CBOR.encode EntityTag <> CBOR.encode msg
+    EmitterEntityMsg msg -> CBOR.encode EmitterEntityTag <> CBOR.encode msg
+    EmitterDoneMsg -> CBOR.encode EmitterDoneTag
 
   decode = do
     tag <- CBOR.decode @FromEmitterMessageTag
     case tag of
-      ErrorMsgTag -> ErrorMsg <$> CBOR.decode
+      EmitterErrorMsgTag -> EmitterErrorMsg <$> CBOR.decode
       -- HashMappingsTag -> HashMappingsMsg <$> CBOR.decode
-      EntityTag -> EntityMsg <$> CBOR.decode
+      EmitterEntityTag -> EmitterEntityMsg <$> CBOR.decode
+      EmitterDoneTag -> pure EmitterDoneMsg
 
 data FromEmitterMessageTag
-  = ErrorMsgTag
+  = EmitterErrorMsgTag
   | -- | HashMappingsTag
-    EntityTag
+    EmitterEntityTag
+  | EmitterDoneTag
 
 instance CBOR.Serialise FromEmitterMessageTag where
   encode = \case
-    ErrorMsgTag -> CBOR.encode (0 :: Int)
+    EmitterErrorMsgTag -> CBOR.encode (0 :: Int)
     -- HashMappingsTag -> CBOR.encode (1 :: Int)
-    EntityTag -> CBOR.encode (2 :: Int)
+    EmitterEntityTag -> CBOR.encode (2 :: Int)
+    EmitterDoneTag -> CBOR.encode (3 :: Int)
 
   decode = do
     tag <- CBOR.decode @Int
     case tag of
-      0 -> pure ErrorMsgTag
+      0 -> pure EmitterErrorMsgTag
       -- 1 -> pure HashMappingsTag
-      2 -> pure EntityTag
+      2 -> pure EmitterEntityTag
       _ -> fail $ "Unknown FromEmitterMessageTag: " <> show tag
 
 data MsgOrError err a
@@ -340,3 +352,6 @@ instance CBOR.Serialise HashTag where
   decode = do
     (kind, idx) <- CBOR.decode @(EntityKind, Int64)
     pure $ HashTag (kind, idx)
+
+newtype BranchRef = BranchRef {unBranchRef :: Text}
+  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON) via Text

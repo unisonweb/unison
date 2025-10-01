@@ -26,6 +26,7 @@ library:
     - hs-mcp
     - http-media
     - http-types
+    - ki-unlifted
     - lens
     - lucid
     - memory
