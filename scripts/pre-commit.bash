@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-echo "Running pre-commit hook from "`pwd`
-./scripts/test.sh
+echo "Running pre-commit hook from $(pwd)"
 
-# $? stores exit value of the last command
-if [ $? -ne 0 ]; then
- echo "Tests must pass before commit!"
- exit 1
+if ! ./scripts/test.sh; then
+    echo "Tests must pass before commit!"
+    exit 1
 fi
