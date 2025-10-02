@@ -104,7 +104,7 @@ data SyncState = SyncState
 
 -- | Given a stream that's already been initialized, receive entities and issue requests as needed.
 doSync :: Codebase IO v a -> SyncState -> Queues (MsgOrError SyncError (FromReceiverMessage Share.HashJWT Hash32)) (MsgOrError SyncError (FromEmitterMessage Hash32 Text)) -> IO (Either SyncError ())
-doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, rootCausalHash} (Queues {send, receive, shutdown}) = Ki.scoped \scope -> do
+doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, rootCausalHash} (Queues {send, receive, shutdown, connectionClosed}) = Ki.scoped \scope -> do
   errorVar <- newEmptyTMVarIO
   let onErr err = do
         atomically $ putTMVar errorVar err
@@ -112,17 +112,25 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
   _ <- Ki.fork scope (receiverWorker onErr)
   _ <- Ki.fork scope (requesterWorker onErr)
   _ <- Ki.fork scope (ingestionWorker onErr)
-  atomically $ (Right <$> Ki.awaitAll scope) <|> (Left <$> readTMVar errorVar)
+  result <-
+    atomically $
+      (Right <$> Ki.awaitAll scope)
+        <|> (Left . Left <$> readTMVar errorVar)
+        <|> (Left . Right <$> connectionClosed)
+  case result of
+    Left (Left syncErr) -> pure $ Left syncErr
+    Left (Right mayConnErr) -> case mayConnErr of
+      Nothing -> pure $ Right ()
+      Just connErr -> pure $ Left $ ConnectionError (tShow connErr)
+    Right () -> pure $ Right ()
   where
     receiverWorker :: (SyncError -> IO ()) -> IO ()
     receiverWorker onErr = do
       atomically receive >>= \case
-        Msg (EmitterErrorMsg err) -> onErr err
         Msg (EmitterEntityMsg entity) -> do
           atomically $ do
             writeTBQueue toIngestQueue entity
           receiverWorker onErr
-        Msg EmitterDoneMsg -> return ()
         Err err -> onErr err
     requesterWorker :: (SyncError -> IO ()) -> IO ()
     requesterWorker _onErr = forever do

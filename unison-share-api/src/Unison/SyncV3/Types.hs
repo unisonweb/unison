@@ -77,20 +77,17 @@ instance (CBOR.Serialise sh) => CBOR.Serialise (EntityRequestMsg sh) where
 data FromReceiverMessageTag
   = ReceiverInitStreamTag
   | ReceiverEntityRequestTag
-  | ReceiverDoneTag
 
 instance CBOR.Serialise FromReceiverMessageTag where
   encode = \case
     ReceiverInitStreamTag -> CBOR.encode (0 :: Int)
     ReceiverEntityRequestTag -> CBOR.encode (1 :: Int)
-    ReceiverDoneTag -> CBOR.encode (2 :: Int)
 
   decode = do
     tag <- CBOR.decode @Int
     case tag of
       0 -> pure ReceiverInitStreamTag
       1 -> pure ReceiverEntityRequestTag
-      2 -> pure ReceiverDoneTag
       _ -> fail $ "Unknown FromReceiverMessageTag: " <> show tag
 
 -- A message sent from the downloader to the emitter.
@@ -99,8 +96,6 @@ data FromReceiverMessage ah hash
     ReceiverInitStream (InitMsg ah)
   | -- Request more entities by hash.
     ReceiverEntityRequest (EntityRequestMsg hash)
-  | -- Sent when the receiver has no outstanding requests.
-    ReceiverDone
   deriving (Show, Eq)
 
 instance (ToJSON ah, FromJSON ah) => CBOR.Serialise (InitMsg ah) where
@@ -125,13 +120,11 @@ instance (CBOR.Serialise h, ToJSON ah, FromJSON ah) => CBOR.Serialise (FromRecei
     ReceiverEntityRequest msg ->
       CBOR.encode ReceiverEntityRequestTag
         <> CBOR.encode msg
-    ReceiverDone -> CBOR.encode ReceiverDoneTag
   decode = do
     tag <- CBOR.decode @FromReceiverMessageTag
     case tag of
       ReceiverInitStreamTag -> ReceiverInitStream <$> CBOR.decode @(InitMsg ah)
       ReceiverEntityRequestTag -> ReceiverEntityRequest <$> CBOR.decode @(EntityRequestMsg h)
-      ReceiverDoneTag -> pure ReceiverDone
 
 data SyncError
   = InitializationError Text
@@ -139,6 +132,7 @@ data SyncError
   | EncodingFailure Text
   | -- The caller asked for a Hash they shouldn't have access to.
     ForbiddenEntityRequest (Set (EntityKind, Hash32))
+  | ConnectionError Text
   deriving (Show, Eq)
 
 instance CBOR.Serialise SyncError where
@@ -151,6 +145,8 @@ instance CBOR.Serialise SyncError where
       CBOR.encode (2 :: Int) <> CBOR.encode msg
     ForbiddenEntityRequest hashes ->
       CBOR.encode (3 :: Int) <> CBOR.encode hashes
+    ConnectionError err ->
+      CBOR.encode (4 :: Int) <> CBOR.encode err
 
   decode = do
     tag <- CBOR.decode @Int
@@ -161,13 +157,14 @@ instance CBOR.Serialise SyncError where
         pure $ UnexpectedMessage (BL.fromStrict bs)
       2 -> EncodingFailure <$> CBOR.decode
       3 -> ForbiddenEntityRequest . Set.fromList <$> CBOR.decode
+      4 -> do
+        err <- CBOR.decode @Text
+        pure $ ConnectionError err
       _ -> fail $ "Unknown SyncError tag: " <> show tag
 
 -- A message sent from the emitter to the downloader.
 data FromEmitterMessage hash text
-  = EmitterErrorMsg SyncError
-  | EmitterEntityMsg (Entity hash text)
-  | EmitterDoneMsg
+  = EmitterEntityMsg (Entity hash text)
 
 data HashMappings hash smallHash = HashMappings
   { hashMappings :: Map smallHash hash
@@ -230,36 +227,6 @@ data Entity hash text = Entity
     entityData :: CBOR.CBORBytes TempEntity
   }
 
--- entityTexts_ :: Traversal (Entity smallHash text) (Entity smallHash text') text text'
--- entityTexts_ f (Entity {entityData, ..}) =
---   (\entityData' -> Entity {entityData = entityData', ..}) <$> Entity.texts_ f entityData
-
--- entityHashesSetter_ :: (Monad m) => LensLike m (Entity smallHash text) (Entity smallHash' text) smallHash smallHash'
--- entityHashesSetter_ f (Entity {entityHash, entityData, ..}) =
---   (\entityHash' entityData' -> Entity {entityHash = entityHash', entityData = entityData', ..})
---     <$> f entityHash
---     <*> ( entityData
---             & Entity.hashes_ f
---             >>= Entity.defns_ f
---             >>= Entity.patches_ f
---             >>= Entity.branchHashes_ f
---             >>= Entity.branches_ f
---             >>= Entity.causalHashes_ f
---         )
-
--- -- | It's technically possible to implement entityHashesGetter_ and entityHashesSetter_
--- -- as a single Traversal, but it's a ton of extra unpacking/packing that's probably not worth
--- -- it.
--- entityHashesGetter_ :: Fold (Entity smallHash text) smallHash
--- entityHashesGetter_ f (Entity {entityHash, entityData}) =
---   phantom (f entityHash)
---     *> phantom (Entity.hashes_ f entityData)
---     *> phantom (Entity.defns_ f entityData)
---     *> phantom (Entity.patches_ f entityData)
---     *> phantom (Entity.branchHashes_ f entityData)
---     *> phantom (Entity.branches_ f entityData)
---     *> phantom (Entity.causalHashes_ f entityData)
-
 instance (CBOR.Serialise smallHash, CBOR.Serialise text) => CBOR.Serialise (Entity smallHash text) where
   encode (Entity {entityHash, entityKind, entityDepth, entityData}) =
     CBOR.encode entityHash
@@ -285,38 +252,24 @@ instance (Ord smallHash, CBOR.Serialise hash, CBOR.Serialise smallHash) => CBOR.
 
 instance (CBOR.Serialise hash, CBOR.Serialise text) => CBOR.Serialise (FromEmitterMessage hash text) where
   encode = \case
-    EmitterErrorMsg err -> CBOR.encode EmitterErrorMsgTag <> CBOR.encode err
-    -- HashMappingsMsg msg -> CBOR.encode HashMappingsTag <> CBOR.encode msg
     EmitterEntityMsg msg -> CBOR.encode EmitterEntityTag <> CBOR.encode msg
-    EmitterDoneMsg -> CBOR.encode EmitterDoneTag
 
   decode = do
     tag <- CBOR.decode @FromEmitterMessageTag
     case tag of
-      EmitterErrorMsgTag -> EmitterErrorMsg <$> CBOR.decode
-      -- HashMappingsTag -> HashMappingsMsg <$> CBOR.decode
       EmitterEntityTag -> EmitterEntityMsg <$> CBOR.decode
-      EmitterDoneTag -> pure EmitterDoneMsg
 
 data FromEmitterMessageTag
-  = EmitterErrorMsgTag
-  | -- | HashMappingsTag
-    EmitterEntityTag
-  | EmitterDoneTag
+  = EmitterEntityTag
 
 instance CBOR.Serialise FromEmitterMessageTag where
   encode = \case
-    EmitterErrorMsgTag -> CBOR.encode (0 :: Int)
-    -- HashMappingsTag -> CBOR.encode (1 :: Int)
-    EmitterEntityTag -> CBOR.encode (2 :: Int)
-    EmitterDoneTag -> CBOR.encode (3 :: Int)
+    EmitterEntityTag -> CBOR.encode (0 :: Int)
 
   decode = do
     tag <- CBOR.decode @Int
     case tag of
-      0 -> pure EmitterErrorMsgTag
-      -- 1 -> pure HashMappingsTag
-      2 -> pure EmitterEntityTag
+      0 -> pure EmitterEntityTag
       _ -> fail $ "Unknown FromEmitterMessageTag: " <> show tag
 
 data MsgOrError err a
