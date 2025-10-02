@@ -317,17 +317,18 @@ pretty0
                         <> fmt S.ControlKeyword "with"
                           `hangHandler` ph
                     ]
-          Delay' x@(Match' scrutinee cs) 
+          Delay' x@(Match' scrutinee cs)
             | not (isDestructuringBind scrutinee cs) -> do
-              px <- pretty0 (ac Annotation Block im doc) x
-              let hang = if isSoftHangable x then PP.softHang else PP.hang
-              pure . paren (p > Control) $
-                fmt S.ControlKeyword "do" `hang` px
+                px <- pretty0 (ac Annotation Block im doc) x
+                let hang = if isSoftHangable x then PP.softHang else PP.hang
+                pure . paren (p > Control) $
+                  fmt S.ControlKeyword "do" `hang` px
           Delay' x -> do
             let (im0', uses0) = calcImports im x
             let allowUses = isLet x || (p == Bottom) || isDestructure x
-                  where isDestructure (Match' scrutinee cs) = isDestructuringBind scrutinee cs 
-                        isDestructure _ = False
+                  where
+                    isDestructure (Match' scrutinee cs) = isDestructuringBind scrutinee cs
+                    isDestructure _ = False
             let im' = if allowUses then im0' else im
             let uses = if allowUses then uses0 else []
             let soft = isSoftHangable x && null uses && p < Annotation
