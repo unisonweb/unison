@@ -372,6 +372,7 @@ data Prim1
   | REFR -- Ref.read
   | RRFC
   | TIKR
+  | VALS -- reflect array elements to values
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Prim2
@@ -1402,6 +1403,7 @@ emitPOp ANF.TLTT = emitP1 TLTT
 emitPOp ANF.CVLD = emitP1 CVLD
 emitPOp ANF.LOAD = emitP1 LOAD
 emitPOp ANF.VALU = emitP1 VALU
+emitPOp ANF.VALS = emitP1 VALS
 emitPOp ANF.SDBX = emitP2 SDBX
 emitPOp ANF.SDBL = emitP1 SDBL
 emitPOp ANF.SDBV = emitP2 SDBV

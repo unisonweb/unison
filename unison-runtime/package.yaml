@@ -104,6 +104,7 @@ library:
     - unliftio
     - unordered-containers
     - vector
+    - vector-algorithms
     - crypton-x509
     - crypton-x509-store
     - crypton-x509-system

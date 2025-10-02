@@ -355,6 +355,10 @@ instance BuiltinForeign ByteArray where
   foreignName = Tagged "ByteArray"
   foreignRef = Tagged Ty.ibytearrayRef
 
+instance BuiltinForeign SomePrimArr where
+  foreignName = Tagged "UnboxedArray"
+  foreignRef = Tagged Ty.uarrayRef
+
 instance BuiltinForeign Integer where
   foreignName = Tagged "Integer"
   foreignRef = Tagged Ty.integerRef

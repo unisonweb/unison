@@ -643,6 +643,16 @@ murmur'hash instr =
   where
     (x, vl) = fresh
 
+-- custom code for hashing an entire array of values
+murmur'hashes :: ForeignOp
+murmur'hashes instr =
+  ([BX],)
+    . TAbss [x]
+    . TLetD vls BX (TPrm VALS [x])
+    $ TFOp instr [vls]
+  where
+    (x, vls) = fresh
+
 crypto'hmac :: ForeignOp
 crypto'hmac instr =
   ([BX, BX, BX],)
@@ -1227,6 +1237,8 @@ declareForeigns = do
 
   declareForeignWrap Untracked murmur'hash Universal_murmurHash
   declareForeignWrap Untracked murmur'hash Universal_murmurHashUntyped
+  declareForeignWrap Untracked murmur'hashes
+    ImmutableArray_murmurHashesUntyped
 
   declareForeign Tracked 1 IO_randomBytes
   declareForeign Untracked 1 Bytes_zlib_compress
@@ -1402,6 +1414,33 @@ declareForeigns = do
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
   declareForeign Untracked 3 Avro_decodeBinary
+
+  declareForeign Untracked 1 ImmutableArray_at1s
+  declareForeign Untracked 1 ImmutableArray_at2s
+  declareForeign Untracked 3 ImmutableArray_chop
+  declareForeign Untracked 1 ImmutableArray_fromList
+  declareForeign Untracked 1 ImmutableArray_fromListAt1
+  declareForeign Untracked 1 ImmutableArray_fromListAt2
+  declareForeign Untracked 2 ImmutableArray_intersectIx
+  declareForeign Untracked 2 ImmutableArray_outerJoinIx
+  declareForeign Untracked 2 ImmutableArray_pick
+  declareForeign Untracked 2 ImmutableArray_pick1
+  declareForeign Untracked 3 ImmutableArray_pick1Or
+  declareForeign Untracked 1 ImmutableArray_runsIx
+  declareForeign Untracked 1 ImmutableArray_toList
+  declareForeign Untracked 1 ImmutableArray_toLists
+  declareForeign Untracked 2 ImmutableArray_zipWithAppend
+  declareForeign Untracked 1 ImmutableArray_sortIx
+  declareForeign Untracked 1 UnboxedArray_fromNatList
+  declareForeign Untracked 2 UnboxedArray_modR
+  declareForeign Untracked 2 UnboxedArray_multiplyR
+  declareForeign Untracked 2 UnboxedArray_divideR
+  declareForeign Untracked 1 UnboxedArray_size
+  declareForeign Untracked 1 UnboxedArray_toList
+  declareForeign Untracked 1 UnboxedArray_occurrences
+  declareForeign Untracked 2 UnboxedArray_pick
+  declareForeign Untracked 2 UnboxedArray_pick1
+  declareForeign Untracked 3 UnboxedArray_pick1Or
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))

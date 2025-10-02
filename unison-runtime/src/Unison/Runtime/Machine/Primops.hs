@@ -109,6 +109,7 @@ prim1 env !stk DBTX i = prim1wrap (dbtx env) stk i
 prim1 _env !stk CACH _ = pure stk
 prim1 _env !stk LOAD _ = pure stk
 prim1 _env !stk VALU _ = pure stk
+prim1 _env !stk VALS _ = pure stk
 {-# INLINE prim1 #-}
 
 -- Wrap an implementation to act on an index on two indices

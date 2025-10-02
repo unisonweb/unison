@@ -364,6 +364,33 @@ data ForeignFunc
   | Natural_isEven
   | Natural_isOdd
   | Universal_murmurHashUntyped
+  | ImmutableArray_at1s
+  | ImmutableArray_at2s
+  | ImmutableArray_chop
+  | ImmutableArray_fromList
+  | ImmutableArray_fromListAt1
+  | ImmutableArray_fromListAt2
+  | ImmutableArray_intersectIx
+  | ImmutableArray_murmurHashesUntyped
+  | ImmutableArray_outerJoinIx
+  | ImmutableArray_pick
+  | ImmutableArray_pick1
+  | ImmutableArray_pick1Or
+  | ImmutableArray_runsIx
+  | ImmutableArray_toList
+  | ImmutableArray_toLists
+  | ImmutableArray_zipWithAppend
+  | ImmutableArray_sortIx
+  | UnboxedArray_fromNatList
+  | UnboxedArray_modR
+  | UnboxedArray_multiplyR
+  | UnboxedArray_divideR
+  | UnboxedArray_size
+  | UnboxedArray_toList
+  | UnboxedArray_occurrences
+  | UnboxedArray_pick
+  | UnboxedArray_pick1
+  | UnboxedArray_pick1Or
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -724,3 +751,31 @@ foreignFuncBuiltinName = \case
   Natural_isEven -> "Natural.isEven"
   Natural_isOdd -> "Natural.isOdd"
   Universal_murmurHashUntyped -> "Universal.murmurHashUntyped"
+  ImmutableArray_at1s -> "ImmutableArray.at1s"
+  ImmutableArray_at2s -> "ImmutableArray.at2s"
+  ImmutableArray_fromList -> "ImmutableArray.fromList"
+  ImmutableArray_fromListAt1 -> "ImmutableArray.fromListAt1"
+  ImmutableArray_fromListAt2 -> "ImmutableArray.fromListAt2"
+  ImmutableArray_murmurHashesUntyped ->
+    "ImmutableArray.murmurHashesUntyped"
+  ImmutableArray_pick -> "ImmutableArray.pick"
+  ImmutableArray_pick1 -> "ImmutableArray.pick1"
+  ImmutableArray_pick1Or -> "ImmutableArray.pick1Or"
+  ImmutableArray_zipWithAppend -> "ImmutableArray.zipWithAppend"
+  ImmutableArray_runsIx -> "ImmutableArray.runsIx"
+  ImmutableArray_toList -> "ImmutableArray.toList"
+  ImmutableArray_toLists -> "ImmutableArray.toLists"
+  ImmutableArray_sortIx -> "ImmutableArray.sortIx"
+  ImmutableArray_chop -> "ImmutableArray.chop"
+  ImmutableArray_outerJoinIx -> "ImmutableArray.outerJoinIx"
+  ImmutableArray_intersectIx -> "ImmutableArray.intersectIx"
+  UnboxedArray_fromNatList -> "UnboxedArray.fromNatList"
+  UnboxedArray_modR -> "UnboxedArray.modR"
+  UnboxedArray_multiplyR -> "UnboxedArray.multiplyR"
+  UnboxedArray_divideR -> "UnboxedArray.divideR"
+  UnboxedArray_size -> "UnboxedArray.size"
+  UnboxedArray_toList -> "UnboxedArray.toList"
+  UnboxedArray_occurrences -> "UnboxedArray.occurrences"
+  UnboxedArray_pick -> "UnboxedArray.pick"
+  UnboxedArray_pick1 -> "UnboxedArray.pick1"
+  UnboxedArray_pick1Or -> "UnboxedArray.pick1Or"

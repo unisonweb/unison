@@ -382,6 +382,7 @@ builtinConstraintTree =
         (constrain (Type :-> Type))
         [ Type.list,
           Type.iarrayType,
+          Type.uarrayType,
           flip Type.ref Type.mvarRef,
           flip Type.ref Type.tvarRef,
           flip Type.ref Type.ticketRef,
