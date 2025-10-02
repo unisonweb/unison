@@ -61,6 +61,7 @@
           };
           hpack.version = versions.hpack;
           ormolu.version = versions.ormolu;
+          weeder.version = versions.weeder;
         };
     };
 

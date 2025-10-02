@@ -8,4 +8,5 @@ in
   // {
     hpack = "0.36.0"; # This needs to match the version returned by `nix develop --command stack --version`.
     ormolu = "0.7.2.0";
+    weeder = "2.8.0";
   }
