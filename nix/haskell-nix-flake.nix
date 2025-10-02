@@ -65,6 +65,7 @@
               constraints: ormolu == ${versions.ormolu}
             '';
           };
+          weeder = {version = versions.weeder;};
         };
     };
 
