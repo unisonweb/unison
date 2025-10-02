@@ -1359,16 +1359,16 @@ printAnnotate n tm =
       ABT.Var v -> ABT.annotatedVar (annotation t, g t) v
       ABT.Cycle body ->
         let body' = reannotateUp g body
-        in ABT.cycle' (annotation t, snd (annotation body')) body'
+         in ABT.cycle' (annotation t, snd (annotation body')) body'
       ABT.Abs v body ->
         let body' = reannotateUp g body
-        in ABT.abs' (annotation t, snd (annotation body')) v body'
+         in ABT.abs' (annotation t, snd (annotation body')) v body'
       ABT.Tm body ->
         -- literals like 0xsaaff don't contribute to the annotations
         -- even though they desugar to function calls
         let body' = reannotateUp g <$> body
             ann = if isLiteral t then mempty else g t <> foldMap (snd . annotation) body'
-        in ABT.tm' (annotation t, ann) body'
+         in ABT.tm' (annotation t, ann) body'
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
 countTypeUsages n usedTy t = snd $ annotation $ reannotateUp (suffixCounterType n usedTy) t
