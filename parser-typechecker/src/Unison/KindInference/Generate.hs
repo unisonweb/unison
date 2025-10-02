@@ -8,6 +8,7 @@ module Unison.KindInference.Generate
   )
 where
 
+import Control.Monad.Except
 import Data.Foldable (foldlM)
 import Data.Set qualified as Set
 import U.Core.ABT qualified as ABT
@@ -21,10 +22,11 @@ import Unison.KindInference.Constraint.Context (ConstraintContext (..))
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
 import Unison.KindInference.Constraint.Provenance qualified as Provenance
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
-import Unison.KindInference.Generate.Monad (Gen, GeneratedConstraint, freshVar, lookupType, pushType, scopedType)
+import Unison.KindInference.Generate.Monad (Gen, GenError (..), GeneratedConstraint, freshVar, lookupType, pushType, scopedType)
 import Unison.KindInference.UVar (UVar)
 import Unison.Prelude
 import Unison.Reference (Reference)
+import Unison.Reference qualified as Reference
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Util.Recursion
@@ -94,7 +96,10 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
         pure (foldr Constraint ct gcs)
       Type.Ref r ->
         lookupType (Type.ref annotation r) >>= \case
-          Nothing -> error ("[typeConstraintTree] Ref lookup failure: " <> show term)
+          Nothing ->
+            if Reference.isBuiltin r
+              then throwError $ MissingBuiltin annotation r
+              else error ("[typeConstraintTree] Ref lookup failure: " <> show term)
           Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
       Type.Effect effTyp b -> do
         effKind <- freshVar effTyp

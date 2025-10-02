@@ -9,6 +9,7 @@ import Control.Lens ((?~))
 import Control.Lens.Lens
 import Crypto.Random qualified as Random
 import Data.IORef
+import Data.List qualified as List
 import Data.List.NonEmpty qualified as NEL
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
@@ -190,19 +191,22 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
         pure case invalidProjectNames of
           [] -> []
           _ ->
-            [ Right . CreateMessage . P.warnCallout $
-                P.wrap "We're updating UCM's project naming rules, and these names won’t be supported much longer:"
-                  <> P.newline
-                  <> P.newline
-                  <> P.group (P.commas (map P.prettyProjectName invalidProjectNames))
-                  <> P.newline
-                  <> P.newline
-                  <> P.wrap
-                    ( "Please"
-                        <> IP.makeExample IP.projectRenameInputPattern []
-                        <> "them using only ASCII letters, numbers, and hyphens, of length 2-40 characters."
-                    )
-            ]
+            let isReservedName (into @Text -> name) = name == "code" || name == "p"
+                hasReservedName = isJust (List.find isReservedName invalidProjectNames)
+             in [ Right . CreateMessage . P.warnCallout $
+                    P.wrap "We're updating UCM's project naming rules, and these names won’t be supported much longer:"
+                      <> P.newline
+                      <> P.newline
+                      <> P.group (P.commas (map P.prettyProjectName invalidProjectNames))
+                      <> P.newline
+                      <> P.newline
+                      <> P.wrap
+                        ( "Please"
+                            <> IP.makeExample IP.projectRenameInputPattern []
+                            <> "them using only ASCII letters, numbers, hyphens, and underscores."
+                            <> (if hasReservedName then "(You also can't use the names 'code' or 'p'.)" else mempty)
+                        )
+                ]
 
       let initialState = Cli.loopState0 ppIds
       initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs ++ invalidProjectNamesInputs
