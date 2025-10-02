@@ -4623,7 +4623,6 @@ abilities.Random.splits.bytes = Random.splits Bytes.size Bytes.splitAt
 
 abilities.Random.splits.bytes.doc : Doc
 abilities.Random.splits.bytes.doc =
-  use fromList impl
   {{
   `` splits.bytes chunkCount bytes `` splits `bytes` into `chunkCount` chunks
   of uniformly-distributed size.
@@ -6289,7 +6288,6 @@ bug.impossible.doc = {{ Handler for exceptions that shouldn't happen. }}
 Bytes.++.doc : Doc
 Bytes.++.doc =
   use Bytes ++
-  use fromList impl
   {{
   Append two {type Bytes} values.
   
@@ -6317,7 +6315,6 @@ Bytes.at.doc : Doc
 Bytes.at.doc =
   use Bytes at
   use Optional flatten
-  use fromList impl
   {{
   Returns the byte at the given index in the {type Bytes} value, as a
   {type Nat}.
@@ -6488,7 +6485,6 @@ Bytes.constantTimeEqual b1 b2 =
 
 Bytes.constantTimeEqual.doc : Doc
 Bytes.constantTimeEqual.doc =
-  use fromList impl
   {{
   Like {===} but examines every byte of both inputs even if an earlier byte
   doesn't match. Used to avoid timing attacks when (say) verifying an {hmac}.
@@ -6514,7 +6510,6 @@ test> Bytes.constantTimeEqual.tests = test.verify do
 
 Bytes.decodeNat16be.doc : Doc
 Bytes.decodeNat16be.doc =
-  use fromList impl
   {{
   Decodes a {type Nat} from the first two bytes of a {type Bytes} value in
   big-endian order. Returns a pair containing the decoded {type Nat} and the
@@ -6553,7 +6548,6 @@ Bytes.decodeNat16be.doc =
 
 Bytes.decodeNat16le.doc : Doc
 Bytes.decodeNat16le.doc =
-  use fromList impl
   {{
   Decodes a {type Nat} from the first two bytes of a {type Bytes} value in
   little-endian order. Returns a pair containing the decoded {type Nat} and the
@@ -6602,7 +6596,6 @@ Bytes.decodeNat16sbe n bs =
 
 Bytes.decodeNat16sbe.doc : Doc
 Bytes.decodeNat16sbe.doc =
-  use fromList impl
   {{
   Decodes **at most** a given number of 16-bit unsigned integers in big-endian
   order from the given {type Bytes} and returns them as a list of {type Nat}
@@ -6627,7 +6620,6 @@ Bytes.decodeNat16sbe.doc =
 
 Bytes.decodeNat32be.doc : Doc
 Bytes.decodeNat32be.doc =
-  use fromList impl
   {{
   Decodes a {type Nat} from the first four bytes of a {type Bytes} value in
   big-endian order. Returns a pair containing the decoded {type Nat} and the
@@ -6666,7 +6658,6 @@ Bytes.decodeNat32be.doc =
 
 Bytes.decodeNat32le.doc : Doc
 Bytes.decodeNat32le.doc =
-  use fromList impl
   {{
   Decodes a {type Nat} from the first four bytes of a {type Bytes} value in
   little-endian order. Returns a pair containing the decoded {type Nat} and the
@@ -6715,7 +6706,6 @@ Bytes.decodeNat32sbe n bs =
 
 Bytes.decodeNat32sbe.doc : Doc
 Bytes.decodeNat32sbe.doc =
-  use fromList impl
   {{
   Decodes **at most** a given number of 32-bit unsigned integers in big-endian
   order from the given {type Bytes} and returns them as a list of {type Nat}
@@ -6740,7 +6730,6 @@ Bytes.decodeNat32sbe.doc =
 
 Bytes.decodeNat64be.doc : Doc
 Bytes.decodeNat64be.doc =
-  use fromList impl
   {{
   Decodes a {type Nat} from the first eight bytes of a {type Bytes} value in
   big-endian order. Returns a pair containing the decoded {type Nat} and the
@@ -6779,7 +6768,6 @@ Bytes.decodeNat64be.doc =
 
 Bytes.decodeNat64le.doc : Doc
 Bytes.decodeNat64le.doc =
-  use fromList impl
   {{
   Decodes a {type Nat} from the first eight bytes of a {type Bytes} value in
   little-endian order. Returns a pair containing the decoded {type Nat} and the
@@ -6828,7 +6816,6 @@ Bytes.decodeNat64sbe n bs =
 
 Bytes.decodeNat64sbe.doc : Doc
 Bytes.decodeNat64sbe.doc =
-  use fromList impl
   {{
   Decodes **at most** a given number of 64-bit unsigned integers in big-endian
   order from the given {type Bytes} and returns them as a list of {type Nat}
@@ -6853,7 +6840,6 @@ Bytes.doc : Doc
 Bytes.doc =
   use Bytes ++
   use Text toUtf8
-  use fromList impl
   {{
   {type Bytes} is a type of in-memory data represented as strings of bytes.
   
@@ -7080,7 +7066,6 @@ Bytes.doc =
 Bytes.drop.doc : Doc
 Bytes.drop.doc =
   use Bytes drop
-  use fromList impl
   {{
   `` drop n b `` returns the {type Bytes} `b` with the first `n` bytes removed.
   
@@ -7605,7 +7590,6 @@ Bytes.fromList.doc =
 
 Bytes.gzip.compress.doc : Doc
 Bytes.gzip.compress.doc =
-  use fromList impl
   use gzip compress
   {{
   Compresses a {type Bytes} value using the
@@ -7693,7 +7677,6 @@ Bytes.isEmpty bs =
 Bytes.isEmpty.doc : Doc
 Bytes.isEmpty.doc =
   use Bytes isEmpty
-  use fromList impl
   {{
   Returns `` true `` if the {type Bytes} is empty.
   
@@ -7725,7 +7708,6 @@ Bytes.shiftLeft n bs =
 Bytes.shiftLeft.doc : Doc
 Bytes.shiftLeft.doc =
   use Bytes shiftLeft
-  use fromList impl
   {{
   `` shiftLeft n bs `` shifts all the {type Bytes} `bs` left by `n` bits, where
   `n` is at most ``8``. Passing `n` larger than `` 8 `` will have the same
@@ -7759,7 +7741,6 @@ Bytes.shiftRight n bs =
 Bytes.shiftRight.doc : Doc
 Bytes.shiftRight.doc =
   use Bytes shiftRight
-  use fromList impl
   {{
   `` shiftRight n bs `` shifts all the {type Bytes} `bs` right by `n` bits,
   where `n` is at most ``8``. Passing `n` larger than `` 8 `` will have the
@@ -7785,7 +7766,6 @@ Bytes.shiftRight.doc =
 Bytes.size.doc : Doc
 Bytes.size.doc =
   use Bytes size
-  use fromList impl
   {{
   Returns the number of bytes in the given {type Bytes}.
   
@@ -7806,7 +7786,6 @@ Bytes.splitAt index bytes = (Bytes.take index bytes, Bytes.drop index bytes)
 Bytes.splitAt.doc : Doc
 Bytes.splitAt.doc =
   use Bytes splitAt
-  use fromList impl
   {{
   `` splitAt index bytes `` splits the provided bytes into two pieces at the
   given index. The length of the first piece will be the given index, and the
@@ -7859,7 +7838,6 @@ test> Bytes.splitAt.tests =
 Bytes.take.doc : Doc
 Bytes.take.doc =
   use Bytes take
-  use fromList impl
   {{
   `` take n b `` returns the first `n` bytes of `b`.
   
@@ -7885,7 +7863,6 @@ Bytes.take.doc =
 Bytes.toBase16.doc : Doc
 Bytes.toBase16.doc =
   use Bytes toBase16
-  use fromList impl
   {{
   Transforms {type Bytes} to their hexadecimal representation in the ASCII
   character set. See also {toBase16.text} if you'd like to convert directly to
@@ -7902,7 +7879,6 @@ Bytes.toBase16.doc =
 
 Bytes.toBase32.doc : Doc
 Bytes.toBase32.doc =
-  use fromList impl
   {{
   Transforms {type Bytes} to their representation in the
   [RFC 4648 base32 alphabet](https://en.wikipedia.org/wiki/Base32#RFC_4648_Base32_alphabet).
@@ -7971,7 +7947,6 @@ Bytes.toBase32Hex.text.doc =
 
 Bytes.toBase64.doc : Doc
 Bytes.toBase64.doc =
-  use fromList impl
   {{
   Transforms {type Bytes} to their representation in the
   [RFC 4648 base64 alphabet](https://en.wikipedia.org/wiki/Base64).
@@ -8050,7 +8025,6 @@ Bytes.toNat64sbe bs =
 
 Bytes.toNat64sbe.doc : Doc
 Bytes.toNat64sbe.doc =
-  use fromList impl
   {{
   Decodes a list of {type Nat}s in
   [big-endian](https://en.wikipedia.org/wiki/Endianness) order from
@@ -8098,7 +8072,6 @@ Bytes.truncateLeft n =
 
 Bytes.truncateLeft.doc : Doc
 Bytes.truncateLeft.doc =
-  use fromList impl
   {{
   `` truncateLeft n bs `` truncates the {type Bytes} `bs` to `n` bits, counting
   from the left.
@@ -8142,7 +8115,6 @@ Bytes.truncateRight n bs =
 
 Bytes.truncateRight.doc : Doc
 Bytes.truncateRight.doc =
-  use fromList impl
   {{
   `` truncateRight n bs `` truncates the {type Bytes} `bs` to `n` bits,
   counting from the right.
@@ -10149,7 +10121,6 @@ crypto.Ed25519.sign = cases
 
 crypto.Ed25519.sign.doc : Doc
 crypto.Ed25519.sign.doc =
-  use fromList impl
   {{
   Signs a message with an Ed25519 key pair and returns the signature.
   
@@ -10197,7 +10168,6 @@ crypto.Ed25519.verify.doc =
   use Ed25519.PublicKey PublicKey
   use Ed25519.Signature Signature
   use Text toUtf8
-  use fromList impl
   {{
   Verifies an Ed25519 signature on a message.
   
@@ -10421,7 +10391,6 @@ crypto.HashAlgorithm.Sha3_512.doc =
 
 crypto.hashBytes.doc : Doc
 crypto.hashBytes.doc =
-  use fromList impl
   {{
   `` hashBytes algo bs `` hashes bytes using
   {{ docExample 1 do algo -> (algo : HashAlgorithm) }}.
@@ -10661,7 +10630,6 @@ crypto.Rsa.sign.doc =
   use Rsa.PrivateKey PrivateKey
   use Rsa.PublicKey PublicKey
   use Text toUtf8
-  use fromList impl
   {{
   Signs a message with an RSA private key and returns the signature.
   
@@ -10706,7 +10674,6 @@ crypto.Rsa.sign.doc =
 
 test> crypto.Rsa.sign.test = 
   test.verify do
-    use fromList impl
     actual = 
       catch do
         private =
@@ -10745,7 +10712,6 @@ crypto.Rsa.verify.doc =
   use Rsa.PrivateKey PrivateKey
   use Rsa.PublicKey PublicKey
   use Text toUtf8
-  use fromList impl
   {{
   Verifies an RSA signature on a message.
   
@@ -10792,7 +10758,6 @@ crypto.Rsa.verify.doc =
 test> crypto.Rsa.verify.test = 
   test.verify do
     use Text toUtf8
-    use fromList impl
     result = 
       catch do
         private =
@@ -10808,10 +10773,10 @@ test> crypto.Rsa.verify.test =
 data.Array.append : data.Array a -> data.Array a -> data.Array a
 data.Array.append arr1 arr2 = unsafeRun! do
   Scope.run do
-    (Arr off1 len1 raw1) = arr1
-    (Arr off2 len2 raw2) = arr2
     use Nat +
     use data.Array.Raw copyTo!
+    (Arr off1 len1 raw1) = arr1
+    (Arr off2 len2 raw2) = arr2
     m = Scope.Raw.array (len1 + len2)
     copyTo! m 0 raw1 off1 len1
     copyTo! m len1 raw2 off2 len2
@@ -10931,8 +10896,8 @@ data.Array.at!.doc =
 data.Array.cons : a -> data.Array a -> data.Array a
 data.Array.cons x arr = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat +
+    (Arr off len raw) = arr
     m = Scope.Raw.array (len + 1)
     data.Array.Raw.copyTo! m 1 raw off len
     Raw.write m 0 x
@@ -11164,8 +11129,8 @@ test> data.Array.firstIndexOf.tests.finds = test.verify do
 data.Array.foldLeft : (a ->{g} b ->{h} a) -> a -> data.Array b ->{g, h} a
 data.Array.foldLeft f acc arr = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat + >=
+    (Arr off len raw) = arr
     go n acc =
       if n >= len then acc
       else
@@ -11206,8 +11171,8 @@ data.Array.foldLeft.doc =
 data.Array.foldRight : (a ->{g} b ->{h} b) -> b -> data.Array a ->{g, h} b
 data.Array.foldRight f acc arr = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat + - ==
+    (Arr off len raw) = arr
     go n acc =
       if n == 0 then acc
       else
@@ -11638,8 +11603,8 @@ data.Array.slice.doc =
 data.Array.snoc : data.Array a -> a -> data.Array a
 data.Array.snoc arr x = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat +
+    (Arr off len raw) = arr
     m = Scope.Raw.array (len + 1)
     data.Array.Raw.copyTo! m 0 raw off len
     Raw.write m len x
@@ -13336,7 +13301,6 @@ data.ByteArray.++.doc =
 data.ByteArray.append.doc : Doc
 data.ByteArray.append.doc =
   use ByteArray fromBytes
-  use fromList impl
   {{
   Constructs a new {type data.ByteArray} with the contents of both the given
   {type data.ByteArray}s, in order.
@@ -14051,7 +14015,6 @@ data.ByteArray.Raw.read8.doc : Doc
 data.ByteArray.Raw.read8.doc =
   use Raw fromBytes
   use data.ByteArray.Raw read8
-  use fromList impl
   {{
   Reads an 8-bit unsigned integer from the given raw byte array at the given
   index, returning it as a {type Nat}. Throws an {type ArrayFailure}
@@ -55968,7 +55931,6 @@ IO.concurrent.STM.TMap.contains b m = isSome (TMap.lookup b m)
 IO.concurrent.STM.TMap.contains.doc : Doc
 IO.concurrent.STM.TMap.contains.doc =
   use TMap contains insert
-  use fromList impl
   {{
   `` contains key t `` returns `` true `` if the key is found and `` false ``
   otherwise.
@@ -56014,7 +55976,6 @@ IO.concurrent.STM.TMap.delete b tm =
 IO.concurrent.STM.TMap.delete.doc : Doc
 IO.concurrent.STM.TMap.delete.doc =
   use TMap delete
-  use fromList impl
   {{
   `` delete key tm `` deletes a key from `tm`.
   
@@ -56031,7 +55992,6 @@ IO.concurrent.STM.TMap.delete.doc =
 IO.concurrent.STM.TMap.doc : Doc
 IO.concurrent.STM.TMap.doc =
   use TMap empty insert lookup
-  use fromList impl
   {{
   A transactional, very low contention concurrent mutable map, keyed by
   {type Bytes}. If there are many concurrent writes, this will generally be
@@ -56331,7 +56291,6 @@ IO.concurrent.STM.TMap.insert b a m = insert.impl 0 b a m
 IO.concurrent.STM.TMap.insert.doc : Doc
 IO.concurrent.STM.TMap.insert.doc =
   use TMap insert
-  use fromList impl
   {{
   `` insert key v t `` inserts an entry in the map, replacing any existing
   entry that may exist for `key`.
@@ -56379,7 +56338,6 @@ IO.concurrent.STM.TMap.lookup b m =
 IO.concurrent.STM.TMap.lookup.doc : Doc
 IO.concurrent.STM.TMap.lookup.doc =
   use TMap lookup
-  use fromList impl
   {{
   `` lookup key t `` returns {Some} if the key is found and {None} otherwise.
   
@@ -60290,7 +60248,6 @@ IO.net.URI.Path.doc =
 IO.net.URI.Path.encode : Path -> Bytes
 IO.net.URI.Path.encode p =
   use Bytes ++
-  use fromList impl
   foldDelimited (++) encode.segment 0xs2f 0xs2f Bytes.empty (segments p)
 
 IO.net.URI.Path.encode.char : Char -> Text
@@ -66647,7 +66604,6 @@ Nat.fromBytesBigEndian bs = match decodeNat64be bs with
 
 Nat.fromBytesBigEndian.doc : Doc
 Nat.fromBytesBigEndian.doc =
-  use fromList impl
   {{
   Reads a {type Nat} from a {type Bytes}, assuming most significant bytes come
   first.
@@ -66680,7 +66636,6 @@ Nat.fromBytesLittleEndian bs = match decodeNat64le bs with
 
 Nat.fromBytesLittleEndian.doc : Doc
 Nat.fromBytesLittleEndian.doc =
-  use fromList impl
   {{
   Reads a {type Nat} from a {type Bytes}, assuming least significant bytes come
   first.
@@ -67891,7 +67846,6 @@ Nat.toBytesBigEndian.doc =
   }}
 
 test> Nat.toBytesBigEndian.test.ex1 =
-  use fromList impl
   check
     (toBytesBigEndian 255 === 0xs00000000000000ff
       && toBytesBigEndian 65305 === 0xs000000000000ff19
@@ -67928,7 +67882,6 @@ Nat.toBytesLittleEndian.doc =
   }}
 
 test> Nat.toBytesLittleEndian.test.ex1 =
-  use fromList impl
   check
     (toBytesLittleEndian 255 === 0xsff00000000000000
       && toBytesLittleEndian 65305 === 0xs19ff000000000000
@@ -83305,7 +83258,6 @@ Body.decodeBody req getHeaders attach =
 Body.decodeChunkedBody : Boolean ->{Decode} (Body, Headers)
 Body.decodeChunkedBody expectTrailers =
   use Decode failWith label until utf8
-  use fromList impl
   decodeChunkSize : '{Decode} Nat
   decodeChunkSize =
     do
@@ -84887,7 +84839,6 @@ HttpRequest.encodeNoBody : proxy.ProxyPresence -> HttpRequest -> Bytes
 HttpRequest.encodeNoBody proxyPresence req =
   use Bytes ++
   use Headers orElse
-  use fromList impl
   (HttpRequest method version uri headers body) = req
   headers' =
     orElse (forURI uri) (standard.contentLength body) |> orElse headers
@@ -85483,7 +85434,6 @@ test> HttpResponse.encodeChunked.tests.withTrailers =
 HttpResponse.encodeNoBody : HttpResponse -> Bytes
 HttpResponse.encodeNoBody = cases
   HttpResponse (Status code reason) version headers body ->
-    use fromList impl
     headers' =
       if Headers.contains "Content-Length" headers then headers
       else Headers.union headers (standard.contentLength body)
@@ -85673,7 +85623,6 @@ LICENSE.doc = License.toDoc LICENSE
 
 message.encodeChunkedBody : '{g, Stream Bytes} Headers ->{g, Stream Bytes} ()
 message.encodeChunkedBody =
-  use fromList impl
   emitChunk : Bytes ->{Stream Bytes} ()
   emitChunk chunk =
     use Bytes ++
@@ -86945,16 +86894,16 @@ test> tests.testHttpResponseRoundTrip = verifyAndIgnore do
   ensureEqual nc (fromBytes false bs3)
 
 test> tests.testParseRequest = verifyAndIgnore do
-  (HttpRequest m v u h b) = HttpRequest.fromStream do emit exampleRequest
   use test ensureEqual
+  (HttpRequest m v u h b) = HttpRequest.fromStream do emit exampleRequest
   ensureEqual 2262 (Bytes.size (Body.toBytes b))
   ensureEqual 11 (data.Map.size (Headers.toMap h))
 
 test> tests.testParseResponse = 
   verifyAndIgnore do
+    use test ensureEqual
     (HttpResponse s v h b) =
       HttpResponse.fromStream false do emit exampleResponse
-    use test ensureEqual
     ensureEqual 2262 (Bytes.size (Body.toBytes b))
     ensureEqual 11 (data.Map.size (Headers.toMap h))
 
@@ -87106,7 +87055,6 @@ websockets.Frame.decoder.maskOrUnmask key payload =
     |> (bs -> unsafeRun! do Bytes.fromList bs)
 
 test> websockets.Frame.decoder.tests.fragmentedContinuation =
-  use fromList impl
   check
     ((toEither do runDecode decoder 0xs80026c6f)
       === Right (Continuation true 0xs6c6f))
@@ -87117,13 +87065,11 @@ test> websockets.Frame.decoder.tests.fragmentedTextUnmasked =
       === Right (Text false "Hel"))
 
 test> websockets.Frame.decoder.tests.ping =
-  use fromList impl
   check
     ((toEither do runDecode decoder 0xs890548656c6c6f)
       === Right (Ping 0xs48656c6c6f))
 
 test> websockets.Frame.decoder.tests.pong =
-  use fromList impl
   check
     ((toEither do runDecode decoder 0xs8a0548656c6c6f)
       === Right (Pong 0xs48656c6c6f))
@@ -87187,7 +87133,6 @@ test> websockets.Frame.encoder.tests.pong =
   check (encoder None (Pong (Text.toUtf8 "Hello")) === 0xs8a0548656c6c6f)
 
 test> websockets.Frame.encoder.tests.singleTextMasked =
-  use fromList impl
   check
     (encoder (Some 0xs37fa213d) (Text true "Hello")
       === 0xs818537fa213d7f9f4d5158)
