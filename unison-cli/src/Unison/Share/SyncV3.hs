@@ -9,6 +9,7 @@ import Data.Set qualified as Set
 import Data.Set.Lens qualified as Lens
 import GHC.Natural
 import Ki qualified
+import Network.WebSockets qualified as WS
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId
 import U.Codebase.Sqlite.Entity qualified as Entity
@@ -32,7 +33,6 @@ import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Websockets (Queues (..), withQueues)
 import UnliftIO.STM
 import Wuss qualified
-import Network.WebSockets qualified as WS
 
 -- Websocket send/receive buffer sizes
 inputBuffer :: Natural
@@ -56,11 +56,11 @@ syncFromCodeserver ::
   -- | The hash to download.
   Share.HashJWT ->
   Cli (Either (Sync.SyncError SyncV3.SyncError) (CausalHash, CausalHashId))
-syncFromCodeserver _shouldValidate shareCodeserver branchRef hashJwt = do
+syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
   Cli.Env {codebase} <- ask
-  let host = Codeserver.codeserverRegName shareCodeserver
+  let host = Codeserver.codeserverRegName codeserver
   let tlsPort = 443
-  let port = maybe tlsPort fromIntegral $ (Codeserver.codeserverPort) shareCodeserver
+  let port = maybe tlsPort fromIntegral $ (Codeserver.codeserverPort) codeserver
   let syncV3Path = "/ucm/v3/sync"
   let rootCausalHash = Share.hashJWTHash hashJwt
   -- Enable compression
