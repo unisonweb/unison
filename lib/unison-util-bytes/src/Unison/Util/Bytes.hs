@@ -178,7 +178,6 @@ gzipDecompress = fromLazyByteString . GZip.decompress . toLazyByteString
 zlibDecompress :: Bytes -> Bytes
 zlibDecompress = fromLazyByteString . Zlib.decompress . toLazyByteString
 
-{- HLINT ignore "Use newtype instead of data" -}
 data ZstdDecompressException = ZstdDecompressException String deriving (Show, Exception)
 
 zstdDecompress :: Bytes -> Bytes
