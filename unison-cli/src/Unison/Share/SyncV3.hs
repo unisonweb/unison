@@ -20,6 +20,7 @@ import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude
 import Unison.Server.Orphans ()
@@ -59,16 +60,26 @@ syncFromCodeserver ::
 syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
   Cli.Env {codebase} <- ask
   let host = Codeserver.codeserverRegName codeserver
-  let tlsPort = 443
-  let port = maybe tlsPort fromIntegral $ (Codeserver.codeserverPort) codeserver
-  let syncV3Path = "/ucm/v3/sync"
+  let syncV3Path = "/ucm/v3/sync/download"
   let rootCausalHash = Share.hashJWTHash hashJwt
   -- Enable compression
   let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
   -- TODO: Add authentication headers manually.
   let headers = []
-  liftIO $ (Wuss.runSecureClientWith host port syncV3Path connectionOptions headers) \conn -> do
+  let runner = case Codeserver.codeserverScheme codeserver of
+        Codeserver.Https ->
+          let tlsPort = 443
+              port = maybe tlsPort fromIntegral $ (Codeserver.codeserverPort) codeserver
+           in Wuss.runSecureClientWith host port
+        Codeserver.Http ->
+          let tlsPort = 443 :: Int
+              port = maybe tlsPort id $ (Codeserver.codeserverPort) codeserver
+           in WS.runClientWith host port
+  Debug.debugLogM Debug.Temp "Obtaining Connection"
+  liftIO $ (runner syncV3Path connectionOptions headers) \conn -> do
+    Debug.debugLogM Debug.Temp "Obtained Connection"
     withQueues inputBuffer outputBuffer conn $ \queues@Queues {send} -> do
+      Debug.debugLogM Debug.Temp "Obtained Queues"
       let initMsg =
             InitMsg
               { initMsgClientVersion = syncV3ClientVersion,
@@ -76,7 +87,9 @@ syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
                 initMsgRootCausal = hashJwt,
                 initMsgRequestedDepth = Nothing
               }
+      Debug.debugLogM Debug.Temp "Sending init message"
       atomically $ send $ Msg $ ReceiverInitStream initMsg
+      Debug.debugLogM Debug.Temp "Init message sent"
       pendingRequestsVar <- newTVarIO (Set.singleton (CausalEntity, rootCausalHash))
       yetToRequestVar <- newTVarIO Set.empty
       toIngestQueue <- newTBQueueIO transactionBatchSize
@@ -92,6 +105,7 @@ syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
         -- TODO: proper error handling
         Left err -> error $ show err
         Right () -> pure ()
+      Debug.debugLogM Debug.Temp "Done sync, flushing temp entities"
       causalId <- liftIO $ flushTemp codebase (Share.hashJWTHash hashJwt)
       pure $ Right (Sync.hash32ToCausalHash rootCausalHash, causalId)
 
@@ -112,11 +126,15 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
   _ <- Ki.fork scope (receiverWorker onErr)
   _ <- Ki.fork scope (requesterWorker onErr)
   _ <- Ki.fork scope (ingestionWorker onErr)
+
+  Debug.debugLogM Debug.Temp "Awaiting completion"
   result <-
     atomically $
       (Right <$> Ki.awaitAll scope)
         <|> (Left . Left <$> readTMVar errorVar)
         <|> (Left . Right <$> connectionClosed)
+
+  Debug.debugM Debug.Temp "End result" result
   case result of
     Left (Left syncErr) -> pure $ Left syncErr
     Left (Right mayConnErr) -> case mayConnErr of
@@ -126,6 +144,7 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
   where
     receiverWorker :: (SyncError -> IO ()) -> IO ()
     receiverWorker onErr = do
+      Debug.debugLogM Debug.Temp "Receiver waiting for message"
       atomically receive >>= \case
         Msg (EmitterEntityMsg entity) -> do
           atomically $ do
@@ -134,6 +153,7 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
         Err err -> onErr err
     requesterWorker :: (SyncError -> IO ()) -> IO ()
     requesterWorker _onErr = forever do
+      Debug.debugLogM Debug.Temp "Requester waiting to send requests"
       atomically $ do
         requests <- readTVar yetToRequestVar
         writeTVar yetToRequestVar Set.empty
@@ -142,6 +162,7 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
 
     ingestionWorker :: (SyncError -> IO ()) -> IO ()
     ingestionWorker _onErr = forever do
+      Debug.debugLogM Debug.Temp "Ingestion waiting for entities"
       newEntities <- atomically $ do
         flushTBQueue toIngestQueue
       Codebase.runTransaction codebase $ do

@@ -27,6 +27,7 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectBranch (..))
 import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.Debug qualified as Debug
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
@@ -74,6 +75,7 @@ downloadProjectBranchFromShare useSquashed branch isPull =
         (Share.NoSquashedHead, _) -> pure branch.branchHead
     let causalHash32 = Share.hashJWTHash causalHashJwt
     exists <- Cli.runTransaction (Queries.causalExistsByHash32 causalHash32)
+    Debug.debugM Debug.Temp "Downloading using Sync " syncVersion
     when (not exists) do
       case syncVersion of
         SyncV1 -> do
@@ -100,6 +102,7 @@ downloadProjectBranchFromShare useSquashed branch isPull =
                 Output.ShareErrorPullV2 pullErr
               Share.TransportError err -> Output.ShareErrorTransport err
         SyncV3 -> do
+          Debug.debugLogM Debug.Temp "Using SyncV3 protocol"
           let branchRef = SyncV3.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
           let shouldValidate = Codeserver.isCustomCodeserver Codeserver.defaultCodeserver
           when isPull $ do

@@ -3,6 +3,8 @@ module Unison.Share.Codeserver
     defaultCodeserver,
     resolveCodeserver,
     CodeserverURI (..),
+    Scheme (..),
+    CodeserverId (..),
   )
 where
 

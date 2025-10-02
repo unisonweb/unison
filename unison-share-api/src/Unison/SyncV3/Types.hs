@@ -14,6 +14,7 @@ module Unison.SyncV3.Types
   )
 where
 
+import Codec.CBOR.Term (decodeTerm)
 import Codec.Serialise (Serialise)
 import Codec.Serialise qualified as CBOR
 import Control.Lens hiding ((.=))
@@ -30,6 +31,7 @@ import Network.WebSockets (WebSocketsData)
 import Network.WebSockets qualified as WS
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.TempEntity
+import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude (tShow)
 import Unison.Server.Orphans ()
@@ -77,6 +79,7 @@ instance (CBOR.Serialise sh) => CBOR.Serialise (EntityRequestMsg sh) where
 data FromReceiverMessageTag
   = ReceiverInitStreamTag
   | ReceiverEntityRequestTag
+  deriving (Show, Eq)
 
 instance CBOR.Serialise FromReceiverMessageTag where
   encode = \case
@@ -85,6 +88,7 @@ instance CBOR.Serialise FromReceiverMessageTag where
 
   decode = do
     tag <- CBOR.decode @Int
+    Debug.debugM Debug.Temp "Decoding FromReceiverMessageTag with tag" tag
     case tag of
       0 -> pure ReceiverInitStreamTag
       1 -> pure ReceiverEntityRequestTag
@@ -104,11 +108,12 @@ instance (ToJSON ah, FromJSON ah) => CBOR.Serialise (InitMsg ah) where
     -- using Haskell's CBOR library :|
     --
     -- See https://github.com/well-typed/cborg/issues/369
-    CBOR.encode $ Aeson.encode msg
+    CBOR.encode @BS.ByteString $ BL.toStrict $ Aeson.encode msg
 
   decode = do
-    bs <- CBOR.decode @BL.ByteString
-    case Aeson.eitherDecode bs of
+    Debug.debugLogM Debug.Temp "Decoding InitMsg from JSON via CBOR"
+    bs <- CBOR.decode @BS.ByteString
+    case Aeson.eitherDecode $ BL.fromStrict bs of
       Left err -> fail $ "Error decoding InitMsg from JSON: " <> err
       Right msg -> pure msg
 
@@ -122,6 +127,7 @@ instance (CBOR.Serialise h, ToJSON ah, FromJSON ah) => CBOR.Serialise (FromRecei
         <> CBOR.encode msg
   decode = do
     tag <- CBOR.decode @FromReceiverMessageTag
+    Debug.debugM Debug.Temp "Decoding FromReceiverMessage with tag" tag
     case tag of
       ReceiverInitStreamTag -> ReceiverInitStream <$> CBOR.decode @(InitMsg ah)
       ReceiverEntityRequestTag -> ReceiverEntityRequest <$> CBOR.decode @(EntityRequestMsg h)
@@ -165,6 +171,7 @@ instance CBOR.Serialise SyncError where
 -- A message sent from the emitter to the downloader.
 data FromEmitterMessage hash text
   = EmitterEntityMsg (Entity hash text)
+  deriving (Show, Eq)
 
 data HashMappings hash smallHash = HashMappings
   { hashMappings :: Map smallHash hash
@@ -226,6 +233,7 @@ data Entity hash text = Entity
     entityDepth :: EntityDepth,
     entityData :: CBOR.CBORBytes TempEntity
   }
+  deriving (Show, Eq)
 
 instance (CBOR.Serialise smallHash, CBOR.Serialise text) => CBOR.Serialise (Entity smallHash text) where
   encode (Entity {entityHash, entityKind, entityDepth, entityData}) =
@@ -275,6 +283,7 @@ instance CBOR.Serialise FromEmitterMessageTag where
 data MsgOrError err a
   = Msg a
   | Err err
+  deriving (Show, Eq, Ord)
 
 instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError err a) where
   encode = \case
@@ -283,6 +292,7 @@ instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError er
 
   decode = do
     tag <- CBOR.decode @Int
+    Debug.debugM Debug.Temp "Decoding MsgOrError with tag" tag
     case tag of
       0 -> Msg <$> CBOR.decode
       1 -> Err <$> CBOR.decode
@@ -290,7 +300,7 @@ instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError er
 
 instance (Serialise msg) => WebSocketsData (MsgOrError SyncError msg) where
   fromLazyByteString bytes =
-    CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes bytes)
+    CBOR.deserialiseOrFail bytes
       & either (\err -> Err . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) Msg
 
   toLazyByteString = CBOR.serialise
