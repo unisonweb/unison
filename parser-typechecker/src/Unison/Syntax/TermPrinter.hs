@@ -1340,8 +1340,9 @@ suffixCounterType n used = \case
 
 printAnnotate :: (HasCallStack, Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
 printAnnotate n tm =
-  fmap snd (go (reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm))
+  fmap snd (go annotated)
   where
+    annotated = reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm
     -- See `countHQ` to see how these are used to make sure that
     -- a `use` clause doesn't introduce shadowing of a local variable
     usedTermNames =
@@ -1351,6 +1352,23 @@ printAnnotate n tm =
     varToName = toList . Name.parseText . Var.name . Var.reset
     go :: (Ord v) => Term2 v at ap v b -> Term2 v () () v b
     go = extraMap' id (const ()) (const ())
+    isLiteral :: Term2 v at ap v a -> Bool
+    isLiteral (Bytes' _) = True
+    isLiteral _ = False
+    reannotateUp g t = case ABT.out t of
+      ABT.Var v -> ABT.annotatedVar (annotation t, g t) v
+      ABT.Cycle body ->
+        let body' = reannotateUp g body
+        in ABT.cycle' (annotation t, snd (annotation body')) body'
+      ABT.Abs v body ->
+        let body' = reannotateUp g body
+        in ABT.abs' (annotation t, snd (annotation body')) v body'
+      ABT.Tm body ->
+        -- literals like 0xsaaff don't contribute to the annotations
+        -- even though they desugar to function calls
+        let body' = reannotateUp g <$> body
+            ann = if isLiteral t then mempty else g t <> foldMap (snd . annotation) body'
+        in ABT.tm' (annotation t, ann) body'
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
 countTypeUsages n usedTy t = snd $ annotation $ reannotateUp (suffixCounterType n usedTy) t
@@ -1889,10 +1907,10 @@ unLamsMatch' t = case unLamsUntilDelay' t of
           rhsVars = ABT.freeVars rhs
        in Set.union guardVars rhsVars
 
-pattern Bytes' :: [Word64] -> Term3 v PrintAnnotation
+pattern Bytes' :: [Word64] -> Term2 v at ap v a
 pattern Bytes' bs <- (toBytes -> Just bs)
 
-toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
+toBytes :: Term2 v at ap v a -> Maybe [Word64]
 toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
   toList <$> traverse go bs
   where
