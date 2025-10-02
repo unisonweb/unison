@@ -1619,7 +1619,6 @@ immediateChildBlockTerms = \case
     --   x =
     --    use Nat +
     --    1 + 1
-    doLet2 (_, LamsNamedMatch' _ _) = []
     doLet2 (v, LamsNamedOpt' _ body) = [body | not (Var.isAction v), isLet body]
     doLet2 t = error (show t) []
 
@@ -1632,7 +1631,7 @@ isSoftHangable (LamsNamedMatch' [] _) = True
 isSoftHangable (Match' scrute cases) = not (isDestructuringBind scrute cases)
 isSoftHangable _ = False
 
-isLet :: (Ord v) => Term2 vt at ap v a -> Bool
+isLet :: Term2 vt at ap v a -> Bool
 isLet (Let1Named' {}) = True
 isLet (LetRecNamed' {}) = True
 isLet _ = False
