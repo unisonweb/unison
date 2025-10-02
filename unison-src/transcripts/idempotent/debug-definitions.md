@@ -67,7 +67,7 @@ ability Ask a where
   Constructor #0 of the following type:
   EffectDeclaration
       { toDataDecl = DataDeclaration
-          { modifier = Unique "a1ns7cunv2dvjmum0q8jbc54g6811cbh"
+          { modifier = Unique "oe3grapnkl7hmodmhgpat73j697ltvnk"
           , annotation = External
           , bound =
               [ User "a" ]
@@ -80,7 +80,7 @@ ability Ask a where
                           (
                               {
                                   [ ReferenceDerived
-                                      ( Id "d8m1kmiscgfrl5n9ruvq1432lntfntl7nnao45qlk2uqhparm0uq2im0kbspu6u6kv65hd0i5oljq9m4b78peh5ekpma7gkihtsmfh0" 0 )
+                                      ( Id "tl3k480g06phii2dv4mmmsg0bimdounfml8p5om9vdsuhph96344lr1o845fucikf1me2akuqaslnibc26mkhcmiuvmk821k7ghnnjo" 0 )
                                       ( Var User "a" )
                                   ]
                               } Var User "a"
@@ -128,7 +128,7 @@ ability Ask a where
 
   EffectDeclaration
       { toDataDecl = DataDeclaration
-          { modifier = Unique "a1ns7cunv2dvjmum0q8jbc54g6811cbh"
+          { modifier = Unique "oe3grapnkl7hmodmhgpat73j697ltvnk"
           , annotation = External
           , bound =
               [ User "a" ]
@@ -141,7 +141,7 @@ ability Ask a where
                           (
                               {
                                   [ ReferenceDerived
-                                      ( Id "d8m1kmiscgfrl5n9ruvq1432lntfntl7nnao45qlk2uqhparm0uq2im0kbspu6u6kv65hd0i5oljq9m4b78peh5ekpma7gkihtsmfh0" 0 )
+                                      ( Id "tl3k480g06phii2dv4mmmsg0bimdounfml8p5om9vdsuhph96344lr1o845fucikf1me2akuqaslnibc26mkhcmiuvmk821k7ghnnjo" 0 )
                                       ( Var User "a" )
                                   ]
                               } Var User "a"
