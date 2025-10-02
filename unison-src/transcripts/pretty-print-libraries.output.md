@@ -7845,6 +7845,7 @@ Bytes.splitAt.doc =
 
 test> Bytes.splitAt.tests = 
   test.verify do
+    use fromList impl
     (index, expected) =
       each
         [ (1, (0xsc0, 0xsdecafe))
@@ -10808,10 +10809,10 @@ test> crypto.Rsa.verify.test =
 data.Array.append : data.Array a -> data.Array a -> data.Array a
 data.Array.append arr1 arr2 = unsafeRun! do
   Scope.run do
-    (Arr off1 len1 raw1) = arr1
-    (Arr off2 len2 raw2) = arr2
     use Nat +
     use data.Array.Raw copyTo!
+    (Arr off1 len1 raw1) = arr1
+    (Arr off2 len2 raw2) = arr2
     m = Scope.Raw.array (len1 + len2)
     copyTo! m 0 raw1 off1 len1
     copyTo! m len1 raw2 off2 len2
@@ -10931,8 +10932,8 @@ data.Array.at!.doc =
 data.Array.cons : a -> data.Array a -> data.Array a
 data.Array.cons x arr = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat +
+    (Arr off len raw) = arr
     m = Scope.Raw.array (len + 1)
     data.Array.Raw.copyTo! m 1 raw off len
     Raw.write m 0 x
@@ -11164,8 +11165,8 @@ test> data.Array.firstIndexOf.tests.finds = test.verify do
 data.Array.foldLeft : (a ->{g} b ->{h} a) -> a -> data.Array b ->{g, h} a
 data.Array.foldLeft f acc arr = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat + >=
+    (Arr off len raw) = arr
     go n acc =
       if n >= len then acc
       else
@@ -11206,8 +11207,8 @@ data.Array.foldLeft.doc =
 data.Array.foldRight : (a ->{g} b ->{h} b) -> b -> data.Array a ->{g, h} b
 data.Array.foldRight f acc arr = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat + - ==
+    (Arr off len raw) = arr
     go n acc =
       if n == 0 then acc
       else
@@ -11638,8 +11639,8 @@ data.Array.slice.doc =
 data.Array.snoc : data.Array a -> a -> data.Array a
 data.Array.snoc arr x = unsafeRun! do
   Scope.run do
-    (Arr off len raw) = arr
     use Nat +
+    (Arr off len raw) = arr
     m = Scope.Raw.array (len + 1)
     data.Array.Raw.copyTo! m 0 raw off len
     Raw.write m len x
@@ -86945,16 +86946,16 @@ test> tests.testHttpResponseRoundTrip = verifyAndIgnore do
   ensureEqual nc (fromBytes false bs3)
 
 test> tests.testParseRequest = verifyAndIgnore do
-  (HttpRequest m v u h b) = HttpRequest.fromStream do emit exampleRequest
   use test ensureEqual
+  (HttpRequest m v u h b) = HttpRequest.fromStream do emit exampleRequest
   ensureEqual 2262 (Bytes.size (Body.toBytes b))
   ensureEqual 11 (data.Map.size (Headers.toMap h))
 
 test> tests.testParseResponse = 
   verifyAndIgnore do
+    use test ensureEqual
     (HttpResponse s v h b) =
       HttpResponse.fromStream false do emit exampleResponse
-    use test ensureEqual
     ensureEqual 2262 (Bytes.size (Body.toBytes b))
     ensureEqual 11 (data.Map.size (Headers.toMap h))
 
