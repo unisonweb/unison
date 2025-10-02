@@ -77,7 +77,8 @@ in
         ## This check has a test that tries to write to $HOME, so we give it a fake one.
         "unison-cli:test:cli-tests" = haskell-nix-flake.checks."unison-cli:test:cli-tests".overrideAttrs (old: {
           ## On macOS, this derivation requires access to `security`, which is outside the sandbox, so we tell Nix that
-          ## it doesn’t work in the sandbox.
+          ## it doesn’t work in the sandbox. There is a lot of discussion, but no fix, with NixOS/nixpkgs#297775 maybe
+          ## being the best starting point.
           __noChroot = pkgs.stdenv.isDarwin;
           ## The builder here doesn’t `runHook preBuild`, so we just prepend onto `buildPhase`.
           buildPhase =
