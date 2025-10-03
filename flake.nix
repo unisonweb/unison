@@ -11,8 +11,8 @@
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    haskellNix.url = "github:input-output-hk/haskell.nix";
-    nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+    haskellNix.url = "github:input-output-hk/haskell.nix/2025.02.09";
+    nixpkgs.follows = "haskellNix/nixpkgs";
     nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
     systems.follows = "flake-utils/systems";
   };
