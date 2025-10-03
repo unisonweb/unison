@@ -289,7 +289,6 @@ rename old new t0@(Term fvs ann t) =
           else -- the rename would capture new, freshen this Abs
           -- to make that no longer true, then proceed with
           -- renaming `old` to `new`
-
             if v == new
               then
                 let v' = freshIn (Set.fromList [new, old] <> freeVars body) v

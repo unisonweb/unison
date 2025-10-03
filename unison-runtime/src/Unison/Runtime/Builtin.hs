@@ -1451,8 +1451,8 @@ baseSandboxInfo :: Map Reference (Set Reference)
 baseSandboxInfo =
   Map.fromList $
     [ (r, Set.singleton r)
-      | (r, (sb, _)) <- Map.toList builtinLookup,
-        sb == Tracked
+    | (r, (sb, _)) <- Map.toList builtinLookup,
+      sb == Tracked
     ]
 
 builtinArities :: Map Reference Int

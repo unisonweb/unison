@@ -281,9 +281,9 @@ typecheckedUnisonFile datas effects tlcs watches =
           hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, a, e, t) -> (v, (e, t, a))) <$> allTerms
        in Map.fromList
             [ (v, (a, r, wk, e, t))
-              | (v, (r, e, _typ, a)) <- Map.toList hcs,
-                Just t <- [Map.lookup v types],
-                wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]
+            | (v, (r, e, _typ, a)) <- Map.toList hcs,
+              Just t <- [Map.lookup v types],
+              wk <- [Map.findWithDefault (error $ show v ++ " missing from watchKinds") v watchKinds]
             ]
 
 lookupDecl ::

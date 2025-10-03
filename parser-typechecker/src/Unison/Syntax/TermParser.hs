@@ -1162,13 +1162,13 @@ substImports :: (Var v) => Names -> [(v, v)] -> Term v Ann -> Term v Ann
 substImports ns imports =
   ABT.substsInheritAnnotation
     [ (suffix, Term.var () full)
-      | (suffix, full) <- imports
+    | (suffix, full) <- imports
     ]
     . Term.substTypeVars -- no guard here, as `full` could be bound
     -- not in Names, but in a later term binding
       [ (suffix, Type.var () full)
-        | (suffix, full) <- imports,
-          Names.hasTypeNamed Names.IncludeSuffixes (Name.unsafeParseVar full) ns
+      | (suffix, full) <- imports,
+        Names.hasTypeNamed Names.IncludeSuffixes (Name.unsafeParseVar full) ns
       ]
 
 block' ::

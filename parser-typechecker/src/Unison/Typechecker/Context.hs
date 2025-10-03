@@ -604,11 +604,11 @@ markThenCallWithRetract hint k = do
         Just (t, discarded) -> do
           let solved =
                 [ (b, v, inst $ Type.getPolytype sa)
-                  | Solved (B.Recorded b) v sa <- discarded
+                | Solved (B.Recorded b) v sa <- discarded
                 ]
               unsolved =
                 [ (b, v, inst $ existential' (B.loc b) b' v)
-                  | Existential b'@(B.Recorded b) v <- discarded
+                | Existential b'@(B.Recorded b) v <- discarded
                 ]
               go (b, v, sa) = solveBlank b v sa
               inst = apply ctx
@@ -1541,10 +1541,10 @@ synthesizeBinding top binding = do
                 erecs = [v | Existential b v <- ctx, retain b]
                 srecs =
                   [ v
-                    | Solved b _ sa <- ctx,
-                      retain b,
-                      TypeVar.Existential _ v <-
-                        Set.toList . ABT.freeVars . applyCtx ctx $ Type.getPolytype sa
+                  | Solved b _ sa <- ctx,
+                    retain b,
+                    TypeVar.Existential _ v <-
+                      Set.toList . ABT.freeVars . applyCtx ctx $ Type.getPolytype sa
                   ]
                 keep = Set.fromList (erecs ++ srecs)
                 p (Existential _ v)

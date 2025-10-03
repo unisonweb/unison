@@ -560,8 +560,8 @@ referentsByPrefix doGetDeclType (NotBuiltin (ShortHash.ShortHash prefix cycle ci
   declReferents' <- Ops.declReferentsByPrefix prefix cycle cid
   let declReferents =
         [ Referent.ConId (ConstructorReference (Reference.Id h pos) (fromIntegral cid)) (Cv.decltype2to1 ct)
-          | (h, pos, ct, cids) <- declReferents',
-            cid <- cids
+        | (h, pos, ct, cids) <- declReferents',
+          cid <- cids
         ]
   pure . Set.fromList $ termReferents <> declReferents
 

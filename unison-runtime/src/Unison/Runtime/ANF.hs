@@ -489,8 +489,8 @@ groupFloater rec vbs = do
   cvs <- gets ctxVars
   let shadows =
         [ (v, freshFloat cvs v)
-          | (v, _) <- vbs,
-            Set.member v cvs
+        | (v, _) <- vbs,
+          Set.member v cvs
         ]
       shadowMap = Map.fromList shadows
       rn v = Map.findWithDefault v v shadowMap
@@ -2686,8 +2686,9 @@ prettyBranches ind bs = case bs of
   MatchNumeric _ bs df ->
     maybe id (\e -> prettyCase ind (showString "_") e id) df
       . foldr (uncurry $ prettyCase ind . shows) id (mapToList bs)
-      -- _ -> error "prettyBranches: todo"
   where
+    -- _ -> error "prettyBranches: todo"
+
     -- prettyReq :: Reference -> CTag -> ShowS
     prettyReq r c =
       showString "REQ("

@@ -316,7 +316,7 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
           deleteConstructorActions <-
             ( maybe [] (map (BranchUtil.makeAnnihilateTermName . Path.splitFromName))
                 <$> getConstructors (Name.unsafeParseVar symbol)
-              )
+            )
               & onLeft abort
           let deleteTypeAction = BranchUtil.makeAnnihilateTypeName split
               split = splitVar symbol

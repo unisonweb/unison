@@ -60,24 +60,24 @@ names = Names terms types
       Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs)
         <> Rel.fromList
           [ (Name.unsafeParseVar vc, Referent.Con (ConstructorReference (R.DerivedId r) cid) ct)
-            | (ct, (_, (r, decl))) <-
-                ((CT.Data,) <$> builtinDataDecls)
-                  <> ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls),
-              ((_, vc, _), cid) <- DD.constructors' decl `zip` [0 ..]
+          | (ct, (_, (r, decl))) <-
+              ((CT.Data,) <$> builtinDataDecls)
+                <> ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls),
+            ((_, vc, _), cid) <- DD.constructors' decl `zip` [0 ..]
           ]
         <> Rel.fromList
           [ (Name.unsafeParseVar v, Referent.Ref (R.DerivedId i))
-            | (v, i) <- Map.toList TD.builtinTermsRef
+          | (v, i) <- Map.toList TD.builtinTermsRef
           ]
     types =
       Rel.fromList builtinTypes
         <> Rel.fromList
           [ (Name.unsafeParseVar v, R.DerivedId r)
-            | (v, (r, _)) <- builtinDataDecls
+          | (v, (r, _)) <- builtinDataDecls
           ]
         <> Rel.fromList
           [ (Name.unsafeParseVar v, R.DerivedId r)
-            | (v, (r, _)) <- builtinEffectDecls
+          | (v, (r, _)) <- builtinEffectDecls
           ]
 
 -- note: this function is really for deciding whether `r` is a term or type,
@@ -122,7 +122,7 @@ builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
   Rel.fromList
     [ (H.typeToReference ty, Referent.Ref r)
-      | (r, ty) <- Map.toList termRefTypes
+    | (r, ty) <- Map.toList termRefTypes
     ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
@@ -831,14 +831,14 @@ builtinsSrc =
     ++
     -- avoid name conflicts with Universal == < > <= >=
     [ Rename (t <> "." <> old) (t <> "." <> new)
-      | t <- ["Int", "Nat", "Float", "Text"],
-        (old, new) <-
-          [ ("==", "eq"),
-            ("<", "lt"),
-            ("<=", "lteq"),
-            (">", "gt"),
-            (">=", "gteq")
-          ]
+    | t <- ["Int", "Nat", "Float", "Text"],
+      (old, new) <-
+        [ ("==", "eq"),
+          ("<", "lt"),
+          ("<=", "lteq"),
+          (">", "gt"),
+          (">=", "gteq")
+        ]
     ]
     ++ moveUnder "io2" ioBuiltins
     ++ moveUnder "io2" mvarBuiltins

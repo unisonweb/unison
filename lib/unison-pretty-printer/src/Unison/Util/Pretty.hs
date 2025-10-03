@@ -720,7 +720,7 @@ wrapColumn2 rows = lines (align rows)
     align rows =
       let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
        in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
-            | (l, r) <- rows
+          | (l, r) <- rows
           ]
 
 -- Pad with enough space on the right to make all rows the same width
@@ -767,7 +767,7 @@ align' rows = alignedRows
       [ case col1 of
           Just s -> (rightPad col0Width col0, indentNAfterNewline col0Width s)
           Nothing -> (col0, mempty)
-        | (col0, col1) <- rows
+      | (col0, col1) <- rows
       ]
 
 text :: (IsString s) => Text -> Pretty s

@@ -684,8 +684,7 @@ segFromList :: SegList -> Seg
 segFromList xs =
   xs
     & foldMap
-      ( \(Val unboxed boxed) -> ([unboxed], [boxed])
-      )
+      (\(Val unboxed boxed) -> ([unboxed], [boxed]))
     & \(us, bs) -> (useg us, bseg bs)
 
 traverseListToSeg :: (a -> IO Val) -> [a] -> IO Seg
