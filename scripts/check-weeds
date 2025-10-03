@@ -4,7 +4,7 @@ SCRIPTDIR="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
 
 source "$SCRIPTDIR/check-version.bash"
 
-if version-equals weeder "2.8.0"; then
+if version-equals weeder "2.9.0"; then
     ## We `cd` so Weeder can find all the files.
     cd "$SCRIPTDIR/.."
     ## Weeder gets confused by HIE files in the Direnv cache, but doesn’t let us exclude a directory from HIE search

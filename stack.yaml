@@ -1,4 +1,4 @@
-resolver: lts-22.26 # GHC 9.6.5
+resolver: lts-22.43 # GHC 9.6.6
 
 ## We intentionally disable Nix integration when running in a Nix shell.
 notify-if-nix-on-path: false
