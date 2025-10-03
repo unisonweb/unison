@@ -8,13 +8,12 @@ module Unison.SyncV3.Types
     Entity (..),
     EntityKind (..),
     EntityDepth (..),
-    HashMappings (..),
     HashTag (..),
     BranchRef (..),
   )
 where
 
-import Codec.CBOR.Term (decodeTerm)
+import Unison.SyncCommon.Types
 import Codec.Serialise (Serialise)
 import Codec.Serialise qualified as CBOR
 import Control.Lens hiding ((.=))
@@ -23,7 +22,6 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Int (Int32, Int64)
-import Data.Map (Map)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -68,6 +66,11 @@ data EntityRequestMsg hash = EntityRequestMsg
   }
   deriving (Show, Eq)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> let msg = EntityRequestMsg {hashes = [(CausalEntity, "hash1"), (NamespaceEntity, "hash2")]}
+-- >>> CBOR.deserialise (CBOR.serialise msg) == msg
+-- True
 instance (CBOR.Serialise sh) => CBOR.Serialise (EntityRequestMsg sh) where
   encode (EntityRequestMsg {hashes}) =
     CBOR.encode hashes
@@ -81,6 +84,12 @@ data FromReceiverMessageTag
   | ReceiverEntityRequestTag
   deriving (Show, Eq)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> CBOR.deserialise (CBOR.serialise ReceiverInitStreamTag) == ReceiverInitStreamTag
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise ReceiverEntityRequestTag) == ReceiverEntityRequestTag
+-- True
 instance CBOR.Serialise FromReceiverMessageTag where
   encode = \case
     ReceiverInitStreamTag -> CBOR.encode (0 :: Int)
@@ -117,6 +126,17 @@ instance (ToJSON ah, FromJSON ah) => CBOR.Serialise (InitMsg ah) where
       Left err -> fail $ "Error decoding InitMsg from JSON: " <> err
       Right msg -> pure msg
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> let msg = InitMsg {initMsgClientVersion = 1, initMsgBranchRef = BranchRef "main", initMsgRootCausal = "hash123", initMsgRequestedDepth = Just 10}
+-- >>> CBOR.deserialise (CBOR.serialise msg) == msg
+-- True
+-- >>> let initMsg :: FromReceiverMessage Text Text = ReceiverInitStream msg
+-- >>> CBOR.deserialise (CBOR.serialise initMsg) == initMsg
+-- True
+-- >>> let entityReq :: FromReceiverMessage Text Text = ReceiverEntityRequest (EntityRequestMsg {hashes = [(CausalEntity, "h1")]})
+-- >>> CBOR.deserialise (CBOR.serialise entityReq) == entityReq
+-- True
 instance (CBOR.Serialise h, ToJSON ah, FromJSON ah) => CBOR.Serialise (FromReceiverMessage ah h) where
   encode = \case
     ReceiverInitStream initMsg ->
@@ -141,6 +161,16 @@ data SyncError
   | ConnectionError Text
   deriving (Show, Eq)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> import qualified Data.Set as Set
+-- >>> CBOR.deserialise (CBOR.serialise (InitializationError "test")) == InitializationError "test"
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise (EncodingFailure "fail")) == EncodingFailure "fail"
+-- True
+-- >>> let forbidden = ForbiddenEntityRequest (Set.fromList [(CausalEntity, undefined)])
+-- >>> CBOR.deserialise (CBOR.serialise (ConnectionError "err")) == ConnectionError "err"
+-- True
 instance CBOR.Serialise SyncError where
   encode = \case
     InitializationError msg ->
@@ -173,10 +203,6 @@ data FromEmitterMessage hash text
   = EmitterEntityMsg (Entity hash text)
   deriving (Show, Eq)
 
-data HashMappings hash smallHash = HashMappings
-  { hashMappings :: Map smallHash hash
-  }
-
 data EntityKind
   = CausalEntity
   | NamespaceEntity
@@ -202,6 +228,16 @@ instance Sqlite.FromField EntityKind where
       3 -> pure PatchEntity
       _ -> fail $ "Unknown EntityKind tag: " <> show tag
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> CBOR.deserialise (CBOR.serialise CausalEntity) == CausalEntity
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise NamespaceEntity) == NamespaceEntity
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise DefnComponentEntity) == DefnComponentEntity
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise PatchEntity) == PatchEntity
+-- True
 instance CBOR.Serialise EntityKind where
   encode = \case
     CausalEntity -> CBOR.encode (0 :: Int)
@@ -235,6 +271,12 @@ data Entity hash text = Entity
   }
   deriving (Show, Eq)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> import U.Codebase.Sqlite.TempEntity (TempEntity(..))
+-- >>> let ent :: Entity Text Text = Entity {entityHash = "hash", entityKind = CausalEntity, entityDepth = EntityDepth 5, entityData = CBOR.CBORBytes "abc"}
+-- >>> CBOR.deserialise (CBOR.serialise ent) == ent
+-- True
 instance (CBOR.Serialise smallHash, CBOR.Serialise text) => CBOR.Serialise (Entity smallHash text) where
   encode (Entity {entityHash, entityKind, entityDepth, entityData}) =
     CBOR.encode entityHash
@@ -250,14 +292,13 @@ instance (CBOR.Serialise smallHash, CBOR.Serialise text) => CBOR.Serialise (Enti
 
     pure $ Entity {entityHash, entityKind, entityData, entityDepth}
 
-instance (Ord smallHash, CBOR.Serialise hash, CBOR.Serialise smallHash) => CBOR.Serialise (HashMappings hash smallHash) where
-  encode (HashMappings {hashMappings}) =
-    CBOR.encode hashMappings
-
-  decode = do
-    hashMappings <- CBOR.decode @(Map smallHash hash)
-    pure $ HashMappings {hashMappings}
-
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> import U.Codebase.Sqlite.TempEntity (TempEntity(..))
+-- >>> let ent :: Entity Text Text = Entity {entityHash = "hash", entityKind = CausalEntity, entityDepth = EntityDepth 5, entityData = CBOR.CBORBytes "abc"}
+-- >>> let msg = EmitterEntityMsg ent
+-- >>> CBOR.deserialise (CBOR.serialise msg) == msg
+-- True
 instance (CBOR.Serialise hash, CBOR.Serialise text) => CBOR.Serialise (FromEmitterMessage hash text) where
   encode = \case
     EmitterEntityMsg msg -> CBOR.encode EmitterEntityTag <> CBOR.encode msg
@@ -269,7 +310,12 @@ instance (CBOR.Serialise hash, CBOR.Serialise text) => CBOR.Serialise (FromEmitt
 
 data FromEmitterMessageTag
   = EmitterEntityTag
+  deriving (Show, Eq)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> CBOR.deserialise (CBOR.serialise EmitterEntityTag) == EmitterEntityTag
+-- True
 instance CBOR.Serialise FromEmitterMessageTag where
   encode = \case
     EmitterEntityTag -> CBOR.encode (0 :: Int)
@@ -285,6 +331,12 @@ data MsgOrError err a
   | Err err
   deriving (Show, Eq, Ord)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> CBOR.deserialise (CBOR.serialise (Msg "test" :: MsgOrError Text Text)) == Msg "test"
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise (Err "error" :: MsgOrError Text Text)) == Err "error"
+-- True
 instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError err a) where
   encode = \case
     Msg a -> CBOR.encode (0 :: Int) <> CBOR.encode a
@@ -298,10 +350,21 @@ instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError er
       1 -> Err <$> CBOR.decode
       _ -> fail $ "Unknown MsgOrError tag: " <> show tag
 
+-- | Roundtrip test:
+-- >>> import qualified Network.WebSockets as WS
+-- >>> let msgVal = Msg "test" :: MsgOrError SyncError Text
+-- >>> WS.fromLazyByteString (WS.toLazyByteString msgVal) == msgVal
+-- True
+-- >>> let errVal = Err (InitializationError "init error") :: MsgOrError SyncError Text
+-- >>> WS.fromLazyByteString (WS.toLazyByteString errVal) == errVal
+-- True
+-- >>> let dataMsg = WS.Binary (WS.toLazyByteString msgVal)
+-- >>> WS.fromDataMessage dataMsg == msgVal
+-- True
 instance (Serialise msg) => WebSocketsData (MsgOrError SyncError msg) where
   fromLazyByteString bytes =
     CBOR.deserialiseOrFail bytes
-      & either (\err -> Err . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) Msg
+      & either (\err -> Err . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) id
 
   toLazyByteString = CBOR.serialise
 
@@ -316,6 +379,11 @@ instance (Serialise msg) => WebSocketsData (MsgOrError SyncError msg) where
 data HashTag = HashTag (EntityKind, Int64)
   deriving (Show, Eq, Ord)
 
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> let tag = HashTag (CausalEntity, 42)
+-- >>> CBOR.deserialise (CBOR.serialise tag) == tag
+-- True
 instance CBOR.Serialise HashTag where
   encode (HashTag (kind, idx)) =
     CBOR.encode (kind, idx)
@@ -323,6 +391,3 @@ instance CBOR.Serialise HashTag where
   decode = do
     (kind, idx) <- CBOR.decode @(EntityKind, Int64)
     pure $ HashTag (kind, idx)
-
-newtype BranchRef = BranchRef {unBranchRef :: Text}
-  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON) via Text

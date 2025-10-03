@@ -49,6 +49,7 @@ library
       Unison.Sync.Common
       Unison.Sync.EntityValidation
       Unison.Sync.Types
+      Unison.SyncCommon.Types
       Unison.SyncV2.API
       Unison.SyncV2.Types
       Unison.SyncV3.Types
