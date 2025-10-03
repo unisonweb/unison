@@ -126,7 +126,7 @@ general guideline, functions in `{IO}` are `Tracked`, and pure
 functions are `Untracked`. The second argument must match the name
 from `Unison.Builtin`, as this is how they are associated. The third
 argument is wrapper code that defines the conversion from the Haskell
-runtim calling convention into Unison, and the definitions for these
+runtime calling convention into Unison, and the definitions for these
 two cases will be shown later. The last argument is the actual Haskell
 implementation of the operation. However, the format for foreign
 functions is somewhat more limited than 'any Haskell function,' so the

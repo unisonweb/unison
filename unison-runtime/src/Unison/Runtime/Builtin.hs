@@ -1231,8 +1231,10 @@ declareForeigns = do
   declareForeign Tracked 1 IO_randomBytes
   declareForeign Untracked 1 Bytes_zlib_compress
   declareForeign Untracked 1 Bytes_gzip_compress
+  declareForeign Untracked 2 Bytes_zstd_compress
   declareForeign Untracked 1 Bytes_zlib_decompress
   declareForeign Untracked 1 Bytes_gzip_decompress
+  declareForeign Untracked 1 Bytes_zstd_decompress
 
   declareForeign Untracked 1 Bytes_toBase16
   declareForeign Untracked 1 Bytes_toBase32
