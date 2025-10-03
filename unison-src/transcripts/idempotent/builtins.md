@@ -546,11 +546,11 @@ test> Any.test2 = checks [(not (Any "hi" == Any 42))]
           [Any "hi", Any 42]
 
     3 | test> Any.test1 = checks [(Any "hi" == Any "hi")]
-
+    
     ✅ Passed Passed
 
     4 | test> Any.test2 = checks [(not (Any "hi" == Any 42))]
-
+    
     ✅ Passed Passed
 ```
 
@@ -599,15 +599,15 @@ openFile]
   Run `update` to apply these changes to your codebase.
 
     15 | test> Sandbox.test1 = checks [validateSandboxed [] "hello"]
-
+    
     ✅ Passed Passed
 
     16 | test> Sandbox.test2 = checks openFiles
-
+    
     ✅ Passed Passed
 
     17 | test> Sandbox.test3 = checks [validateSandboxed [termLink openFile.impl]
-
+    
     ✅ Passed Passed
 ```
 
@@ -676,7 +676,7 @@ test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Unive
           1208954131003843843
 
     2 | test> Universal.murmurHash.tests = checks [Universal.murmurHash [1,2,3] == Universal.murmurHash [1,2,3]]
-
+    
     ✅ Passed Passed
 ```
 
