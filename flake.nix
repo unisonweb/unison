@@ -13,7 +13,6 @@
     flake-utils.url = "github:numtide/flake-utils";
     haskellNix.url = "github:input-output-hk/haskell.nix/2025.02.09";
     nixpkgs.follows = "haskellNix/nixpkgs";
-    nixpkgs-release.url = "github:NixOS/nixpkgs/release-24.05";
     systems.follows = "flake-utils/systems";
   };
 
@@ -21,7 +20,6 @@
     flake-utils,
     haskellNix,
     nixpkgs,
-    nixpkgs-release,
     self,
     systems,
   }:
@@ -33,7 +31,7 @@
         inherit (haskellNix) config;
         overlays = [
           haskellNix.overlay
-          (import ./nix/dependencies.nix {nixpkgs = nixpkgs-release;})
+          (import ./nix/dependencies.nix)
         ];
       };
       unison-project = import ./nix/unison-project.nix {
