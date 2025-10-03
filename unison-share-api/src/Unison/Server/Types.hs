@@ -54,6 +54,7 @@ import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
+import Unison.Util.AnnotatedText (Segment)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -284,22 +285,31 @@ data TermTag = Doc | Test | Plain | Constructor TypeTag
 data TypeTag = Ability | Data
   deriving (Eq, Ord, Show, Generic)
 
+data DiffTagged a
+  = -- This line exists in both sides, but has changes
+    Changed a
+  | -- There's no content here, but we need a space to match the other side
+    Spacer
+  | -- This line is the same on both sides.
+    Unchanged a
+  deriving (Eq, Show, Ord, Generic, Functor)
+
 -- | A type for semantic diffing of definitions.
 -- Includes special-cases for when the name in a definition has changed but the hash hasn't
 -- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
-data SemanticSyntaxDiff
-  = Old [Syntax.SyntaxSegment]
-  | New [Syntax.SyntaxSegment]
-  | Both [Syntax.SyntaxSegment]
+data SemanticSyntaxDiff ann
+  = Old [Segment ann]
+  | New [Segment ann]
+  | Both [Segment ann]
   | --  (fromSegment, toSegment) (shared annotation)
-    SegmentChange (String, String) (Maybe Syntax.Element)
+    SegmentChange (String, String) (Maybe ann)
   | -- (shared segment) (fromAnnotation, toAnnotation)
-    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+    AnnotationChange String (Maybe ann, Maybe ann)
   deriving (Eq, Show, Ord, Generic)
 
-deriving instance ToSchema SemanticSyntaxDiff
+deriving instance ToSchema (SemanticSyntaxDiff Syntax.Element)
 
-instance ToJSON SemanticSyntaxDiff where
+instance ToJSON (SemanticSyntaxDiff Syntax.Element) where
   toJSON = \case
     Old segments ->
       object
@@ -331,7 +341,7 @@ instance ToJSON SemanticSyntaxDiff where
           "toAnnotation" .= toAnnotation
         ]
 
-instance FromJSON SemanticSyntaxDiff where
+instance FromJSON (SemanticSyntaxDiff Syntax.Element) where
   parseJSON = Aeson.withObject "SemanticSyntaxDiff" \obj -> do
     diffTag :: Text <- obj .: "diffTag"
     case diffTag of
@@ -350,12 +360,24 @@ instance FromJSON SemanticSyntaxDiff where
         pure $ AnnotationChange segment (fromAnnotation, toAnnotation)
       _ -> fail "Invalid diffTag"
 
+data PartitionedDiff a = PartitionedDiff
+  { lhsLines :: [DiffTagged a],
+    rhsLines :: [DiffTagged a]
+  }
+  deriving (Eq, Show, Ord, Generic, Functor)
+
+instance Semigroup (PartitionedDiff a) where
+  (PartitionedDiff l1 r1) <> (PartitionedDiff l2 r2) = PartitionedDiff (l1 <> l2) (r1 <> r2)
+
+instance Monoid (PartitionedDiff a) where
+  mempty = PartitionedDiff mempty mempty
+
 -- | A diff of the syntax of a term or type
 --
 -- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
 -- undiffed syntax.
 data DisplayObjectDiff
-  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
+  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff Syntax.Element] [SemanticSyntaxDiff Syntax.Element])
   | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
   deriving stock (Show, Eq, Ord, Generic)
 
