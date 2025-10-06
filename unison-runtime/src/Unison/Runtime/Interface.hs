@@ -40,9 +40,10 @@ import Control.Monad
 import Control.Monad.State
 import Data.Binary.Get (runGetOrFail)
 import Data.Bitraversable (bitraverse)
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
-import Data.Bytes.Put (MonadPut, runPutL)
 import Data.Bytes.Serial
 import Data.Foldable
 import Data.IORef
@@ -52,6 +53,7 @@ import Data.Set as Set (filter, fromList, map, notMember, singleton, (\\))
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
+import Data.Text.Encoding qualified as BU (encodeUtf8Builder)
 import Data.Void (absurd)
 import System.FilePath
 import Unison.ABT qualified as ABT
@@ -599,11 +601,11 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   Just w <- lk <$> readTVarIO (refTm cc)
   let combIx = CIx rf w 0
   sto <- standalone cc w
-  BL.writeFile path . runPutL $ do
-    serialize $ version
-    serialize $ RF.showShort 8 rf
-    putCombIx combIx
-    putStoredCache sto
+  BU.writeFile path $
+    BU.encodeUtf8Builder version
+      <> BU.encodeUtf8Builder (RF.showShort 8 rf)
+      <> putCombIx combIx
+      <> putStoredCache sto
 
 backrefLifted ::
   Reference ->
@@ -907,19 +909,19 @@ data StoredCache
       (Map Reference (Set Reference))
   deriving (Show, Eq)
 
-putStoredCache :: (MonadPut m) => StoredCache -> m ()
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) = do
+putStoredCache :: StoredCache -> Builder
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
-  putEnumMap putNat putReference crs
-  putEnumSet putNat cacheableCombs
-  putOptInfos oinfo
-  putEnumMap putNat putReference trs
-  putNat ftm
-  putNat fty
-  putMap putReference (putGroup mempty False) int
-  putMap putReference putNat rtm
-  putMap putReference putNat rty
-  putMap putReference (putFoldable putReference) sbs
+    <> putEnumMap putNat putReference crs
+    <> putEnumSet putNat cacheableCombs
+    <> putOptInfos oinfo
+    <> putEnumMap putNat putReference trs
+    <> putNat ftm
+    <> putNat fty
+    <> putMap putReference (putGroup mempty False) int
+    <> putMap putReference putNat rtm
+    <> putMap putReference putNat rty
+    <> putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =

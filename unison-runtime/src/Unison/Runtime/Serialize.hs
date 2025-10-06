@@ -5,12 +5,12 @@ module Unison.Runtime.Serialize where
 import Control.Monad (replicateM)
 import Data.Bits (Bits, clearBit, setBit, shiftL, shiftR, testBit, (.|.))
 import Data.ByteString qualified as B
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Get qualified as Ser
-import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.Signed (Unsigned, unsigned)
-import Data.Foldable (traverse_)
 import Data.Int (Int64)
 import Data.Map.Strict as Map (Map, fromList, toList)
 import Data.Primitive.Array
@@ -58,8 +58,8 @@ class Tag t where
   tag2word :: t -> Word8
   word2tag :: (MonadGet m) => Word8 -> m t
 
-putTag :: (MonadPut m) => (Tag t) => t -> m ()
-putTag = putWord8 . tag2word
+putTag :: (Tag t) => t -> Builder
+putTag = BU.word8 . tag2word
 {-# INLINE putTag #-}
 
 getTag :: (MonadGet m) => (Tag t) => m t
@@ -76,31 +76,32 @@ getVarInt = getWord8 >>= go
       | otherwise = return $ fromIntegral n
 {-# INLINE getVarInt #-}
 
-putVarInt :: (MonadPut m, Integral a, Integral (Unsigned a), Bits (Unsigned a)) => a -> m ()
+putVarInt ::
+  (Integral a, Integral (Unsigned a), Bits (Unsigned a)) => a -> Builder
 putVarInt = go . unsigned
   where
     go n
-      | n < 0x80 = putWord8 $ fromIntegral n
-      | otherwise = do
-          putWord8 $ setBit (fromIntegral n) 7
-          go $ shiftR n 7
+      | n < 0x80 = BU.word8 $ fromIntegral n
+      | otherwise =
+          BU.word8 (setBit (fromIntegral n) 7) <>
+          go (shiftR n 7)
 {-# INLINE putVarInt #-}
 
 -- Some basics, moved over from V1 serialization
-putChar :: (MonadPut m) => Char -> m ()
+putChar :: Char -> Builder
 putChar = putVarInt . fromEnum
 
 getChar :: (MonadGet m) => m Char
 getChar = toEnum <$> getVarInt
 
-putFloat :: (MonadPut m) => Double -> m ()
-putFloat = serializeBE
+putFloat :: Double -> Builder
+putFloat = BU.doubleBE
 
 getFloat :: (MonadGet m) => m Double
 getFloat = deserializeBE
 
-putBool :: (MonadPut m) => Bool -> m ()
-putBool b = putWord8 (if b then 1 else 0)
+putBool :: Bool -> Builder
+putBool b = BU.word8 (if b then 1 else 0)
 
 getBool :: (MonadGet m) => m Bool
 getBool = d =<< getWord8
@@ -109,27 +110,26 @@ getBool = d =<< getWord8
     d 1 = pure True
     d n = exn [] $ "getBool: bad tag: " ++ show n
 
-putNat :: (MonadPut m) => Word64 -> m ()
-putNat = putWord64be
+putNat :: Word64 -> Builder
+putNat = BU.word64BE
 
 getNat :: (MonadGet m) => m Word64
 getNat = getWord64be
 
-putInt :: (MonadPut m) => Int64 -> m ()
-putInt = serializeBE
+putInt :: Int64 -> Builder
+putInt = BU.int64BE
 
 getInt :: (MonadGet m) => m Int64
 getInt = deserializeBE
 
 putLength ::
-  ( MonadPut m,
-    Integral n,
+  ( Integral n,
     Integral (Unsigned n),
     Bits n,
     Bits (Unsigned n)
   ) =>
   n ->
-  m ()
+  Builder
 putLength = putVarInt
 {-# INLINE putLength #-}
 
@@ -147,9 +147,9 @@ getLength = getVarInt
 -- Checks for negatives, in case you put an Integer, which does not
 -- behave properly for negative numbers.
 putPositive ::
-  (MonadPut m, Bits n, Bits (Unsigned n), Integral n, Integral (Unsigned n)) =>
+  (Bits n, Bits (Unsigned n), Integral n, Integral (Unsigned n)) =>
   n ->
-  m ()
+  Builder
 putPositive n
   | n < 0 = exn [] $ "putPositive: negative number: " ++ show (toInteger n)
   | otherwise = putVarInt n
@@ -172,14 +172,13 @@ getPositive = validate =<< getVarInt
 {-# INLINE getPositive #-}
 
 putFoldable ::
-  (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
-putFoldable putA as = do
-  putLength (length as)
-  traverse_ putA as
+  (Foldable f) => (a -> Builder) -> f a -> Builder
+putFoldable putA as =
+  putLength (length as) <> foldr (\x b -> putA x <> b) mempty as
 {-# INLINE putFoldable #-}
 
-putMap :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
-putMap putA putB = putMapping putA putB . Map.toList
+putMap :: (a -> Builder) -> (b -> Builder) -> Map a b -> Builder
+putMap putA putB m = putMapping putA putB $ Map.toList m
 
 getList :: (MonadGet m) => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
@@ -196,36 +195,35 @@ getSeq a = getLength >>= pull mempty
 getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
 getMap getA getB = Map.fromList <$> getMapping getA getB
 
-putMapping ::
-  (MonadPut m) => (a -> m ()) -> (b -> m ()) -> [(a, b)] -> m ()
+putMapping :: (a -> Builder) -> (b -> Builder) -> [(a, b)] -> Builder
 putMapping putA putB = putFoldable (putPair putA putB)
 {-# INLINE putMapping #-}
 
 getMapping :: (MonadGet m) => m a -> m b -> m [(a, b)]
-getMapping getA getB = getList (getPair getA getB)
+getMapping getA getB = getLength >>= (`replicateM` getPair getA getB)
 {-# INLINE getMapping #-}
 
 putEnumMap ::
-  (MonadPut m) =>
   (EnumKey k) =>
-  (k -> m ()) ->
-  (v -> m ()) ->
+  (k -> Builder) ->
+  (v -> Builder) ->
   EnumMap k v ->
-  m ()
+  Builder
 putEnumMap pk pv m = putFoldable (putPair pk pv) (mapToList m)
 
 getEnumMap :: (MonadGet m) => (EnumKey k) => m k -> m v -> m (EnumMap k v)
 getEnumMap gk gv = mapFromList <$> getList (getPair gk gv)
 
-putEnumSet :: (MonadPut m) => (EnumKey k) => (k -> m ()) -> EnumSet k -> m ()
-putEnumSet pk s = putLength (setSize s) *> traverseSet_ pk s
+putEnumSet :: (EnumKey k) => (k -> Builder) -> EnumSet k -> Builder
+putEnumSet pk s =
+  putLength (setSize s) <> foldrSet (\k b -> pk k <> b) mempty s
 
 getEnumSet :: (MonadGet m) => (EnumKey k) => m k -> m (EnumSet k)
 getEnumSet gk = setFromList <$> getList gk
 
-putMaybe :: (MonadPut m) => Maybe a -> (a -> m ()) -> m ()
-putMaybe Nothing _ = putWord8 0
-putMaybe (Just a) putA = putWord8 1 *> putA a
+putMaybe :: Maybe a -> (a -> Builder) -> Builder
+putMaybe Nothing _ = BU.word8 0
+putMaybe (Just a) putA = BU.word8 1 <> putA a
 
 getMaybe :: (MonadGet m) => m a -> m (Maybe a)
 getMaybe getA =
@@ -234,8 +232,9 @@ getMaybe getA =
     1 -> Just <$> getA
     _ -> unknownTag "Maybe" tag
 
-putPair :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> (a, b) -> m ()
-putPair putA putB (a, b) = putA a *> putB b
+putPair :: (a -> Builder) -> (b -> Builder) -> (a, b) -> Builder
+putPair putA putB (a, b) = putA a <> putB b
+{-# INLINE putPair #-}
 
 getPair :: (MonadGet m) => m a -> m b -> m (a, b)
 getPair = liftA2 (,)
@@ -243,32 +242,34 @@ getPair = liftA2 (,)
 getBytes :: (MonadGet m) => m Bytes.Bytes
 getBytes = Bytes.fromChunks <$> getList getBlock
 
-putBytes :: (MonadPut m) => Bytes.Bytes -> m ()
+putBytes :: Bytes.Bytes -> Builder
 putBytes = putFoldable putBlock . Bytes.chunks
 
 getByteArray :: (MonadGet m) => m PA.ByteArray
 getByteArray = PA.byteArrayFromList <$> getList getWord8
 
-putByteArray :: (MonadPut m) => PA.ByteArray -> m ()
-putByteArray a = putFoldable putWord8 (IL.toList a)
+putByteArray :: PA.ByteArray -> Builder
+putByteArray a =
+  putLength (PA.sizeofByteArray a) <>
+  BU.shortByteString (PA.byteArrayToShortByteString a)
 
 getArray :: (MonadGet m) => m a -> m (PA.Array a)
 getArray getThing = PA.arrayFromList <$> getList getThing
 
-putArray :: (MonadPut m) => (a -> m ()) -> PA.Array a -> m ()
+-- maybe a better way to do this?
+putArray :: (a -> Builder) -> PA.Array a -> Builder
 putArray putThing a = putFoldable putThing (IL.toList a)
 
 getBlock :: (MonadGet m) => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
-putBlock :: (MonadPut m) => Bytes.Chunk -> m ()
-putBlock b = putLength (BA.length b) *> putByteString (Bytes.chunkToByteString b)
+putBlock :: Bytes.Chunk -> Builder
+putBlock b = putLength (BA.length b) <> BU.byteString (Bytes.chunkToByteString b)
 
-putHash :: (MonadPut m) => Hash -> m ()
-putHash h = do
-  let bs = Hash.toByteString h
-  putLength (B.length bs)
-  putByteString bs
+putHash :: Hash -> Builder
+putHash h = putLength (B.length bs) <> BU.byteString bs
+  where
+    bs = Hash.toByteString h
 {-# INLINE putHash #-}
 
 getHash :: (MonadGet m) => m Hash
@@ -278,14 +279,14 @@ getHash = do
   pure $ Hash.fromByteString bs
 {-# INLINE getHash #-}
 
-putReferent :: (MonadPut m) => Referent -> m ()
+putReferent :: Referent -> Builder
 putReferent = \case
-  Ref r -> do
-    putWord8 0
+  Ref r ->
+    BU.word8 0 <>
     putReference r
-  Con r ct -> do
-    putWord8 1
-    putConstructorReference r
+  Con r ct ->
+    BU.word8 1 <>
+    putConstructorReference r <>
     putConstructorType ct
 
 getReferent :: (MonadGet m) => m Referent
@@ -305,25 +306,24 @@ type GetRefLookup = (Array Reference, Array Reference)
 
 type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
 
-putReferentByNumber ::
-  (MonadPut m) => PutRefLookup -> Referent -> m ()
+putReferentByNumber :: PutRefLookup -> Referent -> Builder
 putReferentByNumber (tys, tms) = \case
-  Ref r -> do
-    putWord8 0
+  Ref r ->
+    BU.word8 0 <>
     putReferenceByNumber tms r
-  Con r ct -> do
-    putWord8 1
-    putConstructorReferenceByNumber tys r
+  Con r ct ->
+    BU.word8 1 <>
+    putConstructorReferenceByNumber tys r <>
     putConstructorType ct
 
-putNumberedReferent :: (MonadPut m) => Referent' RefNum -> m ()
+putNumberedReferent :: Referent' RefNum -> Builder
 putNumberedReferent = \case
-  Ref' r -> do
-    putWord8 0
+  Ref' r ->
+    BU.word8 0 <>
     putRefNum r
-  Con' r ct -> do
-    putWord8 1
-    putNumberedConstructorReference r
+  Con' r ct ->
+    BU.word8 1 <>
+    putNumberedConstructorReference r <>
     putConstructorType ct
 
 getReferentByNumber :: (MonadGet m) => GetRefLookup -> m Referent
@@ -348,16 +348,15 @@ getConstructorType =
     1 -> pure CT.Effect
     t -> unknownTag "getConstructorType" t
 
-putConstructorType :: (MonadPut m) => CT.ConstructorType -> m ()
+putConstructorType :: CT.ConstructorType -> Builder
 putConstructorType = \case
-  CT.Data -> putWord8 0
-  CT.Effect -> putWord8 1
+  CT.Data -> BU.word8 0
+  CT.Effect -> BU.word8 1
 
 putConstructorReferenceByNumber ::
-  (MonadPut m) => CanonMap Reference Int -> ConstructorReference -> m ()
-putConstructorReferenceByNumber tys (ConstructorReference r i) = do
-  putReferenceByNumber tys r
-  putLength i
+  CanonMap Reference Int -> ConstructorReference -> Builder
+putConstructorReferenceByNumber tys (ConstructorReference r i) =
+  putReferenceByNumber tys r <> putLength i
 
 getConstructorReferenceByNumber ::
   (MonadGet m) => Array Reference -> m ConstructorReference
@@ -365,21 +364,22 @@ getConstructorReferenceByNumber tys =
   ConstructorReference <$> getReferenceByNumber tys <*> getLength
 
 putNumberedConstructorReference ::
-  (MonadPut m) => GConstructorReference RefNum -> m ()
-putNumberedConstructorReference (ConstructorReference r i) = do
-  putRefNum r
-  putLength i
+  GConstructorReference RefNum -> Builder
+putNumberedConstructorReference (ConstructorReference r i) =
+  putRefNum r <> putLength i
 
 getNumberedConstructorReference ::
   (MonadGet m) => m (GConstructorReference RefNum)
 getNumberedConstructorReference =
   ConstructorReference <$> getRefNum <*> getLength
 
-putText :: (MonadPut m) => Text -> m ()
-putText text = do
-  let bs = encodeUtf8 text
-  putLength $ B.length bs
-  putByteString bs
+putString :: String -> Builder
+putString = putFoldable (putVarInt . fromEnum)
+
+putText :: Text -> Builder
+putText text = putLength (B.length bs) <> BU.byteString bs
+  where
+    bs = encodeUtf8 text
 {-# INLINE putText #-}
 
 getText :: (MonadGet m) => m Text
@@ -389,25 +389,19 @@ getText = do
   pure $ decodeUtf8 bs
 {-# INLINE getText #-}
 
-putReference :: (MonadPut m) => Reference -> m ()
+putReference :: Reference -> Builder
 putReference r = case r of
-  Builtin name -> do
-    putWord8 0
-    putText name
-  Derived hash i -> do
-    putWord8 1
-    putHash hash
-    putLength i
+  Builtin name -> BU.word8 0 <> putText name
+  Derived hash i -> BU.word8 1 <> putHash hash <> putLength i
 {-# INLINE putReference #-}
 
-putReferenceByNumber ::
-  (MonadPut m) => CanonMap Reference Int -> Reference -> m ()
+putReferenceByNumber :: CanonMap Reference Int -> Reference -> Builder
 putReferenceByNumber cm r
   | Just i <- unsafeLookup r cm = putVarInt i
   | otherwise = exn [] $ "could not serialize reference: " ++ show r
 {-# INLINE putReferenceByNumber #-}
 
-putRefNum :: (MonadPut m) => RefNum -> m ()
+putRefNum :: RefNum -> Builder
 putRefNum (RefNum i) = putVarInt i
 {-# INLINE putRefNum #-}
 
@@ -434,10 +428,9 @@ getRefNum :: (MonadGet m) => m RefNum
 getRefNum = RefNum <$> getVarInt
 {-# INLINE getRefNum #-}
 
-putConstructorReference :: (MonadPut m) => ConstructorReference -> m ()
-putConstructorReference (ConstructorReference r i) = do
-  putReference r
-  putLength i
+putConstructorReference :: ConstructorReference -> Builder
+putConstructorReference (ConstructorReference r i) =
+  putReference r <> putLength i
 
 getConstructorReference :: (MonadGet m) => m ConstructorReference
 getConstructorReference =

@@ -11,9 +11,10 @@ module Unison.Runtime.MCode.Serialize
 where
 
 import Data.Bytes.Get
-import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
@@ -35,18 +36,18 @@ instance Tag CombT where
   word2tag 1 = pure CachedClosureT
   word2tag n = unknownTag "CombT" n
 
-putPackedTag :: (MonadPut m) => PackedTag -> m ()
+putPackedTag :: PackedTag -> Builder
 putPackedTag (PackedTag w) = pWord w
 
 getPackedTag :: (MonadGet m) => m PackedTag
 getPackedTag = PackedTag <$> gWord
 
-putComb :: (MonadPut m) => (clos -> m ()) -> GComb clos comb -> m ()
+putComb :: (clos -> Builder) -> GComb clos comb -> Builder
 putComb pClos = \case
   (Lam a f body) ->
-    putTag LamT *> pInt a *> pInt f *> putSection body
+    putTag LamT <> pInt a <> pInt f <> putSection body
   (CachedVal w v) ->
-    putTag CachedClosureT *> putNat w *> pClos v
+    putTag CachedClosureT <> putNat w <> pClos v
 
 getComb :: (MonadGet m) => m (GComb Void CombIx)
 getComb =
@@ -59,7 +60,7 @@ getMForeignFunc :: (MonadGet m) => m ForeignFunc
 getMForeignFunc = do
   toEnum <$> gInt
 
-putMForeignFunc :: (MonadPut m) => ForeignFunc -> m ()
+putMForeignFunc :: ForeignFunc -> Builder
 putMForeignFunc = pInt . fromEnum
 
 data SectionT
@@ -104,29 +105,29 @@ instance Tag SectionT where
   word2tag 11 = pure RMatchT
   word2tag i = unknownTag "SectionT" i
 
-putSection :: (MonadPut m) => GSection cix -> m ()
+putSection :: GSection cix -> Builder
 putSection = \case
-  App b r a -> putTag AppT *> serialize b *> putRef r *> putArgs a
-  Call b cix _comb a -> putTag CallT *> serialize b *> putCombIx cix *> putArgs a
-  Jump i a -> putTag JumpT *> pInt i *> putArgs a
-  Match i b -> putTag MatchT *> pInt i *> putBranch b
-  Yield a -> putTag YieldT *> putArgs a
-  Ins i s -> putTag InsT *> putInstr i *> putSection s
+  App b r a -> putTag AppT <> putBool b <> putRef r <> putArgs a
+  Call b cix _comb a -> putTag CallT <> putBool b <> putCombIx cix <> putArgs a
+  Jump i a -> putTag JumpT <> pInt i <> putArgs a
+  Match i b -> putTag MatchT <> pInt i <> putBranch b
+  Yield a -> putTag YieldT <> putArgs a
+  Ins i s -> putTag InsT <> putInstr i <> putSection s
   Let s ci f bd ->
     putTag LetT
-      *> putSection s
-      *> putCombIx ci
-      *> pInt f
-      *> putSection bd
-  Die s -> putTag DieT *> serialize s
+      <> putSection s
+      <> putCombIx ci
+      <> pInt f
+      <> putSection bd
+  Die s -> putTag DieT <> putString s
   Exit -> putTag ExitT
-  DMatch mr i b -> putTag DMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
-  NMatch mr i b -> putTag NMatchT *> putMaybe mr putReference *> pInt i *> putBranch b
+  DMatch mr i b -> putTag DMatchT <> putMaybe mr putReference <> pInt i <> putBranch b
+  NMatch mr i b -> putTag NMatchT <> putMaybe mr putReference <> pInt i <> putBranch b
   RMatch i pu bs ->
     putTag RMatchT
-      *> pInt i
-      *> putSection pu
-      *> putEnumMap pWord putBranch bs
+      <> pInt i
+      <> putSection pu
+      <> putEnumMap pWord putBranch bs
 
 getSection :: (MonadGet m) => m Section
 getSection =
@@ -213,30 +214,30 @@ instance Tag InstrT where
   word2tag 20 = pure InLocalT
   word2tag n = unknownTag "InstrT" n
 
-putInstr :: (MonadPut m) => GInstr cix -> m ()
+putInstr :: GInstr cix -> Builder
 putInstr = \case
-  (Prim1 up i) -> putTag Prim1T *> putTag up *> pInt i
-  (Prim2 up i j) -> putTag Prim2T *> putTag up *> pInt i *> pInt j
-  (RefCAS i j k) -> putTag RefCAST *> pInt i *> pInt j *> pInt k
-  (ForeignCall b ff a) -> putTag ForeignCallT *> serialize b *> putMForeignFunc ff *> putArgs a
-  (SetAff u i j) -> putTag SetAffT *> pBool u *> pInt i *> pInt j
-  (Capture w) -> putTag CaptureT *> pWord w
-  (Discard i) -> putTag DiscardT *> pInt i
-  (Name r a) -> putTag NameT *> putRef r *> putArgs a
-  (Info s) -> putTag InfoT *> serialize s
-  (Pack r w a) -> putTag PackT *> putReference r *> putPackedTag w *> putArgs a
-  (Lit l) -> putTag LitT *> putLit l
-  (Print i) -> putTag PrintT *> pInt i
+  (Prim1 up i) -> putTag Prim1T <> putTag up <> pInt i
+  (Prim2 up i j) -> putTag Prim2T <> putTag up <> pInt i <> pInt j
+  (RefCAS i j k) -> putTag RefCAST <> pInt i <> pInt j <> pInt k
+  (ForeignCall b ff a) -> putTag ForeignCallT <> putBool b <> putMForeignFunc ff <> putArgs a
+  (SetAff u i j) -> putTag SetAffT <> pBool u <> pInt i <> pInt j
+  (Capture w) -> putTag CaptureT <> pWord w
+  (Discard i) -> putTag DiscardT <> pInt i
+  (Name r a) -> putTag NameT <> putRef r <> putArgs a
+  (Info s) -> putTag InfoT <> putString s
+  (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
+  (Lit l) -> putTag LitT <> putLit l
+  (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
     putTag ResetT
-      *> putEnumSet pWord s
-      *> pInt nh
-      *> putMaybe ah pInt
-  (Fork i) -> putTag ForkT *> pInt i
-  (Atomically i) -> putTag AtomicallyT *> pInt i
-  (Seq a) -> putTag SeqT *> putArgs a
-  (TryForce i) -> putTag TryForceT *> pInt i
-  (InLocal i) -> putTag InLocalT *> pInt i
+      <> putEnumSet pWord s
+      <> pInt nh
+      <> putMaybe ah pInt
+  (Fork i) -> putTag ForkT <> pInt i
+  (Atomically i) -> putTag AtomicallyT <> pInt i
+  (Seq a) -> putTag SeqT <> putArgs a
+  (TryForce i) -> putTag TryForceT <> pInt i
+  (InLocal i) -> putTag InLocalT <> pInt i
   (SandboxingFailure {}) ->
     -- Sandboxing failures should only exist in code we're actively running, it shouldn't be serialized.
     error "putInstr: Unexpected serialized Sandboxing Failure"
@@ -288,13 +289,13 @@ instance Tag ArgsT where
   word2tag 5 = pure ArgVT
   word2tag n = unknownTag "ArgsT" n
 
-putArgs :: (MonadPut m) => Args -> m ()
+putArgs :: Args -> Builder
 putArgs ZArgs = putTag ZArgsT
-putArgs (VArg1 i) = putTag Arg1T *> pInt i
-putArgs (VArg2 i j) = putTag Arg2T *> pInt i *> pInt j
-putArgs (VArgR i j) = putTag ArgRT *> pInt i *> pInt j
-putArgs (VArgN pa) = putTag ArgNT *> putIntArr pa
-putArgs (VArgV i) = putTag ArgVT *> pInt i
+putArgs (VArg1 i) = putTag Arg1T <> pInt i
+putArgs (VArg2 i j) = putTag Arg2T <> pInt i <> pInt j
+putArgs (VArgR i j) = putTag ArgRT <> pInt i <> pInt j
+putArgs (VArgN pa) = putTag ArgNT <> putIntArr pa
+putArgs (VArgV i) = putTag ArgVT <> pInt i
 
 getArgs :: (MonadGet m) => m Args
 getArgs =
@@ -318,10 +319,10 @@ instance Tag RefT where
   word2tag 2 = pure DynT
   word2tag n = unknownTag "RefT" n
 
-putRef :: (MonadPut m) => GRef cix -> m ()
-putRef (Stk i) = putTag StkT *> pInt i
-putRef (Env cix _) = putTag EnvT *> putCombIx cix
-putRef (Dyn i) = putTag DynT *> pWord i
+putRef :: GRef cix -> Builder
+putRef (Stk i) = putTag StkT <> pInt i
+putRef (Env cix _) = putTag EnvT <> putCombIx cix
+putRef (Dyn i) = putTag DynT <> pWord i
 
 getRef :: (MonadGet m) => m Ref
 getRef =
@@ -332,8 +333,8 @@ getRef =
       pure $ Env cix cix
     DynT -> Dyn <$> gWord
 
-putCombIx :: (MonadPut m) => CombIx -> m ()
-putCombIx (CIx r n i) = putReference r *> pWord n *> pWord i
+putCombIx :: CombIx -> Builder
+putCombIx (CIx r n i) = putReference r <> pWord n <> pWord i
 
 getCombIx :: (MonadGet m) => m CombIx
 getCombIx = CIx <$> getReference <*> gWord <*> gWord
@@ -358,14 +359,14 @@ instance Tag MLitT where
   word2tag 6 = pure MYT
   word2tag n = unknownTag "MLitT" n
 
-putLit :: (MonadPut m) => MLit -> m ()
-putLit (MI i) = putTag MIT *> pInt i
-putLit (MN n) = putTag MNT *> pWord n
-putLit (MC c) = putTag MCT *> putChar c
-putLit (MD d) = putTag MDT *> putFloat d
-putLit (MT t) = putTag MTT *> putText (Util.Text.toText t)
-putLit (MM r) = putTag MMT *> putReferent r
-putLit (MY r) = putTag MYT *> putReference r
+putLit :: MLit -> Builder
+putLit (MI i) = putTag MIT <> pInt i
+putLit (MN n) = putTag MNT <> pWord n
+putLit (MC c) = putTag MCT <> putChar c
+putLit (MD d) = putTag MDT <> putFloat d
+putLit (MT t) = putTag MTT <> putText (Util.Text.toText t)
+putLit (MM r) = putTag MMT <> putReferent r
+putLit (MY r) = putTag MYT <> putReference r
 
 getLit :: (MonadGet m) => m MLit
 getLit =
@@ -392,20 +393,20 @@ instance Tag BranchT where
   word2tag 3 = pure TestTT
   word2tag n = unknownTag "BranchT" n
 
-putBranch :: (MonadPut m) => GBranch cix -> m ()
+putBranch :: GBranch cix -> Builder
 putBranch (Test1 w s d) =
-  putTag Test1T *> pWord w *> putSection s *> putSection d
+  putTag Test1T <> pWord w <> putSection s <> putSection d
 putBranch (Test2 a sa b sb d) =
   putTag Test2T
-    *> pWord a
-    *> putSection sa
-    *> pWord b
-    *> putSection sb
-    *> putSection d
+    <> pWord a
+    <> putSection sa
+    <> pWord b
+    <> putSection sb
+    <> putSection d
 putBranch (TestW d m) =
-  putTag TestWT *> putSection d *> putEnumMap pWord putSection m
+  putTag TestWT <> putSection d <> putEnumMap pWord putSection m
 putBranch (TestT d m) =
-  putTag TestTT *> putSection d *> putMap (putText . Util.Text.toText) putSection m
+  putTag TestTT <> putSection d <> putMap (putText . Util.Text.toText) putSection m
 
 getBranch :: (MonadGet m) => m Branch
 getBranch =
@@ -424,8 +425,8 @@ getBranch =
 gInt :: (MonadGet m) => m Int
 gInt = unVarInt <$> deserialize
 
-pInt :: (MonadPut m) => Int -> m ()
-pInt i = serialize (VarInt i)
+pInt :: Int -> Builder
+pInt i = putVarInt i
 
 gBool :: (MonadGet m) => m Bool
 gBool =
@@ -434,17 +435,17 @@ gBool =
     1 -> pure True
     n -> fail $ "bad byte `" ++ show n ++ "` while deserializing Bool"
 
-pBool :: (MonadPut m) => Bool -> m ()
-pBool False = putWord8 0
-pBool True = putWord8 1
+pBool :: Bool -> Builder
+pBool False = BU.word8 0
+pBool True = BU.word8 1
 
 gWord :: (MonadGet m) => m Word64
 gWord = unVarInt <$> deserialize
 
-pWord :: (MonadPut m) => Word64 -> m ()
-pWord w = serialize (VarInt w)
+pWord :: Word64 -> Builder
+pWord w = putVarInt w
 
-putIntArr :: (MonadPut m) => PrimArray Int -> m ()
+putIntArr :: PrimArray Int -> Builder
 putIntArr pa = putFoldable pInt $ toList pa
 
 getIntArr :: (MonadGet m) => m (PrimArray Int)
