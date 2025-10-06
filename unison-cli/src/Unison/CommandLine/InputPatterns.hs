@@ -2213,7 +2213,7 @@ mergeCommitInputPattern =
   InputPattern
     { patternName = "merge.commit",
       aliases = ["commit.merge"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       params = noParams,
       help =
         let mainBranch = defaultBranchName

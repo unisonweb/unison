@@ -52,7 +52,6 @@ library
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
-      Unison.Codebase.Editor.HandleInput.CommitMerge
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DebugSynhashTerm

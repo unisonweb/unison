@@ -598,18 +598,6 @@
   merge
   `merge /branch` merges `branch` into the current branch
 
-  merge.commit (or commit.merge)
-  `merge.commit` merges a temporary branch created by the
-  `merge` command back into its parent branch, and removes the
-  temporary branch.
-
-  For example, if you've done `merge topic` from main, then
-  `merge.commit` is equivalent to doing
-
-    * switch /main
-    * merge /merge-topic-into-main
-    * delete.branch /merge-topic-into-main
-
   move (or rename, mv)
   `move foo bar` renames the term, type, and namespace foo to bar.
 
