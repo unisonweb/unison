@@ -376,7 +376,7 @@ getNumberedConstructorReference =
 putString :: String -> Builder
 putString = putFoldable (putVarInt . fromEnum)
 
-getString :: MonadGet m => m String
+getString :: (MonadGet m) => m String
 getString = getList (toEnum <$> getVarInt)
 
 putText :: Text -> Builder

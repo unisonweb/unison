@@ -3,9 +3,9 @@
 -- | Round trip tests runtime serialization
 module Unison.Test.Runtime.MCode.Serialization (Unison.Test.Runtime.MCode.Serialization.test) where
 
-import Data.Bytes.Get (runGetS)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
+import Data.Bytes.Get (runGetS)
 import Data.Primitive (Prim, PrimArray, primArrayFromList)
 import Data.Serialize.Get (Get)
 import EasyTest qualified as EasyTest

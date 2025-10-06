@@ -4,9 +4,9 @@
 module Unison.Test.Runtime.ANF.Serialization (Unison.Test.Runtime.ANF.Serialization.test) where
 
 import Control.Monad.Reader (runReaderT)
-import Data.Bytes.Get (runGetS)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
+import Data.Bytes.Get (runGetS)
 import Data.Primitive.Array (Array)
 import Data.Primitive.Array qualified as Array
 import Data.Primitive.ByteArray (ByteArray)
