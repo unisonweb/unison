@@ -376,6 +376,9 @@ getNumberedConstructorReference =
 putString :: String -> Builder
 putString = putFoldable (putVarInt . fromEnum)
 
+getString :: MonadGet m => m String
+getString = getList (toEnum <$> getVarInt)
+
 putText :: Text -> Builder
 putText text = putLength (B.length bs) <> BU.byteString bs
   where

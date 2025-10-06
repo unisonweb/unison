@@ -233,6 +233,7 @@ test-suite runtime-tests
   build-depends:
       base
     , bytes
+    , bytestring
     , cereal
     , code-page
     , containers

@@ -4,10 +4,10 @@
 module Unison.Test.Runtime.MCode.Serialization (Unison.Test.Runtime.MCode.Serialization.test) where
 
 import Data.Bytes.Get (runGetS)
-import Data.Bytes.Put (runPutS)
+import Data.ByteString.Builder (Builder, toLazyByteString)
+import Data.ByteString.Lazy (toStrict)
 import Data.Primitive (Prim, PrimArray, primArrayFromList)
 import Data.Serialize.Get (Get)
-import Data.Serialize.Put (Put)
 import EasyTest qualified as EasyTest
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
@@ -191,9 +191,9 @@ sCacheRoundtrip :: Property
 sCacheRoundtrip =
   getPutRoundtrip getStoredCache (putStoredCache) genStoredCache
 
-getPutRoundtrip :: (Eq a, Show a) => Get a -> (a -> Put) -> Gen a -> Property
+getPutRoundtrip :: (Eq a, Show a) => Get a -> (a -> Builder) -> Gen a -> Property
 getPutRoundtrip get put builder =
   property $ do
     v <- forAll builder
-    let bytes = runPutS (put v)
+    let bytes = toStrict . toLazyByteString $ put v
     runGetS get bytes === Right v

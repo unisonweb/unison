@@ -144,7 +144,7 @@ getSection =
     InsT -> Ins <$> getInstr <*> getSection
     LetT ->
       Let <$> getSection <*> getCombIx <*> gInt <*> getSection
-    DieT -> Die <$> deserialize
+    DieT -> Die <$> getString
     ExitT -> pure Exit
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
     NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
@@ -253,7 +253,7 @@ getInstr =
     CaptureT -> Capture <$> gWord
     DiscardT -> Discard <$> gInt
     NameT -> Name <$> getRef <*> getArgs
-    InfoT -> Info <$> deserialize
+    InfoT -> Info <$> getString
     PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs
     LitT -> Lit <$> getLit
     PrintT -> Print <$> gInt

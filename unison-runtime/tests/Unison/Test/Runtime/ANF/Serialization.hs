@@ -5,14 +5,14 @@ module Unison.Test.Runtime.ANF.Serialization (Unison.Test.Runtime.ANF.Serializat
 
 import Control.Monad.Reader (runReaderT)
 import Data.Bytes.Get (runGetS)
-import Data.Bytes.Put (runPutS)
+import Data.ByteString.Builder (Builder, toLazyByteString)
+import Data.ByteString.Lazy (toStrict)
 import Data.Primitive.Array (Array)
 import Data.Primitive.Array qualified as Array
 import Data.Primitive.ByteArray (ByteArray)
 import Data.Primitive.ByteArray qualified as ByteArray
 import Data.Primitive.Types (Prim)
 import Data.Serialize.Get (Get)
-import Data.Serialize.Put (Put)
 import EasyTest qualified as EasyTest
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
@@ -97,12 +97,12 @@ valueRoundtrip :: Property
 valueRoundtrip =
   getPutRoundtrip (runReaderT getValue . (,False)) putValue genValue
 
-getPutRoundtrip :: (Eq a, Show a) => (Version -> Get a) -> (Version -> a -> Put) -> Gen a -> Property
+getPutRoundtrip :: (Eq a, Show a) => (Version -> Get a) -> (Version -> a -> Builder) -> Gen a -> Property
 getPutRoundtrip get put builder =
   property $ do
     v <- forAll builder
     version <- forAll versionToTest
-    let bytes = runPutS (put version v)
+    let bytes = toStrict . toLazyByteString $ put version v
     runGetS (get version) bytes === Right v
   where
     versionToTest = do
