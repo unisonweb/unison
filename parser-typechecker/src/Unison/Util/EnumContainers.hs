@@ -220,5 +220,5 @@ setSize :: EnumSet k -> Int
 setSize (ES s) = IS.size s
 
 {-# INLINE foldrSet #-}
-foldrSet :: EnumKey k => (k -> r -> r) -> r -> EnumSet k -> r
+foldrSet :: (EnumKey k) => (k -> r -> r) -> r -> EnumSet k -> r
 foldrSet f z (ES s) = IS.foldr (f . intToKey) z s

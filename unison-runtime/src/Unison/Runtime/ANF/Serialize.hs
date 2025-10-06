@@ -11,9 +11,9 @@ import Control.Monad.State.Strict (StateT (..))
 import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
 import Data.Binary.Get qualified as BGet
+import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
-import Data.ByteString (ByteString)
 import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Serial
@@ -868,8 +868,8 @@ deserializeValue bs = bimap thd thd $ runGetOrFail getVersionedValue bs
 
 serializeValue :: Referenced Value -> ByteString
 serializeValue (dereference -> v) =
-  L.toStrict . BU.toLazyByteString
-    $ putVersion <> putValue (Transfer valueVersion) v
+  L.toStrict . BU.toLazyByteString $
+    putVersion <> putValue (Transfer valueVersion) v
   where
     putVersion = BU.word32BE valueVersion
 

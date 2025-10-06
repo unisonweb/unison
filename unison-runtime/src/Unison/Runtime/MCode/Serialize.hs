@@ -10,11 +10,11 @@ module Unison.Runtime.MCode.Serialize
   )
 where
 
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.Bytes.Get
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
-import Data.ByteString.Builder (Builder)
-import Data.ByteString.Builder qualified as BU
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))

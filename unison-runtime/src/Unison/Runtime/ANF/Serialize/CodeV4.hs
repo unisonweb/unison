@@ -1,9 +1,9 @@
 module Unison.Runtime.ANF.Serialize.CodeV4 where
 
 import Control.Monad
+import Data.Binary.Get qualified as BGet
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
-import Data.Binary.Get qualified as BGet
 import Data.Bytes.Get hiding (getBytes)
 import Data.Functor ((<&>))
 import Data.Map.Strict as Map (lookup)
@@ -362,33 +362,33 @@ putBranches ::
 putBranches fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
   MatchIntegral m df ->
-    putTag MIntT <>
-    putEnumMap BU.word64BE (putNormal fops ctx) m <>
-    putMaybe df (putNormal fops ctx)
+    putTag MIntT
+      <> putEnumMap BU.word64BE (putNormal fops ctx) m
+      <> putMaybe df (putNormal fops ctx)
   MatchText m df ->
-    putTag MTextT <>
-    putMap (putText . Util.Text.toText) (putNormal fops ctx) m <>
-    putMaybe df (putNormal fops ctx)
+    putTag MTextT
+      <> putMap (putText . Util.Text.toText) (putNormal fops ctx) m
+      <> putMaybe df (putNormal fops ctx)
   MatchRequest m (TAbs v df) ->
-    putTag MReqT <>
-    putMapping
-      putRefNum
-      (putEnumMap putCTag (putCase fops ctx))
-      m <>
-    putNormal fops (v : ctx) df
+    putTag MReqT
+      <> putMapping
+        putRefNum
+        (putEnumMap putCTag (putCase fops ctx))
+        m
+      <> putNormal fops (v : ctx) df
   MatchData r m df ->
-    putTag MDataT <>
-    putRefNum r <>
-    putEnumMap putCTag (putCase fops ctx) m <>
-    putMaybe df (putNormal fops ctx)
+    putTag MDataT
+      <> putRefNum r
+      <> putEnumMap putCTag (putCase fops ctx) m
+      <> putMaybe df (putNormal fops ctx)
   MatchSum m ->
-    putTag MSumT <>
-    putEnumMap BU.word64BE (putCase fops ctx) m
+    putTag MSumT
+      <> putEnumMap BU.word64BE (putCase fops ctx) m
   MatchNumeric r m df ->
-    putTag MNumT <>
-    putRefNum r <>
-    putEnumMap BU.word64BE (putNormal fops ctx) m <>
-    putMaybe df (putNormal fops ctx)
+    putTag MNumT
+      <> putRefNum r
+      <> putEnumMap BU.word64BE (putNormal fops ctx) m
+      <> putMaybe df (putNormal fops ctx)
   _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::

@@ -8,10 +8,10 @@ where
 
 import Control.Monad (replicateM)
 import Data.Binary.Get qualified as BGet
-import Data.Bytes.Get hiding (getBytes)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.ByteString.Lazy qualified as L
+import Data.Bytes.Get hiding (getBytes)
 import Data.Serialize.Get qualified as SGet
 import GHC.IsList qualified (fromList)
 import Unison.Reference (Reference)

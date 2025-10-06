@@ -83,8 +83,8 @@ putVarInt = go . unsigned
     go n
       | n < 0x80 = BU.word8 $ fromIntegral n
       | otherwise =
-          BU.word8 (setBit (fromIntegral n) 7) <>
-          go (shiftR n 7)
+          BU.word8 (setBit (fromIntegral n) 7)
+            <> go (shiftR n 7)
 {-# INLINE putVarInt #-}
 
 -- Some basics, moved over from V1 serialization
@@ -250,8 +250,8 @@ getByteArray = PA.byteArrayFromList <$> getList getWord8
 
 putByteArray :: PA.ByteArray -> Builder
 putByteArray a =
-  putLength (PA.sizeofByteArray a) <>
-  BU.shortByteString (PA.byteArrayToShortByteString a)
+  putLength (PA.sizeofByteArray a)
+    <> BU.shortByteString (PA.byteArrayToShortByteString a)
 
 getArray :: (MonadGet m) => m a -> m (PA.Array a)
 getArray getThing = PA.arrayFromList <$> getList getThing
@@ -282,12 +282,12 @@ getHash = do
 putReferent :: Referent -> Builder
 putReferent = \case
   Ref r ->
-    BU.word8 0 <>
-    putReference r
+    BU.word8 0
+      <> putReference r
   Con r ct ->
-    BU.word8 1 <>
-    putConstructorReference r <>
-    putConstructorType ct
+    BU.word8 1
+      <> putConstructorReference r
+      <> putConstructorType ct
 
 getReferent :: (MonadGet m) => m Referent
 getReferent = do
@@ -309,22 +309,22 @@ type PutRefLookup = (CanonMap Reference Int, CanonMap Reference Int)
 putReferentByNumber :: PutRefLookup -> Referent -> Builder
 putReferentByNumber (tys, tms) = \case
   Ref r ->
-    BU.word8 0 <>
-    putReferenceByNumber tms r
+    BU.word8 0
+      <> putReferenceByNumber tms r
   Con r ct ->
-    BU.word8 1 <>
-    putConstructorReferenceByNumber tys r <>
-    putConstructorType ct
+    BU.word8 1
+      <> putConstructorReferenceByNumber tys r
+      <> putConstructorType ct
 
 putNumberedReferent :: Referent' RefNum -> Builder
 putNumberedReferent = \case
   Ref' r ->
-    BU.word8 0 <>
-    putRefNum r
+    BU.word8 0
+      <> putRefNum r
   Con' r ct ->
-    BU.word8 1 <>
-    putNumberedConstructorReference r <>
-    putConstructorType ct
+    BU.word8 1
+      <> putNumberedConstructorReference r
+      <> putConstructorType ct
 
 getReferentByNumber :: (MonadGet m) => GetRefLookup -> m Referent
 getReferentByNumber (tys, tms) = do
