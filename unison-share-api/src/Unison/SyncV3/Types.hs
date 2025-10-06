@@ -13,7 +13,6 @@ module Unison.SyncV3.Types
   )
 where
 
-import Unison.SyncCommon.Types
 import Codec.Serialise (Serialise)
 import Codec.Serialise qualified as CBOR
 import Control.Lens hiding ((.=))
@@ -34,6 +33,7 @@ import Unison.Hash32 (Hash32)
 import Unison.Prelude (tShow)
 import Unison.Server.Orphans ()
 import Unison.Sqlite qualified as Sqlite
+import Unison.SyncCommon.Types
 import Unison.Util.Servant.CBOR qualified as CBOR
 
 data InitMsg authedHash = InitMsg
@@ -159,6 +159,11 @@ data SyncError
   | -- The caller asked for a Hash they shouldn't have access to.
     ForbiddenEntityRequest (Set (EntityKind, Hash32))
   | ConnectionError Text
+  | ProjectNotFound BranchRef
+  | UserNotFound BranchRef
+  | NoReadPermission BranchRef
+  | HashJWTVerificationError Text
+  | InvalidBranchRef Text BranchRef
   deriving (Show, Eq)
 
 -- | Roundtrip test:
@@ -183,6 +188,16 @@ instance CBOR.Serialise SyncError where
       CBOR.encode (3 :: Int) <> CBOR.encode hashes
     ConnectionError err ->
       CBOR.encode (4 :: Int) <> CBOR.encode err
+    ProjectNotFound branchRef ->
+      CBOR.encode (5 :: Int) <> CBOR.encode branchRef
+    UserNotFound branchRef ->
+      CBOR.encode (6 :: Int) <> CBOR.encode branchRef
+    NoReadPermission branchRef ->
+      CBOR.encode (7 :: Int) <> CBOR.encode branchRef
+    HashJWTVerificationError err ->
+      CBOR.encode (8 :: Int) <> CBOR.encode err
+    InvalidBranchRef err branchRef ->
+      CBOR.encode (9 :: Int) <> CBOR.encode err <> CBOR.encode branchRef
 
   decode = do
     tag <- CBOR.decode @Int
@@ -196,6 +211,14 @@ instance CBOR.Serialise SyncError where
       4 -> do
         err <- CBOR.decode @Text
         pure $ ConnectionError err
+      5 -> ProjectNotFound <$> CBOR.decode
+      6 -> UserNotFound <$> CBOR.decode
+      7 -> NoReadPermission <$> CBOR.decode
+      8 -> HashJWTVerificationError <$> CBOR.decode
+      9 -> do
+        err <- CBOR.decode @Text
+        branchRef <- CBOR.decode @BranchRef
+        pure $ InvalidBranchRef err branchRef
       _ -> fail $ "Unknown SyncError tag: " <> show tag
 
 -- A message sent from the emitter to the downloader.
