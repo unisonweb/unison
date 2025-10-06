@@ -181,6 +181,7 @@ prettyKindError prettyType showSource color1 color2 env = \case
             [ (varLoc conflictedVar, color2)
             ]
      in theErrMsg
+  SolveError solveError -> prettySolveError solveError
   where
     varLoc var = ABT.annotation $ uvarType var
     prettyTyp = prettyType . uvarType

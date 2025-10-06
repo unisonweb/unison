@@ -15,7 +15,9 @@ import Unison.KindInference.Generate.Monad (GeneratedConstraint)
 import Unison.KindInference.Solve.Monad
   ( ConstraintMap,
     Solve (..),
+    SolveError (..),
   )
+import Unison.KindInference.Solve.Monad qualified as Solve
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
 import Unison.Type (Type)
@@ -36,8 +38,11 @@ lspLoc = \case
   ArgumentMismatchArrow _ ConstraintConflict' {conflictedVar} _ -> varLoc conflictedVar
   EffectListMismatch ConstraintConflict' {conflictedVar} _ -> varLoc conflictedVar
   ConstraintConflict gen _ _ -> gen ^. Unsolved.loc
+  SolveError err -> solveErrLoc err
   where
     varLoc var = ABT.annotation $ uvarType var
+    solveErrLoc = \case
+      Solve.MissingBuiltin loc _ -> loc
 
 -- | Errors that may arise during kind inference
 data KindError v loc
@@ -83,6 +88,7 @@ data KindError v loc
       (ConstraintConflict v loc)
       -- | in this context
       (ConstraintMap v loc)
+  | SolveError (SolveError loc)
 
 -- | Transform generic constraint conflicts into more specific error
 -- by examining its @ConstraintContext@.

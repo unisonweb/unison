@@ -163,42 +163,42 @@
   debug.numberedArgs
   Dump the contents of the numbered args state.
 
-  delete
+  delete (or rm)
   `delete foo` removes the term or type name `foo` from the namespace.                
   `delete foo bar` removes the term or type name `foo` and `bar` from the namespace.  
 
-  delete.branch (or branch.delete)
+  delete.branch (or branch.delete, rm.branch)
   `delete.branch foo/bar`  deletes the branch `bar` in the
                            project `foo`
   `delete.branch /bar`     deletes the branch `bar` in the
                            current project
 
-  delete.force
+  delete.force (or rm.force)
   `delete.force foo` removes the term or type name `foo` from the namespace.                
   `delete.force foo bar` removes the term or type name `foo` and `bar` from the namespace.  
 
-  delete.namespace
+  delete.namespace (or rm.namespace)
   `delete.namespace <foo>` deletes the namespace `foo`
 
-  delete.namespace.force
+  delete.namespace.force (or rm.namespace.force)
   `delete.namespace.force <foo>` deletes the namespace `foo`,deletion will proceed even if other code depends on definitions in foo.
 
-  delete.project (or project.delete)
+  delete.project (or project.delete, rm.project)
   `delete.project foo`  deletes the local project `foo`
 
-  delete.term
+  delete.term (or rm.term)
   `delete.term foo` removes the term name `foo` from the namespace.                
   `delete.term foo bar` removes the term name `foo` and `bar` from the namespace.  
 
-  delete.term.force
+  delete.term.force (or rm.term.force)
   `delete.term.force foo` removes the term name `foo` from the namespace.                
   `delete.term.force foo bar` removes the term name `foo` and `bar` from the namespace.  
 
-  delete.type
+  delete.type (or rm.type)
   `delete.type foo` removes the type name `foo` from the namespace.                
   `delete.type foo bar` removes the type name `foo` and `bar` from the namespace.  
 
-  delete.type.force
+  delete.type.force (or rm.type.force)
   `delete.type.force foo` removes the type name `foo` from the namespace.                
   `delete.type.force foo bar` removes the type name `foo` and `bar` from the namespace.  
 
@@ -610,16 +610,16 @@
     * merge /merge-topic-into-main
     * delete.branch /merge-topic-into-main
 
-  move (or rename)
+  move (or rename, mv)
   `move foo bar` renames the term, type, and namespace foo to bar.
 
-  move.namespace (or rename.namespace)
+  move.namespace (or rename.namespace, mv.namespace)
   `move.namespace foo bar` renames the path `foo` to `bar`.
 
-  move.term (or rename.term)
+  move.term (or rename.term, mv.term)
   `move.term foo bar` renames `foo` to `bar`.
 
-  move.type (or rename.type)
+  move.type (or rename.type, mv.type)
   `move.type foo bar` renames `foo` to `bar`.
 
   names

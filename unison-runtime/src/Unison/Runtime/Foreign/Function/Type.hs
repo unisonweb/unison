@@ -162,8 +162,10 @@ data ForeignFunc
   | IO_randomBytes
   | Bytes_zlib_compress
   | Bytes_gzip_compress
+  | Bytes_zstd_compress
   | Bytes_zlib_decompress
   | Bytes_gzip_decompress
+  | Bytes_zstd_decompress
   | Bytes_toBase16
   | Bytes_toBase32
   | Bytes_toBase64
@@ -522,8 +524,10 @@ foreignFuncBuiltinName = \case
   IO_randomBytes -> "IO.randomBytes"
   Bytes_zlib_compress -> "Bytes.zlib.compress"
   Bytes_gzip_compress -> "Bytes.gzip.compress"
+  Bytes_zstd_compress -> "Bytes.zstd.compress"
   Bytes_zlib_decompress -> "Bytes.zlib.decompress"
   Bytes_gzip_decompress -> "Bytes.gzip.decompress"
+  Bytes_zstd_decompress -> "Bytes.zstd.decompress"
   Bytes_toBase16 -> "Bytes.toBase16"
   Bytes_toBase32 -> "Bytes.toBase32"
   Bytes_toBase64 -> "Bytes.toBase64"

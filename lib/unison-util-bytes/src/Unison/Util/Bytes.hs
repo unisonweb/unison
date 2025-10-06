@@ -53,6 +53,8 @@ module Unison.Util.Bytes
     zlibDecompress,
     gzipCompress,
     gzipDecompress,
+    zstdCompress,
+    zstdDecompress,
     hash64AddBytes,
   )
 where
@@ -60,7 +62,9 @@ where
 import Basement.Block.Mutable (Block (Block))
 import Codec.Compression.GZip qualified as GZip
 import Codec.Compression.Zlib qualified as Zlib
+import Codec.Compression.Zstd qualified as Zstd
 import Control.DeepSeq (NFData (..))
+import Control.Exception (throw)
 import Control.Monad.Primitive (unsafeIOToPrim)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
@@ -165,11 +169,24 @@ zlibCompress = fromLazyByteString . Zlib.compress . toLazyByteString
 gzipCompress :: Bytes -> Bytes
 gzipCompress = fromLazyByteString . GZip.compress . toLazyByteString
 
+zstdCompress :: Int -> Bytes -> Bytes
+zstdCompress level = fromByteString . Zstd.compress level . toByteString
+
 gzipDecompress :: Bytes -> Bytes
 gzipDecompress = fromLazyByteString . GZip.decompress . toLazyByteString
 
 zlibDecompress :: Bytes -> Bytes
 zlibDecompress = fromLazyByteString . Zlib.decompress . toLazyByteString
+
+{- HLINT ignore "Use newtype instead of data" -}
+data ZstdDecompressException = ZstdDecompressException String deriving (Show, Exception)
+
+zstdDecompress :: Bytes -> Bytes
+zstdDecompress = fromByteString . getOrThrow . Zstd.decompress . toByteString
+  where
+    getOrThrow (Zstd.Decompress bs) = bs
+    getOrThrow Zstd.Skip = B.empty
+    getOrThrow (Zstd.Error err) = throw $ ZstdDecompressException err
 
 toLazyByteString :: Bytes -> LB.ByteString
 toLazyByteString b = LB.fromChunks $ map chunkToByteString $ chunks b
