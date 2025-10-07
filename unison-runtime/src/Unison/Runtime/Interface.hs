@@ -41,9 +41,9 @@ import Control.Monad.State
 import Data.Binary.Get (Get, runGetOrFail)
 import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bitraverse)
+import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
-import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
 import Data.Foldable
