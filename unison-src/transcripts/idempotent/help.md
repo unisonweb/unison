@@ -51,6 +51,9 @@
   `branches`      lists all branches in the current project
   `branches foo`  lists all branches in the project `foo`
 
+  cancel
+  `cancel`  cancels the in-progress merge, update, or upgrade.
+
   clear
   `clear`  Clears the screen.
 

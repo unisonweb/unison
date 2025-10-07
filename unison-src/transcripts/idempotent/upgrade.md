@@ -119,7 +119,7 @@ proj/main> upgrade old new
   branch. Or, if you decide to cancel the upgrade instead, you
   can run
 
-    delete.branch /upgrade-old-to-new
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
@@ -229,7 +229,7 @@ proj/main> upgrade old new
   branch. Or, if you decide to cancel the upgrade instead, you
   can run
 
-    delete.branch /upgrade-old-to-new
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
@@ -398,7 +398,7 @@ myproject/main> upgrade old new
   branch. Or, if you decide to cancel the upgrade instead, you
   can run
 
-    delete.branch /upgrade-old-to-new
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```

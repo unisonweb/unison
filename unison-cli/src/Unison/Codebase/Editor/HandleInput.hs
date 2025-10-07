@@ -50,6 +50,7 @@ import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
+import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
@@ -758,6 +759,7 @@ loop e = do
         LibInstallLocalI src destLibName -> handleInstallLocalLib src destLibName
         DebugSynhashTermI name -> handleDebugSynhashTerm name
         EditDependentsI name -> handleEditDependents name
+        CancelI -> handleCancel
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -939,6 +941,7 @@ inputDescription input =
     UpgradeCommitI {} -> wat
     UpgradeI {} -> wat
     VersionI -> wat
+    CancelI -> wat
   where
     p' :: Path' -> Cli Text
     p' = fmap (into @Text) . Cli.resolvePath'

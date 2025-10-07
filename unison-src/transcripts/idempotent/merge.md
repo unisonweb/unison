@@ -820,7 +820,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -907,7 +907,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1005,7 +1005,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1108,7 +1108,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1189,7 +1189,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1270,7 +1270,7 @@ scratch/alice> merge bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1347,7 +1347,7 @@ scratch/alice> merge bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1441,7 +1441,7 @@ scratch/alice> merge bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1569,7 +1569,7 @@ scratch/alice> merge bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1659,7 +1659,7 @@ scratch/alice> merge bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1758,7 +1758,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -2763,7 +2763,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -3148,7 +3148,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -3296,7 +3296,7 @@ scratch/main> merge /topic
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-topic-into-main
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
@@ -3434,7 +3434,7 @@ scratch/topic> merge /main
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-main-into-topic
+    cancel
 
   to delete the temporary branch and switch back to topic.
 ```
@@ -3581,7 +3581,7 @@ scratch/topic> merge /topic2
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-topic2-into-topic
+    cancel
 
   to delete the temporary branch and switch back to topic.
 ```
@@ -3755,7 +3755,7 @@ scratch/alice> merge /bob
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
