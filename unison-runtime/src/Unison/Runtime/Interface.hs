@@ -38,13 +38,14 @@ import Control.Concurrent.STM as STM
 import Control.Exception (fromException, tryJust)
 import Control.Monad
 import Control.Monad.State
-import Data.Binary.Get (runGetOrFail)
+import Data.Binary.Get (Get, runGetOrFail)
+import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bitraverse)
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
+import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
-import Data.Bytes.Serial
 import Data.Foldable
 import Data.IORef
 import Data.List qualified as L
@@ -53,7 +54,6 @@ import Data.Set as Set (filter, fromList, map, notMember, singleton, (\\))
 import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
-import Data.Text.Encoding qualified as BU (encodeUtf8Builder)
 import Data.Void (absurd)
 import System.FilePath
 import Unison.ABT qualified as ABT
@@ -583,6 +583,23 @@ interpEval actThr cleanThr ctxVar cl ppe = \case
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
   FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
 
+-- Slightly inefficient method of encoding text. Matches the old way of
+-- encoding e.g. the compiled version below. Compiled code is not
+-- cross compatible with other versions, but keeping this format
+-- allows older versions to fail more gracefully, rather than
+-- encountering serialization errors.
+putTextBig :: Text -> Builder
+putTextBig text =
+  BU.word32BE (fromIntegral $ B.length bs) <> BU.byteString bs
+  where
+    bs = encodeUtf8 text
+
+getTextBig :: Get Text
+getTextBig = do
+  len <- Get.getWord32be
+  bs <- B.copy <$> Get.getByteString (fromIntegral len)
+  pure $ decodeUtf8 bs
+
 interpCompile ::
   Text ->
   IORef EvalCtx ->
@@ -602,8 +619,8 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   let combIx = CIx rf w 0
   sto <- standalone cc w
   BU.writeFile path $
-    BU.encodeUtf8Builder version
-      <> BU.encodeUtf8Builder (RF.showShort 8 rf)
+    putTextBig version
+      <> putTextBig (RF.showShort 8 rf)
       <> putCombIx combIx
       <> putStoredCache sto
 
@@ -843,8 +860,8 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
     thd (_, _, x) = x
     g =
       (,,,)
-        <$> deserialize
-        <*> deserialize
+        <$> getTextBig
+        <*> getTextBig
         <*> getCombIx
         <*> getStoredCache
 

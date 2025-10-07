@@ -132,9 +132,9 @@ putSection = \case
 getSection :: (MonadGet m) => m Section
 getSection =
   getTag >>= \case
-    AppT -> App <$> deserialize <*> getRef <*> getArgs
+    AppT -> App <$> getBool <*> getRef <*> getArgs
     CallT -> do
-      skipCheck <- deserialize
+      skipCheck <- getBool
       cix <- getCombIx
       args <- getArgs
       pure $ Call skipCheck cix cix args
@@ -248,7 +248,7 @@ getInstr =
     Prim1T -> Prim1 <$> getTag <*> gInt
     Prim2T -> Prim2 <$> getTag <*> gInt <*> gInt
     RefCAST -> RefCAS <$> gInt <*> gInt <*> gInt
-    ForeignCallT -> ForeignCall <$> deserialize <*> getMForeignFunc <*> getArgs
+    ForeignCallT -> ForeignCall <$> getBool <*> getMForeignFunc <*> getArgs
     SetAffT -> SetAff <$> gBool <*> gInt <*> gInt
     CaptureT -> Capture <$> gWord
     DiscardT -> Discard <$> gInt
