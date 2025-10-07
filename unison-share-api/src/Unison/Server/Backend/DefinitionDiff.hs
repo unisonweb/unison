@@ -1,6 +1,7 @@
 -- | Utilities for displaying diffs between definitions.
 module Unison.Server.Backend.DefinitionDiff
   ( diffDisplayObjects,
+    linewiseDiff,
   )
 where
 
@@ -10,7 +11,6 @@ import Data.Function
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.Split qualified as Split
-import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Syntax (SyntaxText)
@@ -124,13 +124,14 @@ data DiffOrSame = Different | Same
 linewiseDiff ::
   forall f a.
   (Foldable f, Eq a) =>
+  (Segment a -> Segment a -> Bool) ->
   f (Segment a) ->
   f (Segment a) ->
   -- Returns a tuple of lists,
   -- Each list is the same length, when lines are present on both sides they're considered Equal.
   -- When lines are only present on one side, the other side has a Nothing in that position as padding.
-  ([Maybe [Segment a]], [Maybe [Segment a]])
-linewiseDiff left right =
+  ([Maybe [Paired (Segment a)]], [Maybe [Paired (Segment a)]])
+linewiseDiff diffEq left right =
   let leftLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ left
       rightLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ right
       groupedDiff = Diff.getGroupedDiff leftLines rightLines
@@ -146,22 +147,19 @@ linewiseDiff left right =
    in partitioned & foldMap \case
         (Same, ds) ->
           ds & foldMap \case
-            Left (a, b) -> (Just <$> a, Just <$> b)
+            Left (a, b) -> do
+              let (l, r) = pairLines a b
+               in (Just <$> l, Just <$> r)
             Right _ -> error "impossible"
         (Different, ds) ->
-          -- When left and right are different, We add padding to the end of the left and the beginning of the right
-          -- so that the diffs are visually separate, but then line up again when we get to the next matching section.
+          -- When left and right are different, We do a subdiff on the chunk
           let (lefts :: [[Segment a]], rights :: [[Segment a]]) =
                 ds
                   & foldMap \case
                     Left _ -> error "impossible"
                     Right (Left a) -> (a, mempty)
                     Right (Right b) -> (mempty, b)
-              leftLineCount = length lefts
-              rightLineCount = length rights
-           in ( (Just <$> lefts) <> replicate rightLineCount Nothing,
-                replicate leftLineCount Nothing <> (Just <$> rights)
-              )
+           in diffChangeChunk diffEq lefts rights
 
 -- Diff data can be one-sided or have a counter-part on the other side of the diff.
 -- We can use this to represent things like name-changes for the same hash, or hash-changes for the same name.
@@ -204,8 +202,7 @@ diffChangeChunk diffEq leftLines rightLines =
             Diff.Both from to ->
               let reLinedL = List.splitOn [Nothing] from
                   reLinedR = List.splitOn [Nothing] to
-                  zipped = zipWith (zipWith Paired) (catMaybes <$> reLinedL) (catMaybes <$> reLinedR)
-               in (zipped, fmap swapPair <$> zipped)
+               in pairLines (catMaybes <$> reLinedL) (catMaybes <$> reLinedR)
       -- Now only padding newlines are represented by Nothing.
       padding = repeat Nothing
       leftLength = length leftResults
@@ -220,3 +217,10 @@ diffChangeChunk diffEq leftLines rightLines =
       Nothing Nothing -> True
       (Just l) (Just r) -> diffEq l r
       _ _ -> False
+
+pairLines :: [[a]] -> [[a]] -> ([[Paired a]], [[Paired a]])
+pairLines left right =
+  let paired = zipWith (zipWith Paired) left right
+   in ( paired,
+        fmap swapPair <$> paired
+      )
