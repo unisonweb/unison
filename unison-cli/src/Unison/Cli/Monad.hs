@@ -71,6 +71,7 @@ import U.Codebase.Sqlite.DbId (ProjectBranchId, ProjectId)
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager (CredentialManager)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
+import Unison.Auth.Tokens (TokenProvider)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (Input)
@@ -158,6 +159,9 @@ type SourceName = Text
 -- Get the environment with 'ask'.
 data Env = Env
   { authHTTPClient :: AuthenticatedHttpClient,
+    -- | How to get auth tokens for a given codeserver.
+    -- Using AuthenticatedHttpClient takes care of this, but websocket connection need to provide auth headers manually.
+    tokenProvider :: TokenProvider,
     codebase :: Codebase IO Symbol Ann,
     credentialManager :: CredentialManager,
     -- | Generate a unique name.

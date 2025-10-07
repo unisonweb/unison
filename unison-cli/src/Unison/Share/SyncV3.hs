@@ -3,18 +3,17 @@ module Unison.Share.SyncV3
   )
 where
 
+import Network.Socket (withSocketsDo)
 import Control.Arrow ((&&&))
 import Control.Monad.Reader
 import Data.Set qualified as Set
-import Data.Set.Lens qualified as Lens
+import Data.Text.Encoding as Text
 import GHC.Natural
 import Ki qualified
 import Network.WebSockets qualified as WS
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId
-import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.Queries qualified as Q
-import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
@@ -27,9 +26,11 @@ import Unison.Server.Orphans ()
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.Share.Types
 import Unison.Sync.Common qualified as Sync
 import Unison.SyncV3.Types
 import Unison.SyncV3.Types as SyncV3
+import Unison.SyncV3.Utils (tempEntityDependencies)
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Websockets (Queues (..), withQueues)
 import UnliftIO.STM
@@ -58,14 +59,16 @@ syncFromCodeserver ::
   Share.HashJWT ->
   Cli (Either (Sync.SyncError SyncV3.SyncError) (CausalHash, CausalHashId))
 syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
-  Cli.Env {codebase} <- ask
+  Cli.Env {codebase, tokenProvider} <- ask
   let host = Codeserver.codeserverRegName codeserver
   let syncV3Path = "/ucm/v3/sync/download"
   let rootCausalHash = Share.hashJWTHash hashJwt
   -- Enable compression
   let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
-  -- TODO: Add authentication headers manually.
-  let headers = []
+  headers <-
+    (liftIO (tokenProvider (codeserverIdFromCodeserverURI codeserver))) <&> \case
+      Left {} -> []
+      Right token -> [("Authorization", "Bearer " <> Text.encodeUtf8 token)]
   let runner = case Codeserver.codeserverScheme codeserver of
         Codeserver.Https ->
           let tlsPort = 443
@@ -76,7 +79,7 @@ syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
               port = maybe tlsPort id $ (Codeserver.codeserverPort) codeserver
            in WS.runClientWith host port
   Debug.debugLogM Debug.Temp "Obtaining Connection"
-  liftIO $ (runner syncV3Path connectionOptions headers) \conn -> do
+  liftIO $ withSocketsDo $ (runner syncV3Path connectionOptions headers) \conn -> do
     Debug.debugLogM Debug.Temp "Obtained Connection"
     withQueues inputBuffer outputBuffer conn $ \queues@Queues {send} -> do
       Debug.debugLogM Debug.Temp "Obtained Queues"
@@ -216,16 +219,3 @@ flushTemp codebase rootCausalHash = do
                     loop
         loop
     Q.expectCausalHashIdByCausalHash (Sync.hash32ToCausalHash rootCausalHash)
-
-tempEntityDependencies :: TempEntity -> Set (EntityKind, Hash32)
-tempEntityDependencies entity = do
-  let componentDeps = Lens.setOf Entity.defns_ entity
-      patchDeps = Lens.setOf Entity.patches_ entity
-      branchHashes = Lens.setOf Entity.branchHashes_ entity <> Lens.setOf Entity.branches_ entity
-      causalHashes = Lens.setOf Entity.causalHashes_ entity
-   in Set.unions
-        [ Set.map (DefnComponentEntity,) componentDeps,
-          Set.map (PatchEntity,) patchDeps,
-          Set.map (NamespaceEntity,) branchHashes,
-          Set.map (CausalEntity,) causalHashes
-        ]

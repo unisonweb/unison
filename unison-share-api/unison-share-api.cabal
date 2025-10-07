@@ -53,6 +53,7 @@ library
       Unison.SyncV2.API
       Unison.SyncV2.Types
       Unison.SyncV3.Types
+      Unison.SyncV3.Utils
       Unison.Util.Find
       Unison.Util.Servant.CBOR
       Unison.Util.Websockets

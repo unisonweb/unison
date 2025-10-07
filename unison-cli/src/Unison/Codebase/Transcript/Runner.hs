@@ -97,7 +97,9 @@ withRunner ::
   m r
 withRunner isTest verbosity ucmVersion action = do
   credMan <- AuthN.newCredentialManager
-  authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
+  let tokenProvider :: AuthN.TokenProvider
+      tokenProvider = AuthN.newTokenProvider credMan
+  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
   -- so that errors are consistent.
@@ -131,6 +133,7 @@ withRunner isTest verbosity ucmVersion action = do
                   ucmVersion
                   baseUrlText
                   authenticatedHTTPClient
+                  tokenProvider
                   credMan
                   stanzas
   where
@@ -139,11 +142,6 @@ withRunner isTest verbosity ucmVersion action = do
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
           action runtime sbRuntime
-    initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
-    initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do
-      let tokenProvider :: AuthN.TokenProvider
-          tokenProvider = AuthN.newTokenProvider credMan
-      AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = generated . getCommonInfoTags
@@ -158,10 +156,11 @@ run ::
   UCMVersion ->
   Text ->
   AuthN.AuthenticatedHttpClient ->
+  AuthN.TokenProvider ->
   AuthN.CredentialManager ->
   Transcript ->
   IO (Either Error Transcript)
-run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
+run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient tokenProvider credMan transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -519,6 +518,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
   let env =
         Cli.Env
           { authHTTPClient = authenticatedHTTPClient,
+            tokenProvider,
             codebase,
             credentialManager = credMan,
             generateUniqueName = do
