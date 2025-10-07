@@ -257,14 +257,13 @@ getArray a = do
   sz <- getLength
   PA.arrayFromListN sz <$> replicateM sz a
 
-
 putArray :: (a -> Builder) -> PA.Array a -> Builder
 putArray putThing a = putLength sz <> go 0
   where
-  sz = sizeofArray a
-  go i
-    | i < sz = putThing (indexArray a i) <> go (i+1)
-    | otherwise = mempty
+    sz = sizeofArray a
+    go i
+      | i < sz = putThing (indexArray a i) <> go (i + 1)
+      | otherwise = mempty
 {-# INLINE putArray #-}
 
 getBlock :: (MonadGet m) => m Bytes.Chunk
