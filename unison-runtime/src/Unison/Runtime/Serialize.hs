@@ -23,7 +23,6 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Primitive qualified as BA
 import Data.Word (Word64, Word8)
-import GHC.Exts as IL (IsList (..))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Hash (Hash)
@@ -254,11 +253,19 @@ putByteArray a =
     <> BU.shortByteString (PA.byteArrayToShortByteString a)
 
 getArray :: (MonadGet m) => m a -> m (PA.Array a)
-getArray getThing = PA.arrayFromList <$> getList getThing
+getArray a = do
+  sz <- getLength
+  PA.arrayFromListN sz <$> replicateM sz a
 
--- maybe a better way to do this?
+
 putArray :: (a -> Builder) -> PA.Array a -> Builder
-putArray putThing a = putFoldable putThing (IL.toList a)
+putArray putThing a = putLength sz <> go 0
+  where
+  sz = sizeofArray a
+  go i
+    | i < sz = putThing (indexArray a i) <> go (i+1)
+    | otherwise = mempty
+{-# INLINE putArray #-}
 
 getBlock :: (MonadGet m) => m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
