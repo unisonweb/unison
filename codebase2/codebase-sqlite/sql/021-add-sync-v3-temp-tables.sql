@@ -1,7 +1,7 @@
 -- Add a new table for storing entities which are currently being synced
 
 CREATE TABLE syncv3_temp_entity (
-  root_causal INTEGER NOT NULL REFERENCES hash (id) ON DELETE CASCADE,
+  root_causal INTEGER NOT NULL,
   entity_hash TEXT NOT NULL,
   entity_kind TEXT NOT NULL,
   entity_data BLOB NOT NULL,

@@ -28,7 +28,6 @@ import Network.WebSockets (WebSocketsData)
 import Network.WebSockets qualified as WS
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.TempEntity
-import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Prelude (tShow)
 import Unison.Server.Orphans ()
@@ -97,7 +96,6 @@ instance CBOR.Serialise FromReceiverMessageTag where
 
   decode = do
     tag <- CBOR.decode @Int
-    Debug.debugM Debug.Temp "Decoding FromReceiverMessageTag with tag" tag
     case tag of
       0 -> pure ReceiverInitStreamTag
       1 -> pure ReceiverEntityRequestTag
@@ -120,7 +118,6 @@ instance (ToJSON ah, FromJSON ah) => CBOR.Serialise (InitMsg ah) where
     CBOR.encode @BS.ByteString $ BL.toStrict $ Aeson.encode msg
 
   decode = do
-    Debug.debugLogM Debug.Temp "Decoding InitMsg from JSON via CBOR"
     bs <- CBOR.decode @BS.ByteString
     case Aeson.eitherDecode $ BL.fromStrict bs of
       Left err -> fail $ "Error decoding InitMsg from JSON: " <> err
@@ -147,7 +144,6 @@ instance (CBOR.Serialise h, ToJSON ah, FromJSON ah) => CBOR.Serialise (FromRecei
         <> CBOR.encode msg
   decode = do
     tag <- CBOR.decode @FromReceiverMessageTag
-    Debug.debugM Debug.Temp "Decoding FromReceiverMessage with tag" tag
     case tag of
       ReceiverInitStreamTag -> ReceiverInitStream <$> CBOR.decode @(InitMsg ah)
       ReceiverEntityRequestTag -> ReceiverEntityRequest <$> CBOR.decode @(EntityRequestMsg h)
@@ -367,7 +363,6 @@ instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError er
 
   decode = do
     tag <- CBOR.decode @Int
-    Debug.debugM Debug.Temp "Decoding MsgOrError with tag" tag
     case tag of
       0 -> Msg <$> CBOR.decode
       1 -> Err <$> CBOR.decode

@@ -108,7 +108,7 @@ syncFromCodeserver _shouldValidate codeserver branchRef hashJwt = do
         -- TODO: proper error handling
         Left err -> error $ show err
         Right () -> pure ()
-      Debug.debugLogM Debug.Temp "Done sync, flushing temp entities"
+      Debug.debugLogM Debug.Temp "!Done sync, flushing temp entities"
       causalId <- liftIO $ flushTemp codebase (Share.hashJWTHash hashJwt)
       pure $ Right (Sync.hash32ToCausalHash rootCausalHash, causalId)
 
@@ -129,11 +129,16 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
   _ <- Ki.fork scope (receiverWorker onErr)
   _ <- Ki.fork scope (requesterWorker onErr)
   _ <- Ki.fork scope (ingestionWorker onErr)
+  let finished = do
+        pending <- readTVar pendingRequestsVar
+        yetToReq <- readTVar yetToRequestVar
+        guard $ Set.null pending && Set.null yetToReq
 
   Debug.debugLogM Debug.Temp "Awaiting completion"
   result <-
     atomically $
-      (Right <$> Ki.awaitAll scope)
+        (Right <$> finished)
+        <|> (Right <$> Ki.awaitAll scope)
         <|> (Left . Left <$> readTMVar errorVar)
         <|> (Left . Right <$> connectionClosed)
 
@@ -159,6 +164,7 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
       Debug.debugLogM Debug.Temp "Requester waiting to send requests"
       atomically $ do
         requests <- readTVar yetToRequestVar
+        guard $ not (Set.null requests)
         writeTVar yetToRequestVar Set.empty
         modifyTVar' pendingRequestsVar (Set.union requests)
         send $ Msg $ ReceiverEntityRequest $ EntityRequestMsg (Set.toList requests)
@@ -211,11 +217,14 @@ flushTemp codebase rootCausalHash = do
                 Nothing -> pure ()
                 Just (hash, tempEntityBytes) ->
                   do
+                    Debug.debugLogM Debug.Temp $ "Flushing temp entity: " <> show hash
                     tempEntity <- case CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes tempEntityBytes) of
                       -- TODO: proper error handling
                       Left err -> error $ show err
                       Right tempEntity -> pure tempEntity
+                    Debug.debugLogM Debug.Temp $ "Saving in main" <> show hash
                     void $ Q.saveTempEntityInMain v2HashHandle hash tempEntity
                     loop
         loop
+    Debug.debugLogM Debug.Temp "Flushed temp entities, getting causal hash id"
     Q.expectCausalHashIdByCausalHash (Sync.hash32ToCausalHash rootCausalHash)
