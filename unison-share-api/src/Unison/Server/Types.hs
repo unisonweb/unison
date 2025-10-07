@@ -54,6 +54,7 @@ import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
+import Unison.Util.AnnotatedText (Segment)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -287,19 +288,19 @@ data TypeTag = Ability | Data
 -- | A type for semantic diffing of definitions.
 -- Includes special-cases for when the name in a definition has changed but the hash hasn't
 -- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
-data SemanticSyntaxDiff
-  = Old [Syntax.SyntaxSegment]
-  | New [Syntax.SyntaxSegment]
-  | Both [Syntax.SyntaxSegment]
+data SemanticSyntaxDiff a
+  = Old [Segment a]
+  | New [Segment a]
+  | Both [Segment a]
   | --  (fromSegment, toSegment) (shared annotation)
-    SegmentChange (String, String) (Maybe Syntax.Element)
+    SegmentChange (String, String) (Maybe a)
   | -- (shared segment) (fromAnnotation, toAnnotation)
-    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+    AnnotationChange String (Maybe a, Maybe a)
   deriving (Eq, Show, Ord, Generic)
 
-deriving instance ToSchema SemanticSyntaxDiff
+deriving instance (ToSchema a) => ToSchema (SemanticSyntaxDiff a)
 
-instance ToJSON SemanticSyntaxDiff where
+instance (ToJSON a) => ToJSON (SemanticSyntaxDiff a) where
   toJSON = \case
     Old segments ->
       object
@@ -331,7 +332,7 @@ instance ToJSON SemanticSyntaxDiff where
           "toAnnotation" .= toAnnotation
         ]
 
-instance FromJSON SemanticSyntaxDiff where
+instance (FromJSON a) => FromJSON (SemanticSyntaxDiff a) where
   parseJSON = Aeson.withObject "SemanticSyntaxDiff" \obj -> do
     diffTag :: Text <- obj .: "diffTag"
     case diffTag of
@@ -355,7 +356,7 @@ instance FromJSON SemanticSyntaxDiff where
 -- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
 -- undiffed syntax.
 data DisplayObjectDiff
-  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
+  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff Syntax.Element] [SemanticSyntaxDiff Syntax.Element])
   | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
   deriving stock (Show, Eq, Ord, Generic)
 
