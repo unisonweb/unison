@@ -11,6 +11,7 @@ import Data.Function
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.Split qualified as Split
+import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Syntax (SyntaxText)
@@ -114,23 +115,29 @@ expandSpecialCases detectSpecialCase xs =
 data DiffOrSame = Different | Same
   deriving (Eq, Ord, Show)
 
+data Changed a
+  = Changed a
+  | Unchanged a
+  | Spacer
+  deriving (Eq, Ord, Show)
+
 -- | Compute a line-wise diff between two lists of segments.
 --
 -- >>> let s a = Segment a Nothing
--- >>> let left = [s "line1", s "\n", s "line2", s "\n", s "line3"]
+-- >>> let left = [s "line1", s "\n", s "line2", s "\n", s "line3", s "\n", s "line3"]
 -- >>> let right = [s "line1", s "\n", s "lineX", s "\n", s "line3"]
--- >>> linewiseDiff left right
--- ([Just [Segment {segment = "line1", annotation = Nothing}],Just [Segment {segment = "line2", annotation = Nothing}],Nothing,Just [Segment {segment = "line3", annotation = Nothing}]],[Just [Segment {segment = "line1", annotation = Nothing}],Nothing,Just [Segment {segment = "lineX", annotation = Nothing}],Just [Segment {segment = "line3", annotation = Nothing}]])
+-- >>> linewiseDiff (==) left right
+-- ([Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]],[Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]])
 linewiseDiff ::
   forall f a.
-  (Foldable f, Eq a) =>
+  (Foldable f, Eq a, Show a) =>
   (Segment a -> Segment a -> Bool) ->
   f (Segment a) ->
   f (Segment a) ->
   -- Returns a tuple of lists,
   -- Each list is the same length, when lines are present on both sides they're considered Equal.
   -- When lines are only present on one side, the other side has a Nothing in that position as padding.
-  ([Maybe [Paired (Segment a)]], [Maybe [Paired (Segment a)]])
+  ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
 linewiseDiff diffEq left right =
   let leftLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ left
       rightLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ right
@@ -144,28 +151,31 @@ linewiseDiff diffEq left right =
                   Diff.First a -> (Different, Right $ Left a)
                   Diff.Second b -> (Different, Right $ Right b)
             )
-   in partitioned & foldMap \case
-        (Same, ds) ->
-          ds & foldMap \case
-            Left (a, b) -> do
-              let (l, r) = pairLines a b
-               in (Just <$> l, Just <$> r)
-            Right _ -> error "impossible"
-        (Different, ds) ->
-          -- When left and right are different, We do a subdiff on the chunk
-          let (lefts :: [[Segment a]], rights :: [[Segment a]]) =
-                ds
-                  & foldMap \case
-                    Left _ -> error "impossible"
-                    Right (Left a) -> (a, mempty)
-                    Right (Right b) -> (mempty, b)
-           in diffChangeChunk diffEq lefts rights
+   in partitioned
+        & foldMap \case
+          (Same, ds) ->
+            ds & foldMap \case
+              Left (a, b) -> do
+                let (l, r) = pairLines a b
+                 in (Unchanged <$> l, Unchanged <$> r)
+              Right _ -> error "impossible"
+          (Different, ds) ->
+            -- When left and right are different, We do a subdiff on the chunk
+            let (lefts :: [[Segment a]], rights :: [[Segment a]]) =
+                  ds
+                    & foldMap \case
+                      Left _ -> error "impossible"
+                      Right (Left a) -> (a, mempty)
+                      Right (Right b) -> (mempty, b)
+             in diffChangeChunk diffEq lefts rights
+        & traceShowId
 
 -- Diff data can be one-sided or have a counter-part on the other side of the diff.
 -- We can use this to represent things like name-changes for the same hash, or hash-changes for the same name.
 data Paired a
   = OneSided a
   | Paired a a
+  deriving (Eq, Ord, Show)
 
 swapPair :: Paired a -> Paired a
 swapPair (OneSided a) = OneSided a
@@ -181,7 +191,7 @@ diffChangeChunk ::
   [[Segment a]] ->
   -- Lists of lines, where each line is a list of segments.
   -- 'Nothing' lines are just padding
-  ([Maybe [Paired (Segment a)]], [Maybe [Paired (Segment a)]])
+  ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
 diffChangeChunk diffEq leftLines rightLines =
   -- Represent newlines with 'Nothing' so we can do a flat diff.
   let flattenedL :: [Maybe (Segment a)]
@@ -190,26 +200,29 @@ diffChangeChunk diffEq leftLines rightLines =
       flattenedR = List.intercalate [Nothing] (fmap Just <$> rightLines)
       diff :: [Diff.PolyDiff [Maybe (Segment a)] [Maybe (Segment a)]]
       diff = diffSegments mayDiffEq flattenedL flattenedR
-      (leftResults :: [[Paired (Segment a)]], rightResults) =
+      (leftResults :: [Maybe (Paired (Segment a))], rightResults) =
         diff
           & foldMap \case
             Diff.First ys ->
-              let reLined = List.splitOn [Nothing] ys
-               in ((fmap) OneSided . catMaybes <$> reLined, mempty)
+              (fmap OneSided <$> ys, mempty)
             Diff.Second ys ->
-              let reLined = List.splitOn [Nothing] ys
-               in (mempty, (fmap) OneSided . catMaybes <$> reLined)
+              (mempty, fmap OneSided <$> ys)
             Diff.Both from to ->
-              let reLinedL = List.splitOn [Nothing] from
-                  reLinedR = List.splitOn [Nothing] to
-               in pairLines (catMaybes <$> reLinedL) (catMaybes <$> reLinedR)
+              let zipper = \cases
+                    Nothing Nothing -> Nothing
+                    (Just l) (Just r) -> Just (Paired l r)
+                    _ _ -> error "impossible"
+               in (zipWith zipper from to, zipWith zipper to from)
+
       -- Now only padding newlines are represented by Nothing.
-      padding = repeat Nothing
-      leftLength = length leftResults
-      rightLength = length rightResults
+      padding = repeat Spacer
+      relinedLeft = catMaybes <$> List.splitOn [Nothing] leftResults
+      relinedRight = catMaybes <$> List.splitOn [Nothing] rightResults
+      leftLength = length relinedLeft
+      rightLength = length relinedRight
       maxLines = max leftLength rightLength
-   in ( (Just <$> leftResults) <> take (maxLines - leftLength) padding,
-        take (maxLines - rightLength) padding <> (Just <$> rightResults)
+   in ( (Changed <$> relinedLeft) <> take (maxLines - leftLength) padding,
+        (Changed <$> relinedRight) <> take (maxLines - rightLength) padding
       )
   where
     mayDiffEq :: Maybe (Segment a) -> Maybe (Segment a) -> Bool
@@ -224,3 +237,61 @@ pairLines left right =
    in ( paired,
         fmap swapPair <$> paired
       )
+
+testDiff :: Text -> Text -> Text
+testDiff l r =
+  let left = embed l
+      right = embed r
+      (ldiff, rdiff) = linewiseDiff (==) left right
+   in align (testRender ldiff) (testRender rdiff)
+  where
+
+embed :: Text -> [Segment ()]
+embed txt =
+  txt
+    & Text.lines
+    & fmap (List.intersperse (Segment " " Nothing) . fmap ((\w -> Segment w Nothing) . Text.unpack) . Text.words)
+    & List.intercalate [Segment "\n" Nothing]
+
+testRender :: [Changed [Paired (Segment a)]] -> Text
+testRender diffs =
+  let renderSegment :: Segment a -> Text
+      renderSegment (Segment {segment}) = Text.pack segment
+      renderPaired :: Paired (Segment a) -> Text
+      renderPaired (OneSided s) = "{" <> renderSegment s <> "}"
+      renderPaired (Paired s1 _) = renderSegment s1
+      renderChanged :: Changed [Paired (Segment a)] -> Text
+      renderChanged Spacer = "////"
+      renderChanged (Unchanged segs) = Text.concat (renderPaired <$> segs)
+      renderChanged (Changed segs) = "*" <> Text.concat (renderPaired <$> segs)
+   in Text.unlines $ fmap renderChanged diffs
+
+align :: Text -> Text -> Text
+align left right = Text.unlines $ zipWith formatRow leftLines rightLines
+  where
+    leftLines = Text.lines left
+    rightLines = Text.lines right
+
+    -- Find the maximum length in the left column
+    maxLeftWidth = maximum $ map Text.length leftLines
+
+    -- Pad the left text and combine with right text
+    formatRow l r = Text.justifyLeft (maxLeftWidth + 2) ' ' l <> r
+
+simpleLeft :: Text
+simpleLeft = "one word\ntwo words\nthree words"
+
+simpleRight :: Text
+simpleRight = "one word\ndifferent words\nthree words"
+
+complexLeft :: Text
+complexLeft = "one word\ntwo words\nthree words"
+
+complexRight :: Text
+complexRight = "one word\nmulti-line\ndifference\nshould add spacers\nthree words"
+
+apples :: Text
+apples = "same\napples\nsame\napples and then some"
+
+oranges :: Text
+oranges = "same\noranges\nsame\noranges and then some"
