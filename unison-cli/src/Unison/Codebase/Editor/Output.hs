@@ -424,10 +424,10 @@ data Output
   | ProjectHasNoReleases ProjectName
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
-  | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
+  | UpgradeFailure !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
-  | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
-  | MergeFailureWithMergetool !MergeSourceAndTarget !ProjectBranchName !Text !ExitCode
+  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))

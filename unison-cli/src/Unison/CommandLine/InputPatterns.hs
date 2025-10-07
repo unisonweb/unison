@@ -11,6 +11,7 @@ module Unison.CommandLine.InputPatterns
     branchInputPattern,
     branchRenameInputPattern,
     branchesInputPattern,
+    cancelInputPattern,
     cd,
     clear,
     clone,
@@ -1519,6 +1520,17 @@ cd =
       [Left ".."] -> Right Input.UpI
       [p] -> Input.SwitchBranchI <$> handlePath'Arg p
       args -> wrongArgsLength "exactly one argument" args
+
+cancelInputPattern :: InputPattern
+cancelInputPattern =
+  InputPattern
+    { patternName = "cancel",
+      aliases = [],
+      visibility = I.Visible,
+      params = noParams,
+      help = P.wrapColumn2 [(makeExample' cancelInputPattern, "cancels the in-progress merge, update, or upgrade.")],
+      parse = \_ -> pure Input.CancelI
+    }
 
 back :: InputPattern
 back =
@@ -3514,6 +3526,7 @@ validInputs =
       branchInputPattern,
       branchRenameInputPattern,
       branchesInputPattern,
+      cancelInputPattern,
       cd,
       clear,
       clone,
