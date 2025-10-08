@@ -2,6 +2,8 @@
 module Unison.Server.Backend.DefinitionDiff
   ( diffDisplayObjects,
     linewiseDiff,
+    Paired(..),
+    Changed(..),
   )
 where
 
@@ -11,7 +13,6 @@ import Data.Function
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.Split qualified as Split
-import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Syntax (SyntaxText)
@@ -168,7 +169,6 @@ linewiseDiff diffEq left right =
                       Right (Left a) -> (a, mempty)
                       Right (Right b) -> (mempty, b)
              in diffChangeChunk diffEq lefts rights
-        & traceShowId
 
 -- Diff data can be one-sided or have a counter-part on the other side of the diff.
 -- We can use this to represent things like name-changes for the same hash, or hash-changes for the same name.
@@ -237,61 +237,3 @@ pairLines left right =
    in ( paired,
         fmap swapPair <$> paired
       )
-
-testDiff :: Text -> Text -> Text
-testDiff l r =
-  let left = embed l
-      right = embed r
-      (ldiff, rdiff) = linewiseDiff (==) left right
-   in align (testRender ldiff) (testRender rdiff)
-  where
-
-embed :: Text -> [Segment ()]
-embed txt =
-  txt
-    & Text.lines
-    & fmap (List.intersperse (Segment " " Nothing) . fmap ((\w -> Segment w Nothing) . Text.unpack) . Text.words)
-    & List.intercalate [Segment "\n" Nothing]
-
-testRender :: [Changed [Paired (Segment a)]] -> Text
-testRender diffs =
-  let renderSegment :: Segment a -> Text
-      renderSegment (Segment {segment}) = Text.pack segment
-      renderPaired :: Paired (Segment a) -> Text
-      renderPaired (OneSided s) = "{" <> renderSegment s <> "}"
-      renderPaired (Paired s1 _) = renderSegment s1
-      renderChanged :: Changed [Paired (Segment a)] -> Text
-      renderChanged Spacer = "////"
-      renderChanged (Unchanged segs) = Text.concat (renderPaired <$> segs)
-      renderChanged (Changed segs) = "*" <> Text.concat (renderPaired <$> segs)
-   in Text.unlines $ fmap renderChanged diffs
-
-align :: Text -> Text -> Text
-align left right = Text.unlines $ zipWith formatRow leftLines rightLines
-  where
-    leftLines = Text.lines left
-    rightLines = Text.lines right
-
-    -- Find the maximum length in the left column
-    maxLeftWidth = maximum $ map Text.length leftLines
-
-    -- Pad the left text and combine with right text
-    formatRow l r = Text.justifyLeft (maxLeftWidth + 2) ' ' l <> r
-
-simpleLeft :: Text
-simpleLeft = "one word\ntwo words\nthree words"
-
-simpleRight :: Text
-simpleRight = "one word\ndifferent words\nthree words"
-
-complexLeft :: Text
-complexLeft = "one word\ntwo words\nthree words"
-
-complexRight :: Text
-complexRight = "one word\nmulti-line\ndifference\nshould add spacers\nthree words"
-
-apples :: Text
-apples = "same\napples\nsame\napples and then some"
-
-oranges :: Text
-oranges = "same\noranges\nsame\noranges and then some"

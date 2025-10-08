@@ -5,11 +5,13 @@ import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
 import Unison.Test.Sync.Roundtrip qualified as SyncRoundtrip
+import Unison.Test.Server.Backend.DefinitionDiff qualified as DefinitionDiff
 
 test :: Test ()
 test =
   tests
     [ SyncRoundtrip.test
+    , DefinitionDiff.test
     ]
 
 main :: IO ()
