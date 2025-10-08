@@ -734,6 +734,7 @@ roots = [
     '''^Unison\.Util\.Defns\.zipDefns$''',
     '''^Unison\.Util\.EnumContainers\.intersectionWith$''',
     '''^Unison\.Util\.EnumContainers\.hasKey$''',
+    '''^Unison\.Util\.EnumContainers\.traverseSet_$''',
     '''^Unison\.Util\.EnumContainers\.traverseWithKey$''',
     '''^Unison\.Util\.Exception\.tryAny$''',
     '''^Unison\.Util\.Exception\.catchAny$''',
