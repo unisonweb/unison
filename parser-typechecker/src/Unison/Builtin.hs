@@ -559,6 +559,8 @@ builtinsSrc =
     B "Bytes.zlib.decompress" $ bytes --> eithert text bytes,
     B "Bytes.gzip.compress" $ bytes --> bytes,
     B "Bytes.gzip.decompress" $ bytes --> eithert text bytes,
+    B "Bytes.zstd.compress" $ int --> bytes --> bytes,
+    B "Bytes.zstd.decompress" $ bytes --> eithert text bytes,
     {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
        This is intentional: it avoids a round trip to `Text` if all
        you are doing with the bytes is dumping them to a file or a

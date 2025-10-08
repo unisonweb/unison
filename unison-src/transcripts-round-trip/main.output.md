@@ -817,8 +817,9 @@ UUID.random = do UUUID 0 (0, 0)
 
 UUID.randomUUIDBytes : 'Bytes
 UUID.randomUUIDBytes = do
+  use Bytes ++
   (UUUID a (b, _)) = random()
-  encodeNat64be a Bytes.++ encodeNat64be b
+  encodeNat64be a ++ encodeNat64be b
 
 (|>) : a -> (a ->{e} b) ->{e} b
 a |> f = f a

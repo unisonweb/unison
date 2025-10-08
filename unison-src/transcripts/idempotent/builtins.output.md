@@ -639,9 +639,6 @@ openFilesIO = do
 ``` ucm
 > add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 
 > io.test openFilesIO
@@ -731,9 +728,6 @@ PinnedByteArray.tests.cast.operations = do
 
 ``` ucm
 > add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 
@@ -831,9 +825,6 @@ ByteArray.tests.allOperations = do
 
 ``` ucm
 > add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 
