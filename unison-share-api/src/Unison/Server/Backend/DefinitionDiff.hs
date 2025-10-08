@@ -2,8 +2,8 @@
 module Unison.Server.Backend.DefinitionDiff
   ( diffDisplayObjects,
     linewiseDiff,
-    Paired(..),
-    Changed(..),
+    Paired (..),
+    Changed (..),
   )
 where
 
@@ -17,24 +17,24 @@ import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Syntax qualified as Syntax
-import Unison.Server.Types (DisplayObjectDiff (..), SemanticSyntaxDiff (..))
+import Unison.Server.Types (Changed (..), DisplayObjectDiff (..), LinewiseDiff (..), Paired (..), SemanticSyntaxDiff (..), swapPair)
 import Unison.Util.AnnotatedText (AnnotatedText (..), Segment (..))
 import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.List qualified as ListUtil
 
 diffDisplayObjects :: (HasCallStack) => DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
 diffDisplayObjects from to = case (from, to) of
-  (BuiltinObject fromST, BuiltinObject toST) -> DisplayObjectDiff (BuiltinObject (diffSyntaxText fromST toST))
+  (BuiltinObject fromST, BuiltinObject toST) -> DisplayObjectDiff (BuiltinObject (semanticLinewiseDiff fromST toST))
   (MissingObject fromSH, MissingObject toSH)
     | fromSH == toSH -> DisplayObjectDiff (MissingObject fromSH)
     | otherwise -> MismatchedDisplayObjects (MissingObject fromSH) (MissingObject toSH)
-  (UserObject fromST, UserObject toST) -> DisplayObjectDiff (UserObject (diffSyntaxText fromST toST))
+  (UserObject fromST, UserObject toST) -> DisplayObjectDiff (UserObject (semanticLinewiseDiff fromST toST))
   (l, r) -> MismatchedDisplayObjects l r
 
-diffSyntaxText :: SyntaxText -> SyntaxText -> [SemanticSyntaxDiff Syntax.Element]
-diffSyntaxText (AnnotatedText fromST) (AnnotatedText toST) =
-  diffSegments syntaxElementDiffEq fromST toST
-    & expandSpecialCases specialCaseAnnotations
+-- diffSyntaxText :: SyntaxText -> SyntaxText -> [SemanticSyntaxDiff Syntax.Element]
+-- diffSyntaxText (AnnotatedText fromST) (AnnotatedText toST) =
+--   diffSegments syntaxElementDiffEq fromST toST
+--     & expandSpecialCases specialCaseAnnotations
 
 -- We special-case situations where the name of a definition changed but its hash didn't;
 -- and cases where the name didn't change but the hash did.
@@ -57,30 +57,6 @@ syntaxElementDiffEq (AT.Segment {segment = fromSegment, annotation = fromAnnotat
           Syntax.HashQualifier {} -> a == b
           _ -> False
 
-specialCaseAnnotations :: AT.Segment Syntax.Element -> AT.Segment Syntax.Element -> Either (AT.Segment Syntax.Element) [SemanticSyntaxDiff Syntax.Element]
-specialCaseAnnotations fromSegment toSegment
-  | fromSegment == toSegment = Left fromSegment
-  | AT.annotation fromSegment == AT.annotation toSegment = Right [SegmentChange (AT.segment fromSegment, AT.segment toSegment) (AT.annotation fromSegment)]
-  -- We only emit an annotation change if it's a change in just the hash of the element (optionally the KIND of hash reference can change too).
-  | AT.segment fromSegment == AT.segment toSegment,
-    Just _fromHash <- AT.annotation fromSegment >>= elementHash,
-    Just _toHash <- AT.annotation toSegment >>= elementHash =
-      Right [AnnotationChange (AT.segment fromSegment) (AT.annotation fromSegment, AT.annotation toSegment)]
-  | otherwise =
-      -- the annotation changed, but it's not a recognized hash change.
-      -- This can happen in certain special cases, e.g. a paren changed from being a syntax element into being part
-      -- of a unit.
-      -- We just emit both as old/new segments.
-      Right [Old [fromSegment], New [toSegment]]
-  where
-    elementHash :: Syntax.Element -> Maybe Syntax.UnisonHash
-    elementHash = \case
-      Syntax.TypeReference hash -> Just hash
-      Syntax.TermReference hash -> Just hash
-      Syntax.DataConstructorReference hash -> Just hash
-      Syntax.AbilityConstructorReference hash -> Just hash
-      _ -> Nothing
-
 diffSegments ::
   forall f a.
   (Foldable f) =>
@@ -94,32 +70,7 @@ diffSegments diffEq left right =
     (Foldable.toList left)
     (Foldable.toList right)
 
-expandSpecialCases ::
-  (Segment a -> Segment a -> Either (Segment a) [SemanticSyntaxDiff a]) ->
-  [Diff.Diff [AT.Segment a]] ->
-  [SemanticSyntaxDiff a]
-expandSpecialCases detectSpecialCase xs =
-  xs
-    & foldMap \case
-      Diff.First ys -> [Old ys]
-      Diff.Second ys -> [New ys]
-      Diff.Both from to ->
-        -- Each list should always be the same length.
-        zipWith detectSpecialCase from to
-          & (flip List.foldr [])
-            ( \next acc -> case (acc, next) of
-                (Both xs : rest, Left seg) -> Both (seg : xs) : rest
-                (_, Left seg) -> Both [seg] : acc
-                (_, Right diff) -> diff ++ acc
-            )
-
 data DiffOrSame = Different | Same
-  deriving (Eq, Ord, Show)
-
-data Changed a
-  = Changed a
-  | Unchanged a
-  | Spacer
   deriving (Eq, Ord, Show)
 
 -- | Compute a line-wise diff between two lists of segments.
@@ -138,7 +89,7 @@ linewiseDiff ::
   -- Returns a tuple of lists,
   -- Each list is the same length, when lines are present on both sides they're considered Equal.
   -- When lines are only present on one side, the other side has a Nothing in that position as padding.
-  ([Changed [Paired (Segment a)]], [Changed [Paired (Segment a)]])
+  LinewiseDiff (Paired (Segment a))
 linewiseDiff diffEq left right =
   let leftLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ left
       rightLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ right
@@ -169,17 +120,39 @@ linewiseDiff diffEq left right =
                       Right (Left a) -> (a, mempty)
                       Right (Right b) -> (mempty, b)
              in diffChangeChunk diffEq lefts rights
+        & \(lhsLines, rhsLines) ->
+          LinewiseDiff {lhsLines, rhsLines}
 
--- Diff data can be one-sided or have a counter-part on the other side of the diff.
--- We can use this to represent things like name-changes for the same hash, or hash-changes for the same name.
-data Paired a
-  = OneSided a
-  | Paired a a
-  deriving (Eq, Ord, Show)
-
-swapPair :: Paired a -> Paired a
-swapPair (OneSided a) = OneSided a
-swapPair (Paired a b) = Paired b a
+semanticLinewiseDiff :: SyntaxText -> SyntaxText -> LinewiseDiff (SemanticSyntaxDiff Syntax.Element)
+semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
+  linewiseDiff syntaxElementDiffEq lhs rhs
+    <&> specialCasePairs
+  where
+    specialCasePairs :: Paired (Segment Syntax.Element) -> SemanticSyntaxDiff Syntax.Element
+    specialCasePairs = \case
+      OneSided a -> OnlyThisSide a
+      Paired fromSegment toSegment
+        | fromSegment == toSegment -> Both fromSegment
+        | AT.annotation fromSegment == AT.annotation toSegment -> SegmentChange (AT.segment fromSegment, AT.segment toSegment) (AT.annotation fromSegment)
+        -- We only emit an annotation change if it's a change in just the hash of the element (optionally the KIND of hash reference can change too).
+        | AT.segment fromSegment == AT.segment toSegment,
+          Just _fromHash <- AT.annotation fromSegment >>= elementHash,
+          Just _toHash <- AT.annotation toSegment >>= elementHash ->
+            AnnotationChange (AT.segment fromSegment) (AT.annotation fromSegment, AT.annotation toSegment)
+        | otherwise ->
+            -- the annotation changed, but it's not a recognized hash change.
+            -- This can happen in certain special cases, e.g. a paren changed from being a syntax element into being part
+            -- of a unit.
+            -- We just emit both as old/new segments.
+            OnlyThisSide fromSegment
+        where
+          elementHash :: Syntax.Element -> Maybe Syntax.UnisonHash
+          elementHash = \case
+            Syntax.TypeReference hash -> Just hash
+            Syntax.TermReference hash -> Just hash
+            Syntax.DataConstructorReference hash -> Just hash
+            Syntax.AbilityConstructorReference hash -> Just hash
+            _ -> Nothing
 
 -- Takes the left and right sides of a diff which are part of the same contiguous chunk, then
 -- diffs them and returns padded left/right line diffs
