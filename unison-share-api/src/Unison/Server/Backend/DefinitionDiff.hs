@@ -126,7 +126,7 @@ linewiseDiff diffEq left right =
     pairLines :: forall x. [[x]] -> [[x]] -> ([[Paired x]], [[Paired x]])
     pairLines left right =
       let paired = zipWith (zipWith Paired) left right
-      in ( paired,
+       in ( paired,
             fmap swapPair <$> paired
           )
 
