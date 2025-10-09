@@ -11,6 +11,7 @@ import Text.RawString.QQ (r)
 import Unison.Prelude
 import Unison.Server.Backend.DefinitionDiff
 import Unison.Server.Orphans ()
+import Unison.Server.Types (LinewiseDiff(..))
 import Unison.Util.AnnotatedText (Segment (..))
 
 test :: EasyTest.Test ()
@@ -78,9 +79,8 @@ sidesAlwaysEqualLengths =
     (left, right) <- forAll $ genDiffs
     let leftSegments = textToSegment left
         rightSegments = textToSegment right
-        (lDiff, rDiff) = linewiseDiff (==) leftSegments rightSegments
-    traceShowM (lDiff, rDiff)
-    diff lDiff ((==) `on` length) rDiff
+        LinewiseDiff{lhsLines, rhsLines} = linewiseDiff (==) leftSegments rightSegments
+    diff lhsLines ((==) `on` length) rhsLines
 
 textToSegment :: Text -> [Segment ()]
 textToSegment txt =
@@ -216,8 +216,8 @@ testDiff :: Text -> Text -> Text
 testDiff l r =
   let left = textToSegment l
       right = textToSegment r
-      (ldiff, rdiff) = linewiseDiff (==) left right
-   in align (renderDiffText ldiff) (renderDiffText rdiff)
+      LinewiseDiff{lhsLines, rhsLines} = linewiseDiff (==) left right
+   in align (renderDiffText lhsLines) (renderDiffText rhsLines)
 
 align :: Text -> Text -> Text
 align left right = Text.unlines $ zipWith formatRow leftLines rightLines

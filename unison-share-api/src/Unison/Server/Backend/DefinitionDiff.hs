@@ -122,7 +122,16 @@ linewiseDiff diffEq left right =
              in diffChangeChunk diffEq lefts rights
         & \(lhsLines, rhsLines) ->
           LinewiseDiff {lhsLines, rhsLines}
+  where
+    pairLines :: forall x. [[x]] -> [[x]] -> ([[Paired x]], [[Paired x]])
+    pairLines left right =
+      let paired = zipWith (zipWith Paired) left right
+      in ( paired,
+            fmap swapPair <$> paired
+          )
 
+-- | Compute a semantic line-wise diff between two SyntaxText values, with special-casing
+-- to detect tokens whose name stayed the same but whose hash changed, or whose hash stayed the same but whose name changed.
 semanticLinewiseDiff :: SyntaxText -> SyntaxText -> LinewiseDiff (SemanticSyntaxDiff Syntax.Element)
 semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
   linewiseDiff syntaxElementDiffEq lhs rhs
@@ -154,7 +163,7 @@ semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
             Syntax.AbilityConstructorReference hash -> Just hash
             _ -> Nothing
 
--- Takes the left and right sides of a diff which are part of the same contiguous chunk, then
+-- | Takes the left and right sides of a diff which are part of the same contiguous chunk, then
 -- diffs them and returns padded left/right line diffs
 diffChangeChunk ::
   forall a.
@@ -203,10 +212,3 @@ diffChangeChunk diffEq leftLines rightLines =
       Nothing Nothing -> True
       (Just l) (Just r) -> diffEq l r
       _ _ -> False
-
-pairLines :: [[a]] -> [[a]] -> ([[Paired a]], [[Paired a]])
-pairLines left right =
-  let paired = zipWith (zipWith Paired) left right
-   in ( paired,
-        fmap swapPair <$> paired
-      )
