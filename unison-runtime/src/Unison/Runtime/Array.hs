@@ -26,10 +26,12 @@ module Unison.Runtime.Array
     readPrimArray,
     writePrimArray,
     indexPrimArray,
+    byteArrayToShortByteString,
   )
 where
 
 import Control.Monad.Primitive
+import Data.ByteString.Short
 import Data.Kind (Constraint)
 import Data.Primitive.Array as EPA hiding
   ( cloneMutableArray,
@@ -427,3 +429,6 @@ indexPrimArray = checkIPArray "indexPrimArray" PA.indexPrimArray
 
 byteArrayToList :: ByteArray -> [Word8]
 byteArrayToList = toList
+
+byteArrayToShortByteString :: ByteArray -> ShortByteString
+byteArrayToShortByteString (ByteArray ba) = SBS ba
