@@ -64,7 +64,7 @@ import Unison.Runtime.ANF as ANF
     foldGroupLinks,
     maskTags,
     packTags,
-    valueLinks,
+    collectValueLinks,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
@@ -1711,9 +1711,24 @@ data ReflectExn = ReflectExn String deriving (Show)
 
 instance Exception ReflectExn
 
+ixArr :: String -> Array a -> RefNum -> IO a
+ixArr pfx arr (RefNum i)
+  | 0 <= i, i < sizeofArray arr = indexArrayM arr i
+  | otherwise = die [] . (pfx ++) $ " index out of bounds: " ++ show i
+{-# INLINE ixArr #-}
+
 reifyValue ::
   CCache p -> Referenced ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do
+  (tyLinks, tmLinks) <- case val of
+    Plain v -> pure $ collectValueLinks v
+    WithRefs tys tms v -> {-# SCC reifyValueWithRefs #-} do
+      let tya = arrayFromList tys
+          tma = arrayFromList tms
+          (tyns, tmns) = collectValueLinks v
+          travSet f = fmap S.fromList . traverse f . S.toList
+      (,) <$> travSet (ixArr "reifyValue: type" tya) tyns
+          <*> travSet (ixArr "reifyValue: term" tma) tmns
   erc <-
     atomically $ do
       combs <- readTVar (combs cc)
@@ -1724,11 +1739,6 @@ reifyValue cc val = do
           pure . Right $ (combs, newTy, rtm)
         l -> pure (Left l)
   traverse (\rfs -> reifyValue1 rfs val) erc
-  where
-    f False r = (mempty, S.singleton r)
-    f True r = (S.singleton r, mempty)
-
-    (tyLinks, tmLinks) = valueLinks f (dereference val)
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
