@@ -1738,7 +1738,7 @@ reifyValue ::
 reifyValue cc val = do
   (tyLinks, tmLinks) <- case val of
     Plain v -> pure $ collectValueLinks v
-    WithRefs tys tms v -> {-# SCC reifyValueWithRefs #-} do
+    WithRefs tys tms v -> do
       let tya = arrayFromList tys
           tma = arrayFromList tms
           (tyns, tmns) = collectValueLinks v
