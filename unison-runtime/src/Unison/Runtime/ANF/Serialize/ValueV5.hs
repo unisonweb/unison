@@ -11,7 +11,6 @@ import Data.Bytes.Get hiding (getBytes)
 import Data.Bytes.Put
 import Data.Serialize.Get qualified as SGet
 import Data.Serialize.Put qualified as SPut
-import GHC.IsList qualified (fromList)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Serialize.CodeV4
@@ -194,7 +193,7 @@ getBLit =
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
-    ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
+    ArrT -> Arr <$> getArray getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
     MapT -> Map <$> getMapping getValue getValue
 {-# SPECIALIZE getBLit :: BGet.Get (BLit RefNum) #-}
