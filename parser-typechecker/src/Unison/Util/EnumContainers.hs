@@ -30,6 +30,7 @@ module Unison.Util.EnumContainers
     traverseSet_,
     traverseWithKey,
     setSize,
+    foldrSet,
   )
 where
 
@@ -217,3 +218,7 @@ traverseWithKey f (EM m) = EM <$> IM.traverseWithKey (f . intToKey) m
 {-# INLINE setSize #-}
 setSize :: EnumSet k -> Int
 setSize (ES s) = IS.size s
+
+{-# INLINE foldrSet #-}
+foldrSet :: (EnumKey k) => (k -> r -> r) -> r -> EnumSet k -> r
+foldrSet f z (ES s) = IS.foldr (f . intToKey) z s
