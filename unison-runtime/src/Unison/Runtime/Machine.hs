@@ -1642,6 +1642,9 @@ reflectValue0 rty rtm = goV0
     goV0 :: Val -> IO (Referenced ANF.Value)
     goV0 v = finish <$> runStateT (goV v) emptyRS
 
+    goVs :: Seg -> Reflect [ANF.Value RefNum]
+    goVs sg = traverseAccumSegToList goV sg
+
     goV :: Val -> Reflect (ANF.Value RefNum)
     goV = \case
       -- For back-compatibility we reflect all Unboxed values into boxed literals, we could change this in the future,
@@ -1655,13 +1658,26 @@ reflectValue0 rty rtm = goV0
       CharVal c -> pure . ANF.BLit $ ANF.Char c
       Val _ clos ->
         case clos of
-          PApV cix _rComb args ->
-            ANF.Partial <$> goIx cix <*> traverse goV args
-          DataC _ t segs -> do
+          PAp cix _rComb args ->
+            ANF.Partial <$> goIx cix <*> goVs args
+          Enum _ t -> do
             r <- resolveTy rty $ TT.typeTag t
-            ANF.Data r (maskTags t) <$> traverse goV segs
-          CapV k _ segs ->
-            ANF.Cont <$> traverse goV segs <*> goK k
+            pure $ ANF.Data r (maskTags t) []
+          Data1 _ t u -> do
+            r <- resolveTy rty $ TT.typeTag t
+            u <- goV u
+            pure $ ANF.Data r (maskTags t) [u]
+          Data2 _ t u v -> do
+            r <- resolveTy rty $ TT.typeTag t
+            u <- goV u
+            v <- goV v
+            pure $ ANF.Data r (maskTags t) [u,v]
+          DataG _ t seg -> do
+            r <- resolveTy rty $ TT.typeTag t
+            ANF.Data r (maskTags t) <$> goVs seg
+
+          Captured k _ segs ->
+            ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
@@ -1797,10 +1813,20 @@ reifyValue0Canon combs tys tms rty rtm = goV
       let cix = (CIx rf n i)
       pure (cix, rCombSection combs cix)
 
+    goVs :: [ANF.Value RefNum] -> IO Seg
+    goVs vs = traverseListToSeg goV vs
+
+    goVArr :: Array (ANF.Value RefNum) -> IO (Array Val)
+    goVArr vs = traverseArrayIO goV vs
+
+    goVSeq :: Seq (ANF.Value RefNum) -> IO (Seq Val)
+    goVSeq vs = traverse goV vs
+
     goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
+        (cix, RComb (Comb rcomb)) ->
+          boxedVal . PAp cix rcomb <$> goVs vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -1809,13 +1835,13 @@ reifyValue0Canon combs tys tms rty rtm = goV
     goV (ANF.Data rn t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
-      boxedVal . formDataReplaced rf t <$> traverse goV vs
+      boxedVal . formDataReplaced rf t <$> goVs vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- traverse goV vs
+      vs' <- goVs vs
       pure . boxedVal $ cv k' vs'
       where
-        cv k s = CapV k a s
+        cv k s = Captured k a s
           where
             ksz = frameDataSize k
             a = fromIntegral $ length s - ksz
@@ -1847,7 +1873,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
     goL :: ANF.BLit RefNum -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
-    goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
+    goL (ANF.List l) = encodeVal <$> goVSeq l
     goL (ANF.TmLink r) = encodeVal <$> traverseRefs numToRef r
     goL (ANF.TyLink r) = encodeVal <$> ixTy r
     goL (ANF.Bytes b) = pure $ encodeVal b
@@ -1860,7 +1886,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+    goL (ANF.Arr a) = encodeVal <$> goVArr a
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
@@ -1886,10 +1912,17 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         r = M.findWithDefault r0 r0 functionReplacements
 
+    goVs :: [ANF.Value Reference] -> IO Seg
+    goVs vs = traverseListToSeg goV vs
+
+    goVArr :: Array (ANF.Value Reference) -> IO (Array Val)
+    goVArr vs = traverseArrayIO goV vs
+
     goV :: ANF.Value Reference -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
+        (cix, RComb (Comb rcomb)) ->
+          boxedVal . PAp cix rcomb <$> goVs vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -1897,13 +1930,13 @@ reifyValue0 (combs, rty, rtm) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . formDataReplaced r t <$> traverse goV vs
+      boxedVal . formDataReplaced r t <$> goVs vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- traverse goV vs
+      vs' <- goVs vs
       pure . boxedVal $ cv k' vs'
       where
-        cv k s = CapV k a s
+        cv k s = Captured k a s
           where
             ksz = frameDataSize k
             a = fromIntegral $ length s - ksz
@@ -1948,7 +1981,7 @@ reifyValue0 (combs, rty, rtm) = goV
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = encodeVal <$> traverse goV a
+    goL (ANF.Arr a) = encodeVal <$> goVArr a
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
