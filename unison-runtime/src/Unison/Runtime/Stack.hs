@@ -544,14 +544,18 @@ formDataReplaced r t sg@(usg, bsg)
       0 -> tipClosure
       _ -> error "formDataReplaced: bad `Map`"
   | t == TT.mapBinTag = case sizeofArray bsg of
-      5 | k <- indexArray bsg 3,
-          v <- indexArray bsg 2,
+      5 | !bk <- indexArray bsg 3,
+          !uk <- indexByteArray usg 3,
+          !bv <- indexArray bsg 2,
+          !uv <- indexByteArray usg 2,
           Foreign l <- indexArray bsg 1,
-          Just ul <- maybeUnwrapForeign Ty.hmapRef l,
+          Just (ul :: Map Val Val) <- maybeUnwrapBuiltin l,
           Foreign r <- indexArray bsg 0,
-          Just ur <- maybeUnwrapForeign Ty.hmapRef r,
-          sz <- indexByteArray usg 4 ->
-            Foreign . Wrap Ty.hmapRef $ Bin sz k v ul ur
+          Just (ur :: Map Val Val) <- maybeUnwrapBuiltin r,
+          sz <- indexByteArray usg 4,
+          Closure (GUnboxedTypeTag NatTag) <- indexArray bsg 4 ->
+            Foreign . Wrap Ty.hmapRef $
+              Bin sz (Val uk bk) (Val uv bv) ul ur
       _ -> error "formDataReplaced: bad `Map`"
   | otherwise = formDataSeg r t sg
 
