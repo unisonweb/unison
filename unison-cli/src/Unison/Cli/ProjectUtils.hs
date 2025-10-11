@@ -212,8 +212,7 @@ resolveProjectBranchInProject :: Project -> ProjectAndBranch (Maybe ProjectName)
 resolveProjectBranchInProject defaultProj (ProjectAndBranch mayProjectName mayBranchName) = do
   let branchName = fromMaybe defaultBranchName mayBranchName
   let projectName = fromMaybe (defaultProj ^. #name) mayProjectName
-  projectAndBranch <- expectProjectAndBranchByTheseNames (These projectName branchName)
-  pure projectAndBranch
+  expectProjectAndBranchByTheseNames (These projectName branchName)
 
 getProjectByName :: ProjectName -> Cli (Maybe Sqlite.Project)
 getProjectByName projectName = do

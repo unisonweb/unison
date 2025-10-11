@@ -3004,6 +3004,7 @@ loadProjectBranchSql projectId branchId =
       project_branch.branch_id,
       project_branch.name,
       project_branch_parent.parent_branch_id,
+      EXISTS (SELECT 1 FROM merge_branch WHERE project_id = :projectId AND branch_id = :branchId),
       EXISTS (SELECT 1 FROM update_branch WHERE project_id = :projectId AND branch_id = :branchId),
       EXISTS (SELECT 1 FROM upgrade_branch WHERE project_id = :projectId AND branch_id = :branchId)
     FROM
@@ -3016,10 +3017,10 @@ loadProjectBranchSql projectId branchId =
   |]
 
 mungeLoadProjectBranchResult ::
-  (ProjectId, ProjectBranchId, ProjectBranchName, Maybe ProjectBranchId, Bool, Bool) ->
+  (ProjectId, ProjectBranchId, ProjectBranchName, Maybe ProjectBranchId, Bool, Bool, Bool) ->
   ProjectBranch
-mungeLoadProjectBranchResult (projectId, branchId, name, parentBranchId, isUpdate, isUpgrade) =
-  ProjectBranch {projectId, branchId, name, parentBranchId, isUpdate, isUpgrade}
+mungeLoadProjectBranchResult (projectId, branchId, name, parentBranchId, isMerge, isUpdate, isUpgrade) =
+  ProjectBranch {projectId, branchId, name, parentBranchId, isMerge, isUpdate, isUpgrade}
 
 loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
 loadProjectBranchByName projectId name = do
@@ -3044,6 +3045,7 @@ loadProjectBranchByName projectId name = do
 
 loadProjectBranchByProjectBranchRow :: ProjectBranchRow -> Transaction ProjectBranch
 loadProjectBranchByProjectBranchRow branch = do
+  isMerge <- projectBranchIsMergeBranch branch.projectId branch.branchId
   isUpdate <- projectBranchIsUpdateBranch branch.projectId branch.branchId
   isUpgrade <- projectBranchIsUpgradeBranch branch.projectId branch.branchId
   pure
@@ -3052,6 +3054,7 @@ loadProjectBranchByProjectBranchRow branch = do
         branchId = branch.branchId,
         name = branch.name,
         parentBranchId = branch.parentBranchId,
+        isMerge,
         isUpdate,
         isUpgrade
       }
@@ -3673,6 +3676,20 @@ loadProjectBranchParent projectId projectBranchId =
       FROM project_branch_parent
       WHERE project_id = :projectId
         AND branch_id = :projectBranchId
+    |]
+
+-- | Get whether or not a project branch is a "merge branch". Returns false if the branch either isn't a merge branch
+-- (likely) or doesn't exist at all (weird).
+projectBranchIsMergeBranch :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchIsMergeBranch projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM merge_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
     |]
 
 loadMergeBranchParents ::
