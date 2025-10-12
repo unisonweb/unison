@@ -2049,7 +2049,7 @@ notifyUser dir issueFn = \case
               <> "it will be merged back into"
               <> P.group (prettyProjectBranchName baseBranch <> ".")
           )
-  UpgradeFailure main temp path old new ->
+  UpgradeFailure main path old new ->
     pure $
       P.lines
         [ P.wrap $
@@ -2069,7 +2069,7 @@ notifyUser dir issueFn = \case
               <> prettyProjectBranchName main
               <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
           "",
           P.wrap $
             "to delete the temporary branch and switch back to"
@@ -2095,7 +2095,7 @@ notifyUser dir issueFn = \case
                   <> prettyNew
                   <> "to"
                   <> P.group (prettyLib final <> ".")
-  MergeFailure path aliceAndBob temp ->
+  MergeFailure path aliceAndBob ->
     pure $
       P.lines $
         [ P.wrap $
@@ -2115,13 +2115,13 @@ notifyUser dir issueFn = \case
               <> prettyProjectBranchName aliceAndBob.alice.branch
               <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
           "",
           P.wrap $
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
         ]
-  MergeFailureWithMergetool aliceAndBob temp mergetool exitCode ->
+  MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
         pure $
@@ -2144,7 +2144,7 @@ notifyUser dir issueFn = \case
                   <> prettyProjectBranchName aliceAndBob.alice.branch
                   <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
               "",
-              P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+              P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
               "",
               P.wrap $
                 "to delete the temporary branch and switch back to"
