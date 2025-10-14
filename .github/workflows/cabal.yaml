@@ -57,6 +57,9 @@ jobs:
           restore-keys: |
             cabal-freeze
 
+      - id: list cache
+        run: find dist-newstyle
+
       # --only-configure skips some build steps, but should ensure all dependencies are correct.
       - id: build
         run: cabal build all --only-configure --project-file contrib/cabal.project
