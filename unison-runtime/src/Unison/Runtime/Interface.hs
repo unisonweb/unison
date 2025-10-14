@@ -38,12 +38,14 @@ import Control.Concurrent.STM as STM
 import Control.Exception (fromException, tryJust)
 import Control.Monad
 import Control.Monad.State
-import Data.Binary.Get (runGetOrFail)
+import Data.Binary.Get (Get, runGetOrFail)
+import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bitraverse)
+import Data.ByteString qualified as B
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.ByteString.Lazy qualified as BL
 import Data.Bytes.Get (MonadGet)
-import Data.Bytes.Put (MonadPut, runPutL)
-import Data.Bytes.Serial
 import Data.Foldable
 import Data.IORef
 import Data.List qualified as L
@@ -581,6 +583,23 @@ interpEval actThr cleanThr ctxVar cl ppe = \case
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
   FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
 
+-- Slightly inefficient method of encoding text. Matches the old way of
+-- encoding e.g. the compiled version below. Compiled code is not
+-- cross compatible with other versions, but keeping this format
+-- allows older versions to fail more gracefully, rather than
+-- encountering serialization errors.
+putTextBig :: Text -> Builder
+putTextBig text =
+  BU.word32BE (fromIntegral $ B.length bs) <> BU.byteString bs
+  where
+    bs = encodeUtf8 text
+
+getTextBig :: Get Text
+getTextBig = do
+  len <- Get.getWord32be
+  bs <- B.copy <$> Get.getByteString (fromIntegral len)
+  pure $ decodeUtf8 bs
+
 interpCompile ::
   Text ->
   IORef EvalCtx ->
@@ -599,11 +618,11 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   Just w <- lk <$> readTVarIO (refTm cc)
   let combIx = CIx rf w 0
   sto <- standalone cc w
-  BL.writeFile path . runPutL $ do
-    serialize $ version
-    serialize $ RF.showShort 8 rf
-    putCombIx combIx
-    putStoredCache sto
+  BU.writeFile path $
+    putTextBig version
+      <> putTextBig (RF.showShort 8 rf)
+      <> putCombIx combIx
+      <> putStoredCache sto
 
 backrefLifted ::
   Reference ->
@@ -841,8 +860,8 @@ decodeStandalone b = bimap thd thd $ runGetOrFail g b
     thd (_, _, x) = x
     g =
       (,,,)
-        <$> deserialize
-        <*> deserialize
+        <$> getTextBig
+        <*> getTextBig
         <*> getCombIx
         <*> getStoredCache
 
@@ -907,19 +926,19 @@ data StoredCache
       (Map Reference (Set Reference))
   deriving (Show, Eq)
 
-putStoredCache :: (MonadPut m) => StoredCache -> m ()
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) = do
+putStoredCache :: StoredCache -> Builder
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
-  putEnumMap putNat putReference crs
-  putEnumSet putNat cacheableCombs
-  putOptInfos oinfo
-  putEnumMap putNat putReference trs
-  putNat ftm
-  putNat fty
-  putMap putReference (putGroup mempty False) int
-  putMap putReference putNat rtm
-  putMap putReference putNat rty
-  putMap putReference (putFoldable putReference) sbs
+    <> putEnumMap putNat putReference crs
+    <> putEnumSet putNat cacheableCombs
+    <> putOptInfos oinfo
+    <> putEnumMap putNat putReference trs
+    <> putNat ftm
+    <> putNat fty
+    <> putMap putReference (putGroup mempty False) int
+    <> putMap putReference putNat rtm
+    <> putMap putReference putNat rty
+    <> putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: (MonadGet m) => m StoredCache
 getStoredCache =

@@ -11,22 +11,20 @@ import Control.Monad.State.Strict (StateT (..))
 import Data.Bifunctor (bimap, first)
 import Data.Binary.Get (runGetOrFail)
 import Data.Binary.Get qualified as BGet
-import Data.Binary.Put qualified as BPut
 import Data.ByteString (ByteString)
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.ByteString.Lazy qualified as L
 import Data.Bytes.Get hiding (getBytes)
-import Data.Bytes.Put
 import Data.Bytes.Serial
 import Data.Bytes.VarInt
-import Data.Foldable (toList, traverse_)
+import Data.Foldable (toList)
 import Data.Functor ((<&>))
 import Data.Map as Map (Map, fromDistinctAscList, fromList, lookup)
 -- machinery for special casing maps
 import Data.Map.Strict.Internal (Map (..))
 import Data.Maybe (mapMaybe)
 import Data.Serialize.Get qualified as SGet
-import Data.Serialize.Put (runPutLazy)
-import Data.Serialize.Put qualified as SPut
 import Data.Word (Word32, Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
@@ -70,13 +68,14 @@ deindex (v : vs) n
 pushCtx :: [v] -> [v] -> [v]
 pushCtx us vs = reverse us ++ vs
 
-putIndex :: (MonadPut m) => Word64 -> m ()
-putIndex = serialize . VarInt
+putIndex :: Word64 -> Builder
+putIndex = putVarInt
+{-# INLINE putIndex #-}
 
 getIndex :: (MonadGet m) => m Word64
 getIndex = unVarInt <$> deserialize
 
-putVar :: (MonadPut m) => (Eq v) => [v] -> v -> m ()
+putVar :: (Eq v) => [v] -> v -> Builder
 putVar ctx v
   | Just i <- index ctx v = putIndex i
   | otherwise = exn [] "putVar: variable not in context"
@@ -84,18 +83,18 @@ putVar ctx v
 getVar :: (MonadGet m) => [v] -> m v
 getVar ctx = deindex ctx <$> getIndex
 
-putArgs :: (MonadPut m) => (Eq v) => [v] -> [v] -> m ()
+putArgs :: (Eq v) => [v] -> [v] -> Builder
 putArgs ctx is = putFoldable (putVar ctx) is
 
 getArgs :: (MonadGet m) => [v] -> m [v]
 getArgs ctx = getList (getVar ctx)
 
-putCCs :: (MonadPut m) => [Mem] -> m ()
-putCCs ccs = putLength n *> traverse_ putCC ccs
+putCCs :: [Mem] -> Builder
+putCCs ccs = putLength n <> foldMap putCC ccs
   where
     n = length ccs
-    putCC UN = putWord8 0
-    putCC BX = putWord8 1
+    putCC UN = BU.word8 0
+    putCC BX = BU.word8 1
 
 getCCs :: (MonadGet m) => m [Mem]
 getCCs =
@@ -120,16 +119,15 @@ getCCs =
 -- generated somewhat dynamically, it is not easy to associate them
 -- with a fixed numbering like we can with POps.
 putGroup ::
-  (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
   SuperGroup Reference v ->
-  m ()
+  Builder
 putGroup refrep fops (Rec bs e) =
   putLength n
-    *> traverse_ (putComb refrep fops ctx) cs
-    *> putComb refrep fops ctx e
+    <> foldMap (putComb refrep fops ctx) cs
+    <> putComb refrep fops ctx e
   where
     n = length us
     (us, cs) = unzip bs
@@ -148,19 +146,19 @@ getGroup = do
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
 
-putCode :: (MonadPut m) => Bool -> Code Reference -> m ()
-putCode fops (CodeRep g c) = putGroup mempty fops g *> putCacheability c
+putCode :: Bool -> Code Reference -> Builder
+putCode fops (CodeRep g c) = putGroup mempty fops g <> putCacheability c
 
 getCode :: (MonadGet m, SerialConfig m) => m (Code Reference)
 getCode = CodeRep <$> getGroup <*> getCacheability
 
 putInlineInfo ::
-  (MonadPut m, Var v) =>
+  (Var v) =>
   [v] ->
   InlineInfo Reference v ->
-  m ()
+  Builder
 putInlineInfo ctx (InlInfo clazz expr) =
-  putInlineClass clazz *> putInlineExpr ctx expr
+  putInlineClass clazz <> putInlineExpr ctx expr
 
 getInlineInfo ::
   (MonadGet m, SerialConfig m, Var v) =>
@@ -171,13 +169,13 @@ getInlineInfo ctx frsh =
   InlInfo <$> getInlineClass <*> getInlineExpr ctx frsh
 
 putInlineExpr ::
-  (MonadPut m, Var v) =>
+  (Var v) =>
   [v] ->
   ANormal Reference v ->
-  m ()
+  Builder
 putInlineExpr ctx (TAbss vs body) =
   putLength (length vs)
-    *> putNormal mempty True (pushCtx vs ctx) body
+    <> putNormal mempty True (pushCtx vs ctx) body
 
 getInlineExpr ::
   (MonadGet m, SerialConfig m, Var v) =>
@@ -190,12 +188,10 @@ getInlineExpr ctx frsh0 = do
       vs = getFresh <$> take n [frsh0 ..]
   TAbss vs <$> getNormal (pushCtx vs ctx) frsh
 
-putOptInfos :: (MonadPut m, Var v) => OptInfos Reference v -> m ()
+putOptInfos :: (Var v) => OptInfos Reference v -> Builder
 putOptInfos (arities, inls) =
-  putMap putReference pInt arities
-    *> putMap putReference (putInlineInfo []) inls
-  where
-    pInt = serialize . VarInt
+  putMap putReference putVarInt arities
+    <> putMap putReference (putInlineInfo []) inls
 
 -- Note: current version
 getOptInfos :: (MonadGet m, Var v) => m (OptInfos Reference v)
@@ -207,11 +203,11 @@ getOptInfos =
   where
     gInt = unVarInt <$> deserialize
 
-putInlineClass :: (MonadPut m) => InlineClass -> m ()
+putInlineClass :: InlineClass -> Builder
 putInlineClass = \case
-  AnywhereInl -> putWord8 0
-  TailInl -> putWord8 1
-  Don'tInl -> putWord8 2
+  AnywhereInl -> BU.word8 0
+  TailInl -> BU.word8 1
+  Don'tInl -> BU.word8 2
 
 getInlineClass :: (MonadGet m) => m InlineClass
 getInlineClass =
@@ -221,9 +217,9 @@ getInlineClass =
     2 -> pure Don'tInl
     n -> unknownTag "InlineClass" n
 
-putCacheability :: (MonadPut m) => Cacheability -> m ()
-putCacheability Uncacheable = putWord8 0
-putCacheability Cacheable = putWord8 1
+putCacheability :: Cacheability -> Builder
+putCacheability Uncacheable = BU.word8 0
+putCacheability Cacheable = BU.word8 1
 
 getCacheability :: (MonadGet m, SerialConfig m) => m Cacheability
 getCacheability =
@@ -237,15 +233,14 @@ getCacheability =
     _ -> pure Uncacheable
 
 putComb ::
-  (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
   [v] ->
   SuperNormal Reference v ->
-  m ()
+  Builder
 putComb refrep fops ctx (Lambda ccs (TAbss us e)) =
-  putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
+  putCCs ccs <> putNormal refrep fops (pushCtx us ctx) e
 
 getFresh :: (Var v) => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
@@ -264,55 +259,54 @@ getComb ctx frsh0 = do
   Lambda ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
 putNormal ::
-  (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
   [v] ->
   ANormal Reference v ->
-  m ()
+  Builder
 putNormal refrep fops ctx tm = case tm of
-  TVar v -> putTag VarT *> putVar ctx v
-  TFrc v -> putTag ForceT *> putVar ctx v
-  TApp f as -> putTag AppT *> putFunc refrep fops ctx f *> putArgs ctx as
+  TVar v -> putTag VarT <> putVar ctx v
+  TFrc v -> putTag ForceT <> putVar ctx v
+  TApp f as -> putTag AppT <> putFunc refrep fops ctx f <> putArgs ctx as
   THnd rs nh _ah e ->
     putTag HandleT
-      *> putRefs rs
-      *> putVar ctx nh
-      *> putNormal refrep fops ctx e
+      <> putRefs rs
+      <> putVar ctx nh
+      <> putNormal refrep fops ctx e
   TShift r v e ->
-    putTag ShiftT *> putReference r *> putNormal refrep fops (v : ctx) e
+    putTag ShiftT <> putReference r <> putNormal refrep fops (v : ctx) e
   TMatch v bs ->
     putTag MatchT
-      *> putVar ctx v
-      *> putBranches refrep fops ctx bs
-  TLit l -> putTag LitT *> putLit l
-  TBLit l -> putTag BxLitT *> putLit l
+      <> putVar ctx v
+      <> putBranches refrep fops ctx bs
+  TLit l -> putTag LitT <> putLit l
+  TBLit l -> putTag BxLitT <> putLit l
   TName v (Left r) as e ->
     putTag NameRefT
-      *> pr
-      *> putArgs ctx as
-      *> putNormal refrep fops (v : ctx) e
+      <> pr
+      <> putArgs ctx as
+      <> putNormal refrep fops (v : ctx) e
     where
       pr
-        | Just w <- Map.lookup r refrep = putWord64be w
+        | Just w <- Map.lookup r refrep = BU.word64BE w
         | otherwise = putReference r
   TName v (Right u) as e ->
     putTag NameVarT
-      *> putVar ctx u
-      *> putArgs ctx as
-      *> putNormal refrep fops (v : ctx) e
+      <> putVar ctx u
+      <> putArgs ctx as
+      <> putNormal refrep fops (v : ctx) e
   TLets Direct us ccs l e ->
     putTag LetDirT
-      *> putCCs ccs
-      *> putNormal refrep fops ctx l
-      *> putNormal refrep fops (pushCtx us ctx) e
+      <> putCCs ccs
+      <> putNormal refrep fops ctx l
+      <> putNormal refrep fops (pushCtx us ctx) e
   TLets (Indirect w) us ccs l e ->
     putTag LetIndT
-      *> putWord16be w
-      *> putCCs ccs
-      *> putNormal refrep fops ctx l
-      *> putNormal refrep fops (pushCtx us ctx) e
+      <> BU.word16BE w
+      <> putCCs ccs
+      <> putNormal refrep fops ctx l
+      <> putNormal refrep fops (pushCtx us ctx) e
   v -> exn [] $ "putNormal: malformed term\n" ++ show v
 
 getNormal ::
@@ -373,24 +367,23 @@ getNormal ctx frsh0 =
         <*> getNormal (pushCtx us ctx) frsh
 
 putFunc ::
-  (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
   [v] ->
   Func Reference v ->
-  m ()
+  Builder
 putFunc refrep allowFop ctx f = case f of
-  FVar v -> putTag FVarT *> putVar ctx v
+  FVar v -> putTag FVarT <> putVar ctx v
   FComb r
-    | Just w <- Map.lookup r refrep -> putTag FCombT *> putWord64be w
-    | otherwise -> putTag FCombT *> putReference r
-  FCont v -> putTag FContT *> putVar ctx v
-  FCon r c -> putTag FConT *> putReference r *> putCTag c
-  FReq r c -> putTag FReqT *> putReference r *> putCTag c
-  FPrim (Left p) -> putTag FPrimT *> putPOp p
+    | Just w <- Map.lookup r refrep -> putTag FCombT <> BU.word64BE w
+    | otherwise -> putTag FCombT <> putReference r
+  FCont v -> putTag FContT <> putVar ctx v
+  FCon r c -> putTag FConT <> putReference r <> putCTag c
+  FReq r c -> putTag FReqT <> putReference r <> putCTag c
+  FPrim (Left p) -> putTag FPrimT <> putPOp p
   FPrim (Right f)
-    | allowFop -> putTag FForeignT *> putFOp f
+    | allowFop -> putTag FForeignT <> putFOp f
     | otherwise ->
         exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
 
@@ -413,15 +406,15 @@ getFunc ctx =
 -- However, foreign functions are not serialized for interchange. This
 -- is for serializing optimization information for standalaone
 -- programs.
-putFOp :: (MonadPut m) => ForeignFunc -> m ()
-putFOp = serialize . VarInt . fromEnum
+putFOp :: ForeignFunc -> Builder
+putFOp = putVarInt . fromEnum
 
 getFOp :: (MonadGet m) => m ForeignFunc
 getFOp = toEnum . unVarInt <$> deserialize
 
-putPOp :: (MonadPut m) => POp -> m ()
+putPOp :: POp -> Builder
 putPOp op
-  | Just w <- Map.lookup op pop2word = putWord16be w
+  | Just w <- Map.lookup op pop2word = BU.word16BE w
   | otherwise = exn [] $ "putPOp: unknown POp: " ++ show op
 
 getPOp :: (MonadGet m) => m POp
@@ -430,14 +423,14 @@ getPOp =
     Just op -> pure op
     Nothing -> exn [] "getPOp: unknown enum code"
 
-putLit :: (MonadPut m) => Lit Reference -> m ()
-putLit (I i) = putTag IT *> putInt i
-putLit (N n) = putTag NT *> putNat n
-putLit (F f) = putTag FT *> putFloat f
-putLit (T t) = putTag TT *> putText (Util.Text.toText t)
-putLit (C c) = putTag CT *> putChar c
-putLit (LM r) = putTag LMT *> putReferent r
-putLit (LY r) = putTag LYT *> putReference r
+putLit :: Lit Reference -> Builder
+putLit (I i) = putTag IT <> putInt i
+putLit (N n) = putTag NT <> putNat n
+putLit (F f) = putTag FT <> putFloat f
+putLit (T t) = putTag TT <> putText (Util.Text.toText t)
+putLit (C c) = putTag CT <> putChar c
+putLit (LM r) = putTag LMT <> putReferent r
+putLit (LY r) = putTag LYT <> putReference r
 
 getLit :: (MonadGet m) => m (Lit Reference)
 getLit =
@@ -450,15 +443,15 @@ getLit =
     LMT -> LM <$> getReferent
     LYT -> LY <$> getReference
 
-putBLit :: (MonadPut m) => Version -> BLit Reference -> m ()
-putBLit _ (Text t) = putTag TextT *> putText (Util.Text.toText t)
-putBLit v (List s) = putTag ListT *> putFoldable (putValue v) s
-putBLit _ (TmLink r) = putTag TmLinkT *> putReferent r
-putBLit _ (TyLink r) = putTag TyLinkT *> putReference r
-putBLit _ (Bytes b) = putTag BytesT *> putBytes b
-putBLit v (Quote vl) = putTag QuoteT *> putValue v vl
+putBLit :: Version -> BLit Reference -> Builder
+putBLit _ (Text t) = putTag TextT <> putText (Util.Text.toText t)
+putBLit v (List s) = putTag ListT <> putFoldable (putValue v) s
+putBLit _ (TmLink r) = putTag TmLinkT <> putReferent r
+putBLit _ (TyLink r) = putTag TyLinkT <> putReference r
+putBLit _ (Bytes b) = putTag BytesT <> putBytes b
+putBLit v (Quote vl) = putTag QuoteT <> putValue v vl
 putBLit v (Code (CodeRep sg ch)) =
-  putTag tag *> putGroup mempty False sg
+  putTag tag <> putGroup mempty False sg
   where
     -- Hashing treats everything as uncacheable for consistent
     -- results.
@@ -467,15 +460,13 @@ putBLit v (Code (CodeRep sg ch)) =
         Transfer _ <- v =
           CachedCodeT
       | otherwise = CodeT
-putBLit _ (BArr a) = putTag BArrT *> putByteArray a
-putBLit _ (Pos n) = putTag PosT *> putPositive n
-putBLit _ (Neg n) = putTag NegT *> putPositive n
-putBLit _ (Char c) = putTag CharT *> putChar c
-putBLit _ (Float d) = putTag FloatT *> putFloat d
-putBLit v (Arr a) = putTag ArrT *> putFoldable (putValue v) a
+putBLit _ (BArr a) = putTag BArrT <> putByteArray a
+putBLit _ (Pos n) = putTag PosT <> putPositive n
+putBLit _ (Neg n) = putTag NegT <> putPositive n
+putBLit _ (Char c) = putTag CharT <> putChar c
+putBLit _ (Float d) = putTag FloatT <> putFloat d
+putBLit v (Arr a) = putTag ArrT <> putFoldable (putValue v) a
 putBLit _ (Map _) = exn [] "putBLit: impossible Map"
-{-# SPECIALIZE putBLit :: Version -> BLit Reference -> BPut.Put #-}
-{-# SPECIALIZE putBLit :: Version -> BLit Reference -> SPut.Put #-}
 
 -- special function for serializing a list of pairs as a Unison map.
 -- This allows us to avoid inflating the map to a unison value during
@@ -487,30 +478,24 @@ putBLit _ (Map _) = exn [] "putBLit: impossible Map"
 -- will get an invalid map. However, you might also just receive an
 -- invalid serialized map.
 putAsMap ::
-  (MonadPut m) => Version -> [(Value Reference, Value Reference)] -> m ()
+  Version -> [(Value Reference, Value Reference)] -> Builder
 putAsMap v = putter . fromDistinctAscList
   where
     putter Tip =
       putTag DataT
-        *> putReference mapRef
-        *> putWord64be mapTip
-        *> putLength (0 :: Int) -- subfields
+        <> putReference mapRef
+        <> BU.word64BE mapTip
+        <> putLength (0 :: Int) -- subfields
     putter (Bin sz k e l r) =
       putTag DataT
-        *> putReference mapRef
-        *> putWord64be mapBin
-        *> putLength (5 :: Int)
-        *> putValue v (BLit . Pos $ fromIntegral sz)
-        *> putValue v k
-        *> putValue v e
-        *> putter l
-        *> putter r
-{-# SPECIALIZE putAsMap ::
-  Version -> [(Value Reference, Value Reference)] -> BPut.Put
-  #-}
-{-# SPECIALIZE putAsMap ::
-  Version -> [(Value Reference, Value Reference)] -> SPut.Put
-  #-}
+        <> putReference mapRef
+        <> BU.word64BE mapBin
+        <> putLength (5 :: Int)
+        <> putValue v (BLit . Pos $ fromIntegral sz)
+        <> putValue v k
+        <> putValue v e
+        <> putter l
+        <> putter r
 
 getBLit :: (MonadGet m, SerialConfig m) => m (BLit Reference)
 getBLit =
@@ -534,47 +519,46 @@ getBLit =
 {-# SPECIALIZE getBLit :: BDeserial (BLit Reference) #-}
 {-# SPECIALIZE getBLit :: SDeserial (BLit Reference) #-}
 
-putRefs :: (MonadPut m) => [Reference] -> m ()
+putRefs :: [Reference] -> Builder
 putRefs rs = putFoldable putReference rs
 
 getRefs :: (MonadGet m) => m [Reference]
 getRefs = getList getReference
 
 putBranches ::
-  (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
   [v] ->
   Branched Reference (ANormal Reference v) ->
-  m ()
+  Builder
 putBranches refrep fops ctx bs = case bs of
   MatchEmpty -> putTag MEmptyT
-  MatchIntegral m df -> do
+  MatchIntegral m df ->
     putTag MIntT
-    putEnumMap putWord64be (putNormal refrep fops ctx) m
-    putMaybe df $ putNormal refrep fops ctx
-  MatchText m df -> do
+      <> putEnumMap BU.word64BE (putNormal refrep fops ctx) m
+      <> putMaybe df (putNormal refrep fops ctx)
+  MatchText m df ->
     putTag MTextT
-    putMap (putText . Util.Text.toText) (putNormal refrep fops ctx) m
-    putMaybe df $ putNormal refrep fops ctx
-  MatchRequest m (TAbs v df) -> do
+      <> putMap (putText . Util.Text.toText) (putNormal refrep fops ctx) m
+      <> putMaybe df (putNormal refrep fops ctx)
+  MatchRequest m (TAbs v df) ->
     putTag MReqT
-    putMapping putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
-    putNormal refrep fops (v : ctx) df
-  MatchData r m df -> do
+      <> putMapping putReference (putEnumMap putCTag (putCase refrep fops ctx)) m
+      <> putNormal refrep fops (v : ctx) df
+  MatchData r m df ->
     putTag MDataT
-    putReference r
-    putEnumMap putCTag (putCase refrep fops ctx) m
-    putMaybe df $ putNormal refrep fops ctx
-  MatchSum m -> do
+      <> putReference r
+      <> putEnumMap putCTag (putCase refrep fops ctx) m
+      <> putMaybe df (putNormal refrep fops ctx)
+  MatchSum m ->
     putTag MSumT
-    putEnumMap putWord64be (putCase refrep fops ctx) m
-  MatchNumeric r m df -> do
+      <> putEnumMap BU.word64BE (putCase refrep fops ctx) m
+  MatchNumeric r m df ->
     putTag MNumT
-    putReference r
-    putEnumMap putWord64be (putNormal refrep fops ctx) m
-    putMaybe df $ putNormal refrep fops ctx
+      <> putReference r
+      <> putEnumMap BU.word64BE (putNormal refrep fops ctx) m
+      <> putMaybe df (putNormal refrep fops ctx)
   _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
@@ -614,15 +598,14 @@ getBranches ctx frsh0 =
         <*> getMaybe (getNormal ctx frsh0)
 
 putCase ::
-  (MonadPut m) =>
   (Var v) =>
   Map Reference Word64 ->
   Bool ->
   [v] ->
   ([Mem], ANormal Reference v) ->
-  m ()
+  Builder
 putCase refrep fops ctx (ccs, (TAbss us e)) =
-  putCCs ccs *> putNormal refrep fops (pushCtx us ctx) e
+  putCCs ccs <> putNormal refrep fops (pushCtx us ctx) e
 
 getCase ::
   (MonadGet m) =>
@@ -638,15 +621,15 @@ getCase ctx frsh0 = do
       us = getFresh <$> take l [frsh0 ..]
   (,) ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
 
-putCTag :: (MonadPut m) => CTag -> m ()
-putCTag c = serialize (VarInt $ fromEnum c)
+putCTag :: CTag -> Builder
+putCTag c = putVarInt $ fromEnum c
 
 getCTag :: (MonadGet m) => m CTag
 getCTag = toEnum . unVarInt <$> deserialize
 
-putGroupRef :: (MonadPut m) => GroupRef Reference -> m ()
+putGroupRef :: GroupRef Reference -> Builder
 putGroupRef (GR r i) =
-  putReference r *> putWord64be i
+  putReference r <> BU.word64BE i
 
 getGroupRef :: (MonadGet m) => m (GroupRef Reference)
 getGroupRef = GR <$> getReference <*> getWord64be
@@ -672,25 +655,23 @@ getGroupRef = GR <$> getReference <*> getWord64be
 --
 -- So, unboxed data is completely absent from the format. We are now
 -- exchanging unison surface values, effectively.
-putValue :: (MonadPut m) => Version -> Value Reference -> m ()
+putValue :: Version -> Value Reference -> Builder
 putValue v (Partial gr vs) =
   putTag PartialT
-    *> putGroupRef gr
-    *> putFoldable (putValue v) vs
+    <> putGroupRef gr
+    <> putFoldable (putValue v) vs
 putValue v (Data r t vs) =
   putTag DataT
-    *> putReference r
-    *> putWord64be t
-    *> putFoldable (putValue v) vs
+    <> putReference r
+    <> BU.word64BE t
+    <> putFoldable (putValue v) vs
 putValue v (Cont bs k) =
   putTag ContT
-    *> putFoldable (putValue v) bs
-    *> putCont v k
+    <> putFoldable (putValue v) bs
+    <> putCont v k
 putValue v (BLit (Map l)) = putAsMap v l
 putValue v (BLit l) =
-  putTag BLitT *> putBLit v l
-{-# SPECIALIZE putValue :: Version -> Value Reference -> BPut.Put #-}
-{-# SPECIALIZE putValue :: Version -> Value Reference -> SPut.Put #-}
+  putTag BLitT <> putBLit v l
 
 getValue :: (MonadGet m, SerialConfig m) => m (Value Reference)
 getValue =
@@ -739,22 +720,20 @@ getValue =
 {-# SPECIALIZE getValue :: BDeserial (Value Reference) #-}
 {-# SPECIALIZE getValue :: SDeserial (Value Reference) #-}
 
-putCont :: (MonadPut m) => Version -> Cont Reference -> m ()
+putCont :: Version -> Cont Reference -> Builder
 putCont _ KE = putTag KET
 putCont v (Mark a rs ds k) =
   putTag MarkT
-    *> putWord64be a
-    *> putFoldable putReference rs
-    *> putMapping putReference (putValue v) ds
-    *> putCont v k
+    <> BU.word64BE a
+    <> putFoldable putReference rs
+    <> putMapping putReference (putValue v) ds
+    <> putCont v k
 putCont v (Push f n gr k) =
   putTag PushT
-    *> putWord64be f
-    *> putWord64be n
-    *> putGroupRef gr
-    *> putCont v k
-{-# SPECIALIZE putCont :: Version -> Cont Reference -> BPut.Put #-}
-{-# SPECIALIZE putCont :: Version -> Cont Reference -> SPut.Put #-}
+    <> BU.word64BE f
+    <> BU.word64BE n
+    <> putGroupRef gr
+    <> putCont v k
 
 getCont :: (MonadGet m, SerialConfig m) => m (Cont Reference)
 getCont =
@@ -814,20 +793,20 @@ deserializeCode bs = runGetS go bs
 -- allowed to be serialized. For interchange, this should be False.
 serializeCode :: Bool -> Referenced Code -> ByteString
 serializeCode fops (dereference -> co) =
-  runPutS (putVersion *> putCode fops co)
+  L.toStrict . BU.toLazyByteString $ putVersion <> putCode fops co
   where
-    putVersion = putWord32be codeVersion
+    putVersion = BU.word32BE codeVersion
 
 serializeCodeWithVersion ::
   Word64 -> Bool -> Referenced Code -> IO (Either String L.ByteString)
 serializeCodeWithVersion v fops rco
   | v == 4 =
       enreference rco >>= \(tys, tms, co) ->
-        pure . Right . runPutL $
-          putWord32be 4 *> CodeV4.putCodeWithHeader tys tms fops co
+        pure . Right . BU.toLazyByteString $
+          BU.word32BE 4 <> CodeV4.putCodeWithHeader tys tms fops co
   | v == 3 =
-      pure . Right . runPutL $
-        putWord32be 3 *> putCode fops (dereference rco)
+      pure . Right . BU.toLazyByteString $
+        BU.word32BE 3 <> putCode fops (dereference rco)
   | otherwise =
       pure . Left $ "unsupported code serialization version: " ++ show v
   where
@@ -863,7 +842,7 @@ serializeGroupForRehash ::
 serializeGroupForRehash (Builtin _) _ =
   error "serializeForRehash: builtin reference"
 serializeGroupForRehash (Derived h _) sg =
-  runPutLazy $ putGroup refrep False sg
+  BU.toLazyByteString $ putGroup refrep False sg
   where
     f r@(Derived h' i) | h == h' = Just (r, i)
     f _ = Nothing
@@ -888,9 +867,10 @@ deserializeValue bs = bimap thd thd $ runGetOrFail getVersionedValue bs
 
 serializeValue :: Referenced Value -> ByteString
 serializeValue (dereference -> v) =
-  runPutS (putVersion *> putValue (Transfer valueVersion) v)
+  L.toStrict . BU.toLazyByteString $
+    putVersion <> putValue (Transfer valueVersion) v
   where
-    putVersion = putWord32be valueVersion
+    putVersion = BU.word32BE valueVersion
 
 serializeValueWithVersion ::
   Word64 -> Referenced Value -> IO L.ByteString
@@ -903,15 +883,14 @@ serializeValueWithVersion v rval
         v5ser (toList tys) (toList tms) x
   | v < 5,
     n <- fromIntegral v =
-      pure . runPutL $
-        putWord32be n
-          *> putValue (Transfer n) (dereference rval)
+      pure . BU.toLazyByteString $
+        BU.word32BE n
+          <> putValue (Transfer n) (dereference rval)
   | otherwise =
       die [] $ "Value.serialize.versioned: unrecognized version: " ++ show v
   where
     v5ser tys tms x =
-      pure . runPutL $
-        putWord32be 5 *> ValueV5.putValueWithHeader tys tms x
+      pure $ ValueV5.versionedValueBytes tys tms x
 
 -- This serializer is used exclusively for hashing unison values.
 -- For this reason, it doesn't prefix the string with the current
@@ -927,9 +906,10 @@ serializeValueWithVersion v rval
 -- becomes a separate format, because there is no need to parse from
 -- the hash serialization, just generate and hash it.
 serializeValueForHash :: Value Reference -> L.ByteString
-serializeValueForHash v = runPutLazy (putPrefix *> putValue (Hash 4) v)
+serializeValueForHash v =
+  BU.toLazyByteString (putPrefix <> putValue (Hash 4) v)
   where
-    putPrefix = putWord32be 4
+    putPrefix = BU.word32BE 4
 
 -- Gets a SuperGroup with the current code version. Used for
 -- interpreter state serialization in U.R.Interface.

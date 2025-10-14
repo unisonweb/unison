@@ -27,11 +27,13 @@ module Unison.Runtime.Array
     readPrimArray,
     writePrimArray,
     indexPrimArray,
+    byteArrayToShortByteString,
   )
 where
 
 import Control.Exception (evaluate)
 import Control.Monad.Primitive
+import Data.ByteString.Short
 import Data.Kind (Constraint)
 import Data.Primitive.Array as EPA hiding
   ( cloneMutableArray,
@@ -430,6 +432,7 @@ indexPrimArray = checkIPArray "indexPrimArray" PA.indexPrimArray
 byteArrayToList :: ByteArray -> [Word8]
 byteArrayToList = toList
 
+
 traverseArrayIO :: (a -> IO b) -> Array a -> IO (Array b)
 traverseArrayIO f src = do
   dst <- newArray sz (error "traverseArray: impossible")
@@ -442,3 +445,7 @@ traverseArrayIO f src = do
   where
     sz = sizeofArray src
 {-# INLINE traverseArrayIO #-}
+
+byteArrayToShortByteString :: ByteArray -> ShortByteString
+byteArrayToShortByteString (ByteArray ba) = SBS ba
+
