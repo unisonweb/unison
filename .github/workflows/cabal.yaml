@@ -16,7 +16,7 @@ on:
   # Run on the post-merge result of every push to a PR that changes one of the relevant build files.
   pull_request_target:
     paths:
-      - '.github/workflows/cabal.yaml'
+      - '**/.github/workflows/cabal.yaml'
       - '**.cabal'
       - '**/cabal.project*'
       # stack.yaml is included, because if it changed, it indicates that cabal.project probably needs to change.
