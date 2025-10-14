@@ -58,8 +58,9 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}
+          key: cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}-${{ hashFiles('**/cabal.project', '**/*.cabal') }}
           restore-keys: |
+            cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}
             cabal-freeze
 
       # --only-configure skips some build steps, but should ensure all dependencies are correct.
