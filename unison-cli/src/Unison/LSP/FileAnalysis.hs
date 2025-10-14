@@ -17,6 +17,7 @@ import Control.Lens
 import Control.Monad.Reader
 import Crypto.Random qualified as Random
 import Data.Align (alignWith)
+import Data.Align qualified as Align
 import Data.Foldable
 import Data.Foldable qualified as Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
@@ -158,6 +159,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
+  let documentSymbols = fromMaybe mempty (mkDocumentSymbols <$> parsedFile <*> typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
   let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
@@ -181,7 +183,8 @@ checkFileContents fileUri sourceName fileVersion contents = do
             parsedFile,
             typecheckedFile,
             notes,
-            localBindingInfo
+            localBindingInfo,
+            documentSymbols
           }
   pure fileAnalysis
 
@@ -537,3 +540,47 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
                 pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
             )
    in typeHints
+
+-- | Get info on the top-level symbols in the file.
+mkDocumentSymbols :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> [UDocumentSymbol]
+mkDocumentSymbols parsedFile typecheckedFile =
+  let alignTerms = \case
+        This (ann, _trm) -> (ann, Nothing)
+        That (ann, _ref, _wk, _trm, typ) -> (ann, Just typ)
+        These _ (ann, _ref, _wk, _trm, typ) -> (ann, Just typ)
+      termSymbols :: [UDocumentSymbol]
+      termSymbols =
+        Align.alignWith alignTerms parsedFile.terms typecheckedFile.hashTermsId
+          & Map.toList
+          & mapMaybe \(v, (ann, mayTyp)) -> do
+            name <- Name.parseText (Var.name v)
+            range <- annToRange ann
+            let children = []
+            pure $ UDocumentSymbol name mayTyp TermSymbol range children
+      declSymbols :: [UDocumentSymbol]
+      declSymbols =
+        parsedFile.dataDeclarationsId
+          & Map.toList
+          & mapMaybe \(v, (_ref, decl)) -> do
+            name <- Name.parseText (Var.name v)
+            range <- annToRange (DD.annotation decl)
+            let children = declChildren decl
+            pure $ UDocumentSymbol name Nothing DataDeclSymbol range children
+      effectSymbols :: [UDocumentSymbol]
+      effectSymbols =
+        parsedFile.effectDeclarationsId
+          & Map.toList
+          & mapMaybe \(v, (_ref, eff)) -> do
+            let decl = DD.toDataDecl eff
+            name <- Name.parseText (Var.name v)
+            range <- annToRange (DD.annotation decl)
+            let children = declChildren decl
+            pure $ UDocumentSymbol name Nothing EffectDeclSymbol range children
+   in termSymbols <> declSymbols <> effectSymbols
+  where
+    declChildren :: DD.DataDeclaration Symbol Ann -> [UDocumentSymbol]
+    declChildren decl = do
+      (ann, sym, typ) <- DD.constructors' decl
+      name <- maybeToList $ Name.parseText (Var.name sym)
+      range <- maybeToList $ annToRange ann
+      pure $ UDocumentSymbol name (Just typ) TermSymbol range []
