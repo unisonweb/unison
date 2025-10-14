@@ -60,11 +60,11 @@ import Unison.Runtime.ANF as ANF
     PackedTag (..),
     SuperGroup,
     codeGroup,
+    collectValueLinks,
     foldGroup,
     foldGroupLinks,
     maskTags,
     packTags,
-    collectValueLinks,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
@@ -1671,11 +1671,10 @@ reflectValue0 rty rtm = goV0
             r <- resolveTy rty $ TT.typeTag t
             u <- goV u
             v <- goV v
-            pure $ ANF.Data r (maskTags t) [u,v]
+            pure $ ANF.Data r (maskTags t) [u, v]
           DataG _ t seg -> do
             r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> goVs seg
-
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
@@ -1743,8 +1742,9 @@ reifyValue cc val = do
           tma = arrayFromList tms
           (tyns, tmns) = collectValueLinks v
           travSet f = fmap S.fromList . traverse f . S.toList
-      (,) <$> travSet (ixArr "reifyValue: type" tya) tyns
-          <*> travSet (ixArr "reifyValue: term" tma) tmns
+      (,)
+        <$> travSet (ixArr "reifyValue: type" tya) tyns
+        <*> travSet (ixArr "reifyValue: term" tma) tmns
   erc <-
     atomically $ do
       combs <- readTVar (combs cc)

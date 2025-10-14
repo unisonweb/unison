@@ -531,7 +531,9 @@ formDataSeg r t (usg, bsg) = case sizeofArray bsg of
   0 -> Enum r t
   1 -> Data1 r t (Val (indexByteArray usg 0) (indexArray bsg 0))
   2 ->
-    Data2 r t
+    Data2
+      r
+      t
       (Val (indexByteArray usg 1) (indexArray bsg 1))
       (Val (indexByteArray usg 0) (indexArray bsg 0))
   _ -> DataG r t (usg, bsg)
@@ -544,7 +546,8 @@ formDataReplaced r t sg@(usg, bsg)
       0 -> tipClosure
       _ -> error "formDataReplaced: bad `Map`"
   | t == TT.mapBinTag = case sizeofArray bsg of
-      5 | !bk <- indexArray bsg 3,
+      5
+        | !bk <- indexArray bsg 3,
           !uk <- indexByteArray usg 3,
           !bv <- indexArray bsg 2,
           !uv <- indexByteArray usg 2,
@@ -693,12 +696,12 @@ traverseListToSeg f src = do
         udst <- unsafeFreezeByteArray udst
         bdst <- unsafeFreezeArray bdst
         pure (udst, bdst)
-      fill i (x:xs) = do
+      fill i (x : xs) = do
         Val un bx <- f x
         writeByteArray udst i un
         writeArray bdst i bx
-        fill (i-1) xs
-  fill (sz-1) src
+        fill (i - 1) xs
+  fill (sz - 1) src
   where
     sz = length src
 {-# INLINE traverseListToSeg #-}
@@ -720,7 +723,7 @@ traverseAccumSegToList f (usrc, bsrc) = StateT \s -> go s [] 0
           bx <- indexArrayM bsrc i
           (x, s) <- runStateT (f (Val un bx)) s
           x <- evaluate x
-          go s (x:xs) (i+1)
+          go s (x : xs) (i + 1)
       | otherwise = pure (xs, s)
 {-# INLINE traverseAccumSegToList #-}
 

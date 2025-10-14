@@ -432,14 +432,13 @@ indexPrimArray = checkIPArray "indexPrimArray" PA.indexPrimArray
 byteArrayToList :: ByteArray -> [Word8]
 byteArrayToList = toList
 
-
 traverseArrayIO :: (a -> IO b) -> Array a -> IO (Array b)
 traverseArrayIO f src = do
   dst <- newArray sz (error "traverseArray: impossible")
   let fill i
         | i < sz = do
             PA.writeArray dst i =<< evaluate =<< f =<< indexArrayM src i
-            fill (i+1)
+            fill (i + 1)
         | otherwise = unsafeFreezeArray dst
   fill 0
   where
@@ -448,4 +447,3 @@ traverseArrayIO f src = do
 
 byteArrayToShortByteString :: ByteArray -> ShortByteString
 byteArrayToShortByteString (ByteArray ba) = SBS ba
-
