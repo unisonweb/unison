@@ -176,7 +176,7 @@ handleUpdate2 = do
                               & Branch.setLibdeps (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentBranch0)
                               & (`Branch.cons` currentBranch)
 
-                      if pp.branch.isUpdate || pp.branch.isUpgrade
+                      if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge
                         then do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                           scratchFilePath <- fst <$> Cli.expectLatestFile
@@ -226,9 +226,9 @@ handleUpdate2 = do
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
 
-        -- Special case: we are running a successful `update` on an update/upgrade branch that has a parent (such
+        -- Special case: we are running a successful `update` on a merge/update/upgrade branch that has a parent (such
         -- branches won't have a parent only if the parent has been deleted for some reason).
-        case (pp.branch.isUpdate || pp.branch.isUpgrade, pp.branch.parentBranchId) of
+        case (pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge, pp.branch.parentBranchId) of
           (True, Just parentBranchId) -> do
             -- Switch to the parent branch
             parentBranch <-
@@ -236,7 +236,7 @@ handleUpdate2 = do
                 Queries.expectProjectBranch projectId parentBranchId
             Cli.switchProject (ProjectAndBranch projectId parentBranch.branchId)
 
-            -- Merge the update branch into the parent branch. This isn't guaranteed to succeed, but it probably will.
+            -- Merge into the parent branch. This isn't guaranteed to succeed, but it probably will.
 
             Merge.doMergeLocalBranch
               Merge.TwoWay
@@ -244,10 +244,9 @@ handleUpdate2 = do
                   bob = ProjectAndBranch pp.project pp.branch
                 }
 
-            -- If the merge succeeded, delete the current (update or upgrade) branch. We may want to try to delete it
-            -- even if the merge fails, because otherwise the user will have to manually clean it up, which isn't as
-            -- nice as a successful `update` on an update branch. However, it's very likely that the merge is simply a
-            -- fast-forward.
+            -- If the merge succeeded, delete the current branch. We may want to try to delete it even if the merge
+            -- fails, because otherwise the user will have to manually clean it up, which isn't as nice as a successful
+            -- `update` on an update branch. However, it's very likely that the merge is simply a fast-forward.
 
             DeleteBranch.doDeleteProjectBranch (ProjectAndBranch pp.project pp.branch)
           _ -> pure ()

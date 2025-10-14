@@ -245,7 +245,7 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can

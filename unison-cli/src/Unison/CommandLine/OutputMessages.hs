@@ -2079,7 +2079,7 @@ notifyUser dir issueFn = \case
           "",
           P.wrap "When you're done, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
           "",
           P.wrap $
             "to merge your changes back into"
@@ -2108,7 +2108,7 @@ notifyUser dir issueFn = \case
               "",
               P.wrap "When you're done, you can run",
               "",
-              P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+              P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
               "",
               P.wrap $
                 "to merge your changes back into"
