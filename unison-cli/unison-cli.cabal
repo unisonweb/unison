@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -134,6 +134,7 @@ library
       Unison.LSP.Configuration
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
+      Unison.LSP.DocumentSymbols
       Unison.LSP.FileAnalysis
       Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange

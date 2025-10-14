@@ -159,7 +159,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
-  let documentSymbols = fromMaybe mempty (mkDocumentSymbols <$> parsedFile <*> typecheckedFile)
+  let documentSymbols = fromMaybe mempty (mkDocumentSymbols <$> parsedFile <*> pure typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
   let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
@@ -542,7 +542,7 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
    in typeHints
 
 -- | Get info on the top-level symbols in the file.
-mkDocumentSymbols :: UF.UnisonFile Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> [UDocumentSymbol]
+mkDocumentSymbols :: UF.UnisonFile Symbol Ann -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> [UDocumentSymbol]
 mkDocumentSymbols parsedFile typecheckedFile =
   let alignTerms = \case
         This (ann, _trm) -> (ann, Nothing)
@@ -550,7 +550,7 @@ mkDocumentSymbols parsedFile typecheckedFile =
         These _ (ann, _ref, _wk, _trm, typ) -> (ann, Just typ)
       termSymbols :: [UDocumentSymbol]
       termSymbols =
-        Align.alignWith alignTerms parsedFile.terms typecheckedFile.hashTermsId
+        Align.alignWith alignTerms parsedFile.terms (maybe mempty UF.hashTermsId typecheckedFile)
           & Map.toList
           & mapMaybe \(v, (ann, mayTyp)) -> do
             name <- Name.parseText (Var.name v)
