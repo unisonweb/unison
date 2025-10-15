@@ -18,6 +18,12 @@ newtype CausalHash = CausalHash {unCausalHash :: Hash}
 newtype PatchHash = PatchHash {unPatchHash :: Hash}
   deriving stock (Eq, Ord)
 
+newtype CommentHash = CommentHash {unCommentHash :: Hash}
+  deriving stock (Eq, Ord)
+
+newtype CommentRevisionHash = CommentRevisionHash {unCommentRevisionHash :: Hash}
+  deriving stock (Eq, Ord)
+
 instance Show ComponentHash where
   show h = "ComponentHash (" ++ show (unComponentHash h) ++ ")"
 
@@ -29,6 +35,12 @@ instance Show CausalHash where
 
 instance Show PatchHash where
   show h = "PatchHash (" ++ show (unPatchHash h) ++ ")"
+
+instance Show CommentHash where
+  show h = "CommentHash (" ++ show (unCommentHash h) ++ ")"
+
+instance Show CommentRevisionHash where
+  show h = "CommentRevisionHash (" ++ show (unCommentRevisionHash h) ++ ")"
 
 instance From ComponentHash Text where
   from = from @Hash @Text . unComponentHash
@@ -42,6 +54,12 @@ instance From CausalHash Text where
 instance From PatchHash Text where
   from = from @Hash @Text . unPatchHash
 
+instance From CommentHash Text where
+  from = from @Hash @Text . unCommentHash
+
+instance From CommentRevisionHash Text where
+  from = from @Hash @Text . unCommentRevisionHash
+
 instance From ComponentHash Hash
 
 instance From BranchHash Hash
@@ -50,6 +68,10 @@ instance From CausalHash Hash
 
 instance From PatchHash Hash
 
+instance From CommentHash Hash
+
+instance From CommentRevisionHash Hash
+
 instance From Hash ComponentHash
 
 instance From Hash BranchHash
@@ -57,6 +79,10 @@ instance From Hash BranchHash
 instance From Hash CausalHash
 
 instance From Hash PatchHash
+
+instance From Hash CommentHash
+
+instance From Hash CommentRevisionHash
 
 instance From ComponentHash Hash32 where
   from = from @Hash @Hash32 . unComponentHash
@@ -81,3 +107,9 @@ instance From Hash32 CausalHash where
 
 instance From Hash32 PatchHash where
   from = PatchHash . from @Hash32 @Hash
+
+instance From CommentHash Hash32 where
+  from = from @Hash @Hash32 . unCommentHash
+
+instance From CommentRevisionHash Hash32 where
+  from = from @Hash @Hash32 . unCommentRevisionHash

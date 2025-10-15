@@ -12,6 +12,7 @@ module Unison.Auth.PersonalKey
     encodePrivateKey,
     PersonalPublicKey,
     generatePersonalKey,
+    personalKeyThumbprint,
   )
 where
 
@@ -22,15 +23,26 @@ import Data.Aeson (ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (Value)
 import Data.ByteArray qualified as ByteArray
-import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as Base64URL
 import Data.Text.Encoding qualified as Text
+import Unison.KeyThumbprint (KeyThumbprint (..))
 import Unison.Prelude
 
 -- | A JWK representing a personal key
 newtype PersonalPrivateKey = PersonalPrivateKey {_personalPrivateKeyJWK :: JWK}
   deriving stock (Eq)
   deriving newtype (Aeson.FromJSON)
+
+personalKeyThumbprint :: PersonalPrivateKey -> KeyThumbprint
+personalKeyThumbprint (PersonalPrivateKey jwk) = jwkThumbprint jwk
+
+jwkThumbprint :: JWK.JWK -> KeyThumbprint
+jwkThumbprint jwk =
+  jwk ^. JWK.thumbprint @JWK.SHA256
+    & ByteArray.convert
+    & Base64URL.encodeUnpadded
+    & Text.decodeUtf8
+    & KeyThumbprint
 
 -- | Encode the private JWK.
 --
@@ -53,13 +65,5 @@ generatePersonalKey = liftIO $ do
   genJWK @IO (OKPGenParam Ed25519)
     <&> JWK.jwkUse .~ Just JWK.Sig
     <&> JWK.jwkAlg .~ Just (JWK.JWSAlg JWS.EdDSA)
-    <&> (\j -> j & JWK.jwkKid .~ Just (jwkThumbprint j))
+    <&> (\j -> j & JWK.jwkKid .~ Just (thumbprintToText $ jwkThumbprint j))
     <&> PersonalPrivateKey
-  where
-    jwkThumbprint :: JWK.JWK -> Text
-    jwkThumbprint jwk =
-      jwk ^. JWK.thumbprint @JWK.SHA256
-        & ByteArray.unpack
-        & BS.pack
-        & Base64URL.encodeUnpadded
-        & Text.decodeUtf8

@@ -51,7 +51,6 @@ library
       U.Codebase.Sqlite.Decode
       U.Codebase.Sqlite.Entity
       U.Codebase.Sqlite.HashHandle
-      U.Codebase.Sqlite.HistoryComment
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType
