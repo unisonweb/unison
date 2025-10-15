@@ -1,7 +1,15 @@
 module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) where
 
+import BLAKE3 qualified
+import Data.ByteArray.Sized (SizedByteArray)
+import Data.ByteArray.Sized qualified as SBA
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX qualified as Time
 import Text.RawString.QQ (r)
 import U.Codebase.Config qualified as Config
 import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
@@ -16,11 +24,42 @@ import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.Hash (Hash)
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2 (ContentAddressable (..))
+import Unison.HistoryComment (HistoryComment (..))
+import Unison.KeyThumbprint (KeyThumbprint (unThumbprint))
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Environment qualified as Env
 import UnliftIO.Process qualified as Proc
+
+instance ContentAddressable (HistoryComment UTCTime KeyThumbprint CausalHash CommentHash) where
+  contentHash HistoryComment {author, subject, content, causal, authorThumbprint, createdAt, commentId} =
+    let commentHash :: SizedByteArray BLAKE3.DEFAULT_DIGEST_LEN ByteString
+        commentHash =
+          BLAKE3.hash
+            Nothing
+            [ BL.toStrict . Builder.toLazyByteString $ Builder.int32BE commentHashingVersion,
+              Hash.toByteString (into @Hash causal),
+              Text.encodeUtf8 $ unThumbprint authorThumbprint,
+              Hash.toByteString (into @Hash commentId),
+              Text.encodeUtf8 author,
+              Text.encodeUtf8 subject,
+              Text.encodeUtf8 content,
+              -- Encode UTCTime as a UTC 8601 seconds since epoch
+              createdAt
+                & Time.utcTimeToPOSIXSeconds
+                & floor
+                & Builder.int64BE
+                & Builder.toLazyByteString
+                & BL.toStrict
+            ]
+     in Hash.fromByteString . SBA.unSizedByteArray $ commentHash
+    where
+      commentHashingVersion :: Int32
+      commentHashingVersion = 1
 
 handleHistoryComment :: Maybe BranchId2 -> Maybe Text -> Cli ()
 handleHistoryComment mayThingToAnnotate mayMessage = do
