@@ -5,13 +5,16 @@ module Unison.Auth.CredentialManager
     CredentialManager,
     newCredentialManager,
     getCredentials,
+    getOrCreatePersonalKey,
     isExpired,
   )
 where
 
 import Control.Monad.Trans.Except
+import Data.Map qualified as Map
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Unison.Auth.CredentialFile
+import Unison.Auth.PersonalKey (PersonalPrivateKey, generatePersonalKey)
 import Unison.Auth.Types
 import Unison.Prelude
 import Unison.Share.Types (CodeserverId)
@@ -23,6 +26,19 @@ import UnliftIO qualified
 -- the credentials file, however this shouldn't pose any problems, since auth will still
 -- be refreshed if we encounter any auth failures on requests.
 newtype CredentialManager = CredentialManager (UnliftIO.MVar Credentials)
+
+-- | Fetches the user's personal key from the active profile, if it exists.
+-- Otherwise it creates a new personal key, saves it to the active profile, and returns it.
+getOrCreatePersonalKey :: (MonadUnliftIO m) => CredentialManager -> m PersonalPrivateKey
+getOrCreatePersonalKey credMan@(CredentialManager credsVar) = do
+  Credentials {activeProfile, personalKeys} <- liftIO (UnliftIO.readMVar credsVar)
+  case Map.lookup activeProfile personalKeys of
+    Just pk -> pure pk
+    Nothing -> do
+      pk <- generatePersonalKey
+      _ <- modifyCredentials credMan $ \creds ->
+        creds {personalKeys = Map.insert activeProfile pk creds.personalKeys}
+      pure pk
 
 -- | Saves credentials to the active profile.
 saveCredentials :: (UnliftIO.MonadUnliftIO m) => CredentialManager -> CodeserverId -> CodeserverCredentials -> m ()

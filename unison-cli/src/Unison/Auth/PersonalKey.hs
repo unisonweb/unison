@@ -9,6 +9,7 @@
 
 module Unison.Auth.PersonalKey
   ( PersonalPrivateKey,
+    encodePrivateKey,
     PersonalPublicKey,
     generatePersonalKey,
   )
@@ -18,6 +19,8 @@ import Crypto.JOSE.JWK (JWK, KeyMaterialGenParam (OKPGenParam), OKPCrv (Ed25519)
 import Crypto.JOSE.JWK qualified as JWK
 import Crypto.JOSE.JWS qualified as JWS
 import Data.Aeson (ToJSON)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types (Value)
 import Data.ByteArray qualified as ByteArray
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64.URL qualified as Base64URL
@@ -25,17 +28,28 @@ import Data.Text.Encoding qualified as Text
 import Unison.Prelude
 
 -- | A JWK representing a personal key
-newtype PersonalPrivateKey = PersonalPrivateKey {personalPrivateKeyJWK :: JWK}
+newtype PersonalPrivateKey = PersonalPrivateKey {_personalPrivateKeyJWK :: JWK}
+  deriving stock (Eq)
+  deriving newtype (Aeson.FromJSON)
 
-publicKey :: PersonalPrivateKey -> PersonalPublicKey
-publicKey (PersonalPrivateKey jwk) = PersonalPublicKey (jwk ^. JWK.asPublicKey)
+-- | Encode the private JWK.
+--
+-- I left off a ToJSON instance because I want to be explicit about when
+-- we're encoding the private key.
+encodePrivateKey :: PersonalPrivateKey -> Value
+encodePrivateKey (PersonalPrivateKey jwk) = Aeson.toJSON jwk
 
-newtype PersonalPublicKey = PersonalPublicKey {personalPublicKeyJWK :: JWK}
+_publicKey :: PersonalPrivateKey -> PersonalPublicKey
+_publicKey (PersonalPrivateKey jwk) = case (jwk ^. JWK.asPublicKey) of
+  Just public -> PersonalPublicKey public
+  Nothing -> error "publicKey: Failed to extract public key from private key. This should never happen."
+
+newtype PersonalPublicKey = PersonalPublicKey {_personalPublicKeyJWK :: JWK}
   deriving newtype (ToJSON)
 
 -- Generate a single Ed25519 JWK
-generatePersonalKey :: IO PersonalPrivateKey
-generatePersonalKey = do
+generatePersonalKey :: (MonadIO m) => m PersonalPrivateKey
+generatePersonalKey = liftIO $ do
   genJWK @IO (OKPGenParam Ed25519)
     <&> JWK.jwkUse .~ Just JWK.Sig
     <&> JWK.jwkAlg .~ Just (JWK.JWSAlg JWS.EdDSA)
