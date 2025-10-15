@@ -19,8 +19,8 @@ import UnliftIO.Directory (findExecutable)
 import UnliftIO.Environment qualified as Env
 import UnliftIO.Process qualified as Proc
 
-handleAnnotate :: Maybe BranchId2 -> Maybe Text -> Cli ()
-handleAnnotate mayThingToAnnotate mayMsg = do
+handleAnnotate :: Maybe BranchId2 -> Cli ()
+handleAnnotate mayThingToAnnotate = do
   causalHash <- case mayThingToAnnotate of
     Nothing -> do
       Branch.headHash <$> Cli.getCurrentProjectRoot
@@ -43,11 +43,9 @@ handleAnnotate mayThingToAnnotate mayMsg = do
     mayExistingCommentInfo <- Q.getLatestCausalAnnotation causalHashId
     let mayExistingCommentText = snd <$> mayExistingCommentInfo
     pure (causalHashId, mayExistingCommentText)
-
-  mayNewMessage <- case mayMsg of
-    Just newMsg -> pure $ Just newMsg
-    Nothing -> do
-      liftIO (editMessage (((annotationTemplate <>) <$> mayExistingCommentText) <|> Just annotationTemplate))
+  let template = fmap (annotationTemplate <>) mayExistingCommentText
+                   <|> Just annotationTemplate
+  mayNewMessage <- liftIO (editMessage template)
   case mayNewMessage of
     Nothing -> Cli.respond $ AnnotationAborted
     Just newMessage -> do

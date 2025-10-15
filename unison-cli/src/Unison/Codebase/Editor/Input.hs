@@ -164,7 +164,7 @@ data Input
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
   | -- An optional causal hash or branch to annotate.
-    AnnotateI (Maybe BranchId2 {- causal to annotate -}) (Maybe Text {- optional message -})
+    AnnotateI (Maybe BranchId2 {- causal to annotate -})
   | -- execute an IO thunk with args; boolean indicates profiling
     ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute

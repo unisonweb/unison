@@ -300,8 +300,8 @@ loop e = do
           when (not success) (Cli.respond StartOfCurrentPathHistory)
         HistoryI resultsCap diffCap from -> do
           handleHistory resultsCap diffCap from
-        AnnotateI toAnnotate mayMsg -> do
-          handleAnnotate toAnnotate mayMsg
+        AnnotateI toAnnotate -> do
+          handleAnnotate toAnnotate
         UndoI -> do
           rootBranch <- Cli.getCurrentProjectRoot
           (_, prev) <-
@@ -824,9 +824,9 @@ inputDescription input =
     HistoryI {} -> wat
     IOTestAllI -> wat
     IOTestI {} -> wat
-    AnnotateI mayBranchId mayMsg -> do
+    AnnotateI mayBranchId -> do
       hashTxt <- traverse bid2 mayBranchId
-      pure $ "annotate" <> fromMaybe "" hashTxt <> fromMaybe "" mayMsg
+      pure $ "annotate" <> fromMaybe "" hashTxt
     LibInstallI {} -> wat
     LibInstallLocalI {} -> wat
     ListDependenciesI {} -> wat

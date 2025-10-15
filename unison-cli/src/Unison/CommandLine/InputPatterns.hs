@@ -1708,22 +1708,15 @@ annotate =
           ),
           ( makeExample annotate ["/main"],
             "Annotates the current head of the `main` branch."
-          ),
-          ( makeExample annotate ["/main", "\"Fixes bug in List.map\""],
-            "Annotates the current head of the `main` branch with a message."
           )
         ]
     )
     \case
-      [] -> pure $ Input.AnnotateI Nothing Nothing
+      [] -> pure $ Input.AnnotateI Nothing
       [src] -> do
         target <- handleBranchId2Arg src
-        pure $ Input.AnnotateI (Just target) Nothing
-      [src, msg] -> do
-        target <- handleBranchId2Arg src
-        msgText <- Text.pack <$> unsupportedStructuredArgument annotate "a commit message" msg
-        pure $ Input.AnnotateI (Just target) (Just msgText)
-      _ -> wrongArgsLength "at most two arguments" []
+        pure $ Input.AnnotateI (Just target)
+      _ -> wrongArgsLength "at most one argument" []
   where
     config =
       ProjectBranchSuggestionsConfig
