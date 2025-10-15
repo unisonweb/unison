@@ -31,6 +31,7 @@ import Data.Text qualified as Text
 import Data.Time (NominalDiffTime, UTCTime)
 import Network.URI
 import Network.URI qualified as URI
+import Unison.Auth.PersonalKey (PersonalPrivateKey, encodePrivateKey)
 import Unison.Prelude
 import Unison.Share.Types
 
@@ -133,20 +134,23 @@ type ProfileName = Text
 
 data Credentials = Credentials
   { credentials :: Map ProfileName (Map CodeserverId CodeserverCredentials),
+    personalKeys :: Map ProfileName PersonalPrivateKey,
     activeProfile :: ProfileName
   }
   deriving (Eq)
 
 instance Aeson.ToJSON Credentials where
-  toJSON (Credentials credMap activeProfile) =
+  toJSON (Credentials {credentials, personalKeys, activeProfile}) =
     Aeson.object
-      [ "credentials" .= credMap,
+      [ "credentials" .= credentials,
+        "personal_keys" .= (encodePrivateKey <$> personalKeys),
         "active_profile" .= activeProfile
       ]
 
 instance Aeson.FromJSON Credentials where
   parseJSON = Aeson.withObject "Credentials" $ \obj -> do
     credentials <- obj .: "credentials"
+    personalKeys <- obj .: "personal_keys"
     activeProfile <- obj .: "active_profile"
     pure Credentials {..}
 
@@ -207,7 +211,7 @@ instance FromJSON CodeserverCredentials where
         pure $ CodeserverCredentials {..}
 
 emptyCredentials :: Credentials
-emptyCredentials = Credentials mempty defaultProfileName
+emptyCredentials = Credentials mempty mempty defaultProfileName
 
 codeserverCredentials :: URI -> Tokens -> UTCTime -> UserInfo -> CodeserverCredentials
 codeserverCredentials discoveryURI tokens fetchTime userInfo = CodeserverCredentials {discoveryURI, fetchTime, tokens, userInfo}
