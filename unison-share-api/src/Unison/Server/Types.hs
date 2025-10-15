@@ -10,6 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString.Lazy qualified as LZ
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.OpenApi
   ( OpenApiType (..),
@@ -289,8 +290,8 @@ data TypeTag = Ability | Data
 -- Includes special-cases for when the name in a definition has changed but the hash hasn't
 -- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
 data SemanticSyntaxDiff a
-  = OnlyThisSide (Segment a)
-  | Both (Segment a)
+  = OnlyThisSide (NonEmpty (Segment a))
+  | Both (NonEmpty (Segment a))
   | --  (fromSegment, toSegment) (shared annotation)
     SegmentChange (String, String) (Maybe a)
   | -- (shared segment) (fromAnnotation, toAnnotation)

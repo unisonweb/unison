@@ -134,39 +134,32 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "term",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "term",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "term"
                                   },
-                                  "segment": "term"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeAscriptionColon"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeAscriptionColon"
+                                      },
+                                      "segment": " :"
                                   },
-                                  "segment": " :"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Nat"
-                              }
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -175,22 +168,21 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "term",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "term",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "term"
                                   },
-                                  "segment": "term"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
-                                  },
-                                  "segment": " ="
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -199,44 +191,34 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "use "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UsePrefix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UseKeyword"
+                                      },
+                                      "segment": "use "
                                   },
-                                  "segment": "Nat"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UsePrefix"
+                                      },
+                                      "segment": "Nat"
                                   },
-                                  "segment": "+"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": "+"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -245,45 +227,40 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "_",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "_"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": {
+                                          "contents": "_",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "_"
                                   },
-                                  "segment": " ="
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TextLiteral"
-                                  },
-                                  "segment": "\"Here's some text\""
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "TextLiteral"
+                                      },
+                                      "segment": "\"Here's some text\""
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -292,52 +269,44 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "1"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.+",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
                                   },
-                                  "segment": "+"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.+",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "+"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
-                                  },
-                                  "segment": "1"
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -348,39 +317,32 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "term",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "term",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "term"
                                   },
-                                  "segment": "term"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeAscriptionColon"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeAscriptionColon"
+                                      },
+                                      "segment": " :"
                                   },
-                                  "segment": " :"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Nat"
-                              }
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -389,22 +351,21 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "term",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "term",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "term"
                                   },
-                                  "segment": "term"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
-                                  },
-                                  "segment": " ="
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -413,44 +374,34 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "use "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UsePrefix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UseKeyword"
+                                      },
+                                      "segment": "use "
                                   },
-                                  "segment": "Nat"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UsePrefix"
+                                      },
+                                      "segment": "Nat"
                                   },
-                                  "segment": "+"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": "+"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -459,45 +410,40 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "_",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "_"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": {
+                                          "contents": "_",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "_"
                                   },
-                                  "segment": " ="
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TextLiteral"
-                                  },
-                                  "segment": "\"Here's some different text\""
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "TextLiteral"
+                                      },
+                                      "segment": "\"Here's some different text\""
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -506,52 +452,44 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "1"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.+",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
                                   },
-                                  "segment": "+"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.+",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "+"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
-                                  },
-                                  "segment": "2"
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "2"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -899,230 +837,154 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "take",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "take",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "take"
                                   },
-                                  "segment": "take"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeAscriptionColon"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeAscriptionColon"
+                                      },
+                                      "segment": " :"
                                   },
-                                  "segment": " :"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Nat"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeOperator"
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelayForceChar"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "'"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeOperator"
+                                      },
+                                      "segment": "->"
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "g"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "DelayForceChar"
+                                      },
+                                      "segment": "'"
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "t"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeOperator"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "g"
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "}"
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "g"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": ","
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "t"
                                   },
-                                  "segment": "Stream"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "a"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeOperator"
+                                      },
+                                      "segment": "->"
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "Optional"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "g"
                                   },
-                                  "segment": "t"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": ","
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Stream"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "}"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Optional"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "t"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1131,54 +993,41 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "take",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "take",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "take"
                                   },
-                                  "segment": "take"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
                                   },
-                                  "segment": "s"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " ="
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "s"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1187,62 +1036,46 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "use "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UsePrefix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UseKeyword"
+                                      },
+                                      "segment": "use "
                                   },
-                                  "segment": "Nat"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UsePrefix"
+                                      },
+                                      "segment": "Nat"
                                   },
-                                  "segment": "-"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": "-"
                                   },
-                                  "segment": ">"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": ">"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1251,61 +1084,45 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "h",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "h"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "contents": "h",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "h"
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " ="
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
                                   },
-                                  "segment": "cases"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "cases"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1314,123 +1131,83 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "emit"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "a"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "emit"
                                   },
-                                  "segment": "k"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
                                   },
-                                  "segment": "->"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "k"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "}"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "->"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1439,84 +1216,64 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "if "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "n"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.>",
-                                      "tag": "TermReference"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "if "
                                   },
-                                  "segment": ">"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
                                   },
-                                  "segment": "0"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " then"
-                              }
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.>",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": ">"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "0"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": " then"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1525,57 +1282,46 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
-                                      "tag": "TermReference"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "emit"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "a"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
+                          },
+                          {
+                              "diffTag": "both",
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "emit"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1584,164 +1330,119 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "handle"
                                   },
-                                  "segment": "handle"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "k"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Unit"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "k"
                                   },
-                                  "segment": "()"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "tag": "Unit"
+                                      },
+                                      "segment": "()"
                                   },
-                                  "segment": "with"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "h"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "with"
                                   },
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.drop",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "h"
                                   },
-                                  "segment": "-"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "1"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": "("
                                   },
-                                  "segment": ")"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.drop",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "-"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": ")"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1750,50 +1451,42 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "else"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "None"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
+                          },
+                          {
+                              "diffTag": "both",
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "else"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "None"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1802,107 +1495,73 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "r"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "           "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "r"
                                   },
-                                  "segment": "Some"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "r"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "}"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "           "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "Some"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "r"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -1911,92 +1570,64 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "handle"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "handle"
                                   },
-                                  "segment": "s"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Unit"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "()"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "s"
                                   },
-                                  "segment": "with"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "Unit"
+                                      },
+                                      "segment": "()"
                                   },
-                                  "segment": "h"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "n"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "with"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "h"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -2007,230 +1638,154 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "take",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "take",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "take"
                                   },
-                                  "segment": "take"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeAscriptionColon"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeAscriptionColon"
+                                      },
+                                      "segment": " :"
                                   },
-                                  "segment": " :"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Nat"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeOperator"
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelayForceChar"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "'"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeOperator"
+                                      },
+                                      "segment": "->"
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "g"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "DelayForceChar"
+                                      },
+                                      "segment": "'"
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "t"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeOperator"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "g"
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "}"
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "g"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": ","
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "t"
                                   },
-                                  "segment": "Stream"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "a"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "AbilityBraces"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeOperator"
+                                      },
+                                      "segment": "->"
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "Optional"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "g"
                                   },
-                                  "segment": "t"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": ","
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Stream"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "AbilityBraces"
+                                      },
+                                      "segment": "}"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Optional"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "t"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2239,54 +1794,41 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "take",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "take",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "take"
                                   },
-                                  "segment": "take"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
                                   },
-                                  "segment": "s"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " ="
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "s"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2295,62 +1837,46 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "use "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UsePrefix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UseKeyword"
+                                      },
+                                      "segment": "use "
                                   },
-                                  "segment": "Nat"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UsePrefix"
+                                      },
+                                      "segment": "Nat"
                                   },
-                                  "segment": "-"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "UseSuffix"
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": "-"
                                   },
-                                  "segment": ">"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "UseSuffix"
+                                      },
+                                      "segment": ">"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2359,61 +1885,45 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "h",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "h"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "contents": "h",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "h"
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " ="
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
                                   },
-                                  "segment": "cases"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "cases"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2422,123 +1932,83 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "emit"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "a"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "emit"
                                   },
-                                  "segment": "k"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
                                   },
-                                  "segment": "->"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "k"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "}"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "->"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2547,50 +2017,37 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
-                                      "tag": "TermReference"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "emit"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "a"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "emit"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2599,264 +2056,193 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "if"
                                   },
-                                  "segment": "if"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.>",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": ">"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "0"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": " then"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
+                          },
+                          {
+                              "diffTag": "both",
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "handle"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "k"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Unit"
+                                      },
+                                      "segment": "()"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "with"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "h"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": "("
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.drop",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "-"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": ")"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                              "diffTag": "both",
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "else"
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.>",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": ">"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
-                                  },
-                                  "segment": "0"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
-                                  },
-                                  "segment": " then"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
-                                  },
-                                  "segment": "handle"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
-                                  },
-                                  "segment": "k"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Unit"
-                                  },
-                                  "segment": "()"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
-                                  },
-                                  "segment": "with"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
-                                  },
-                                  "segment": "h"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
-                                  },
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
-                                  },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.drop",
-                                      "tag": "TermReference"
-                                  },
-                                  "segment": "-"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
-                                  },
-                                  "segment": "1"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
-                                  },
-                                  "segment": ")"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
-                                  },
-                                  "segment": "else"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
-                                      "tag": "TermReference"
-                                  },
-                                  "segment": "None"
-                              }
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "None"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2871,107 +2257,73 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "{"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
                                   },
-                                  "segment": "r"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "{"
                                   },
-                                  "segment": "}"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "           "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "r"
                                   },
-                                  "segment": "Some"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "r"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": "}"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "           "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "Some"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "r"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -2980,250 +2332,190 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "  "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "  "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "if"
                                   },
-                                  "segment": "if"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.>",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
                                   },
-                                  "segment": ">"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "0"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.>",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": ">"
                                   },
-                                  "segment": " then"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "0"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": " then"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "handle"
                                   },
-                                  "segment": "handle"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "s"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Unit"
+                                      },
+                                      "segment": "()"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "with"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "h"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
+                          },
+                          {
+                              "diffTag": "oneSided",
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": "("
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
-                                  },
-                                  "segment": "s"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Unit"
-                                  },
-                                  "segment": "()"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
-                                  },
-                                  "segment": "with"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
-                                  },
-                                  "segment": "h"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "n"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat.drop",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "-"
                                   },
-                                  "segment": "n"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat.drop",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "-"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
                                   },
-                                  "segment": "1"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": ")"
                                   },
-                                  "segment": ")"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "else"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": "else"
                                   },
-                                  "segment": "None"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "None"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -5022,71 +4314,52 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "unitCase",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "unitCase",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "unitCase"
                                   },
-                                  "segment": "unitCase"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeAscriptionColon"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeAscriptionColon"
+                                      },
+                                      "segment": " :"
                                   },
-                                  "segment": " :"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "x"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeOperator"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "x"
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Nat"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeOperator"
+                                      },
+                                      "segment": "->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -5095,96 +4368,73 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "unitCase",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "unitCase",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "unitCase"
                                   },
-                                  "segment": "unitCase"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
                                   },
-                                  "segment": " ="
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "id"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
+                                  {
+                                      "annotation": {
+                                          "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "id"
                                   },
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "x"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " ->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": "("
                                   },
-                                  "segment": "1"
-                              }
+                                  {
+                                      "annotation": null,
+                                      "segment": "x"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": " ->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
-                                  },
-                                  "segment": ")"
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": ")"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -5195,113 +4445,91 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "unitCase",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "unitCase",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "unitCase"
                                   },
-                                  "segment": "unitCase"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeAscriptionColon"
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeAscriptionColon"
+                                      },
+                                      "segment": " :"
                                   },
-                                  "segment": " :"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "x"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "TypeOperator"
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "x"
                                   },
-                                  "segment": "->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Nat"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "TypeOperator"
+                                      },
+                                      "segment": "->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": ","
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": "("
+                                  }
+                              ]
+                          },
+                          {
+                              "diffTag": "both",
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": ")"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": ")"
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": ","
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "("
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": ")"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": ")"
+                                  }
+                              ]
                           }
                       ]
                   },
@@ -5310,146 +4538,118 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "unitCase",
-                                      "tag": "HashQualifier"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "unitCase",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "unitCase"
                                   },
-                                  "segment": "unitCase"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "BindingEquals"
+                                  {
+                                      "annotation": {
+                                          "tag": "BindingEquals"
+                                      },
+                                      "segment": " ="
                                   },
-                                  "segment": " ="
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
-                                      "tag": "TermReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "id"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
+                                  {
+                                      "annotation": {
+                                          "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
+                                          "tag": "TermReference"
+                                      },
+                                      "segment": "id"
                                   },
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": "x"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "ControlKeyword"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": " ->"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": "("
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": "x"
+                                  },
+                                  {
+                                      "annotation": {
+                                          "tag": "ControlKeyword"
+                                      },
+                                      "segment": " ->"
+                                  },
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
-                                      "tag": "TypeReference"
-                                  },
-                                  "segment": "("
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "("
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "NumericLiteral"
-                                  },
-                                  "segment": "1"
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "NumericLiteral"
+                                      },
+                                      "segment": "1"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
-                                      "tag": "TypeReference"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": ", "
                                   },
-                                  "segment": ", "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "("
                                   },
-                                  "segment": "("
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": ")"
                                   },
-                                  "segment": ")"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": {
+                                          "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": ")"
                                   },
-                                  "segment": ")"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Parenthesis"
-                                  },
-                                  "segment": ")"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "Parenthesis"
+                                      },
+                                      "segment": ")"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -5862,38 +5062,31 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DataTypeKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "DataTypeKeyword"
+                                      },
+                                      "segment": "type"
                                   },
-                                  "segment": "type"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "Type",
-                                      "tag": "HashQualifier"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Type"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
+                                  {
+                                      "annotation": {
+                                          "contents": "Type",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "Type"
                                   },
-                                  "segment": " = "
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": " = "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "annotationChange",
@@ -5909,20 +5102,24 @@ RESPONSE:
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Nat",
-                                      "tag": "TypeReference"
-                                  },
-                                  "segment": "Nat"
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "contents": "##Nat",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Nat"
+                                  }
+                              ]
                           }
                       ]
                   }
@@ -5933,54 +5130,51 @@ RESPONSE:
                       "value": [
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DataTypeKeyword"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "DataTypeKeyword"
+                                      },
+                                      "segment": "type"
                                   },
-                                  "segment": "type"
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "Type",
-                                      "tag": "HashQualifier"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Type"
-                              }
+                                  {
+                                      "annotation": {
+                                          "contents": "Type",
+                                          "tag": "HashQualifier"
+                                      },
+                                      "segment": "Type"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DataTypeParams"
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "a"
-                              }
+                                  {
+                                      "annotation": {
+                                          "tag": "DataTypeParams"
+                                      },
+                                      "segment": "a"
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "DelimiterChar"
-                                  },
-                                  "segment": " = "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "DelimiterChar"
+                                      },
+                                      "segment": " = "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "annotationChange",
@@ -5996,36 +5190,34 @@ RESPONSE:
                           },
                           {
                               "diffTag": "both",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
+                              "elements": [
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
+                                  }
+                              ]
                           },
                           {
                               "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "tag": "Var"
+                              "elements": [
+                                  {
+                                      "annotation": {
+                                          "tag": "Var"
+                                      },
+                                      "segment": "a"
                                   },
-                                  "segment": "a"
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": null,
-                                  "segment": " "
-                              }
-                          },
-                          {
-                              "diffTag": "oneSided",
-                              "elements": {
-                                  "annotation": {
-                                      "contents": "##Text",
-                                      "tag": "TypeReference"
+                                  {
+                                      "annotation": null,
+                                      "segment": " "
                                   },
-                                  "segment": "Text"
-                              }
+                                  {
+                                      "annotation": {
+                                          "contents": "##Text",
+                                          "tag": "TypeReference"
+                                      },
+                                      "segment": "Text"
+                                  }
+                              ]
                           }
                       ]
                   }

@@ -12,6 +12,7 @@ import Data.Foldable qualified as Foldable
 import Data.Function
 import Data.List qualified as List
 import Data.List.Extra qualified as List
+import Data.List.NonEmpty qualified as NEL
 import Data.List.Split qualified as Split
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
@@ -21,6 +22,7 @@ import Unison.Server.Types (Changed (..), DisplayObjectDiff (..), LinewiseDiff (
 import Unison.Util.AnnotatedText (AnnotatedText (..), Segment (..))
 import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.List qualified as ListUtil
+import Unison.Util.Recursion qualified as Rec
 
 diffDisplayObjects :: (HasCallStack) => DisplayObject SyntaxText SyntaxText -> DisplayObject SyntaxText SyntaxText -> DisplayObjectDiff
 diffDisplayObjects from to = case (from, to) of
@@ -136,12 +138,14 @@ semanticLinewiseDiff :: SyntaxText -> SyntaxText -> LinewiseDiff (SemanticSyntax
 semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
   linewiseDiff syntaxElementDiffEq lhs rhs
     <&> specialCasePairs
+    & \(LinewiseDiff {lhsLines, rhsLines}) ->
+      LinewiseDiff {lhsLines = (fmap . fmap) aggregateChunks lhsLines, rhsLines = (fmap . fmap) aggregateChunks rhsLines}
   where
     specialCasePairs :: Paired (Segment Syntax.Element) -> SemanticSyntaxDiff Syntax.Element
     specialCasePairs = \case
-      OneSided a -> OnlyThisSide a
+      OneSided a -> OnlyThisSide (NEL.singleton a)
       Paired fromSegment toSegment
-        | fromSegment == toSegment -> Both fromSegment
+        | fromSegment == toSegment -> Both (NEL.singleton fromSegment)
         | AT.annotation fromSegment == AT.annotation toSegment -> SegmentChange (AT.segment fromSegment, AT.segment toSegment) (AT.annotation fromSegment)
         -- We only emit an annotation change if it's a change in just the hash of the element (optionally the KIND of hash reference can change too).
         | AT.segment fromSegment == AT.segment toSegment,
@@ -153,7 +157,7 @@ semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
             -- This can happen in certain special cases, e.g. a paren changed from being a syntax element into being part
             -- of a unit.
             -- We just emit both as old/new segments.
-            OnlyThisSide fromSegment
+            OnlyThisSide (NEL.singleton fromSegment)
         where
           elementHash :: Syntax.Element -> Maybe Syntax.UnisonHash
           elementHash = \case
@@ -162,6 +166,18 @@ semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
             Syntax.DataConstructorReference hash -> Just hash
             Syntax.AbilityConstructorReference hash -> Just hash
             _ -> Nothing
+
+    -- Collapse subsequent chunks of the same kind of diff into one chunk.
+    aggregateChunks :: [SemanticSyntaxDiff Syntax.Element] -> [SemanticSyntaxDiff Syntax.Element]
+    aggregateChunks =
+      Rec.cata \case
+        Rec.Neither -> []
+        Rec.Both x [] -> [x]
+        Rec.Both (OnlyThisSide xs) (OnlyThisSide ys : rest) ->
+          OnlyThisSide (xs <> ys) : rest
+        Rec.Both (Both xs) (Both ys : rest) ->
+          Both (xs <> ys) : rest
+        Rec.Both x xs -> x : xs
 
 -- | Takes the left and right sides of a diff which are part of the same contiguous chunk, then
 -- diffs them and returns padded left/right line diffs
