@@ -277,7 +277,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "TextLiteral"
@@ -331,7 +331,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "NumericLiteral"
@@ -491,7 +491,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "TextLiteral"
@@ -545,7 +545,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "NumericLiteral"
@@ -1459,7 +1459,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -1468,7 +1468,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Var"
@@ -1477,14 +1477,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "##Nat.>",
@@ -1494,14 +1494,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "NumericLiteral"
@@ -1510,7 +1510,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -1524,28 +1524,28 @@ RESPONSE:
                       "kind": "changed",
                       "value": [
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
@@ -1604,7 +1604,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
@@ -1749,21 +1749,21 @@ RESPONSE:
                       "kind": "changed",
                       "value": [
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "  "
@@ -2619,7 +2619,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -2628,14 +2628,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Var"
@@ -2644,14 +2644,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "##Nat.>",
@@ -2661,14 +2661,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "NumericLiteral"
@@ -2677,7 +2677,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -2686,7 +2686,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
@@ -2826,7 +2826,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
@@ -2986,7 +2986,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -2995,14 +2995,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Var"
@@ -3011,14 +3011,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "##Nat.>",
@@ -3028,14 +3028,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "NumericLiteral"
@@ -3044,7 +3044,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -3053,7 +3053,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
@@ -3133,7 +3133,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Parenthesis"
@@ -3151,14 +3151,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "##Nat.drop",
@@ -3168,14 +3168,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "NumericLiteral"
@@ -3184,7 +3184,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Parenthesis"
@@ -3193,14 +3193,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "ControlKeyword"
@@ -3209,14 +3209,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
@@ -5178,7 +5178,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Parenthesis"
@@ -5252,7 +5252,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "("
@@ -5269,35 +5269,35 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": ","
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": "("
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": ")"
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": ")"
@@ -5384,7 +5384,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
@@ -5403,7 +5403,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
@@ -5413,7 +5413,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
@@ -5423,7 +5423,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
@@ -5433,7 +5433,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
@@ -5443,7 +5443,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Parenthesis"
@@ -5915,7 +5915,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "##Nat",
@@ -5958,14 +5958,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "DataTypeParams"
@@ -6002,7 +6002,7 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "tag": "Var"
@@ -6011,14 +6011,14 @@ RESPONSE:
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": null,
                                   "segment": " "
                               }
                           },
                           {
-                              "diffTag": "one-sided",
+                              "diffTag": "oneSided",
                               "elements": {
                                   "annotation": {
                                       "contents": "##Text",
