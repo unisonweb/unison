@@ -21,6 +21,7 @@ library:
     - ansi-terminal
     - attoparsec
     - base
+    - base64-bytestring
     - bytestring
     - cmark
     - co-log-core
@@ -46,6 +47,7 @@ library:
     - http-client >= 0.7.6
     - http-client-tls
     - http-types
+    - jose
     - ki
     - lens
     - lock-file
