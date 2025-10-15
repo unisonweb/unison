@@ -5,6 +5,7 @@
 CREATE TABLE change_comments (
   id INTEGER PRIMARY KEY,
   causal_hash_id INTEGER REFERENCES hash(id) NOT NULL,
+  author TEXT NOT NULL,
 
   -- Remember that SQLITE doesn't have any actual 'time' type,
   -- This column contains float values constructed
@@ -12,7 +13,7 @@ CREATE TABLE change_comments (
   created_at TEXT NOT NULL
 );
 
-CREATE INDEX change_comments_by_causal_hash_id ON change_comments(causal_hash_id);
+CREATE INDEX change_comments_by_causal_hash_id ON change_comments(causal_hash_id, created_at DESC);
 
 CREATE TABLE change_comment_revisions (
   comment_id INTEGER REFERENCES change_comments(id),
