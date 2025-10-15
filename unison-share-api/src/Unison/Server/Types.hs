@@ -303,7 +303,7 @@ instance (ToJSON a) => ToJSON (SemanticSyntaxDiff a) where
   toJSON = \case
     OnlyThisSide segments ->
       object
-        [ "diffTag" .= ("one-sided" :: Text),
+        [ "diffTag" .= ("oneSided" :: Text),
           "elements" .= segments
         ]
     Both segments ->
