@@ -34,12 +34,17 @@ jobs:
       # Since we’re using `on.pull_request_target`, this workflow would check out the code from the target branch by
       # default. This step fetches the SHA for the merge commit, so we can check out that (as `on.pull_request` would
       # do).
-      - uses: suzuki-shunsuke/get-pr-action@b002e41164d7a39586b41f17f9caca4e98a1efe4 # v0.1.0
+      - if: ${{ github.event_name == 'pull_request_target' }}
+        uses: suzuki-shunsuke/get-pr-action@b002e41164d7a39586b41f17f9caca4e98a1efe4 # v0.1.0
         id: get-pr
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{steps.get-pr.outputs.merge_commit_sha}}
+
+      - if: ${{ github.event_name != 'pull_request_target' }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - id: setup-haskell
         uses: haskell-actions/setup@7909071ceec0344debcc968c6c7a96a52e8dd0d7 # v2.8.1
@@ -53,16 +58,18 @@ jobs:
           path: |
             ${{ steps.setup-haskell.outputs.cabal-store }}
             dist-newstyle
-          key: cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}
+          key: cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}-${{ hashFiles('**/cabal.project', '**/*.cabal') }}
           restore-keys: |
+            cabal-freeze-${{ hashFiles('**/cabal.project.freeze') }}
             cabal-freeze
 
       # --only-configure skips some build steps, but should ensure all dependencies are correct.
       - id: build
         run: cabal build all --only-configure --project-file contrib/cabal.project
-        continue-on-error: true
+        continue-on-error: ${{ github.event_name == 'pull_request_target' }}
 
-      - uses: mainmatter/continue-on-error-comment@b2606cc5ef2525ec21692999676a19f047e3e082 # v1
+      - if: ${{ github.event_name == 'pull_request_target' }}
+        uses: mainmatter/continue-on-error-comment@b2606cc5ef2525ec21692999676a19f047e3e082 # v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           outcome: ${{ steps.build.outcome }}

@@ -50,7 +50,6 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
-import Unison.Codebase.Editor.HandleInput.CommitMerge (handleCommitMerge)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
@@ -268,7 +267,8 @@ loop e = do
               then Success
               else BranchEmpty branchEmpty
         MergeI branch -> handleMerge branch
-        MergeCommitI -> handleCommitMerge
+        MergeCommitI ->
+          Cli.returnEarly (Output.Literal "The `merge.commit` command has been removed in favor of `update`.")
         DiffNamespaceI before after -> do
           beforeLoc <- traverse ProjectUtils.resolveBranchRelativePath before
           beforeBranch0 <- Branch.head <$> resolveBranchId2 before

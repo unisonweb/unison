@@ -26,7 +26,6 @@ import Data.Map.Strict.Internal (Map (..))
 import Data.Maybe (mapMaybe)
 import Data.Serialize.Get qualified as SGet
 import Data.Word (Word32, Word64)
-import GHC.IsList qualified (fromList)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
 import Unison.Builtin.Decls (mapBin, mapRef, mapTip)
@@ -514,7 +513,7 @@ getBLit =
     NegT -> Neg <$> getPositive
     CharT -> Char <$> getChar
     FloatT -> Float <$> getFloat
-    ArrT -> Arr . GHC.IsList.fromList <$> getList getValue
+    ArrT -> Arr <$> getArray getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
     MapT -> exn [] "getBLit: unsupported literal map"
 {-# SPECIALIZE getBLit :: BDeserial (BLit Reference) #-}

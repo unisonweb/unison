@@ -227,7 +227,6 @@ roots = [
     '''^Unison\.Cli\.ProjectUtils\.loadRemoteProjectBranchByName$''',
     '''^Unison\.Cli\.ProjectUtils\.loadRemoteProjectBranchByNames$''',
     '''^Unison\.Cli\.ProjectUtils\.expectRemoteProjectBranchByTheseNames$''',
-    '''^Unison\.Cli\.ProjectUtils\.getUpgradeBranchParent$''',
     '''^Unison\.Cli\.TypeCheck\.typecheckTerm$''',
     '''^Unison\.Codebase\.expectTypeOfReferent$''',
     '''^Unison\.Codebase\.dependentsOfComponent$''',

@@ -31,23 +31,27 @@ loadUniqueTypeGuid pp name = do
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath fullPP finalSegment >>= \case
     Just guid -> pure (Just guid)
-    Nothing ->
-      Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
-        Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
-        Nothing ->
+    Nothing
+      | pp.branch.isUpdate ->
+          Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
+            Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
+            Nothing -> pure Nothing
+      | pp.branch.isUpgrade ->
           Queries.loadUpgradeBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
             Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
-            Nothing ->
-              Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
-                Nothing -> pure Nothing
-                Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
-                  loadUniqueTypeGuidFromMergeParents
-                    pp
-                    name
-                    bobMaybeBranchId
-                    bobCausalHashId
-                    aliceMaybeBranchId
-                    aliceCausalHashId
+            Nothing -> pure Nothing
+      | pp.branch.isMerge ->
+          Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
+            Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
+              loadUniqueTypeGuidFromMergeParents
+                pp
+                name
+                bobMaybeBranchId
+                bobCausalHashId
+                aliceMaybeBranchId
+                aliceCausalHashId
+            Nothing -> pure Nothing
+      | otherwise -> pure Nothing
 
 -- update or upgrade parent
 loadUniqueTypeGuidFromParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)

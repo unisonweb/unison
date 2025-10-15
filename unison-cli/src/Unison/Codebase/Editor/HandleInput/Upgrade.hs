@@ -74,7 +74,7 @@ handleUpgrade oldName newName = do
   env <- ask
   pp <- Cli.getCurrentProjectPath
 
-  when (pp.branch.isUpdate || pp.branch.isUpgrade) do
+  when (pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge) do
     Cli.returnEarly
       if pp.branch.isUpdate
         then Output.CantDoThatDuring "an update" "update"
