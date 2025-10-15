@@ -22,6 +22,7 @@ library:
     - attoparsec
     - base
     - base64-bytestring
+    - blake3
     - bytestring
     - cmark
     - co-log-core
@@ -88,6 +89,7 @@ library:
     - unison-core
     - unison-core1
     - unison-hash
+    - unison-hashing-v2
     - unison-merge
     - unison-parser-typechecker
     - unison-prelude

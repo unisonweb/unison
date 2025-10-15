@@ -70,3 +70,7 @@ instance Show CausalHashId where
 newtype HistoryCommentId = HistoryCommentId Word64
   deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
+
+newtype KeyThumbprintId = KeyThumbprintId Word64
+  deriving (Eq, Ord, Show)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64

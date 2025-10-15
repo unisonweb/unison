@@ -1,6 +1,10 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) where
 
 import BLAKE3 qualified
+import Control.Monad.Reader
+import Data.ByteArray qualified as ByteArray
 import Data.ByteArray.Sized (SizedByteArray)
 import Data.ByteArray.Sized qualified as SBA
 import Data.ByteString.Builder qualified as Builder
@@ -12,8 +16,10 @@ import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX qualified as Time
 import Text.RawString.QQ (r)
 import U.Codebase.Config qualified as Config
-import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
+import U.Codebase.HashTags (CausalHash, CommentHash)
 import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Auth.CredentialManager qualified as CredMan
+import Unison.Auth.PersonalKey qualified as PK
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -27,25 +33,47 @@ import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.Hashing.V2 (ContentAddressable (..))
-import Unison.HistoryComment (HistoryComment (..))
-import Unison.KeyThumbprint (KeyThumbprint (unThumbprint))
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
+import Unison.KeyThumbprint (KeyThumbprint (..))
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 import UnliftIO.Environment qualified as Env
 import UnliftIO.Process qualified as Proc
 
-instance ContentAddressable (HistoryComment UTCTime KeyThumbprint CausalHash CommentHash) where
-  contentHash HistoryComment {author, subject, content, causal, authorThumbprint, createdAt, commentId} =
+commentHashingVersion :: Int32
+commentHashingVersion = 1
+
+-- Hash a base comment
+instance ContentAddressable (HistoryComment UTCTime KeyThumbprint CausalHash ()) where
+  contentHash HistoryComment {createdAt, author, causal, authorThumbprint} =
     let commentHash :: SizedByteArray BLAKE3.DEFAULT_DIGEST_LEN ByteString
         commentHash =
           BLAKE3.hash
             Nothing
             [ BL.toStrict . Builder.toLazyByteString $ Builder.int32BE commentHashingVersion,
               Hash.toByteString (into @Hash causal),
-              Text.encodeUtf8 $ unThumbprint authorThumbprint,
-              Hash.toByteString (into @Hash commentId),
+              Text.encodeUtf8 $ thumbprintToText authorThumbprint,
               Text.encodeUtf8 author,
+              -- Encode UTCTime as a UTC 8601 seconds since epoch
+              createdAt
+                & Time.utcTimeToPOSIXSeconds
+                & floor
+                & Builder.int64BE
+                & Builder.toLazyByteString
+                & BL.toStrict
+            ]
+     in Hash.fromByteString . SBA.unSizedByteArray $ commentHash
+
+-- Hash a comment revision
+instance ContentAddressable (HistoryCommentRevision UTCTime CommentHash) where
+  contentHash HistoryCommentRevision {subject, content, createdAt, comment = commentHash} =
+    let hashDigest :: SizedByteArray BLAKE3.DEFAULT_DIGEST_LEN ByteString
+        hashDigest =
+          BLAKE3.hash
+            Nothing
+            [ BL.toStrict . Builder.toLazyByteString $ Builder.int32BE commentHashingVersion,
+              Hash.toByteString (into @Hash commentHash),
               Text.encodeUtf8 subject,
               Text.encodeUtf8 content,
               -- Encode UTCTime as a UTC 8601 seconds since epoch
@@ -56,17 +84,20 @@ instance ContentAddressable (HistoryComment UTCTime KeyThumbprint CausalHash Com
                 & Builder.toLazyByteString
                 & BL.toStrict
             ]
-     in Hash.fromByteString . SBA.unSizedByteArray $ commentHash
-    where
-      commentHashingVersion :: Int32
-      commentHashingVersion = 1
+     in Hash.fromByteString . ByteArray.convert $ hashDigest
 
 handleHistoryComment :: Maybe BranchId2 -> Cli ()
 handleHistoryComment mayThingToAnnotate = do
-  authorName <-
-    Cli.runTransaction Q.getAuthorName >>= \case
-      Nothing -> Cli.returnEarly $ AuthorNameRequired
-      Just authorName -> pure authorName
+  Cli.Env {credentialManager} <- ask
+  authorThumbprint <- PK.personalKeyThumbprint <$> liftIO (CredMan.getOrCreatePersonalKey credentialManager)
+  (mayAuthorName, authorThumbprintId) <-
+    Cli.runTransaction do
+      authorName <- Q.getAuthorName
+      authorThumbprintId <- Q.expectPersonalKeyThumbprintId authorThumbprint
+      pure (authorName, authorThumbprintId)
+  authorName <- case mayAuthorName of
+    Nothing -> Cli.returnEarly $ AuthorNameRequired
+    Just authorName -> pure authorName
   causalHash <- case mayThingToAnnotate of
     Nothing -> do
       Branch.headHash <$> Cli.getCurrentProjectRoot
@@ -89,13 +120,14 @@ handleHistoryComment mayThingToAnnotate = do
     mayExistingCommentInfo <- Q.getLatestCausalComment causalHashId
     pure (causalHashId, mayExistingCommentInfo)
   let populatedMsg = fromMaybe commentInstructions $ do
-        HistoryComment {subject, content} <- mayHistoryComment
+        HistoryCommentRevision {subject, content} <- mayHistoryComment
         pure $ Text.unlines [subject, "", content, commentInstructions]
   mayNewMessage <- liftIO (editMessage (Just populatedMsg))
   case mayNewMessage of
     Nothing -> Cli.respond $ CommentAborted
     Just (subject, content) -> do
-      let historyComment = HistoryComment {author = Config.unAuthorName authorName, subject, content, commentId = (), causal = causalHashId}
+      createdAt <- liftIO $ Time.getCurrentTime
+      let historyComment = HistoryCommentRevision {subject, content, createdAt, comment = HistoryComment {author = Config.unAuthorName authorName, commentId = (), causal = causalHashId, createdAt, authorThumbprint = authorThumbprintId}}
       Cli.runTransaction $ Q.commentOnCausal historyComment
       Cli.respond $ CommentedSuccessfully
   where

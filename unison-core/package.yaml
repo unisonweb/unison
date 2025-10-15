@@ -28,6 +28,7 @@ library:
     - semigroups
     - text
     - text-builder
+    - time
     - these
     - transformers
     - unison-core
