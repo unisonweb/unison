@@ -591,7 +591,7 @@ putTextBig text =
   where
     bs = encodeUtf8 text
 
-getTextBig :: PrimBase m => Get m Text
+getTextBig :: (PrimBase m) => Get m Text
 getTextBig = do
   len <- getWord32be
   bs <- B.copy <$> getByteString (fromIntegral len)

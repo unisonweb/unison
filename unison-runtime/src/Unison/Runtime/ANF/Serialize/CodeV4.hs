@@ -120,7 +120,7 @@ getGroup = do
       ctx = pushCtx vs []
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
-{-# INLINABLE getGroup #-}
+{-# INLINEABLE getGroup #-}
 
 putCode :: Bool -> (Code RefNum) -> Builder
 putCode fops (CodeRep g c) =
@@ -128,7 +128,7 @@ putCode fops (CodeRep g c) =
 
 getCode :: (PrimBase m) => Get m (Code RefNum)
 getCode = CodeRep <$> getGroup <*> getCacheability
-{-# INLINABLE getCode #-}
+{-# INLINEABLE getCode #-}
 
 putCodeWithHeader ::
   [Reference] -> [Reference] -> Bool -> Code RefNum -> Builder
@@ -145,7 +145,7 @@ getCodeWithHeader = do
   tms <- replicateM tml getReference
   co <- getCode
   pure (WithRefs tys tms co)
-{-# INLINABLE getCodeWithHeader #-}
+{-# INLINEABLE getCodeWithHeader #-}
 
 putCacheability :: Cacheability -> Builder
 putCacheability Uncacheable = BU.word8 0
@@ -182,7 +182,7 @@ getComb ctx frsh0 = do
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
       frsh = frsh0 + fromIntegral (length ccs)
   Lambda ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
-{-# INLINABLE getComb #-}
+{-# INLINEABLE getComb #-}
 
 putNormal ::
   (Var v) =>
@@ -289,7 +289,7 @@ getNormal ctx frsh0 =
       TLets (Indirect w) us ccs
         <$> getNormal ctx frsh0
         <*> getNormal (pushCtx us ctx) frsh
-{-# INLINABLE getNormal #-}
+{-# INLINEABLE getNormal #-}
 
 putFunc ::
   (Var v) =>
@@ -315,7 +315,7 @@ getFunc ctx =
     FReqT -> FReq <$> getRefNum <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
     FForeignT -> FPrim . Right <$> getFOp
-{-# INLINABLE getFunc #-}
+{-# INLINEABLE getFunc #-}
 
 -- Note: this numbering is derived, and so not particularly stable.
 -- However, foreign functions are not serialized for interchange. This
@@ -360,7 +360,7 @@ getLit =
     CT -> C <$> getChar
     LMT -> LM <$> getNumberedReferent
     LYT -> LY <$> getRefNum
-{-# INLINABLE getLit #-}
+{-# INLINEABLE getLit #-}
 
 putBranches ::
   (Var v) =>
@@ -436,7 +436,7 @@ getBranches ctx frsh0 =
         <$> getRefNum
         <*> getEnumMap getWord64be (getNormal ctx frsh0)
         <*> getMaybe (getNormal ctx frsh0)
-{-# INLINABLE getBranches #-}
+{-# INLINEABLE getBranches #-}
 
 putCase ::
   (Var v) =>
@@ -459,7 +459,7 @@ getCase ctx frsh0 = do
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0 ..]
   (,) ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
-{-# INLINABLE getCase #-}
+{-# INLINEABLE getCase #-}
 
 putCTag :: CTag -> Builder
 putCTag c = putVarInt $ fromEnum c

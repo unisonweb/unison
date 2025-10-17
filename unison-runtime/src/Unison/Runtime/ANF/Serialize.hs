@@ -191,8 +191,9 @@ getOptInfos :: (PrimBase m, Var v) => Get m (OptInfos Reference v)
 getOptInfos =
   (,)
     <$> getMap getReference gInt
-    <*> getMap getReference
-          (getInlineInfo [] 0 (Transfer codeVersion, True))
+    <*> getMap
+      getReference
+      (getInlineInfo [] 0 (Transfer codeVersion, True))
   where
     gInt = getVarInt
 
@@ -381,16 +382,16 @@ putFunc refrep allowFop ctx f = case f of
 getFunc ::
   (PrimBase m, Var v) => [v] -> GDeserial m (Func Reference v)
 getFunc ctx (_, allowFOp) =
-    getTag >>= \case
-      FVarT -> FVar <$> getVar ctx
-      FCombT -> FComb <$> getReference
-      FContT -> FCont <$> getVar ctx
-      FConT -> FCon <$> getReference <*> getCTag
-      FReqT -> FReq <$> getReference <*> getCTag
-      FPrimT -> FPrim . Left <$> getPOp
-      FForeignT
-        | allowFOp -> FPrim . Right <$> getFOp
-        | otherwise -> exn [] "getFunc: can't deserialize a foreign func"
+  getTag >>= \case
+    FVarT -> FVar <$> getVar ctx
+    FCombT -> FComb <$> getReference
+    FContT -> FCont <$> getVar ctx
+    FConT -> FCon <$> getReference <*> getCTag
+    FReqT -> FReq <$> getReference <*> getCTag
+    FPrimT -> FPrim . Left <$> getPOp
+    FForeignT
+      | allowFOp -> FPrim . Right <$> getFOp
+      | otherwise -> exn [] "getFunc: can't deserialize a foreign func"
 
 -- Note: this numbering is derived, and so not particularly stable.
 -- However, foreign functions are not serialized for interchange. This
@@ -664,43 +665,43 @@ putValue v (BLit l) =
 
 getValue :: (PrimBase m) => GDeserial m (Value Reference)
 getValue s@(v, _) =
-    getTag >>= \case
-      PartialT
-        | Transfer vn <- v,
-          vn < 4 -> do
-            gr <- getGroupRef
-            getList getWord64be >>= assertEmptyUnboxed
-            bs <- getList (getValue s)
-            pure $ Partial gr bs
-        | otherwise -> do
-            gr <- getGroupRef
-            vs <- getList (getValue s)
-            pure $ Partial gr vs
-      DataT
-        | Transfer vn <- v,
-          vn < 4 -> do
-            r <- getReference
-            w <- getWord64be
-            getList getWord64be >>= assertEmptyUnboxed
-            vs <- getList (getValue s)
-            pure $ Data r w vs
-        | otherwise -> do
-            r <- getReference
-            w <- getWord64be
-            vs <- getList (getValue s)
-            pure $ Data r w vs
-      ContT
-        | Transfer vn <- v,
-          vn < 4 -> do
-            getList getWord64be >>= assertEmptyUnboxed
-            bs <- getList (getValue s)
-            k <- getCont s
-            pure $ Cont bs k
-        | otherwise -> do
-            bs <- getList (getValue s)
-            k <- getCont s
-            pure $ Cont bs k
-      BLitT -> BLit <$> getBLit s
+  getTag >>= \case
+    PartialT
+      | Transfer vn <- v,
+        vn < 4 -> do
+          gr <- getGroupRef
+          getList getWord64be >>= assertEmptyUnboxed
+          bs <- getList (getValue s)
+          pure $ Partial gr bs
+      | otherwise -> do
+          gr <- getGroupRef
+          vs <- getList (getValue s)
+          pure $ Partial gr vs
+    DataT
+      | Transfer vn <- v,
+        vn < 4 -> do
+          r <- getReference
+          w <- getWord64be
+          getList getWord64be >>= assertEmptyUnboxed
+          vs <- getList (getValue s)
+          pure $ Data r w vs
+      | otherwise -> do
+          r <- getReference
+          w <- getWord64be
+          vs <- getList (getValue s)
+          pure $ Data r w vs
+    ContT
+      | Transfer vn <- v,
+        vn < 4 -> do
+          getList getWord64be >>= assertEmptyUnboxed
+          bs <- getList (getValue s)
+          k <- getCont s
+          pure $ Cont bs k
+      | otherwise -> do
+          bs <- getList (getValue s)
+          k <- getCont s
+          pure $ Cont bs k
+    BLitT -> BLit <$> getBLit s
   where
     assertEmptyUnboxed :: (PrimBase m) => [a] -> Get m ()
     assertEmptyUnboxed [] = pure ()
@@ -725,39 +726,39 @@ putCont v (Push f n gr k) =
 
 getCont :: (PrimBase m) => GDeserial m (Cont Reference)
 getCont s@(v, _) =
-    getTag >>= \case
-      KET -> pure KE
-      MarkT
-        | Transfer vn <- v,
-          vn < 4 -> do
-            getWord64be >>= assert0 "unboxed arg size"
-            ba <- getWord64be
-            refs <- getList getReference
-            vals <- getMapping getReference (getValue s)
-            cont <- getCont s
-            pure $ Mark ba refs vals cont
-        | otherwise ->
-            Mark
-              <$> getWord64be
-              <*> getList getReference
-              <*> getMapping getReference (getValue s)
-              <*> getCont s
-      PushT
-        | Transfer vn <- v,
-          vn < 4 -> do
-            getWord64be >>= assert0 "unboxed frame size"
-            bf <- getWord64be
-            getWord64be >>= assert0 "unboxed arg size"
-            ba <- getWord64be
-            gr <- getGroupRef
-            cont <- getCont s
-            pure $ Push bf ba gr cont
-        | otherwise ->
-            Push
-              <$> getWord64be
-              <*> getWord64be
-              <*> getGroupRef
-              <*> getCont s
+  getTag >>= \case
+    KET -> pure KE
+    MarkT
+      | Transfer vn <- v,
+        vn < 4 -> do
+          getWord64be >>= assert0 "unboxed arg size"
+          ba <- getWord64be
+          refs <- getList getReference
+          vals <- getMapping getReference (getValue s)
+          cont <- getCont s
+          pure $ Mark ba refs vals cont
+      | otherwise ->
+          Mark
+            <$> getWord64be
+            <*> getList getReference
+            <*> getMapping getReference (getValue s)
+            <*> getCont s
+    PushT
+      | Transfer vn <- v,
+        vn < 4 -> do
+          getWord64be >>= assert0 "unboxed frame size"
+          bf <- getWord64be
+          getWord64be >>= assert0 "unboxed arg size"
+          ba <- getWord64be
+          gr <- getGroupRef
+          cont <- getCont s
+          pure $ Push bf ba gr cont
+      | otherwise ->
+          Push
+            <$> getWord64be
+            <*> getWord64be
+            <*> getGroupRef
+            <*> getCont s
   where
     assert0 _name 0 = pure ()
     assert0 name n = exn [] $ "getCont: malformed intermediate term. Expected " <> name <> " to be 0, but got " <> show n
@@ -902,7 +903,9 @@ getGroupCurrent :: (PrimBase m, Var v) => Get m (SuperGroup Reference v)
 getGroupCurrent = getGroup (Transfer codeVersion, False)
 
 type GDeserial m a = (Version, Bool) -> Get m a
+
 type DeserialIO a = (Version, Bool) -> Get IO a
+
 type DeserialST s a = (Version, Bool) -> Get (ST s) a
 
 -- Convert value version numbers to code version numbers

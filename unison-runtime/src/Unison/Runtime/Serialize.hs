@@ -39,7 +39,6 @@ import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Runtime.Serialize.Get as Get
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
-
 import Prelude hiding (getChar)
 
 unknownTag :: (PrimBase m) => String -> Word8 -> Get m a
@@ -83,7 +82,7 @@ putChar = putVarInt . fromEnum
 
 getChar :: (PrimBase m) => Get m Char
 getChar = toEnum <$> getVarInt
-{-# INLINABLE getChar #-}
+{-# INLINEABLE getChar #-}
 
 putFloat :: Double -> Builder
 putFloat = BU.doubleBE
@@ -180,7 +179,7 @@ getList ga = getVarInt >>= grab []
   where
     grab as (n :: Int)
       | n <= 0 = evaluated $ reverse as
-      | otherwise = ga >>= \a -> grab (a:as) (n-1)
+      | otherwise = ga >>= \a -> grab (a : as) (n - 1)
 {-# INLINE getList #-}
 
 getSeq :: (PrimBase m) => Get m a -> Get m (Seq a)
@@ -197,8 +196,8 @@ getMap getA getB = getVarInt >>= grab []
   where
     grab ps (n :: Int)
       | n <= 0 = pure . Map.fromList $ reverse ps
-      | otherwise = getPair getA getB >>= \p -> grab (p:ps) (n-1)
-{-# INLINABLE getMap #-}
+      | otherwise = getPair getA getB >>= \p -> grab (p : ps) (n - 1)
+{-# INLINEABLE getMap #-}
 
 putMapping :: (a -> Builder) -> (b -> Builder) -> [(a, b)] -> Builder
 putMapping putA putB = putFoldable (putPair putA putB)
@@ -209,7 +208,7 @@ getMapping getA getB = getVarInt >>= grab []
   where
     grab ps (n :: Int)
       | n <= 0 = pure $ reverse ps
-      | otherwise = getPair getA getB >>= \p -> grab (p:ps) (n-1)
+      | otherwise = getPair getA getB >>= \p -> grab (p : ps) (n - 1)
 {-# INLINE getMapping #-}
 
 putEnumMap ::

@@ -111,7 +111,7 @@ getValue =
       k <- getCont
       pure $ Cont bs k
     BLitT -> BLit <$> getBLit
-{-# INLINABLE getValue #-}
+{-# INLINEABLE getValue #-}
 
 putCont :: Cont RefNum -> Builder
 putCont = \case
@@ -145,7 +145,7 @@ getCont =
         <*> getVarInt
         <*> getGroupRef
         <*> getCont
-{-# INLINABLE getCont #-}
+{-# INLINEABLE getCont #-}
 
 putBLit :: BLit RefNum -> Builder
 putBLit = \case
@@ -189,7 +189,7 @@ getBLit =
     ArrT -> Arr <$> getArray getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
     MapT -> Map <$> getMapping getValue getValue
-{-# INLINABLE getBLit #-}
+{-# INLINEABLE getBLit #-}
 
 putValueWithHeader ::
   [Reference] -> [Reference] -> Value RefNum -> Builder
@@ -216,4 +216,4 @@ getValueWithHeader = do
   tms <- replicateM tml SER.getReference
   v <- getValue
   pure (WithRefs tys tms v)
-{-# INLINABLE getValueWithHeader #-}
+{-# INLINEABLE getValueWithHeader #-}
