@@ -125,87 +125,89 @@ buildVarInt bs ix i0
   sz = BS.length bs
   grab j = fromIntegral $ BS.unsafeIndex bs j
 
-  eat i acc sh m
-    | m < 128 =
-        (acc .|. m .<<. sh) <$ writePrimVar ix i
-    | i >= sz =
-        throw $ InsufficientBytes "getVarInt"
-    | acc <- acc .|. clearBit m 7 .<<. sh =
+  eat !i !acc !sh !m
+    | not $ testBit m 7,
+      acc <- acc .|. (m !<<. sh) =
+        acc <$ writePrimVar ix i
+    | i < sz,
+      acc <- acc .|. (clearBit m 7 !<<. sh) =
         eat (i+1) acc (sh+7) $ grab i
+    | otherwise =
+        throw $ InsufficientBytes "getVarInt"
 {-# inlinable buildVarInt #-}
 
 getInt64be :: PrimBase m => Get m Int64
 getInt64be = Get \bs (Ix ix) -> readPrimVar ix >>= \case
-  i | i + 7 >= BS.length bs -> throw $ InsufficientBytes "getInt64be"
-    | otherwise -> build bs <$ writePrimVar ix (i+8)
+  i | i + 7 < BS.length bs -> build bs i <$ writePrimVar ix (i+8)
+    | otherwise -> throw $ InsufficientBytes "getInt64be"
   where
-    build bs =
-      (fromIntegral (BS.unsafeIndex bs 0) !<<. 56) .|.
-      (fromIntegral (BS.unsafeIndex bs 1) !<<. 48) .|.
-      (fromIntegral (BS.unsafeIndex bs 2) !<<. 40) .|.
-      (fromIntegral (BS.unsafeIndex bs 3) !<<. 32) .|.
-      (fromIntegral (BS.unsafeIndex bs 4) !<<. 24) .|.
-      (fromIntegral (BS.unsafeIndex bs 5) !<<. 16) .|.
-      (fromIntegral (BS.unsafeIndex bs 6) !<<.  8) .|.
-      (fromIntegral (BS.unsafeIndex bs 7))
+    build bs !i =
+      (fromIntegral (BS.unsafeIndex bs  i     ) !<<. 56) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 1)) !<<. 48) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 2)) !<<. 40) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 3)) !<<. 32) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 4)) !<<. 24) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 5)) !<<. 16) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 6)) !<<.  8) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 7)))
 {-# specialize getInt64be :: Get IO Int64 #-}
 {-# specialize getInt64be :: Get (ST s) Int64 #-}
 
 getWord16be :: PrimBase m => Get m Word16
 getWord16be = Get \bs (Ix ix) -> readPrimVar ix >>= \case
-  i | i + 1 >= BS.length bs -> throw $ InsufficientBytes "getWord16be"
-    | otherwise -> build bs <$ writePrimVar ix (i+2)
+  i | i + 1 < BS.length bs -> build bs i <$ writePrimVar ix (i+2)
+    | otherwise -> throw $ InsufficientBytes "getWord16be"
   where
-    build bs =
-      (fromIntegral (BS.unsafeIndex bs 0) !<<.  8) .|.
-      (fromIntegral (BS.unsafeIndex bs 1))
+    build bs !i =
+      (fromIntegral (BS.unsafeIndex bs  i) !<<. 8) .|.
+      (fromIntegral (BS.unsafeIndex bs (i+1)))
 {-# specialize getWord16be :: Get IO Word16 #-}
 {-# specialize getWord16be :: Get (ST s) Word16 #-}
 
 getWord32be :: PrimBase m => Get m Word32
 getWord32be = Get \bs (Ix ix) -> readPrimVar ix >>= \case
-  i | i + 3 >= BS.length bs -> throw $ InsufficientBytes "getWord32be"
-    | otherwise -> build bs <$ writePrimVar ix (i+4)
+  i | i + 3 < BS.length bs -> build bs i <$ writePrimVar ix (i+4)
+    | otherwise -> throw $ InsufficientBytes "getWord32be"
   where
-    build bs =
-      (fromIntegral (BS.unsafeIndex bs 0) !<<. 24) .|.
-      (fromIntegral (BS.unsafeIndex bs 1) !<<. 16) .|.
-      (fromIntegral (BS.unsafeIndex bs 2) !<<.  8) .|.
-      (fromIntegral (BS.unsafeIndex bs 3))
+    build bs !i =
+      (fromIntegral (BS.unsafeIndex bs  i     ) !<<. 24) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 1)) !<<. 16) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 2)) !<<.  8) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 3)))
 {-# specialize getWord32be :: Get IO Word32 #-}
 {-# specialize getWord32be :: Get (ST s) Word32 #-}
 
 getWord64be :: PrimBase m => Get m Word64
 getWord64be = Get \bs (Ix ix) -> readPrimVar ix >>= \case
-  i | i + 7 >= BS.length bs -> throw $ InsufficientBytes "getWord64be"
-    | otherwise -> build bs <$ writePrimVar ix (i+8)
+  i | i + 7 < BS.length bs -> build bs i <$ writePrimVar ix (i+8)
+    | otherwise -> throw $ InsufficientBytes "getWord64be"
   where
-    build bs =
-      (fromIntegral (BS.unsafeIndex bs 0) !<<. 56) .|.
-      (fromIntegral (BS.unsafeIndex bs 1) !<<. 48) .|.
-      (fromIntegral (BS.unsafeIndex bs 2) !<<. 40) .|.
-      (fromIntegral (BS.unsafeIndex bs 3) !<<. 32) .|.
-      (fromIntegral (BS.unsafeIndex bs 4) !<<. 24) .|.
-      (fromIntegral (BS.unsafeIndex bs 5) !<<. 16) .|.
-      (fromIntegral (BS.unsafeIndex bs 6) !<<.  8) .|.
-      (fromIntegral (BS.unsafeIndex bs 7))
+    build bs !i =
+      (fromIntegral (BS.unsafeIndex bs  i     ) !<<. 56) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 1)) !<<. 48) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 2)) !<<. 40) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 3)) !<<. 32) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 4)) !<<. 24) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 5)) !<<. 16) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 6)) !<<.  8) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 7)))
 {-# specialize getWord64be :: Get IO Word64 #-}
 {-# specialize getWord64be :: Get (ST s) Word64 #-}
 
 getWord64le :: PrimBase m => Get m Word64
 getWord64le = Get \bs (Ix ix) -> readPrimVar ix >>= \case
-  i | i + 7 >= BS.length bs -> throw $ InsufficientBytes "getWord64be"
-    | otherwise -> build bs <$ writePrimVar ix (i+8)
+  i | i + 7 < BS.length bs -> build bs i <$ writePrimVar ix (i+8)
+    | otherwise -> throw $ InsufficientBytes "getWord64be"
   where
-    build bs =
-      (fromIntegral (BS.unsafeIndex bs 7) !<<. 56) .|.
-      (fromIntegral (BS.unsafeIndex bs 6) !<<. 48) .|.
-      (fromIntegral (BS.unsafeIndex bs 5) !<<. 40) .|.
-      (fromIntegral (BS.unsafeIndex bs 4) !<<. 32) .|.
-      (fromIntegral (BS.unsafeIndex bs 3) !<<. 24) .|.
-      (fromIntegral (BS.unsafeIndex bs 2) !<<. 16) .|.
-      (fromIntegral (BS.unsafeIndex bs 1) !<<.  8) .|.
-      (fromIntegral (BS.unsafeIndex bs 0))
+    build bs !i =
+      (fromIntegral (BS.unsafeIndex bs (i + 7)) !<<. 56) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 6)) !<<. 48) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 5)) !<<. 40) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 4)) !<<. 32) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 3)) !<<. 24) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 2)) !<<. 16) .|.
+      (fromIntegral (BS.unsafeIndex bs (i + 1)) !<<.  8) .|.
+      (fromIntegral (BS.unsafeIndex bs  i     ))
 {-# specialize getWord64le :: Get IO Word64 #-}
 {-# specialize getWord64le :: Get (ST s) Word64 #-}
 
