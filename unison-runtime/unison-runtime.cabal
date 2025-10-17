@@ -122,7 +122,6 @@ library
     , binary
     , bytes
     , bytestring
-    , cereal
     , clock
     , containers >=0.6.3
     , crypton-x509

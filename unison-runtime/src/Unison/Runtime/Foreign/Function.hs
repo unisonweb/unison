@@ -587,8 +587,7 @@ foreignCallHelper = \case
         Left err -> die [] err
         Right bs -> pure $ Bytes.fromLazyByteString bs
   Code_deserialize ->
-    mkForeign $
-      pure . ANF.deserializeCode . Bytes.toArray
+    mkForeign $ ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
     \(nm, (dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
@@ -602,8 +601,7 @@ foreignCallHelper = \case
     mkForeign $
       fmap Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
   Value_deserialize ->
-    mkForeign $
-      pure . ANF.deserializeValue . Bytes.toLazyByteString
+    mkForeign $ ANF.deserializeValue . Bytes.toByteString
   Crypto_HashAlgorithm_Sha3_512 -> mkHashAlgorithm "Sha3_512" Hash.SHA3_512
   Crypto_HashAlgorithm_Sha3_256 -> mkHashAlgorithm "Sha3_256" Hash.SHA3_256
   Crypto_HashAlgorithm_Sha2_512 -> mkHashAlgorithm "Sha2_512" Hash.SHA512

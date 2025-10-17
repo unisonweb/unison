@@ -12,9 +12,6 @@ where
 
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
-import Data.Bytes.Get
-import Data.Bytes.Serial
-import Data.Bytes.VarInt
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
@@ -23,6 +20,7 @@ import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize
+import Unison.Runtime.Serialize.Get
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
 
@@ -39,7 +37,7 @@ instance Tag CombT where
 putPackedTag :: PackedTag -> Builder
 putPackedTag (PackedTag w) = pWord w
 
-getPackedTag :: (MonadGet m) => m PackedTag
+getPackedTag :: (PrimBase m) => Get m PackedTag
 getPackedTag = PackedTag <$> gWord
 
 putComb :: (clos -> Builder) -> GComb clos comb -> Builder
@@ -49,14 +47,14 @@ putComb pClos = \case
   (CachedVal w v) ->
     putTag CachedClosureT <> putNat w <> pClos v
 
-getComb :: (MonadGet m) => m (GComb Void CombIx)
+getComb :: (PrimBase m) => Get m (GComb Void CombIx)
 getComb =
   getTag >>= \case
     LamT ->
       Lam <$> gInt <*> gInt <*> getSection
     CachedClosureT -> error "getComb: Unexpected serialized Cached Closure"
 
-getMForeignFunc :: (MonadGet m) => m ForeignFunc
+getMForeignFunc :: (PrimBase m) => Get m ForeignFunc
 getMForeignFunc = do
   toEnum <$> gInt
 
@@ -129,7 +127,7 @@ putSection = \case
       <> putSection pu
       <> putEnumMap pWord putBranch bs
 
-getSection :: (MonadGet m) => m Section
+getSection :: (PrimBase m) => Get m Section
 getSection =
   getTag >>= \case
     AppT -> App <$> getBool <*> getRef <*> getArgs
@@ -242,7 +240,7 @@ putInstr = \case
     -- Sandboxing failures should only exist in code we're actively running, it shouldn't be serialized.
     error "putInstr: Unexpected serialized Sandboxing Failure"
 
-getInstr :: (MonadGet m) => m Instr
+getInstr :: (PrimBase m) => Get m Instr
 getInstr =
   getTag >>= \case
     Prim1T -> Prim1 <$> getTag <*> gInt
@@ -297,7 +295,7 @@ putArgs (VArgR i j) = putTag ArgRT <> pInt i <> pInt j
 putArgs (VArgN pa) = putTag ArgNT <> putIntArr pa
 putArgs (VArgV i) = putTag ArgVT <> pInt i
 
-getArgs :: (MonadGet m) => m Args
+getArgs :: (PrimBase m) => Get m Args
 getArgs =
   getTag >>= \case
     ZArgsT -> pure ZArgs
@@ -324,7 +322,7 @@ putRef (Stk i) = putTag StkT <> pInt i
 putRef (Env cix _) = putTag EnvT <> putCombIx cix
 putRef (Dyn i) = putTag DynT <> pWord i
 
-getRef :: (MonadGet m) => m Ref
+getRef :: (PrimBase m) => Get m Ref
 getRef =
   getTag >>= \case
     StkT -> Stk <$> gInt
@@ -336,7 +334,7 @@ getRef =
 putCombIx :: CombIx -> Builder
 putCombIx (CIx r n i) = putReference r <> pWord n <> pWord i
 
-getCombIx :: (MonadGet m) => m CombIx
+getCombIx :: (PrimBase m) => Get m CombIx
 getCombIx = CIx <$> getReference <*> gWord <*> gWord
 
 data MLitT = MIT | MNT | MCT | MDT | MTT | MMT | MYT
@@ -368,7 +366,7 @@ putLit (MT t) = putTag MTT <> putText (Util.Text.toText t)
 putLit (MM r) = putTag MMT <> putReferent r
 putLit (MY r) = putTag MYT <> putReference r
 
-getLit :: (MonadGet m) => m MLit
+getLit :: (PrimBase m) => Get m MLit
 getLit =
   getTag >>= \case
     MIT -> MI <$> gInt
@@ -408,7 +406,7 @@ putBranch (TestW d m) =
 putBranch (TestT d m) =
   putTag TestTT <> putSection d <> putMap (putText . Util.Text.toText) putSection m
 
-getBranch :: (MonadGet m) => m Branch
+getBranch :: (PrimBase m) => Get m Branch
 getBranch =
   getTag >>= \case
     Test1T -> Test1 <$> gWord <*> getSection <*> getSection
@@ -422,13 +420,13 @@ getBranch =
     TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
     TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
 
-gInt :: (MonadGet m) => m Int
-gInt = unVarInt <$> deserialize
+gInt :: (PrimBase m) => Get m Int
+gInt = getVarInt
 
 pInt :: Int -> Builder
 pInt i = putVarInt i
 
-gBool :: (MonadGet m) => m Bool
+gBool :: (PrimBase m) => Get m Bool
 gBool =
   getWord8 >>= \case
     0 -> pure False
@@ -439,8 +437,8 @@ pBool :: Bool -> Builder
 pBool False = BU.word8 0
 pBool True = BU.word8 1
 
-gWord :: (MonadGet m) => m Word64
-gWord = unVarInt <$> deserialize
+gWord :: (PrimBase m) => Get m Word64
+gWord = getVarInt
 
 pWord :: Word64 -> Builder
 pWord w = putVarInt w
@@ -448,5 +446,5 @@ pWord w = putVarInt w
 putIntArr :: PrimArray Int -> Builder
 putIntArr pa = putFoldable pInt $ toList pa
 
-getIntArr :: (MonadGet m) => m (PrimArray Int)
+getIntArr :: (PrimBase m) => Get m (PrimArray Int)
 getIntArr = fromList <$> getList gInt
