@@ -9,6 +9,7 @@ import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -180,12 +181,15 @@ handleUpgrade oldName newName = do
             declNameLookup
             ( PPED.leftBiased
                 [ makeOldDepPPE
-                    oldName
-                    newName
-                    currentDeepNamesSansOld
-                    (Branch.toNames oldNamespace)
-                    (Branch.toNames oldLocalNamespace)
-                    (Branch.toNames newLocalNamespace),
+                    [ UpgradeInfo
+                        { oldName,
+                          oldDeepNames = Branch.toNames oldNamespace,
+                          oldLocalNames = Branch.toNames oldLocalNamespace,
+                          newName,
+                          newLocalNames = Branch.toNames newLocalNamespace
+                        }
+                    ]
+                    currentDeepNamesSansOld,
                   PPED.makePPED
                     (PPE.namer (Names.fromUnconflictedReferenceIds dependents))
                     (PPE.suffixifyByName currentDeepNamesSansOld),
@@ -316,54 +320,69 @@ makePrettyUnisonFile dependents =
       where
         f = map snd . sortAlphabeticallyOn fst . Map.toList
 
-makeOldDepPPE ::
-  NameSegment ->
-  NameSegment ->
-  Names ->
-  Names ->
-  Names ->
-  Names ->
-  PrettyPrintEnvDecl
-makeOldDepPPE oldName newName currentDeepNamesSansOld oldDeepNames oldLocalNames newLocalNames =
+data UpgradeInfo = UpgradeInfo
+  { oldName :: NameSegment,
+    oldDeepNames :: Names,
+    oldLocalNames :: Names,
+    newName :: NameSegment,
+    newLocalNames :: Names
+  }
+
+makeOldDepPPE :: [UpgradeInfo] -> Names -> PrettyPrintEnvDecl
+makeOldDepPPE infos currentDeepNamesSansOld =
   let makePPE suffixifier =
         PPE.PrettyPrintEnv termToNames typeToNames
         where
+          inOldAndNewNamespaces :: (Ord ref) => (Names -> Relation Name ref) -> ref -> UpgradeInfo -> Bool
+          inOldAndNewNamespaces which ref info =
+            Relation.memberRan ref (which info.oldDeepNames)
+              && Relation.memberRan ref (which info.newLocalNames)
+
+          hasNewLocalDefnsForOldLocalNames :: (Ord ref) => (Names -> Relation Name ref) -> ref -> UpgradeInfo -> Bool
+          hasNewLocalDefnsForOldLocalNames which ref info =
+            not (Map.null (Relation.domain (which info.newLocalNames) `Map.restrictKeys` theOldLocalNames))
+            where
+              theOldLocalNames = Relation.lookupRan ref (which info.oldLocalNames)
+
+          onlyInOldNamespace :: (Ord ref) => (Names -> Relation Name ref) -> ref -> UpgradeInfo -> Bool
+          onlyInOldNamespace which ref info =
+            inOldNamespace && not inCurrentNamespaceSansOld
+            where
+              inOldNamespace :: Bool
+              inOldNamespace =
+                Relation.memberRan ref (which info.oldDeepNames)
+
+              inCurrentNamespaceSansOld :: Bool
+              inCurrentNamespaceSansOld =
+                Relation.memberRan ref (which currentDeepNamesSansOld)
+
           termToNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
           termToNames ref
-            | inNewNamespace = []
-            | hasNewLocalTermsForOldLocalNames = PPE.makeTermNames fakeLocalNames suffixifier ref
-            | onlyInOldNamespace = PPE.makeTermNames fullOldDeepNames PPE.dontSuffixify ref
+            | any (inOldAndNewNamespaces Names.terms ref) infos = []
+            | Just info <- List.find (hasNewLocalDefnsForOldLocalNames Names.terms ref) infos =
+                PPE.makeTermNames (fakeLocalNames info) suffixifier ref
+            | Just info <- List.find (onlyInOldNamespace Names.terms ref) infos =
+                PPE.makeTermNames (fullOldDeepNames info) PPE.dontSuffixify ref
             | otherwise = []
-            where
-              inNewNamespace = Relation.memberRan ref (Names.terms newLocalNames)
-              hasNewLocalTermsForOldLocalNames =
-                not (Map.null (Relation.domain (Names.terms newLocalNames) `Map.restrictKeys` theOldLocalNames))
-              theOldLocalNames = Relation.lookupRan ref (Names.terms oldLocalNames)
-              onlyInOldNamespace = inOldNamespace && not inCurrentNamespaceSansOld
-              inOldNamespace = Relation.memberRan ref (Names.terms oldDeepNames)
-              inCurrentNamespaceSansOld = Relation.memberRan ref (Names.terms currentDeepNamesSansOld)
+
           typeToNames :: TypeReference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
           typeToNames ref
-            | inNewNamespace = []
-            | hasNewLocalTypesForOldLocalNames = PPE.makeTypeNames fakeLocalNames suffixifier ref
-            | onlyInOldNamespace = PPE.makeTypeNames fullOldDeepNames PPE.dontSuffixify ref
+            | any (inOldAndNewNamespaces Names.types ref) infos = []
+            | Just info <- List.find (hasNewLocalDefnsForOldLocalNames Names.types ref) infos =
+                PPE.makeTypeNames (fakeLocalNames info) suffixifier ref
+            | Just info <- List.find (onlyInOldNamespace Names.types ref) infos =
+                PPE.makeTypeNames (fullOldDeepNames info) PPE.dontSuffixify ref
             | otherwise = []
             where
-              inNewNamespace = Relation.memberRan ref (Names.types newLocalNames)
-              hasNewLocalTypesForOldLocalNames =
-                not (Map.null (Relation.domain (Names.types newLocalNames) `Map.restrictKeys` theOldLocalNames))
-              theOldLocalNames = Relation.lookupRan ref (Names.types oldLocalNames)
-              onlyInOldNamespace = inOldNamespace && not inCurrentNamespaceSansOld
-              inOldNamespace = Relation.memberRan ref (Names.types oldDeepNames)
-              inCurrentNamespaceSansOld = Relation.memberRan ref (Names.types currentDeepNamesSansOld)
+
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
           suffixifiedPPE = makePPE (PPE.suffixifyByHash currentDeepNamesSansOld)
         }
   where
     -- "full" means "with lib.old.* prefix"
-    fullOldDeepNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (oldName :| [NameSegment.libSegment])) oldDeepNames)
-    fakeLocalNames = PPE.namer (Names.prefix0 (Name.fromReverseSegments (newName :| [NameSegment.libSegment])) oldLocalNames)
+    fullOldDeepNames info = PPE.namer (Names.prefix0 (Name.fromReverseSegments (info.oldName :| [NameSegment.libSegment])) info.oldDeepNames)
+    fakeLocalNames info = PPE.namer (Names.prefix0 (Name.fromReverseSegments (info.newName :| [NameSegment.libSegment])) info.oldLocalNames)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".
