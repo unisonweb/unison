@@ -218,7 +218,7 @@ doMerge info = do
         -- FIXME: Oops, if this fails due to a conflicted name, we don't actually say where the conflicted name came from.
         -- We should have a better error message (even though you can't do anything about conflicted names in the LCA).
         defns <- do
-          let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn "merge")
+          let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn)
           lca <- maybe (pure UnconflictedLocalDefnsView.empty) (asUnconflicted . Branch.head) branches.lca
           alice <- asUnconflicted (Branch.head branches.alice)
           bob <- asUnconflicted (Branch.head branches.bob)

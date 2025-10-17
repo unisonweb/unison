@@ -22,7 +22,6 @@ module Unison.Codebase.Editor.Input
     FindScope (..),
     ShowDefinitionScope (..),
     IsGlobal,
-    DeleteOutput (..),
     DeleteTarget (..),
 
     -- * Type aliases
@@ -151,8 +150,10 @@ data Input
   | MoveTermI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
   | MoveTypeI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
   | MoveBranchI Path.Path' Path.Path'
-  | -- delete = unname
-    DeleteI DeleteTarget
+  | DeleteBranchI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
+  | DeleteI !Bool {- force? -} !DeleteTarget ![HQ'.HashQualified Name]
+  | DeleteNamespaceI Insistence (Maybe (Path.Split Path.Relative))
+  | DeleteProjectI ProjectName
   | -- edits stuff:
     LoadI (Maybe FilePath)
   | ClearI
@@ -315,16 +316,8 @@ data ShowDefinitionScope
   | ShowDefinitionGlobal
   deriving stock (Eq, Show)
 
-data DeleteOutput
-  = DeleteOutput'Diff
-  | DeleteOutput'NoDiff
-  deriving stock (Eq, Show)
-
 data DeleteTarget
-  = DeleteTarget'TermOrType DeleteOutput [HQ'.HashQualified (Path.Split Path')]
-  | DeleteTarget'Term DeleteOutput [HQ'.HashQualified (Path.Split Path')]
-  | DeleteTarget'Type DeleteOutput [HQ'.HashQualified (Path.Split Path')]
-  | DeleteTarget'Namespace Insistence (Maybe (Path.Split Path.Relative))
-  | DeleteTarget'ProjectBranch (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | DeleteTarget'Project ProjectName
+  = DeleteTarget'TermOrType
+  | DeleteTarget'Term
+  | DeleteTarget'Type
   deriving stock (Eq, Show)

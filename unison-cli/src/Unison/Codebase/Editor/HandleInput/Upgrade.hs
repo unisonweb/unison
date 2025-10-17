@@ -9,7 +9,6 @@ import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
-import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -54,9 +53,9 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
-import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnconflictedLocalDefnsView qualified
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Map qualified as Map
@@ -76,8 +75,10 @@ handleUpgrade oldName newName = do
   pp <- Cli.getCurrentProjectPath
 
   when (pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge) do
-    Cli.returnEarly $
-      Output.Literal "Sorry, I can't do that during an upgrade. Please complete the upgrade, then try again."
+    Cli.returnEarly
+      if pp.branch.isUpdate
+        then Output.CantDoThatDuring "an update" "update"
+        else Output.CantDoThatDuring "an upgrade" "upgrade"
 
   let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
   let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
@@ -93,7 +94,7 @@ handleUpgrade oldName newName = do
   -- Assert that the namespace doesn't have any conflicted names
   unconflictedView <-
     Branch.asUnconflicted currentNamespace0
-      & onLeft (Cli.returnEarly . Output.ConflictedDefn "upgrade")
+      & onLeft (Cli.returnEarly . Output.ConflictedDefn)
 
   oldNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' oldPath)
   let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
@@ -145,12 +146,17 @@ handleUpgrade oldName newName = do
       dependents <-
         getNamespaceDependentsOf
           unconflictedView.defns
-          ( Set.unions
-              [ keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms,
-                keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes,
-                keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld,
-                keepOldDeepTypesStillInUse oldDeepMinusLocalTypes currentDeepTypesSansOld
-              ]
+          ( let oldLocalDefnsNotInNew =
+                  Defns
+                    { terms = keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms,
+                      types = keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes
+                    }
+                oldDeepDefnsStillInUse =
+                  Defns
+                    { terms = keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld,
+                      types = keepOldDeepTypesStillInUse oldDeepMinusLocalTypes currentDeepTypesSansOld
+                    }
+             in oldLocalDefnsNotInNew <> oldDeepDefnsStillInUse
           )
 
       let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
@@ -308,7 +314,7 @@ makePrettyUnisonFile dependents =
     inAlphabeticalOrder =
       bimap f f
       where
-        f = map snd . List.sortOn (Name.toText . fst) . Map.toList
+        f = map snd . sortAlphabeticallyOn fst . Map.toList
 
 makeOldDepPPE ::
   NameSegment ->

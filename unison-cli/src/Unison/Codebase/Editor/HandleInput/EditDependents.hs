@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.EditDependents
 where
 
 import Control.Monad.Reader (ask)
-import Data.Bifoldable (bifold)
 import Data.Set qualified as Set
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
@@ -62,11 +61,8 @@ handleEditDependents name = do
       dependents <-
         Cli.runTransaction do
           Operations.transitiveDependentsWithinScope
-            Defns
-              { terms = Branch.deepTermReferenceIds branchWithoutLibdeps,
-                types = Branch.deepTypeReferenceIds branchWithoutLibdeps
-              }
-            (bifold refs)
+            (Branch.deepDefnsIds branchWithoutLibdeps)
+            refs
 
       let refsAndDependents =
             Defns

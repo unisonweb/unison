@@ -176,6 +176,10 @@
   `delete.branch /bar`     deletes the branch `bar` in the
                            current project
 
+  delete.force (or rm.force)
+  `delete.force foo` removes the term or type name `foo` from the namespace.                
+  `delete.force foo bar` removes the term or type name `foo` and `bar` from the namespace.  
+
   delete.namespace (or rm.namespace)
   `delete.namespace <foo>` deletes the namespace `foo`
 
@@ -189,21 +193,17 @@
   `delete.term foo` removes the term name `foo` from the namespace.                
   `delete.term foo bar` removes the term name `foo` and `bar` from the namespace.  
 
-  delete.term.verbose (or rm.term.verbose)
-  `delete.term.verbose foo` removes the term name `foo` from the namespace.                
-  `delete.term.verbose foo bar` removes the term name `foo` and `bar` from the namespace.  
+  delete.term.force (or rm.term.force)
+  `delete.term.force foo` removes the term name `foo` from the namespace.                
+  `delete.term.force foo bar` removes the term name `foo` and `bar` from the namespace.  
 
   delete.type (or rm.type)
   `delete.type foo` removes the type name `foo` from the namespace.                
   `delete.type foo bar` removes the type name `foo` and `bar` from the namespace.  
 
-  delete.type.verbose (or rm.type.verbose)
-  `delete.type.verbose foo` removes the type name `foo` from the namespace.                
-  `delete.type.verbose foo bar` removes the type name `foo` and `bar` from the namespace.  
-
-  delete.verbose (or rm.verbose)
-  `delete.verbose foo` removes the term or type name `foo` from the namespace.                
-  `delete.verbose foo bar` removes the term or type name `foo` and `bar` from the namespace.  
+  delete.type.force (or rm.type.force)
+  `delete.type.force foo` removes the type name `foo` from the namespace.                
+  `delete.type.force foo bar` removes the type name `foo` and `bar` from the namespace.  
 
   dependencies
   List the dependencies of the specified definition.

@@ -52,6 +52,6 @@ unique type Foo = Bar Nat Nat
     * Foo.Bar
     * Foo.BarAlias
 
-  Please delete all but one name for each constructor, and then
-  try updating again.
+  Please `delete.force` all but one name for each constructor,
+  and then try updating again.
 ```

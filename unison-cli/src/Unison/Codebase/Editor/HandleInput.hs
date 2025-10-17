@@ -17,7 +17,6 @@ import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
@@ -54,8 +53,9 @@ import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
+import Unison.Codebase.Editor.HandleInput.Delete (handleDelete)
 import Unison.Codebase.Editor.HandleInput.DeleteBranch (handleDeleteBranch)
-import Unison.Codebase.Editor.HandleInput.DeleteNamespace (getEndangeredDependents, handleDeleteNamespace)
+import Unison.Codebase.Editor.HandleInput.DeleteNamespace (handleDeleteNamespace)
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.Dependencies (handleDependencies)
 import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
@@ -107,7 +107,6 @@ import Unison.Codebase.Path (Path, Path' (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
-import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.CommandLine.Completion qualified as Completion
@@ -118,11 +117,10 @@ import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.LabeledDependency (LabeledDependency)
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names (Names))
+import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann (..))
@@ -498,17 +496,10 @@ loop e = do
           hasConfirmed <- confirmedCommand input
           desc <- inputDescription input
           handleMoveAll hasConfirmed src' dest' desc
-        DeleteI dtarget -> do
-          pp <- Cli.getCurrentProjectPath
-          let getTerms = Cli.getTermsAt . fmap (first $ flip (set PP.absPath_) pp)
-          let getTypes = Cli.getTypesAt . fmap (first $ flip (set PP.absPath_) pp)
-          case dtarget of
-            DeleteTarget'TermOrType doutput hqs -> delete input doutput getTerms getTypes hqs
-            DeleteTarget'Type doutput hqs -> delete input doutput (const (pure Set.empty)) getTypes hqs
-            DeleteTarget'Term doutput hqs -> delete input doutput getTerms (const (pure Set.empty)) hqs
-            DeleteTarget'Namespace insistence path -> handleDeleteNamespace input insistence path
-            DeleteTarget'ProjectBranch name -> handleDeleteBranch name
-            DeleteTarget'Project name -> handleDeleteProject name
+        DeleteBranchI name -> handleDeleteBranch name
+        DeleteI force which target -> handleDelete force which target
+        DeleteNamespaceI insistence path -> handleDeleteNamespace input insistence path
+        DeleteProjectI name -> handleDeleteProject name
         DisplayI outputLoc namesToDisplay -> traverse_ (displayI outputLoc) namesToDisplay
         ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
         EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
@@ -524,14 +515,9 @@ loop e = do
         TodoI -> handleTodo
         TestI testInput -> Tests.handleTest testInput
         ExecuteI prof main args -> handleRun prof main args
-        MakeStandaloneI output main ->
-          doCompile False output main
+        MakeStandaloneI output main -> doCompile False output main
         IOTestI main -> Tests.handleIOTest main
         IOTestAllI -> Tests.handleAllIOTests
-        -- UpdateBuiltinsI -> do
-        --   stepAt updateBuiltins
-        --   checkTodo
-
         MergeBuiltinsI opath -> do
           description <- inputDescription input
           -- these were added once, but maybe they've changed and need to be
@@ -764,19 +750,6 @@ loop e = do
 inputDescription :: Input -> Cli Text
 inputDescription input =
   case input of
-    SaveExecuteResultI _str -> pure "save-execute-result"
-    ForkLocalBranchI src0 dest0 -> do
-      src <- either (pure . Text.pack . show) brp src0
-      dest <- brp dest0
-      pure ("fork " <> src <> " " <> dest)
-    ResetI newRoot tgt -> do
-      hashTxt <- bid2 newRoot
-      tgt <- case tgt of
-        Nothing -> pure ""
-        Just tgt -> do
-          let tgtText = into @Text tgt
-          pure (" " <> tgtText)
-      pure ("reset " <> hashTxt <> tgt)
     AliasTermI force src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0
@@ -789,6 +762,32 @@ inputDescription input =
       srcs <- traverse hqs srcs0
       dest <- p' dest0
       pure ("alias.many " <> Text.intercalate " " srcs <> " " <> dest)
+    CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
+    BranchSquashI {} -> wat
+    DebugFormatI -> wat
+    DebugFuzzyOptionsI {} -> wat
+    DebugLSPFoldRangesI -> wat
+    DebugTermI {} -> wat
+    DebugTypeI {} -> wat
+    DocToMarkdownI {} -> wat
+    EditNamespaceI {} -> wat
+    ExecuteI {} -> wat
+    ForkLocalBranchI src0 dest0 -> do
+      src <- either (pure . Text.pack . show) brp src0
+      dest <- brp dest0
+      pure ("fork " <> src <> " " <> dest)
+    MergeBuiltinsI Nothing -> pure "builtins.merge"
+    MergeBuiltinsI (Just path) -> fmap ("builtins.merge " <>) . p' $ Path.RelativePath' path
+    MergeIOBuiltinsI Nothing -> pure "builtins.mergeio"
+    MergeIOBuiltinsI (Just path) -> fmap ("builtins.mergeio " <>) . p' $ Path.RelativePath' path
+    MoveAllI src0 dest0 -> do
+      src <- p' src0
+      dest <- p' dest0
+      pure ("move " <> src <> " " <> dest)
+    MoveBranchI src0 dest0 -> do
+      src <- p' src0
+      dest <- p' dest0
+      pure ("move.namespace " <> src <> " " <> dest)
     MoveTermI src0 dest0 -> do
       src <- hqs' src0
       dest <- ps' dest0
@@ -797,80 +796,26 @@ inputDescription input =
       src <- hqs' src0
       dest <- ps' dest0
       pure ("move.type " <> src <> " " <> dest)
-    MoveBranchI src0 dest0 -> do
-      src <- p' src0
-      dest <- p' dest0
-      pure ("move.namespace " <> src <> " " <> dest)
-    MoveAllI src0 dest0 -> do
-      src <- p' src0
-      dest <- p' dest0
-      pure ("move " <> src <> " " <> dest)
-    DeleteI dtarget -> do
-      case dtarget of
-        DeleteTarget'TermOrType DeleteOutput'NoDiff things0 -> do
-          thing <- traverse hqs' things0
-          pure ("delete " <> Text.intercalate " " thing)
-        DeleteTarget'TermOrType DeleteOutput'Diff things0 -> do
-          thing <- traverse hqs' things0
-          pure ("delete.verbose " <> Text.intercalate " " thing)
-        DeleteTarget'Term DeleteOutput'NoDiff things0 -> do
-          thing <- traverse hqs' things0
-          pure ("delete.term " <> Text.intercalate " " thing)
-        DeleteTarget'Term DeleteOutput'Diff things0 -> do
-          thing <- traverse hqs' things0
-          pure ("delete.term.verbose " <> Text.intercalate " " thing)
-        DeleteTarget'Type DeleteOutput'NoDiff thing0 -> do
-          thing <- traverse hqs' thing0
-          pure ("delete.type " <> Text.intercalate " " thing)
-        DeleteTarget'Type DeleteOutput'Diff thing0 -> do
-          thing <- traverse hqs' thing0
-          pure ("delete.type.verbose " <> Text.intercalate " " thing)
-        DeleteTarget'Namespace Try opath0 -> do
-          opath <- ops opath0
-          pure ("delete.namespace " <> opath)
-        DeleteTarget'Namespace Force opath0 -> do
-          opath <- ops opath0
-          pure ("delete.namespace.force " <> opath)
-        DeleteTarget'ProjectBranch _ -> wat
-        DeleteTarget'Project _ -> wat
-    Update2I -> pure ("update")
+    ResetI newRoot tgt -> do
+      hashTxt <- bid2 newRoot
+      tgt <- case tgt of
+        Nothing -> pure ""
+        Just tgt -> do
+          let tgtText = into @Text tgt
+          pure (" " <> tgtText)
+      pure ("reset " <> hashTxt <> tgt)
+    SyncFromCodebaseI fp srcBranch destBranch -> do
+      pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text srcBranch <> " " <> into @Text destBranch
+    SyncFromFileI fp pab ->
+      pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text pab
     UndoI {} -> pure "undo"
-    ExecuteI prof s args ->
-      pure (head <> Text.unwords (HQ.toText s : fmap Text.pack args))
-      where
-        head = case prof of
-          NoProf -> "run "
-          MiniProf -> "run.profiled "
-          FullProf nm -> "run.profiled-to " <> Text.pack nm <> " "
-    IOTestI hq -> pure ("io.test " <> HQ.toText hq)
-    IOTestAllI -> pure "io.test.all"
-    UpdateBuiltinsI -> pure "builtins.update"
-    MergeBuiltinsI Nothing -> pure "builtins.merge"
-    MergeBuiltinsI (Just path) -> fmap ("builtins.merge " <>) . p' $ Path.RelativePath' path
-    MergeIOBuiltinsI Nothing -> pure "builtins.mergeio"
-    MergeIOBuiltinsI (Just path) -> fmap ("builtins.mergeio " <>) . p' $ Path.RelativePath' path
-    MakeStandaloneI out nm -> pure ("compile " <> Text.pack out <> " " <> HQ.toText nm)
-    CreateAuthorI id name -> pure ("create.author " <> NameSegment.toEscapedText id <> " " <> name)
-    ClearI {} -> pure "clear"
-    DocToMarkdownI name -> pure ("debug.doc-to-markdown " <> Name.toText name)
-    DebugTermI verbose hqName ->
-      if verbose
-        then pure ("debug.term.verbose " <> HQ.toText hqName)
-        else pure ("debug.term " <> HQ.toText hqName)
-    DebugTypeI hqName -> pure ("debug.type " <> HQ.toText hqName)
-    DebugLSPFoldRangesI -> pure "debug.lsp.fold-ranges"
-    DebugFuzzyOptionsI cmd input -> pure . Text.pack $ "debug.fuzzy-completions " <> unwords (cmd : toList input)
-    DebugFormatI -> pure "debug.format"
-    EditNamespaceI paths ->
-      pure $ Text.unwords ("edit.namespace" : (Path.toText <$> paths))
     -- wat land
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
     BranchRenameI {} -> wat
     BranchesI {} -> wat
-    BranchSquashI branchToSquash destBranch ->
-      pure $ "branch.squash " <> into @Text branchToSquash <> " " <> into @Text destBranch
+    ClearI {} -> wat
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
@@ -883,6 +828,10 @@ inputDescription input =
     DebugSynhashTermI {} -> wat
     DebugTabCompletionI {} -> wat
     DebugTypecheckedUnisonFileI {} -> wat
+    DeleteBranchI {} -> wat
+    DeleteI {} -> wat
+    DeleteNamespaceI {} -> wat
+    DeleteProjectI {} -> wat
     DiffNamespaceI {} -> wat
     DisplayI {} -> wat
     DocsI {} -> wat
@@ -891,12 +840,14 @@ inputDescription input =
     FindI {} -> wat
     FindShallowI {} -> wat
     HistoryI {} -> wat
+    IOTestAllI -> wat
+    IOTestI {} -> wat
     LibInstallI {} -> wat
-    LibInstallLocalI src mayDest ->
-      pure $ "lib.install.local " <> into @Text src <> " " <> maybe "" NameSegment.toEscapedText mayDest
+    LibInstallLocalI {} -> wat
     ListDependenciesI {} -> wat
     ListDependentsI {} -> wat
     LoadI {} -> wat
+    MakeStandaloneI {} -> wat
     MergeCommitI {} -> wat
     MergeI {} -> wat
     NamesI {} -> wat
@@ -908,36 +859,25 @@ inputDescription input =
     ProjectsI -> wat
     PullI {} -> wat
     PushRemoteBranchI {} -> wat
-    SyncToFileI {} -> wat
-    SyncFromFileI fp pab ->
-      pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text pab
-    SyncFromCodebaseI fp srcBranch destBranch -> do
-      pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text srcBranch <> " " <> into @Text destBranch
     QuitI {} -> wat
     ReleaseDraftI {} -> wat
+    SaveExecuteResultI {} -> wat
     ShowDefinitionI {} -> wat
+    ShowGlobalReflogI {} -> wat
+    ShowProjectBranchReflogI {} -> wat
+    ShowProjectReflogI {} -> wat
+    ShowRootReflogI {} -> wat
     StructuredFindI {} -> wat
     StructuredFindReplaceI {} -> wat
-    TextFindI {} -> wat
-    ShowRootReflogI {} -> pure "deprecated.root-reflog"
-    ShowGlobalReflogI {} -> pure "reflog.global"
-    ShowProjectReflogI mayProjName -> do
-      case mayProjName of
-        Nothing -> pure "project.reflog"
-        Just projName -> pure $ "project.reflog" <> into @Text projName
-    ShowProjectBranchReflogI mayProjBranch ->
-      maybe
-        (pure "branch.reflog")
-        ( pure . ("branch.reflog" <>) . \case
-            PP.ProjectAndBranch Nothing branchName -> into @Text branchName
-            PP.ProjectAndBranch (Just projName) branchName -> into @Text (PP.ProjectAndBranch projName branchName)
-        )
-        mayProjBranch
     SwitchBranchI {} -> wat
+    SyncToFileI {} -> wat
     TestI {} -> wat
+    TextFindI {} -> wat
     TodoI {} -> wat
     UiI {} -> wat
     UpI {} -> wat
+    Update2I -> wat
+    UpdateBuiltinsI -> wat
     UpgradeCommitI {} -> wat
     UpgradeI {} -> wat
     VersionI -> wat
@@ -947,8 +887,6 @@ inputDescription input =
     p' = fmap (into @Text) . Cli.resolvePath'
     brp :: BranchRelativePath -> Cli Text
     brp = fmap (into @Text) . ProjectUtils.resolveBranchRelativePath
-    ops :: Maybe (Path.Split Path.Relative) -> Cli Text
-    ops = maybe (pure ".") (ps' . first Path.RelativePath')
     wat = error $ show input ++ " is not expected to alter the branch"
     hhqs' :: HQ'.HashOrHQ (Path.Split Path') -> Cli Text
     hhqs' = either (pure . SH.toText) hqs'
@@ -1199,94 +1137,6 @@ doCompile profile output main = do
         Runtime.compileTo runtime copts codeLookup ppe ref outf
     )
     (Cli.returnEarly . EvaluationFailure id)
-
-delete ::
-  Input ->
-  DeleteOutput ->
-  (HQ'.HashQualified (Path.Split Path.Absolute) -> Cli (Set Referent)) -> -- compute matching terms
-  (HQ'.HashQualified (Path.Split Path.Absolute) -> Cli (Set Reference)) -> -- compute matching types
-  [HQ'.HashQualified (Path.Split Path')] -> -- targets for deletion
-  Cli ()
-delete input doutput getTerms getTypes hqs' = do
-  -- persists the original hash qualified entity for error reporting
-  typesTermsTuple <-
-    traverse
-      ( \hq -> do
-          absolute <- traverse Cli.resolveSplit' hq
-          types <- getTypes (first PP.absPath <$> absolute)
-          terms <- getTerms (first PP.absPath <$> absolute)
-          return (hq, types, terms)
-      )
-      hqs'
-  let notFounds = List.filter (\(_, types, terms) -> Set.null terms && Set.null types) typesTermsTuple
-  -- if there are any entities which cannot be deleted because they don't exist, short circuit.
-  if not $ null notFounds
-    then do
-      let toName :: [(HQ'.HashQualified (Path.Split Path'), Set Reference, Set referent)] -> [Name]
-          toName notFounds =
-            map (\(split, _, _) -> Path.nameFromSplit $ HQ'.toName split) notFounds
-      Cli.returnEarly $ NamesNotFound (toName notFounds)
-    else do
-      checkDeletes typesTermsTuple doutput input
-
-checkDeletes :: [(HQ'.HashQualified (Path.Split Path'), Set Reference, Set Referent)] -> DeleteOutput -> Input -> Cli ()
-checkDeletes typesTermsTuples doutput inputs = do
-  let toSplitName ::
-        (HQ'.HashQualified (Path.Split Path'), Set Reference, Set Referent) ->
-        Cli (Path.Split Path.Absolute, Name, Set Reference, Set Referent)
-      toSplitName hq = do
-        (pp, ns) <- Cli.resolveSplit' (HQ'.toName $ hq ^. _1)
-        let resolvedSplit = (pp.absPath, ns)
-        return
-          ( resolvedSplit,
-            Name.makeRelative $ Path.nameFromSplit resolvedSplit,
-            hq ^. _2,
-            hq ^. _3
-          )
-
-  -- get the splits and names with terms and types
-  splitsNames <- traverse toSplitName typesTermsTuples
-  let toRel :: (Ord ref) => Set ref -> Name -> R.Relation Name ref
-      toRel setRef name = R.fromList (fmap (name,) (toList setRef))
-  let toDelete = fmap (\(_, names, types, terms) -> Names (toRel terms names) (toRel types names)) splitsNames
-  -- make sure endangered is compeletely contained in paths
-  currentBranch <- Cli.getCurrentProjectRoot0
-  let projectNames = Branch.toNames currentBranch
-      projectNamesSansLib = Branch.toNames (Branch.deleteLibdeps currentBranch)
-  -- get only once for the entire deletion set
-  let allTermsToDelete :: Set LabeledDependency
-      allTermsToDelete = Set.unions (fmap Names.labeledReferences toDelete)
-  -- get the endangered dependencies for each entity to delete
-  endangered <-
-    Cli.runTransaction $
-      traverse
-        (\targetToDelete -> getEndangeredDependents targetToDelete allTermsToDelete projectNames projectNamesSansLib)
-        toDelete
-  -- If the overall dependency map is not completely empty, abort deletion
-  let endangeredDeletions = List.filter (\m -> not $ null m || Map.foldr (\s b -> null s || b) False m) endangered
-  if null endangeredDeletions
-    then do
-      let deleteTypesTerms =
-            splitsNames
-              >>= ( \(split, _, types, terms) ->
-                      (map (BranchUtil.makeDeleteTypeName split) . Set.toList $ types)
-                        ++ (map (BranchUtil.makeDeleteTermName split) . Set.toList $ terms)
-                  )
-      before <- Cli.getCurrentBranch0
-      description <- inputDescription inputs
-      pb <- Cli.getCurrentProjectBranch
-      Cli.stepManyAt pb description deleteTypesTerms
-      case doutput of
-        DeleteOutput'Diff -> do
-          after <- Cli.getCurrentBranch0
-          (ppe, diff) <- diffHelper before after
-          Cli.respondNumbered (ShowDiffAfterDeleteDefinitions ppe diff)
-        DeleteOutput'NoDiff -> do
-          Cli.respond Success
-    else do
-      let ppeDecl = PPED.makePPED (PPE.hqNamer 10 projectNames) (PPE.suffixifyByHash projectNames)
-      let combineRefs = List.foldl (Map.unionWith NESet.union) Map.empty endangeredDeletions
-      Cli.respondNumbered (CantDeleteDefinitions ppeDecl combineRefs)
 
 displayI ::
   OutputLocation ->
