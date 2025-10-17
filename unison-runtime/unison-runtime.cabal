@@ -73,12 +73,15 @@ library
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
       Unison.Runtime.Serialize
+      Unison.Runtime.Serialize.Get
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
   hs-source-dirs:
       src
+  c-sources:
+      cbits/i2d.c
   default-extensions:
       ApplicativeDo
       BangPatterns

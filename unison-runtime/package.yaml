@@ -49,6 +49,9 @@ library:
     - condition: false
       other-modules: Paths_unison_runtime
 
+  c-sources:
+    - cbits/i2d.c
+
   dependencies:
     - asn1-encoding
     - asn1-types
