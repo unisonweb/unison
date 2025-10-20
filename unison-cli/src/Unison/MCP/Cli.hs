@@ -81,17 +81,24 @@ ppForProjectContext ProjectContext {projectName, branchName} = do
 
 handleInputMCP :: ProjectContext -> [Either Event Input] -> ExceptT Text MCP CliOutput
 handleInputMCP projectContext input = do
-  case input of
-    (inp : rest) -> do
-      (_, cliOutput) <- cliToMCP projectContext (HandleInput.loop inp)
-      case cliOutput.errorMessages of
-        [] -> pure ()
-        errs -> throwError $ Text.unlines ("Errors:" : errs)
-      (cliOutput <>) <$> handleInputMCP projectContext rest
-    [] -> pure mempty
+  hasErroredVar <- newTVarIO False
+  let onErr _errMsg = atomically $ writeTVar hasErroredVar True
+  result <- cliToMCP projectContext onErr do
+    Cli.labelE \fail' -> do
+      for_ input \inp -> do
+        HandleInput.loop inp
+        readTVarIO hasErroredVar >>= \case
+          False -> pure ()
+          True -> fail' "An error occurred during input handling."
+  case result of
+    (Nothing, cliOut) -> pure cliOut
+    (Just (Left err), cliOutput) ->
+      pure $ cliOutput <> mempty {errorMessages = [err]}
+    (Just (Right ()), cliOutput) ->
+      pure cliOutput
 
-cliToMCP :: ProjectContext -> Cli.Cli a -> ExceptT Text MCP (Maybe a, CliOutput)
-cliToMCP projCtx cli = do
+cliToMCP :: ProjectContext -> (Text -> IO ()) -> Cli.Cli a -> ExceptT Text MCP (Maybe a, CliOutput)
+cliToMCP projCtx onError cli = do
   MCP.Env {ucmVersion, codebase, runtime, workDir} <- ask
   initialPP <- ExceptT . liftIO $ Codebase.runTransactionExceptT codebase $ do
     ppForProjectContext projCtx
@@ -107,6 +114,7 @@ cliToMCP projCtx cli = do
         if (Output.isFailure output)
           then do
             atomically $ modifyTVar errorsVar (<> Seq.singleton pretty)
+            liftIO $ onError (Text.pack (Pretty.toPlain 0 pretty))
           else do
             atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
   let notifyNumbered output = do

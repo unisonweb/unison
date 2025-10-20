@@ -88,7 +88,7 @@ installLibTool =
           },
       toolArgType = Proxy,
       toolHandler = \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> handleToolError $ do
-        (_r, output) <- cliToMCP projectContext $ do
+        (_r, output) <- cliToMCP projectContext (const $ pure ()) $ do
           handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
@@ -164,6 +164,8 @@ typecheckCodeTool =
             m = Random.natIn 0 1000
             ensureEqual (n + m) (m + n)
           ```
+
+          If you intend to update code, you may call the Update Definitions tool directly instead, it will typecheck and update in one step.
         |],
       toolAnnotations =
         ToolAnnotations
@@ -260,8 +262,9 @@ listProjectDefinitionsTool =
           },
       toolArgType = Proxy,
       toolHandler = \(ProjectContextArgument projectContext) -> handleToolError $ do
+        let noop _ = pure ()
         output <-
-          cliToMCP projectContext Cli.getCurrentBranch0 >>= \case
+          cliToMCP projectContext noop Cli.getCurrentBranch0 >>= \case
             (Just b, _output) -> do
               let noLibBranch = Branch.deleteLibdeps b
               if (R.null $ Branch.deepTerms noLibBranch) && (R.null $ Branch.deepTypes noLibBranch)
@@ -342,8 +345,8 @@ viewDefinitionsTool =
 updateTool :: Tool MCP
 updateTool =
   Tool
-    { toolName = toToolName ViewDefinitionsTool,
-      toolDescription = "Update definitions in the codebase to the provided code.",
+    { toolName = toToolName UpdateDefinitionsTool,
+      toolDescription = "Typecheck, then update definitions in the codebase to the provided code.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Update Definitions",
@@ -408,7 +411,7 @@ getCurrentProjectContextTool :: Tool MCP
 getCurrentProjectContextTool =
   Tool
     { toolName = toToolName GetCurrentProjectContextTool,
-      toolDescription = "Get the current project context.",
+      toolDescription = "Get the current project context. This is useful for determining the user's working branch, but all commands take an explicit project context, so it's unnecessary if you already know which context is desired.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Get Current Project Context",
