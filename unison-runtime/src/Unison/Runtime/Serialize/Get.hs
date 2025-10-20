@@ -15,6 +15,12 @@ module Unison.Runtime.Serialize.Get
     getWord64le,
     getDoublebe,
     getFloatbe,
+    getAccumulating,
+    getAccumulatingRevList,
+    getArray,
+    getList,
+    getSeq,
+    getPrimArray,
     remaining,
     runGet,
     runGetCatch,
@@ -23,6 +29,7 @@ module Unison.Runtime.Serialize.Get
 where
 
 import Control.Exception
+import Control.Monad (replicateM)
 import Control.Monad.Primitive
 import Control.Monad.ST
 import Control.Monad.Trans (MonadTrans (..))
@@ -30,8 +37,12 @@ import Data.Bifunctor (first)
 import Data.Bits
 import Data.ByteString as BS
 import Data.ByteString.Unsafe qualified as BS
+import Data.Sequence qualified as Seq
 import Data.Int
+import Data.Primitive.Array
+import Data.Primitive.PrimArray
 import Data.Primitive.PrimVar
+import Data.Primitive.Types
 import Data.Word
 
 -- TODO: replace with GHC builtins after upgrading to GHC 9.10
@@ -255,3 +266,59 @@ getByteString n = Get \bs (Ix ix) -> do
     then BS.unsafeTake n (BS.unsafeDrop i bs) <$ writePrimVar ix (i + n)
     else throw $ InsufficientBytes "getBytes"
 {-# INLINEABLE getByteString #-}
+
+getList :: (PrimBase m) => Get m a -> Get m [a]
+getList ga = getVarInt >>= (`replicateM` ga)
+{-# INLINE getList #-}
+
+-- Builds a result by repeated snoc in an efficient loop. Should only be
+-- used when the snoc is efficient.
+getAccumulating ::
+  (PrimBase m) =>
+  s ->
+  (s -> a -> s) ->
+  (s -> r) ->
+  Get m a ->
+  Get m r
+getAccumulating nil snoc finish = \ga -> Get \bs ix ->
+  let loop !as (n :: Int)
+        | n <= 0 = evalPrim $ finish as
+        | otherwise = unGet ga bs ix >>= \a -> loop (snoc as a) (n-1)
+  in unGet getVarInt bs ix >>= loop nil
+{-# INLINE getAccumulating #-}
+
+getAccumulatingRevList ::
+  (PrimBase m) =>
+  ([a] -> r) ->
+  Get m a ->
+  Get m r
+getAccumulatingRevList finish = \ga -> Get \bs ix ->
+  let loop as (n :: Int)
+        | n <= 0 = evalPrim $ finish as
+        | otherwise = unGet ga bs ix >>= \a -> loop (a:as) (n-1)
+  in unGet getVarInt bs ix >>= loop []
+{-# INLINE getAccumulatingRevList #-}
+
+getSeq :: (PrimBase m) => Get m a -> Get m (Seq.Seq a)
+getSeq ga = getAccumulating mempty (Seq.|>) id ga
+{-# INLINEABLE getSeq #-}
+
+getArray :: (PrimBase m) => Get m a -> Get m (Array a)
+getArray ga = Get \bs ix -> do
+  sz <- unGet getVarInt bs ix
+  dst <- newArray sz (error "getArray: bad element")
+  let fill i
+        | i < sz = unGet ga bs ix >>= writeArray dst i >> fill (i+1)
+        | otherwise = unsafeFreezeArray dst
+  fill 0
+{-# INLINE getArray #-}
+
+getPrimArray :: (PrimBase m, Prim a) => Get m a -> Get m (PrimArray a)
+getPrimArray ga = Get \bs ix -> do
+  sz <- unGet getVarInt bs ix
+  dst <- newPrimArray sz
+  let fill i
+        | i < sz = unGet ga bs ix >>= writePrimArray dst i >> fill (i+1)
+        | otherwise = unsafeFreezePrimArray dst
+  fill 0
+{-# INLINE getPrimArray #-}

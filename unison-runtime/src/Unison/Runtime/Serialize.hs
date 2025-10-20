@@ -2,7 +2,6 @@
 
 module Unison.Runtime.Serialize where
 
-import Control.Monad (replicateM)
 import Control.Monad.Primitive
 import Data.Bits (Bits, setBit, shiftR)
 import Data.ByteString qualified as B
@@ -16,7 +15,6 @@ import Data.Primitive.Array
     indexArray,
     sizeofArray,
   )
-import Data.Sequence (Seq, (|>))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Primitive qualified as BA
@@ -174,29 +172,10 @@ putFoldable putA as =
 putMap :: (a -> Builder) -> (b -> Builder) -> Map a b -> Builder
 putMap putA putB m = putMapping putA putB $ Map.toList m
 
-getList :: (PrimBase m) => Get m a -> Get m [a]
-getList ga = getVarInt >>= grab []
-  where
-    grab as (n :: Int)
-      | n <= 0 = evaluated $ reverse as
-      | otherwise = ga >>= \a -> grab (a : as) (n - 1)
-{-# INLINE getList #-}
-
-getSeq :: (PrimBase m) => Get m a -> Get m (Seq a)
-getSeq a = getVarInt >>= pull mempty
-  where
-    pull !acc (n :: Int)
-      | n <= 0 = pure acc
-      | otherwise = a >>= \x -> pull (acc |> x) (n - 1)
-{-# INLINE getSeq #-}
-
 -- TODO: switch to MapBuilder when containers gets updated
 getMap :: (PrimBase m, Ord a) => Get m a -> Get m b -> Get m (Map a b)
-getMap getA getB = getVarInt >>= grab []
-  where
-    grab ps (n :: Int)
-      | n <= 0 = pure . Map.fromList $ reverse ps
-      | otherwise = getPair getA getB >>= \p -> grab (p : ps) (n - 1)
+getMap getA getB =
+  getAccumulatingRevList (Map.fromList . reverse) (getPair getA getB)
 {-# INLINEABLE getMap #-}
 
 putMapping :: (a -> Builder) -> (b -> Builder) -> [(a, b)] -> Builder
@@ -204,11 +183,7 @@ putMapping putA putB = putFoldable (putPair putA putB)
 {-# INLINE putMapping #-}
 
 getMapping :: (PrimBase m) => Get m a -> Get m b -> Get m [(a, b)]
-getMapping getA getB = getVarInt >>= grab []
-  where
-    grab ps (n :: Int)
-      | n <= 0 = pure $ reverse ps
-      | otherwise = getPair getA getB >>= \p -> grab (p : ps) (n - 1)
+getMapping getA getB = getList (getPair getA getB)
 {-# INLINE getMapping #-}
 
 putEnumMap ::
@@ -263,11 +238,6 @@ putByteArray :: PA.ByteArray -> Builder
 putByteArray a =
   putLength (PA.sizeofByteArray a)
     <> BU.shortByteString (PA.byteArrayToShortByteString a)
-
-getArray :: (PrimBase m) => Get m a -> Get m (PA.Array a)
-getArray a = do
-  sz <- getLength
-  PA.arrayFromListN sz <$> replicateM sz a
 
 putArray :: (a -> Builder) -> PA.Array a -> Builder
 putArray putThing a = putLength sz <> go 0
