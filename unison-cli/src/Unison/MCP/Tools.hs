@@ -120,6 +120,16 @@ shareProjectSearchTool =
             pure $ errorToolResult errorMsg
     }
 
+-- | Load and typecheck the provided code, THEN run the provided inputs within that scratchfile context.
+withCode :: Either FilePath Text -> [Input] -> ProjectContext -> EMCP CallToolResult
+withCode code inputs projectContext = do
+  source <- case code of
+    Left filePath -> liftIO $ readUtf8 filePath
+    Right codeSnippet -> pure codeSnippet
+  output <- handleInputMCP projectContext ([Left $ UnisonFileChanged "scratch.u" source] <> (Right <$> inputs))
+  let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+  pure $ textToolResult outputJSON
+
 typecheckCodeTool :: Tool MCP
 typecheckCodeTool =
   Tool
@@ -165,12 +175,8 @@ typecheckCodeTool =
           },
       toolArgType = Proxy,
       toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> handleToolError do
-        source <- case code of
-          Left filePath -> liftIO $ readUtf8 filePath
-          Right codeSnippet -> pure codeSnippet
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" source]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-        pure $ textToolResult outputJSON
+        -- Just load the code, nothing more
+        withCode code [] projectContext
     }
 
 docsTool :: Tool MCP
@@ -347,10 +353,12 @@ updateTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(UpdateDefinitionsToolArguments {projectContext}) -> handleToolError $ do
-            definitions <- handleInputMCP projectContext [Right $ Input.Update2I]
-            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
-            pure $ textToolResult outputJSON
+      toolHandler = \(UpdateDefinitionsToolArguments {projectContext, code}) -> handleToolError $ do
+        Env {isEditable} <- ask
+        when (not $ isEditable projectContext) $
+          let example = "--mcp-editable-branches=" <> into @Text projectContext.projectName <> "/" <> into @Text projectContext.branchName
+           in throwError $ "The provided project context is not editable. Please ask the user to allow edits to this project in their MCP configuration. E.g. by adding `" <> example <> "`"
+        withCode code [Input.Update2I] projectContext
     }
 
 

@@ -21,6 +21,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event, Input)
+import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.OutputMessages qualified as Output
@@ -38,26 +39,33 @@ import Prelude hiding (readFile, writeFile)
 
 data CliOutput = CliOutput
   { sourceCodeUpdates :: [Text],
-    outputMessages :: [Text],
     stdout :: Text,
-    stderr :: Text
+    stderr :: Text,
+    outputMessages :: [Text],
+    errorMessages :: [Text]
   }
   deriving (Eq, Show)
 
 instance Semigroup CliOutput where
-  CliOutput src1 out1 stdout1 stderr1 <> CliOutput src2 out2 stdout2 stderr2 =
-    CliOutput (src1 <> src2) (out1 <> out2) (stdout1 <> stdout2) (stderr1 <> stderr2)
+  (CliOutput scu1 stdOut1 stdErr1 outMsgs1 errMsgs1) <> (CliOutput scu2 stdOut2 stdErr2 outMsgs2 errMsgs2) =
+    CliOutput
+      (scu1 <> scu2)
+      (stdOut1 <> stdOut2)
+      (stdErr1 <> stdErr2)
+      (outMsgs1 <> outMsgs2)
+      (errMsgs1 <> errMsgs2)
 
 instance Monoid CliOutput where
-  mempty = CliOutput [] [] "" ""
+  mempty = CliOutput mempty mempty mempty mempty mempty
 
 instance ToJSON CliOutput where
   toJSON CliOutput {sourceCodeUpdates, outputMessages, stdout, stderr} =
     object
       [ "sourceCodeUpdates" .= sourceCodeUpdates,
-        "outputMessages" .= outputMessages,
         "stdout" .= stdout,
-        "stderr" .= stderr
+        "stderr" .= stderr,
+        "outputMessages" .= outputMessages,
+        "errorMessages" .= errorMessages
       ]
 
 ppForProjectContext :: ProjectContext -> ExceptT Text Transaction PP.ProjectPath
@@ -76,6 +84,9 @@ handleInputMCP projectContext input = do
   case input of
     (inp : rest) -> do
       (_, cliOutput) <- cliToMCP projectContext (HandleInput.loop inp)
+      case cliOutput.errorMessages of
+        [] -> pure ()
+        errs -> throwError $ Text.unlines ("Errors:" : errs)
       (cliOutput <>) <$> handleInputMCP projectContext rest
     [] -> pure mempty
 
@@ -89,10 +100,15 @@ cliToMCP projCtx cli = do
       tokenProvider = AuthN.newTokenProvider credMan
   authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
   outputVar <- newTVarIO Seq.empty
+  errorsVar <- newTVarIO Seq.empty
   sourceCodeUpdatesVar <- newTVarIO Seq.empty
   let notify output = do
         pretty <- Output.notifyUser workDir Output.fetchIssueFromGitHub output
-        atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
+        if (Output.isFailure output)
+          then do
+            atomically $ modifyTVar errorsVar (<> Seq.singleton pretty)
+          else do
+            atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
   let notifyNumbered output = do
         let (pretty, nargs) = Output.notifyNumbered output
         atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
@@ -134,17 +150,23 @@ cliToMCP projCtx cli = do
   -- flush the output buffer since it should now be filled.
   cliOut <- atomically $ do
     msgs <- readTVar outputVar
+    errs <- readTVar errorsVar
     sourceCodeUpdates <- toList <$> readTVar sourceCodeUpdatesVar
     let outputMessages =
           msgs
             & fmap (Pretty.toPlain 0)
             & toList
+    let errorMessages =
+          errs
+            & fmap (Text.pack . Pretty.toPlain 0)
+            & toList
     pure $
       ( CliOutput
           { sourceCodeUpdates,
-            outputMessages,
             stdout,
             stderr
+            outputMessages,
+            errorMessages
           }
       )
   case cliResult of

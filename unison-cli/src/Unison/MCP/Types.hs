@@ -276,7 +276,8 @@ instance FromJSON ViewDefinitionsToolArguments where
     pure $ ViewDefinitionsToolArguments {projectContext, names}
 
 data UpdateDefinitionsToolArguments = UpdateDefinitionsToolArguments
-  { projectContext :: ProjectContext
+  { projectContext :: ProjectContext,
+    code :: Either FilePath Text
   }
   deriving (Eq, Show)
 
@@ -286,15 +287,56 @@ instance HasInputSchema UpdateDefinitionsToolArguments where
       [ "type" .= ("object" :: Text),
         "properties"
           .= object
-            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext)
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "code"
+                .= object
+                  [ "description" .= ("The source code to update definitions to. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
+                    "oneOf"
+                      .= [ object
+                             [ "description" .= ("The file path to the source code." :: Text),
+                               "type" .= ("object" :: Text),
+                               "properties"
+                                 .= object
+                                   [ "filePath"
+                                       .= object
+                                         [ "type" .= ("string" :: Text),
+                                           "description" .= ("An absolute file path to the source code." :: Text)
+                                         ]
+                                   ],
+                               "required" .= ["filePath" :: Text],
+                               "additionalProperties" .= False
+                             ],
+                           object
+                             [ "description" .= ("The source code to use." :: Text),
+                               "type" .= ("object" :: Text),
+                               "properties"
+                                 .= object
+                                   [ "text"
+                                       .= object
+                                         [ "type" .= ("string" :: Text),
+                                           "description" .= ("The source code to use." :: Text)
+                                         ]
+                                   ],
+                               "required" .= ["text" :: Text],
+                               "additionalProperties" .= False
+                             ]
+                         ]
+                  ]
             ],
-        "required" .= ["projectContext" :: Text]
+        "required" .= ["projectContext", "code" :: Text]
       ]
 
 instance FromJSON UpdateDefinitionsToolArguments where
   parseJSON = withObject "UpdateDefinitionsToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
-    pure $ UpdateDefinitionsToolArguments {projectContext}
+    source <- o .: "code"
+    code <-
+      source .:? "filePath" >>= \case
+        Just filePath -> pure $ Left filePath
+        Nothing -> do
+          text <- source .: "text"
+          pure $ Right text
+    pure $ UpdateDefinitionsToolArguments {projectContext, code}
 
 data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
   { projectContext :: ProjectContext,
