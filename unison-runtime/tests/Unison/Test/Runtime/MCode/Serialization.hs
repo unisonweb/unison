@@ -16,8 +16,8 @@ import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
 import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, Ref, Section)
 import Unison.Runtime.Machine (Combs)
-import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Runtime.Serialize.Get
+import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
 import Unison.Util.EnumContainers (EnumMap, EnumSet)
 import Unison.Util.EnumContainers qualified as EC

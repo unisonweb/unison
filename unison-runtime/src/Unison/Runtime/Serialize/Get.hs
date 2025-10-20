@@ -63,6 +63,7 @@ runGetCatch g bs =
     $ runGet g bs
 -- runGetCatch @IO should just be safer to run as runGetCatchIO
 {-# NOINLINE [1] runGetCatch #-}
+
 {-# RULES "runGetCatch/IO" runGetCatch = runGetCatchIO #-}
 
 evaluated :: (PrimBase m) => a -> Get m a
