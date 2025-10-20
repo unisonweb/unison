@@ -52,6 +52,7 @@ tools =
     listProjectLibrariesTool,
     listLibraryDefinitionsTool,
     viewDefinitionsTool,
+    updateTool,
     listLocalProjectsTool,
     listProjectBranchesTool,
     getCurrentProjectContextTool,
@@ -331,6 +332,27 @@ viewDefinitionsTool =
             let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
             pure $ textToolResult outputJSON
     }
+
+updateTool :: Tool MCP
+updateTool =
+  Tool
+    { toolName = toToolName ViewDefinitionsTool,
+      toolDescription = "Update definitions in the codebase to the provided code.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Update Definitions",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(UpdateDefinitionsToolArguments {projectContext}) -> handleToolError $ do
+            definitions <- handleInputMCP projectContext [Right $ Input.Update2I]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode definitions
+            pure $ textToolResult outputJSON
+    }
+
 
 listLocalProjectsTool :: Tool MCP
 listLocalProjectsTool =
