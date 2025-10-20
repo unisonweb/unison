@@ -37,12 +37,12 @@ import Data.Bifunctor (first)
 import Data.Bits
 import Data.ByteString as BS
 import Data.ByteString.Unsafe qualified as BS
-import Data.Sequence qualified as Seq
 import Data.Int
 import Data.Primitive.Array
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimVar
 import Data.Primitive.Types
+import Data.Sequence qualified as Seq
 import Data.Word
 
 -- TODO: replace with GHC builtins after upgrading to GHC 9.10
@@ -283,8 +283,8 @@ getAccumulating ::
 getAccumulating nil snoc finish = \ga -> Get \bs ix ->
   let loop !as (n :: Int)
         | n <= 0 = evalPrim $ finish as
-        | otherwise = unGet ga bs ix >>= \a -> loop (snoc as a) (n-1)
-  in unGet getVarInt bs ix >>= loop nil
+        | otherwise = unGet ga bs ix >>= \a -> loop (snoc as a) (n - 1)
+   in unGet getVarInt bs ix >>= loop nil
 {-# INLINE getAccumulating #-}
 
 getAccumulatingRevList ::
@@ -295,8 +295,8 @@ getAccumulatingRevList ::
 getAccumulatingRevList finish = \ga -> Get \bs ix ->
   let loop as (n :: Int)
         | n <= 0 = evalPrim $ finish as
-        | otherwise = unGet ga bs ix >>= \a -> loop (a:as) (n-1)
-  in unGet getVarInt bs ix >>= loop []
+        | otherwise = unGet ga bs ix >>= \a -> loop (a : as) (n - 1)
+   in unGet getVarInt bs ix >>= loop []
 {-# INLINE getAccumulatingRevList #-}
 
 getSeq :: (PrimBase m) => Get m a -> Get m (Seq.Seq a)
@@ -308,7 +308,7 @@ getArray ga = Get \bs ix -> do
   sz <- unGet getVarInt bs ix
   dst <- newArray sz (error "getArray: bad element")
   let fill i
-        | i < sz = unGet ga bs ix >>= writeArray dst i >> fill (i+1)
+        | i < sz = unGet ga bs ix >>= writeArray dst i >> fill (i + 1)
         | otherwise = unsafeFreezeArray dst
   fill 0
 {-# INLINE getArray #-}
@@ -318,7 +318,7 @@ getPrimArray ga = Get \bs ix -> do
   sz <- unGet getVarInt bs ix
   dst <- newPrimArray sz
   let fill i
-        | i < sz = unGet ga bs ix >>= writePrimArray dst i >> fill (i+1)
+        | i < sz = unGet ga bs ix >>= writePrimArray dst i >> fill (i + 1)
         | otherwise = unsafeFreezePrimArray dst
   fill 0
 {-# INLINE getPrimArray #-}
