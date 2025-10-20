@@ -17,6 +17,7 @@ module Unison.Runtime.Serialize.Get
     getFloatbe,
     remaining,
     runGet,
+    runGetCatch,
     runGetCatchIO,
   )
 where
@@ -49,6 +50,20 @@ runGet (Get k) bs = newPrimVar 0 >>= k bs . Ix
 
 runGetCatchIO :: Get IO a -> ByteString -> IO (Either String a)
 runGetCatchIO g bs = fmap (first getExnMsg) . try $ runGet g bs
+
+-- This might be somewhat unsafe. It uses IO facilities to catch
+-- exceptions in an ST-like monad. When in doubt, prefer `runGetCatchIO`.
+runGetCatch ::
+  (PrimBase m) => Get m a -> ByteString -> m (Either String a)
+runGetCatch g bs =
+  unsafeIOToPrim
+    . fmap (first getExnMsg)
+    . try
+    . unsafePrimToIO
+    $ runGet g bs
+-- runGetCatch @IO should just be safer to run as runGetCatchIO
+{-# NOINLINE [1] runGetCatch #-}
+{-# RULES "runGetCatch/IO" runGetCatch = runGetCatchIO #-}
 
 evaluated :: (PrimBase m) => a -> Get m a
 evaluated x = Get \_ _ -> evalPrim x

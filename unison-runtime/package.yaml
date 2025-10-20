@@ -121,9 +121,7 @@ tests:
         other-modules: Paths_unison_parser_typechecker
     dependencies:
       - base
-      - bytes
       - bytestring
-      - cereal
       - code-page
       - containers
       - cryptonite

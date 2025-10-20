@@ -234,9 +234,7 @@ test-suite runtime-tests
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
-    , bytes
     , bytestring
-    , cereal
     , code-page
     , containers
     , cryptonite
