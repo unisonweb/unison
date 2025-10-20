@@ -357,13 +357,8 @@ updateTool =
           },
       toolArgType = Proxy,
       toolHandler = \(UpdateDefinitionsToolArguments {projectContext, code}) -> handleToolError $ do
-        Env {isEditable} <- ask
-        when (not $ isEditable projectContext) $
-          let example = "--mcp-editable-branches=" <> into @Text projectContext.projectName <> "/" <> into @Text projectContext.branchName
-           in throwError $ "The provided project-branch is not editable.\nPlease ask the user to allow edits to this project in their MCP configuration by adding `" <> example <> "` to the invocation of the Unison mcp within their agent's mcp configuration."
         withCode code [Input.Update2I] projectContext
     }
-
 
 listLocalProjectsTool :: Tool MCP
 listLocalProjectsTool =

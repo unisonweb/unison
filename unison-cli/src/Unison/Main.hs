@@ -140,7 +140,7 @@ main version = do
       progName <- getProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
-      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig, mcpEditableBranches} = globalOptions
+      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
       currentDir <- getCurrentDirectory
       case command of
         PrintVersion ->
