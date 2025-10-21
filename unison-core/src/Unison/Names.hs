@@ -13,6 +13,7 @@ module Unison.Names
     filter,
     filterBySHs,
     filterTypes,
+    fromRelations,
     fromUnconflicted,
     fromUnconflictedReferenceIds,
     fromUnconflictedRelation,
@@ -135,6 +136,13 @@ fromUnconflictedReferenceIds defns =
   Names
     { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId defns.terms),
       types = Relation.fromMap (Map.map Reference.fromId defns.types)
+    }
+
+fromRelations :: Defns (Relation Referent Name) (Relation TypeReference Name) -> Names
+fromRelations defns =
+  Names
+    { terms = Relation.swap defns.terms,
+      types = Relation.swap defns.types
     }
 
 fromUnconflictedRelation :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names

@@ -24,8 +24,8 @@ import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Branch (CreateFrom (..))
 import Unison.Codebase.Editor.HandleInput.Branch qualified as HandleInput.Branch
 import Unison.Codebase.Editor.HandleInput.Update2 (typecheckedUnisonFileToBranchUpdates)
@@ -41,7 +41,6 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
-import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -58,7 +57,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.UnconflictedLocalDefnsView qualified
 import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -86,11 +85,10 @@ handleUpgrade oldName newName = do
 
   currentNamespace <- Cli.getCurrentProjectRoot
   let currentNamespace0 = Branch.head currentNamespace
-  let currentNamespaceSansOld = currentNamespace & Branch.step (Branch.deleteLibdep oldName)
-  let currentNamespaceSansOld0 = Branch.head currentNamespaceSansOld
-  let currentDeepTermsSansOld = Branch.deepTerms currentNamespaceSansOld0
-  let currentDeepTypesSansOld = Branch.deepTypes currentNamespaceSansOld0
-  let currentDeepNamesSansOld = Branch.toNames currentNamespaceSansOld0
+  let currentNamespaceSansOlds0 =
+        List.foldl' (\acc oldName -> Branch.deleteLibdep oldName acc) currentNamespace0 [oldName]
+  let currentDeepDefnsSansOlds = Branch.deepDefns currentNamespaceSansOlds0
+  let currentDeepDefnsRefsSansOlds = Branch.deepDefnsRefs currentNamespaceSansOlds0
 
   -- Assert that the namespace doesn't have any conflicted names
   unconflictedView <-
@@ -98,17 +96,22 @@ handleUpgrade oldName newName = do
       & onLeft (Cli.returnEarly . Output.ConflictedDefn)
 
   oldNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' oldPath)
-  let oldLocalNamespace = Branch.deleteLibdeps oldNamespace
-  let oldLocalTerms = Branch.deepTerms oldLocalNamespace
-  let oldLocalTypes = Branch.deepTypes oldLocalNamespace
-  let oldNamespaceMinusLocal = maybe Branch.empty0 Branch.head (Map.lookup NameSegment.libSegment (oldNamespace ^. Branch.children_))
-  let oldDeepMinusLocalTerms = Branch.deepTerms oldNamespaceMinusLocal
-  let oldDeepMinusLocalTypes = Branch.deepTypes oldNamespaceMinusLocal
 
   newNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' newPath)
   let newLocalNamespace = Branch.deleteLibdeps newNamespace
-  let newLocalTerms = Branch.deepTerms newLocalNamespace
-  let newLocalTypes = Branch.deepTypes newLocalNamespace
+
+  let upgradeInfo =
+        UpgradeInfo
+          { oldName,
+            oldNamespace,
+            oldDeepDefns = Branch.deepDefns oldNamespace,
+            oldLocalDefns = Branch.deepDefns (Branch.deleteLibdeps oldNamespace),
+            newName,
+            newLocalDefns = Branch.deepDefns newLocalNamespace
+          }
+
+  let upgradeInfos =
+        [upgradeInfo]
 
   -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
   -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
@@ -147,17 +150,19 @@ handleUpgrade oldName newName = do
       dependents <-
         getNamespaceDependentsOf
           unconflictedView.defns
-          ( let oldLocalDefnsNotInNew =
-                  Defns
-                    { terms = keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms,
-                      types = keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes
-                    }
-                oldDeepDefnsStillInUse =
-                  Defns
-                    { terms = keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld,
-                      types = keepOldDeepTypesStillInUse oldDeepMinusLocalTypes currentDeepTypesSansOld
-                    }
-             in oldLocalDefnsNotInNew <> oldDeepDefnsStillInUse
+          ( foldMap upgradeInfoOldLocalDefnsNotInNew upgradeInfos
+              <> zipDefnsWith
+                Set.difference
+                Set.difference
+                ( foldMap
+                    ( \info ->
+                        info.oldNamespace
+                          & view Branch.libdeps_
+                          & foldMap (Branch.deepDefnsRefs . Branch.head)
+                    )
+                    upgradeInfos
+                )
+                currentDeepDefnsRefsSansOlds
           )
 
       let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
@@ -180,28 +185,19 @@ handleUpgrade oldName newName = do
           renderDefnsForUnisonFile
             declNameLookup
             ( PPED.leftBiased
-                [ makeOldDepPPE
-                    [ UpgradeInfo
-                        { oldName,
-                          oldDeepNames = Branch.toNames oldNamespace,
-                          oldLocalNames = Branch.toNames oldLocalNamespace,
-                          newName,
-                          newLocalNames = Branch.toNames newLocalNamespace
-                        }
-                    ]
-                    currentDeepNamesSansOld,
+                [ makeOldDepPPE [upgradeInfo] currentDeepDefnsSansOlds,
                   PPED.makePPED
                     (PPE.namer (Names.fromUnconflictedReferenceIds dependents))
-                    (PPE.suffixifyByName currentDeepNamesSansOld),
+                    (PPE.suffixifyByName (Names.fromRelations currentDeepDefnsSansOlds)),
                   PPED.makePPED
-                    (PPE.hqNamer 10 currentDeepNamesSansOld)
-                    (PPE.suffixifyByHash currentDeepNamesSansOld)
+                    (PPE.hqNamer 10 (Names.fromRelations currentDeepDefnsSansOlds))
+                    (PPE.suffixifyByHash (Names.fromRelations currentDeepDefnsSansOlds))
                 ]
             )
             Set.empty
             (over (#terms . Lens.mapped) snd hydratedDependents)
 
-  parsingEnv <- Cli.makeParsingEnv pp currentDeepNamesSansOld
+  parsingEnv <- Cli.makeParsingEnv pp (Names.fromRelations currentDeepDefnsSansOlds)
   typecheckedUnisonFile <- do
     parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
       uniqueTypeGuidsByName <-
@@ -217,7 +213,7 @@ handleUpgrade oldName newName = do
                   & subtractDependents dependentsRefs
                   & Branch.fromUnconflictedDefns
                   & Branch.setLibdeps
-                    (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentNamespaceSansOld0)
+                    (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentNamespaceSansOlds0)
                   & (`Branch.cons` currentNamespace)
               )
           )
@@ -278,30 +274,6 @@ handleUpgrade oldName newName = do
     textualDescriptionOfUpgrade =
       Text.unwords ["upgrade", NameSegment.toEscapedText oldName, NameSegment.toEscapedText newName]
 
-keepOldLocalTermsNotInNew :: Relation Referent Name -> Relation Referent Name -> Set TermReference
-keepOldLocalTermsNotInNew oldLocalTerms newLocalTerms =
-  f oldLocalTerms `Set.difference` f newLocalTerms
-  where
-    f :: Relation Referent Name -> Set TermReference
-    f =
-      Set.mapMaybe Referent.toTermReference . Relation.dom
-
-keepOldLocalTypesNotInNew :: Relation TypeReference Name -> Relation TypeReference Name -> Set TypeReference
-keepOldLocalTypesNotInNew oldLocalTypes newLocalTypes =
-  Relation.dom oldLocalTypes `Set.difference` Relation.dom newLocalTypes
-
-keepOldDeepTermsStillInUse :: Relation Referent Name -> Relation Referent Name -> Set TermReference
-keepOldDeepTermsStillInUse oldDeepMinusLocalTerms currentDeepTermsSansOld =
-  Relation.dom oldDeepMinusLocalTerms & Set.mapMaybe \referent -> do
-    ref <- Referent.toTermReference referent
-    guard (not (Relation.memberDom referent currentDeepTermsSansOld))
-    pure ref
-
-keepOldDeepTypesStillInUse :: Relation TypeReference Name -> Relation TypeReference Name -> Set TypeReference
-keepOldDeepTypesStillInUse oldDeepMinusLocalTypes currentDeepTypesSansOld =
-  Relation.dom oldDeepMinusLocalTypes
-    & Set.filter \typ -> not (Relation.memberDom typ currentDeepTypesSansOld)
-
 makePrettyUnisonFile :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
 makePrettyUnisonFile dependents =
   "-- The definitions below no longer typecheck after upgrading."
@@ -322,67 +294,99 @@ makePrettyUnisonFile dependents =
 
 data UpgradeInfo = UpgradeInfo
   { oldName :: NameSegment,
-    oldDeepNames :: Names,
-    oldLocalNames :: Names,
+    oldNamespace :: Branch0 IO,
+    oldDeepDefns :: Defns (Relation Referent Name) (Relation TypeReference Name),
+    oldLocalDefns :: Defns (Relation Referent Name) (Relation TypeReference Name),
     newName :: NameSegment,
-    newLocalNames :: Names
+    newLocalDefns :: Defns (Relation Referent Name) (Relation TypeReference Name)
   }
 
-makeOldDepPPE :: [UpgradeInfo] -> Names -> PrettyPrintEnvDecl
-makeOldDepPPE infos currentDeepNamesSansOld =
+upgradeInfoOldLocalDefnsNotInNew :: UpgradeInfo -> DefnsF Set TermReference TypeReference
+upgradeInfoOldLocalDefnsNotInNew info =
+  zipDefnsWith
+    ( let f = Set.mapMaybe Referent.toTermReference . Relation.dom
+       in \old new -> f old `Set.difference` f new
+    )
+    (\old new -> Relation.dom old `Set.difference` Relation.dom new)
+    info.oldLocalDefns
+    info.newLocalDefns
+
+makeOldDepPPE :: [UpgradeInfo] -> Defns (Relation Referent Name) (Relation TypeReference Name) -> PrettyPrintEnvDecl
+makeOldDepPPE infos currentDeepNamesSansOlds =
   let makePPE suffixifier =
         PPE.PrettyPrintEnv termToNames typeToNames
         where
-          inOldAndNewNamespaces :: (Ord ref) => (Names -> Relation Name ref) -> ref -> UpgradeInfo -> Bool
+          inOldAndNewNamespaces ::
+            (Ord ref) =>
+            (Defns (Relation Referent Name) (Relation TypeReference Name) -> Relation ref Name) ->
+            ref ->
+            UpgradeInfo ->
+            Bool
           inOldAndNewNamespaces which ref info =
-            Relation.memberRan ref (which info.oldDeepNames)
-              && Relation.memberRan ref (which info.newLocalNames)
+            Relation.memberDom ref (which info.oldDeepDefns)
+              && Relation.memberDom ref (which info.newLocalDefns)
 
-          hasNewLocalDefnsForOldLocalNames :: (Ord ref) => (Names -> Relation Name ref) -> ref -> UpgradeInfo -> Bool
+          hasNewLocalDefnsForOldLocalNames ::
+            (Ord ref) =>
+            (Defns (Relation Referent Name) (Relation TypeReference Name) -> Relation ref Name) ->
+            ref ->
+            UpgradeInfo ->
+            Bool
           hasNewLocalDefnsForOldLocalNames which ref info =
-            not (Map.null (Relation.domain (which info.newLocalNames) `Map.restrictKeys` theOldLocalNames))
+            not (Map.null (Relation.range (which info.newLocalDefns) `Map.restrictKeys` theOldLocalNames))
             where
-              theOldLocalNames = Relation.lookupRan ref (which info.oldLocalNames)
+              theOldLocalNames = Relation.lookupDom ref (which info.oldLocalDefns)
 
-          onlyInOldNamespace :: (Ord ref) => (Names -> Relation Name ref) -> ref -> UpgradeInfo -> Bool
+          onlyInOldNamespace ::
+            (Ord ref) =>
+            (Defns (Relation Referent Name) (Relation TypeReference Name) -> Relation ref Name) ->
+            ref ->
+            UpgradeInfo ->
+            Bool
           onlyInOldNamespace which ref info =
-            inOldNamespace && not inCurrentNamespaceSansOld
+            inOldNamespace && not inCurrentNamespaceSansOlds
             where
               inOldNamespace :: Bool
               inOldNamespace =
-                Relation.memberRan ref (which info.oldDeepNames)
+                Relation.memberDom ref (which info.oldDeepDefns)
 
-              inCurrentNamespaceSansOld :: Bool
-              inCurrentNamespaceSansOld =
-                Relation.memberRan ref (which currentDeepNamesSansOld)
+              inCurrentNamespaceSansOlds :: Bool
+              inCurrentNamespaceSansOlds =
+                Relation.memberDom ref (which currentDeepNamesSansOlds)
 
           termToNames :: Referent -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
           termToNames ref
-            | any (inOldAndNewNamespaces Names.terms ref) infos = []
-            | Just info <- List.find (hasNewLocalDefnsForOldLocalNames Names.terms ref) infos =
+            | any (inOldAndNewNamespaces (.terms) ref) infos = []
+            | Just info <- List.find (hasNewLocalDefnsForOldLocalNames (.terms) ref) infos =
                 PPE.makeTermNames (fakeLocalNames info) suffixifier ref
-            | Just info <- List.find (onlyInOldNamespace Names.terms ref) infos =
+            | Just info <- List.find (onlyInOldNamespace (.terms) ref) infos =
                 PPE.makeTermNames (fullOldDeepNames info) PPE.dontSuffixify ref
             | otherwise = []
 
           typeToNames :: TypeReference -> [(HQ'.HashQualified Name, HQ'.HashQualified Name)]
           typeToNames ref
-            | any (inOldAndNewNamespaces Names.types ref) infos = []
-            | Just info <- List.find (hasNewLocalDefnsForOldLocalNames Names.types ref) infos =
+            | any (inOldAndNewNamespaces (.types) ref) infos = []
+            | Just info <- List.find (hasNewLocalDefnsForOldLocalNames (.types) ref) infos =
                 PPE.makeTypeNames (fakeLocalNames info) suffixifier ref
-            | Just info <- List.find (onlyInOldNamespace Names.types ref) infos =
+            | Just info <- List.find (onlyInOldNamespace (.types) ref) infos =
                 PPE.makeTypeNames (fullOldDeepNames info) PPE.dontSuffixify ref
             | otherwise = []
-            where
-
    in PrettyPrintEnvDecl
         { unsuffixifiedPPE = makePPE PPE.dontSuffixify,
-          suffixifiedPPE = makePPE (PPE.suffixifyByHash currentDeepNamesSansOld)
+          suffixifiedPPE = makePPE (PPE.suffixifyByHash (Names.fromRelations currentDeepNamesSansOlds))
         }
   where
     -- "full" means "with lib.old.* prefix"
-    fullOldDeepNames info = PPE.namer (Names.prefix0 (Name.fromReverseSegments (info.oldName :| [NameSegment.libSegment])) info.oldDeepNames)
-    fakeLocalNames info = PPE.namer (Names.prefix0 (Name.fromReverseSegments (info.newName :| [NameSegment.libSegment])) info.oldLocalNames)
+    fullOldDeepNames info =
+      PPE.namer $
+        Names.prefix0
+          (Name.fromReverseSegments (info.oldName :| [NameSegment.libSegment]))
+          (Names.fromRelations info.oldDeepDefns)
+    fakeLocalNames info =
+      PPE.namer $
+        Names.prefix0
+          (Name.fromReverseSegments (info.newName :| [NameSegment.libSegment]))
+          (Names.fromRelations info.oldLocalDefns)
 
 -- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
 -- like "upgrade-<oldDepName>-to-<newDepName>".
