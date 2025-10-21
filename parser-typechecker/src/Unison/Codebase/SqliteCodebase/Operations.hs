@@ -43,6 +43,7 @@ import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project (defaultBranchName)
@@ -530,8 +531,8 @@ branchHashLength :: Transaction Int
 branchHashLength = pure 10
 
 defnReferencesByPrefix :: OT.ObjectType -> ShortHash -> Transaction (Set Reference.Id)
-defnReferencesByPrefix _ (ShortHash.Builtin _) = pure mempty
-defnReferencesByPrefix ot (ShortHash.ShortHash prefix cycle _cid) = do
+defnReferencesByPrefix _ (Builtin _) = pure mempty
+defnReferencesByPrefix ot (NotBuiltin (ShortHash.ShortHash prefix cycle _cid)) = do
   refs <- do
     Ops.componentReferencesByPrefix ot prefix cycle
       >>= traverse (C.Reference.idH Q.expectPrimaryHashByObjectId)
@@ -550,8 +551,8 @@ referentsByPrefix ::
   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
   ShortHash ->
   Transaction (Set Referent.Id)
-referentsByPrefix _doGetDeclType ShortHash.Builtin {} = pure mempty
-referentsByPrefix doGetDeclType (ShortHash.ShortHash prefix cycle cid) = do
+referentsByPrefix _doGetDeclType Builtin {} = pure mempty
+referentsByPrefix doGetDeclType (NotBuiltin (ShortHash.ShortHash prefix cycle cid)) = do
   termReferents <-
     Ops.termReferentsByPrefix prefix cycle
       >>= traverse (Cv.referentid2to1 doGetDeclType)

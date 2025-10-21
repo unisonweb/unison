@@ -6,11 +6,9 @@ where
 import Control.Lens (mapped)
 import Data.Align (align)
 import Data.Bifoldable (bifoldMap)
-import Data.List qualified as List
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.These (These (..))
 import Data.Zip (unzip)
 import Unison.DataDeclaration (Decl)
@@ -26,6 +24,7 @@ import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
+import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
@@ -184,49 +183,10 @@ renderLcaConflicts ::
 renderLcaConflicts partialDeclNameLookup hydratedDefns conflicts ppe =
   let hydratedConflicts = zipDefnsWith Map.restrictKeys Map.restrictKeys hydratedDefns (fold conflicts)
    in renderDefnsForUnisonFile
-        declNameLookup
+        (PartialDeclNameLookup.toDeclNameLookup Name.unsafeParseText partialDeclNameLookup)
         ppe
         Set.empty
         (over (#terms . mapped) snd hydratedConflicts)
-  where
-    -- We allow the LCA of a merge to have missing constructor names, yet we do need to render *something* in a file
-    -- for a mergetool (if one is configured). So, we make the partial decl name lookup total by making bogus
-    -- constructor names as necessary.
-    declNameLookup :: DeclNameLookup
-    declNameLookup =
-      DeclNameLookup
-        { constructorToDecl = partialDeclNameLookup.constructorToDecl,
-          declToConstructors =
-            makeTotal <$> partialDeclNameLookup.declToConstructors
-        }
-      where
-        makeTotal :: [Maybe Name] -> [Name]
-        makeTotal names0 =
-          case sequence names0 of
-            Just names -> names
-            Nothing ->
-              snd $
-                List.mapAccumL
-                  makeSomethingUp
-                  (foldMap (maybe Set.empty Set.singleton) names0)
-                  names0
-          where
-            makeSomethingUp :: Set Name -> Maybe Name -> (Set Name, Name)
-            makeSomethingUp taken = \case
-              Just name -> (taken, name)
-              Nothing ->
-                let name = freshen 0 "Unnamed"
-                    !taken1 = Set.insert name taken
-                 in (taken1, name)
-              where
-                freshen :: Int -> Text -> Name
-                freshen i name0
-                  | Set.member name taken = freshen (i + 1) name0
-                  | otherwise = name
-                  where
-                    name :: Name
-                    name =
-                      Name.unsafeParseText (name0 <> if i == 0 then Text.empty else Text.pack (show i))
 
 makePrettyUnisonFile ::
   TwoWay Text ->

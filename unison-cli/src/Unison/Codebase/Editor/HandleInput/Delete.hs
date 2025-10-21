@@ -104,7 +104,11 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
   declNameLookup <-
     Cli.runTransactionWithRollback \rollback -> do
       Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentNamespace) unconflictedView
-        & onLeftM (rollback . Output.IncoherentDeclDuringDelete . DeclCoherencyCheck.asOneRandomIncoherentDeclReason)
+        & onLeftM
+          ( rollback
+              . Output.IncoherentDeclDuringDelete which
+              . DeclCoherencyCheck.asOneRandomIncoherentDeclReason
+          )
 
   -- Identify the term and types identified by the provided names.
   target :: Defns (BiMultimap TermReference Name) (BiMultimap TypeReference Name) <-
@@ -219,12 +223,8 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
               <> "-- Please fix the errors and run `update`."
               <> Pretty.newline
               <> Pretty.newline
-              <> ( let f =
-                         foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
-                           . sortAlphabeticallyOn fst
-                           . Map.toList
-                    in bifoldMap f f dependents
-                 )
+              <> renderDefns dependents.types
+              <> renderDefns dependents.terms
             where
               dependents :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
               dependents =
@@ -236,6 +236,12 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
                       & nameHydratedRefIds2 unconflictedView.defns
                       & over (#terms . mapped) snd
                   )
+
+              renderDefns :: Map Name (Pretty ColorText) -> Pretty ColorText
+              renderDefns =
+                foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+                  . sortAlphabeticallyOn fst
+                  . Map.toList
 
       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
 

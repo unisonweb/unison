@@ -24,10 +24,8 @@ import Data.Semialign (zipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import System.Directory (canonicalizePath, getCurrentDirectory, getTemporaryDirectory, removeFile)
+import System.Directory (getCurrentDirectory, removeFile)
 import System.Environment (lookupEnv)
-import System.FilePath ((</>))
-import System.IO.Temp qualified as Temporary
 import System.OsPath qualified
 import System.Process qualified as Process
 import Text.ANSI qualified as Text
@@ -43,6 +41,7 @@ import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.DirectoryUtils (makeMakeTempFilename)
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), MergeSourceOrTarget (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -402,12 +401,7 @@ doMerge info = do
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
-                makeTempFilename <-
-                  liftIO do
-                    tmpdir0 <- getTemporaryDirectory
-                    tmpdir1 <- canonicalizePath tmpdir0
-                    tmpdir2 <- Temporary.createTempDirectory tmpdir1 "unison-merge"
-                    pure \filename -> Text.pack (tmpdir2 </> Text.unpack (Text.Builder.run filename))
+                makeTempFilename <- makeMakeTempFilename
                 let filenames =
                       fmap
                         makeTempFilename

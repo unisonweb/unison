@@ -94,6 +94,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Merge (GUpdated (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -151,6 +152,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
@@ -950,10 +952,10 @@ notifyUser dir issueFn = \case
         (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
-                SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
-                SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
-                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+                SlurpResult.TypeSlurp'Add decl -> over _1 ((name, decl) :) acc
+                SlurpResult.TypeSlurp'Update decl -> over _2 ((name, decl.old, decl.new) :) acc
+                SlurpResult.TypeSlurp'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.TypeSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
             slurpEntries.types
@@ -976,10 +978,10 @@ notifyUser dir issueFn = \case
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
-                SlurpResult.TermSlurp'Update oldRef oldTy newRef newTy ->
+                SlurpResult.TermSlurp'Add (Typed ref ty) -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Update (Updated (Typed oldRef oldTy) (Typed newRef newTy)) ->
                   over _2 ((name, oldTy, toAliases oldRef, newTy, toAliases newRef) :) acc
-                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Delete (Typed ref ty) -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
                 SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
@@ -2409,6 +2411,11 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  ShowBranchDiff _ _ maybeDifftoolResult ->
+    pure $
+      case maybeDifftoolResult of
+        Nothing -> "No UCM_DIFFTOOL"
+        Just (difftool, exitCode) -> "Ran: " <> P.text difftool
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

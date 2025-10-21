@@ -30,9 +30,9 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.DirectoryUtils
       Unison.Cli.DownloadUtils
       Unison.Cli.MergeTypes
-      Unison.Cli.MergeUtils
       Unison.Cli.Monad
       Unison.Cli.MonadUtils
       Unison.Cli.NameResolutionUtils

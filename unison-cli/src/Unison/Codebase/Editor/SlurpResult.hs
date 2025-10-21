@@ -19,9 +19,9 @@ module Unison.Codebase.Editor.SlurpResult
     Status (..),
     prettyStatus,
 
-    -- * Slurp entry
+    -- * Slurp types
     TermSlurp (..),
-    SlurpEntry (..),
+    TypeSlurp (..),
   )
 where
 
@@ -30,6 +30,8 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent (..))
 import Unison.Codebase.Editor.SlurpComponent qualified as SC
+import Unison.DataDeclaration (DeclOrBuiltin)
+import Unison.Merge (Updated)
 import Unison.Name (Name)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -41,7 +43,7 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (toText)
 import Unison.Syntax.TypePrinter qualified as TP
-import Unison.Type (Type)
+import Unison.Typed (Typed)
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Pretty qualified as P
 import Unison.Var (Var)
@@ -328,14 +330,14 @@ filterUnisonFile
       watches = filter (not . null . snd) $ fmap (second (List.filter filterTLC)) watchComponents
       filterTLC (v, _, _, _) = Set.member v keepTerms
 
-data TermSlurp v a
-  = TermSlurp'Add !TermReference !(Type v a)
-  | TermSlurp'Delete !TermReference !(Type v a)
-  | TermSlurp'Update !Referent !(Type v a) !Referent !(Type v a)
+data TermSlurp
+  = TermSlurp'Add !(Typed TermReference Symbol Ann)
+  | TermSlurp'Delete !(Typed TermReference Symbol Ann)
+  | TermSlurp'Update !(Updated (Typed Referent Symbol Ann))
   | TermSlurp'Unchanged
 
-data SlurpEntry a
-  = SlurpEntry'Add a
-  | SlurpEntry'Delete a
-  | SlurpEntry'Update a a
-  | SlurpEntry'Unchanged
+data TypeSlurp
+  = TypeSlurp'Add !(DeclOrBuiltin Symbol Ann)
+  | TypeSlurp'Delete !(DeclOrBuiltin Symbol Ann)
+  | TypeSlurp'Update !(Updated (DeclOrBuiltin Symbol Ann))
+  | TypeSlurp'Unchanged

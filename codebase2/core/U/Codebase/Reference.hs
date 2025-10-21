@@ -40,6 +40,7 @@ import Data.Text qualified as Text
 import Unison.Hash (Hash)
 import Unison.Hash qualified as H
 import Unison.Hash qualified as Hash
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -149,9 +150,9 @@ toId =
 
 toShortHash :: Reference -> ShortHash
 toShortHash = \case
-  ReferenceBuiltin b -> SH.Builtin b
-  ReferenceDerived (Id h 0) -> SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
-  ReferenceDerived (Id h i) -> SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
+  ReferenceBuiltin b -> Builtin b
+  ReferenceDerived (Id h 0) -> NotBuiltin (SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing)
+  ReferenceDerived (Id h i) -> NotBuiltin (SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing)
 
 unsafeId :: Reference -> Id
 unsafeId = \case

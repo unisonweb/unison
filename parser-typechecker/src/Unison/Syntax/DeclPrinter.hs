@@ -23,6 +23,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
@@ -317,9 +318,9 @@ prettyDeclOrBuiltinHeader ::
   DD.DeclOrBuiltin v a ->
   Pretty SyntaxText
 prettyDeclOrBuiltinHeader guid name = \case
-  DD.Builtin CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
-  DD.Builtin CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
-  DD.Decl e -> prettyDeclHeader guid name e
+  Builtin CT.Data -> fmt S.DataTypeKeyword "builtin type " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
+  Builtin CT.Effect -> fmt S.DataTypeKeyword "builtin ability " <> styleHashQualified'' (fmt $ S.HashQualifier name) name
+  NotBuiltin e -> prettyDeclHeader guid name e
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = P.withSyntax

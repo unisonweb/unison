@@ -7,7 +7,6 @@ where
 import Control.Lens ((?=))
 import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
-import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map.Strict qualified as Map
@@ -301,16 +300,14 @@ makePrettyUnisonFile dependents =
     <> "-- Please fix the errors, then run `update`."
     <> Pretty.newline
     <> Pretty.newline
-    <> ( dependents
-           & inAlphabeticalOrder
-           & let f = foldMap (\defn -> defn <> Pretty.newline <> Pretty.newline) in bifoldMap f f
-       )
+    <> renderDefns dependents.types
+    <> renderDefns dependents.terms
   where
-    inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
-    inAlphabeticalOrder =
-      bimap f f
-      where
-        f = map snd . sortAlphabeticallyOn fst . Map.toList
+    renderDefns :: Map Name (Pretty ColorText) -> Pretty ColorText
+    renderDefns =
+      foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+        . sortAlphabeticallyOn fst
+        . Map.toList
 
 makeOldDepPPE ::
   NameSegment ->

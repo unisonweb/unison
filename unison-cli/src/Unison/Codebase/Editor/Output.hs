@@ -59,6 +59,7 @@ import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -88,7 +89,7 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (DefnsF, defnsAreEmpty)
+import Unison.Util.Defns (DefnsF, DefnsF3, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -280,14 +281,10 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
   | Typechecked
-      PPE.PrettyPrintEnv
-      PPE.PrettyPrintEnv
-      ( DefnsF
-          (Map Name)
-          (SR.TermSlurp Symbol Ann)
-          (SR.SlurpEntry (DD.DeclOrBuiltin Symbol Ann))
-      )
-      (Map Referent (NESet Name))
+      !PPE.PrettyPrintEnv
+      !PPE.PrettyPrintEnv
+      !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
+      !(Map Referent (NESet Name))
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -454,6 +451,10 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | ShowBranchDiff
+      !(Merge.TwoWay DiffBranchArg)
+      !(Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference))
+      !(Maybe (Text, ExitCode))
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -696,6 +697,7 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  ShowBranchDiff {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.ShortHash
-  ( ShortHash (..),
+  ( ShortHash,
+    ShortHash1 (..),
     ShortCausalHash (..),
     ShortNamespaceHash (..),
     isPrefixOf,
@@ -14,6 +15,7 @@ module Unison.ShortHash
 where
 
 import Data.Text qualified as Text
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Prelude
 
 -- A ShortHash is used to query the Codebase for anonymous definitions. The prefix should look like base32hex, but is
@@ -31,10 +33,15 @@ import Unison.Prelude
 --  |      | cid
 --  |      cycle
 --  prefix
-data ShortHash
-  = Builtin Text
-  | ShortHash {prefix :: Text, cycle :: Maybe Word64, cid :: Maybe Word64}
-  deriving (Eq, Ord, Show)
+type ShortHash =
+  OrBuiltin Text ShortHash1
+
+data ShortHash1 = ShortHash
+  { prefix :: Text,
+    cycle :: Maybe Word64,
+    cid :: Maybe Word64
+  }
+  deriving stock (Eq, Generic, Ord, Show)
 
 newtype ShortCausalHash = ShortCausalHash {shortCausalHashToText :: Text}
   deriving stock (Eq, Ord, Show)
@@ -51,7 +58,7 @@ isPrefixOf :: ShortHash -> ShortHash -> Bool
 -- This is so that we can have builtins like e.g. ##Nat and ##Natural
 -- without ##Nat being ambiguous.
 isPrefixOf (Builtin t) (Builtin t2) = t == t2
-isPrefixOf (ShortHash h n cid) (ShortHash h2 n2 cid2) =
+isPrefixOf (NotBuiltin (ShortHash h n cid)) (NotBuiltin (ShortHash h2 n2 cid2)) =
   Text.isPrefixOf h h2 && maybePrefixOf n n2 && maybePrefixOf cid cid2
   where
     Nothing `maybePrefixOf` Nothing = True
@@ -62,7 +69,7 @@ isPrefixOf _ _ = False
 
 shortenTo :: Int -> ShortHash -> ShortHash
 shortenTo _ b@(Builtin _) = b
-shortenTo i s@ShortHash {..} = s {prefix = Text.take i prefix}
+shortenTo i (NotBuiltin s@ShortHash {prefix}) = NotBuiltin s {prefix = Text.take i prefix}
 
 -- Parse a string like those described in Referent.fromText:
 -- examples:
@@ -111,14 +118,14 @@ fromText t =
       Just $ Builtin b
     [_, h0] -> do
       (h, cid) <- getCycle h0
-      Just (ShortHash h cid Nothing)
+      Just (NotBuiltin (ShortHash h cid Nothing))
     [_, h0, readMaybe . Text.unpack -> Just c] -> do
       (h, cid) <- getCycle h0
-      Just (ShortHash h cid (Just c))
+      Just (NotBuiltin (ShortHash h cid (Just c)))
     _ : h0 : (readMaybe . Text.unpack -> Just c) : _garbage -> do
       -- CID with more hash after todo: could be rejected
       (h, cid) <- getCycle h0
-      Just (ShortHash h cid (Just c))
+      Just (NotBuiltin (ShortHash h cid (Just c)))
     _ -> Nothing
   where
     getCycle :: Text -> Maybe (Text, Maybe Word64)
@@ -131,9 +138,10 @@ fromText t =
           Just (hash, Just cid)
 
 toText :: ShortHash -> Text
-toText (Builtin b) = "##" <> b
-toText (ShortHash p i cid) = "#" <> p <> i' <> c'
-  where
-    i', c' :: Text
-    i' = maybe "" (("." <>) . tShow) i
-    c' = maybe "" (("#" <>) . tShow) cid
+toText = \case
+  Builtin b -> "##" <> b
+  NotBuiltin (ShortHash p i cid) -> "#" <> p <> i' <> c'
+    where
+      i', c' :: Text
+      i' = maybe "" (("." <>) . tShow) i
+      c' = maybe "" (("#" <>) . tShow) cid
