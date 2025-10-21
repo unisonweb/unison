@@ -10,6 +10,10 @@ module Unison.CommandLine
     parseInput,
     prompt,
     reportParseFailure,
+
+    -- * Shared Helpers
+    defaultLoadSourceFile,
+    defaultWriteSourceFile,
   )
 where
 
@@ -21,8 +25,11 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import System.FilePath (takeFileName)
+import System.IO.Error (isDoesNotExistError)
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
+import Unison.Cli.Monad (LoadSourceResult)
+import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -41,6 +48,8 @@ import Unison.Prelude
 import Unison.PrettyTerminal qualified as PrettyTerm
 import Unison.Symbol (Symbol)
 import Unison.Util.Pretty qualified as P
+import UnliftIO (catch)
+import UnliftIO.Directory qualified as Directory
 import Prelude hiding (readFile, writeFile)
 
 allow :: FilePath -> Bool
@@ -48,6 +57,30 @@ allow p =
   -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
   not (".#" `isPrefixOf` takeFileName p)
     && (isSuffixOf ".u" p || isSuffixOf ".uu" p)
+
+defaultWriteSourceFile :: Text -> Text -> Bool -> IO ()
+defaultWriteSourceFile fp contents addFold = do
+  path <- Directory.canonicalizePath (Text.unpack fp)
+  prependUtf8
+    path
+    if addFold
+      then contents <> "\n\n---- Anything below this line is ignored by Unison.\n\n"
+      else contents <> "\n\n"
+
+defaultLoadSourceFile :: Text -> IO LoadSourceResult
+defaultLoadSourceFile fname =
+  if allow $ Text.unpack fname
+    then
+      let handle :: IOException -> IO LoadSourceResult
+          handle e =
+            case e of
+              _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
+              _ -> return Cli.LoadError
+          go = do
+            contents <- readUtf8 $ Text.unpack fname
+            return $ Cli.LoadSuccess contents
+       in catch go handle
+    else return Cli.InvalidSourceNameError
 
 data ExpansionFailure
   = TooManyArguments (Data.List.NonEmpty.NonEmpty (Either CliArg StructuredArgument))

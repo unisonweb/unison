@@ -22,7 +22,7 @@ import Unison.Codebase.ProjectPath
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
-import Unison.MCP.Cli (cliToMCP, handleInputMCP)
+import Unison.MCP.Cli (cliToMCP, handleInputMCP, virtualSourceName)
 import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.Types
@@ -123,10 +123,10 @@ shareProjectSearchTool =
 -- | Load and typecheck the provided code, THEN run the provided inputs within that scratchfile context.
 withCode :: Either FilePath Text -> [Input] -> ProjectContext -> EMCP CallToolResult
 withCode code inputs projectContext = do
-  source <- case code of
-    Left filePath -> liftIO $ readUtf8 filePath
-    Right codeSnippet -> pure codeSnippet
-  output <- handleInputMCP projectContext ([Left $ UnisonFileChanged "scratch.u" source] <> (Right <$> inputs))
+  (filePath, source) <- case code of
+    Left filePath -> (Text.pack filePath,) <$> liftIO (readUtf8 filePath)
+    Right codeSnippet -> pure (virtualSourceName, codeSnippet)
+  output <- handleInputMCP projectContext ([Left $ UnisonFileChanged filePath source] <> (Right <$> inputs))
   let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
   pure $ textToolResult outputJSON
 
