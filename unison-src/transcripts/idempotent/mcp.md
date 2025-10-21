@@ -15,6 +15,12 @@ type MyType = MyConstructor
 
 test> myPassingTest = [Ok "passing"]
 test> myFailingTest = [Fail "failing"]
+
+main : '{IO} (Optional Text)
+main = do
+  match getArgs.impl() with
+    Left _err -> None
+    Right args -> List.at 0 args
 ```
 
 ``` ucm
@@ -134,6 +140,45 @@ RESPONSE:
 
 ```
 
+## run
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "run",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "main"
+        },
+        "mainFunctionName": "main",
+        "args": ["hello"]
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"outputMessages\":[\"Some \\\"hello\\\"\"],\"sourceCodeUpdates\":[]}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
 ## list-project-definitions
 
 ``` api
@@ -161,7 +206,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"content\":[{\"text\":\"{\\\"outputMessages\\\":[\\\"1. myFailingTest : [Result]\\\\n2. myPassingTest : [Result]\\\\n3. myTerm : Nat\\\\n4. type MyType\\\\n5. MyType.MyConstructor : MyType\\\\n6. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[]}\",\"type\":\"text\"}],\"isError\":false}",
+                  "text": "{\"content\":[{\"text\":\"{\\\"outputMessages\\\":[\\\"1. main : '{IO} Optional Text\\\\n2. myFailingTest : [Result]\\\\n3. myPassingTest : [Result]\\\\n4. myTerm : Nat\\\\n5. type MyType\\\\n6. MyType.MyConstructor : MyType\\\\n7. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[]}\",\"type\":\"text\"}],\"isError\":false}",
                   "type": "text"
               }
           ],
