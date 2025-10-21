@@ -93,8 +93,16 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
 
     go :: Line.InputT IO Input
     go = do
-      let promptString = P.prettyProjectPath pp
-      let fullPrompt = P.toANSI 80 (P.red (P.string codeserverPrompt) <> promptString <> fromString prompt)
+      let statusString = if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge then "🧩 " else ""
+      let branchString = P.prettyProjectPath pp
+      let fullPrompt =
+            P.toANSI 80 $
+              fold
+                [ P.red (P.string codeserverPrompt),
+                  statusString,
+                  branchString,
+                  fromString prompt
+                ]
       line <- Line.getInputLine fullPrompt
       case line of
         Nothing -> pure QuitI
