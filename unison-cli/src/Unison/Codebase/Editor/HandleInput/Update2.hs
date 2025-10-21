@@ -191,7 +191,7 @@ handleUpdate2 = do
                           uniqueTypeGuidsByName <-
                             Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 
-                          (_updateBranchId, updateBranchName) <-
+                          (_updateBranchId, _updateBranchName) <-
                             HandleInput.Branch.createBranch
                               ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
                               ( HandleInput.Branch.CreateFrom'Update
@@ -209,7 +209,7 @@ handleUpdate2 = do
                           scratchFilePath <- fst <$> Cli.expectLatestFile
                           #latestFile ?= (scratchFilePath, True)
                           liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
-                          done (Output.UpdateTypecheckingFailure2 scratchFilePath pp.branch.name updateBranchName)
+                          done (Output.UpdateTypecheckingFailure2 scratchFilePath pp.branch.name)
                     else do
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       #latestFile ?= (scratchFilePath, True)

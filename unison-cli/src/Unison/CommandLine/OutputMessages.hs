@@ -2002,25 +2002,16 @@ notifyUser dir issueFn = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
-  DeleteFailure scratchFile0 baseBranch updateBranch -> do
+  DeleteFailure scratchFile0 baseBranch -> do
     scratchFile <- renderFileName scratchFile0
     pure $
-      P.wrap
-        ( "Some definitions depend on the ones you're trying to delete. I've added them to"
-            <> P.group (scratchFile <> ",")
-            <> "where you can fix them or comment them out. Once the file is compiling, run"
-            <> P.group (makeExample' IP.update <> ".")
-        )
+      P.wrap "I couldn't complete the delete, because some definitions are still in use."
         <> P.newline
         <> P.newline
-        <> P.wrap
-          ( "I've also switched you to a new branch"
-              <> prettyProjectBranchName updateBranch
-              <> "for this work. On"
-              <> P.group (makeExample' IP.update <> ",")
-              <> "it will be merged back into"
-              <> P.group (prettyProjectBranchName baseBranch <> ".")
-          )
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
   UpdateTypecheckingFailure ->
     pure . P.wrap $
       "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
@@ -2029,52 +2020,31 @@ notifyUser dir issueFn = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
-  UpdateTypecheckingFailure2 scratchFile0 baseBranch updateBranch -> do
+  UpdateTypecheckingFailure2 scratchFile0 baseBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap "I couldn't complete the update, because some existing definitions would no longer typecheck."
+        <> P.newline
+        <> P.newline
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
+  UpgradeFailure baseBranch scratchFile0 old new -> do
     scratchFile <- renderFileName scratchFile0
     pure $
       P.wrap
-        ( "Some definitions don't typecheck with your changes. I've updated the file"
-            <> scratchFile
-            <> "with the definitions that need fixing. Once the file is compiling, try"
-            <> makeExample' IP.update
-            <> "again."
+        ( "I couldn't automatically upgrade"
+            <> P.text (NameSegment.toEscapedText old)
+            <> "to"
+            <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
         )
         <> P.newline
         <> P.newline
-        <> P.wrap
-          ( "I've also switched you to a new branch"
-              <> prettyProjectBranchName updateBranch
-              <> "for this work. On"
-              <> P.group (makeExample' IP.update <> ",")
-              <> "it will be merged back into"
-              <> P.group (prettyProjectBranchName baseBranch <> ".")
-          )
-  UpgradeFailure main path old new ->
-    pure $
-      P.lines
-        [ P.wrap $
-            "I couldn't automatically upgrade"
-              <> P.text (NameSegment.toEscapedText old)
-              <> "to"
-              <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
-              <> "However, I've added the definitions that need attention to the top of"
-              <> P.group (prettyFilePath path <> "."),
-          "",
-          P.wrap "When you're done, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
-          "",
-          P.wrap $
-            "to merge your changes back into"
-              <> prettyProjectBranchName main
-              <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
-          "",
-          P.wrap $
-            "to delete the temporary branch and switch back to"
-              <> P.group (prettyProjectBranchName main <> ".")
-        ]
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
   UpgradeSuccess old new maybeFinal ->
     let prettyLib = P.blue . P.text . NameSegment.toEscapedText
         prettyOld = prettyLib old
@@ -2373,6 +2343,22 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  where
+    iveCreatedATemporaryBranch scratchFile =
+      P.wrap
+        ( "I've created a temporary branch and added the affected definitions to"
+            <> P.group (scratchFile <> ",")
+            <> "where you can fix them up or remove any that are obsolete."
+        )
+
+    onceYoureHappy baseBranch =
+      "Once you're happy with the results, use"
+        <> makeExample' IP.update
+        <> "to merge them back into"
+        <> P.group (prettyProjectBranchName baseBranch <> ",")
+        <> "or"
+        <> makeExample' IP.cancelInputPattern
+        <> "if you change your mind."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
