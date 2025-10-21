@@ -56,7 +56,8 @@ tools =
     searchDefinitionsTool,
     searchByTypeTool,
     dependenciesTool,
-    dependentsTool
+    dependentsTool,
+    runTestsTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -446,6 +447,35 @@ dependentsTool =
       toolArgType = Proxy,
       toolHandler = \(ProjectDefinitionNameArgument {projectContext, definitionName}) -> handleToolError $ do
         output <- handleInputMCP projectContext [Right $ Input.ListDependentsI (HQ.NameOnly definitionName)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+runTestsTool :: Tool MCP
+runTestsTool =
+  Tool
+    { toolName = toToolName TestsTool,
+      toolDescription = "Run the pure tests within a project.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Run Pure Tests",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(TestToolArguments {projectContext, subnamespace}) -> handleToolError $ do
+        let testInput =
+              Input.TestInput
+                { includeLibNamespace = False,
+                  path = case subnamespace of
+                    Nothing -> mempty
+                    Just ns -> ns,
+                  showFailures = True,
+                  showSuccesses = False
+                }
+        output <- handleInputMCP projectContext [Right $ Input.TestI testInput]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
