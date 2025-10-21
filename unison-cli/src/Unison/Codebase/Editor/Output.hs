@@ -19,6 +19,7 @@ module Unison.Codebase.Editor.Output
 where
 
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
@@ -422,7 +423,7 @@ data Output
   | DeleteFailure !FilePath !ProjectBranchName !ProjectBranchName
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
-  | UpgradeFailure !ProjectBranchName !FilePath !NameSegment !NameSegment
+  | UpgradeFailure !ProjectBranchName !FilePath !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget
   | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode

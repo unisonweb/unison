@@ -11,6 +11,7 @@ import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -101,7 +102,7 @@ handleUpgrade oldName newName = do
   upgradeInfo <- makeUpgradeInfo (oldName, newName)
 
   let upgradeInfos =
-        [upgradeInfo]
+        upgradeInfo :| []
 
   let currentNamespaceSansOlds0 =
         List.foldl' (\acc info -> Branch.deleteLibdep info.oldName acc) currentNamespace0 upgradeInfos
@@ -206,14 +207,19 @@ handleUpgrade oldName newName = do
               )
           )
           pp.project
-          (findTemporaryBranchName pp.project.projectId oldName newName)
+          (findTemporaryBranchName pp.project.projectId ((\info -> (info.oldName, info.newName)) <$> upgradeInfos))
       scratchFilePath <-
         Cli.getLatestFile <&> \case
           Nothing -> "scratch.u"
           Just (file, _) -> file
       #latestFile ?= (scratchFilePath, True)
       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
-      Cli.returnEarly (Output.UpgradeFailure pp.branch.name scratchFilePath oldName newName)
+      Cli.returnEarly
+        ( Output.UpgradeFailure
+            pp.branch.name
+            scratchFilePath
+            ((\info -> (info.oldName, info.newName)) <$> upgradeInfos)
+        )
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do
@@ -289,7 +295,7 @@ data UpgradeInfo = UpgradeInfo
     newLocalDefns :: Defns (Relation Referent Name) (Relation TypeReference Name)
   }
 
-upgradeInfosToDependencies :: [UpgradeInfo] -> DefnsF Set TermReference TypeReference -> DefnsF Set TermReference TypeReference
+upgradeInfosToDependencies :: List.NonEmpty UpgradeInfo -> DefnsF Set TermReference TypeReference -> DefnsF Set TermReference TypeReference
 upgradeInfosToDependencies infos currentNamespaceSansOlds =
   fold
     [ -- old definitions that aren't in their new counterpart
@@ -395,32 +401,37 @@ makeOldDepPPE infos currentDeepNamesSansOlds =
           (Name.fromReverseSegments (info.newName :| [NameSegment.libSegment]))
           (Names.fromRelations info.oldLocalDefns)
 
--- @findTemporaryBranchName projectId oldDepName newDepName@ finds some unused branch name in @projectId@ with a name
--- like "upgrade-<oldDepName>-to-<newDepName>".
-findTemporaryBranchName :: ProjectId -> NameSegment -> NameSegment -> Transaction ProjectBranchName
-findTemporaryBranchName projectId oldDepName newDepName = do
-  Cli.findTemporaryBranchName projectId $
-    -- First try something like
-    --
-    --   upgrade-unison_base_3_0_0-to-unison_base_4_0_0
-    --
-    -- and if that fails (which it shouldn't, but may because of symbols or something), back off to some
-    -- more-guaranteed-to-work mangled name like
-    --
-    --   upgrade-unisonbase300-to-unisonbase400
-    tryFrom @Text (mk oldDepText newDepText)
-      & fromRight (unsafeFrom @Text (mk (scrub oldDepText) (scrub newDepText)))
-  where
-    mk :: Text -> Text -> Text
-    mk old new =
-      Text.Builder.run ("upgrade-" <> Text.Builder.text old <> "-to-" <> Text.Builder.text new)
+-- @findTemporaryBranchName projectId names@ finds some unused branch name in @projectId@ with a name
+-- like "upgrade-<oldDepName>-to-<newDepName>", if names is a singleton list (the common case of upgrading one library).
+-- If multiple libraries are being upgraded simultaneously, though, we just use a a generic name like "upgrade-2", since
+-- otherwise the name might get too long.
+findTemporaryBranchName :: ProjectId -> List.NonEmpty (NameSegment, NameSegment) -> Transaction ProjectBranchName
+findTemporaryBranchName projectId = \case
+  (oldDepName, newDepName) :| [] -> do
+    Cli.findTemporaryBranchName projectId $
+      -- First try something like
+      --
+      --   upgrade-unison_base_3_0_0-to-unison_base_4_0_0
+      --
+      -- and if that fails (which it shouldn't, but may because of symbols or something), back off to some
+      -- more-guaranteed-to-work mangled name like
+      --
+      --   upgrade-unisonbase300-to-unisonbase400
+      tryFrom @Text (mk oldDepText newDepText)
+        & fromRight (unsafeFrom @Text (mk (scrub oldDepText) (scrub newDepText)))
+    where
+      mk :: Text -> Text -> Text
+      mk old new =
+        Text.Builder.run ("upgrade-" <> Text.Builder.text old <> "-to-" <> Text.Builder.text new)
 
-    scrub :: Text -> Text
-    scrub =
-      Text.filter Char.isAlphaNum
+      scrub :: Text -> Text
+      scrub =
+        Text.filter Char.isAlphaNum
 
-    oldDepText = NameSegment.toEscapedText oldDepName
-    newDepText = NameSegment.toEscapedText newDepName
+      oldDepText = NameSegment.toEscapedText oldDepName
+      newDepText = NameSegment.toEscapedText newDepName
+  _ ->
+    Cli.findTemporaryBranchName projectId (unsafeFrom @Text @ProjectBranchName "upgrade")
 
 -- >>> unsnocUnderscoreUnderscoreNumber "unison_base_main__13"
 -- Just ("unison_base_main",13)

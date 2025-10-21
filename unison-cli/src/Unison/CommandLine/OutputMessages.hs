@@ -2049,14 +2049,22 @@ notifyUser dir issueFn = \case
               <> "it will be merged back into"
               <> P.group (prettyProjectBranchName baseBranch <> ".")
           )
-  UpgradeFailure main path old new ->
+  UpgradeFailure main path names ->
     pure $
       P.lines
         [ P.wrap $
             "I couldn't automatically upgrade"
-              <> P.text (NameSegment.toEscapedText old)
-              <> "to"
-              <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
+              <> ( names
+                     & fmap
+                       ( \(old, new) ->
+                           P.wrap
+                             ( P.text (NameSegment.toEscapedText old)
+                                 <> "to"
+                                 <> P.text (NameSegment.toEscapedText new)
+                             )
+                       )
+                     & P.oxfordCommasWith "."
+                 )
               <> "However, I've added the definitions that need attention to the top of"
               <> P.group (prettyFilePath path <> "."),
           "",
