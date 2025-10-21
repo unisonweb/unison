@@ -68,50 +68,49 @@ import Witch (unsafeFrom)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
 handleUpgrade oldName newName = do
-  when (oldName == newName) do
-    Cli.returnEarlyWithoutOutput
-
   env <- ask
   pp <- Cli.getCurrentProjectPath
 
-  when (pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge) do
-    Cli.returnEarly
-      if pp.branch.isUpdate
-        then Output.CantDoThatDuring "an update" "update"
-        else Output.CantDoThatDuring "an upgrade" "upgrade"
+  when pp.branch.isUpdate (Cli.returnEarly (Output.CantDoThatDuring "an update" "update"))
+  when pp.branch.isUpgrade (Cli.returnEarly (Output.CantDoThatDuring "an upgrade" "upgrade"))
+  when pp.branch.isMerge (Cli.returnEarly (Output.CantDoThatDuring "a merge" "merge"))
 
-  let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
-  let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
+  let makeUpgradeInfo (oldName, newName) = do
+        when (oldName == newName) do
+          Cli.returnEarlyWithoutOutput
+
+        let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
+        let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
+
+        oldNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' oldPath)
+        newLocalDefns <- Branch.deepDefns . Branch.deleteLibdeps <$> Cli.expectBranch0AtPath' (Path.AbsolutePath' newPath)
+
+        pure
+          UpgradeInfo
+            { oldName,
+              oldNamespace,
+              oldDeepDefns = Branch.deepDefns oldNamespace,
+              oldLocalDefns = Branch.deepDefns (Branch.deleteLibdeps oldNamespace),
+              newName,
+              newLocalDefns
+            }
 
   currentNamespace <- Cli.getCurrentProjectRoot
   let currentNamespace0 = Branch.head currentNamespace
+
+  upgradeInfo <- makeUpgradeInfo (oldName, newName)
+
+  let upgradeInfos =
+        [upgradeInfo]
+
   let currentNamespaceSansOlds0 =
-        List.foldl' (\acc oldName -> Branch.deleteLibdep oldName acc) currentNamespace0 [oldName]
+        List.foldl' (\acc info -> Branch.deleteLibdep info.oldName acc) currentNamespace0 upgradeInfos
   let currentDeepDefnsSansOlds = Branch.deepDefns currentNamespaceSansOlds0
-  let currentDeepDefnsRefsSansOlds = Branch.deepDefnsRefs currentNamespaceSansOlds0
 
   -- Assert that the namespace doesn't have any conflicted names
   unconflictedView <-
     Branch.asUnconflicted currentNamespace0
       & onLeft (Cli.returnEarly . Output.ConflictedDefn)
-
-  oldNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' oldPath)
-
-  newNamespace <- Cli.expectBranch0AtPath' (Path.AbsolutePath' newPath)
-  let newLocalNamespace = Branch.deleteLibdeps newNamespace
-
-  let upgradeInfo =
-        UpgradeInfo
-          { oldName,
-            oldNamespace,
-            oldDeepDefns = Branch.deepDefns oldNamespace,
-            oldLocalDefns = Branch.deepDefns (Branch.deleteLibdeps oldNamespace),
-            newName,
-            newLocalDefns = Branch.deepDefns newLocalNamespace
-          }
-
-  let upgradeInfos =
-        [upgradeInfo]
 
   -- High-level idea: we are trying to perform substitution in every term that depends on something in `old` with the
   -- corresponding thing in `new`, by first rendering the user's code with a particular pretty-print environment, then
@@ -150,24 +149,11 @@ handleUpgrade oldName newName = do
       dependents <-
         getNamespaceDependentsOf
           unconflictedView.defns
-          ( foldMap upgradeInfoOldLocalDefnsNotInNew upgradeInfos
-              <> zipDefnsWith
-                Set.difference
-                Set.difference
-                ( foldMap
-                    ( \info ->
-                        info.oldNamespace
-                          & view Branch.libdeps_
-                          & foldMap (Branch.deepDefnsRefs . Branch.head)
-                    )
-                    upgradeInfos
-                )
-                currentDeepDefnsRefsSansOlds
-          )
+          (upgradeInfosToDependencies upgradeInfos (Branch.deepDefnsRefs currentNamespaceSansOlds0))
 
       let dependentsRefs :: DefnsF Set TermReferenceId TypeReferenceId
           dependentsRefs =
-            bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents
+            bimap Map.elemsSet Map.elemsSet dependents
 
       hydratedDependents0 <-
         hydrateRefs
@@ -197,7 +183,9 @@ handleUpgrade oldName newName = do
             Set.empty
             (over (#terms . Lens.mapped) snd hydratedDependents)
 
-  parsingEnv <- Cli.makeParsingEnv pp (Names.fromRelations currentDeepDefnsSansOlds)
+  parsingEnv <-
+    Cli.makeParsingEnv pp (Names.fromRelations currentDeepDefnsSansOlds)
+
   typecheckedUnisonFile <- do
     parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
       uniqueTypeGuidsByName <-
@@ -301,15 +289,34 @@ data UpgradeInfo = UpgradeInfo
     newLocalDefns :: Defns (Relation Referent Name) (Relation TypeReference Name)
   }
 
-upgradeInfoOldLocalDefnsNotInNew :: UpgradeInfo -> DefnsF Set TermReference TypeReference
-upgradeInfoOldLocalDefnsNotInNew info =
-  zipDefnsWith
-    ( let f = Set.mapMaybe Referent.toTermReference . Relation.dom
-       in \old new -> f old `Set.difference` f new
-    )
-    (\old new -> Relation.dom old `Set.difference` Relation.dom new)
-    info.oldLocalDefns
-    info.newLocalDefns
+upgradeInfosToDependencies :: [UpgradeInfo] -> DefnsF Set TermReference TypeReference -> DefnsF Set TermReference TypeReference
+upgradeInfosToDependencies infos currentNamespaceSansOlds =
+  fold
+    [ -- old definitions that aren't in their new counterpart
+      foldMap
+        ( \info ->
+            zipDefnsWith
+              ( let f = Set.mapMaybe Referent.toTermReference . Relation.dom
+                 in \old new -> f old `Set.difference` f new
+              )
+              (\old new -> Relation.dom old `Set.difference` Relation.dom new)
+              info.oldLocalDefns
+              info.newLocalDefns
+        )
+        infos,
+      -- transitive deps that aren't named in current namespace after subtracting all old definitions
+      zipDefnsWith Set.difference Set.difference transitiveDeps currentNamespaceSansOlds
+    ]
+  where
+    transitiveDeps :: DefnsF Set TermReference TypeReference
+    transitiveDeps =
+      foldMap transitiveDepsOf infos
+
+    transitiveDepsOf :: UpgradeInfo -> DefnsF Set TermReference TypeReference
+    transitiveDepsOf info =
+      info.oldNamespace
+        & view Branch.libdeps_
+        & foldMap (Branch.deepDefnsRefs . Branch.head)
 
 makeOldDepPPE :: [UpgradeInfo] -> Defns (Relation Referent Name) (Relation TypeReference Name) -> PrettyPrintEnvDecl
 makeOldDepPPE infos currentDeepNamesSansOlds =
