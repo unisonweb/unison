@@ -18,7 +18,7 @@ import Unison.Var (Var)
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =
-  either (error . Pr.toANSI defaultWidth . prettyParseError src) id
+  either (error . Text.unpack . Pr.toANSI defaultWidth . prettyParseError src) id
 
 parse ::
   (Monad m, Var v) =>

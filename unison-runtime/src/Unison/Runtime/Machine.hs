@@ -34,7 +34,6 @@ import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.List qualified as List
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -71,6 +70,7 @@ import Unison.Runtime.ANF.Optimize qualified as ANF
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
+import Data.Text qualified as Text
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
@@ -506,7 +506,7 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
               PE _stk _issues msg ->
-                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlain 0 msg, unitValue)
+                (Rf.runtimeFailureRef, Util.Text.fromText $ P.toPlain 0 msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
@@ -1475,7 +1475,7 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
 -- case the docs don't actually evaluate them.
 isSandboxingException :: RuntimeExn -> Bool
 isSandboxingException (PE _ _ (P.toPlain 0 -> msg)) =
-  List.isPrefixOf sdbx1 msg || List.isPrefixOf sdbx2 msg
+  Text.isPrefixOf sdbx1 msg || Text.isPrefixOf sdbx2 msg
   where
     sdbx1 = "attempted to use sandboxed operation"
     sdbx2 = "Attempted to use disallowed builtin in sandboxed"

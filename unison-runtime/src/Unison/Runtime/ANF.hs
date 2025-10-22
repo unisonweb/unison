@@ -139,6 +139,7 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
+import qualified Data.Text as Text
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
@@ -2649,7 +2650,7 @@ prettyFunc (FPrim op) = either shows shows op . showString " "
 
 showsShort :: Reference -> ShowS
 showsShort =
-  showString . Pretty.toPlain 0 . prettyShortHash . shortenTo 10 . toShortHash
+  showString . Text.unpack . Pretty.toPlain 0 . prettyShortHash . shortenTo 10 . toShortHash
 
 prettyBranches ::
   (Var v) => Int -> Branched Reference (ANormal Reference v) -> ShowS
