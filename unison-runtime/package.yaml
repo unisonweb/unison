@@ -120,6 +120,7 @@ tests:
     dependencies:
       - base
       - bytes
+      - bytestring
       - cereal
       - code-page
       - containers

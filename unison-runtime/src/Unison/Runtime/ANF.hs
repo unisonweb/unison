@@ -79,6 +79,7 @@ module Unison.Runtime.ANF
     anfTerm,
     codeGroup,
     valueTermLinks,
+    collectValueLinks,
     valueLinks,
     groupTermLinks,
     replaceConstructors,
@@ -2177,17 +2178,23 @@ valueTermLinks = Set.toList . valueLinks f
     f False r = Set.singleton r
     f _ _ = Set.empty
 
+collectValueLinks :: (Ord ref) => Value ref -> (Set ref, Set ref)
+collectValueLinks = valueLinks f
+  where
+    f False r = (mempty, Set.singleton r)
+    f True r = (Set.singleton r, mempty)
+
 -- Folds over the references necessary to _load_ a `Value`. This does
 -- not include references in quoted code or values, or literal
 -- term/type links.
 valueLinks :: (Monoid a) => (Bool -> ref -> a) -> Value ref -> a
-valueLinks f (Partial (GR cr _) vs) =
-  f False cr <> foldMap (valueLinks f) vs
-valueLinks f (Data dr _ vs) =
-  f True dr <> foldMap (valueLinks f) vs
-valueLinks f (Cont vs k) =
-  foldMap (valueLinks f) vs <> contLinks f k
-valueLinks f (BLit l) = blitLinks f l
+valueLinks f = go
+  where
+    go (Partial (GR cr _) vs) = f False cr <> foldMap go vs
+    go (Data dr _ vs) = f True dr <> foldMap go vs
+    go (Cont vs k) = foldMap go vs <> contLinks f k
+    go (BLit l) = blitLinks f l
+{-# INLINE valueLinks #-}
 
 -- Traversals of _all_ references in a `Value`, for e.g.
 -- canonicalization.
@@ -2223,13 +2230,16 @@ instance Referential Value where
     BLit l -> BLit <$> traverseRefs h l
 
 contLinks :: (Monoid a) => (Bool -> ref -> a) -> Cont ref -> a
-contLinks f (Push _ _ (GR cr _) k) =
-  f False cr <> contLinks f k
-contLinks f (Mark _ ps de k) =
-  foldMap (f True) ps
-    <> foldMap (\(k, c) -> f True k <> valueLinks f c) de
-    <> contLinks f k
-contLinks _ KE = mempty
+contLinks f = go
+  where
+    go (Push _ _ (GR cr _) k) =
+      f False cr <> go k
+    go (Mark _ ps de k) =
+      foldMap (f True) ps
+        <> foldMap (\(k, c) -> f True k <> valueLinks f c) de
+        <> go k
+    go KE = mempty
+{-# INLINE contLinks #-}
 
 -- Traversals over references in a cont.
 --
@@ -2268,11 +2278,14 @@ instance Referential Cont where
         <*> traverseRefs h k
 
 blitLinks :: (Monoid a) => (Bool -> ref -> a) -> BLit ref -> a
-blitLinks f (List s) = foldMap (valueLinks f) s
-blitLinks f (Arr a) = foldMap (valueLinks f) a
-blitLinks f (Map m) =
-  foldMap (\(k, v) -> valueLinks f k <> valueLinks f v) m
-blitLinks _ _ = mempty
+blitLinks f = go
+  where
+    go (List s) = foldMap (valueLinks f) s
+    go (Arr a) = foldMap (valueLinks f) a
+    go (Map m) =
+      foldMap (\(k, v) -> valueLinks f k <> valueLinks f v) m
+    go _ = mempty
+{-# INLINE blitLinks #-}
 
 instance Referential BLit where
   overRefs h = \case

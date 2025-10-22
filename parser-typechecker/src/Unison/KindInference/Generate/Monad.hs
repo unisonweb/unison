@@ -1,6 +1,7 @@
 module Unison.KindInference.Generate.Monad
   ( Gen (..),
     GenState (..),
+    GenError (..),
     GeneratedConstraint,
     run,
     freshVar,
@@ -11,6 +12,8 @@ module Unison.KindInference.Generate.Monad
   )
 where
 
+import Control.Monad.Error.Class
+import Control.Monad.Except
 import Control.Monad.State.Strict
 import Data.Functor.Compose
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -22,6 +25,7 @@ import Unison.KindInference.Constraint.Provenance (Provenance)
 import Unison.KindInference.Constraint.Unsolved (Constraint (..))
 import Unison.KindInference.UVar (UVar (..))
 import Unison.Prelude
+import Unison.Reference (Reference)
 import Unison.Symbol
 import Unison.Type qualified as T
 import Unison.Var
@@ -37,20 +41,25 @@ data GenState v loc = GenState
   }
   deriving stock (Generic)
 
+data GenError loc = MissingBuiltin loc Reference
+  deriving stock (Show, Eq)
+
 newtype Gen v loc a = Gen
-  { unGen :: GenState v loc -> (a, GenState v loc)
+  { unGen :: StateT (GenState v loc) (Except (GenError loc)) a
   }
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
-      MonadState (GenState v loc)
+      MonadState (GenState v loc),
+      MonadError (GenError loc)
     )
-    via State (GenState v loc)
 
 -- | @Gen@ monad runner
-run :: Gen v loc a -> GenState v loc -> (a, GenState v loc)
-run (Gen ma) st0 = ma st0
+run :: Gen v loc a -> GenState v loc -> Either (GenError loc) (a, GenState v loc)
+run (Gen ma) st0 =
+  runStateT ma st0
+    & runExcept
 
 -- | Create a unique @UVar@ associated with @typ@
 freshVar :: (Var v) => T.Type v loc -> Gen v loc (UVar v loc)

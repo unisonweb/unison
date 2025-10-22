@@ -124,6 +124,7 @@ data Input
   | BranchRenameI ProjectBranchName
   | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | BranchesI (Maybe ProjectName)
+  | CancelI
   | ClearI
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}

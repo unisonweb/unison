@@ -6,6 +6,7 @@ in
   vscodeSettings."haskell.toolchain"
   ## There are some things we want to pin that the VS Code Haskell extension doesn’t let us control.
   // {
-    hpack = "0.35.2";
+    hpack = "0.36.0"; # This needs to match the version returned by `nix develop --command stack --version`.
     ormolu = "0.7.2.0";
+    weeder = "2.8.0";
   }

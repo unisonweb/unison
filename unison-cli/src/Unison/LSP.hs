@@ -36,6 +36,7 @@ import Unison.LSP.CodeLens (codeLensHandler)
 import Unison.LSP.Commands (executeCommandHandler, supportedCommands)
 import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import Unison.LSP.Configuration qualified as Config
+import Unison.LSP.DocumentSymbols (documentSymbolsHandler)
 import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import Unison.LSP.Formatting (formatDocRequest, formatRangeRequest)
@@ -185,6 +186,7 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentDeclaration (mkHandler goToDeclarationHandler)
     & SMM.insert Msg.SMethod_TextDocumentDefinition (mkHandler goToDefinitionHandler)
     & SMM.insert Msg.SMethod_TextDocumentImplementation (mkHandler goToImplementationHandler)
+    & SMM.insert Msg.SMethod_TextDocumentDocumentSymbol (mkHandler documentSymbolsHandler)
     & addFormattingHandlers
   where
     addFormattingHandlers handlers =

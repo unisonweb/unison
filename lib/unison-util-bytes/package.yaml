@@ -25,6 +25,7 @@ library:
     - unison-prelude
     - unison-util-rope
     - zlib
+    - zstd
 
 tests:
   util-bytes-tests:

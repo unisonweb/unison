@@ -72,7 +72,7 @@ handleUpgrade oldName newName = do
   env <- ask
   pp <- Cli.getCurrentProjectPath
 
-  when (pp.branch.isUpdate || pp.branch.isUpgrade) do
+  when (pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge) do
     Cli.returnEarly
       if pp.branch.isUpdate
         then Output.CantDoThatDuring "an update" "update"
@@ -198,7 +198,7 @@ handleUpgrade oldName newName = do
       uniqueTypeGuidsByName <-
         Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 
-      (_temporaryBranchId, temporaryBranchName) <-
+      _ <-
         HandleInput.Branch.createBranch
           textualDescriptionOfUpgrade
           ( CreateFrom'Upgrade
@@ -220,7 +220,7 @@ handleUpgrade oldName newName = do
           Just (file, _) -> file
       #latestFile ?= (scratchFilePath, True)
       liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
-      Cli.returnEarly (Output.UpgradeFailure pp.branch.name temporaryBranchName scratchFilePath oldName newName)
+      Cli.returnEarly (Output.UpgradeFailure pp.branch.name scratchFilePath oldName newName)
 
   branchUpdates <-
     Cli.runTransactionWithRollback \abort -> do

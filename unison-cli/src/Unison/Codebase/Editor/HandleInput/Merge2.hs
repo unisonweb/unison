@@ -349,7 +349,7 @@ doMerge info = do
         typecheckedFile <-
           mergeblob.typecheckedFile & onNothing do
             env <- ask
-            (_temporaryBranchId, temporaryBranchName) <-
+            _ <-
               HandleInput.Branch.createBranch
                 info.description
                 ( let sourceStuff =
@@ -397,7 +397,7 @@ doMerge info = do
                     (Text.pack scratchFilePath)
                     (Text.pack $ Pretty.toPlain 80 mergeblob.unparsedFile)
                     True
-                done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
+                done (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
@@ -443,7 +443,7 @@ doMerge info = do
                       True
                     let createProcess = (Process.shell (Text.unpack mergetool)) {Process.delegate_ctlc = True}
                     Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
-                done (Output.MergeFailureWithMergetool mergeSourceAndTarget temporaryBranchName mergetool exitCode)
+                done (Output.MergeFailureWithMergetool mergeSourceAndTarget mergetool exitCode)
 
         Cli.runTransaction (Codebase.addDefsToCodebase env.codebase typecheckedFile)
         Cli.updateProjectBranchRoot_

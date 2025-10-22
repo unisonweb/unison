@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -117,6 +117,7 @@ library
     , servant-docs
     , servant-openapi3
     , servant-server
+    , split
     , text
     , transformers
     , unison-codebase
@@ -151,6 +152,7 @@ test-suite unison-share-api-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Unison.Test.Server.Backend.DefinitionDiff
       Unison.Test.Sync.Gen
       Unison.Test.Sync.Roundtrip
   hs-source-dirs:
@@ -194,11 +196,13 @@ test-suite unison-share-api-tests
     , code-page
     , easytest
     , hedgehog
+    , raw-strings-qq
     , serialise
     , text
     , unison-codebase-sqlite
     , unison-hash
     , unison-prelude
+    , unison-pretty-printer
     , unison-share-api
     , vector
   default-language: Haskell2010

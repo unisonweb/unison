@@ -112,6 +112,22 @@ type FileVersion = Int32
 
 type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
+data USymbolKind
+  = DataDeclSymbol
+  | EffectDeclSymbol
+  | TermSymbol
+  deriving (Show, Eq)
+
+-- | Info we use to build LSP document symbols
+data UDocumentSymbol = UDocumentSymbol
+  { symbolName :: Name,
+    symbolSignature :: Maybe (Type Symbol Ann),
+    symbolKind :: USymbolKind,
+    symbolRange :: Range,
+    symbolChildren :: [UDocumentSymbol]
+  }
+  deriving (Show)
+
 data TypeSignatureHint = TypeSignatureHint
   { name :: Name,
     referent :: Referent,
@@ -133,7 +149,8 @@ data FileAnalysis = FileAnalysis
     -- | The types of local variable bindings keyed by the mention's location.
     localBindingInfo :: IntervalMap Position (Context.Type Symbol Ann {- type of binding -}, Range {- binding definition site -}),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
-    fileSummary :: Maybe FileSummary
+    fileSummary :: Maybe FileSummary,
+    documentSymbols :: [UDocumentSymbol]
   }
   deriving stock (Show)
 
