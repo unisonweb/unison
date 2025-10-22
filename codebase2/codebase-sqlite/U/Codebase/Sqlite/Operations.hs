@@ -64,6 +64,7 @@ module U.Codebase.Sqlite.Operations
     dependentsOfComponent,
     directDependentsWithinScope,
     transitiveDependentsWithinScope,
+    transitiveDependentsGraphWithinScope,
 
     -- ** type index
     Q.addTypeToIndexForTerm,
@@ -1138,6 +1139,27 @@ transitiveDependentsWithinScope scope0 query0
 
       -- Convert S -> C
       bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents
+
+transitiveDependentsGraphWithinScope ::
+  DefnsF Set C.TermReferenceId C.TypeReferenceId ->
+  DefnsF Set C.TermReference C.TypeReference ->
+  Transaction [(C.Reference, C.Reference.Id)]
+transitiveDependentsGraphWithinScope scope0 query0
+  | defnsAreEmpty scope0 || defnsAreEmpty query0 = mempty
+  | otherwise = do
+      -- Convert C -> S
+      scope1 <- bitraverse (Set.traverse c2sReferenceId) (Set.traverse c2sReferenceId) scope0
+      query1 <- bitraverse (Set.traverse c2sReference) (Set.traverse c2sReference) query0
+
+      -- Do the query
+      adjacency <- Q.getTransitiveDependentsGraphWithinScope scope1 query1
+
+      -- Convert S -> C
+      traverse
+        ( \(dependency :. dependent) ->
+            (,) <$> s2cReference dependency <*> s2cReferenceId dependent
+        )
+        adjacency
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

@@ -51,6 +51,7 @@ import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
+import Unison.Codebase.Editor.HandleInput.DebugDependentsGraph (handleDebugDependentsGraph)
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
 import Unison.Codebase.Editor.HandleInput.Delete (handleDelete)
@@ -700,6 +701,7 @@ loop e = do
         DebugTypeI hqName -> DebugDefinition.debugDecl hqName
         DebugClearWatchI {} ->
           Cli.runTransaction Codebase.clearWatches
+        DebugDependentsGraph -> handleDebugDependentsGraph
         DebugDoctorI {} -> do
           r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
           Cli.respond (IntegrityCheck r)
@@ -819,6 +821,7 @@ inputDescription input =
     CloneI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
+    DebugDependentsGraph -> wat
     DebugDoctorI {} -> wat
     DebugDumpNamespaceSimpleI {} -> wat
     DebugDumpNamespacesI {} -> wat

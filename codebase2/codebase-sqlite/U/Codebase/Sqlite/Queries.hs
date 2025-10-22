@@ -184,6 +184,7 @@ module U.Codebase.Sqlite.Queries
     getDirectDependenciesOfScope,
     getDirectDependentsWithinScope,
     getTransitiveDependentsWithinScope,
+    getTransitiveDependentsGraphWithinScope,
 
     -- ** type index
     addToTypeIndex,
@@ -1999,13 +2000,13 @@ getTransitiveDependentsWithinScope scope query = do
         WITH RECURSIVE
         dependents_index_in_scope AS (
           SELECT *
-          FROM dependents_index d
-          WHERE (d.dependent_object_id, d.dependent_component_index) IN (
+          FROM dependents_index
+          WHERE (dependent_object_id, dependent_component_index) IN (
             SELECT object_id, component_index
             FROM $scopeTableName
           )
           -- Ignore self-dependents
-          AND ((d.dependency_object_id, d.dependency_component_index) IS DISTINCT FROM (d.dependent_object_id, d.dependent_component_index))
+          AND ((dependency_object_id, dependency_component_index) IS DISTINCT FROM (dependent_object_id, dependent_component_index))
         ),
         transitive_dependents (object_id, component_index, type_id) AS (
           SELECT d.dependent_object_id, d.dependent_component_index, o.type_id
@@ -2024,7 +2025,7 @@ getTransitiveDependentsWithinScope scope query = do
             JOIN object o ON d.dependent_object_id = o.id
         )
         SELECT *
-        FROM transitive_dependents t
+        FROM transitive_dependents
       |]
 
   execute [sql| DROP TABLE $scopeTableName |]
@@ -2042,6 +2043,75 @@ getTransitiveDependentsWithinScope scope query = do
           result0
 
   pure result1
+
+-- | Like 'getTransitiveDependentsWithinScope', but returns the dependents as a searchable adjacency matrix rather than
+-- just a set of references.
+getTransitiveDependentsGraphWithinScope ::
+  DefnsF Set S.TermReferenceId S.TypeReferenceId ->
+  DefnsF Set S.TermReference S.TypeReference ->
+  Transaction [S.Reference :. S.Reference.Id]
+getTransitiveDependentsGraphWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName
+  for_ scope.terms \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.types \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+
+  -- Populate a temporary table with all of the references in `query`
+  let queryTableName = [sql| dependencies_query |]
+  createTemporaryTableOfReferences queryTableName
+  for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+  for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+
+  result :: [S.Reference :. S.Reference.Id] <-
+    queryListRow
+      [sql|
+        WITH RECURSIVE
+        dependents_index_in_scope AS (
+          SELECT *
+          FROM dependents_index
+          WHERE
+            (dependent_object_id, dependent_component_index) IN (
+              SELECT object_id, component_index
+              FROM $scopeTableName
+            )
+            AND (dependency_object_id, dependency_component_index)
+              IS DISTINCT FROM (dependent_object_id, dependent_component_index)
+        ),
+        transitive_dependents AS (
+          SELECT *
+          FROM dependents_index_in_scope
+          WHERE
+            (dependency_builtin IS NULL AND
+              (dependency_object_id, dependency_component_index) IN (
+                SELECT dependency_object_id, dependency_component_index
+                FROM $queryTableName
+                WHERE dependency_builtin IS NULL
+              )
+            )
+            OR
+            (dependency_builtin IS NOT NULL AND
+              dependency_builtin IN (
+                SELECT dependency_builtin
+                FROM $queryTableName
+                WHERE dependency_builtin IS NOT NULL
+              )
+            )
+          UNION
+          SELECT d.*
+          FROM transitive_dependents t
+            JOIN dependents_index_in_scope d
+              ON t.dependent_object_id = d.dependency_object_id
+              AND t.dependent_component_index = d.dependency_component_index
+        )
+        SELECT *
+        FROM transitive_dependents
+      |]
+
+  execute [sql| DROP TABLE $scopeTableName |]
+  execute [sql| DROP TABLE $queryTableName |]
+
+  pure result
 
 createTemporaryTableOfReferences :: Sql -> Transaction ()
 createTemporaryTableOfReferences tableName = do
