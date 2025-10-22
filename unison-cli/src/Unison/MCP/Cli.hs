@@ -11,6 +11,9 @@ import Crypto.Random qualified as Random
 import Data.Aeson
 import Data.IORef
 import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import GHC.IO.Handle (hDuplicate, hDuplicateTo)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -28,27 +31,32 @@ import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as Pretty
+import UnliftIO qualified
+import UnliftIO.IO qualified as IO
 import UnliftIO.STM
+import UnliftIO.Temporary (withSystemTempFile)
 import Prelude hiding (readFile, writeFile)
 
 data CliOutput = CliOutput
   { sourceCodeUpdates :: [Text],
-    outputMessages :: [Text]
+    outputMessages :: [Text],
+    stdout :: Text
   }
   deriving (Eq, Show)
 
 instance Semigroup CliOutput where
-  CliOutput src1 out1 <> CliOutput src2 out2 =
-    CliOutput (src1 <> src2) (out1 <> out2)
+  CliOutput src1 out1 stdout1 <> CliOutput src2 out2 stdout2 =
+    CliOutput (src1 <> src2) (out1 <> out2) (stdout1 <> stdout2)
 
 instance Monoid CliOutput where
-  mempty = CliOutput [] []
+  mempty = CliOutput [] [] ""
 
 instance ToJSON CliOutput where
-  toJSON (CliOutput sourceCodeUpdates outputMessages) =
+  toJSON (CliOutput sourceCodeUpdates outputMessages stdout) =
     object
       [ "sourceCodeUpdates" .= sourceCodeUpdates,
-        "outputMessages" .= outputMessages
+        "outputMessages" .= outputMessages,
+        "stdout" .= stdout
       ]
 
 ppForProjectContext :: ProjectContext -> ExceptT Text Transaction PP.ProjectPath
@@ -120,7 +128,8 @@ cliToMCP projCtx cli = do
 
   let startState = (Cli.loopState0 (PP.toIds initialPP))
   -- The actual output isn't important, all communication comes from notify, notifyNumbered, and writeSource.
-  (cliResult, _loopState) <- liftIO (Cli.runCli cliEnv startState cli)
+  (stdout, (cliResult, _loopState)) <- liftIO $ do
+    captureStdout (Cli.runCli cliEnv startState cli)
   -- flush the output buffer since it should now be filled.
   cliOut <- atomically $ do
     msgs <- readTVar outputVar
@@ -132,10 +141,36 @@ cliToMCP projCtx cli = do
     pure $
       ( CliOutput
           { sourceCodeUpdates,
-            outputMessages
+            outputMessages,
+            stdout
           }
       )
   case cliResult of
     Cli.Continue -> pure (Nothing, cliOut)
     Cli.HaltRepl -> pure (Nothing, cliOut)
     Cli.Success a -> pure (Just a, cliOut)
+
+-- | Replace stdout for the duration of the given action,
+-- useful for providing input to programs and capturing results to return to agents.
+captureStdout :: IO a -> IO (Text, a)
+captureStdout action = do
+  -- Create temporary files for the fake stdin and captured stdout
+  withSystemTempFile "stdout.txt" $ \stdoutPath stdoutHandle -> do
+    -- Replace stdin and stdout, run action, then restore
+    a <-
+      UnliftIO.bracket
+        ( do
+            oldStdout <- hDuplicate IO.stdout
+            hDuplicateTo stdoutHandle IO.stdout
+            pure oldStdout
+        )
+        ( \oldStdout -> do
+            hDuplicateTo oldStdout IO.stdout
+            IO.hClose oldStdout
+        )
+        ( \_ -> do
+            action
+        )
+    IO.hClose stdoutHandle
+    output <- Text.readFile stdoutPath
+    pure (output, a)
