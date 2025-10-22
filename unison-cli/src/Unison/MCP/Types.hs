@@ -344,7 +344,7 @@ instance HasInputSchema TypecheckCodeToolArguments where
             [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
               "code"
                 .= object
-                  [ "description" .= ("The source code to typecheck. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
+                  [ "description" .= ("The source code to typecheck. Pass an object containing either a `text` key or a `filePath` key as described." :: Text),
                     "oneOf"
                       .= [ object
                              [ "description" .= ("The file path to the source code." :: Text),
