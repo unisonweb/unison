@@ -529,6 +529,8 @@ roots = [
     '''^Unison\.Runtime\.ANF\.Serialize\.DeserialST$''',
     '''^Unison\.Runtime\.Serialize\.Get\.getWord64le$''',
     '''^Unison\.Runtime\.Serialize\.Get\.getFloatbe$''',
+    '''^Unison\.Runtime\.Serialize\.Get\.evaluated$''',
+    '''^Unison\.Runtime\.Serialize\.Get\.getPrimArray$''',
     '''^Unison\.Runtime\.SparseVector\.map$''',
     '''^Unison\.Runtime\.SparseVector\.mask$''',
     '''^Unison\.Runtime\.SparseVector\.zipWith$''',
