@@ -14,16 +14,17 @@ import Data.ListLike qualified as LL
 import Data.Map qualified as Map
 import Data.Sequence (Seq ((:<|), (:|>)))
 import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
 import GHC.Exts qualified
 import Unison.Lexer.Pos (Line, Pos (..))
 import Unison.Prelude
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Range (Range (..), inRange)
 
-data Segment a = Segment {segment :: String, annotation :: Maybe a}
+data Segment a = Segment {segment :: Text, annotation :: Maybe a}
   deriving (Eq, Show, Ord, Functor, Foldable, Generic)
 
-toPair :: Segment a -> (String, Maybe a)
+toPair :: Segment a -> (Text, Maybe a)
 toPair (Segment s a) = (s, a)
 
 newtype AnnotatedText a = AnnotatedText (Seq (Segment a))
@@ -40,16 +41,16 @@ instance Monoid (AnnotatedText a) where
 instance LL.FoldableLL (AnnotatedText a) Char where
   foldl' f z (AnnotatedText at) = Foldable.foldl' f' z at
     where
-      f' z (Segment str _) = L.foldl' f z str
+      f' z (Segment str _) = L.foldl' f z $ Text.unpack str
   foldl = LL.foldl
   foldr f z (AnnotatedText at) = Foldable.foldr f' z at
     where
-      f' (Segment str _) z = L.foldr f z str
+      f' (Segment str _) z = L.foldr f z $ Text.unpack str
 
 instance LL.ListLike (AnnotatedText a) Char where
   singleton ch = fromString [ch]
   uncons (AnnotatedText at) = case at of
-    Segment s a :<| tl -> case L.uncons s of
+    Segment s a :<| tl -> case Text.uncons s of
       Nothing -> LL.uncons (AnnotatedText tl)
       Just (hd, s) -> Just (hd, AnnotatedText $ Segment s a :<| tl)
     Seq.Empty -> Nothing
@@ -57,32 +58,32 @@ instance LL.ListLike (AnnotatedText a) Char where
   takeWhile f (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
     Segment s a :<| tl ->
-      let s' = L.takeWhile f s
-       in if length s' == length s
+      let s' = Text.takeWhile f s
+       in if Text.length s' == Text.length s
             then
               AnnotatedText (pure $ Segment s a)
                 <> LL.takeWhile f (AnnotatedText tl)
             else AnnotatedText (pure $ Segment s' a)
   dropWhile f (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
-    Segment s a :<| tl -> case L.dropWhile f s of
-      [] -> LL.dropWhile f (AnnotatedText tl)
+    Segment s a :<| tl -> case Text.dropWhile f s of
+      "" -> LL.dropWhile f (AnnotatedText tl)
       s -> AnnotatedText $ (Segment s a) :<| tl
   take n (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
     Segment s a :<| tl ->
-      if n <= length s
-        then AnnotatedText $ pure (Segment (take n s) a)
+      if n <= Text.length s
+        then AnnotatedText $ pure (Segment (Text.take n s) a)
         else
           AnnotatedText (pure (Segment s a))
-            <> LL.take (n - length s) (AnnotatedText tl)
+            <> LL.take (n - Text.length s) (AnnotatedText tl)
   drop n (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
     Segment s a :<| tl ->
-      if n <= length s
-        then AnnotatedText $ (Segment (drop n s) a) :<| tl
-        else LL.drop (n - length s) (AnnotatedText tl)
-  null (AnnotatedText at) = all (null . segment) at
+      if n <= Text.length s
+        then AnnotatedText $ (Segment (Text.drop n s) a) :<| tl
+        else LL.drop (n - Text.length s) (AnnotatedText tl)
+  null (AnnotatedText at) = all (Text.null . segment) at
 
 -- Quoted text (indented, with source line numbers) with annotated portions.
 data AnnotatedExcerpt a = AnnotatedExcerpt
@@ -110,10 +111,9 @@ annotateMaybe (AnnotatedText segments) =
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText (init :|> (Segment s _))) =
-  case lastMay s of
-    Just '\n' -> True
-    Just _ -> False
-    _ -> trailingNewLine (AnnotatedText init)
+  if Text.null s
+    then trailingNewLine (AnnotatedText init)
+    else Text.last s == '\n'
 trailingNewLine _ = False
 
 markup :: AnnotatedExcerpt a -> Map Range a -> AnnotatedExcerpt a
@@ -126,7 +126,7 @@ markup a r = a {annotations = r `Map.union` annotations a}
 textLength :: AnnotatedText a -> Int
 textLength (AnnotatedText chunks) = foldl' go 0 chunks
   where
-    go len (toPair -> (text, _a)) = len + length text
+    go len (toPair -> (text, _a)) = len + Text.length text
 
 textEmpty :: AnnotatedText a -> Bool
 textEmpty = (== 0) . textLength
@@ -204,7 +204,6 @@ snipWithContext margin source =
           -- if all annotations so far can be joined without .. separations
           if null rest
             then -- if this one can be joined to the new region without .. separation
-
               if withinMargin r0 r1
                 then -- add it to the first set and grow the compare region
                   (Just $ r0 <> r1, Map.insert r1 a1 taken, mempty)
@@ -214,7 +213,7 @@ snipWithContext margin source =
               (Just r0, taken, Map.insert r1 a1 rest)
 
 instance IsString (AnnotatedText a) where
-  fromString s = AnnotatedText . pure $ Segment s Nothing
+  fromString s = AnnotatedText . pure $ Segment (Text.pack s) Nothing
 
 instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
@@ -222,4 +221,4 @@ instance IsString (AnnotatedExcerpt a) where
 instance GHC.Exts.IsList (AnnotatedText a) where
   type Item (AnnotatedText a) = Char
   fromList s = fromString s
-  toList (AnnotatedText s) = join . Foldable.toList $ fmap segment s
+  toList (AnnotatedText s) = foldMap Text.unpack . Foldable.toList $ fmap segment s
