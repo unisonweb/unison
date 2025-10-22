@@ -76,12 +76,12 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+      case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p <- Map.lookup h patterns
+          paramType <- IP.paramType (IP.params p) (length t)
+          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+        _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -301,13 +301,13 @@ prettyCompletionWithQueryPrefix ::
   Line.Completion
 prettyCompletionWithQueryPrefix endWithSpace query s =
   let coloredMatch = P.hiBlack (P.string query) <> P.string (drop (length query) s)
-   in Line.Completion s (P.toANSI 0 coloredMatch) endWithSpace
+   in Line.Completion s (Text.unpack $ P.toANSI 0 coloredMatch) endWithSpace
 
 -- discards formatting in favor of better alignment
 -- prettyCompletion (s, p) = Line.Completion s (P.toPlain 0 p) True
 -- preserves formatting, but Haskeline doesn't know how to align
 prettyCompletion :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
-prettyCompletion endWithSpace (s, p) = Line.Completion s (P.toANSI 0 p) endWithSpace
+prettyCompletion endWithSpace (s, p) = Line.Completion s (Text.unpack $ P.toANSI 0 p) endWithSpace
 
 -- | Constructs a list of 'Completion's from a query and completion options by
 -- filtering them for prefix matches. A completion will be selected if it's an exact match for

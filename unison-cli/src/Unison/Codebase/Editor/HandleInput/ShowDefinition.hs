@@ -166,7 +166,7 @@ showDefinitions outputLoc pped terms types misses = do
       let isSourceFile = True
       let (renderedCodePretty, numRendered) = renderCodePretty pped isSourceFile isTest terms types excludeNames
       when (numRendered > 0) do
-        let renderedCodeText = Text.pack $ Pretty.toPlain 80 renderedCodePretty
+        let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
 
         -- We set latestFile to be programmatically generated, if we
         -- are viewing these definitions to a file - this will skip the

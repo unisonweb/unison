@@ -245,11 +245,11 @@ reference (Segment _ el) =
    in el >>= reference'
 
 -- | Convert a `SyntaxText` to a `String`, ignoring syntax markup
-toPlain :: SyntaxText -> String
-toPlain (AnnotatedText at) = join (toList $ segment <$> at)
-
 toPlainText :: SyntaxText -> Text
-toPlainText = Text.pack . toPlain
+toPlainText (AnnotatedText at) = Text.concat . toList $ segment <$> at
+
+toPlain :: SyntaxText -> String
+toPlain = Text.unpack . toPlainText
 
 -- HTML -----------------------------------------------------------------------
 
@@ -276,10 +276,8 @@ nameToHtml name =
       List.intersperse sep segments
 
 segmentToHtml :: SyntaxSegment -> Html ()
-segmentToHtml (Segment segmentText element) =
-  let sText = Text.pack segmentText
-
-      el = fromMaybe Blank element
+segmentToHtml (Segment sText element) =
+  let el = fromMaybe Blank element
 
       ref =
         case el of
