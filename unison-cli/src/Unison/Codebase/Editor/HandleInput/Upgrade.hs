@@ -99,13 +99,13 @@ handleUpgrade oldName newName = do
   currentNamespace <- Cli.getCurrentProjectRoot
   let currentNamespace0 = Branch.head currentNamespace
 
-  upgradeInfo <- makeUpgradeInfo (oldName, newName)
+  upgradeInfos <-
+    traverse makeUpgradeInfo ((oldName, newName) :| [])
 
-  let upgradeInfos =
-        upgradeInfo :| []
+  let deleteAllOlds namespace =
+        List.foldl' (\acc info -> Branch.deleteLibdep info.oldName acc) namespace upgradeInfos
 
-  let currentNamespaceSansOlds0 =
-        List.foldl' (\acc info -> Branch.deleteLibdep info.oldName acc) currentNamespace0 upgradeInfos
+  let currentNamespaceSansOlds0 = deleteAllOlds currentNamespace0
   let currentDeepDefnsSansOlds = Branch.deepDefns currentNamespaceSansOlds0
 
   -- Assert that the namespace doesn't have any conflicted names
@@ -172,7 +172,7 @@ handleUpgrade oldName newName = do
           renderDefnsForUnisonFile
             declNameLookup
             ( PPED.leftBiased
-                [ makeOldDepPPE [upgradeInfo] currentDeepDefnsSansOlds,
+                [ makeOldDepPPE upgradeInfos currentDeepDefnsSansOlds,
                   PPED.makePPED
                     (PPE.namer (Names.fromUnconflictedReferenceIds dependents))
                     (PPE.suffixifyByName (Names.fromRelations currentDeepDefnsSansOlds)),
@@ -194,7 +194,7 @@ handleUpgrade oldName newName = do
 
       _ <-
         HandleInput.Branch.createBranch
-          textualDescriptionOfUpgrade
+          (textualDescriptionOfUpgrade upgradeInfos)
           ( CreateFrom'Upgrade
               (pp.branch, Branch.headHash currentNamespace, uniqueTypeGuidsByName)
               ( unconflictedView.defns
@@ -257,16 +257,20 @@ handleUpgrade oldName newName = do
               )
 
   Cli.stepAt
-    textualDescriptionOfUpgrade
+    (textualDescriptionOfUpgrade upgradeInfos)
     ( PP.toRoot pp,
-      finalNameBranchStep . Branch.deleteLibdep oldName . Branch.batchUpdates branchUpdates
+      finalNameBranchStep . deleteAllOlds . Branch.batchUpdates branchUpdates
     )
 
   Cli.respond (Output.UpgradeSuccess oldName newName maybeFinalName)
   where
-    textualDescriptionOfUpgrade :: Text
-    textualDescriptionOfUpgrade =
-      Text.unwords ["upgrade", NameSegment.toEscapedText oldName, NameSegment.toEscapedText newName]
+    textualDescriptionOfUpgrade :: List.NonEmpty UpgradeInfo -> Text
+    textualDescriptionOfUpgrade infos =
+      Text.unwords $
+        "upgrade"
+          : concatMap
+            (\info -> [NameSegment.toEscapedText info.oldName, NameSegment.toEscapedText info.newName])
+            (toList infos)
 
 makePrettyUnisonFile :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
 makePrettyUnisonFile dependents =
@@ -324,7 +328,7 @@ upgradeInfosToDependencies infos currentNamespaceSansOlds =
         & view Branch.libdeps_
         & foldMap (Branch.deepDefnsRefs . Branch.head)
 
-makeOldDepPPE :: [UpgradeInfo] -> Defns (Relation Referent Name) (Relation TypeReference Name) -> PrettyPrintEnvDecl
+makeOldDepPPE :: List.NonEmpty UpgradeInfo -> Defns (Relation Referent Name) (Relation TypeReference Name) -> PrettyPrintEnvDecl
 makeOldDepPPE infos currentDeepNamesSansOlds =
   let makePPE suffixifier =
         PPE.PrettyPrintEnv termToNames typeToNames
