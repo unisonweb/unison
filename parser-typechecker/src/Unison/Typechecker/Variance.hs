@@ -1,7 +1,9 @@
 
 module Unison.Typechecker.Variance where
 
-import Data.Foldable (foldl')
+import Control.Monad.State.Strict
+import Data.Foldable (foldl', traverse_)
+import Data.Graph (flattenSCC, stronglyConnComp)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -16,7 +18,7 @@ import Unison.Var (Var)
 -- recording information about the occurrences so that we can later solve
 -- the overall variance of a parameter from its occurrences.
 data Polarity v = Positive | Negative | Exact | As v | Op v
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 -- Reverse polarity, for moving into negative positions.
 inv :: Polarity v -> Polarity v
@@ -27,9 +29,15 @@ inv (Op v) = As v
 -- Reverse of invariant is invariant
 inv Exact = Exact
 
+act :: Polarity v -> Polarity v -> Polarity v
+act Positive p = p
+act Negative p = inv p
+act Exact    _ = Exact
+act _        _ = Exact -- TODO: revisit
+
 -- Concrete variance information for a parameter.
 data Variance = Any | Pos | Neg | Inv
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 both :: Variance -> Variance -> Variance
 both Any   v = v
@@ -54,8 +62,12 @@ combine [] = Map.empty
 combine (m:ms) = foldl' (Map.unionWith (++)) m ms
 
 collectVariance ::
-  Var v => Map Reference [Variance] -> Type v a -> Map v [Polarity v]
-collectVariance prev = descend Positive
+  Var v =>
+  Map Reference [Variance] ->
+  Map Reference [v] ->
+  Type v a ->
+  Map v [Polarity v]
+collectVariance prev group = descend Positive
   where
     descend pol = \case
       Arrow' i o ->
@@ -63,6 +75,8 @@ collectVariance prev = descend Positive
       Effect1' e r ->
         Map.unionWith (++) (descend pol e) (descend pol r)
       Apps' f xs
+        | Ref' r <- f, Just bnd <- Map.lookup r group ->
+          combine $ zipWith (descend . act pol . As) bnd xs
         | Just vs <- lookupVariance prev f ->
           combine $ descend pol f : zipWith h vs xs
         -- if it's not in the info we have, assume invariant
@@ -73,6 +87,7 @@ collectVariance prev = descend Positive
           h Neg t = descend (inv pol) t
           h Pos t = descend pol t
           h Inv t = descend Exact t
+
       Ann' t _ -> descend pol t
       Effects' ts -> combine $ map (descend pol) ts
       ForallsNamed' _ t -> descend pol t
@@ -81,9 +96,19 @@ collectVariance prev = descend Positive
       _ -> Map.empty
 
 collectDeclVariance ::
-  (Var v, Show a) => DataDeclaration v a -> Map v [Polarity v]
-collectDeclVariance decl =
-  combine $ collectVariance defaultVariances . snd <$> constructors decl
+  (Var v, Show a) =>
+  Map Reference [Variance] ->
+  Map Reference [v] ->
+  DataDeclaration v a ->
+  Map v [Polarity v]
+collectDeclVariance vars group decl =
+  combine
+    $ fmap (collectVariance vars group)
+    . split
+    =<< constructors decl
+  where
+    split (_, ForallsNamedOpt' _vs (Arrows' ts)) = ts
+    split (_, t) = [t]
 
 -- Simplifies some polarities
 simplify :: Var v => v -> [Polarity v] -> [Polarity v]
@@ -120,3 +145,31 @@ solve map0
   | Just m <- checkFinished map0 = m
   | otherwise = solve . Map.mapWithKey simplify $ chain map0 <$> map0
 
+inferDeclGroupVariance ::
+  (Var v, Show a) =>
+  Map Reference [Variance] ->
+  Map Reference (DataDeclaration v a) ->
+  Map Reference [Variance]
+inferDeclGroupVariance vars group =
+  resolveGroup . solve $
+    foldMap (collectDeclVariance vars groupVars) group
+  where
+    groupVars = Map.map bound group
+    resolveGroup m = Map.mapMaybe (resolve m) group
+    resolve m (DataDeclaration {bound}) =
+      traverse (\v -> Map.lookup v m) bound
+
+inferDeclVariances ::
+  (Var v, Show a) =>
+  Map Reference [Variance] ->
+  Map Reference (DataDeclaration v a) ->
+  Map Reference [Variance]
+inferDeclVariances boot (Map.toList -> rdds) =
+  execState (traverse_ inf sccs) boot
+  where
+    inf (Map.fromList . flattenSCC -> ddm) = do
+      vs <- get
+      put . Map.union vs $ inferDeclGroupVariance vs ddm
+
+    trc p@(r, dd) = (p, r, Set.toList $ typeDependencies dd)
+    sccs = stronglyConnComp $ fmap trc rdds
