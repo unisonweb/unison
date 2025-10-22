@@ -3,9 +3,8 @@ module Unison.Codebase.Editor.HandleInput.DiffBranch
   )
 where
 
-import Control.Lens (mapped)
+import Control.Lens (mapped, preview)
 import Control.Monad.Reader (ask)
-import Data.Bifoldable (bifoldMap)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -15,6 +14,7 @@ import System.Process qualified as Process
 import Text.Builder qualified
 import Text.Builder qualified as Text (Builder)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import Unison.Cli.DirectoryUtils (makeMakeTempFilename)
@@ -31,7 +31,6 @@ import Unison.Codebase.Editor.Input (DiffBranchArg (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.ShortCausalHash qualified as ShortCausalHash
-import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DeclCoherencyCheck (asOneRandomIncoherentDeclReason)
 import Unison.DeclNameLookup (DeclNameLookup)
@@ -43,17 +42,15 @@ import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
-import Unison.Reference (TermReferenceId, TypeReferenceId)
-import Unison.Reference qualified as Reference
+import Unison.Reference (TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.ReferentPrime qualified as Referent
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter qualified as FilePrinter
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NamePrinter qualified as NamePrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
@@ -61,8 +58,7 @@ import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.ColorText (ColorText)
-import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefns, zipDefnsWith)
-import Unison.Util.Defns qualified as Defns
+import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
@@ -143,15 +139,24 @@ handleDiffBranch aliceArg bobArg = do
             changedNames =
               foldMap (bimap Map.keysSet Map.keysSet) diffblob.diffsFromLCA
 
-        -- Get the sets of references referred to by those names on all three branches.
+        -- Restrict all definitions to just those changed names (regardless of which branch changed it)
+        let changedDefns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+            changedDefns =
+              diffblob.defns <&> \defns ->
+                NamesUtils.restrictNames changedNames defns.defns
+
+        -- Extract out just the builtins, to be rendered specially in the file later
+        let changedBuiltinDefns :: Merge.ThreeWay (DefnsF (Map Name) Text Text)
+            changedBuiltinDefns =
+              changedDefns
+                <&> bimap
+                  (Map.mapMaybe Referent.asBuiltin . BiMultimap.range)
+                  (Map.mapMaybe (preview Reference.t_) . BiMultimap.range)
+
+        -- Get the sets of derived reference (to hydrate) referred to by those names on all three branches.
         let defnsToHydrate :: DefnsF Set TermReferenceId TypeReferenceId
             defnsToHydrate =
-              diffblob.defns
-                & foldMap \defns ->
-                  defns.defns
-                    & NamesUtils.restrictNames changedNames
-                    & NamesUtils.forgetNames
-                    & NamesUtils.referentsToIds
+              foldMap (NamesUtils.referentsToIds . NamesUtils.forgetNames) changedDefns
 
         -- Identify the subsets of those references that we haven't already hydrated, during the process of producing the
         -- diffblob. This may always be the empty set in the current implementation, but doesn't hurt to check.
@@ -199,16 +204,10 @@ handleDiffBranch aliceArg bobArg = do
                 & Text.replace "$MERGED" filenames.lca
                 & Text.replace "$REMOTE" filenames.bob
 
-        -- Whoops! Couple things.
-        --
-        -- 1. Builtins. We're only rendering derived things. What happened there?
-        -- 2. Libdeps differences. Those don't really have a syntax in the file. Nonetheless we can do... something in a
-        -- comment I guess. Merge doesn't have this problem because libdeps are just merged and in scope on merge branch.
-
         exitCode <-
           liftIO do
             for_
-              ( (,,,)
+              ( (,,,,)
                   <$> filenames
                   <*> ( diffblob.declNameLookups
                           & over #lca (PartialDeclNameLookup.toDeclNameLookup Name.unsafeParseText)
@@ -216,9 +215,13 @@ handleDiffBranch aliceArg bobArg = do
                       )
                   <*> namespaces
                   <*> diffblob.defns
+                  <*> changedBuiltinDefns
               )
-              \(name, declNameLookup, namespace, defns) ->
-                env.writeSource name (renderUnisonFile declNameLookup namespace defns hydratedDefns) True
+              \(name, declNameLookup, namespace, defns, builtinDefns) ->
+                env.writeSource
+                  name
+                  (renderUnisonFile declNameLookup namespace defns builtinDefns hydratedDefns)
+                  True
             let createProcess = (Process.shell (Text.unpack difftool)) {Process.delegate_ctlc = True}
             Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
 
@@ -246,9 +249,13 @@ mangleDiffBranchArg = \case
   DiffBranchArg'Branch branch -> projectBranchNameToValidProjectBranchNameText branch.branch
   DiffBranchArg'Hash hash -> Text.Builder.text (ShortCausalHash.toText hash)
 
-renderDefinitions :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) -> Pretty ColorText
-renderDefinitions defns =
-  (Map.toList defns.terms ++ Map.toList defns.types)
+renderDefinitions ::
+  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) ->
+  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) ->
+  Pretty ColorText
+renderDefinitions builtinDefns nonBuiltinDefns =
+  zipDefnsWith Map.union Map.union builtinDefns nonBuiltinDefns
+    & (\defns -> Map.toList defns.terms ++ Map.toList defns.types)
     & sortAlphabeticallyOn fst
     & foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
 
@@ -257,15 +264,32 @@ renderUnisonFile ::
   DeclNameLookup ->
   Branch0 m ->
   UnconflictedLocalDefnsView ->
+  DefnsF (Map Name) Text Text ->
   Defns (Map TermReferenceId (Term v a, Type v a)) (Map TypeReferenceId (Decl v a)) ->
   Text
-renderUnisonFile declNameLookup namespace defns hydratedDefns =
-  Text.pack . Pretty.toPlain 80 . renderDefinitions $
-    FilePrinter.renderDefnsForUnisonFile
-      declNameLookup
-      (Branch.toPrettyPrintEnvDecl 10 namespace)
-      Set.empty
-      ( hydratedDefns
-          & UpdateUtils.nameHydratedRefIds2 defns.defns
-          & over (#terms . mapped) snd
-      )
+renderUnisonFile declNameLookup namespace defns builtinDefns hydratedDefns =
+  let builtinDefns1 :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
+      builtinDefns1 =
+        let f =
+              Map.mapWithKey
+                ( \name builtin ->
+                    "-- "
+                      <> NamePrinter.prettyName name
+                      <> " refers to builtin ##"
+                      <> Pretty.text builtin
+                )
+         in bimap f f builtinDefns
+
+      nonBuiltinDefns :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
+      nonBuiltinDefns =
+        FilePrinter.renderDefnsForUnisonFile
+          declNameLookup
+          (Branch.toPrettyPrintEnvDecl 10 namespace)
+          Set.empty
+          ( hydratedDefns
+              & UpdateUtils.nameHydratedRefIds2 defns.defns
+              & over (#terms . mapped) snd
+          )
+   in renderDefinitions builtinDefns1 nonBuiltinDefns
+        & Pretty.toPlain 80
+        & Text.pack

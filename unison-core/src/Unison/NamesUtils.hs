@@ -1,5 +1,4 @@
 -- | A utility module for unconflicted namespaces and related types/functionality.
-
 module Unison.NamesUtils
   ( byName,
     forgetNames,
@@ -11,7 +10,7 @@ where
 import Data.Set qualified as Set
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Prelude
-import Unison.Reference (Reference' (..), TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
