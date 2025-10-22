@@ -19,6 +19,7 @@ module Unison.MCP.Types
     ProjectContextArgument (..),
     ProjectNameArgument (..),
     ProjectDefinitionNameArgument (..),
+    TestToolArguments (..),
     toToolName,
     fromToolName,
   )
@@ -32,6 +33,7 @@ import Data.Text qualified as Text
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
+import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
 import Unison.MCP.Wrapper (HasInputSchema (..))
 import Unison.Name (Name)
@@ -77,6 +79,7 @@ data ToolKind
   | GetCurrentProjectContextTool
   | DependenciesTool
   | DependentsTool
+  | TestsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -98,7 +101,8 @@ kindNameMapping =
       (ListProjectBranchesTool, "list-project-branches"),
       (GetCurrentProjectContextTool, "get-current-project-context"),
       (DependenciesTool, "list-definition-dependencies"),
-      (DependentsTool, "list-definition-dependents")
+      (DependentsTool, "list-definition-dependents"),
+      (TestsTool, "run-tests")
     ]
 
 data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
@@ -525,6 +529,34 @@ instance FromJSON ShareProjectSearchToolArguments where
   parseJSON = withObject "ShareProjectSearchToolArguments" $ \o -> do
     query <- o .: "query"
     pure $ ShareProjectSearchToolArguments {query}
+
+data TestToolArguments = TestToolArguments
+  { projectContext :: ProjectContext,
+    subnamespace :: Maybe Path.Relative
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema TestToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "subnamespace"
+                .= object
+                  [ "type" .= ["string" :: Text, "null"],
+                    "description" .= ("An optional subnamespace within the project to run tests in. E.g. `mynamespace.tests`. If null, tests in the entire project will be run." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext" :: Text]
+      ]
+
+instance FromJSON TestToolArguments where
+  parseJSON = withObject "TestToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    subnamespace <- fmap (Path.Relative . Path.unsafeParseText) <$> (o .:? "subnamespace")
+    pure $ TestToolArguments {projectContext, subnamespace}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =

@@ -12,6 +12,9 @@ README = {{
 myTerm = 99
 
 type MyType = MyConstructor
+
+test> myPassingTest = [Ok "passing"]
+test> myFailingTest = [Fail "failing"]
 ```
 
 ``` ucm
@@ -158,7 +161,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"content\":[{\"text\":\"{\\\"outputMessages\\\":[\\\"1. myTerm : Nat\\\\n2. type MyType\\\\n3. MyType.MyConstructor : MyType\\\\n4. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[]}\",\"type\":\"text\"}],\"isError\":false}",
+                  "text": "{\"content\":[{\"text\":\"{\\\"outputMessages\\\":[\\\"1. myFailingTest : [Result]\\\\n2. myPassingTest : [Result]\\\\n3. myTerm : Nat\\\\n4. type MyType\\\\n5. MyType.MyConstructor : MyType\\\\n6. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[]}\",\"type\":\"text\"}],\"isError\":false}",
                   "type": "text"
               }
           ],
@@ -303,7 +306,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"outputMessages\":[\"1. myTerm : Nat\\n2. type MyType\\n3. MyType.MyConstructor : MyType\\n\"],\"sourceCodeUpdates\":[]}",
+                  "text": "{\"outputMessages\":[\"1. myFailingTest : [Result]\\n2. myPassingTest : [Result]\\n3. myTerm : Nat\\n4. type MyType\\n5. MyType.MyConstructor : MyType\\n\"],\"sourceCodeUpdates\":[]}",
                   "type": "text"
               }
           ],
@@ -373,6 +376,43 @@ RESPONSE:
           "content": [
               {
                   "text": "{\"branchName\":\"main\",\"projectName\":\"scratch\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+## tests
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "run-tests",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "main"
+        }
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"outputMessages\":[\"Cached test results (`help testcache` to learn more)\\n\\n  1. myPassingTest   â passing\\n\\n  2. myFailingTest   â failing\\n\\nð« 1 test(s) failing, â 1 test(s) passing\\n\\nTip: Use view 1 to view the source of a test.\"],\"sourceCodeUpdates\":[]}",
                   "type": "text"
               }
           ],
