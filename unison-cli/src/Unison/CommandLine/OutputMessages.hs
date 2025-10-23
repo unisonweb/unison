@@ -2472,7 +2472,7 @@ notifyUser dir issueFn = \case
                         case branchArg of
                           Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
                           Input.DiffBranchArg'Hash hash -> prettySCH hash
-                   in P.wrap ("Changes on " <> P.group (prettyBranchArg <> ",")),
+                   in P.wrap ("Changes on " <> P.group (prettyBranchArg <> ":")),
                   P.linesNonEmpty
                     [ renderedNewTypes,
                       renderedUpdatedTypes,
