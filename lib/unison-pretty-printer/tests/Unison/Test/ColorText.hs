@@ -16,6 +16,7 @@ import Unison.Util.AnnotatedText
 import Unison.Util.ColorText (Color (..), toANSI)
 import Unison.Util.ColorText qualified as ColorText
 import Unison.Util.Range (Range (..))
+import Data.Text (Text)
 
 test :: Test ()
 test =
@@ -25,7 +26,7 @@ test =
 -- commented out because they don't render exactly the same escape sequences, but they're equivalent4 as of this writing
 -- scope "inclusive-exclusive range" . expect . trace ("ex4e: " ++ show (rawRender ex4e) ++ "\n" ++ "ex4t: " ++ show (rawRender ex4t) ++ "\n")$ ex4e == ex4t
 
-ex4e :: String
+ex4e :: Text
 ex4e = toANSI . condensedExcerptToText 1 $ markup "abc" m
   where
     m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) Red
@@ -46,7 +47,7 @@ ex2 =
         ]
     )
 
-renderEx2 :: String
+renderEx2 :: Text
 renderEx2 = toANSI . condensedExcerptToText 3 $ ex2
 
 ex3 :: AnnotatedExcerpt Color
