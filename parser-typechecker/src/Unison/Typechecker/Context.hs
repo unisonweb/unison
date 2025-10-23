@@ -2705,9 +2705,6 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       -- analogue of `-->`
       subtype x1 x2
       x1 <- applyM x1
-      -- We don't know the variance of the type argument, so we assume
-      -- (conservatively) that it's invariant, see
-      -- discussion https://github.com/unisonweb/unison/issues/512
       y1 <- applyM y1
       y2 <- applyM y2
       checkVariance x1 >>= \case

@@ -71,6 +71,14 @@ data TypeError v loc
         abilityCheckFailureSite :: loc,
         note :: C.ErrorNote v loc
       }
+  | AbilitySubtypeFailure
+      { sub :: [C.Type v loc],
+        sup :: [C.Type v loc],
+        tsub :: C.Type v loc,
+        tsup :: C.Type v loc,
+        abilityCheckFailureSite :: loc,
+        note :: C.ErrorNote v loc
+      }
   | AbilityEqFailure
       { lhs :: [C.Type v loc],
         rhs :: [C.Type v loc],
@@ -156,8 +164,9 @@ allErrors =
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
-      abilityCheckFailure,
+      abilitySubFailure,
       abilityEqFailure,
+      abilityCheckFailure,
       badEffectInstantiation,
       unguardedCycle,
       unknownType,
@@ -194,6 +203,18 @@ abilityCheckFailure = do
   e <- Ex.innermostTerm
   n <- Ex.errorNote
   pure $ AbilityCheckFailure ambient requested (ABT.annotation e) n
+
+abilitySubFailure :: Ex.ErrorExtractor v a (TypeError v a)
+abilitySubFailure = do
+  (sup, sub, _ctx) <- Ex.abilityCheckFailure
+  failSite <- ABT.annotation <$> Ex.innermostTerm
+  note <- Ex.errorNote
+  path <- Ex.path
+  (tsub, tsup) : _ <- pure . mapMaybe p $ reverse path
+  pure $ AbilitySubtypeFailure sub sup tsub tsup failSite note
+  where
+    p (C.InSubtype t1 t2) = Just (t1, t2)
+    p _ = Nothing
 
 abilityEqFailure :: Ex.ErrorExtractor v a (TypeError v a)
 abilityEqFailure = do
