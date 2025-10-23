@@ -58,7 +58,7 @@ initCodebase fmt = do
       >>= flip Temp.createTempDirectory "ucm-test"
   result <- Codebase.Init.withCreatedCodebase cbInit "ucm-test" tmp SC.DoLock (const $ pure ())
   case result of
-    Left CreateCodebaseAlreadyExists -> fail $ P.toANSI 80 "Codebase already exists"
+    Left CreateCodebaseAlreadyExists -> fail . Text.unpack $ P.toANSI 80 "Codebase already exists"
     Right _ -> pure $ Codebase tmp fmt
 
 deleteCodebase :: Codebase -> IO ()
@@ -77,7 +77,7 @@ runTranscript (Codebase codebasePath fmt) transcript = do
         output <- either err (Text.unpack . Transcript.format) <$> runner "transcript" transcriptSrc codebase
         when debugTranscriptOutput $ traceM output
         pure output
-      either (fail . P.toANSI 80 . P.shown) pure result
+      either (fail . Text.unpack . P.toANSI 80 . P.shown) pure result
 
 lowLevel :: Codebase -> (Codebase.Codebase IO Symbol Ann -> IO a) -> IO a
 lowLevel (Codebase root fmt) action = do

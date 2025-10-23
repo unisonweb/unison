@@ -28,6 +28,7 @@ import Unison.Type qualified as Type
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
+import Data.Text qualified as Text
 
 type Term v = Term.Term v Ann
 
@@ -60,7 +61,7 @@ showParseError ::
   String ->
   MPE.ParseError Parser.Input (Parser.Error v) ->
   String
-showParseError s = Pr.toANSI 60 . prettyParseError s
+showParseError s = Text.unpack . Pr.toANSI 60 . prettyParseError s
 
 parseAndSynthesizeAsFile ::
   [Type Symbol] ->

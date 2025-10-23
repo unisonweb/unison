@@ -14,6 +14,7 @@ import Unison.Syntax.Parser qualified as P
 import Unison.Test.Common qualified as Common
 import Unison.UnisonFile (UnisonFile)
 import Unison.Var (Var)
+import Data.Text qualified as Text
 
 test1 :: Test ()
 test1 =
@@ -73,7 +74,7 @@ expectFileParseFailure s expectation = scope s $ do
         Just (MPE.ErrorCustom e) -> expectation e
         Just _ -> crash "Error encountered was not custom"
         Nothing -> crash "No error found"
-    Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ renderParseErrorAsANSI 80 s e)
+    Left e -> crash . Text.unpack $ ("Parser failed with an error which was a trivial parser error: " <> renderParseErrorAsANSI 80 s e)
 
 emptyWatchTest :: Test ()
 emptyWatchTest =
