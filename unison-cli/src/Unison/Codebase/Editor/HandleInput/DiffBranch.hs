@@ -17,6 +17,7 @@ import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project qualified as Sqlite
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.DirectoryUtils (makeMakeTempFilename)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -27,11 +28,12 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
+import Unison.Codebase.BuiltinAnnotation (builtinAnnotation)
 import Unison.Codebase.Editor.Input (DiffBranchArg (..))
 import Unison.Codebase.Editor.Output (Output)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.ShortCausalHash qualified as ShortCausalHash
-import Unison.DataDeclaration (Decl)
+import Unison.DataDeclaration (Decl, DeclOrBuiltin)
 import Unison.DeclCoherencyCheck (asOneRandomIncoherentDeclReason)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge qualified as Merge
@@ -39,11 +41,14 @@ import Unison.Merge.ThreeWay qualified as Merge.ThreeWay
 import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
 import Unison.Name (Name)
 import Unison.NamesUtils qualified as NamesUtils
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup qualified as PartialDeclNameLookup
 import Unison.Prelude
+import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
-import Unison.Reference (TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite qualified as Sqlite
@@ -58,7 +63,7 @@ import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.ColorText (ColorText)
-import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF3, zipDefnsWith)
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Set qualified as Set
@@ -130,57 +135,57 @@ handleDiffBranch aliceArg bobArg = do
 
       pure (namespaces0, diffblob)
 
+  -- Identify the set of all names changed (added, deleted, updated) on both branches.
+  let changedNames :: DefnsF Set Name Name
+      changedNames =
+        foldMap (bimap Map.keysSet Map.keysSet) diffblob.diffsFromLCA
+
+  -- Restrict all definitions to just those changed names (regardless of which branch changed it)
+  let changedDefns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+      changedDefns =
+        diffblob.defns <&> \defns ->
+          NamesUtils.restrictNames changedNames defns.defns
+
+  -- Extract out just the builtins, to be rendered specially in the file later
+  let changedBuiltinDefns :: Merge.ThreeWay (DefnsF (Map Name) Text Text)
+      changedBuiltinDefns =
+        changedDefns
+          <&> bimap
+            (Map.mapMaybe Referent.asBuiltin . BiMultimap.range)
+            (Map.mapMaybe (preview Reference.t_) . BiMultimap.range)
+
+  -- Get the sets of derived reference (to hydrate) referred to by those names on all three branches.
+  let defnsToHydrate :: DefnsF Set TermReferenceId TypeReferenceId
+      defnsToHydrate =
+        foldMap (NamesUtils.referentsToIds . NamesUtils.forgetNames) changedDefns
+
+  -- Identify the subsets of those references that we haven't already hydrated, during the process of producing the
+  -- diffblob. This may always be the empty set in the current implementation, but doesn't hurt to check.
+  let unhydratedDefns :: DefnsF Set TermReferenceId TypeReferenceId
+      unhydratedDefns =
+        zipDefnsWith
+          Set.differenceMap
+          Set.differenceMap
+          defnsToHydrate
+          diffblob.hydratedNarrowedDefns
+
+  -- Hydrate those unhydrated defns
+  newlyHydratedDefns <-
+    Cli.runTransaction do
+      UpdateUtils.hydrateRefs env.codebase unhydratedDefns
+
+  -- Make the full set of hydrated defns
+  let hydratedDefns ::
+        Defns
+          (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
+          (Map TypeReferenceId (Decl Symbol Ann))
+      hydratedDefns =
+        newlyHydratedDefns <> diffblob.hydratedNarrowedDefns
+
   maybeDifftoolResult <-
     liftIO (lookupEnv "UCM_DIFFTOOL") >>= \case
       Nothing -> pure Nothing
       Just difftool0 -> do
-        -- Identify the set of all names changed (added, deleted, updated) on both branches.
-        let changedNames :: DefnsF Set Name Name
-            changedNames =
-              foldMap (bimap Map.keysSet Map.keysSet) diffblob.diffsFromLCA
-
-        -- Restrict all definitions to just those changed names (regardless of which branch changed it)
-        let changedDefns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
-            changedDefns =
-              diffblob.defns <&> \defns ->
-                NamesUtils.restrictNames changedNames defns.defns
-
-        -- Extract out just the builtins, to be rendered specially in the file later
-        let changedBuiltinDefns :: Merge.ThreeWay (DefnsF (Map Name) Text Text)
-            changedBuiltinDefns =
-              changedDefns
-                <&> bimap
-                  (Map.mapMaybe Referent.asBuiltin . BiMultimap.range)
-                  (Map.mapMaybe (preview Reference.t_) . BiMultimap.range)
-
-        -- Get the sets of derived reference (to hydrate) referred to by those names on all three branches.
-        let defnsToHydrate :: DefnsF Set TermReferenceId TypeReferenceId
-            defnsToHydrate =
-              foldMap (NamesUtils.referentsToIds . NamesUtils.forgetNames) changedDefns
-
-        -- Identify the subsets of those references that we haven't already hydrated, during the process of producing the
-        -- diffblob. This may always be the empty set in the current implementation, but doesn't hurt to check.
-        let unhydratedDefns :: DefnsF Set TermReferenceId TypeReferenceId
-            unhydratedDefns =
-              zipDefnsWith
-                Set.differenceMap
-                Set.differenceMap
-                defnsToHydrate
-                diffblob.hydratedNarrowedDefns
-
-        -- Hydrate those unhydrated defns
-        newlyHydratedDefns <-
-          Cli.runTransaction do
-            UpdateUtils.hydrateRefs env.codebase unhydratedDefns
-
-        -- Make the full set of hydrated defns
-        let hydratedDefns ::
-              Defns
-                (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann))
-                (Map TypeReferenceId (Decl Symbol Ann))
-            hydratedDefns =
-              newlyHydratedDefns <> diffblob.hydratedNarrowedDefns
-
         makeTempFilename <-
           makeMakeTempFilename
 
@@ -227,7 +232,90 @@ handleDiffBranch aliceArg bobArg = do
 
         pure (Just (difftool, exitCode))
 
-  Cli.respond (Output.ShowBranchDiff args diffblob.diffsFromLCA maybeDifftoolResult)
+  let typeRefToDeclOrBuiltin :: TypeReference -> DeclOrBuiltin Symbol Ann
+      typeRefToDeclOrBuiltin = \case
+        Reference.DerivedId refId -> NotBuiltin (hydratedDefns.types Map.! refId)
+        Reference.Builtin builtin -> Builtin (Builtin.expectBuiltinConstructorType builtin)
+
+  let termRefToType :: TermReference -> Type Symbol Ann
+      termRefToType = \case
+        Reference.DerivedId refId -> snd (hydratedDefns.terms Map.! refId)
+        Reference.Builtin builtin -> const builtinAnnotation <$> Builtin.expectBuiltinTermType builtin
+
+  let newTypes ::
+        DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference ->
+        Map Name (DeclOrBuiltin Symbol Ann)
+      newTypes defns =
+        defns.types & Map.mapMaybe \case
+          Merge.DiffOp'Add ref -> Just (typeRefToDeclOrBuiltin ref.value)
+          _ -> Nothing
+
+  let updatedTypes ::
+        DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference ->
+        Map Name (DeclOrBuiltin Symbol Ann)
+      updatedTypes defns =
+        defns.types & Map.mapMaybe \case
+          Merge.DiffOp'Update refs -> Just (typeRefToDeclOrBuiltin refs.new.value)
+          _ -> Nothing
+
+  let deletedTypes ::
+        DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference ->
+        Map Name (DeclOrBuiltin Symbol Ann)
+      deletedTypes defns =
+        defns.types & Map.mapMaybe \case
+          Merge.DiffOp'Delete ref -> Just (typeRefToDeclOrBuiltin ref.value)
+          _ -> Nothing
+
+  let newTerms ::
+        DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference ->
+        Map Name (Type Symbol Ann)
+      newTerms defns =
+        defns.terms & Map.mapMaybe \case
+          Merge.DiffOp'Add ref | Referent.Ref ref1 <- ref.value -> Just (termRefToType ref1)
+          _ -> Nothing
+
+  let updatedTerms ::
+        DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference ->
+        Map Name (Type Symbol Ann)
+      updatedTerms defns =
+        defns.terms & Map.mapMaybe \case
+          Merge.DiffOp'Update refs | Referent.Ref ref1 <- refs.new.value -> Just (termRefToType ref1)
+          _ -> Nothing
+
+  let deletedTerms ::
+        DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference ->
+        Map Name (Type Symbol Ann)
+      deletedTerms defns =
+        defns.terms & Map.mapMaybe \case
+          Merge.DiffOp'Delete ref | Referent.Ref ref1 <- ref.value -> Just (termRefToType ref1)
+          _ -> Nothing
+
+  let diffs ::
+        Merge.TwoWay
+          ( Defns
+              ( Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann)
+              )
+              ( Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann)
+              )
+          )
+      diffs =
+        diffblob.diffsFromLCA <&> \diff ->
+          Defns
+            { terms = (newTerms diff, updatedTerms diff, deletedTerms diff),
+              types = (newTypes diff, updatedTypes diff, deletedTypes diff)
+            }
+
+  Cli.respond
+    ( Output.ShowBranchDiff
+        args
+        ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.ThreeWay.forgetLca namespaces)
+        diffs
+        maybeDifftoolResult
+    )
 
 resolveDiffBranchArg ::
   (forall void. Output -> Sqlite.Transaction void) ->

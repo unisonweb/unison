@@ -5,6 +5,7 @@ module Unison.Builtin
     builtinDataDecls,
     builtinEffectDecls,
     builtinConstructorType,
+    expectBuiltinTermType,
     expectBuiltinConstructorType,
     builtinTypeDependents,
     builtinTypeDependentsOfComponent,
@@ -274,6 +275,15 @@ intrinsicTermReferences = Map.keysSet termRefTypes
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]
 
+expectBuiltinTermType :: Text -> Type
+expectBuiltinTermType builtin =
+  fromMaybe (error (reportBug "E129709" err)) (Map.lookup (R.Builtin builtin) termRefTypes)
+  where
+    err =
+      "I don't know about the builtin term "
+        ++ show (R.Builtin builtin :: R.TermReference)
+        ++ ", but I've been asked for its Type."
+
 expectBuiltinConstructorType :: Text -> CT.ConstructorType
 expectBuiltinConstructorType builtin =
   fromMaybe (error (reportBug "E680087" err)) (Map.lookup (R.Builtin builtin) builtinConstructorType)
@@ -281,7 +291,7 @@ expectBuiltinConstructorType builtin =
     err =
       "I don't know about the builtin type "
         ++ show (R.Builtin builtin :: R.TypeReference)
-        ++ ", but I've been asked for it's ConstructorType."
+        ++ ", but I've been asked for its ConstructorType."
 
 data BuiltinTypeDSL = B' Text CT.ConstructorType | D' Text | Rename' Text Text | Alias' Text Text
 

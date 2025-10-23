@@ -52,6 +52,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.InputPattern qualified as Input
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (..))
@@ -89,7 +90,7 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (DefnsF, DefnsF3, defnsAreEmpty)
+import Unison.Util.Defns (Defns, DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -453,7 +454,19 @@ data Output
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
   | ShowBranchDiff
       !(Merge.TwoWay DiffBranchArg)
-      !(Merge.TwoWay (DefnsF3 (Map Name) Merge.DiffOp Merge.Synhashed Referent TypeReference))
+      !(Merge.TwoWay PPE.PrettyPrintEnv)
+      !( Merge.TwoWay
+           ( Defns
+               ( Map Name (Type Symbol Ann),
+                 Map Name (Type Symbol Ann),
+                 Map Name (Type Symbol Ann)
+               )
+               ( Map Name (DeclOrBuiltin Symbol Ann),
+                 Map Name (DeclOrBuiltin Symbol Ann),
+                 Map Name (DeclOrBuiltin Symbol Ann)
+               )
+           )
+       )
       !(Maybe (Text, ExitCode))
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown

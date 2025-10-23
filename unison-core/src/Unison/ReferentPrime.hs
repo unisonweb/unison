@@ -5,6 +5,7 @@ module Unison.ReferentPrime
   ( Referent' (..),
 
     -- * Basic queries
+    isTerm,
     isConstructor,
     Unison.ReferentPrime.fold,
 
@@ -54,6 +55,10 @@ termReference_ =
   prism Ref' \case
     Ref' r -> Right r
     Con' r t -> Left (Con' r t)
+
+isTerm :: Referent' r -> Bool
+isTerm Ref' {} = True
+isTerm _ = False
 
 isConstructor :: Referent' r -> Bool
 isConstructor Con' {} = True

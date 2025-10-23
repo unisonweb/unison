@@ -94,7 +94,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
-import Unison.Merge (GUpdated (..))
+import Unison.Merge (GUpdated (..), TwoWay (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -1112,30 +1112,15 @@ notifyUser dir issueFn = \case
                     <> P.num numUnchangedTerms
                     <> " unchanged term"
                     <> (if numUnchangedTerms == 1 then ")" else "s)"),
-              let legendAdded = P.green "+" <> " (added)"
-                  legendModified = P.yellow "~" <> " (modified)"
-                  legendDeleted = P.red "-" <> " (deleted)"
-               in ( if not existUpdates && not existDeletes
-                      then mempty
-                      else
-                        mconcat
-                          ( List.intersperse
-                              ", "
-                              ( catMaybes
-                                  [ if existAdds then Just legendAdded else Nothing,
-                                    if existUpdates then Just legendModified else Nothing,
-                                    if existDeletes then Just legendDeleted else Nothing
-                                  ]
-                              )
-                          )
-                          <> P.newline
-                          <> P.newline
+              ( case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
+                  Just legend -> legend <> P.newline <> P.newline
+                  Nothing -> mempty
+              )
+                <> P.wrap
+                  ( "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
                   )
-                    <> P.wrap
-                      ( "Run"
-                          <> makeExample' IP.update
-                          <> "to apply these changes to your codebase."
-                      )
             ]
         else "No changes found."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
@@ -2411,11 +2396,148 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
-  ShowBranchDiff _ _ maybeDifftoolResult ->
+  ShowBranchDiff branchArgs ppes diffs _maybeDifftoolResult -> do
+    let isEmpty Defns {terms = (a, b, c), types = (d, e, f)} =
+          Map.null a && Map.null b && Map.null c && Map.null d && Map.null e && Map.null f
+
+    let showBranchDiff ::
+          PPE.PrettyPrintEnv ->
+          Input.DiffBranchArg ->
+          ( Defns
+              ( Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann)
+              )
+              ( Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann)
+              )
+          ) ->
+          Pretty
+        showBranchDiff _ _ diff | isEmpty diff = mempty
+        showBranchDiff ppe branchArg diff = do
+          let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+              renderType name decl =
+                P.syntaxToColor
+                  (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+
+          let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
+              renderTypes colored types =
+                types
+                  & Map.toList
+                  & sortAlphabeticallyOn (view _1)
+                  & map (\(name, decl) -> colored (renderType name decl))
+                  & P.lines
+
+          let renderedNewTypes :: Pretty
+              renderedNewTypes =
+                renderTypes (P.green . ("+ " <>)) (view _1 diff.types)
+
+          let renderedUpdatedTypes :: Pretty
+              renderedUpdatedTypes =
+                renderTypes (P.yellow . ("~ " <>)) (view _2 diff.types)
+
+          let renderedDeletedTypes :: Pretty
+              renderedDeletedTypes =
+                renderTypes (P.red . ("- " <>)) (view _3 diff.types)
+
+          let renderTerm :: (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+              renderTerm colored name ty =
+                (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+
+          let renderTerms :: (Pretty -> Pretty) -> Map Name (Type Symbol Ann) -> Pretty
+              renderTerms colored terms =
+                terms
+                  & Map.toList
+                  & sortAlphabeticallyOn (view _1)
+                  & map (\(name, ty) -> renderTerm colored name ty)
+                  & P.align
+                  & map P.group
+                  & P.lines
+
+          let renderedNewTerms :: Pretty
+              renderedNewTerms =
+                renderTerms (P.green . ("+ " <>)) (view _1 diff.terms)
+
+          let renderedUpdatedTerms :: Pretty
+              renderedUpdatedTerms =
+                renderTerms (P.yellow . ("~ " <>)) (view _2 diff.terms)
+
+          let renderedDeletedTerms :: Pretty
+              renderedDeletedTerms =
+                renderTerms (P.red . ("- " <>)) (view _3 diff.terms)
+           in P.sepNonEmpty
+                "\n\n"
+                [ let prettyBranchArg =
+                        case branchArg of
+                          Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
+                          Input.DiffBranchArg'Hash hash -> prettySCH hash
+                   in P.wrap ("Changes on " <> P.group (prettyBranchArg <> ",")),
+                  P.linesNonEmpty
+                    [ renderedNewTypes,
+                      renderedUpdatedTypes,
+                      renderedDeletedTypes
+                    ],
+                  P.linesNonEmpty
+                    [ renderedNewTerms,
+                      renderedUpdatedTerms,
+                      renderedDeletedTerms
+                    ]
+                ]
+
     pure $
-      case maybeDifftoolResult of
-        Nothing -> "No UCM_DIFFTOOL"
-        Just (difftool, exitCode) -> "Ran: " <> P.text difftool
+      if isEmpty diffs.alice && isEmpty diffs.bob
+        then "Those branches are the same."
+        else
+          P.sepNonEmpty
+            "\n\n"
+            [ showBranchDiff ppes.alice branchArgs.alice diffs.alice,
+              showBranchDiff ppes.bob branchArgs.bob diffs.bob,
+              let existAdds =
+                    or
+                      [ not (Map.null (view _1 diffs.alice.terms)),
+                        not (Map.null (view _1 diffs.alice.types)),
+                        not (Map.null (view _1 diffs.bob.terms)),
+                        not (Map.null (view _1 diffs.bob.types))
+                      ]
+                  existUpdates =
+                    or
+                      [ not (Map.null (view _2 diffs.alice.terms)),
+                        not (Map.null (view _2 diffs.alice.types)),
+                        not (Map.null (view _2 diffs.bob.terms)),
+                        not (Map.null (view _2 diffs.bob.types))
+                      ]
+                  existDeletes =
+                    or
+                      [ not (Map.null (view _3 diffs.alice.terms)),
+                        not (Map.null (view _3 diffs.alice.types)),
+                        not (Map.null (view _3 diffs.bob.terms)),
+                        not (Map.null (view _3 diffs.bob.types))
+                      ]
+               in case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
+                    Just legend -> legend
+                    Nothing -> mempty
+            ]
+
+prettyAddUpdateDeleteLegend :: Bool -> Bool -> Bool -> Maybe Pretty
+prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes
+  | not existUpdates && not existDeletes = Nothing
+  | otherwise =
+      Just $
+        mconcat
+          ( List.intersperse
+              ", "
+              ( catMaybes
+                  [ if existAdds then Just legendAdded else Nothing,
+                    if existUpdates then Just legendModified else Nothing,
+                    if existDeletes then Just legendDeleted else Nothing
+                  ]
+              )
+          )
+  where
+    legendAdded = P.green "+" <> " (added)"
+    legendModified = P.yellow "~" <> " (modified)"
+    legendDeleted = P.red "-" <> " (deleted)"
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
