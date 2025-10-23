@@ -81,7 +81,7 @@ data DiffOrSame = Different | Same
 -- >>> let left = [s "line1", s "\n", s "line2", s "\n", s "line3", s "\n", s "line3"]
 -- >>> let right = [s "line1", s "\n", s "lineX", s "\n", s "line3"]
 -- >>> linewiseDiff (==) left right
--- ([Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]],[Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]])
+-- LinewiseDiff {lhsLines = [Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]], rhsLines = [Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]]}
 linewiseDiff ::
   forall f a.
   (Foldable f, Eq a, Show a) =>
