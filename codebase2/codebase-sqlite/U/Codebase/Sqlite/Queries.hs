@@ -419,7 +419,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 22
+currentSchemaVersion = 23
 
 runCreateSql :: Transaction ()
 runCreateSql =
