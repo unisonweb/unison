@@ -204,6 +204,7 @@ snipWithContext margin source =
           -- if all annotations so far can be joined without .. separations
           if null rest
             then -- if this one can be joined to the new region without .. separation
+
               if withinMargin r0 r1
                 then -- add it to the first set and grow the compare region
                   (Just $ r0 <> r1, Map.insert r1 a1 taken, mempty)

@@ -1939,8 +1939,8 @@ prettyDoc2 ac tm = do
       longestRun c s =
         case filter (\s -> Text.take 2 s == Text.pack [c, c]) $
           Text.group (PP.toPlain 0 $ PP.syntaxToColor s) of
-            [] -> 2
-            x -> 1 + maximum (map Text.length x)
+          [] -> 2
+          x -> 1 + maximum (map Text.length x)
       oneMore c inner = replicate (longestRun c inner) c
       makeFence inner = PP.string $ replicate (max 3 $ longestRun '`' inner) '`'
       go :: Width -> Term3 v PrintAnnotation -> m (Pretty SyntaxText)

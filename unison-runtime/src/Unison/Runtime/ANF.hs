@@ -108,6 +108,7 @@ import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
+import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -139,7 +140,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
 import Prelude hiding (abs, and, or, seq)
-import qualified Data.Text as Text
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
