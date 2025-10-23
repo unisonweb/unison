@@ -149,6 +149,71 @@ scratch/main> branch.diff /main /alice
 scratch/main> project.delete scratch
 ```
 
+Currently (and temporarily), `branch.diff` doesn't show changes to `lib.*`.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` unison
+lib.dep.foo = 17
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.dep.foo : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+```
+
+``` unison
+lib.dep.foo = 18
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ lib.dep.foo : Nat
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/alice> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/alice> branch.diff /main /alice
+
+  Those branches are the same.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
 Currently (and temporarily), `branch.diff` doesn't work if the two branches don't share any history.
 
 ``` ucm :hide
