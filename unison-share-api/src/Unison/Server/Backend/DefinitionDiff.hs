@@ -13,7 +13,7 @@ import Data.Function
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NEL
-import Data.List.Split qualified as Split
+import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Syntax (SyntaxText)
@@ -32,11 +32,6 @@ diffDisplayObjects from to = case (from, to) of
     | otherwise -> MismatchedDisplayObjects (MissingObject fromSH) (MissingObject toSH)
   (UserObject fromST, UserObject toST) -> DisplayObjectDiff (UserObject (semanticLinewiseDiff fromST toST))
   (l, r) -> MismatchedDisplayObjects l r
-
--- diffSyntaxText :: SyntaxText -> SyntaxText -> [SemanticSyntaxDiff Syntax.Element]
--- diffSyntaxText (AnnotatedText fromST) (AnnotatedText toST) =
---   diffSegments syntaxElementDiffEq fromST toST
---     & expandSpecialCases specialCaseAnnotations
 
 -- We special-case situations where the name of a definition changed but its hash didn't;
 -- and cases where the name didn't change but the hash did.
@@ -93,8 +88,8 @@ linewiseDiff ::
   -- When lines are only present on one side, the other side has a Nothing in that position as padding.
   LinewiseDiff (Paired (Segment a))
 linewiseDiff diffEq left right =
-  let leftLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ left
-      rightLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ right
+  let leftLines = splitOnLines . toList $ left
+      rightLines = splitOnLines . toList $ right
       groupedDiff = Diff.getGroupedDiff leftLines rightLines
       partitioned =
         groupedDiff
@@ -125,6 +120,20 @@ linewiseDiff diffEq left right =
         & \(lhsLines, rhsLines) ->
           LinewiseDiff {lhsLines, rhsLines}
   where
+    splitOnLines :: [Segment a] -> [[Segment a]]
+    splitOnLines xs =
+      xs
+        & foldMap
+          ( \(Segment {segment = s, annotation}) ->
+              Text.splitOn "\n" s
+                <&> (\seg -> Just $ Segment seg annotation)
+                & List.intersperse Nothing
+                & filter \case
+                  Nothing -> True
+                  Just (Segment {segment}) -> not (Text.null segment)
+          )
+        & List.splitOn [Nothing]
+        & fmap catMaybes
     pairLines :: forall x. [[x]] -> [[x]] -> ([[Paired x]], [[Paired x]])
     pairLines left right =
       let paired = zipWith (zipWith Paired) left right
