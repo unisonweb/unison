@@ -57,7 +57,7 @@ testBuilder ::
   [FilePath] ->
   FilePath ->
   Test ()
-testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time transcript $ do
+testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time (Text.pack transcript) $ do
   scope transcript do
     outputs <-
       io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \codebase ->

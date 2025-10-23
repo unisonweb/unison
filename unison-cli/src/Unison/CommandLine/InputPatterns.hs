@@ -281,7 +281,7 @@ formatStructuredArgument schLength = \case
               else "." <> s
         pathArgStr = Path.toText pathArg
 
--- | Converts an arbitrary argument to a `String`.
+-- | Converts an arbitrary argument to a `Text`.
 --
 -- This is for cases where the
 -- command /should/ accept a structured argument of some type, but currently

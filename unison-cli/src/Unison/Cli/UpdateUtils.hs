@@ -26,6 +26,7 @@ import Data.Foldable qualified as Foldable
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import U.Codebase.Decl qualified as V2.Decl
 import U.Codebase.Reference (Reference' (..), TermReferenceId, TypeReferenceId)
 import U.Codebase.Sqlite.Operations qualified as Operations
@@ -214,7 +215,7 @@ parseAndTypecheck ::
   Cli (Maybe (TypecheckedUnisonFile Symbol Ann))
 parseAndTypecheck prettyUf parsingEnv = do
   env <- ask
-  let stringUf = Pretty.toPlain 80 prettyUf
+  let stringUf = Text.unpack $ Pretty.toPlain 80 prettyUf
   Debug.whenDebug Debug.Update do
     liftIO do
       putStrLn "--- Scratch ---"

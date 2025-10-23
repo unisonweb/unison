@@ -185,7 +185,7 @@ handleUpdate2 = do
                         then do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                           scratchFilePath <- fst <$> Cli.expectLatestFile
-                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
                           done Output.UpdateTypecheckingFailure
                         else do
                           uniqueTypeGuidsByName <-
@@ -208,12 +208,12 @@ handleUpdate2 = do
                               )
                           scratchFilePath <- fst <$> Cli.expectLatestFile
                           #latestFile ?= (scratchFilePath, True)
-                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
                           done (Output.UpdateTypecheckingFailure2 scratchFilePath pp.branch.name updateBranchName)
                     else do
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       #latestFile ?= (scratchFilePath, True)
-                      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                      liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
                       done Output.UpdateTypecheckingFailure
 
               respondRegion (Output.Literal (Pretty.wrap "Everything typechecks, so I'm saving the results..."))
