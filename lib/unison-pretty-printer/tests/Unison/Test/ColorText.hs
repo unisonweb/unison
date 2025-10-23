@@ -31,7 +31,7 @@ ex4e = toANSI . condensedExcerptToText 1 $ markup "abc" m
   where
     m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) Red
 
-ex4t :: String
+ex4t :: Text
 ex4t = toANSI $ "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
 
 ex2 :: AnnotatedExcerpt Color
