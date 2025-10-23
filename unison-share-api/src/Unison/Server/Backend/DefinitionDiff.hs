@@ -77,6 +77,12 @@ data DiffOrSame = Different | Same
 -- >>> let right = [s "line1", s "\n", s "lineX", s "\n", s "line3"]
 -- >>> linewiseDiff (==) left right
 -- LinewiseDiff {lhsLines = [Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]], rhsLines = [Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]]}
+--
+-- >>> let s a = Segment a Nothing
+-- >>> let left = [s "line1", s "=\n", s "line2", s ",\n", s "line3", s "\n", s "line3"]
+-- >>> let right = [s "line1", s "\n", s "lineX", s ",\n,\n,", s "line3"]
+-- >>> linewiseDiff (==) left right
+-- LinewiseDiff {lhsLines = [Changed [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing}),OneSided (Segment {segment = "=", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing}),Paired (Segment {segment = ",", annotation = Nothing}) (Segment {segment = ",", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Changed [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]], rhsLines = [Changed [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing}),Paired (Segment {segment = ",", annotation = Nothing}) (Segment {segment = ",", annotation = Nothing})],Changed [OneSided (Segment {segment = ",", annotation = Nothing})],Changed [OneSided (Segment {segment = ",", annotation = Nothing}),Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]]}
 linewiseDiff ::
   forall f a.
   (Foldable f, Eq a, Show a) =>
