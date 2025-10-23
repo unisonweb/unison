@@ -125,3 +125,48 @@ scratch/bob> branch.diff /alice /bob
 ``` ucm :hide
 scratch/main> project.delete scratch
 ```
+
+If two branches are identical, we just get a textual message (no diff).
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` ucm
+scratch/main> branch alice
+
+  Done. I've created the alice branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /alice`.
+
+scratch/main> branch.diff /main /alice
+
+  Those branches are the same.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+Currently (and temporarily), `branch.diff` doesn't work if the two branches don't share any history.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` ucm
+scratch/main> branch.create-empty topic
+
+  Done. I've created an empty branch scratch/topic.
+
+  Tip: Use `merge /somebranch` to initialize this branch.
+
+scratch/main> branch.diff /main /topic
+
+  Sorry, I can't yet compute the difference between branches that don't have any history in common.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
