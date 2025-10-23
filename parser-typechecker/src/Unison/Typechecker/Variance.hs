@@ -11,7 +11,7 @@ import Data.Set qualified as Set
 import Unison.DataDeclaration
 import Unison.Reference
 import Unison.Type
-import Unison.Var (Var)
+import Unison.Var (Var, freshIn)
 
 -- Polarity for variable occurrences during checking. This is used both
 -- for tracking the ambient polarity as we walk down the type, and
@@ -127,8 +127,12 @@ simplify v = reduce . Set.delete (As v) . Set.fromList
 chain :: Var v => Map v [Polarity v] -> [Polarity v] -> [Polarity v]
 chain m = foldMap f
   where
-    f (As v) = Map.findWithDefault [] v m
-    f (Op v) = inv <$> Map.findWithDefault [] v m
+    -- If an `As` or `Op` is not in the map, we will never be able to
+    -- find it. All variables should have been initialized to at least
+    -- `x -> As x` by the result types of constructors, so if a
+    -- variable isn't in the map, assume the worst and use invariant.
+    f (As v) = Map.findWithDefault [Exact] v m
+    f (Op v) = inv <$> Map.findWithDefault [Exact] v m
     f p = [p]
 
 checkFinished :: Map v [Polarity v] -> Maybe (Map v Variance)
@@ -150,14 +154,33 @@ inferDeclGroupVariance ::
   Map Reference [Variance] ->
   Map Reference (DataDeclaration v a) ->
   Map Reference [Variance]
-inferDeclGroupVariance vars group =
+inferDeclGroupVariance vars (freshenGroup -> group) =
   resolveGroup . solve $
-    foldMap (collectDeclVariance vars groupVars) group
+    foldMap (collectDeclVariance vars groupVars . snd) group
   where
-    groupVars = Map.map bound group
-    resolveGroup m = Map.mapMaybe (resolve m) group
-    resolve m (DataDeclaration {bound}) =
-      traverse (\v -> Map.lookup v m) bound
+    groupVars = fst <$> group
+    resolveGroup m = Map.mapMaybe (resolve m . fst) group
+    resolve m bound = traverse (\v -> Map.lookup v m) bound
+
+freshenGroup ::
+  (Var v) =>
+  Map Reference (DataDeclaration v a) ->
+  Map Reference ([v], DataDeclaration v a)
+freshenGroup group = evalState (traverse freshDecl group) Set.empty
+
+freshDecl ::
+  (Var v) =>
+  DataDeclaration v a ->
+  State (Set.Set v) ([v], DataDeclaration v a)
+freshDecl dd = do
+  vs <- traverse fv (bound dd)
+  let frvs = Map.fromList $ zip (bound dd) vs
+      f v = Map.findWithDefault v v frvs
+  pure (vs, vmap' f dd)
+  where
+    fv u = state \avoid ->
+      let v = freshIn avoid u
+      in (v, Set.insert v avoid)
 
 inferDeclVariances ::
   (Var v, Show a) =>
