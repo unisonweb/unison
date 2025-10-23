@@ -75,7 +75,7 @@ BODY:
         "projectContext": {
           "projectName": "scratch",
           "branchName": "main"
-        }, "code": {"text": "> x = 1 + 2"}
+        }, "code": {"sourceCode": "> x = 1 + 2"}
       }
     }
   }
