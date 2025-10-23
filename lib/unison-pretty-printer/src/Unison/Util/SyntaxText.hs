@@ -1,6 +1,5 @@
 module Unison.Util.SyntaxText where
 
-import Data.Text qualified as Text
 import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Pattern (SeqOp)
@@ -57,9 +56,6 @@ data Element r
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate
 
--- Convert a `SyntaxText` to a `String`, ignoring syntax markup
-toPlain :: SyntaxText' r -> String
-toPlain st = Text.unpack $ toPlainText st
-
-toPlainText :: SyntaxText' r -> Text
-toPlainText (AnnotatedText at) = foldMap segment at
+-- Convert a `SyntaxText` to a `Text`, ignoring syntax markup
+toPlain :: SyntaxText' r -> Text
+toPlain (AnnotatedText at) = foldMap segment at

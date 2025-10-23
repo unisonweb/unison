@@ -244,12 +244,9 @@ reference (Segment _ el) =
           _ -> Nothing
    in el >>= reference'
 
--- | Convert a `SyntaxText` to a `String`, ignoring syntax markup
-toPlainText :: SyntaxText -> Text
-toPlainText (AnnotatedText at) = Text.concat . toList $ segment <$> at
-
-toPlain :: SyntaxText -> String
-toPlain = Text.unpack . toPlainText
+-- | Convert a `SyntaxText` to a `Text`, ignoring syntax markup
+toPlain :: SyntaxText -> Text
+toPlain (AnnotatedText at) = Text.concat . toList $ segment <$> at
 
 -- HTML -----------------------------------------------------------------------
 
