@@ -6,6 +6,7 @@ module Unison.Test.Syntax.TermParser where
 import Control.Applicative
 import Control.Monad (join)
 import Data.Functor.Identity (Identity (..))
+import Data.Text qualified as Text
 import EasyTest
 import Text.Megaparsec qualified as P
 import Text.RawString.QQ
@@ -15,7 +16,6 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser
 import Unison.Syntax.TermParser qualified as TP
 import Unison.Test.Common qualified as Common
-import Data.Text qualified as Text
 
 test1 :: Test ()
 test1 =

@@ -4,6 +4,7 @@ import Control.Exception (throwIO)
 import Control.Lens.Tuple (_5)
 import Data.Map qualified as Map
 import Data.Text (unpack)
+import Data.Text qualified as Text
 import EasyTest
 import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
@@ -29,7 +30,6 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as Pretty
-import Data.Text qualified as Text
 
 type Note = Result.Note Symbol Ann
 

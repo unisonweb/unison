@@ -3,6 +3,7 @@ module Unison.Test.Syntax.FileParser where
 import Data.Functor.Identity (Identity (..))
 import Data.List (uncons)
 import Data.Set (elems)
+import Data.Text qualified as Text
 import EasyTest
 import Text.Megaparsec.Error qualified as MPE
 import Unison.Parser.Ann qualified as P
@@ -14,7 +15,6 @@ import Unison.Syntax.Parser qualified as P
 import Unison.Test.Common qualified as Common
 import Unison.UnisonFile (UnisonFile)
 import Unison.Var (Var)
-import Data.Text qualified as Text
 
 test1 :: Test ()
 test1 =

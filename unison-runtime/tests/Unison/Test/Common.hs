@@ -10,6 +10,7 @@ where
 import Control.Monad.Writer (tell)
 import Data.Functor.Identity (Identity (..))
 import Data.Sequence (Seq)
+import Data.Text qualified as Text
 import Text.Megaparsec.Error qualified as MPE
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
@@ -28,7 +29,6 @@ import Unison.Type qualified as Type
 import Unison.UnisonFile (TypecheckedUnisonFile, UnisonFile)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Var (Var)
-import Data.Text qualified as Text
 
 type Term v = Term.Term v Ann
 

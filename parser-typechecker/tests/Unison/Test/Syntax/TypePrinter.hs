@@ -4,8 +4,8 @@
 
 module Unison.Test.Syntax.TypePrinter where
 
-import Data.Text qualified as Text
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 import EasyTest
 import Unison.Builtin qualified
 import Unison.PrettyPrintEnv.Names qualified as PPE
