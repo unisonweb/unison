@@ -5,6 +5,7 @@ module Unison.Test.ColorText where
 
 -- import EasyTest
 import Data.Map qualified as Map
+import Data.Text (Text)
 import EasyTest
 import Text.RawString.QQ
 import Unison.Lexer.Pos (Pos (..))
@@ -16,7 +17,6 @@ import Unison.Util.AnnotatedText
 import Unison.Util.ColorText (Color (..), toANSI)
 import Unison.Util.ColorText qualified as ColorText
 import Unison.Util.Range (Range (..))
-import Data.Text (Text)
 
 test :: Test ()
 test =
