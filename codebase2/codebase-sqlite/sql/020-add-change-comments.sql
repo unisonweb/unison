@@ -1,5 +1,5 @@
 -- A simple table for storing user preferences as key/value pairs.
-CREATE TABLE preferences (
+CREATE TABLE config (
   key TEXT NOT NULL PRIMARY KEY,
   value TEXT NOT NULL
 )

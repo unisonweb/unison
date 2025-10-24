@@ -289,9 +289,11 @@ module U.Codebase.Sqlite.Queries
     x2cDecl,
     checkBranchExistsForCausalHash,
 
-    -- * Preferences
+    -- * Config
     getAuthorName,
     setAuthorName,
+    getConfigValue,
+    setConfigValue,
 
     -- * Types
     TextPathSegments,
@@ -328,11 +330,11 @@ import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import U.Codebase.Config (AuthorName, ConfigKey)
+import U.Codebase.Config qualified as Config
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
-import U.Codebase.Preferences (AuthorName, PreferencesKey)
-import U.Codebase.Preferences qualified as Preferences
 import U.Codebase.Reference (Reference' (..))
 import U.Codebase.Reference qualified as C (Reference)
 import U.Codebase.Reference qualified as C.Reference
@@ -4077,7 +4079,7 @@ annotateCausal authorName causalHashId contents = do
 
 getAuthorName :: Transaction (Maybe AuthorName)
 getAuthorName = do
-  r <- getPreference Preferences.AuthorNameKey <&> fmap Preferences.mkAuthorName
+  r <- getConfigValue Config.AuthorNameKey <&> fmap Config.mkAuthorName
   case r of
     Just (Left err) -> error $ "getAuthorName: " <> Text.unpack err
     Just (Right authorName) -> pure (Just authorName)
@@ -4085,22 +4087,22 @@ getAuthorName = do
 
 setAuthorName :: AuthorName -> Transaction ()
 setAuthorName authorName =
-  setPreference Preferences.AuthorNameKey (Preferences.unAuthorName authorName)
+  setConfigValue Config.AuthorNameKey (Config.unAuthorName authorName)
 
-setPreference :: PreferencesKey -> Text -> Transaction ()
-setPreference key value =
+setConfigValue :: ConfigKey -> Text -> Transaction ()
+setConfigValue key value =
   execute
     [sql|
-      INSERT INTO preferences (key, value)
+      INSERT INTO config (key, value)
       VALUES (:key, :value)
       ON CONFLICT (key) DO UPDATE SET value = excluded.value
     |]
 
-getPreference :: PreferencesKey -> Transaction (Maybe Text)
-getPreference key =
+getConfigValue :: ConfigKey -> Transaction (Maybe Text)
+getConfigValue key =
   queryMaybeCol
     [sql|
       SELECT value
-      FROM preferences
+      FROM config
       WHERE key = :key
     |]

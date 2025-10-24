@@ -42,7 +42,7 @@ import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as P
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
-import U.Codebase.Preferences qualified as Preferences
+import U.Codebase.Config qualified as Config
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent qualified as Referent
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
@@ -625,5 +625,5 @@ configKeyCompletion ::
   String ->
   m [Completion]
 configKeyCompletion query = do
-  let options = Text.unpack <$> Preferences.allKeysText
+  let options = Text.unpack <$> Config.allKeysText
   pure $ exactComplete query options

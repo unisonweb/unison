@@ -1,6 +1,6 @@
-module U.Codebase.Preferences
+module U.Codebase.Config
   ( AuthorName,
-    PreferencesKey (..),
+    ConfigKey (..),
     allKeys,
     mkAuthorName,
     unAuthorName,
@@ -14,28 +14,28 @@ import Data.Text qualified as Text
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 
-data PreferencesKey = AuthorNameKey
+data ConfigKey = AuthorNameKey
   deriving stock (Eq, Enum, Bounded)
 
-instance Show PreferencesKey where
+instance Show ConfigKey where
   show k = Text.unpack . keyToText $ k
 
-allKeys :: [PreferencesKey]
+allKeys :: [ConfigKey]
 allKeys = [minBound .. maxBound]
 
 allKeysText :: [Text]
 allKeysText = keyToText <$> allKeys
 
-keyToText :: PreferencesKey -> Text
+keyToText :: ConfigKey -> Text
 keyToText = \case
   AuthorNameKey -> "author.name"
 
-keyFromText :: Text -> Maybe PreferencesKey
+keyFromText :: Text -> Maybe ConfigKey
 keyFromText t = case t of
   "author.name" -> Just AuthorNameKey
   _ -> Nothing
 
-instance Sqlite.ToField PreferencesKey where
+instance Sqlite.ToField ConfigKey where
   toField AuthorNameKey = Sqlite.toField (keyToText AuthorNameKey)
 
 mkAuthorName :: Text -> Either Text AuthorName

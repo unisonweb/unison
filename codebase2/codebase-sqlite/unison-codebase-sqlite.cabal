@@ -40,7 +40,7 @@ library
   exposed-modules:
       U.Codebase.Branch
       U.Codebase.Causal.Squash
-      U.Codebase.Preferences
+      U.Codebase.Config
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full

@@ -157,7 +157,7 @@ import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
 import U.Codebase.HashTags (CausalHash (..))
-import U.Codebase.Preferences qualified as Preferences
+import U.Codebase.Config qualified as Config
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -2483,19 +2483,19 @@ configSet =
                 <> makeExample' configSet
                 <> "command sets the configuration key to the provided value. E.g.",
             "",
-            ( makeExample configSet [P.text $ Preferences.keyToText Preferences.AuthorNameKey, "vim"]
+            ( makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "vim"]
             ),
             "",
             P.hang
               "Configuration options include:"
-              (P.wrap . P.text $ Text.intercalate ", " $ Preferences.allKeysText)
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
           ],
       parse = \case
         [key, value] -> do
           key' <- unsupportedStructuredArgument configSet "a config key" key
           value' <- unsupportedStructuredArgument configSet "a config value" value
-          case Preferences.keyFromText (Text.pack key') of
-            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Preferences.allKeysText
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
             Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
         args -> wrongArgsLength "exactly two arguments" args
     }

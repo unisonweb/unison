@@ -2388,7 +2388,7 @@ notifyUser dir issueFn = \case
   AuthorNameRequired ->
     pure $
       P.hang "Please configure your a display name for your user."
-      P.lines [ "You can do so with: ",
+      $ P.lines [ "You can do so with: ",
         IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
               ]
 
