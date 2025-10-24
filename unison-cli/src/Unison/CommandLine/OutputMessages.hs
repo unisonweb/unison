@@ -19,6 +19,7 @@ import Data.Ord (comparing)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Set.NonEmpty qualified as Set.Nonempty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -28,6 +29,7 @@ import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe)
 import Data.Void (absurd)
 import Debug.RecoverRTTI qualified as RTTI
+import GitHub qualified as GH
 import Network.HTTP.Types qualified as Http
 import Servant.Client qualified as Servant
 import System.Console.ANSI qualified as ANSI
@@ -90,7 +92,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -118,6 +121,7 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent
 import Unison.Result qualified as Result
+import Unison.Runtime.Interface (prettyError)
 import Unison.Server.Backend (ShallowListEntry (..), TypeEntry (..))
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
@@ -180,16 +184,6 @@ notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
-  ShowDiffAfterDeleteDefinitions ppe diff ->
-    first
-      ( \p ->
-          P.lines
-            [ p,
-              "",
-              undoTip
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diff)
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first
       ( \p ->
@@ -277,15 +271,6 @@ notifyNumbered = \case
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
-  CantDeleteDefinitions ppeDecl endangerments ->
-    ( P.warnCallout $
-        P.lines
-          [ P.wrap "I didn't delete the following definitions because they are still in use:",
-            "",
-            endangeredDependentsTable ppeDecl endangerments
-          ],
-      numberedArgsForEndangerments ppeDecl endangerments
-    )
   CantDeleteNamespace ppeDecl endangerments ->
     ( P.warnCallout $
         P.lines
@@ -503,6 +488,29 @@ notifyNumbered = \case
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
   ShowProjectBranchReflog now moreToShow entries -> displayProjectBranchReflogEntries now moreToShow entries
+  DeletedDefinitions defns ->
+    let typesList = sortAlphabetically (Set.toList defns.types)
+        termsList = sortAlphabetically (Set.toList defns.terms)
+        deletedTheseTypes =
+          P.wrap "I deleted these types:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedList (map prettyName typesList))
+        deletedTheseTerms =
+          P.wrap "I deleted these terms:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedListFrom (Set.size defns.types) (map prettyName termsList))
+     in ( ( case (Set.null defns.types, Set.null defns.terms) of
+              (True, _) -> deletedTheseTerms
+              (_, True) -> deletedTheseTypes
+              _ -> deletedTheseTypes <> P.newline <> P.newline <> deletedTheseTerms
+          )
+            <> P.newline
+            <> P.newline
+            <> undoTip,
+          map SA.Name (typesList ++ termsList)
+        )
   where
     absPathToBranchId = BranchAtPath
 
@@ -515,14 +523,31 @@ undoTip =
       <> IP.makeExample' IP.branchReflog
       <> "to undo this change."
 
+issueUrl :: Word -> P.Pretty P.ColorText
+issueUrl = ("https://github.com/unisonweb/unison/issues/" <>) . P.shown
+
+showIssueUrl :: (Applicative f) => Word -> f (P.Pretty P.ColorText)
+showIssueUrl = pure . issueUrl
+
+githubTitleForIssue :: Word -> IO (Either GH.Error Text)
+githubTitleForIssue =
+  fmap (fmap GH.issueTitle) . GH.github' GH.issueR "unisonweb" "unison" . GH.IssueNumber . fromIntegral
+
+-- | Look up the issue in the unisonweb/unison repo, and include the title in the message.
+fetchIssueFromGitHub :: Word -> IO Pretty
+fetchIssueFromGitHub i =
+  either (const $ issueUrl i) (\title -> P.wrap $ P.text title <> " " <> issueUrl i) <$> githubTitleForIssue i
+
 notifyUser ::
   -- | The directory being watched for .u files. If a `FilePath` isn’t provided, it uses a constant string. This is
   --   useful in contexts like transcripts, where we need the output to be consistent, and not vary because of a temp
   --   directory.
   Maybe FilePath ->
+  -- | How to present any GitHub issues associated with an error. For example, `showIssueUrl` or `fetchIssueFromGitHub`.
+  (Word -> IO (P.Pretty P.ColorText)) ->
   Output ->
   IO Pretty
-notifyUser dir = \case
+notifyUser dir issueFn = \case
   SaveTermNameConflict name ->
     pure
       . P.warnCallout
@@ -540,14 +565,6 @@ notifyUser dir = \case
         <> "to evaluate something before attempting"
         <> "to save it."
   Success -> pure $ P.bold "Done."
-  PrintMessage pretty -> do
-    pure pretty
-  CouldntLoadBranch h ->
-    pure . P.fatalCallout . P.wrap $
-      "I have reason to believe that"
-        <> P.shown h
-        <> "exists in the codebase, but there was a failure"
-        <> "when I tried to load it."
   NamespaceEmpty p ->
     case p of
       (p0 NEList.:| []) ->
@@ -598,7 +615,7 @@ notifyUser dir = \case
             <> " with the codebase, or the term was deleted just now "
             <> " by someone else. Trying your command again might fix it."
       ]
-  EvaluationFailure err -> pure err
+  EvaluationFailure ctx err -> ctx <$> prettyError issueFn err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure $
@@ -624,13 +641,17 @@ notifyUser dir = \case
           P.warnCallout typeOrTermMsg
             <> P.newline
             <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
-  NameNotFound _ ->
-    pure . P.warnCallout $ "I don't know about that name."
-  NamesNotFound hqs ->
+  TermAndOrTypeNameNotFound which name ->
     pure $
-      P.warnCallout "The following names were not found in the codebase. Check your spelling."
-        <> P.newline
-        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs)))
+      P.warnCallout $
+        P.wrap $
+          "I couldn't find any"
+            <> case which of
+              Nothing -> "terms or types"
+              Just (TermDefn ()) -> "terms"
+              Just (TypeDefn ()) -> "types"
+            <> "that match the name"
+            <> P.group (P.syntaxToColor (prettyHashQualified' name) <> ".")
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
@@ -816,7 +837,7 @@ notifyUser dir = \case
             isBuiltin (typeEntryReference typeEntry)
           )
         ShallowBranchEntry ns _ (NamespaceStats {numContainedTerms, numContainedTypes}) ->
-          ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> "/",
+          ( (P.syntaxToColor . prettyName . Name.fromSegment) ns <> ".",
             case catMaybes [formatCount "term" numContainedTerms, formatCount "type" numContainedTypes] of
               [] -> ""
               counts -> P.hiBlack $ "(" <> intercalateMap ", " id counts <> ")"
@@ -1981,6 +2002,25 @@ notifyUser dir = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  DeleteFailure scratchFile0 baseBranch updateBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap
+        ( "Some definitions depend on the ones you're trying to delete. I've added them to"
+            <> P.group (scratchFile <> ",")
+            <> "where you can fix them or comment them out. Once the file is compiling, run"
+            <> P.group (makeExample' IP.update <> ".")
+        )
+        <> P.newline
+        <> P.newline
+        <> P.wrap
+          ( "I've also switched you to a new branch"
+              <> prettyProjectBranchName updateBranch
+              <> "for this work. On"
+              <> P.group (makeExample' IP.update <> ",")
+              <> "it will be merged back into"
+              <> P.group (prettyProjectBranchName baseBranch <> ".")
+          )
   UpdateTypecheckingFailure ->
     pure . P.wrap $
       "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
@@ -1993,7 +2033,7 @@ notifyUser dir = \case
     scratchFile <- renderFileName scratchFile0
     pure $
       P.wrap
-        ( "Some definitions don't typecheck with your changes. I've update the file"
+        ( "Some definitions don't typecheck with your changes. I've updated the file"
             <> scratchFile
             <> "with the definitions that need fixing. Once the file is compiling, try"
             <> makeExample' IP.update
@@ -2009,28 +2049,7 @@ notifyUser dir = \case
               <> "it will be merged back into"
               <> P.group (prettyProjectBranchName baseBranch <> ".")
           )
-  UpdateIncompleteConstructorSet operation typeName _ctorMap _expectedCount ->
-    let operationName = case operation of E.UOUUpdate -> "update"; E.UOUUpgrade -> "upgrade"
-     in pure $
-          P.lines
-            [ P.wrap $
-                "I couldn't complete the"
-                  <> operationName
-                  <> "because the type"
-                  <> prettyName typeName
-                  <> "has unnamed constructors."
-                  <> "(I currently need each constructor to have a name somewhere under the type name.)",
-              "",
-              P.wrap $
-                "You can use"
-                  <> P.indentNAfterNewline 2 (IP.makeExample IP.view [prettyName typeName])
-                  <> "and"
-                  <> P.indentNAfterNewline 2 (IP.makeExample IP.aliasTerm ["<hash>", prettyName typeName <> ".<ConstructorName>"])
-                  <> "to give names to each constructor, and then try the"
-                  <> operationName
-                  <> "again."
-            ]
-  UpgradeFailure main temp path old new ->
+  UpgradeFailure main path old new ->
     pure $
       P.lines
         [ P.wrap $
@@ -2043,14 +2062,14 @@ notifyUser dir = \case
           "",
           P.wrap "When you're done, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.upgradeCommitInputPattern []),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
           "",
           P.wrap $
             "to merge your changes back into"
               <> prettyProjectBranchName main
               <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
           "",
           P.wrap $
             "to delete the temporary branch and switch back to"
@@ -2076,7 +2095,7 @@ notifyUser dir = \case
                   <> prettyNew
                   <> "to"
                   <> P.group (prettyLib final <> ".")
-  MergeFailure path aliceAndBob temp ->
+  MergeFailure path aliceAndBob ->
     pure $
       P.lines $
         [ P.wrap $
@@ -2089,20 +2108,20 @@ notifyUser dir = \case
           "",
           P.wrap "When you're done, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
           "",
           P.wrap $
             "to merge your changes back into"
               <> prettyProjectBranchName aliceAndBob.alice.branch
               <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
           "",
           P.wrap $
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
         ]
-  MergeFailureWithMergetool aliceAndBob temp mergetool exitCode ->
+  MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
         pure $
@@ -2118,14 +2137,14 @@ notifyUser dir = \case
               "",
               P.wrap "When you're done, you can run",
               "",
-              P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+              P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
               "",
               P.wrap $
                 "to merge your changes back into"
                   <> prettyProjectBranchName aliceAndBob.alice.branch
                   <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
               "",
-              P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+              P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
               "",
               P.wrap $
                 "to delete the temporary branch and switch back to"
@@ -2163,8 +2182,6 @@ notifyUser dir = \case
         <> prettyProjectAndBranchName libdep
         <> "into"
         <> P.group (P.text $ into @Text $ Path.fromList [NameSegment.libSegment, segment])
-  NoUpgradeInProgress ->
-    pure . P.wrap $ "It doesn't look like there's an upgrade in progress."
   UseLibInstallNotPull libdep ->
     pure . P.wrap $
       "The use of"
@@ -2200,140 +2217,89 @@ notifyUser dir = \case
         <> P.newline
         <> "Synhash tokens: "
         <> P.text filename
-  ConflictedDefn operation defn ->
+  ConflictedDefn defn ->
     pure . P.wrap $
-      ( "This branch has more than one" <> case defn of
+      ( "Sorry, I can't do that right now, because there's more than one" <> case defn of
           TermDefn (Conflicted name _refs) -> "term with the name" <> P.group (P.backticked (prettyName name) <> ".")
           TypeDefn (Conflicted name _refs) -> "type with the name" <> P.group (P.backticked (prettyName name) <> ".")
       )
         <> P.newline
-        <> "Please delete or rename all but one of them, then try the"
-        <> P.text operation
-        <> "again."
+        <> "Please"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.renameTerm
+               TypeDefn _ -> IP.renameType
+           )
+        <> "or"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.deleteTermForce
+               TypeDefn _ -> IP.deleteTypeForce
+           )
+        <> "all but one of them, then try again."
+  IncoherentDeclDuringDelete reason ->
+    case reason of
+      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+        pure $ constructorAliasError "delete" "The type" "a delete" "deleting" typeName conName1 conName2
+      IncoherentDeclReason'MissingConstructorName name ->
+        pure $ missingConstructorNameError "delete" "The type" "a delete" "deleting" name
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+        pure $ nestedDeclAliasError "The type" "a delete" "deleting" shorterName longerName
+      IncoherentDeclReason'StrayConstructor _typeRef name ->
+        pure $ strayConstructorError "delete" "The constructor" "deleting" name
   IncoherentDeclDuringMerge aliceOrBob reason ->
     case reason of
-      -- Note [ConstructorAliasMessage] If you change this, also change the other similar ones
       IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure . P.lines $
-          [ P.wrap "Sorry, I wasn't able to perform the merge:",
-            "",
-            P.wrap $
-              "On"
-                <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-                <> "the type"
-                <> prettyName typeName
-                <> "has a constructor with multiple names, and I can't perform a merge in this situation:",
-            "",
-            P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
-            "",
-            P.wrap "Please delete all but one name for each constructor, and then try merging again."
-          ]
-      -- Note [MissingConstructorNameMessage] If you change this, also change the other similar ones
+        pure $
+          constructorAliasError
+            "merge"
+            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+            "a merge"
+            "merging"
+            typeName
+            conName1
+            conName2
       IncoherentDeclReason'MissingConstructorName name ->
-        pure . P.lines $
-          [ P.wrap "Sorry, I wasn't able to perform the merge:",
-            "",
-            P.wrap $
-              "On"
-                <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-                <> "the type"
-                <> prettyName name
-                <> "has some constructors with missing names, and I can't perform a merge in this situation.",
-            "",
-            P.wrap $
-              "You can use"
-                <> IP.makeExample IP.view [prettyName name]
-                <> "and"
-                <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
-                <> "to give names to each unnamed constructor, and then try the merge again."
-          ]
-      -- Note [NestedDeclAliasMessage] If you change this, also change the other similar ones
+        pure $
+          missingConstructorNameError
+            "merge"
+            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+            "a merge"
+            "merging"
+            name
       IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure . P.wrap $
-          "On"
-            <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-            <> "the type"
-            <> prettyName longerName
-            <> "is an alias of"
-            <> P.group (prettyName shorterName <> ".")
-            <> "I'm not able to perform a merge when a type exists nested under an alias of itself. Please separate them or"
-            <> "delete one copy, and then try merging again."
-      -- Note [StrayConstructorMessage] If you change this, also change the other similar ones
+        pure $
+          nestedDeclAliasError
+            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+            "a merge"
+            "merging"
+            shorterName
+            longerName
       IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure . P.lines $
-          [ P.wrap $
-              "Sorry, I wasn't able to perform the merge, because I need all constructor names to be nested somewhere"
-                <> "beneath the corresponding type name.",
-            "",
-            P.wrap $
-              "On"
-                <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",")
-                <> "the constructor"
-                <> prettyName name
-                <> "is not nested beneath the corresponding type name. Please either use"
-                <> IP.makeExample' IP.moveAll
-                <> "to move it, or if it's an extra copy, you can simply"
-                <> IP.makeExample' IP.delete
-                <> "it. Then try the merge again."
-          ]
+        pure $
+          strayConstructorError
+            "merge"
+            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
+            "merging"
+            name
   IncoherentDeclDuringUpdate reason ->
     case reason of
-      -- Note [ConstructorAliasMessage] If you change this, also change the other similar ones
       IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure . P.lines $
-          [ P.wrap "Sorry, I wasn't able to perform the update:",
-            "",
-            P.wrap $
-              "The type"
-                <> prettyName typeName
-                <> "has a constructor with multiple names, and I can't perform an update in this situation:",
-            "",
-            P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
-            "",
-            P.wrap "Please delete all but one name for each constructor, and then try updating again."
-          ]
-      -- Note [MissingConstructorNameMessage] If you change this, also change the other similar ones
+        pure $ constructorAliasError "update" "The type" "an update" "updating" typeName conName1 conName2
       IncoherentDeclReason'MissingConstructorName name ->
-        pure . P.lines $
-          [ P.wrap "Sorry, I wasn't able to perform the update:",
-            "",
-            P.wrap $
-              "The type"
-                <> prettyName name
-                <> "has some constructors with missing names, and I can't perform an update in this situation.",
-            "",
-            P.wrap $
-              "You can use"
-                <> IP.makeExample IP.view [prettyName name]
-                <> "and"
-                <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
-                <> "to give names to each unnamed constructor, and then try the update again."
-          ]
-      -- Note [NestedDeclAliasMessage] If you change this, also change the other similar ones
+        pure $ missingConstructorNameError "update" "The type" "an update" "updating" name
       IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure . P.wrap $
-          "The type"
-            <> prettyName longerName
-            <> "is an alias of"
-            <> P.group (prettyName shorterName <> ".")
-            <> "I'm not able to perform an update when a type exists nested under an alias of itself. Please separate"
-            <> "them or delete one copy, and then try updating again."
-      -- Note [StrayConstructorMessage] If you change this, also change the other similar ones
+        pure $ nestedDeclAliasError "The type" "an update" "updating" shorterName longerName
       IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure . P.lines $
-          [ P.wrap $
-              "Sorry, I wasn't able to perform the update, because I need all constructor names to be nested somewhere"
-                <> "beneath the corresponding type name.",
-            "",
-            P.wrap $
-              "The constructor"
-                <> prettyName name
-                <> "is not nested beneath the corresponding type name. Please either use"
-                <> IP.makeExample' IP.moveAll
-                <> "to move it, or if it's an extra copy, you can simply"
-                <> IP.makeExample' IP.delete
-                <> "it. Then try the update again."
-          ]
+        pure $ strayConstructorError "update" "The constructor" "updating" name
+  IncoherentDeclDuringUpgrade reason ->
+    case reason of
+      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+        pure $ constructorAliasError "upgrade" "The type" "an upgrade" "upgrading" typeName conName1 conName2
+      IncoherentDeclReason'MissingConstructorName name ->
+        pure $ missingConstructorNameError "upgrade" "The type" "an upgrade" "upgrading" name
+      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+        pure $ nestedDeclAliasError "The type" "an upgrade" "upgrading" shorterName longerName
+      IncoherentDeclReason'StrayConstructor _typeRef name ->
+        pure $ strayConstructorError "upgrade" "The constructor" "upgrading" name
   Literal message -> pure message
   SyncPullError syncErr ->
     case syncErr of
@@ -2375,6 +2341,38 @@ notifyUser dir = \case
   BranchUpdate'BranchChanged -> do
     pure $
       P.wrap "Another process updated the codebase while your command was running, so I didn't apply the update. Please run the command again."
+  SyncingFromTo fromCausalHash toCausalHash -> do
+    pure $
+      P.wrap $
+        "Updating branch from"
+          <> P.green (prettySCH $ SCH.fromHash 10 fromCausalHash)
+          <> "to"
+          <> P.group (P.green $ prettySCH $ SCH.fromHash 10 toCausalHash)
+  CantDeleteConstructor names ->
+    pure $
+      P.warnCallout $
+        ( case NEList.toList (Set.NonEmpty.toList names) of
+            [name] -> P.wrap ("I can't delete the constructor" <> P.group (prettyName name <> "."))
+            names ->
+              P.wrap ("I can't delete the constructors" <> P.group (P.commas (map prettyName names) <> "."))
+        )
+          <> P.newline
+          <> P.newline
+          <> P.wrap
+            ( "You may only delete terms and types with"
+                <> P.group (IP.makeExample' IP.delete <> ".")
+                <> "Use"
+                <> IP.makeExample' IP.deleteForce
+                <> "instead."
+            )
+  CantDoThatDuring aVerb verb ->
+    pure $
+      P.wrap $
+        "Sorry, I can't do that during"
+          <> (P.group (P.text aVerb) <> ".")
+          <> "Please complete the"
+          <> (P.group (P.text verb) <> ",")
+          <> "then try again."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -2837,8 +2835,8 @@ renderNameConflicts hashLen conflictedNames = do
               <> " or "
               <> makeExample'
                 ( if (not . null) conflictedTypeNames
-                    then IP.deleteType
-                    else IP.deleteTerm
+                    then IP.deleteTypeForce
+                    else IP.deleteTermForce
                 )
               <> "to resolve the conflicts."
         ]
@@ -3888,3 +3886,82 @@ displayProjectBranchReflogEntries mayNow _ entries =
     truncateReason txt = case Text.splitAt 60 txt of
       (short, "") -> short
       (short, _) -> short <> "..."
+
+constructorAliasError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Name -> Name -> Pretty
+constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
+  P.lines $
+    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
+      "",
+      P.wrap $
+        theType
+          <> prettyName typeName
+          <> "has a constructor with multiple names, and I can't perform"
+          <> aVerb
+          <> "in this situation:",
+      "",
+      P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
+      "",
+      P.wrap $
+        "Please"
+          <> IP.makeExample' IP.deleteForce
+          <> "all but one name for each constructor, and then try"
+          <> verbing
+          <> "again."
+    ]
+
+missingConstructorNameError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Pretty
+missingConstructorNameError verb theType aVerb verbing name =
+  P.lines $
+    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
+      "",
+      P.wrap $
+        theType
+          <> prettyName name
+          <> "has some constructors with missing names, and I can't perform"
+          <> aVerb
+          <> "in this situation.",
+      "",
+      P.wrap $
+        "You can use"
+          <> IP.makeExample IP.view [prettyName name]
+          <> "and"
+          <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
+          <> "to give names to each unnamed constructor, and then try"
+          <> verbing
+          <> "again."
+    ]
+
+nestedDeclAliasError :: Pretty -> Pretty -> Pretty -> Name -> Name -> Pretty
+nestedDeclAliasError theType aVerb verbing shorterName longerName =
+  P.wrap $
+    theType
+      <> prettyName longerName
+      <> "is an alias of"
+      <> P.group (prettyName shorterName <> ".")
+      <> "I'm not able to perform"
+      <> aVerb
+      <> "when a type exists nested under an alias of itself. Please separate them or"
+      <> IP.makeExample' IP.deleteForce
+      <> "one copy, and then try"
+      <> verbing
+      <> "again."
+
+strayConstructorError :: Pretty -> Pretty -> Pretty -> Name -> Pretty
+strayConstructorError verb theConstructor verbing name =
+  P.lines
+    [ P.wrap $
+        "Sorry, I wasn't able to perform the"
+          <> P.group (verb <> ",")
+          <> "because I need all constructor names to be nested somewhere beneath the corresponding type name.",
+      "",
+      P.wrap $
+        theConstructor
+          <> prettyName name
+          <> "is not nested beneath the corresponding type name. Please either use"
+          <> IP.makeExample' IP.moveAll
+          <> "to move it, or if it's an extra copy, you can simply"
+          <> IP.makeExample' IP.deleteForce
+          <> "it. Then try"
+          <> verbing
+          <> "again."
+    ]

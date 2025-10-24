@@ -47,6 +47,6 @@ unique type Foo = Bar Nat Nat
 
   The type A.B is an alias of A. I'm not able to perform an
   update when a type exists nested under an alias of itself.
-  Please separate them or delete one copy, and then try updating
-  again.
+  Please separate them or `delete.force` one copy, and then try
+  updating again.
 ```

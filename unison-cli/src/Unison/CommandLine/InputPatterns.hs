@@ -11,6 +11,7 @@ module Unison.CommandLine.InputPatterns
     branchInputPattern,
     branchRenameInputPattern,
     branchesInputPattern,
+    cancelInputPattern,
     cd,
     clear,
     clone,
@@ -32,14 +33,14 @@ module Unison.CommandLine.InputPatterns
     debugType,
     delete,
     deleteBranch,
+    deleteForce,
     deleteNamespace,
     deleteNamespaceForce,
     deleteProject,
     deleteTerm,
-    deleteTermVerbose,
+    deleteTermForce,
     deleteType,
-    deleteTypeVerbose,
-    deleteVerbose,
+    deleteTypeForce,
     dependencies,
     dependents,
     diffNamespace,
@@ -52,6 +53,8 @@ module Unison.CommandLine.InputPatterns
     editDependents,
     editNamespace,
     execute,
+    execProfiled,
+    execProfiledFull,
     find,
     findAll,
     findGlobal,
@@ -111,7 +114,6 @@ module Unison.CommandLine.InputPatterns
     update,
     updateBuiltins,
     upgrade,
-    upgradeCommitInputPattern,
     view,
     viewGlobal,
     deprecatedViewRootReflog,
@@ -168,7 +170,7 @@ import Unison.Cli.Pretty
   )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
+import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
@@ -184,6 +186,7 @@ import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPath)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.PushBehavior qualified as PushBehavior
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..), parseBranchRelativePath, parseIncrementalBranchRelativePath)
@@ -225,6 +228,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
 import Unison.Syntax.HashQualified qualified as HQ (parseText, toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.ColorText qualified as CT
@@ -277,7 +281,7 @@ formatStructuredArgument schLength = \case
               else "." <> s
         pathArgStr = Path.toText pathArg
 
--- | Converts an arbitrary argument to a `String`.
+-- | Converts an arbitrary argument to a `Text`.
 --
 -- This is for cases where the
 -- command /should/ accept a structured argument of some type, but currently
@@ -1270,7 +1274,7 @@ renameTerm :: InputPattern
 renameTerm =
   InputPattern
     "move.term"
-    ["rename.term"]
+    ["rename.term", "mv.term"]
     I.Visible
     ( Parameters [("definition to move", exactDefinitionTermQueryArg), ("new location", newNameArg)] $
         Optional [] Nothing
@@ -1284,7 +1288,7 @@ moveAll :: InputPattern
 moveAll =
   InputPattern
     "move"
-    ["rename"]
+    ["rename", "mv"]
     I.Visible
     (Parameters [("definition to move", namespaceOrDefinitionArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move foo bar` renames the term, type, and namespace foo to bar."
@@ -1296,7 +1300,7 @@ renameType :: InputPattern
 renameType =
   InputPattern
     "move.type"
-    ["rename.type"]
+    ["rename.type", "mv.type"]
     I.Visible
     (Parameters [("type to move", exactDefinitionTypeQueryArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move.type foo bar` renames `foo` to `bar`."
@@ -1306,9 +1310,16 @@ renameType =
         Left $ P.wrap "`rename.type` takes two arguments, like `rename.type oldname newname`."
 
 deleteGen ::
-  Maybe String -> ParameterType -> String -> ([HQ'.HashQualified (Path.Split Path')] -> DeleteTarget) -> InputPattern
-deleteGen suffix queryCompletionArg target mkTarget =
+  Maybe String ->
+  ParameterType ->
+  (I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)) ->
+  String ->
+  Bool ->
+  DeleteTarget ->
+  InputPattern
+deleteGen suffix queryCompletionArg parseArg target force which =
   let cmd = maybe "delete" ("delete." <>) suffix
+      alias = maybe "rm" ("rm." <>) suffix
       info =
         P.wrapColumn2
           [ ( P.sep
@@ -1332,35 +1343,114 @@ deleteGen suffix queryCompletionArg target mkTarget =
           ]
    in InputPattern
         cmd
-        []
+        [alias]
         I.Visible
         (Parameters [] $ OnePlus ("definition to delete", queryCompletionArg))
         info
-        $ fmap (Input.DeleteI . mkTarget) . traverse handleHashQualifiedSplit'Arg
+        $ fmap (Input.DeleteI force which) . traverse parseArg
+
+handleDeleteArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteArg =
+  either parseHashQualifiedName' \case
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTermEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.termEntryHQName entry)
+    SA.ShallowListEntry prefix (ShallowTypeEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.typeEntryHQName entry)
+    SA.SearchResult mpath (SR.Tm' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) ref)
+    SA.SearchResult mpath (SR.Tp' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) (Referent.Ref ref))
+    otherArgType -> Left (wrongStructuredArgument "a term or type name" otherArgType)
+
+handleDeleteTermArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteTermArg =
+  either parseHashQualifiedName' \case
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTermEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.termEntryHQName entry)
+    SA.SearchResult mpath (SR.Tm' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) ref)
+    otherArgType -> Left (wrongStructuredArgument "a term name" otherArgType)
+
+handleDeleteTypeArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteTypeArg =
+  either parseHashQualifiedName' \case
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTypeEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.typeEntryHQName entry)
+    SA.SearchResult mpath (SR.Tp' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) (Referent.Ref ref))
+    otherArgType -> Left (wrongStructuredArgument "a type name" otherArgType)
 
 delete :: InputPattern
-delete = deleteGen Nothing exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+delete =
+  deleteGen
+    Nothing
+    exactDefinitionTypeOrTermQueryArg
+    handleDeleteArg
+    "term or type"
+    False
+    DeleteTarget'TermOrType
 
-deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteForce :: InputPattern
+deleteForce =
+  deleteGen
+    (Just "force")
+    exactDefinitionTypeOrTermQueryArg
+    handleDeleteArg
+    "term or type"
+    True
+    DeleteTarget'TermOrType
 
 deleteTerm :: InputPattern
-deleteTerm = deleteGen (Just "term") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+deleteTerm =
+  deleteGen
+    (Just "term")
+    exactDefinitionTermQueryArg
+    handleDeleteTermArg
+    "term"
+    False
+    DeleteTarget'Term
 
-deleteTermVerbose :: InputPattern
-deleteTermVerbose = deleteGen (Just "term.verbose") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'Diff)
+deleteTermForce :: InputPattern
+deleteTermForce =
+  deleteGen
+    (Just "term.force")
+    exactDefinitionTermQueryArg
+    handleDeleteTermArg
+    "term"
+    True
+    DeleteTarget'Term
 
 deleteType :: InputPattern
-deleteType = deleteGen (Just "type") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+deleteType =
+  deleteGen
+    (Just "type")
+    exactDefinitionTypeQueryArg
+    handleDeleteTypeArg
+    "type"
+    False
+    DeleteTarget'Type
 
-deleteTypeVerbose :: InputPattern
-deleteTypeVerbose = deleteGen (Just "type.verbose") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'Diff)
+deleteTypeForce :: InputPattern
+deleteTypeForce =
+  deleteGen
+    (Just "type.force")
+    exactDefinitionTypeQueryArg
+    handleDeleteTypeArg
+    "type"
+    True
+    DeleteTarget'Type
 
 deleteProject :: InputPattern
 deleteProject =
   InputPattern
     { patternName = "delete.project",
-      aliases = ["project.delete"],
+      aliases = ["project.delete", "rm.project"],
       visibility = I.Visible,
       params = Parameters [("project to delete", projectNameArg)] $ Optional [] Nothing,
       help =
@@ -1368,7 +1458,7 @@ deleteProject =
           [ ("`delete.project foo`", "deletes the local project `foo`")
           ],
       parse = \case
-        name : _ -> Input.DeleteI . DeleteTarget'Project <$> handleProjectArg name
+        name : _ -> Input.DeleteProjectI <$> handleProjectArg name
         args -> wrongArgsLength "exactly one argument" args
     }
 
@@ -1376,7 +1466,7 @@ deleteBranch :: InputPattern
 deleteBranch =
   InputPattern
     { patternName = "delete.branch",
-      aliases = ["branch.delete"],
+      aliases = ["branch.delete", "rm.branch"],
       visibility = I.Visible,
       params = Parameters [("branch to delete", projectBranchNameArg suggestionsConfig)] $ Optional [] Nothing,
       help =
@@ -1385,7 +1475,7 @@ deleteBranch =
             ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
           ],
       parse = \case
-        name : _ -> Input.DeleteI . DeleteTarget'ProjectBranch <$> handleMaybeProjectBranchArg name
+        name : _ -> Input.DeleteBranchI <$> handleMaybeProjectBranchArg name
         args -> wrongArgsLength "exactly one argument" args
     }
   where
@@ -1517,6 +1607,17 @@ cd =
       [p] -> Input.SwitchBranchI <$> handlePath'Arg p
       args -> wrongArgsLength "exactly one argument" args
 
+cancelInputPattern :: InputPattern
+cancelInputPattern =
+  InputPattern
+    { patternName = "cancel",
+      aliases = [],
+      visibility = I.Visible,
+      params = noParams,
+      help = P.wrapColumn2 [(makeExample' cancelInputPattern, "cancels the in-progress merge, update, or upgrade.")],
+      parse = \_ -> pure Input.CancelI
+    }
+
 back :: InputPattern
 back =
   InputPattern
@@ -1537,7 +1638,7 @@ deleteNamespace :: InputPattern
 deleteNamespace =
   InputPattern
     "delete.namespace"
-    []
+    ["rm.namespace"]
     I.Visible
     (Parameters [("namespace to delete", namespaceArg)] $ Optional [] Nothing)
     "`delete.namespace <foo>` deletes the namespace `foo`"
@@ -1547,7 +1648,7 @@ deleteNamespaceForce :: InputPattern
 deleteNamespaceForce =
   InputPattern
     "delete.namespace.force"
-    []
+    ["rm.namespace.force"]
     I.Visible
     (Parameters [("namespace to delete", namespaceArg)] $ Optional [] Nothing)
     ( "`delete.namespace.force <foo>` deletes the namespace `foo`,"
@@ -1557,15 +1658,15 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: Input.Insistence -> I.Arguments -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser insistence = \case
-  [Left "."] -> first fromString . pure $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
-  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence . pure <$> handleSplitArg p
+  [Left "."] -> first fromString . pure $ Input.DeleteNamespaceI insistence Nothing
+  [p] -> Input.DeleteNamespaceI insistence . pure <$> handleSplitArg p
   args -> wrongArgsLength "exactly one argument" args
 
 renameBranch :: InputPattern
 renameBranch =
   InputPattern
     "move.namespace"
-    ["rename.namespace"]
+    ["rename.namespace", "mv.namespace"]
     I.Visible
     (Parameters [("namespace to move", namespaceArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move.namespace foo bar` renames the path `foo` to `bar`."
@@ -1622,7 +1723,7 @@ libInstallInputPattern :: InputPattern
 libInstallInputPattern =
   InputPattern
     { patternName = "lib.install",
-      aliases = ["install.lib"],
+      aliases = ["install.lib", "install"],
       visibility = I.Visible,
       params = Parameters [("library name", remoteProjectBranchOrReleaseArg)] $ Optional [] Nothing,
       help =
@@ -2210,7 +2311,7 @@ mergeCommitInputPattern =
   InputPattern
     { patternName = "merge.commit",
       aliases = ["commit.merge"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       params = noParams,
       help =
         let mainBranch = defaultBranchName
@@ -2704,12 +2805,13 @@ dependencies =
       [thing] -> Input.ListDependenciesI <$> handleHashQualifiedNameArg thing
       args -> wrongArgsLength "exactly one argument" args
 
+-- Hidden before removing entirely, so we can say "use todo instead"
 namespaceDependencies :: InputPattern
 namespaceDependencies =
   InputPattern
     "namespace.dependencies"
     []
-    I.Visible
+    I.Hidden
     (Parameters [] $ Optional [("namespace", namespaceArg)] Nothing)
     "List the external dependencies of the specified namespace."
     \case
@@ -2946,10 +3048,103 @@ execute =
     )
     \case
       main : args ->
-        Input.ExecuteI
+        Input.ExecuteI NoProf
           <$> handleHashQualifiedNameArg main
           <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
       [] -> wrongArgsLength "at least one argument" []
+
+execProfiled :: InputPattern
+execProfiled =
+  InputPattern
+    "run.profiled"
+    []
+    I.Visible
+    ( Parameters
+        [("definition to execute", exactDefinitionTermQueryArg)]
+        . Optional []
+        $ Just ("argument", noCompletionsArg)
+    )
+    ( "`run.profiled mymain args ...`"
+        <> P.indentN
+          2
+          ( P.lines
+              [ "",
+                "",
+                P.wrap $
+                  "Runs `!mymain`, where `mymain` is searched for in the most"
+                    <> "recent typechecked file, or in the codebase.",
+                "",
+                P.wrap $
+                  "After running, some profiling information will be"
+                    <> "displayed in addition to the result value. The tree"
+                    <> "is filtered to the 25 most expensive functions to"
+                    <> "try to provide a reasonable amount of output."
+                    <> "For full profiling information, use `run.profiled.full`.",
+                "",
+                P.wrap $
+                  "Any provided arguments will be passed as program"
+                    <> "arguments as though they were provided at the command"
+                    <> "line when running `mymain` as an executable."
+              ]
+          )
+    )
+    \case
+      main : args ->
+        Input.ExecuteI MiniProf
+          <$> handleHashQualifiedNameArg main
+          <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
+      [] -> wrongArgsLength "at least one argument" []
+
+execProfiledFull :: InputPattern
+execProfiledFull =
+  InputPattern
+    "run.profiled.full"
+    []
+    I.Visible
+    ( Parameters
+        [ ("definition to execute", exactDefinitionTermQueryArg),
+          ("profiling output file", filePathArg)
+        ]
+        . Optional []
+        $ Just ("argument", noCompletionsArg)
+    )
+    ( "`run.profiled.full mymain outfile args ...`"
+        <> P.indentN
+          2
+          ( P.lines
+              [ "",
+                "",
+                P.wrap $
+                  "Runs `!mymain`, where `mymain` is searched for in the most"
+                    <> "recent typechecked file, or in the codebase.",
+                "",
+                P.wrap $
+                  "After running, profiling information will be written"
+                    <> "to the specified file. If the file name given ends in"
+                    <> "`.ticks` or `.folded`, a tick count file will be"
+                    <> "produced, suitable for use with flamegraph.pl at",
+                "",
+                P.indentN 4 "https://github.com/brendangregg/FlameGraph",
+                "",
+                P.wrap $
+                  "Otherwise, the file will contain a list of the 25 most"
+                    <> "costly functions together with the full recorded call"
+                    <> "tree for the program with percentage costs.",
+                "",
+                P.wrap $
+                  "Any provided arguments will be passed as program"
+                    <> "arguments as though they were provided at the command"
+                    <> "line when running `mymain` as an executable."
+              ]
+          )
+    )
+    \case
+      main : file : args ->
+        Input.ExecuteI . FullProf
+          <$> unsupportedStructuredArgument execProfiledFull "profile file name" file
+          <*> handleHashQualifiedNameArg main
+          <*> traverse (unsupportedStructuredArgument execute "a command-line argument") args
+      args -> wrongArgsLength "at least two arguments" args
 
 saveExecuteResult :: InputPattern
 saveExecuteResult =
@@ -3335,8 +3530,8 @@ releaseDraft =
 upgrade :: InputPattern
 upgrade =
   InputPattern
-    { patternName = "upgrade",
-      aliases = [],
+    { patternName = "lib.upgrade",
+      aliases = ["upgrade.lib", "upgrade"],
       visibility = I.Visible,
       params =
         Parameters [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)] $
@@ -3355,7 +3550,7 @@ upgradeCommitInputPattern =
   InputPattern
     { patternName = "upgrade.commit",
       aliases = ["commit.upgrade"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       params = noParams,
       help =
         let mainBranch = defaultBranchName
@@ -3417,6 +3612,7 @@ validInputs =
       branchInputPattern,
       branchRenameInputPattern,
       branchesInputPattern,
+      cancelInputPattern,
       cd,
       clear,
       clone,
@@ -3437,18 +3633,18 @@ validInputs =
       debugNumberedArgs,
       debugTabCompletion,
       debugLspNameCompletion,
-      debugFuzzyOptions,
       debugFormat,
+      debugFuzzyOptions,
       delete,
       deleteBranch,
-      deleteProject,
+      deleteForce,
       deleteNamespace,
       deleteNamespaceForce,
+      deleteProject,
       deleteTerm,
-      deleteTermVerbose,
+      deleteTermForce,
       deleteType,
-      deleteTypeVerbose,
-      deleteVerbose,
+      deleteTypeForce,
       dependencies,
       dependents,
       diffNamespace,
@@ -3462,6 +3658,8 @@ validInputs =
       editNamespace,
       editNew,
       execute,
+      execProfiled,
+      execProfiledFull,
       find,
       findIn,
       findAll,
@@ -3880,7 +4078,7 @@ projectToCompletion :: Sqlite.Project -> Completion
 projectToCompletion project =
   Completion
     { replacement = stringProjectName,
-      display = P.toAnsiUnbroken (prettyProjectNameSlash (project ^. #name)),
+      display = Text.unpack $ P.toANSI 0 (prettyProjectNameSlash (project ^. #name)),
       isFinished = False
     }
   where
@@ -3890,7 +4088,7 @@ projectBranchToCompletion :: ProjectName -> (ProjectBranchId, ProjectBranchName)
 projectBranchToCompletion projectName (_, branchName) =
   Completion
     { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName)),
-      display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+      display = Text.unpack $ P.toANSI 0 (prettySlashProjectBranchName branchName),
       isFinished = False
     }
 
@@ -3920,7 +4118,7 @@ currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Comp
 currentProjectBranchToCompletion (_, branchName) =
   Completion
     { replacement = '/' : Text.unpack (into @Text branchName),
-      display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName),
+      display = Text.unpack $ P.toANSI 0 (prettySlashProjectBranchName branchName),
       isFinished = False
     }
 
@@ -3966,7 +4164,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
     projectBranchToCompletionWithSep projectName (_, branchName) =
       Completion
         { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName) <> branchPathSep),
-          display = P.toAnsiUnbroken (prettySlashProjectBranchName branchName <> branchPathSepPretty),
+          display = Text.unpack $ P.toANSI 0 (prettySlashProjectBranchName branchName <> branchPathSepPretty),
           isFinished = False
         }
 
@@ -3974,14 +4172,14 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
     prefixPathSep c =
       c
         { Line.replacement = branchPathSep <> Line.replacement c,
-          Line.display = P.toAnsiUnbroken branchPathSepPretty <> Line.display c
+          Line.display = Text.unpack (P.toANSI 0 branchPathSepPretty) <> Line.display c
         }
 
     suffixPathSep :: Completion -> Completion
     suffixPathSep c =
       c
         { Line.replacement = Line.replacement c <> branchPathSep,
-          Line.display = Line.display c <> P.toAnsiUnbroken branchPathSepPretty
+          Line.display = Line.display c <> Text.unpack (P.toANSI 0 branchPathSepPretty)
         }
 
     addBranchPrefix ::
@@ -4001,7 +4199,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
        in \c ->
             c
               { Line.replacement = Text.unpack prefixText <> branchPathSep <> Line.replacement c,
-                Line.display = P.toAnsiUnbroken (prefixPretty <> branchPathSepPretty) <> Line.display c
+                Line.display = Text.unpack (P.toANSI 0 (prefixPretty <> branchPathSepPretty)) <> Line.display c
               }
 
     branchPathSepPretty = P.hiBlack branchPathSep
@@ -4082,7 +4280,7 @@ projectNameSuggestions slash (Text.strip . Text.pack -> input) codebase = do
        in \project ->
             Completion
               { replacement = Text.unpack (toText project),
-                display = P.toAnsiUnbroken (toPretty (project ^. #name)),
+                display = Text.unpack $ P.toANSI 0 (toPretty (project ^. #name)),
                 isFinished = False
               }
 
@@ -4109,6 +4307,18 @@ parseHashQualifiedName s =
     )
     Right
     $ HQ.parseText (Text.pack s)
+
+parseHashQualifiedName' :: String -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+parseHashQualifiedName' s =
+  maybe
+    ( Left
+        . P.wrap
+        $ P.string s
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    )
+    Right
+    $ HQ'.parseText (Text.pack s)
 
 explainRemote :: PushPull -> P.Pretty CT.ColorText
 explainRemote pushPull =

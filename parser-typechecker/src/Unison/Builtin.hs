@@ -253,7 +253,9 @@ builtinTypesSrc =
     B' "UDPSocket" CT.Data,
     B' "ListenSocket" CT.Data,
     B' "ClientSockAddr" CT.Data,
-    B' "PinnedByteArray" CT.Data
+    B' "PinnedByteArray" CT.Data,
+    B' "Integer" CT.Data,
+    B' "Natural" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -484,6 +486,7 @@ builtinsSrc =
     B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean),
     B "Universal.murmurHash" $ forall1 "a" (\a -> a --> nat),
+    B "Universal.murmurHashUntyped" $ forall1 "a" (\a -> a --> nat),
     B "bug" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "todo" $ forall1 "a" (\a -> forall1 "b" (\b -> a --> b)),
     B "Any.Any" $ forall1 "a" (\a -> a --> anyt),
@@ -556,6 +559,8 @@ builtinsSrc =
     B "Bytes.zlib.decompress" $ bytes --> eithert text bytes,
     B "Bytes.gzip.compress" $ bytes --> bytes,
     B "Bytes.gzip.decompress" $ bytes --> eithert text bytes,
+    B "Bytes.zstd.compress" $ int --> bytes --> bytes,
+    B "Bytes.zstd.decompress" $ bytes --> eithert text bytes,
     {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
        This is intentional: it avoids a round trip to `Text` if all
        you are doing with the bytes is dumping them to a file or a
@@ -632,6 +637,16 @@ builtinsSrc =
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableByteArray.read64be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read16le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read24le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read32le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read40le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
+    B "MutableByteArray.read64le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> Type.effect () [g, DD.exceptionType ()] nat,
     B "MutableArray.write" . forall2 "g" "a" $ \g a ->
       marrayt g a --> nat --> a --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write8" . forall1 "g" $ \g ->
@@ -641,6 +656,12 @@ builtinsSrc =
     B "MutableByteArray.write32be" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
     B "MutableByteArray.write64be" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write16le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write32le" . forall1 "g" $ \g ->
+      mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
+    B "MutableByteArray.write64le" . forall1 "g" $ \g ->
       mbytearrayt g --> nat --> nat --> Type.effect () [g, DD.exceptionType ()] unit,
     B "ImmutableArray.copyTo!" . forall2 "g" "a" $ \g a ->
       marrayt g a
@@ -669,6 +690,16 @@ builtinsSrc =
     B "ImmutableByteArray.read40be" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "ImmutableByteArray.read64be" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read16le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read24le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read32le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read40le" $
+      ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
+    B "ImmutableByteArray.read64le" $
       ibytearrayt --> nat --> Type.effect1 () (DD.exceptionType ()) nat,
     B "MutableArray.freeze!" . forall2 "g" "a" $ \g a ->
       marrayt g a --> Type.effect1 () g (iarrayt a),
@@ -713,13 +744,63 @@ builtinsSrc =
     B "Char.Class.symbol" charClass,
     B "Char.Class.separator" charClass,
     B "Char.Class.letter" charClass,
-    B "Char.Class.is" $
-      charClass
-        --> char
-        --> boolean,
-    B
-      "Text.patterns.char"
-      $ charClass --> pat text
+    B "Char.Class.is" $ charClass --> char --> boolean,
+    B "Text.patterns.char" $ charClass --> pat text,
+    B "Integer.fromText" $ text --> optionalt integer,
+    B "Natural.fromText" $ text --> optionalt natural,
+    B "Integer.unsafeFromText" $ text --> integer,
+    B "Natural.unsafeFromText" $ text --> natural,
+    B "Integer.toText" $ integer --> text,
+    B "Natural.toText" $ natural --> text,
+    B "Integer.fromInt" $ int --> integer,
+    B "Natural.fromNat" $ nat --> natural,
+    B "Integer.toInt" $ integer --> int,
+    B "Natural.toNat" $ natural --> nat,
+    B "Integer.add" $ integer --> integer --> integer,
+    B "Integer.sub" $ integer --> integer --> integer,
+    B "Integer.mul" $ integer --> integer --> integer,
+    B "Integer.div" $ integer --> integer --> integer,
+    B "Integer.mod" $ integer --> integer --> integer,
+    B "Integer.pow" $ integer --> integer --> integer,
+    B "Integer.shiftLeft" $ integer --> nat --> integer,
+    B "Integer.shiftRight" $ integer --> nat --> integer,
+    B "Integer.and" $ integer --> integer --> integer,
+    B "Integer.or" $ integer --> integer --> integer,
+    B "Integer.xor" $ integer --> integer --> integer,
+    B "Integer.not" $ integer --> integer,
+    B "Integer.popCount" $ integer --> nat,
+    B "Integer.eq" $ integer --> integer --> boolean,
+    B "Integer.lt" $ integer --> integer --> boolean,
+    B "Integer.lteq" $ integer --> integer --> boolean,
+    B "Integer.gt" $ integer --> integer --> boolean,
+    B "Integer.gteq" $ integer --> integer --> boolean,
+    B "Integer.neg" $ integer --> integer,
+    B "Integer.abs" $ integer --> integer,
+    B "Integer.signum" $ integer --> int,
+    B "Integer.toFloat" $ integer --> float,
+    B "Integer.isEven" $ integer --> boolean,
+    B "Integer.isOdd" $ integer --> boolean,
+    B "Natural.add" $ natural --> natural --> natural,
+    B "Natural.sub" $ natural --> natural --> natural,
+    B "Natural.mul" $ natural --> natural --> natural,
+    B "Natural.div" $ natural --> natural --> natural,
+    B "Natural.mod" $ natural --> natural --> natural,
+    B "Natural.pow" $ natural --> natural --> natural,
+    B "Natural.shiftLeft" $ natural --> nat --> natural,
+    B "Natural.shiftRight" $ natural --> nat --> natural,
+    B "Natural.and" $ natural --> natural --> natural,
+    B "Natural.or" $ natural --> natural --> natural,
+    B "Natural.xor" $ natural --> natural --> natural,
+    B "Natural.not" $ natural --> natural,
+    B "Natural.popCount" $ natural --> nat,
+    B "Natural.eq" $ natural --> natural --> boolean,
+    B "Natural.lt" $ natural --> natural --> boolean,
+    B "Natural.lteq" $ natural --> natural --> boolean,
+    B "Natural.gt" $ natural --> natural --> boolean,
+    B "Natural.gteq" $ natural --> natural --> boolean,
+    B "Natural.toFloat" $ natural --> float,
+    B "Natural.isEven" $ natural --> boolean,
+    B "Natural.isOdd" $ natural --> boolean
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -829,9 +910,9 @@ ioBuiltins =
     ("IO.getSomeBytes.impl.v1", handle --> nat --> iof bytes),
     ("IO.putBytes.impl.v3", handle --> bytes --> iof unit),
     ("IO.getLine.impl.v1", handle --> iof text),
-    ("IO.fillBuf.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> iof nat),
+    ("IO.fillBuf.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> nat --> iof nat),
     ("IO.putBuf.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> nat --> iof nat),
-    ("IO.getBufSome.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> iof nat),
+    ("IO.getBufSome.impl.v1", forall1 "g" \g -> handle --> pinnedByteArrayt g --> nat --> iof nat),
     ("IO.systemTime.impl.v3", unit --> iof nat),
     ("IO.systemTimeMicroseconds.v1", unit --> io int),
     ("IO.getTempDirectory.impl.v3", unit --> iof text),
@@ -910,7 +991,11 @@ ioBuiltins =
     ("TLS.ClientConfig.ciphers.set", list tlsCipher --> tlsClientConfig --> tlsClientConfig),
     ("Tls.ServerConfig.ciphers.set", list tlsCipher --> tlsServerConfig --> tlsServerConfig),
     ("Tls.ClientConfig.certificates.set", list tlsSignedCert --> tlsClientConfig --> tlsClientConfig),
+    ("Tls.ClientConfig.certificates.get", tlsClientConfig --> list tlsSignedCert),
     ("Tls.ServerConfig.certificates.set", list tlsSignedCert --> tlsServerConfig --> tlsServerConfig),
+    ("Tls.ServerConfig.certificates.get", tlsServerConfig --> list tlsSignedCert),
+    ("Tls.ClientConfig.validation.disableHostNameValidation", tlsClientConfig --> tlsClientConfig),
+    ("Tls.ClientConfig.validation.disableCertificateValidation", tlsClientConfig --> tlsClientConfig),
     ("Tls.ClientConfig.versions.set", list tlsVersion --> tlsClientConfig --> tlsClientConfig),
     ("Tls.ServerConfig.versions.set", list tlsVersion --> tlsServerConfig --> tlsServerConfig),
     ("Clock.internals.monotonic.v1", unit --> iof timeSpec),
@@ -1135,7 +1220,7 @@ bmode = DD.bufferModeType ()
 smode = DD.seekModeType ()
 stdhandle = DD.stdHandleType ()
 
-int, nat, bytes, text, boolean, float, char :: Type
+int, nat, bytes, text, boolean, float, char, integer, natural :: Type
 int = Type.int ()
 nat = Type.nat ()
 bytes = Type.bytes ()
@@ -1143,6 +1228,8 @@ text = Type.text ()
 boolean = Type.boolean ()
 float = Type.float ()
 char = Type.char ()
+integer = Type.ref () Type.integerRef
+natural = Type.ref () Type.naturalRef
 
 anyt, code, value, termLink :: Type
 anyt = Type.ref () Type.anyRef

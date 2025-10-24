@@ -22,7 +22,7 @@ unexpectedly 😬.
 
 > ls Nat
 
-  1. operators/ (1 term)
+  1. operators. (1 term)
 
 > ls Nat.operators
 

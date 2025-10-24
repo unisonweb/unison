@@ -36,10 +36,6 @@ module Unison.Cli.ProjectUtils
     findTemporaryBranchName,
     expectLatestReleaseBranchName,
 
-    -- * Merge/upgrade branch utils
-    getMergeBranchParent,
-    getUpgradeBranchParent,
-
     -- * Export fields so we can use dot-notation
     ProjectBranch (..),
     Project (..),
@@ -50,7 +46,6 @@ import Control.Lens
 import Data.List qualified as List
 import Data.Maybe (fromJust)
 import Data.Set qualified as Set
-import Data.Text qualified as Text
 import Data.These (These (..))
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId
@@ -212,8 +207,7 @@ resolveProjectBranchInProject :: Project -> ProjectAndBranch (Maybe ProjectName)
 resolveProjectBranchInProject defaultProj (ProjectAndBranch mayProjectName mayBranchName) = do
   let branchName = fromMaybe defaultBranchName mayBranchName
   let projectName = fromMaybe (defaultProj ^. #name) mayProjectName
-  projectAndBranch <- expectProjectAndBranchByTheseNames (These projectName branchName)
-  pure projectAndBranch
+  expectProjectAndBranchByTheseNames (These projectName branchName)
 
 getProjectByName :: ProjectName -> Cli (Maybe Sqlite.Project)
 getProjectByName projectName = do
@@ -347,25 +341,3 @@ expectLatestReleaseBranchName remoteProject =
   case remoteProject.latestRelease of
     Nothing -> Cli.returnEarly (Output.ProjectHasNoReleases remoteProject.projectName)
     Just semver -> pure (UnsafeProjectBranchName ("releases/" <> into @Text semver))
-
--- | @getMergeBranchParent branch@ returns the parent branch of a "merge" branch.
---
--- When a merge fails, we put you on a branch called `merge-<source>-into-<target>`. That's a "merge" branch. It's not
--- currently distinguished in the database, so we first just switch on whether its name begins with "merge-". If it
--- does, then we get the branch's parent, which should exist, but perhaps wouldn't if the user had manually made a
--- parentless branch called "merge-whatever" for whatever reason.
-getMergeBranchParent :: Sqlite.ProjectBranch -> Maybe ProjectBranchId
-getMergeBranchParent branch = do
-  guard ("merge-" `Text.isPrefixOf` into @Text branch.name)
-  branch.parentBranchId
-
--- | @getUpgradeBranchParent branch@ returns the parent branch of an "upgrade" branch.
---
--- When an upgrade fails, we put you on a branch called `upgrade-<old>-to-<new>`. That's an "upgrade" branch. It's not
--- currently distinguished in the database, so we first just switch on whether its name begins with "upgrade-". If it
--- does, then we get the branch's parent, which should exist, but perhaps wouldn't if the user had manually made a
--- parentless branch called "upgrade-whatever" for whatever reason.
-getUpgradeBranchParent :: Sqlite.ProjectBranch -> Maybe ProjectBranchId
-getUpgradeBranchParent branch = do
-  guard ("upgrade-" `Text.isPrefixOf` into @Text branch.name)
-  branch.parentBranchId

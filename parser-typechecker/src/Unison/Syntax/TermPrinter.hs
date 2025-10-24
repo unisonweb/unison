@@ -72,7 +72,7 @@ import Unison.Var qualified as Var
 
 type SyntaxText = S.SyntaxText' Reference
 
--- Gets rid of unsightly "_eta" expansion in the pretty-printed output
+-- | Gets rid of unsightly "_eta" expansion in the pretty-printed output
 etaReduce :: (Var v) => Term3 v a -> Term3 v a
 etaReduce (LamNamed' v (App' f (Var' v'))) | v == v' && Var.name v == "_eta" = f
 etaReduce tm = tm
@@ -81,8 +81,7 @@ goPretty :: (Var v) => PrettyPrintEnv -> Term2 v at ap v a -> Pretty SyntaxText
 goPretty ppe tm = runPretty (avoidShadowing tm ppe) $ pretty0 emptyAc $ printAnnotate ppe tm
 
 pretty :: (HasCallStack, Var v) => PrettyPrintEnv -> Term v a -> Pretty ColorText
-pretty ppe tm =
-  PP.syntaxToColor $ goPretty ppe tm
+pretty ppe = PP.syntaxToColor . goPretty ppe
 
 prettyBlock :: (Var v) => Bool -> PrettyPrintEnv -> Term v a -> Pretty ColorText
 prettyBlock elideUnit ppe = PP.syntaxToColor . prettyBlock' elideUnit ppe
@@ -91,11 +90,8 @@ prettyBlock' :: (HasCallStack, Var v) => Bool -> PrettyPrintEnv -> Term v a -> P
 prettyBlock' elideUnit ppe tm =
   runPretty (avoidShadowing tm ppe) . pretty0 (emptyBlockAc {elideUnit = elideUnit}) $ printAnnotate ppe tm
 
-pretty' :: (HasCallStack, Var v) => Maybe Width -> PrettyPrintEnv -> Term v a -> ColorText
-pretty' (Just width) n t =
-  PP.render width . PP.syntaxToColor $ goPretty n t
-pretty' Nothing n t =
-  PP.renderUnbroken . PP.syntaxToColor $ goPretty n t
+pretty' :: (HasCallStack, Var v) => Width -> PrettyPrintEnv -> Term v a -> ColorText
+pretty' width n = PP.render width . pretty n
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -321,25 +317,28 @@ pretty0
                         <> fmt S.ControlKeyword "with"
                           `hangHandler` ph
                     ]
-          Delay' x
-            | Match' _ _ <- x -> do
+          Delay' x@(Match' scrutinee cs)
+            | not (isDestructuringBind scrutinee cs) -> do
                 px <- pretty0 (ac Annotation Block im doc) x
                 let hang = if isSoftHangable x then PP.softHang else PP.hang
                 pure . paren (p > Control) $
                   fmt S.ControlKeyword "do" `hang` px
-            | otherwise -> do
-                let (im0', uses0) = calcImports im x
-                let allowUses = isLet x || (p == Bottom)
-                let im' = if allowUses then im0' else im
-                let uses = if allowUses then uses0 else []
-                let soft = isSoftHangable x && null uses && p < Annotation
-                let hang = if soft then PP.softHang else PP.hang
-                px <- pretty0 (ac Annotation Block im' doc) x
-                -- this makes sure we get proper indentation if `px` spills onto
-                -- multiple lines, since `do` introduces layout block
-                let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
-                pure . paren (p > Control) $
-                  fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
+          Delay' x -> do
+            let (im0', uses0) = calcImports im x
+            let allowUses = isLet x || (p == Bottom) || isDestructure x
+                  where
+                    isDestructure (Match' scrutinee cs) = isDestructuringBind scrutinee cs
+                    isDestructure _ = False
+            let im' = if allowUses then im0' else im
+            let uses = if allowUses then uses0 else []
+            let soft = isSoftHangable x && null uses && p < Annotation
+            let hang = if soft then PP.softHang else PP.hang
+            px <- pretty0 (ac Annotation Block im' doc) x
+            -- this makes sure we get proper indentation if `px` spills onto
+            -- multiple lines, since `do` introduces layout block
+            let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
+            pure . paren (p > Control) $
+              fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
           List' xs -> do
             let listLink p = fmt (S.TypeReference Type.listRef) p
             let comma = listLink ", " `PP.orElse` ("\n" <> listLink ", ")
@@ -977,8 +976,7 @@ prettyBinding' ::
   HQ.HashQualified Name ->
   Term v a ->
   ColorText
-prettyBinding' ppe width v t =
-  PP.render width . PP.syntaxToColor $ prettyBinding ppe v t
+prettyBinding' ppe width v = PP.render width . PP.syntaxToColor . prettyBinding ppe v
 
 prettyBinding0 ::
   (HasCallStack, MonadPretty v m) =>
@@ -1342,8 +1340,9 @@ suffixCounterType n used = \case
 
 printAnnotate :: (HasCallStack, Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
 printAnnotate n tm =
-  fmap snd (go (reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm))
+  fmap snd (go annotated)
   where
+    annotated = reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm
     -- See `countHQ` to see how these are used to make sure that
     -- a `use` clause doesn't introduce shadowing of a local variable
     usedTermNames =
@@ -1353,6 +1352,23 @@ printAnnotate n tm =
     varToName = toList . Name.parseText . Var.name . Var.reset
     go :: (Ord v) => Term2 v at ap v b -> Term2 v () () v b
     go = extraMap' id (const ()) (const ())
+    isLiteral :: Term2 v at ap v a -> Bool
+    isLiteral (Bytes' _) = True
+    isLiteral _ = False
+    reannotateUp g t = case ABT.out t of
+      ABT.Var v -> ABT.annotatedVar (annotation t, g t) v
+      ABT.Cycle body ->
+        let body' = reannotateUp g body
+         in ABT.cycle' (annotation t, snd (annotation body')) body'
+      ABT.Abs v body ->
+        let body' = reannotateUp g body
+         in ABT.abs' (annotation t, snd (annotation body')) v body'
+      ABT.Tm body ->
+        -- literals like 0xsaaff don't contribute to the annotations
+        -- even though they desugar to function calls
+        let body' = reannotateUp g <$> body
+            ann = if isLiteral t then mempty else g t <> foldMap (snd . annotation) body'
+         in ABT.tm' (annotation t, ann) body'
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
 countTypeUsages n usedTy t = snd $ annotation $ reannotateUp (suffixCounterType n usedTy) t
@@ -1891,10 +1907,10 @@ unLamsMatch' t = case unLamsUntilDelay' t of
           rhsVars = ABT.freeVars rhs
        in Set.union guardVars rhsVars
 
-pattern Bytes' :: [Word64] -> Term3 v PrintAnnotation
+pattern Bytes' :: [Word64] -> Term2 v at ap v a
 pattern Bytes' bs <- (toBytes -> Just bs)
 
-toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
+toBytes :: Term2 v at ap v a -> Maybe [Word64]
 toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
   toList <$> traverse go bs
   where
@@ -1917,14 +1933,14 @@ prettyDoc2 ac tm = do
       bail tm = brace <$> pretty0 ac tm
       contains :: Char -> Pretty SyntaxText -> Bool
       contains c p =
-        PP.toPlainUnbroken (PP.syntaxToColor p)
-          & elem c
+        PP.toPlain 0 (PP.syntaxToColor p)
+          & Text.elem c
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
-        case filter (\s -> take 2 s == [c, c]) $
-          List.group (PP.toPlainUnbroken $ PP.syntaxToColor s) of
+        case filter (\s -> Text.take 2 s == Text.pack [c, c]) $
+          Text.group (PP.toPlain 0 $ PP.syntaxToColor s) of
           [] -> 2
-          x -> 1 + maximum (map length x)
+          x -> 1 + maximum (map Text.length x)
       oneMore c inner = replicate (longestRun c inner) c
       makeFence inner = PP.string $ replicate (max 3 $ longestRun '`' inner) '`'
       go :: Width -> Term3 v PrintAnnotation -> m (Pretty SyntaxText)
@@ -1938,7 +1954,7 @@ prettyDoc2 ac tm = do
           prettyDs <- intercalateMapM "\n\n" (go (hdr + 1)) ds
           pure $
             PP.lines
-              [ PP.text (Text.replicate (PP.widthToInt hdr) "#") <> " " <> prettyTitle,
+              [ PP.string (replicate (PP.widthToInt hdr) '#') <> " " <> prettyTitle,
                 "",
                 PP.indentN (hdr + 1) prettyDs
               ]

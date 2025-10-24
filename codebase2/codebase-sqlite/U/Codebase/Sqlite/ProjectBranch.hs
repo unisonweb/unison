@@ -1,5 +1,6 @@
 module U.Codebase.Sqlite.ProjectBranch
   ( ProjectBranch (..),
+    ProjectBranchRow (..),
   )
 where
 
@@ -14,7 +15,18 @@ data ProjectBranch = ProjectBranch
   { projectId :: !ProjectId,
     branchId :: !ProjectBranchId,
     name :: !ProjectBranchName,
+    parentBranchId :: !(Maybe ProjectBranchId),
+    isMerge :: !Bool,
+    isUpdate :: !Bool,
+    isUpgrade :: !Bool
+  }
+  deriving stock (Eq, Generic, Show)
+
+data ProjectBranchRow = ProjectBranchRow
+  { projectId :: !ProjectId,
+    branchId :: !ProjectBranchId,
+    name :: !ProjectBranchName,
     parentBranchId :: !(Maybe ProjectBranchId)
   }
   deriving stock (Eq, Generic, Show)
-  deriving anyclass (ToRow, FromRow)
+  deriving anyclass (FromRow, ToRow)

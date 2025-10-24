@@ -27,7 +27,6 @@ module Unison.Runtime.Machine
 where
 
 import Control.Concurrent (ThreadId)
-import Control.Concurrent qualified as CNC
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
@@ -35,7 +34,6 @@ import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.List qualified as List
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -61,20 +59,21 @@ import Unison.Runtime.ANF as ANF
     PackedTag (..),
     SuperGroup,
     codeGroup,
+    collectValueLinks,
     foldGroup,
     foldGroupLinks,
     maskTags,
     packTags,
-    valueLinks,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
+import Data.Text qualified as Text
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
-import Unison.Runtime.Exception hiding (die)
+import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -87,13 +86,13 @@ import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
+import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
 import Unison.Util.EnumContainers as EC
-import Unison.Util.Pretty (toPlainUnbroken)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Text qualified as Util.Text
 import UnliftIO qualified
@@ -114,11 +113,9 @@ info ctx x = infos ctx (show x)
 infos :: String -> String -> IO ()
 infos ctx s = putStrLn $ ctx ++ ": " ++ s
 
-yieldSteps :: Int
-yieldSteps = 5000
-
 -- Entry point for evaluating a section
-eval0 :: CCache -> ActiveThreads -> MSection -> IO ()
+eval0 ::
+  (RuntimeProfiler p) => CCache p -> ActiveThreads -> MSection -> IO ()
 eval0 env !activeThreads !co = do
   stk <- alloc
   cmbs <- readTVarIO $ combs env
@@ -126,7 +123,15 @@ eval0 env !activeThreads !co = do
     rfTy <- readTVarIO (refTy env)
     rfTm <- readTVarIO (refTm env)
     topHEnv cmbs rfTy rfTm
-  eval yieldSteps env henv activeThreads stk (k KE) dummyRef co
+  (tick, cancelTicks) <- startTicker $ profiler env
+  eval tick env henv activeThreads stk (k KE) (CIx dummyRef 0 0) co
+    `finally` cancelTicks
+{-# SPECIALIZE eval0 ::
+  CCache () -> ActiveThreads -> MSection -> IO ()
+  #-}
+{-# SPECIALIZE eval0 ::
+  CCache ProfileComm -> ActiveThreads -> MSection -> IO ()
+  #-}
 
 mCombVal :: CombIx -> MComb -> Val
 mCombVal cix (RComb (Comb comb)) =
@@ -165,8 +170,9 @@ topHEnv combs rfTy rfTm =
 -- This is the entry point actually used in the interactive
 -- environment currently.
 apply0 ::
+  (RuntimeProfiler p) =>
   Maybe (XStack -> IO ()) ->
-  CCache ->
+  CCache p ->
   ActiveThreads ->
   Word64 ->
   IO ()
@@ -180,28 +186,55 @@ apply0 !callback env !threadTracker !i = do
     topHEnv cmbs rfTy rfTm
   r <- case EC.lookup i cmbrs of
     Just r -> pure r
-    Nothing -> die "apply0: missing reference to entry point"
+    Nothing -> die [] "apply0: missing reference to entry point"
   let entryCix = (CIx r i 0)
   case unRComb $ rCombSection cmbs entryCix of
     Comb entryComb -> do
-      apply yieldSteps env henv threadTracker stk (kf k0) True ZArgs . BoxedVal $
-        PAp entryCix entryComb nullSeg
+      (tick, cancelTicks) <- startTicker $ profiler env
+      apply
+        tick
+        env
+        henv
+        threadTracker
+        stk
+        (kf k0)
+        True
+        ZArgs
+        (BoxedVal $ PAp entryCix entryComb nullSeg)
+        `finally` cancelTicks
     -- if it's cached, we can just finish
     CachedVal _ val -> bump stk >>= \stk -> poke stk val
   where
     k0 = fromMaybe KE (callback <&> \cb -> CB . Hook $ \stk -> cb stk)
+{-# SPECIALIZE apply0 ::
+  Maybe (XStack -> IO ()) ->
+  CCache () ->
+  ActiveThreads ->
+  Word64 ->
+  IO ()
+  #-}
+{-# SPECIALIZE apply0 ::
+  Maybe (XStack -> IO ()) ->
+  CCache ProfileComm ->
+  ActiveThreads ->
+  Word64 ->
+  IO ()
+  #-}
 
 -- Apply helper currently used for forking. Creates the new stacks
 -- necessary to evaluate a closure with the provided information.
 apply1 ::
+  (RuntimeProfiler p) =>
   (Stack -> IO ()) ->
-  CCache ->
+  CCache p ->
   ActiveThreads ->
   Val ->
   IO ()
 apply1 callback env threadTracker clo = do
   stk <- alloc
-  apply yieldSteps env mempty threadTracker stk k0 True ZArgs clo
+  (tick, cancelTicks) <- startTicker $ profiler env
+  apply tick env mempty threadTracker stk k0 True ZArgs clo
+    `finally` cancelTicks
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
 {-# INLINE apply1 #-}
@@ -248,12 +281,13 @@ dumpStack stk@(Stack ap fp sp _ustk _bstk)
 -- immediately evaluated when created to avoid thunks building up, so
 -- that it doesn't need to be a strict argument.
 exec ::
-  CCache ->
+  (RuntimeProfiler prof) =>
+  CCache prof ->
   HEnv ->
   ActiveThreads ->
   Stack ->
   K ->
-  Reference ->
+  CombIx ->
   MInstr ->
   IO (Bool, HEnv, Stack, K)
 #ifdef STACK_CHECK
@@ -280,7 +314,7 @@ exec _ henv !_activeThreads !stk !k _ (SetAff u i j) =
             evaluate $ henv {aenv = aenv}
           else pure henv
       pure (False, henv, stk, k)
-    _ -> die "SetAff called with bad handler reference"
+    _ -> die [] "SetAff called with bad handler reference"
 exec _ henv !_activeThreads !stk !k _ (Capture p) = do
   (cap, denv, stk, k) <- splitCont (denv henv) stk k p
   stk <- bump stk
@@ -293,16 +327,16 @@ exec _ _henv !_activeThreads !stk !k _ (Discard i) = do
       (aenv, stk, k) <- abortCont stk k r
       henv <- evaluate $ HEnv aenv mempty
       pure (False, henv, stk, k)
-    _ -> die "Discard called with bad handler reference"
+    _ -> die [] "Discard called with bad handler reference"
 exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
     Affine _ aenv _ -> do
       (stk, a) <- saveArgs stk
       henv <- evaluate $ HEnv aenv mempty
       pure (False, henv, stk, Local henv0 a k)
-    v -> die $ "InLocal called with bad handler reference\n" ++ show v
+    v -> die [] $ "InLocal called with bad handler reference\n" ++ show v
 exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
-  | sandboxed env = die "attempted to use sandboxed operation: cache"
+  | sandboxed env = die [] "attempted to use sandboxed operation: cache"
   | otherwise = do
       arg <- peekOffS stk i
       news <- decodeCacheArgument arg
@@ -313,7 +347,7 @@ exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
         (Sq.fromList $ encodeVal . Ref <$> unknown)
       pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Prim1 LOAD i)
-  | sandboxed env = die "attempted to use sandboxed operation: load"
+  | sandboxed env = die [] "attempted to use sandboxed operation: load"
   | otherwise = do
       v <- peekOffBi stk i
       stk <- bumpn stk 2
@@ -335,13 +369,15 @@ exec env henv !_activeThreads !stk !k _ (Prim1 VALU i) = do
 exec env henv !_activeThreads !stk !k _ (Prim1 op i) = do
   stk <- prim1 env stk op i
   pure (False, henv, stk, k)
-exec _ _ !_activeThreads !stk !k r (Prim2 THRO i j) = do
+exec _ _ !_activeThreads !stk !k cix (Prim2 THRO i j) = do
   name <- peekOffBi @Util.Text.Text stk i
   x <- peekOff stk j
-  () <- throwIO (BU (traceK r k) (Util.Text.toText name) x)
+  () <- throwIO $ BU (traceK r k) (Util.Text.toText name) x
   error "throwIO should never return"
+  where
+    r = combRef cix
 exec env henv !_activeThreads !stk !k _ (Prim2 TRCE i j)
-  | sandboxed env = die "attempted to use sandboxed operation: trace"
+  | sandboxed env = die [] "attempted to use sandboxed operation: trace"
   | otherwise = do
       tx <- peekOffBi stk i
       clo <- peekOff stk j
@@ -363,7 +399,7 @@ exec env henv !_trackThreads !stk !k _ (Prim2 op i j) = do
   stk <- primxx env stk op i j
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (RefCAS refI ticketI valI)
-  | sandboxed env = die "attempted to use sandboxed operation: Ref.cas"
+  | sandboxed env = die [] "attempted to use sandboxed operation: Ref.cas"
   | otherwise = do
       (ref :: IORef Val) <- peekOffBi stk refI
       -- Note that the CAS machinery is extremely fussy w/r to whether things are forced because it
@@ -418,21 +454,21 @@ exec _env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
   (b, stk) <- exStackIOToIO $ foreignCall func args (unpackXStack stk)
   pure (b, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Fork i)
-  | sandboxed env = die "attempted to use sandboxed operation: fork"
+  | sandboxed env = die [] "attempted to use sandboxed operation: fork"
   | otherwise = do
       tid <- forkEval env activeThreads =<< peekOff stk i
       stk <- bump stk
       bpoke stk . Foreign . Wrap Rf.threadIdRef $ tid
       pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Atomically i)
-  | sandboxed env = die $ "attempted to use sandboxed operation: atomically"
+  | sandboxed env = die [] $ "attempted to use sandboxed operation: atomically"
   | otherwise = do
       v <- peekOff stk i
       stk <- bump stk
       atomicEval env activeThreads (poke stk) v
       pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (TryForce i)
-  | sandboxed env = die $ "attempted to use sandboxed operation: tryForce"
+  | sandboxed env = die [] $ "attempted to use sandboxed operation: tryForce"
   | otherwise = do
       v <- peekOff stk i
       stk <- bump stk -- Bump the boxed stack to make a slot for the result, which will be written in the callback if we succeed.
@@ -440,7 +476,7 @@ exec env henv !activeThreads !stk !k _ (TryForce i)
       stk <- encodeExn stk ev
       pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
-  die $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
+  die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
 
 encodeExn ::
@@ -463,13 +499,14 @@ encodeExn stk exc = do
       pokeOffBi stk 2 msg
       stk <$ pokeOff stk 3 extra
       where
-        disp e = Util.Text.pack $ show e
+        disp :: (Exception e) => e -> Util.Text.Text
+        disp = Util.Text.pack . show
         (link, msg, extra)
           | Just (ioe :: IOException) <- fromException exn =
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
-              PE _stk msg ->
-                (Rf.runtimeFailureRef, Util.Text.pack $ toPlainUnbroken msg, unitValue)
+              PE _stk _issues msg ->
+                (Rf.runtimeFailureRef, Util.Text.fromText $ P.toPlain 0 msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
@@ -493,33 +530,34 @@ encodeExn stk exc = do
 -- never modified, so this is no worry. `henv` is modified, but it is
 -- immediately evaluated when created to avoid thunks building up, so
 -- that it doesn't need to be a strict argument.
-eval ::
-  Int ->
-  CCache ->
+eval' ::
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
   HEnv ->
   ActiveThreads ->
   Stack ->
   K ->
-  Reference ->
+  CombIx ->
   MSection ->
   IO ()
 #ifdef STACK_CHECK
-eval !_ _ _ !_ !stk !_ !_ section
+eval' !_ _ _ !_ !stk !_ !_ section
   | debugger stk "eval" section = undefined
 #endif
-eval !yld env henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
+eval' !yld env henv !activeThreads !stk !k r (Match i (TestT df cs)) = do
   t <- peekOffBi stk i
   eval yld env henv activeThreads stk k r $ selectTextBranch t df cs
-eval !yld env henv !activeThreads !stk !k r (Match i br) = do
+eval' !yld env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
-eval !yld env henv !activeThreads !stk !k r (DMatch mr i br) = do
+eval' !yld env henv !activeThreads !stk !k r (DMatch mr i br) = do
   (nx, stk) <- dataBranch mr stk br =<< bpeekOff stk i
   eval yld env henv activeThreads stk k r nx
-eval !yld env henv !activeThreads !stk !k r (NMatch _mr i br) = do
+eval' !yld env henv !activeThreads !stk !k r (NMatch _mr i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
-eval !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
+eval' !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
   (t, stk) <- dumpDataValNoTag stk =<< peekOff stk i
   if t == TT.pureEffectTag
     then eval yld env henv activeThreads stk k r pu
@@ -528,22 +566,26 @@ eval !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
         | Just ebs <- EC.lookup e br ->
             eval yld env henv activeThreads stk k r $ selectBranch t ebs
         | otherwise -> unhandledAbilityRequest
-eval !yld env henv !activeThreads !stk !k _ (Yield args)
+eval' !yld env henv !activeThreads !stk !k here (Yield args)
   | asize stk > 0,
-    VArg1 i <- args =
+    VArg1 i <- args = do
+      checkTicker yld here k
       peekOff stk i >>= apply yld env henv activeThreads stk k False ZArgs
   | otherwise = do
+      checkTicker yld here k
       stk <- moveArgs stk args
       stk <- frameArgs stk
       yield yld env henv activeThreads stk k
-eval !yld env henv !activeThreads !stk !k _ (App ck r args) =
+eval' !yld env henv !activeThreads !stk !k here (App ck r args) = do
+  checkTicker yld here k
   resolve env henv stk r
     >>= apply yld env henv activeThreads stk k ck args
-eval !yld env henv !activeThreads !stk !k _ (Call ck combIx rcomb args) =
-  enter yld env henv activeThreads stk k (combRef combIx) ck args rcomb
-eval !yld env henv !activeThreads !stk !k _ (Jump i args) =
+eval' !yld env henv !activeThreads !stk !k here (Call ck combIx rcomb args) = do
+  checkTicker yld here k
+  enter yld env henv activeThreads stk k combIx ck args rcomb
+eval' !yld env henv !activeThreads !stk !k _ (Jump i args) =
   bpeekOff stk i >>= jump yld env henv activeThreads stk k args
-eval !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
+eval' !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
   (stk, fsz, asz) <- saveFrame stk
   eval
     yld
@@ -554,7 +596,7 @@ eval !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
     (Push fsz asz cix f sect k)
     r
     nw
-eval !yld env henv !activeThreads !stk !k r (Ins i nx) = do
+eval' !yld env henv !activeThreads !stk !k r (Ins i nx) = do
   exec env henv activeThreads stk k r i >>= \case
     (exception, henv, !stk, !k)
       -- In this case, the instruction indicated an exception to
@@ -569,9 +611,46 @@ eval !yld env henv !activeThreads !stk !k r (Ins i nx) = do
           let kk = Push fsz asz fakeCix 10 nx k
           apply yld env henv activeThreads stk kk False (VArg1 0) eh
       | otherwise -> eval yld env henv activeThreads stk k r nx
-eval !_ _ _ !_ !_activeThreads !_ _ Exit = pure ()
-eval !_ _ _ !_ !_activeThreads !_ _ (Die s) = die s
-{-# NOINLINE eval #-}
+eval' !_ _ _ !_ !_activeThreads !_ _ Exit = pure ()
+eval' !_ _ _ !_ !_activeThreads !_ _ (Die s) = die [] s
+{-# INLINE eval' #-}
+
+eval ::
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  CombIx ->
+  MSection ->
+  IO ()
+eval !yld env henv !activeThreads !stk !k here sect = do
+  checkTicker yld here k
+  eval' yld env henv activeThreads stk k here sect
+{-# SPECIALIZE eval ::
+  Ticker () ->
+  CCache () ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  CombIx ->
+  MSection ->
+  IO ()
+  #-}
+{-# SPECIALIZE eval ::
+  Ticker ProfileComm ->
+  CCache ProfileComm ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  CombIx ->
+  MSection ->
+  IO ()
+  #-}
 
 -- Note: denv shadows aenv always
 resolveExceptionHandler :: HEnv -> IO Val
@@ -587,9 +666,14 @@ fakeCix :: CombIx
 fakeCix = CIx exceptionRef maxBound maxBound
 
 unhandledAbilityRequest :: (HasCallStack) => IO a
-unhandledAbilityRequest = error . show . PE callStack . P.lit . fromString $ "eval: unhandled ability request"
+unhandledAbilityRequest = exn [2922, 5400] "eval: unhandled ability request"
 
-forkEval :: CCache -> ActiveThreads -> Val -> IO ThreadId
+forkEval ::
+  (RuntimeProfiler prof) =>
+  CCache prof ->
+  ActiveThreads ->
+  Val ->
+  IO ThreadId
 forkEval env activeThreads clo =
   do
     threadId <-
@@ -615,31 +699,44 @@ forkEval env activeThreads clo =
           UnliftIO.atomicModifyIORef' activeThreads (\ids -> (Set.delete myThreadId ids, ()))
 {-# INLINE forkEval #-}
 
-nestEval :: CCache -> ActiveThreads -> (Val -> IO ()) -> Val -> IO ()
+nestEval ::
+  (RuntimeProfiler prof) =>
+  CCache prof ->
+  ActiveThreads ->
+  (Val -> IO ()) ->
+  Val ->
+  IO ()
 nestEval env activeThreads write val = apply1 readBack env activeThreads val
   where
     readBack stk = peek stk >>= write
 {-# INLINE nestEval #-}
 
-atomicEval :: CCache -> ActiveThreads -> (Val -> IO ()) -> Val -> IO ()
+atomicEval ::
+  (RuntimeProfiler prof) =>
+  CCache prof ->
+  ActiveThreads ->
+  (Val -> IO ()) ->
+  Val ->
+  IO ()
 atomicEval env activeThreads write val =
   atomically . unsafeIOToSTM $ nestEval env activeThreads write val
 {-# INLINE atomicEval #-}
 
 -- fast path application
-enter' ::
-  Int ->
-  CCache ->
+enter ::
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
   HEnv ->
   ActiveThreads ->
   Stack ->
   K ->
-  Reference ->
+  CombIx ->
   Bool ->
   Args ->
   MComb ->
   IO ()
-enter' !yld env henv !activeThreads !stk !k !cref !sck !args = \case
+enter !yld env henv !activeThreads !stk !k !cref !sck !args = \case
   (RComb (Lam a f entry)) -> do
     -- check for stack check _skip_
     stk <- if sck then pure stk else ensure stk f
@@ -651,26 +748,6 @@ enter' !yld env henv !activeThreads !stk !k !cref !sck !args = \case
     stk <- bump stk
     poke stk val
     yield yld env henv activeThreads stk k
-{-# INLINE enter' #-}
-
-enter ::
-  Int ->
-  CCache ->
-  HEnv ->
-  ActiveThreads ->
-  Stack ->
-  K ->
-  Reference ->
-  Bool ->
-  Args ->
-  MComb ->
-  IO ()
-enter !yld env henv !activeThreads !stk !k !cref !sck !args comb
-  | yld <= 0 = do
-      CNC.yield
-      enter' yieldSteps env henv activeThreads stk k cref sck args comb
-  | otherwise =
-      enter' (yld - 1) env henv activeThreads stk k cref sck args comb
 {-# INLINE enter #-}
 
 -- fast path by-name delaying
@@ -681,7 +758,7 @@ name !stk !args = \case
     stk <- bump stk
     bpoke stk $ PAp cix comb seg
     pure stk
-  v -> die $ "naming non-function: " ++ show v
+  v -> die [] $ "naming non-function: " ++ show v
 {-# INLINE name #-}
 
 extendPAp :: Val -> Val -> IO Closure
@@ -701,13 +778,14 @@ extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
     ussz = sizeofByteArray useg0
     bssz = sizeofArray bseg0
 extendPAp v _ =
-  die $ "extendPAp: non partial application" ++ show v
+  die [] $ "extendPAp: non partial application" ++ show v
 {-# INLINE extendPAp #-}
 
 -- slow path application
-apply' ::
-  Int ->
-  CCache ->
+apply ::
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
   HEnv ->
   ActiveThreads ->
   Stack ->
@@ -717,12 +795,12 @@ apply' ::
   Val ->
   IO ()
 #ifdef STACK_CHECK
-apply' !yld _env _henv !_activeThreads !stk !_k !_ck !args !val
+apply !yld _env _henv !_activeThreads !stk !_k !_ck !args !val
   | debugger stk "apply" (args, val) = undefined
 #endif
-apply' !yld env henv !activeThreads !stk !k !ck !args !val =
+apply !yld env henv !activeThreads !stk !k !ck !args !val =
   case val of
-    BoxedVal (PAp cix@(CIx combRef _ _) comb seg) ->
+    BoxedVal (PAp cix comb seg) ->
       case comb of
         LamI a f entry
           | ck || a <= ac -> do
@@ -730,7 +808,7 @@ apply' !yld env henv !activeThreads !stk !k !ck !args !val =
               stk <- moveArgs stk args
               stk <- dumpSeg stk seg A
               stk <- acceptArgs stk a
-              eval yld env henv activeThreads stk k combRef entry
+              eval yld env henv activeThreads stk k cix entry
           | otherwise -> do
               seg <- closeArgs C stk seg args
               stk <- discardFrame =<< frameArgs stk
@@ -749,31 +827,13 @@ apply' !yld env henv !activeThreads !stk !k !ck !args !val =
           stk <- bump stk
           poke stk v
           yield yld env henv activeThreads stk k
-      | otherwise = die $ "applying non-function: " ++ show v
-{-# INLINE apply' #-}
-
-apply ::
-  Int ->
-  CCache ->
-  HEnv ->
-  ActiveThreads ->
-  Stack ->
-  K ->
-  Bool ->
-  Args ->
-  Val ->
-  IO ()
-apply !yld env henv !activeThreads !stk !k !ck !args !val
-  | yld <= 0 = do
-      CNC.yield
-      apply' yieldSteps env henv activeThreads stk k ck args val
-  | otherwise =
-      apply' (yld - 1) env henv activeThreads stk k ck args val
+      | otherwise = die [] $ "applying non-function: " ++ show v
 {-# INLINE apply #-}
 
 jump ::
-  Int ->
-  CCache ->
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
   HEnv ->
   ActiveThreads ->
   Stack ->
@@ -789,7 +849,7 @@ jump !yld env henv !activeThreads !stk !k !args clo = case clo of
     stk <- dumpSeg stk seg $ F (countArgs args) a
     stk <- adjustArgs stk p
     repush yld env activeThreads stk henv sk k
-  _ -> die "jump: non-cont"
+  _ -> die [] "jump: non-cont"
   where
     -- Adjusts a repushed continuation to account for pending arguments. If
     -- there are any frames in the pushed continuation, the nearest one needs to
@@ -806,8 +866,9 @@ jump !yld env henv !activeThreads !stk !k !args clo = case clo of
 {-# INLINE jump #-}
 
 repush ::
-  Int ->
-  CCache ->
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
   ActiveThreads ->
   Stack ->
   HEnv ->
@@ -823,9 +884,9 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
         cs' = EC.restrictKeys denv ps
     go !denv (Push n a cix f rsect sk) !k =
       go denv sk $ Push n a cix f rsect k
-    go !_ (Local {}) !_ = die "repush: captured Local frame"
-    go !_ (AMark {}) !_ = die "repush: captured AMark frame"
-    go !_ (CB _) !_ = die "repush: impossible"
+    go !_ (Local {}) !_ = die [] "repush: captured Local frame"
+    go !_ (AMark {}) !_ = die [] "repush: captured AMark frame"
+    go !_ (CB _) !_ = die [] "repush: impossible"
 {-# INLINE repush #-}
 
 moveArgs ::
@@ -908,7 +969,7 @@ dumpDataValNoTag ::
 dumpDataValNoTag stk (BoxedVal c) =
   (closureTag c,) <$> dumpDataNoTag Nothing stk c
 dumpDataValNoTag _ v =
-  die $ "dumpDataValNoTag: unboxed val: " ++ show v
+  die [] $ "dumpDataValNoTag: unboxed val: " ++ show v
 {-# INLINE dumpDataValNoTag #-}
 
 -- Dumps a data type closure to the stack without writing its tag.
@@ -932,7 +993,7 @@ dumpDataNoTag !mr !stk = \case
     stk <$ poke stk x
   DataG _ _ seg -> dumpSeg stk seg S
   clo ->
-    die $
+    die [3320] $
       "dumpDataNoTag: bad closure: "
         ++ show clo
         ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
@@ -964,8 +1025,9 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
           l = fsize stk - i
 
 yield ::
-  Int ->
-  CCache ->
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
   HEnv ->
   ActiveThreads ->
   Stack ->
@@ -990,10 +1052,10 @@ yield !yld env henv0 !activeThreads !stk = leap
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv mempty
       apply yld env henv activeThreads stk k False (VArg1 0) h
-    leap (Push fsz asz (CIx ref _ _) f nx k) = do
+    leap (Push fsz asz cix f nx k) = do
       stk <- restoreFrame stk fsz asz
       stk <- ensure stk f
-      eval yld env henv0 activeThreads stk k ref nx
+      eval yld env henv0 activeThreads stk k cix nx
     leap (Local henv asz k) = do
       stk <- restoreFrame stk 0 asz
       yield yld env henv activeThreads stk k
@@ -1134,14 +1196,14 @@ dumpBin sz k e l r stk = do
 
 dataBranchClosureError :: Maybe Reference -> Closure -> IO a
 dataBranchClosureError mrf clo =
-  die $
+  die [] $
     "dataBranch: bad closure: "
       ++ show clo
       ++ maybe "" (\r -> "\nexpected type: " ++ show r) mrf
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
-  die $ "dataBranch: unexpected branch: " ++ show br
+  die [] $ "dataBranch: unexpected branch: " ++ show br
 
 -- Splits off a portion of the continuation up to a given prompt.
 --
@@ -1167,13 +1229,13 @@ splitCont !denv !stk !k !p =
     asz = asize stk
     walk :: DEnv -> SZ -> K -> K -> IO (Val, DEnv, Stack, K)
     walk !denv !sz !ck KE =
-      die "fell off stack" >> finish denv sz 0 ck KE
+      die [] "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (CB _) =
-      die "fell off stack" >> finish denv sz 0 ck KE
+      die [] "fell off stack" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Local {}) =
-      die "splitCont: Local frame" >> finish denv sz 0 ck KE
+      die [] "splitCont: Local frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (AMark {}) =
-      die "splitCont: AMark frame" >> finish denv sz 0 ck KE
+      die [] "splitCont: AMark frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Mark a ps cs k)
       | EC.member p ps = finish denv' sz a ck k
       | otherwise = walk denv' (sz + a) (Mark a ps cs' ck) k
@@ -1203,8 +1265,8 @@ abortCont !stk !k !r = walk (asize stk) k
   where
     walk :: SZ -> K -> IO (AEnv, Stack, K)
     walk !sz = \case
-      KE -> die "abortCont: fell off stack"
-      (CB _) -> die "abortCont: fell off stack"
+      KE -> die [] "abortCont: fell off stack"
+      (CB _) -> die [] "abortCont: fell off stack"
       (Local _ a k) -> walk (sz + a) k
       (Push n a _ _ _ k) -> walk (sz + n + a) k
       -- dynamic mark cannot match
@@ -1220,7 +1282,7 @@ abortCont !stk !k !r = walk (asize stk) k
       pure (aenv, stk, k)
 {-# INLINE abortCont #-}
 
-resolve :: CCache -> HEnv -> Stack -> MRef -> IO Val
+resolve :: CCache p -> HEnv -> Stack -> MRef -> IO Val
 resolve _ _ _ (Env cix mcomb) = pure (mCombVal cix mcomb)
 resolve _ _ stk (Stk i) = peekOff stk i
 resolve env (HEnv aenv denv) _ (Dyn i)
@@ -1229,13 +1291,13 @@ resolve env (HEnv aenv denv) _ (Dyn i)
   | otherwise = unhandledErr "resolve" env i
 {-# INLINE resolve #-}
 
-unhandledErr :: String -> CCache -> Word64 -> IO a
+unhandledErr :: String -> CCache p -> Word64 -> IO a
 unhandledErr fname env i =
   readTVarIO (tagRefs env) >>= \rs -> case EC.lookup i rs of
     Just r -> bomb (show r)
     Nothing -> bomb (show i)
   where
-    bomb sh = die $ fname ++ ": unhandled ability request: " ++ sh
+    bomb sh = die [] $ fname ++ ": unhandled ability request: " ++ sh
 
 rCombSection :: EnumMap Word64 MCombs -> CombIx -> MComb
 rCombSection combs (CIx r n i) =
@@ -1245,7 +1307,7 @@ rCombSection combs (CIx r n i) =
       Nothing -> error $ "unknown section `" ++ show i ++ "` of combinator `" ++ show n ++ "`. Reference: " ++ show r
     Nothing -> error $ "unknown combinator `" ++ show n ++ "`. Reference: " ++ show r
 
-resolveSection :: CCache -> Section -> IO MSection
+resolveSection :: CCache p -> Section -> IO MSection
 resolveSection cc section = do
   rcombs <- readTVarIO (combs cc)
   pure $ rCombSection rcombs <$> section
@@ -1263,7 +1325,7 @@ decodeCacheArgument :: USeq -> IO [(Reference, Code Reference)]
 decodeCacheArgument s = traverse (f <=< decodeVal) $ toList s
   where
     f (Ref r, rco) = pure (r, dereference rco)
-    f _ = die "decodeCacheArgument: Con reference"
+    f _ = die [] "decodeCacheArgument: Con reference"
 
 addRefs ::
   TVar Word64 ->
@@ -1313,10 +1375,11 @@ normalizeCodes = id
 #endif
 
 cacheAdd0 ::
+  (RuntimeProfiler p) =>
   S.Set Reference ->
   [(Reference, Code Reference)] ->
   [(Reference, Set Reference)] ->
-  CCache ->
+  CCache p ->
   IO ()
 cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
@@ -1377,7 +1440,12 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
   preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
-preEvalTopLevelConstants :: (EnumMap Word64 (GCombs Val CombIx)) -> (EnumMap Word64 (GCombs Val CombIx)) -> CCache -> IO ()
+preEvalTopLevelConstants ::
+  (RuntimeProfiler p) =>
+  (EnumMap Word64 (GCombs Val CombIx)) ->
+  (EnumMap Word64 (GCombs Val CombIx)) ->
+  CCache p ->
+  IO ()
 preEvalTopLevelConstants cacheableCombs newCombs cc = do
   activeThreads <- Just <$> UnliftIO.newIORef mempty
   evaluatedCacheableCombsVar <- newTVarIO mempty
@@ -1406,8 +1474,8 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
 -- exceptions for top-level constant dependencies of docs and such, in
 -- case the docs don't actually evaluate them.
 isSandboxingException :: RuntimeExn -> Bool
-isSandboxingException (PE _ (P.toPlainUnbroken -> msg)) =
-  List.isPrefixOf sdbx1 msg || List.isPrefixOf sdbx2 msg
+isSandboxingException (PE _ _ (P.toPlain 0 -> msg)) =
+  Text.isPrefixOf sdbx1 msg || Text.isPrefixOf sdbx2 msg
   where
     sdbx1 = "attempted to use sandboxed operation"
     sdbx2 = "Attempted to use disallowed builtin in sandboxed"
@@ -1434,8 +1502,9 @@ expandSandbox sand0 groups = fixed mempty
         extra' = M.fromList new
 
 cacheAdd ::
+  (RuntimeProfiler p) =>
   [(Reference, Code Reference)] ->
-  CCache ->
+  CCache p ->
   IO [Reference]
 cacheAdd l cc = do
   rtm <- readTVarIO (refTm cc)
@@ -1481,13 +1550,13 @@ canonicalizeReferenced ::
 canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 {-# INLINE canonicalizeReferenced #-}
 
-reflectValue :: CCache -> Val -> IO (Referenced ANF.Value)
+reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do
   tyr <- readTVarIO (tagRefs env)
   tmr <- readTVarIO (combRefs env)
   reflectValue0 tyr tmr val
     `catch` \(ReflectExn problem) ->
-      die $ err problem rendered
+      die [] $ err problem rendered
   where
     err s v =
       "reflectValue: cannot prepare value for serialization: "
@@ -1573,6 +1642,9 @@ reflectValue0 rty rtm = goV0
     goV0 :: Val -> IO (Referenced ANF.Value)
     goV0 v = finish <$> runStateT (goV v) emptyRS
 
+    goVs :: Seg -> Reflect [ANF.Value RefNum]
+    goVs sg = traverseAccumSegToList goV sg
+
     goV :: Val -> Reflect (ANF.Value RefNum)
     goV = \case
       -- For back-compatibility we reflect all Unboxed values into boxed literals, we could change this in the future,
@@ -1586,13 +1658,25 @@ reflectValue0 rty rtm = goV0
       CharVal c -> pure . ANF.BLit $ ANF.Char c
       Val _ clos ->
         case clos of
-          PApV cix _rComb args ->
-            ANF.Partial <$> goIx cix <*> traverse goV args
-          DataC _ t segs -> do
+          PAp cix _rComb args ->
+            ANF.Partial <$> goIx cix <*> goVs args
+          Enum _ t -> do
             r <- resolveTy rty $ TT.typeTag t
-            ANF.Data r (maskTags t) <$> traverse goV segs
-          CapV k _ segs ->
-            ANF.Cont <$> traverse goV segs <*> goK k
+            pure $ ANF.Data r (maskTags t) []
+          Data1 _ t u -> do
+            r <- resolveTy rty $ TT.typeTag t
+            u <- goV u
+            pure $ ANF.Data r (maskTags t) [u]
+          Data2 _ t u v -> do
+            r <- resolveTy rty $ TT.typeTag t
+            u <- goV u
+            v <- goV v
+            pure $ ANF.Data r (maskTags t) [u, v]
+          DataG _ t seg -> do
+            r <- resolveTy rty $ TT.typeTag t
+            ANF.Data r (maskTags t) <$> goVs seg
+          Captured k _ segs ->
+            ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
@@ -1642,9 +1726,25 @@ data ReflectExn = ReflectExn String deriving (Show)
 
 instance Exception ReflectExn
 
+ixArr :: String -> Array a -> RefNum -> IO a
+ixArr pfx arr (RefNum i)
+  | 0 <= i, i < sizeofArray arr = indexArrayM arr i
+  | otherwise = die [] . (pfx ++) $ " index out of bounds: " ++ show i
+{-# INLINE ixArr #-}
+
 reifyValue ::
-  CCache -> Referenced ANF.Value -> IO (Either [Reference] Val)
+  CCache p -> Referenced ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do
+  (tyLinks, tmLinks) <- case val of
+    Plain v -> pure $ collectValueLinks v
+    WithRefs tys tms v -> do
+      let tya = arrayFromList tys
+          tma = arrayFromList tms
+          (tyns, tmns) = collectValueLinks v
+          travSet f = fmap S.fromList . traverse f . S.toList
+      (,)
+        <$> travSet (ixArr "reifyValue: type" tya) tyns
+        <*> travSet (ixArr "reifyValue: term" tma) tmns
   erc <-
     atomically $ do
       combs <- readTVar (combs cc)
@@ -1655,11 +1755,6 @@ reifyValue cc val = do
           pure . Right $ (combs, newTy, rtm)
         l -> pure (Left l)
   traverse (\rfs -> reifyValue1 rfs val) erc
-  where
-    f False r = (mempty, S.singleton r)
-    f True r = (S.singleton r, mempty)
-
-    (tyLinks, tmLinks) = valueLinks f (dereference val)
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
@@ -1693,11 +1788,11 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
     ixTy (RefNum i)
       | 0 <= i, i < sizeofArray tya = pure $ indexArray tya i
-      | otherwise = die . err $ "type ref index out of bounds: " ++ show i
+      | otherwise = die [] . err $ "type ref index out of bounds: " ++ show i
 
     ixTm (RefNum i)
       | 0 <= i, i < sizeofArray tma = pure $ indexArray tma i
-      | otherwise = die . err $ "term ref index out of bounds: " ++ show i
+      | otherwise = die [] . err $ "term ref index out of bounds: " ++ show i
 
     numToRef :: Bool -> RefNum -> IO Reference
     numToRef True = ixTy
@@ -1705,11 +1800,11 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
     refTy r = case HM.lookup r rty of
       Just w -> pure w
-      _ -> die . err $ "unknown type reference: " ++ show r
+      _ -> die [] . err $ "unknown type reference: " ++ show r
 
     refTm r = case HM.lookup r rtm of
       Just w -> pure w
-      _ -> die . err $ "unknown term reference: " ++ show r
+      _ -> die [] . err $ "unknown term reference: " ++ show r
 
     goIx :: ANF.GroupRef RefNum -> IO (CombIx, MComb)
     goIx (ANF.GR rn i) = do
@@ -1718,25 +1813,35 @@ reifyValue0Canon combs tys tms rty rtm = goV
       let cix = (CIx rf n i)
       pure (cix, rCombSection combs cix)
 
+    goVs :: [ANF.Value RefNum] -> IO Seg
+    goVs vs = traverseListToSeg goV vs
+
+    goVArr :: Array (ANF.Value RefNum) -> IO (Array Val)
+    goVArr vs = traverseArrayIO goV vs
+
+    goVSeq :: Seq (ANF.Value RefNum) -> IO (Seq Val)
+    goVSeq vs = traverse goV vs
+
     goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
+        (cix, RComb (Comb rcomb)) ->
+          boxedVal . PAp cix rcomb <$> goVs vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
-          | otherwise -> die . err $ msg
+          | otherwise -> die [] . err $ msg
           where
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data rn t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
-      boxedVal . formDataReplaced rf t <$> traverse goV vs
+      boxedVal . formDataReplaced rf t <$> goVs vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- traverse goV vs
+      vs' <- goVs vs
       pure . boxedVal $ cv k' vs'
       where
-        cv k s = CapV k a s
+        cv k s = Captured k a s
           where
             ksz = frameDataSize k
             a = fromIntegral $ length s - ksz
@@ -1762,13 +1867,13 @@ reifyValue0Canon combs tys tms rty rtm = goV
             sect
             <$> goK k
         (CIx r _ _, _) ->
-          die . err $
+          die [] . err $
             "tried to reify a continuation with a cached value resumption"
               ++ show r
 
     goL :: ANF.BLit RefNum -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
-    goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
+    goL (ANF.List l) = encodeVal <$> goVSeq l
     goL (ANF.TmLink r) = encodeVal <$> traverseRefs numToRef r
     goL (ANF.TyLink r) = encodeVal <$> ixTy r
     goL (ANF.Bytes b) = pure $ encodeVal b
@@ -1781,7 +1886,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+    goL (ANF.Arr a) = encodeVal <$> goVArr a
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
@@ -1795,10 +1900,10 @@ reifyValue0 (combs, rty, rtm) = goV
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
       | Just w <- M.lookup r rty = pure w
-      | otherwise = die . err $ "unknown type reference: " ++ show r
+      | otherwise = die [] . err $ "unknown type reference: " ++ show r
     refTm r
       | Just w <- M.lookup r rtm = pure w
-      | otherwise = die . err $ "unknown term reference: " ++ show r
+      | otherwise = die [] . err $ "unknown term reference: " ++ show r
     goIx :: ANF.GroupRef Reference -> IO (CombIx, MComb)
     goIx (ANF.GR r0 i) =
       refTm r <&> \n ->
@@ -1807,24 +1912,31 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         r = M.findWithDefault r0 r0 functionReplacements
 
+    goVs :: [ANF.Value Reference] -> IO Seg
+    goVs vs = traverseListToSeg goV vs
+
+    goVArr :: Array (ANF.Value Reference) -> IO (Array Val)
+    goVArr vs = traverseArrayIO goV vs
+
     goV :: ANF.Value Reference -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
+        (cix, RComb (Comb rcomb)) ->
+          boxedVal . PAp cix rcomb <$> goVs vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
-          | otherwise -> die . err $ msg
+          | otherwise -> die [] . err $ msg
           where
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . formDataReplaced r t <$> traverse goV vs
+      boxedVal . formDataReplaced r t <$> goVs vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- traverse goV vs
+      vs' <- goVs vs
       pure . boxedVal $ cv k' vs'
       where
-        cv k s = CapV k a s
+        cv k s = Captured k a s
           where
             ksz = frameDataSize k
             a = fromIntegral $ length s - ksz
@@ -1850,7 +1962,7 @@ reifyValue0 (combs, rty, rtm) = goV
             sect
             <$> goK k
         (CIx r _ _, _) ->
-          die . err $
+          die [] . err $
             "tried to reify a continuation with a cached value resumption"
               ++ show r
 
@@ -1869,7 +1981,7 @@ reifyValue0 (combs, rty, rtm) = goV
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = encodeVal <$> traverse goV a
+    goL (ANF.Arr a) = encodeVal <$> goVArr a
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y

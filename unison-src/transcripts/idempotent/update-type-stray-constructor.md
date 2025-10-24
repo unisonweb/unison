@@ -59,5 +59,5 @@ Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`)
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try the update again.
+  each unnamed constructor, and then try updating again.
 ```

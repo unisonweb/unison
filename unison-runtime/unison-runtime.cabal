@@ -40,8 +40,11 @@ flag stackchecks
 library
   exposed-modules:
       Unison.Codebase.Execute
+      Unison.Runtime
       Unison.Runtime.ANF
+      Unison.Runtime.ANF.MurmurHash.Untyped
       Unison.Runtime.ANF.Optimize
+      Unison.Runtime.ANF.POp
       Unison.Runtime.ANF.Rehash
       Unison.Runtime.ANF.Serialize
       Unison.Runtime.ANF.Serialize.CodeV4
@@ -59,6 +62,7 @@ library
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
       Unison.Runtime.Interface
+      Unison.Runtime.InternalError
       Unison.Runtime.IOSource
       Unison.Runtime.Machine
       Unison.Runtime.Machine.Primops
@@ -66,14 +70,18 @@ library
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
       Unison.Runtime.Pattern
+      Unison.Runtime.Profiling
       Unison.Runtime.Referenced
       Unison.Runtime.Serialize
+      Unison.Runtime.Serialize.Get
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
   hs-source-dirs:
       src
+  c-sources:
+      cbits/i2d.c
   default-extensions:
       ApplicativeDo
       BangPatterns
@@ -114,12 +122,12 @@ library
     , binary
     , bytes
     , bytestring
-    , cereal
     , clock
     , containers >=0.6.3
     , crypton-x509
     , crypton-x509-store
     , crypton-x509-system
+    , crypton-x509-validation
     , cryptonite
     , data-default
     , data-memocombinators
@@ -226,8 +234,7 @@ test-suite runtime-tests
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
-    , bytes
-    , cereal
+    , bytestring
     , code-page
     , containers
     , cryptonite

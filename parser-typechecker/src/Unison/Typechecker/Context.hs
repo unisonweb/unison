@@ -651,21 +651,21 @@ debugShow :: (Show a) => a -> Bool
 debugShow e | debugEnabled = traceShow e False
 debugShow _ = False
 
-debugTrace :: String -> Bool
-debugTrace e | debugEnabled = trace e False
+debugTrace :: Text -> Bool
+debugTrace e | debugEnabled = trace (Text.unpack e) False
 debugTrace _ = False
 
-showType :: (Var v) => Type.Type v a -> String
-showType ty = TP.prettyStr (Just 120) PPE.empty ty
+showType :: (Var v) => Type.Type v a -> Text
+showType ty = TP.prettyStr 120 PPE.empty ty
 
 debugType :: (Var v) => String -> Type.Type v a -> Bool
 debugType tag ty
-  | debugEnabled = debugTrace $ "(" <> show tag <> "," <> showType ty <> ")"
+  | debugEnabled = debugTrace $ "(" <> tShow tag <> "," <> showType ty <> ")"
   | otherwise = False
 
-debugTypes :: (Var v) => String -> Type.Type v a -> Type.Type v a -> Bool
+debugTypes :: (Var v) => Text -> Type.Type v a -> Type.Type v a -> Bool
 debugTypes tag t1 t2
-  | debugEnabled = debugTrace $ "(" <> show tag <> ",\n  " <> showType t1 <> ",\n  " <> showType t2 <> ")"
+  | debugEnabled = debugTrace $ "(" <> tShow tag <> ",\n  " <> showType t1 <> ",\n  " <> showType t2 <> ")"
   | otherwise = False
 
 debugPatternsEnabled :: Bool
@@ -3589,11 +3589,11 @@ instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     e -> show e
-  show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (Type.getPolytype t)
+  show (Solved _ v t) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ Text.unpack (TP.prettyStr 0 PPE.empty (Type.getPolytype t))
   show (Ann v _loc t) =
     Text.unpack (Var.name v)
       ++ " : "
-      ++ TP.prettyStr Nothing PPE.empty t
+      ++ Text.unpack (TP.prettyStr 0 PPE.empty t)
   show (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
@@ -3602,8 +3602,8 @@ instance (Ord loc, Var v) => Show (Context v loc) where
       showElem _ctx (Var v) = case v of
         TypeVar.Universal x -> "@" <> show x
         e -> show e
-      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
-      showElem ctx (Ann v _loc t) = Text.unpack (Var.name v) ++ " : " ++ TP.prettyStr Nothing PPE.empty (apply ctx t)
+      showElem ctx (Solved _ v (Type.Monotype t)) = "'" ++ Text.unpack (Var.name v) ++ " = " ++ Text.unpack (TP.prettyStr 0 PPE.empty (apply ctx t))
+      showElem ctx (Ann v _loc t) = Text.unpack (Var.name v) ++ " : " ++ Text.unpack (TP.prettyStr 0 PPE.empty (apply ctx t))
       showElem _ (Marker v) = "|" ++ Text.unpack (Var.name v) ++ "|"
 
 instance (Monad f) => Monad (MT v loc f) where

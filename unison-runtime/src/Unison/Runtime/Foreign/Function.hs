@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -38,7 +39,7 @@ import Data.Avro.Schema.ReadSchema qualified as ReadSchema
 import Data.Avro.Schema.Schema qualified as AvroSchema
 import Data.Binary.Get qualified as Get
 import Data.Bitraversable (bimapM)
-import Data.Bits (shiftL, shiftR, (.|.))
+import Data.Bits (popCount, shiftL, shiftR, xor, (.&.), (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteString (hGet, hGetSome, hPut)
 import Data.ByteString.Lazy qualified as L
@@ -66,9 +67,14 @@ import Data.Vector qualified as Vector
 import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
+import Data.X509.Validation as X
+import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Conc qualified as STM
+import GHC.Exts (Int (..), indexWord8ArrayAsWord16#, indexWord8ArrayAsWord32#, indexWord8ArrayAsWord64#, readWord8ArrayAsWord16#, readWord8ArrayAsWord32#, readWord8ArrayAsWord64#, writeWord8ArrayAsWord16#, writeWord8ArrayAsWord32#, writeWord8ArrayAsWord64#)
 import GHC.Float (double2Float, float2Double)
 import GHC.IO (IO (IO))
+import GHC.Ptr (Ptr (..))
+import GHC.Word (Word16 (W16#), Word32 (W32#), Word64 (W64#))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
     bindSock,
@@ -103,6 +109,7 @@ import Network.UDP as UDP
     stop,
   )
 import Numeric (showHex)
+import Numeric.Natural (Natural)
 import System.Clock (Clock (..), getTime, nsec, sec)
 import System.Directory as SYS
   ( createDirectoryIfMissing,
@@ -163,12 +170,13 @@ import Unison.Prelude hiding (Text, some)
 import Unison.Reference
 import Unison.Referent (Referent, pattern Ref)
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.ANF.MurmurHash.Untyped as ANFH
 import Unison.Runtime.ANF.Rehash (checkGroupHashes)
 import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
-import Unison.Runtime.Exception
+import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Function.Type
@@ -199,6 +207,11 @@ import Unison.Util.Text (Text, fromLazyText, pack, toLazyText, unpack)
 import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
+
+withMutableByteArrayContents :: (PA.PrimBase m) => PA.MutableByteArray (PA.PrimState m) -> (Ptr Word8 -> m a) -> m a
+{-# INLINE withMutableByteArrayContents #-}
+withMutableByteArrayContents mba f =
+  PA.keepAlive mba (f . PA.mutableByteArrayContents)
 
 -- foreignCall is explicitly NOINLINE'd because it's a _huge_ chunk of code and negatively affects code caching.
 -- Because we're not inlining it, we need a wrapper using an explicitly unboxed Stack so we don't block the
@@ -275,14 +288,22 @@ foreignCallHelper = \case
   IO_getSomeBytes_impl_v1 -> mkForeignIOF $
     \(h, n) -> Bytes.fromArray <$> hGetSome h n
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
-  -- TODO: Use `withMutableByteArrayContents` here once we have Data.Primitive v9.
-  IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr) -> hGetBuf h (PA.mutableByteArrayContents arr) (PA.sizeofMutableByteArray arr)
+  -- TODO: Use `PA.withMutableByteArrayContents` here once we have Data.Primitive v9.
+  IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
+    r <- checkBoundsPrim "IO.fillBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    case r of
+      Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
   IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
     r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> hPutBuf h (PA.mutableByteArrayContents arr) (fromIntegral n)
-  IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr) -> hGetBufSome h (PA.mutableByteArrayContents arr) (PA.sizeofMutableByteArray arr)
+      Right _ -> withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
+  IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
+    r <- checkBoundsPrim "IO.getBufSome.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    case r of
+      Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
+      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
   IO_systemTime_impl_v3 -> mkForeignIOF $
     \() -> getPOSIXTime
   IO_systemTimeMicroseconds_v1 -> mkForeign $
@@ -373,13 +394,13 @@ foreignCallHelper = \case
       r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-        Right _ -> SYS.sendBuf sk (PA.mutableByteArrayContents buf) (fromIntegral n)
+        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
   IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
       r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-        Right _ -> SYS.recvBuf sk (PA.mutableByteArrayContents buf) (fromIntegral n)
+        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
   IO_kill_impl_v3 -> mkForeignIOF killThread
   IO_delay_impl_v3 -> mkForeignIOF customDelay
   IO_stdHandle -> mkForeign $
@@ -461,11 +482,28 @@ foreignCallHelper = \case
         updateClient certs client = client {TLS.clientShared = ((clientShared client) {TLS.sharedCAStore = certs})}
      in mkForeign $
           \(certs :: [X.SignedCertificate], params :: ClientParams) -> pure $ updateClient (X.makeCertificateStore certs) params
+  Tls_ClientConfig_certificates_get ->
+    mkForeign $
+      \(client :: TLS.ClientParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ TLS.clientShared client
+  Tls_ClientConfig_validation_disableHostNameValidation ->
+    let customChecks = X.defaultChecks {checkFQHN = False}
+        customHooks = def {TLS.onServerCertificate = X.validate X.HashSHA256 defaultHooks customChecks}
+     in mkForeign $
+          \(params :: TLS.ClientParams) ->
+            pure $ params {TLS.clientHooks = customHooks}
+  Tls_ClientConfig_validation_disableCertificateValidation ->
+    let customHooks = def {TLS.onServerCertificate = \_ _ _ _ -> pure []}
+     in mkForeign $
+          \(params :: TLS.ClientParams) ->
+            pure $ params {TLS.clientHooks = customHooks}
   Tls_ServerConfig_certificates_set ->
     let updateServer :: X.CertificateStore -> TLS.ServerParams -> TLS.ServerParams
         updateServer certs client = client {TLS.serverShared = ((serverShared client) {TLS.sharedCAStore = certs})}
      in mkForeign $
           \(certs :: [X.SignedCertificate], params :: ServerParams) -> pure $ updateServer (X.makeCertificateStore certs) params
+  Tls_ServerConfig_certificates_get ->
+    mkForeign $
+      \(params :: ServerParams) -> pure $ X.listCertificates $ TLS.sharedCAStore $ serverShared params
   TVar_new -> mkForeign $
     \(c :: Val) -> unsafeSTMToIO $ STM.newTVar c
   TVar_read -> mkForeign $
@@ -546,11 +584,10 @@ foreignCallHelper = \case
   Code_serialize_versioned -> mkForeign $
     \(ver :: Word64, co :: Referenced ANF.Code) ->
       ANF.serializeCodeWithVersion ver False co >>= \case
-        Left err -> die err
+        Left err -> die [] err
         Right bs -> pure $ Bytes.fromLazyByteString bs
   Code_deserialize ->
-    mkForeign $
-      pure . ANF.deserializeCode . Bytes.toArray
+    mkForeign $ ANF.deserializeCode . Bytes.toArray
   Code_display -> mkForeign $
     \(nm, (dereference -> ANF.CodeRep sg _)) ->
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
@@ -564,8 +601,7 @@ foreignCallHelper = \case
     mkForeign $
       fmap Bytes.fromLazyByteString . uncurry ANF.serializeValueWithVersion
   Value_deserialize ->
-    mkForeign $
-      pure . ANF.deserializeValue . Bytes.toLazyByteString
+    mkForeign $ ANF.deserializeValue . Bytes.toByteString
   Crypto_HashAlgorithm_Sha3_512 -> mkHashAlgorithm "Sha3_512" Hash.SHA3_512
   Crypto_HashAlgorithm_Sha3_256 -> mkHashAlgorithm "Sha3_256" Hash.SHA3_256
   Crypto_HashAlgorithm_Sha2_512 -> mkHashAlgorithm "Sha2_512" Hash.SHA512
@@ -619,14 +655,19 @@ foreignCallHelper = \case
   Universal_murmurHash ->
     mkForeign $
       pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
+  Universal_murmurHashUntyped ->
+    mkForeign $ pure . asWord64 . ANFH.hash64ValueUntyped
   IO_randomBytes -> mkForeign $
     \n -> Bytes.fromArray <$> getRandomBytes @IO @ByteString n
   Bytes_zlib_compress -> mkForeign $ pure . Bytes.zlibCompress
   Bytes_gzip_compress -> mkForeign $ pure . Bytes.gzipCompress
+  Bytes_zstd_compress -> mkForeign $ \(level, bs) -> pure $ Bytes.zstdCompress level bs
   Bytes_zlib_decompress -> mkForeign $ \bs ->
     catchAll (pure (Bytes.zlibDecompress bs))
   Bytes_gzip_decompress -> mkForeign $ \bs ->
     catchAll (pure (Bytes.gzipDecompress bs))
+  Bytes_zstd_decompress -> mkForeign $ \bs ->
+    catchAll (pure (Bytes.zstdDecompress bs))
   Bytes_toBase16 -> mkForeign $ pure . Bytes.toBase16
   Bytes_toBase32 -> mkForeign $ pure . Bytes.toBase32
   Bytes_toBase64 -> mkForeign $ pure . Bytes.toBase64
@@ -735,19 +776,34 @@ foreignCallHelper = \case
       checkedRead8 "MutableByteArray.read8"
   MutableByteArray_read16be ->
     mkForeignExn $
-      checkedRead16 "MutableByteArray.read16be"
+      checkedRead16 BigEndian "MutableByteArray.read16be"
   MutableByteArray_read24be ->
     mkForeignExn $
-      checkedRead24 "MutableByteArray.read24be"
+      checkedRead24 BigEndian "MutableByteArray.read24be"
   MutableByteArray_read32be ->
     mkForeignExn $
-      checkedRead32 "MutableByteArray.read32be"
+      checkedRead32 BigEndian "MutableByteArray.read32be"
   MutableByteArray_read40be ->
     mkForeignExn $
-      checkedRead40 "MutableByteArray.read40be"
+      checkedRead40 BigEndian "MutableByteArray.read40be"
   MutableByteArray_read64be ->
     mkForeignExn $
-      checkedRead64 "MutableByteArray.read64be"
+      checkedRead64 BigEndian "MutableByteArray.read64be"
+  MutableByteArray_read16le ->
+    mkForeignExn $
+      checkedRead16 LittleEndian "MutableByteArray.read16le"
+  MutableByteArray_read24le ->
+    mkForeignExn $
+      checkedRead24 LittleEndian "MutableByteArray.read24le"
+  MutableByteArray_read32le ->
+    mkForeignExn $
+      checkedRead32 LittleEndian "MutableByteArray.read32le"
+  MutableByteArray_read40le ->
+    mkForeignExn $
+      checkedRead40 LittleEndian "MutableByteArray.read40le"
+  MutableByteArray_read64le ->
+    mkForeignExn $
+      checkedRead64 LittleEndian "MutableByteArray.read64le"
   MutableArray_write ->
     mkForeignExn $
       checkedWrite "MutableArray.write"
@@ -756,13 +812,22 @@ foreignCallHelper = \case
       checkedWrite8 "MutableByteArray.write8"
   MutableByteArray_write16be ->
     mkForeignExn $
-      checkedWrite16 "MutableByteArray.write16be"
+      checkedWrite16 BigEndian "MutableByteArray.write16be"
   MutableByteArray_write32be ->
     mkForeignExn $
-      checkedWrite32 "MutableByteArray.write32be"
+      checkedWrite32 BigEndian "MutableByteArray.write32be"
   MutableByteArray_write64be ->
     mkForeignExn $
-      checkedWrite64 "MutableByteArray.write64be"
+      checkedWrite64 BigEndian "MutableByteArray.write64be"
+  MutableByteArray_write16le ->
+    mkForeignExn $
+      checkedWrite16 LittleEndian "MutableByteArray.write16le"
+  MutableByteArray_write32le ->
+    mkForeignExn $
+      checkedWrite32 LittleEndian "MutableByteArray.write32le"
+  MutableByteArray_write64le ->
+    mkForeignExn $
+      checkedWrite64 LittleEndian "MutableByteArray.write64le"
   ImmutableArray_read ->
     mkForeignExn $
       checkedIndex "ImmutableArray.read"
@@ -771,19 +836,34 @@ foreignCallHelper = \case
       checkedIndex8 "ImmutableByteArray.read8"
   ImmutableByteArray_read16be ->
     mkForeignExn $
-      checkedIndex16 "ImmutableByteArray.read16be"
+      checkedIndex16 BigEndian "ImmutableByteArray.read16be"
   ImmutableByteArray_read24be ->
     mkForeignExn $
-      checkedIndex24 "ImmutableByteArray.read24be"
+      checkedIndex24 BigEndian "ImmutableByteArray.read24be"
   ImmutableByteArray_read32be ->
     mkForeignExn $
-      checkedIndex32 "ImmutableByteArray.read32be"
+      checkedIndex32 BigEndian "ImmutableByteArray.read32be"
   ImmutableByteArray_read40be ->
     mkForeignExn $
-      checkedIndex40 "ImmutableByteArray.read40be"
+      checkedIndex40 BigEndian "ImmutableByteArray.read40be"
   ImmutableByteArray_read64be ->
     mkForeignExn $
-      checkedIndex64 "ImmutableByteArray.read64be"
+      checkedIndex64 BigEndian "ImmutableByteArray.read64be"
+  ImmutableByteArray_read16le ->
+    mkForeignExn $
+      checkedIndex16 LittleEndian "ImmutableByteArray.read16le"
+  ImmutableByteArray_read24le ->
+    mkForeignExn $
+      checkedIndex24 LittleEndian "ImmutableByteArray.read24le"
+  ImmutableByteArray_read32le ->
+    mkForeignExn $
+      checkedIndex32 LittleEndian "ImmutableByteArray.read32le"
+  ImmutableByteArray_read40le ->
+    mkForeignExn $
+      checkedIndex40 LittleEndian "ImmutableByteArray.read40le"
+  ImmutableByteArray_read64le ->
+    mkForeignExn $
+      checkedIndex64 LittleEndian "ImmutableByteArray.read64le"
   MutableByteArray_freeze_force ->
     mkForeign PA.unsafeFreezeByteArray
   MutableArray_freeze_force ->
@@ -889,12 +969,12 @@ foreignCallHelper = \case
   Text_patterns_charIn -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.charIn: non-character closure"
+      _ -> die [] "Text.patterns.charIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char $ TPat.CharSet cs
   Text_patterns_notCharIn -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.notCharIn: non-character closure"
+      _ -> die [] "Text.patterns.notCharIn: non-character closure"
     evaluate . TPat.cpattern . TPat.Char . TPat.Not $ TPat.CharSet cs
   Pattern_many -> mkForeign $
     \(TPat.CP p _) -> evaluate . TPat.cpattern $ TPat.Many False p
@@ -928,7 +1008,7 @@ foreignCallHelper = \case
   Char_Class_anyOf -> mkForeign $ \ccs -> do
     cs <- for ccs $ \case
       CharVal c -> pure c
-      _ -> die "Text.patterns.charIn: non-character closure"
+      _ -> die [] "Text.patterns.charIn: non-character closure"
     evaluate $ TPat.CharSet cs
   Char_Class_alphanumeric -> mkForeign $ \() -> pure (TPat.CharClass TPat.AlphaNum)
   Char_Class_upper -> mkForeign $ \() -> pure (TPat.CharClass TPat.Upper)
@@ -987,19 +1067,19 @@ foreignCallHelper = \case
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.union l r
       pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
-    _ -> die "Set.union: bad closure"
+    _ -> die [] "Set.union: bad closure"
   Set_intersect -> mkForeign $ \case
     (Data1 _ _ vl, Data1 _ _ vr) -> do
       (l :: Map Val Val) <- decodeVal vl
       (r :: Map Val Val) <- decodeVal vr
       m <- evaluate $ Map.intersection l r
       pure . Data1 Ty.setRef TT.setWrapTag $ encodeVal m
-    _ -> die "Set.insersect: bad closure"
+    _ -> die [] "Set.insersect: bad closure"
   Set_toList -> mkForeign $ \case
     (Data1 _ _ vs) -> do
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
-    _ -> die "Set.toList: bad closure"
+    _ -> die [] "Set.toList: bad closure"
   Json_toText -> mkForeign $ \(clo :: Closure) -> do
     evaluate =<< emitJson clo
   Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
@@ -1013,6 +1093,68 @@ foreignCallHelper = \case
     pure . bimap encodeJsonParseError (second encodeVal) $ parseJson txt
   Avro_decodeBinary -> mkForeign $ \(env :: Closure, readSchema :: Closure, bytes :: Bytes.Bytes) -> do
     avroDecodeBinary env readSchema bytes
+  Integer_fromText -> mkForeign $ \(txt :: Text) -> pure . encodeVal $ case (readMaybe (unpack txt) :: Maybe Integer) of
+    Just n -> someVal (encodeVal n)
+    Nothing -> noneVal
+  Integer_unsafeFromText -> mkForeign $ \(txt :: Text) -> case readMaybe (unpack txt) of
+    Just n -> pure $ encodeVal (n :: Integer)
+    Nothing -> die [] "Integer.unsafeFromText: invalid integer"
+  Integer_toText -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (show n)
+  Integer_fromInt -> mkForeign $ \(n :: Int) -> pure $ encodeVal (fromIntegral n :: Integer)
+  Integer_toInt -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Int)
+  Integer_add -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l + r)
+  Integer_sub -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l - r)
+  Integer_mul -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l * r)
+  Integer_div -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l `div` r)
+  Integer_mod -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l `mod` r)
+  Integer_pow -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l ^ r)
+  Integer_shl -> mkForeign $ \(l :: Integer, r) -> pure $ encodeVal (l `shiftL` r)
+  Integer_shr -> mkForeign $ \(l :: Integer, r) -> pure $ encodeVal (l `shiftR` r)
+  Integer_and -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l .&. r)
+  Integer_or -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l .|. r)
+  Integer_xor -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l `xor` r)
+  Integer_popCount -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (popCount n)
+  Integer_truncate0 -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral (max 0 n) :: Natural)
+  Integer_isEven -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (even n)
+  Integer_isOdd -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (odd n)
+  Integer_eq -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l == r)
+  Integer_lt -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l < r)
+  Integer_le -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l <= r)
+  Integer_gt -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l > r)
+  Integer_ge -> mkForeign $ \(l :: Integer, r :: Integer) -> pure $ encodeVal (l >= r)
+  Integer_neg -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (-n)
+  Integer_abs -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (abs n)
+  Integer_signum -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral (signum n) :: Int)
+  Integer_toFloat -> mkForeign $ \(n :: Integer) -> pure $ encodeVal (fromIntegral n :: Double)
+  Natural_unsafeFromText -> mkForeign $ \(txt :: Text) -> case readMaybe (unpack txt) of
+    Just n -> pure $ encodeVal (n :: Natural)
+    Nothing -> die [] "Natural.unsafeFromText: invalid natural"
+  Natural_fromText -> mkForeign $ \(txt :: Text) -> pure . encodeVal $ case (readMaybe (unpack txt) :: Maybe Natural) of
+    Just n -> someVal (encodeVal n)
+    Nothing -> noneVal
+  Natural_toText -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (show n)
+  Natural_fromNat -> mkForeign $ \(n :: Word64) -> pure $ encodeVal (fromIntegral n :: Natural)
+  Natural_toNat -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (fromIntegral n :: Word64)
+  Natural_toFloat -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (fromIntegral n :: Double)
+  Natural_add -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l + r)
+  Natural_sub -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l - r)
+  Natural_mul -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l * r)
+  Natural_div -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l `div` r)
+  Natural_mod -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l `mod` r)
+  Natural_pow -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l ^ r)
+  Natural_shl -> mkForeign $ \(l :: Natural, r) -> pure $ encodeVal (l `shiftL` r)
+  Natural_shr -> mkForeign $ \(l :: Natural, r) -> pure $ encodeVal (l `shiftR` r)
+  Natural_and -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l .&. r)
+  Natural_or -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l .|. r)
+  Natural_xor -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l `xor` r)
+  Natural_popCount -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (popCount n)
+  Natural_isEven -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (even n)
+  Natural_isOdd -> mkForeign $ \(n :: Natural) -> pure $ encodeVal (odd n)
+  Natural_eq -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l == r)
+  Natural_lt -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l < r)
+  Natural_le -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l <= r)
+  Natural_gt -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l > r)
+  Natural_ge -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l >= r)
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1281,105 +1423,107 @@ checkedIndex name (arr, w) =
 checkedRead8 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
 checkedRead8 name (arr, i) =
   checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $
-    (Right . fromIntegral) <$> PA.readByteArray @Word8 arr j
+    Right . fromIntegral <$> PA.readByteArray @Word8 arr j
   where
     j = fromIntegral i
 
-checkedRead16 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead16 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $
-    mk16
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-  where
-    j = fromIntegral i
+uncheckedRead16 ::
+  ByteOrder -> -- desired byte order
+  PA.MutableByteArray RW ->
+  Int -> -- byte offset
+  IO Word16
+uncheckedRead16 byteOrder arr off = do
+  let fixEndianness :: Word16 -> Word16
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap16 w
+  w <- PA.primitive $ \s0 ->
+    case arr of
+      PA.MutableByteArray mba# ->
+        case off of
+          I# off# ->
+            case readWord8ArrayAsWord16# mba# off# s0 of
+              (# s1, w16# #) -> (# s1, W16# w16# #)
+  pure (fixEndianness w)
 
-checkedRead24 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead24 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 3 $
-    mk24
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-  where
-    j = fromIntegral i
+checkedRead16 ::
+  ByteOrder -> -- desired byte order
+  Text ->
+  (PA.MutableByteArray RW, Word64) -> -- (array, byte offset)
+  IO (Either Failure Word64)
+checkedRead16 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedRead16 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
-checkedRead32 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead32 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $
-    mk32
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-      <*> PA.readByteArray @Word8 arr (j + 3)
-  where
-    j = fromIntegral i
+checkedRead24 ::
+  ByteOrder ->
+  Text ->
+  (PA.MutableByteArray RW, Word64) ->
+  IO (Either Failure Word64)
+checkedRead24 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 3 $ do
+    let !off = fromIntegral iW :: Int
+    w16 <- uncheckedRead16 byteOrder arr off
+    w8 <- PA.readByteArray @Word8 arr (off + 2)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w16 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 16) .|. fromIntegral w16
+    pure $ Right result
 
-checkedRead40 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead40 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 6 $
-    mk40
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-      <*> PA.readByteArray @Word8 arr (j + 3)
-      <*> PA.readByteArray @Word8 arr (j + 4)
-  where
-    j = fromIntegral i
+uncheckedRead32 ::
+  ByteOrder -> -- desired byte order
+  PA.MutableByteArray RW ->
+  Int -> -- byte offset
+  IO Word32
+uncheckedRead32 byteOrder arr off = do
+  let fixEndianness :: Word32 -> Word32
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap32 w
+  w <- PA.primitive $ \s0 ->
+    case arr of
+      PA.MutableByteArray mba# ->
+        case off of
+          I# off# ->
+            case readWord8ArrayAsWord32# mba# off# s0 of
+              (# s1, w32# #) -> (# s1, W32# w32# #)
+  pure (fixEndianness w)
 
-checkedRead64 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead64 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $
-    mk64
-      <$> PA.readByteArray @Word8 arr j
-      <*> PA.readByteArray @Word8 arr (j + 1)
-      <*> PA.readByteArray @Word8 arr (j + 2)
-      <*> PA.readByteArray @Word8 arr (j + 3)
-      <*> PA.readByteArray @Word8 arr (j + 4)
-      <*> PA.readByteArray @Word8 arr (j + 5)
-      <*> PA.readByteArray @Word8 arr (j + 6)
-      <*> PA.readByteArray @Word8 arr (j + 7)
-  where
-    j = fromIntegral i
+checkedRead32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead32 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedRead32 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
-mk16 :: Word8 -> Word8 -> Either Failure Word64
-mk16 b0 b1 = Right $ (fromIntegral b0 `shiftL` 8) .|. (fromIntegral b1)
+checkedRead40 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead40 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 5 $ do
+    let !off = fromIntegral iW :: Int
+    w32 <- uncheckedRead32 byteOrder arr off
+    w8 <- PA.readByteArray @Word8 arr (off + 4)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w32 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 32) .|. fromIntegral w32
+    pure $ Right result
 
-mk24 :: Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk24 b0 b1 b2 =
-  Right $
-    (fromIntegral b0 `shiftL` 16)
-      .|. (fromIntegral b1 `shiftL` 8)
-      .|. (fromIntegral b2)
-
-mk32 :: Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk32 b0 b1 b2 b3 =
-  Right $
-    (fromIntegral b0 `shiftL` 24)
-      .|. (fromIntegral b1 `shiftL` 16)
-      .|. (fromIntegral b2 `shiftL` 8)
-      .|. (fromIntegral b3)
-
-mk40 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk40 b0 b1 b2 b3 b4 =
-  Right $
-    (fromIntegral b0 `shiftL` 32)
-      .|. (fromIntegral b1 `shiftL` 24)
-      .|. (fromIntegral b2 `shiftL` 16)
-      .|. (fromIntegral b3 `shiftL` 8)
-      .|. (fromIntegral b4)
-
-mk64 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Either Failure Word64
-mk64 b0 b1 b2 b3 b4 b5 b6 b7 =
-  Right $
-    (fromIntegral b0 `shiftL` 56)
-      .|. (fromIntegral b1 `shiftL` 48)
-      .|. (fromIntegral b2 `shiftL` 40)
-      .|. (fromIntegral b3 `shiftL` 32)
-      .|. (fromIntegral b4 `shiftL` 24)
-      .|. (fromIntegral b5 `shiftL` 16)
-      .|. (fromIntegral b6 `shiftL` 8)
-      .|. (fromIntegral b7)
+checkedRead64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
+checkedRead64 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
+    let !off = fromIntegral i :: Int
+        fixEndianness :: Word64 -> Word64
+        fixEndianness w =
+          if targetByteOrder == byteOrder then w else byteSwap64 w
+    w <- PA.primitive $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case readWord8ArrayAsWord64# mba# off# s0 of
+                (# s1, w64# #) -> (# s1, W64# w64# #)
+    pure $ Right (fromIntegral (fixEndianness w))
 
 checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
 checkedWrite8 name (arr, i, v) =
@@ -1389,40 +1533,59 @@ checkedWrite8 name (arr, i, v) =
   where
     j = fromIntegral i
 
-checkedWrite16 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite16 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 2 $ do
-    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 8 :: Word8)
-    PA.writeByteArray arr (j + 1) (fromIntegral v :: Word8)
+checkedWrite16 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite16 byteOrder name (arr, iW, v0) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+        !vBE =
+          if targetByteOrder == byteOrder
+            then fromIntegral v0 :: Word16
+            else byteSwap16 (fromIntegral v0 :: Word16)
+    PA.primitive_ $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case vBE of
+                W16# w# ->
+                  writeWord8ArrayAsWord16# mba# off# w# s0
     pure (Right ())
-  where
-    j = fromIntegral i
 
-checkedWrite32 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite32 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 4 $ do
-    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 24 :: Word8)
-    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 16 :: Word8)
-    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 8 :: Word8)
-    PA.writeByteArray arr (j + 3) (fromIntegral v :: Word8)
+checkedWrite32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite32 byteOrder name (arr, iW, v0) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+        !vBE =
+          if targetByteOrder == byteOrder
+            then fromIntegral v0 :: Word32
+            else byteSwap32 (fromIntegral v0 :: Word32)
+    PA.primitive_ $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case vBE of
+                W32# w# ->
+                  writeWord8ArrayAsWord32# mba# off# w# s0
     pure (Right ())
-  where
-    j = fromIntegral i
 
-checkedWrite64 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite64 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
-    PA.writeByteArray arr j (fromIntegral $ v `shiftR` 56 :: Word8)
-    PA.writeByteArray arr (j + 1) (fromIntegral $ v `shiftR` 48 :: Word8)
-    PA.writeByteArray arr (j + 2) (fromIntegral $ v `shiftR` 40 :: Word8)
-    PA.writeByteArray arr (j + 3) (fromIntegral $ v `shiftR` 32 :: Word8)
-    PA.writeByteArray arr (j + 4) (fromIntegral $ v `shiftR` 24 :: Word8)
-    PA.writeByteArray arr (j + 5) (fromIntegral $ v `shiftR` 16 :: Word8)
-    PA.writeByteArray arr (j + 6) (fromIntegral $ v `shiftR` 8 :: Word8)
-    PA.writeByteArray arr (j + 7) (fromIntegral v :: Word8)
+checkedWrite64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
+checkedWrite64 byteOrder name (arr, iW, v0) =
+  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 8 $ do
+    let !off = fromIntegral iW :: Int
+        !vBE =
+          if targetByteOrder == byteOrder
+            then fromIntegral v0 :: Word64
+            else byteSwap64 (fromIntegral v0 :: Word64)
+    PA.primitive_ $ \s0 ->
+      case arr of
+        PA.MutableByteArray mba# ->
+          case off of
+            I# off# ->
+              case vBE of
+                W64# w# ->
+                  writeWord8ArrayAsWord64# mba# off# w# s0
     pure (Right ())
-  where
-    j = fromIntegral i
 
 -- index single byte
 checkedIndex8 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
@@ -1431,60 +1594,94 @@ checkedIndex8 name (arr, i) =
     let j = fromIntegral i
      in Right . fromIntegral $ PA.indexByteArray @Word8 arr j
 
+uncheckedIndex16 ::
+  ByteOrder -> -- desired byte order
+  PA.ByteArray ->
+  Int -> -- byte offset
+  IO Word16
+uncheckedIndex16 byteOrder arr off = do
+  let fixEndianness :: Word16 -> Word16
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap16 w
+  let w = case arr of
+        PA.ByteArray ba# ->
+          case off of
+            I# off# ->
+              W16# (indexWord8ArrayAsWord16# ba# off#)
+  pure (fixEndianness w)
+
 -- index 16 big-endian
-checkedIndex16 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex16 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 2 . pure $
-    let j = fromIntegral i
-     in mk16 (PA.indexByteArray arr j) (PA.indexByteArray arr (j + 1))
+checkedIndex16 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex16 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) iW 2 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedIndex16 byteOrder arr off
+    pure $ Right (fromIntegral w)
+
+-- index 24 big-endian
+checkedIndex24 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex24 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 $ do
+    let !off = fromIntegral i :: Int
+    w16 <- uncheckedIndex16 byteOrder arr off
+    let w8 = PA.indexByteArray @Word8 arr (off + 2)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w16 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 16) .|. fromIntegral w16
+    pure $ Right result
+
+uncheckedIndex32 ::
+  ByteOrder -> -- desired byte order
+  PA.ByteArray ->
+  Int -> -- byte offset
+  IO Word32
+uncheckedIndex32 byteOrder arr off = do
+  let fixEndianness :: Word32 -> Word32
+      fixEndianness w =
+        if targetByteOrder == byteOrder then w else byteSwap32 w
+  let w = case arr of
+        PA.ByteArray ba# ->
+          case off of
+            I# off# ->
+              W32# (indexWord8ArrayAsWord32# ba# off#)
+  pure (fixEndianness w)
 
 -- index 32 big-endian
-checkedIndex24 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex24 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 3 . pure $
-    let j = fromIntegral i
-     in mk24
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-
--- index 32 big-endian
-checkedIndex32 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex32 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 4 . pure $
-    let j = fromIntegral i
-     in mk32
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
+checkedIndex32 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex32 byteOrder name (arr, iW) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) iW 4 $ do
+    let !off = fromIntegral iW :: Int
+    w <- uncheckedIndex32 byteOrder arr off
+    pure $ Right (fromIntegral w)
 
 -- index 40 big-endian
-checkedIndex40 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex40 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 . pure $
-    let j = fromIntegral i
-     in mk40
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
-          (PA.indexByteArray arr (j + 4))
+checkedIndex40 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex40 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 5 $ do
+    let !off = fromIntegral i :: Int
+    w32 <- uncheckedIndex32 byteOrder arr off
+    let w8 = PA.indexByteArray @Word8 arr (off + 4)
+    let result =
+          if byteOrder == BigEndian
+            then (fromIntegral w32 `shiftL` 8) .|. fromIntegral w8
+            else (fromIntegral w8 `shiftL` 32) .|. fromIntegral w32
+    pure $ Right result
 
 -- index 64 big-endian
-checkedIndex64 :: Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
-checkedIndex64 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 . pure $
-    let j = fromIntegral i
-     in mk64
-          (PA.indexByteArray arr j)
-          (PA.indexByteArray arr (j + 1))
-          (PA.indexByteArray arr (j + 2))
-          (PA.indexByteArray arr (j + 3))
-          (PA.indexByteArray arr (j + 4))
-          (PA.indexByteArray arr (j + 5))
-          (PA.indexByteArray arr (j + 6))
-          (PA.indexByteArray arr (j + 7))
+checkedIndex64 :: ByteOrder -> Text -> (PA.ByteArray, Word64) -> IO (Either Failure Word64)
+checkedIndex64 byteOrder name (arr, i) =
+  checkBoundsPrim name (PA.sizeofByteArray arr) i 8 $ do
+    let !off = fromIntegral i :: Int
+        fixEndianness :: Word64 -> Word64
+        fixEndianness w =
+          if targetByteOrder == byteOrder then w else byteSwap64 w
+    let w = case arr of
+          PA.ByteArray ba# ->
+            case off of
+              I# off# ->
+                W64# (indexWord8ArrayAsWord64# ba# off#)
+    pure $ Right (fromIntegral (fixEndianness w))
 
 -- JSON replacement implementations
 jsonNull, jsonTrue, jsonFalse :: Val
@@ -1695,11 +1892,11 @@ emitJson = \case
         literalForm <$> decodeVal @Text v
     | TT.jsonArrTag == t ->
         fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
-  c -> die $ "Json.toText: unrecognized Json value: " ++ show c
+  c -> die [] $ "Json.toText: unrecognized Json value: " ++ show c
   where
     emitJsonVal (BoxedVal c) = emitJson c
     emitJsonVal v =
-      die $ "Json.toText: unrecognized Json value: " ++ show v
+      die [] $ "Json.toText: unrecognized Json value: " ++ show v
 
     commaSep = fold . Sq.intersperse ","
     renderArray s = "[" <> commaSep s <> "]"
@@ -1708,7 +1905,7 @@ emitJson = \case
     emitPair (Tup2V x y) =
       mapping <$> decodeVal @Text x <*> emitJsonVal y
     emitPair v =
-      die $ "Json.toText: unrecognized Json object pair: " ++ show v
+      die [] $ "Json.toText: unrecognized Json object pair: " ++ show v
 
     mapping key val = literalForm key <> ":" <> val
 
@@ -1768,15 +1965,15 @@ avroDecodeReadSchema = \case
         (name, aliases, size, logicalType) <- avroDecodeFixed c
         pure $ ReadSchema.Fixed name aliases size logicalType
     | TT.avroReadSchemaNullTag == t || TT.avroReadSchemaBooleanTag == t || TT.avroReadSchemaStringTag == t || TT.avroReadSchemaFloatTag == t || TT.avroReadSchemaFixedTag == t || TT.avroReadSchemaDoubleTag == t || TT.avroReadSchemaBytesTag == t || TT.avroReadSchemaNamedTypeTag == t || TT.avroReadSchemaArrayTag == t || TT.avroReadSchemaMapTag == t || TT.avroReadSchemaLongTag == t || TT.avroReadSchemaFreeUnionTag == t || TT.avroReadSchemaEnumTag == t || TT.avroReadSchemaUnionTag == t || TT.avroReadSchemaArrayTag == t ->
-        die $ "avroDecodeReadSchema: type error: mismatched data1 tag " ++ show t ++ " " ++ show v
-    | otherwise -> die $ "avroDecodeReadSchema: type error: unknown data1 tag " ++ show t ++ " " ++ show v ++ " " ++ show (TT.unpackTags t)
+        die [] $ "avroDecodeReadSchema: type error: mismatched data1 tag " ++ show t ++ " " ++ show v
+    | otherwise -> die [] $ "avroDecodeReadSchema: type error: unknown data1 tag " ++ show t ++ " " ++ show v ++ " " ++ show (TT.unpackTags t)
   Data2 _ t (BoxedVal c1) (BoxedVal c2)
     | TT.avroReadSchemaArrayTag == t -> ReadSchema.Array <$> avroDecodeReadSchema c1
     | TT.avroReadSchemaMapTag == t -> ReadSchema.Map <$> avroDecodeReadSchema c1
     | TT.avroReadSchemaLongTag == t -> ReadSchema.Long <$> avroDecodeReadLong c1 <*> decodeMaybe avroDecodeLogicalTypeLong c2
   Data2 _ t v1 (BoxedVal c2)
     | TT.avroReadSchemaFreeUnionTag == t -> ReadSchema.FreeUnion <$> decodeVal v1 <*> avroDecodeReadSchema c2
-  d -> die $ "avroDecodeReadSchema: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadSchema: type error: " ++ show d
 
 avroDecodeSchema :: Closure -> IO AvroSchema.Schema
 avroDecodeSchema = \case
@@ -1801,7 +1998,7 @@ avroDecodeSchema = \case
     | TT.avroSchemaArrayTag == t -> AvroSchema.Array <$> avroDecodeSchema c
     | TT.avroSchemaNamedTypeTag == t -> AvroSchema.NamedType <$> avroDecodeTypeName c
     | TT.avroSchemaUnionTag == t -> AvroSchema.Union . Vector.fromList <$> (traverse avroDecodeSchema =<< decodeVal v)
-  d -> die $ "avroDecodeSchema: type error: " ++ show d
+  d -> die [] $ "avroDecodeSchema: type error: " ++ show d
 
 avroDecodeLogicalTypeLong :: Closure -> IO ReadSchema.LogicalTypeLong
 avroDecodeLogicalTypeLong = \case
@@ -1812,7 +2009,7 @@ avroDecodeLogicalTypeLong = \case
     | TT.avroLogicalLongLocalTimestampMillisTag == t -> pure ReadSchema.LocalTimestampMillis
     | TT.avroLogicalLongLocalTimestampMicrosTag == t -> pure ReadSchema.LocalTimestampMicros
   Data1 _ _ (BoxedVal c) -> ReadSchema.DecimalL <$> avroDecodeDecimal c
-  d -> die $ "avroDecodeLogicalTypeLong: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalTypeLong: type error: " ++ show d
 
 avroDecodeReadRecord :: Closure -> IO ReadSchema.ReadSchema
 avroDecodeReadRecord = \case
@@ -1822,22 +2019,22 @@ avroDecodeReadRecord = \case
     doc' <- fmap Util.Text.toText <$> decodeVal doc
     fields' <- traverse avroDecodeReadField =<< (decodeVal fields :: IO [Closure])
     pure $ ReadSchema.Record name' aliases' doc' fields'
-  d -> die $ "avroDecodeReadRecord: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadRecord: type error: " ++ show d
 
 avroDecodeRecord :: Closure -> IO AvroSchema.Schema
 avroDecodeRecord = \case
   DataC _ _ [BoxedVal name, aliases, doc, fields] -> AvroSchema.Record <$> avroDecodeTypeName name <*> (traverse avroDecodeTypeName =<< (decodeVal aliases :: IO [Closure])) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> (traverse avroDecodeField =<< (decodeVal fields :: IO [Closure]))
-  d -> die $ "avroDecodeReadRecord: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadRecord: type error: " ++ show d
 
 avroDecodeReadField :: Closure -> IO ReadSchema.ReadField
 avroDecodeReadField = \case
   DataC _ _ [name, aliases, doc, BoxedVal typ, BoxedVal status, BoxedVal order, BoxedVal def] -> (ReadSchema.ReadField . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeFieldStatus status <*> avroDecodeReadSchema typ <*> decodeMaybe avroDecodeDefaultValue def
-  d -> die $ "avroDecodeReadField: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadField: type error: " ++ show d
 
 avroDecodeField :: Closure -> IO AvroSchema.Field
 avroDecodeField = \case
   DataC _ _ [name, doc, BoxedVal typ, aliases, BoxedVal order, BoxedVal def] -> (AvroSchema.Field . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeSchema typ <*> decodeMaybe avroDecodeDefaultValue def
-  d -> die $ "avroDecodeField: type error: " ++ show d
+  d -> die [] $ "avroDecodeField: type error: " ++ show d
 
 avroDecodeEnum :: Closure -> IO (AvroSchema.TypeName, [AvroSchema.TypeName], Maybe Data.Text.Text, Vector.Vector Data.Text.Text)
 avroDecodeEnum = \case
@@ -1847,7 +2044,7 @@ avroDecodeEnum = \case
     doc' <- fmap Util.Text.toText <$> decodeVal doc
     symbols' <- Vector.fromList . map Util.Text.toText <$> decodeVal symbols
     pure (name', aliases', doc', symbols')
-  d -> die $ "avroDecodeEnum: type error: " ++ show d
+  d -> die [] $ "avroDecodeEnum: type error: " ++ show d
 
 avroDecodeFixed :: Closure -> IO (Avro.TypeName, [Avro.TypeName], Int, Maybe ReadSchema.LogicalTypeFixed)
 avroDecodeFixed = \case
@@ -1857,20 +2054,20 @@ avroDecodeFixed = \case
     size' <- decodeVal size
     logicalType' <- decodeMaybe avroDecodeLogicalFixed logicalType
     pure (name', aliases', size', logicalType')
-  d -> die $ "avroDecodeFixed: type error: " ++ show d
+  d -> die [] $ "avroDecodeFixed: type error: " ++ show d
 
 avroDecodeLogicalFixed :: Closure -> IO ReadSchema.LogicalTypeFixed
 avroDecodeLogicalFixed = \case
   Enum _ t | TT.avroLogicalFixedDurationTag == t -> pure ReadSchema.Duration
   Data1 _ t (BoxedVal v) | TT.avroLogicalFixedDecimalTag == t -> ReadSchema.DecimalF <$> avroDecodeDecimal v
-  d -> die $ "avroDecodeLogicalFixed: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalFixed: type error: " ++ show d
 
 avroDecodeReadLong :: Closure -> IO ReadSchema.ReadLong
 avroDecodeReadLong = \case
   Enum _ t
     | TT.avroReadLongInt32Tag == t -> pure ReadSchema.LongFromInt
     | TT.avroReadLongTag == t -> pure ReadSchema.ReadLong
-  d -> die $ "avroDecodeReadLong: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadLong: type error: " ++ show d
 
 avroDecodeLogicalInt :: Closure -> IO ReadSchema.LogicalTypeInt
 avroDecodeLogicalInt = \case
@@ -1878,23 +2075,23 @@ avroDecodeLogicalInt = \case
     | TT.avroLogicalIntDateTag == t -> pure ReadSchema.Date
     | TT.avroLogicalIntTimeTag == t -> pure ReadSchema.TimeMillis
   Data1 _ t (BoxedVal v) | TT.avroLogicalIntDecimalTag == t -> ReadSchema.DecimalI <$> avroDecodeDecimal v
-  d -> die $ "avroDecodeLogicalInt: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalInt: type error: " ++ show d
 
 avroDecodeLogicalBytes :: Closure -> IO ReadSchema.LogicalTypeBytes
 avroDecodeLogicalBytes = \case
   Data1 _ t (BoxedVal v) | TT.avroLogicalBytesDecimalTag == t -> ReadSchema.DecimalB <$> avroDecodeDecimal v
-  d -> die $ "avroDecodeLogicalBytes: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalBytes: type error: " ++ show d
 
 avroDecodeLogicalString :: Closure -> IO ReadSchema.LogicalTypeString
 avroDecodeLogicalString = \case
   Enum _ t
     | TT.avroLogicalStringUuidTag == t -> pure ReadSchema.UUID
-  d -> die $ "avroDecodeLogicalString: type error: " ++ show d
+  d -> die [] $ "avroDecodeLogicalString: type error: " ++ show d
 
 avroDecodeTypeName :: Closure -> IO Avro.TypeName
 avroDecodeTypeName = \case
   Data2 _ _ name namespace -> (Avro.TN . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal namespace)
-  d -> die $ "avroDecodeTypeName: type error: " ++ show d
+  d -> die [] $ "avroDecodeTypeName: type error: " ++ show d
 
 avroDecodeReadFloat :: Closure -> IO ReadSchema.ReadFloat
 avroDecodeReadFloat = \case
@@ -1902,7 +2099,7 @@ avroDecodeReadFloat = \case
     | TT.avroReadFloatFromInt32Tag == t -> pure ReadSchema.FloatFromInt
     | TT.avroReadFloatFromInt64Tag == t -> pure ReadSchema.FloatFromLong
     | TT.avroReadFloatTag == t -> pure ReadSchema.ReadFloat
-  d -> die $ "avroDecodeReadFloat: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadFloat: type error: " ++ show d
 
 avroDecodeReadDouble :: Closure -> IO ReadSchema.ReadDouble
 avroDecodeReadDouble = \case
@@ -1911,12 +2108,12 @@ avroDecodeReadDouble = \case
     | TT.avroReadDoubleFromInt64Tag == t -> pure ReadSchema.DoubleFromLong
     | TT.avroReadDoubleFromFloatTag == t -> pure ReadSchema.DoubleFromFloat
     | TT.avroReadDoubleTag == t -> pure ReadSchema.ReadDouble
-  d -> die $ "avroDecodeReadDouble: type error: " ++ show d
+  d -> die [] $ "avroDecodeReadDouble: type error: " ++ show d
 
 avroDecodeDecimal :: Closure -> IO ReadSchema.Decimal
 avroDecodeDecimal = \case
   Data2 _ _ precision scale -> ReadSchema.Decimal <$> fmap fromIntegral (decodeVal precision :: IO Int) <*> fmap fromIntegral (decodeVal scale :: IO Int)
-  d -> die $ "avroDecodeDecimal: type error: " ++ show d
+  d -> die [] $ "avroDecodeDecimal: type error: " ++ show d
 
 avroDecodeFieldStatus :: Closure -> IO ReadSchema.FieldStatus
 avroDecodeFieldStatus = \case
@@ -1924,7 +2121,7 @@ avroDecodeFieldStatus = \case
     | TT.avroFieldStatusIgnoredTag == t -> pure ReadSchema.Ignored
   Data1 _ _ v -> ReadSchema.AsIs . fromIntegral <$> (decodeVal v :: IO Word64)
   Data2 _ _ v1 (BoxedVal v2) -> ReadSchema.Defaulted <$> decodeVal v1 <*> avroDecodeDefaultValue v2
-  d -> die $ "avroDecodeFieldStatus: type error: " ++ show d
+  d -> die [] $ "avroDecodeFieldStatus: type error: " ++ show d
 
 avroDecodeOrder :: Closure -> IO Avro.Order
 avroDecodeOrder = \case
@@ -1932,7 +2129,7 @@ avroDecodeOrder = \case
     | TT.avroOrderAscendingTag == t -> pure Avro.Ascending
     | TT.avroOrderDescendingTag == t -> pure Avro.Descending
     | TT.avroOrderIgnoreTag == t -> pure Avro.Ignore
-  d -> die $ "avroDecodeOrder: type error: " ++ show d
+  d -> die [] $ "avroDecodeOrder: type error: " ++ show d
 
 avroDecodeDefaultValue :: Closure -> IO AvroSchema.DefaultValue
 avroDecodeDefaultValue = \case
@@ -1953,7 +2150,7 @@ avroDecodeDefaultValue = \case
     | TT.avroDefaultValueFixedTag == t -> AvroSchema.DFixed <$> avroDecodeSchema c1 <*> (Bytes.toByteString <$> decodeVal v2)
   DataC _ t [schemas, BoxedVal schema, BoxedVal defaultVal] | TT.avroDefaultValueUnionTag == t -> AvroSchema.DUnion <$> fmap Vector.fromList (traverse avroDecodeSchema =<< decodeVal schemas) <*> avroDecodeSchema schema <*> (avroDecodeDefaultValue defaultVal)
   DataC _ t [BoxedVal schema, ix, symbol] | TT.avroDefaultValueEnumTag == t -> AvroSchema.DEnum <$> avroDecodeSchema schema <*> decodeVal ix <*> (Util.Text.toText <$> decodeVal symbol)
-  d -> die $ "avroDecodeDefaultValue: type error: " ++ show d
+  d -> die [] $ "avroDecodeDefaultValue: type error: " ++ show d
 
 avroEncodeLogicalTypeInt :: ReadSchema.LogicalTypeInt -> Val
 avroEncodeLogicalTypeInt = \case

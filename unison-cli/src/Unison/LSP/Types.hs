@@ -26,7 +26,6 @@ import Language.LSP.Server qualified as LSP
 import Language.LSP.VFS
 import Unison.Codebase
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime (Runtime)
 import Unison.Debug qualified as Debug
 import Unison.LSP.Orphans ()
 import Unison.LabeledDependency (LabeledDependency)
@@ -38,6 +37,7 @@ import Unison.Prelude
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.Referent (Referent)
 import Unison.Result (Note)
+import Unison.Runtime (Runtime)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch (NameSearch)
 import Unison.Sqlite qualified as Sqlite
@@ -112,6 +112,22 @@ type FileVersion = Int32
 
 type LexedSource = (Text, [Lexer.Token Lexer.Lexeme])
 
+data USymbolKind
+  = DataDeclSymbol
+  | EffectDeclSymbol
+  | TermSymbol
+  deriving (Show, Eq)
+
+-- | Info we use to build LSP document symbols
+data UDocumentSymbol = UDocumentSymbol
+  { symbolName :: Name,
+    symbolSignature :: Maybe (Type Symbol Ann),
+    symbolKind :: USymbolKind,
+    symbolRange :: Range,
+    symbolChildren :: [UDocumentSymbol]
+  }
+  deriving (Show)
+
 data TypeSignatureHint = TypeSignatureHint
   { name :: Name,
     referent :: Referent,
@@ -133,7 +149,8 @@ data FileAnalysis = FileAnalysis
     -- | The types of local variable bindings keyed by the mention's location.
     localBindingInfo :: IntervalMap Position (Context.Type Symbol Ann {- type of binding -}, Range {- binding definition site -}),
     typeSignatureHints :: Map Symbol TypeSignatureHint,
-    fileSummary :: Maybe FileSummary
+    fileSummary :: Maybe FileSummary,
+    documentSymbols :: [UDocumentSymbol]
   }
   deriving stock (Show)
 
@@ -185,7 +202,7 @@ defaultLSPConfig = Config {..}
 
 -- | Lift a backend computation into the Lsp monad.
 lspBackend :: Backend.Backend IO a -> Lsp (Either Backend.BackendError a)
-lspBackend = liftIO . runExceptT . flip runReaderT (Backend.BackendEnv False) . Backend.runBackend
+lspBackend = liftIO . runExceptT . flip runReaderT Backend.BackendEnv . Backend.runBackend
 
 sendNotification :: forall (m :: Method 'ServerToClient 'Notification). (TMessage m ~ TNotificationMessage m) => TNotificationMessage m -> Lsp ()
 sendNotification notif = do

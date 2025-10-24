@@ -24,12 +24,11 @@ import Data.Text.Encoding qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
-import System.Environment (lookupEnv)
 import System.IO qualified as IO
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
 import U.Codebase.Sqlite.Project (Project (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
+import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..), ProjectBranchRow (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -44,7 +43,6 @@ import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Transcript
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Verbosity (Verbosity, isSilent)
@@ -53,7 +51,7 @@ import Unison.CommandLine
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
 import Unison.Debug qualified as Debug
 import Unison.MCP qualified as MCP
@@ -79,13 +77,6 @@ import Prelude hiding (readFile, writeFile)
 terminalWidth :: Pretty.Width
 terminalWidth = 65
 
--- | If provided, this access token will be used on all
--- requests which use the Authenticated HTTP Client; i.e. all codeserver interactions.
---
--- It's useful in scripted contexts or when running transcripts against a codeserver.
-accessTokenEnvVarKey :: String
-accessTokenEnvVarKey = "UNISON_SHARE_ACCESS_TOKEN"
-
 type Runner =
   -- | The name of the transcript to run.
   String ->
@@ -104,6 +95,9 @@ withRunner ::
   (Runner -> m r) ->
   m r
 withRunner isTest verbosity ucmVersion action = do
+  credMan <- AuthN.newCredentialManager
+  authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
+
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
   -- so that errors are consistent.
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
@@ -111,29 +105,44 @@ withRunner isTest verbosity ucmVersion action = do
     liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
   withRuntimes \runtime sbRuntime ->
     action \transcriptName transcriptSrc codebase -> do
-      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime Nothing ucmVersion
+      let workDir = Nothing
+      mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
       Server.startServer
         isTest
-        Backend.BackendEnv {Backend.useNamesIndex = False}
+        Backend.BackendEnv
         Server.defaultCodebaseServerOpts
         runtime
         codebase
         (MCP.mcpServer mcpServerConfig)
         \case
           Nothing -> pure $ Left PortBindingFailure
-          Just baseUrl ->
-            either
-              (pure . Left . ParseError)
-              ( run isTest verbosity codebase runtime sbRuntime ucmVersion $
-                  tShow @Server.BaseUrl baseUrl
-              )
-              $ Transcript.parse transcriptName transcriptSrc
+          Just baseUrl -> do
+            let baseUrlText = tShow @Server.BaseUrl baseUrl
+            case (Transcript.parse transcriptName transcriptSrc) of
+              Left parseError -> pure $ Left (ParseError parseError)
+              Right stanzas ->
+                run
+                  isTest
+                  verbosity
+                  codebase
+                  runtime
+                  sbRuntime
+                  ucmVersion
+                  baseUrlText
+                  authenticatedHTTPClient
+                  credMan
+                  stanzas
   where
-    withRuntimes :: (Runtime.Runtime Symbol -> Runtime.Runtime Symbol -> m a) -> m a
+    withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
         RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
           action runtime sbRuntime
+    initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
+    initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do
+      let tokenProvider :: AuthN.TokenProvider
+          tokenProvider = AuthN.newTokenProvider credMan
+      AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
 isGeneratedBlock :: ProcessedBlock -> Bool
 isGeneratedBlock = generated . getCommonInfoTags
@@ -143,13 +152,15 @@ run ::
   Bool ->
   Verbosity ->
   Codebase IO Symbol Ann ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
   UCMVersion ->
   Text ->
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
   Transcript ->
   IO (Either Error Transcript)
-run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = UnliftIO.try do
+run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -163,14 +174,6 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
         "Running the provided transcript file...",
         ""
       ]
-  mayShareAccessToken <- fmap Text.pack <$> lookupEnv accessTokenEnvVarKey
-  credMan <- AuthN.newCredentialManager
-  let tokenProvider :: AuthN.TokenProvider
-      tokenProvider =
-        maybe
-          (AuthN.newTokenProvider credMan)
-          (\accessToken _codeserverID -> pure $ Right accessToken)
-          mayShareAccessToken
   -- Queue of Stanzas and Just index, or Nothing if the stanza was programmatically generated
   -- e.g. a unison-file update by a command like 'edit'
   inputQueue <-
@@ -217,7 +220,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
       outputUcmResult :: Pretty.Pretty Pretty.ColorText -> IO ()
       outputUcmResult line = do
         hide <- hideOutput False
-        unless hide . outputUcmLine . UcmOutputLine . Text.pack $
+        unless hide . outputUcmLine . UcmOutputLine $
           -- We shorten the terminal width, because "Transcript" manages a 2-space indent for output lines.
           Pretty.toPlain (terminalWidth - 2) line
 
@@ -233,7 +236,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
                 [ "The stanza above marked with `:error :bug` is now failing with",
                   "",
                   "```",
-                  Text.pack $ Pretty.toPlain terminalWidth msg,
+                  Pretty.toPlain terminalWidth msg,
                   "```",
                   "",
                   "so you can remove `:bug` and close any appropriate Github issues. If the error message is different \
@@ -245,7 +248,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
       doHttpRequest req = do
         resp <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
         case Aeson.eitherDecode @Aeson.Value resp of
-          Left err -> dieWithMsg $ "Error decoding response from " <> BSC.unpack (HTTP.method req) <> ": " <> err
+          Left err -> dieWithMsg . Text.pack $ "Error decoding response from " <> (BSC.unpack (HTTP.method req)) <> ": " <> err
           Right v -> do
             let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
             pure $ Text.pack . BL.unpack $ prettyBytes
@@ -258,7 +261,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
           APIComment {} -> pure $ pure req
           GetRequest path -> do
             httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
-              Left err -> dieWithMsg (show err)
+              Left err -> dieWithMsg (tShow err)
               Right r -> pure r
             respTxt <- doHttpRequest httpReq
             if hide
@@ -266,7 +269,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
               else pure [req, APIResponse respTxt]
           PostRequest path body -> do
             httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
-              Left err -> dieWithMsg (show err)
+              Left err -> dieWithMsg (tShow err)
               Right r ->
                 pure $
                   r
@@ -319,16 +322,16 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
                         Q.insertProject projectId projectName
                         pure $ Project {projectId, name = projectName}
                       Just project -> pure project
-                projectBranch <-
+                projectAndBranchIds <-
                   Q.loadProjectBranchByName projectId branchName >>= \case
                     Nothing -> do
                       branchId <- Sqlite.unsafeIO (Db.ProjectBranchId <$> UUID.nextRandom)
-                      let projectBranch =
-                            ProjectBranch {projectId, parentBranchId = Nothing, branchId, name = branchName}
-                      Q.insertProjectBranch "Branch Created" emptyCausalHashId projectBranch
-                      pure projectBranch
-                    Just projBranch -> pure projBranch
-                let projectAndBranchIds = ProjectAndBranch projectBranch.projectId projectBranch.branchId
+                      Q.insertProjectBranch
+                        "Branch Created"
+                        emptyCausalHashId
+                        ProjectBranchRow {projectId, parentBranchId = Nothing, branchId, name = branchName}
+                      pure (ProjectAndBranch projectId branchId)
+                    Just projBranch -> pure (ProjectAndBranch projBranch.projectId projBranch.branchId)
                 pure
                   if (PP.toProjectAndBranch . PP.toIds $ curPath) == projectAndBranchIds
                     then Nothing
@@ -457,7 +460,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
       print o = do
         -- NB: We have a directory, but we don’t pass it to the notifier because it’s a temp dir, and if it ends up in
         --     transcript output, it makes transcripts non-reproducible.
-        msg <- notifyUser Nothing o
+        msg <- notifyUser Nothing showIssueUrl o
         outputUcmResult msg
         when (Output.isFailure o) $ maybeDieWithMsg msg
 
@@ -479,7 +482,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
           (\block -> unless (elem (pure block) currentOut) $ modifyIORef' out (<> pure (pure block)))
           blockOpt
 
-      dieWithMsg :: forall a. String -> IO a
+      dieWithMsg :: forall a. Text -> IO a
       dieWithMsg msg = do
         appendFailingStanza
         transcriptFailure
@@ -487,7 +490,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
           out
           "The transcript failed due to an error in the stanza above. The error is:"
           . pure
-          $ Text.pack msg
+          $ msg
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -509,8 +512,6 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL transcript = 
               "The stanza above with `:bug` is now passing! You can remove `:bug` and close any appropriate Github \
               \issues."
           (_, _, _) -> pure ()
-
-  authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
 
   seedRef <- newIORef (0 :: Int)
 

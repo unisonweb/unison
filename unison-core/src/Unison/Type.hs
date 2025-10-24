@@ -269,7 +269,7 @@ typeLink a = ABT.tm' a . Ref $ typeLinkRef
 derivedBase32Hex :: (Ord v) => TypeReference -> a -> Type v a
 derivedBase32Hex r a = ref a r
 
-intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef :: TypeReference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, listRef, bytesRef, effectRef, termLinkRef, typeLinkRef, integerRef, naturalRef :: TypeReference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
@@ -281,6 +281,8 @@ bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 termLinkRef = Reference.Builtin "Link.Term"
 typeLinkRef = Reference.Builtin "Link.Type"
+integerRef = Reference.Builtin "Integer"
+naturalRef = Reference.Builtin "Natural"
 
 builtinIORef, fileHandleRef, filePathRef, threadIdRef, socketRef :: TypeReference
 builtinIORef = Reference.Builtin "IO"
@@ -391,6 +393,12 @@ text a = ref a textRef
 
 char :: (Ord v) => a -> Type v a
 char a = ref a charRef
+
+integer :: (Ord v) => a -> Type v a
+integer a = ref a integerRef
+
+natural :: (Ord v) => a -> Type v a
+natural a = ref a naturalRef
 
 fileHandle :: (Ord v) => a -> Type v a
 fileHandle a = ref a fileHandleRef

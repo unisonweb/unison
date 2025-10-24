@@ -23,6 +23,7 @@ module Unison.Referent
 
     -- * Lenses
     reference_,
+    termReference_,
 
     -- * ShortHash helpers
     isPrefixOf,
@@ -43,7 +44,7 @@ import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
 import Unison.Reference qualified as R
 import Unison.Reference qualified as Reference
-import Unison.ReferentPrime (Referent' (..), reference_, toReference')
+import Unison.ReferentPrime (Referent' (..), reference_, termReference_, toReference')
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
 

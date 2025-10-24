@@ -10,6 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString.Lazy qualified as LZ
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.OpenApi
   ( OpenApiType (..),
@@ -29,6 +30,7 @@ import Servant.API
     Headers,
     JSON,
     QueryParam,
+    ToHttpApiData (..),
     addHeader,
   )
 import Servant.Docs (DocCapture (..), DocQueryParam (..), ParamKind (..), ToParam)
@@ -48,10 +50,12 @@ import Unison.Prelude
 import Unison.Project (ProjectAndBranch, ProjectName)
 import Unison.Server.Doc (Doc)
 import Unison.Server.Orphans ()
+import Unison.Server.Syntax (SyntaxText)
 import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
+import Unison.Util.AnnotatedText (Segment)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -285,28 +289,22 @@ data TypeTag = Ability | Data
 -- | A type for semantic diffing of definitions.
 -- Includes special-cases for when the name in a definition has changed but the hash hasn't
 -- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
-data SemanticSyntaxDiff
-  = Old [Syntax.SyntaxSegment]
-  | New [Syntax.SyntaxSegment]
-  | Both [Syntax.SyntaxSegment]
+data SemanticSyntaxDiff a
+  = OnlyThisSide (NonEmpty (Segment a))
+  | Both (NonEmpty (Segment a))
   | --  (fromSegment, toSegment) (shared annotation)
-    SegmentChange (String, String) (Maybe Syntax.Element)
+    SegmentChange (Text, Text) (Maybe a)
   | -- (shared segment) (fromAnnotation, toAnnotation)
-    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+    AnnotationChange Text (Maybe a, Maybe a)
   deriving (Eq, Show, Ord, Generic)
 
-deriving instance ToSchema SemanticSyntaxDiff
+deriving instance (ToSchema a) => ToSchema (SemanticSyntaxDiff a)
 
-instance ToJSON SemanticSyntaxDiff where
+instance (ToJSON a) => ToJSON (SemanticSyntaxDiff a) where
   toJSON = \case
-    Old segments ->
+    OnlyThisSide segments ->
       object
-        [ "diffTag" .= ("old" :: Text),
-          "elements" .= segments
-        ]
-    New segments ->
-      object
-        [ "diffTag" .= ("new" :: Text),
+        [ "diffTag" .= ("oneSided" :: Text),
           "elements" .= segments
         ]
     Both segments ->
@@ -329,12 +327,11 @@ instance ToJSON SemanticSyntaxDiff where
           "toAnnotation" .= toAnnotation
         ]
 
-instance FromJSON SemanticSyntaxDiff where
+instance (FromJSON a) => FromJSON (SemanticSyntaxDiff a) where
   parseJSON = Aeson.withObject "SemanticSyntaxDiff" \obj -> do
     diffTag :: Text <- obj .: "diffTag"
     case diffTag of
-      "old" -> Old <$> obj .: "elements"
-      "new" -> New <$> obj .: "elements"
+      "one-sided" -> OnlyThisSide <$> obj .: "elements"
       "both" -> Both <$> obj .: "elements"
       "segmentChange" -> do
         fromSegment <- obj .: "fromSegment"
@@ -348,13 +345,79 @@ instance FromJSON SemanticSyntaxDiff where
         pure $ AnnotationChange segment (fromAnnotation, toAnnotation)
       _ -> fail "Invalid diffTag"
 
+data Changed a
+  = Changed a
+  | Unchanged a
+  | Spacer
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+instance (ToJSON a) => ToJSON (Changed a) where
+  toJSON = \case
+    Changed a ->
+      object
+        [ "kind" .= ("changed" :: Text),
+          "value" .= a
+        ]
+    Unchanged a ->
+      object
+        [ "kind" .= ("unchanged" :: Text),
+          "value" .= a
+        ]
+    Spacer ->
+      object
+        [ "kind" .= ("spacer" :: Text)
+        ]
+
+instance (FromJSON a) => FromJSON (Changed a) where
+  parseJSON = Aeson.withObject "Changed" \obj -> do
+    kind :: Text <- obj .: "kind"
+    case kind of
+      "changed" -> Changed <$> obj .: "value"
+      "unchanged" -> Unchanged <$> obj .: "value"
+      "spacer" -> pure Spacer
+      _ -> fail "Invalid kind"
+
+deriving instance (ToSchema a) => ToSchema (Changed a)
+
+data LinewiseDiff a = LinewiseDiff
+  { lhsLines :: [Changed [a]],
+    rhsLines :: [Changed [a]]
+  }
+  deriving stock (Eq, Show, Ord, Generic, Functor, Foldable, Traversable)
+
+deriving instance (ToSchema a) => ToSchema (LinewiseDiff a)
+
+instance (ToJSON a) => ToJSON (LinewiseDiff a) where
+  toJSON LinewiseDiff {..} =
+    object
+      [ "left" .= lhsLines,
+        "right" .= rhsLines
+      ]
+
+instance (FromJSON a) => FromJSON (LinewiseDiff a) where
+  parseJSON = Aeson.withObject "LinewiseDiff" \obj -> do
+    lhsLines <- obj .: "left"
+    rhsLines <- obj .: "right"
+    pure $ LinewiseDiff {..}
+
+-- Diff data can be one-sided or have a counter-part on the other side of the diff.
+-- We can use this to represent things like name-changes for the same hash, or hash-changes for the same name.
+data Paired a
+  = OneSided a
+  | Paired a a
+  deriving (Eq, Ord, Show)
+
+swapPair :: Paired a -> Paired a
+swapPair (OneSided a) = OneSided a
+swapPair (Paired a b) = Paired b a
+
 -- | A diff of the syntax of a term or type
 --
 -- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
 -- undiffed syntax.
 data DisplayObjectDiff
-  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
-  | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  = DisplayObjectDiff (DisplayObject (LinewiseDiff (SemanticSyntaxDiff Syntax.Element)) (LinewiseDiff (SemanticSyntaxDiff Syntax.Element)))
+  | MismatchedDisplayObjects (DisplayObject SyntaxText SyntaxText) (DisplayObject SyntaxText SyntaxText)
   deriving stock (Show, Eq, Ord, Generic)
 
 deriving instance ToSchema DisplayObjectDiff
@@ -624,3 +687,219 @@ instance FromJSON TypeDiffResponse where
 
 -- | Servant utility for a query param that's required, providing a useful error message if it's missing.
 type RequiredQueryParam = Servant.QueryParam' '[Servant.Required, Servant.Strict]
+
+data DefinitionNameSearchResult = DefinitionNameSearchResult
+  { token :: Name,
+    tag :: TermOrTypeTag
+  }
+
+instance ToJSON DefinitionNameSearchResult where
+  toJSON DefinitionNameSearchResult {..} =
+    Aeson.object
+      [ "token" .= token,
+        "tag" .= tag
+      ]
+
+instance FromJSON DefinitionNameSearchResult where
+  parseJSON = Aeson.withObject "DefinitionNameSearchResult" $ \o -> do
+    token <- o Aeson..: "token"
+    tag <- o Aeson..: "tag"
+    pure DefinitionNameSearchResult {token, tag}
+
+newtype DefinitionSearchResults = DefinitionSearchResults
+  { results :: [DefinitionSearchResult]
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON DefinitionSearchResults where
+  toJSON DefinitionSearchResults {..} =
+    Aeson.object
+      [ "results" .= results
+      ]
+
+instance FromJSON DefinitionSearchResults where
+  parseJSON = Aeson.withObject "DefinitionSearchResults" $ \o -> do
+    results <- o Aeson..: "results"
+    pure DefinitionSearchResults {results}
+
+instance Docs.ToSample DefinitionSearchResults where
+  toSamples _ = Docs.noSamples
+
+deriving anyclass instance ToSchema DefinitionSearchResults
+
+data DefinitionSearchResult = DefinitionSearchResult
+  { fqn :: Name,
+    summary :: TermOrTypeSummary,
+    project :: ProjectName,
+    branchRef :: ProjectBranchName
+  }
+  deriving (Show, Eq, Generic)
+
+deriving instance ToSchema DefinitionSearchResult
+
+instance ToJSON DefinitionSearchResult where
+  toJSON DefinitionSearchResult {..} =
+    Aeson.object
+      [ "fqn" Aeson..= fqn,
+        "projectRef" Aeson..= project,
+        "branchRef" Aeson..= branchRef,
+        "kind" Aeson..= kind,
+        "definition" Aeson..= definition
+      ]
+    where
+      (kind, definition) = case summary of
+        ToTTermSummary TermSummary {displayName, hash, summary, tag} ->
+          ( Aeson.String "term",
+            Aeson.object
+              [ "displayName" Aeson..= displayName,
+                "hash" Aeson..= hash,
+                "summary" Aeson..= summary,
+                "tag" Aeson..= tag
+              ]
+          )
+        ToTTypeSummary TypeSummary {displayName, hash, summary, tag} ->
+          ( Aeson.String "type",
+            Aeson.object
+              [ "displayName" Aeson..= displayName,
+                "hash" Aeson..= hash,
+                "summary" Aeson..= summary,
+                "tag" Aeson..= tag
+              ]
+          )
+
+instance FromJSON DefinitionSearchResult where
+  parseJSON = Aeson.withObject "DefinitionSearchResult" $ \o -> do
+    fqn <- o Aeson..: "fqn"
+    project <- o Aeson..: "projectRef"
+    branchRef <- o Aeson..: "branchRef"
+    kind <- o Aeson..: "kind"
+    definition <- o Aeson..: "definition"
+    summary <- case kind of
+      Aeson.String "term" -> do
+        definitionObj <- case definition of
+          Aeson.Object obj -> pure obj
+          _ -> fail "Expected object for term definition"
+        displayName <- definitionObj Aeson..: "displayName"
+        hash <- definitionObj Aeson..: "hash"
+        summaryText <- definitionObj Aeson..: "summary"
+        tag <- definitionObj Aeson..: "tag"
+        pure $ ToTTermSummary $ TermSummary {displayName, hash, summary = summaryText, tag}
+      Aeson.String "type" -> do
+        definitionObj <- case definition of
+          Aeson.Object obj -> pure obj
+          _ -> fail "Expected object for type definition"
+        displayName <- definitionObj Aeson..: "displayName"
+        hash <- definitionObj Aeson..: "hash"
+        summaryText <- definitionObj Aeson..: "summary"
+        tag <- definitionObj Aeson..: "tag"
+        pure $ ToTTypeSummary $ TypeSummary {displayName, hash, summary = summaryText, tag}
+      _ -> fail "Invalid definition kind"
+    pure DefinitionSearchResult {fqn, summary, project, branchRef}
+
+instance Docs.ToSample TermSummary where
+  toSamples _ = Docs.noSamples
+
+data TermSummary = TermSummary
+  { displayName :: HQ.HashQualified Name,
+    hash :: ShortHash,
+    summary :: DisplayObject SyntaxText SyntaxText,
+    tag :: TermTag
+  }
+  deriving (Generic, Show, Eq, Ord)
+
+instance ToJSON TermSummary where
+  toJSON (TermSummary {..}) =
+    object
+      [ "displayName" .= displayName,
+        "hash" .= hash,
+        "summary" .= summary,
+        "tag" .= tag
+      ]
+
+deriving instance ToSchema TermSummary
+
+instance Docs.ToSample TypeSummary where
+  toSamples _ = Docs.noSamples
+
+data TypeSummary = TypeSummary
+  { displayName :: HQ.HashQualified Name,
+    hash :: ShortHash,
+    summary :: DisplayObject SyntaxText SyntaxText,
+    tag :: TypeTag
+  }
+  deriving (Generic, Show, Eq, Ord)
+
+instance ToJSON TypeSummary where
+  toJSON (TypeSummary {..}) =
+    object
+      [ "displayName" .= displayName,
+        "hash" .= hash,
+        "summary" .= summary,
+        "tag" .= tag
+      ]
+
+deriving instance ToSchema TypeSummary
+
+data TermOrTypeSummary = ToTTermSummary TermSummary | ToTTypeSummary TypeSummary
+  deriving (Show, Eq, Ord, Generic)
+
+deriving instance ToSchema TermOrTypeSummary
+
+instance ToJSON TermOrTypeSummary where
+  toJSON (ToTTermSummary ts) = object ["kind" .= ("term" :: Text), "payload" .= ts]
+  toJSON (ToTTypeSummary ts) = object ["kind" .= ("type" :: Text), "payload" .= ts]
+
+instance FromJSON TermOrTypeSummary where
+  parseJSON = withObject "TermOrTypeSummary" $ \o -> do
+    kind :: Text <- o .: "kind"
+    case kind of
+      "term" -> do
+        ts <- o .: "payload"
+        ts & withObject "TermSummary" \o -> do
+          displayName <- o .: "displayName"
+          hash <- o .: "hash"
+          summary <- o .: "summary"
+          tag <- o .: "tag"
+          pure $ ToTTermSummary $ TermSummary {..}
+      "type" -> do
+        ts <- o .: "payload"
+        ts & withObject "TypeSummary" \o -> do
+          displayName <- o .: "displayName"
+          hash <- o .: "hash"
+          summary <- o .: "summary"
+          tag <- o .: "tag"
+          pure $ ToTTypeSummary $ TypeSummary {..}
+      _ -> fail $ "Invalid kind: " <> Text.unpack kind
+
+data TermOrTypeTag = ToTTermTag TermTag | ToTTypeTag TypeTag
+  deriving stock (Show, Eq, Ord)
+
+instance FromHttpApiData TermOrTypeTag where
+  parseQueryParam = \case
+    "doc" -> Right $ ToTTermTag Doc
+    "test" -> Right $ ToTTermTag Test
+    "plain" -> Right $ ToTTermTag Plain
+    "data-constructor" -> Right $ ToTTermTag $ Constructor Data
+    "ability-constructor" -> Right $ ToTTermTag $ Constructor Ability
+    "data" -> Right $ ToTTypeTag Data
+    "ability" -> Right $ ToTTypeTag Ability
+    _ -> Left "Invalid TermOrTypeTag"
+
+instance ToHttpApiData TermOrTypeTag where
+  toQueryParam = \case
+    ToTTermTag Doc -> "doc"
+    ToTTermTag Test -> "test"
+    ToTTermTag Plain -> "plain"
+    ToTTermTag (Constructor Data) -> "data-constructor"
+    ToTTermTag (Constructor Ability) -> "ability-constructor"
+    ToTTypeTag Data -> "data"
+    ToTTypeTag Ability -> "ability"
+
+instance ToJSON TermOrTypeTag where
+  toJSON = String . toQueryParam
+
+instance FromJSON TermOrTypeTag where
+  parseJSON = withText "TermOrTypeTag" $ \txt ->
+    case parseQueryParam txt of
+      Left err -> fail $ Text.unpack err
+      Right tag -> pure tag

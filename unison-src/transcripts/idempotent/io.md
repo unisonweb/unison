@@ -261,6 +261,80 @@ testGetSomeBytes _ =
   Tip: Use view 1 to view the source of a test.
 ```
 
+### Reading and writing via buffers
+
+Tests:
+
+  - fillBuf
+  - putBuf
+  - getBufSome
+
+``` unison
+testFillBuf : '{io2.IO} [Result]
+testFillBuf = do
+  test = 'let
+    tempDir = (newTempDir "getSomeBytes")
+    fooFile = tempDir ++ "/foo"
+
+    testData = "0123456789"
+    testSize = size testData
+
+    wbuf = IO.pinnedByteArray 10
+    arr = PinnedByteArray.cast wbuf
+    dataBytes = ImmutableByteArray.fromBytes (toUtf8 testData)
+    ImmutableByteArray.copyTo! arr 0 dataBytes 0 10
+
+    -- write testData to a temporary file
+    fooWrite = openFile fooFile Write
+    _ = putBuf.impl fooWrite wbuf 10
+    closeFile fooWrite
+    check "file should be closed" (not (isFileOpen fooWrite))
+
+    -- reopen for reading back the data in chunks
+    fooRead = openFile fooFile Read
+
+    rbuf = IO.pinnedByteArray 10
+    rarr = PinnedByteArray.cast rbuf
+    _ = fillBuf.impl fooRead rbuf 4
+    vec = ImmutableByteArray.toBytes (MutableByteArray.freeze rarr 0 4) 0 4
+    check "should be able to read 4 bytes" (vec == (toUtf8 testData |> take 4))
+
+    _ = getBufSome.impl fooRead rbuf 4
+    vec2 = ImmutableByteArray.toBytes (MutableByteArray.freeze rarr 0 4) 0 4
+    check "should be able to read next 4 bytes" (vec2 == (toUtf8 testData |> drop 4 |> take 4))
+
+  runTest test
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + testFillBuf : '{IO} [Result]
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+> add
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> io.test testFillBuf
+
+    New test results:
+
+    1. testFillBuf   ◉ file should be closed
+                     ◉ should be able to read 4 bytes
+                     ◉ should be able to read next 4 bytes
+
+  ✅ 3 test(s) passing
+
+  Tip: Use view 1 to view the source of a test.
+```
+
 ### Seeking in open files
 
 Tests:

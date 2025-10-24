@@ -45,11 +45,11 @@ embeddedSourceToMarkdown :: EmbeddedSource -> [Md.Markdown]
 embeddedSourceToMarkdown source =
   case source of
     Builtin summary ->
-      [ Md.CodeBlock "unison" (Syntax.toPlainText summary),
+      [ Md.CodeBlock "unison" (Syntax.toPlain summary),
         Md.Txt "Built-in provided by the Unison runtime"
       ]
     EmbeddedSource _summary details ->
-      [Md.CodeBlock "unison" $ Syntax.toPlainText details]
+      [Md.CodeBlock "unison" $ Syntax.toPlain details]
 
 -- | Used when a contained block is expected to be raw text. E.g. inside a CodeBlock.
 -- Other renderers may need to handle links and things in code blocks, but for Markdown we don't.
@@ -196,25 +196,25 @@ toMarkdown_ doc =
           -- We can't fold in markdown
           pure $ foldMap (foldMap embeddedSourceToMarkdown . embeddedSource) sources
         Example syntax -> do
-          pure [Md.InlineCode (Syntax.toPlainText syntax)]
+          pure [Md.InlineCode (Syntax.toPlain syntax)]
         ExampleBlock syntax -> do
-          pure [Md.CodeBlock "unison" (Syntax.toPlainText syntax)]
+          pure [Md.CodeBlock "unison" (Syntax.toPlain syntax)]
         Link syntax -> do
-          pure [Md.InlineCode (Syntax.toPlainText syntax)]
+          pure [Md.InlineCode (Syntax.toPlain syntax)]
         Signature signatures -> do
           signatures
-            & foldMap (pure @[] . Md.CodeBlock "unison" . Syntax.toPlainText)
+            & foldMap (pure @[] . Md.CodeBlock "unison" . Syntax.toPlain)
             & pure
         SignatureInline sig -> do
-          pure [Md.InlineCode $ Syntax.toPlainText sig]
+          pure [Md.InlineCode $ Syntax.toPlain sig]
         Eval source result -> do
           pure
             [ Md.CodeBlock
                 "unison"
                 ( Text.unlines
-                    [ Syntax.toPlainText source,
+                    [ Syntax.toPlain source,
                       "⧨",
-                      Syntax.toPlainText result
+                      Syntax.toPlain result
                     ]
                 )
             ]
@@ -223,9 +223,9 @@ toMarkdown_ doc =
           pure
             [ Md.CodeBlock "unison" $
                 Text.unlines
-                  [ Syntax.toPlainText source,
+                  [ Syntax.toPlain source,
                     "⧨",
-                    Syntax.toPlainText result
+                    Syntax.toPlain result
                   ]
             ]
         Video sources _attrs -> do
@@ -238,11 +238,11 @@ toMarkdown_ doc =
           pure [Md.CodeBlock "latex" latex]
         Svg {} -> do pure [Md.Txt "{inline svg}"]
         Embed syntax -> do
-          pure [Md.CodeBlock "unison" (Syntax.toPlainText syntax)]
+          pure [Md.CodeBlock "unison" (Syntax.toPlain syntax)]
         EmbedInline syntax -> do
-          pure [Md.InlineCode (Syntax.toPlainText syntax)]
+          pure [Md.InlineCode (Syntax.toPlain syntax)]
         RenderError (InvalidTerm err) -> do
-          pure [Md.Txt $ Syntax.toPlainText err]
+          pure [Md.Txt $ Syntax.toPlain err]
     Join docs -> do
       foldMapM toMarkdown_ docs
     UntitledSection docs -> do

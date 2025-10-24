@@ -196,8 +196,19 @@ instance ToJSON Name where
   toEncoding = toEncoding . Name.toText
   toJSON = toJSON . Name.toText
 
+instance FromJSON Name where
+  parseJSON = Aeson.withText "Name" \txt -> case Name.parseTextEither txt of
+    Left err -> fail $ "Invalid Name: " <> Text.unpack err
+    Right name -> pure name
+
 instance ToJSONKey Name where
   toJSONKey = contramap Name.toText (toJSONKey @Text)
+
+instance FromJSONKey Name where
+  fromJSONKey =
+    Aeson.FromJSONKeyTextParser \txt -> case Name.parseTextEither txt of
+      Left err -> fail $ "Invalid Name: " <> Text.unpack err
+      Right name -> pure name
 
 instance ToSchema Name where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
@@ -207,6 +218,11 @@ instance ToJSON NameSegment where
 
 instance ToJSONKey NameSegment where
   toJSONKey = contramap NameSegment.toEscapedText (toJSONKey @Text)
+
+instance FromJSON NameSegment where
+  parseJSON = Aeson.withText "NameSegment" \txt -> case NameSegment.parseText txt of
+    Left err -> fail $ "Invalid NameSegment: " <> Text.unpack err
+    Right ns -> pure ns
 
 deriving anyclass instance ToParamSchema ShortCausalHash
 
@@ -268,6 +284,12 @@ instance ToJSON ConstructorType where
     CT.Data -> String "Data"
     CT.Effect -> String "Effect"
 
+instance FromJSON ConstructorType where
+  parseJSON = Aeson.withText "ConstructorType" \txt -> case txt of
+    "Data" -> pure CT.Data
+    "Effect" -> pure CT.Effect
+    _ -> fail $ "Invalid ConstructorType: " <> Text.unpack txt
+
 instance FromHttpApiData Path.Relative where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
     Left s -> Left s
@@ -297,6 +319,9 @@ instance FromHttpApiData Path.Path where
     Left s -> Left s
     Right (Path.RelativePath' p) -> Right (Path.unrelative p)
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
+
+instance ToHttpApiData Path.Path where
+  toUrlPiece = tShow
 
 instance ToCapture (Capture "hash" ShortHash) where
   toCapture _ =
@@ -351,6 +376,14 @@ instance ToSchema Path.Path where
 instance ToSchema Path.Absolute where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
+instance ToParam (QueryParam' opts "name" (HQ.HashQualified Name)) where
+  toParam _ =
+    DocQueryParam
+      "name"
+      []
+      "A name, hash, or hash-qualified name."
+      Normal
+
 instance ToJSON (HQ.HashQualified Name) where
   toJSON = Aeson.String . HQ.toTextWith Name.toText
 
@@ -391,11 +424,17 @@ instance FromHttpApiData (HQ.HashQualified Name) where
       & HQ.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name, @hash") Right
 
+instance ToHttpApiData (HQ.HashQualified Name) where
+  toQueryParam = HQ.toTextWith Name.toText
+
 instance FromHttpApiData (HQ'.HashQualified Name) where
   parseQueryParam txt =
     Text.replace "@" "#" txt
       & HQ'.parseText
       & maybe (Left "Invalid Hash Qualified Name. Expected one of the following forms: name@hash, name") Right
+
+instance ToHttpApiData (HQ'.HashQualified Name) where
+  toQueryParam = HQ'.toTextWith Name.toText
 
 instance ToParamSchema (HQ.HashQualified n) where
   toParamSchema _ =
@@ -423,6 +462,9 @@ deriving via Text instance Sqlite.FromField ProjectName
 instance FromHttpApiData ProjectName where
   parseQueryParam = mapLeft tShow . tryInto @ProjectName
 
+instance ToHttpApiData ProjectName where
+  toQueryParam name = into @Text name
+
 instance ToParamSchema ProjectName where
   toParamSchema _ =
     mempty
@@ -445,6 +487,9 @@ deriving via Text instance Sqlite.FromField ProjectBranchName
 
 instance FromHttpApiData ProjectBranchName where
   parseQueryParam = mapLeft tShow . tryInto @ProjectBranchName
+
+instance ToHttpApiData ProjectBranchName where
+  toQueryParam name = into @Text name
 
 instance ToSchema ProjectBranchName
 

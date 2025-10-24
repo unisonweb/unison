@@ -46,18 +46,22 @@ module Unison.Server.Backend
     termEntryToNamedTerm,
     termEntryLabeledDependencies,
     termListEntry,
-    termReferentsByShortHash,
+    Codebase.termReferentsByShortHash,
+    termSummaryForReferent,
+    typeSummaryForReference,
     typeDeclHeader,
     typeEntryDisplayName,
     typeEntryHQName,
     typeEntryToNamedType,
     typeEntryLabeledDependencies,
     typeListEntry,
-    typeReferencesByShortHash,
+    Codebase.typeReferencesByShortHash,
     typeToSyntaxHeader,
     renderDocRefs,
     docsForDefinitionName,
     normaliseRootCausalHash,
+    resolveProjectRootHash,
+    resolveProjectRoot,
 
     -- * Unused, could remove?
     resolveRootBranchHash,
@@ -67,6 +71,7 @@ module Unison.Server.Backend
     -- * Re-exported for Share Server
     termsToSyntax,
     termsToSyntaxOf,
+    typeToSyntax,
     typesToSyntax,
     typesToSyntaxOf,
     definitionResultsDependencies,
@@ -96,11 +101,11 @@ import System.Directory
 import System.FilePath
 import Text.FuzzyFind qualified as FZF
 import U.Codebase.Branch (NamespaceStats (..))
+import U.Codebase.Branch qualified as V2
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (BranchHash, CausalHash (..))
 import U.Codebase.Referent qualified as V2Referent
-import U.Codebase.Sqlite.Operations qualified as Ops
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
 import Unison.Builtin.Decls qualified as Decls
@@ -115,6 +120,7 @@ import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.Codebase.ShortCausalHash
   ( ShortCausalHash,
   )
@@ -143,17 +149,17 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnv.Util qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
-import Unison.Project (ProjectBranchName, ProjectName)
+import Unison.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.Runtime (Runtime)
+import Unison.Runtime.Decompile (DecompError)
 import Unison.Runtime.IOSource qualified as DD
 import Unison.Server.Doc qualified as Doc
 import Unison.Server.Doc.AsHtml qualified as DocHtml
 import Unison.Server.NameSearch (NameSearch (..), Search (..), applySearch)
-import Unison.Server.NameSearch.Sqlite (termReferentsByShortHash, typeReferencesByShortHash)
 import Unison.Server.QueryResult
 import Unison.Server.SearchResult qualified as SR
 import Unison.Server.SearchResultPrime qualified as SR'
@@ -240,10 +246,7 @@ data BackendError
   | ProjectBranchNameNotFound ProjectName ProjectBranchName
   deriving stock (Show)
 
-newtype BackendEnv = BackendEnv
-  { -- | Whether to use the sqlite name-lookup table to generate Names objects rather than building Names from the root branch.
-    useNamesIndex :: Bool
-  }
+data BackendEnv = BackendEnv
 
 newtype Backend m a = Backend {runBackend :: ReaderT BackendEnv (ExceptT BackendError m) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader BackendEnv, MonadError BackendError)
@@ -533,10 +536,7 @@ formatTypeName ppe =
   fmap Syntax.convertElement . formatTypeName' ppe
 
 formatTypeName' :: PPE.PrettyPrintEnv -> Reference -> SyntaxText
-formatTypeName' ppe r =
-  Pretty.renderUnbroken
-    . NP.styleHashQualified id
-    $ PPE.typeName ppe r
+formatTypeName' ppe = Pretty.render 0 . NP.styleHashQualified id . PPE.typeName ppe
 
 termEntryToNamedTerm ::
   (Var v) => PPE.PrettyPrintEnv -> Maybe Width -> TermEntry v a -> NamedTerm
@@ -616,13 +616,13 @@ hqNameQuery codebase NameSearch {typeSearch, termSearch} searchType hqs = do
   termRefs <-
     filter (not . Set.null . snd) . zip hashes
       <$> traverse
-        (termReferentsByShortHash codebase)
+        (Codebase.termReferentsByShortHash codebase)
         hashes
   -- Find types with those hashes.
   typeRefs <-
     filter (not . Set.null . snd) . zip hashes
       <$> traverse
-        typeReferencesByShortHash
+        Codebase.typeReferencesByShortHash
         hashes
   -- Now do the name queries.
   let mkTermResult sh r = SR.termResult (HQ.HashOnly sh) r Set.empty
@@ -787,12 +787,12 @@ mkTermDefinition codebase termPPED width r docs tm = do
 
 -- | Evaluate the doc at the given reference and return its evaluated-but-not-rendered form.
 evalDocRef ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   TermReference ->
   -- Evaluation always produces a doc, (it just might have error messages in it).
   -- We still return the errors for logging and debugging.
-  IO (Doc.EvaluatedDoc Symbol, [Rt.Error])
+  IO (Doc.EvaluatedDoc Symbol, [DecompError])
 evalDocRef rt codebase r = do
   let tm = Term.ref () r
   errsVar <- UnliftIO.newTVarIO []
@@ -810,14 +810,14 @@ evalDocRef rt codebase r = do
       let evalPPE = PPE.empty
       let codeLookup = Codebase.codebaseToCodeLookup codebase
       let cache r = fmap Term.unannotate <$> Codebase.runTransaction codebase (Codebase.lookupWatchCache codebase r)
-      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE rt tm
+      r <- fmap hush . liftIO $ Rt.evaluateTerm' codeLookup cache evalPPE NoProf rt tm
       -- Only cache watches when we're not in readonly mode
       Env.lookupEnv "UNISON_READONLY" >>= \case
         Just (_ : _) -> pure ()
         _ -> do
           case r of
             -- don't cache when there were decompile errors
-            Just (errs, tmr)
+            Just (Rt.DecompErrs errs, tmr)
               | null errs ->
                   Codebase.runTransaction codebase do
                     Codebase.putWatch
@@ -864,9 +864,9 @@ renderDocRefs ::
   PPED.PrettyPrintEnvDecl ->
   Width ->
   Codebase IO Symbol Ann ->
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   t TermReference ->
-  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [Rt.Error]))
+  IO (t (HashQualifiedName, UnisonHash, Doc.Doc, [DecompError]))
 renderDocRefs pped width codebase rt docRefs = do
   eDocs <- for docRefs \ref -> (ref,) <$> (evalDocRef rt codebase ref)
   for eDocs \(ref, (eDoc, docEvalErrs)) -> do
@@ -876,13 +876,13 @@ renderDocRefs pped width codebase rt docRefs = do
     pure (name, hash, renderedDoc, docEvalErrs)
 
 docsInBranchToHtmlFiles ::
-  Rt.Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Branch IO ->
   FilePath ->
-  -- Returns any doc evaluation errors which may have occurred.
-  -- Note that all docs will still be rendered even if there are errors.
-  IO [Rt.Error]
+  -- | Returns any doc evaluation errors which may have occurred.
+  --   Note that all docs will still be rendered even if there are errors.
+  IO [DecompError]
 docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
   let allTerms = (R.toList . Branch.deepTerms . Branch.head) currentBranch
   -- ignores docs inside lib namespace, recursively
@@ -962,8 +962,7 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
 bestNameForTerm ::
   forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Referent -> Text
 bestNameForTerm ppe width =
-  Text.pack
-    . Pretty.render width
+  Pretty.render width
     . fmap UST.toPlain
     . TermPrinter.runPretty ppe
     . TermPrinter.pretty0 @v TermPrinter.emptyAc
@@ -972,8 +971,7 @@ bestNameForTerm ppe width =
 bestNameForType ::
   forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Reference -> Text
 bestNameForType ppe width =
-  Text.pack
-    . Pretty.render width
+  Pretty.render width
     . fmap UST.toPlain
     . TypePrinter.prettySyntax @v ppe
     . Type.ref ()
@@ -988,17 +986,9 @@ namesAtPathFromRootBranchHash ::
   Path ->
   Backend m (Names, PPED.PrettyPrintEnvDecl)
 namesAtPathFromRootBranchHash codebase cb path = do
-  shouldUseNamesIndex <- asks useNamesIndex
-  let (rootBranchHash, rootCausalHash) = (V2Causal.valueHash cb, V2Causal.causalHash cb)
-  haveNameLookupForRoot <- lift $ Codebase.runTransaction codebase (Ops.checkBranchHashNameLookupExists rootBranchHash)
+  let rootCausalHash = V2Causal.causalHash cb
   hashLen <- lift $ Codebase.runTransaction codebase Codebase.hashLength
-  names <-
-    if shouldUseNamesIndex
-      then do
-        when (not haveNameLookupForRoot) . throwError $ ExpectedNameLookup rootBranchHash
-        lift . Codebase.runTransaction codebase $ Codebase.namesAtPath rootBranchHash path
-      else do
-        Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
+  names <- Branch.toNames . Branch.getAt0 path . Branch.head <$> resolveCausalHash rootCausalHash codebase
   let pped = PPED.makePPED (PPE.hqNamer hashLen names) (PPE.suffixifyByHash names)
   pure (names, pped)
 
@@ -1136,15 +1126,12 @@ termsToSyntax suff width ppe0 terms =
   terms
     <&> \(r, dispObj) ->
       let n = PPE.termName ppeDecl . Referent.Ref $ r
-       in (r,) case dispObj of
-            DisplayObject.BuiltinObject typ ->
-              DisplayObject.BuiltinObject $
-                formatType' (ppeBody r) width typ
-            DisplayObject.MissingObject sh -> DisplayObject.MissingObject sh
-            DisplayObject.UserObject tm ->
-              DisplayObject.UserObject
-                . Pretty.render width
-                $ TermPrinter.prettyBinding (ppeBody r) n tm
+       in ( r,
+            bimap
+              (formatType' (ppeBody r) width)
+              (Pretty.render width . TermPrinter.prettyBinding (ppeBody r) n)
+              dispObj
+          )
   where
     ppeBody r =
       if suffixified suff
@@ -1181,23 +1168,29 @@ typesToSyntaxOf suff width ppe0 trav s =
 
 -- | Converts Type Display Objects into Syntax Text.
 typesToSyntax ::
-  (Var v) =>
-  (Ord a) =>
+  (Var v, Ord a) =>
   Suffixify ->
   Width ->
   PPED.PrettyPrintEnvDecl ->
   [(TypeReference, (DisplayObject () (DD.Decl v a)))] ->
   [(TypeReference, (DisplayObject SyntaxText SyntaxText))]
-typesToSyntax suff width ppe0 types =
-  types
-    <&> \(r, dispObj) ->
-      let n = PPE.typeName ppeDecl r
-       in (r,) $ case dispObj of
-            BuiltinObject _ -> BuiltinObject (formatTypeName' ppeDecl r)
-            MissingObject sh -> MissingObject sh
-            UserObject d ->
-              UserObject . Pretty.render width $
-                DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n d
+typesToSyntax suff width ppe0 =
+  fmap \(r, dispObj) -> (r, typeToSyntax suff width ppe0 r dispObj)
+
+-- | Converts a Type Display Object into Syntax Text.
+typeToSyntax ::
+  (Var v, Ord a) =>
+  Suffixify ->
+  Width ->
+  PPED.PrettyPrintEnvDecl ->
+  TypeReference ->
+  DisplayObject () (DD.Decl v a) ->
+  DisplayObject SyntaxText SyntaxText
+typeToSyntax suff width ppe0 r =
+  let n = PPE.typeName ppeDecl r
+   in bimap
+        (\() -> formatTypeName' ppeDecl r)
+        (Pretty.render width . DeclPrinter.prettyDecl ppe0 DeclPrinter.RenderUniqueTypeGuids'No r n)
   where
     ppeDecl =
       if suffixified suff
@@ -1218,15 +1211,10 @@ typeToSyntaxHeader ::
   HQ.HashQualified Name ->
   DisplayObject () (DD.Decl Symbol Ann) ->
   DisplayObject SyntaxText SyntaxText
-typeToSyntaxHeader width hqName obj =
-  case obj of
-    BuiltinObject _ ->
-      let syntaxName = Pretty.renderUnbroken . NP.styleHashQualified id $ hqName
-       in BuiltinObject syntaxName
-    MissingObject sh -> MissingObject sh
-    UserObject d ->
-      UserObject . Pretty.render width $
-        DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hqName d
+typeToSyntaxHeader width hqName =
+  bimap
+    (\() -> Pretty.render 0 $ NP.styleHashQualified id hqName)
+    (Pretty.render width . DeclPrinter.prettyDeclHeader DeclPrinter.RenderUniqueTypeGuids'No hqName)
 
 loadSearchResults ::
   Codebase m Symbol Ann ->
@@ -1251,3 +1239,73 @@ loadTypeDisplayObject c = \case
   Reference.DerivedId id ->
     maybe (MissingObject $ Reference.idToShortHash id) UserObject
       <$> Codebase.getTypeDeclaration c id
+
+resolveProjectRoot :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO (V2.CausalBranch Sqlite.Transaction)
+resolveProjectRoot codebase projectAndBranchName@(ProjectAndBranch projectName branchName) = do
+  mayCB <- liftIO . Codebase.runTransaction codebase $ Codebase.getShallowProjectRootByNames projectAndBranchName
+  case mayCB of
+    Nothing -> throwError (ProjectBranchNameNotFound projectName branchName)
+    Just cb -> pure cb
+
+resolveProjectRootHash :: Codebase IO v a -> ProjectAndBranch ProjectName ProjectBranchName -> Backend IO CausalHash
+resolveProjectRootHash codebase projectAndBranchName = do
+  resolveProjectRoot codebase projectAndBranchName <&> V2Causal.causalHash
+
+termSummaryForReferent ::
+  Codebase IO Symbol Ann ->
+  Referent ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TermSummary
+termSummaryForReferent codebase referent mayName mkPPE mayWidth = do
+  let shortHash = Referent.toShortHash referent
+  let termReference = Referent.toReference referent
+  let v2Referent = Cv.referent1to2 referent
+
+  sig <- hoistBackend (Codebase.runTransaction codebase) do
+    sig <- lift (loadReferentType codebase referent)
+    pure sig
+  case sig of
+    Nothing ->
+      throwError (MissingSignatureForTerm termReference)
+    Just typeSig -> do
+      let deps = Type.labeledDependencies typeSig
+      pped <- lift . Codebase.runTransaction codebase $ mkPPE deps
+      let formattedTermSig = formatSuffixedType pped width typeSig
+      let summary = mkSummary termReference formattedTermSig
+      tag <- lift $ getTermTag codebase v2Referent sig
+      let displayName = PPE.termName (PPED.unsuffixifiedPPE pped) referent
+      pure $ TermSummary (maybe displayName HQ.NameOnly mayName) shortHash summary tag
+  where
+    width = mayDefaultWidth mayWidth
+    mkSummary reference termSig =
+      if Reference.isBuiltin reference
+        then BuiltinObject termSig
+        else UserObject termSig
+
+typeSummaryForReference ::
+  Codebase IO Symbol Ann ->
+  Reference ->
+  Maybe Name ->
+  (Set LD.LabeledDependency -> Sqlite.Transaction PPED.PrettyPrintEnvDecl) ->
+  Maybe Width ->
+  Backend IO TypeSummary
+typeSummaryForReference codebase reference mayName mkPPED mayWidth = do
+  let shortHash = Reference.toShortHash reference
+  lift do
+    Codebase.runTransaction codebase do
+      pped <- mkPPED $ Set.singleton (LD.TypeReference reference)
+      let displayName = PPE.typeName (PPED.unsuffixifiedPPE pped) reference
+      tag <- getTypeTag codebase reference
+      displayDecl <- displayType codebase reference
+      let syntaxHeader = typeToSyntaxHeader width displayName displayDecl
+      pure $
+        TypeSummary
+          { displayName = (maybe displayName HQ.NameOnly mayName),
+            hash = shortHash,
+            summary = bimap mungeSyntaxText mungeSyntaxText syntaxHeader,
+            tag = tag
+          }
+  where
+    width = mayDefaultWidth mayWidth

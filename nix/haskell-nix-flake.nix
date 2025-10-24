@@ -33,20 +33,14 @@
         ++ [
           pkgs.cachix
           pkgs.gettext # for envsubst, used by unison-src/builtin-tests/interpreter-tests.sh
-          pkgs.hpack
           pkgs.jq # helpful when pushing to Cachix
           pkgs.pkg-config
           pkgs.stack-wrapped
         ];
-      # workaround for https://gitlab.haskell.org/ghc/ghc/-/issues/11042
-      shellHook = ''
-        export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
-      '';
       tools =
         (args.tools or {})
         // {
-          cabal = {version = versions.cabal;};
-          ormolu = {version = versions.ormolu;};
+          cabal.version = versions.cabal;
           haskell-language-server = {
             version = versions.hls;
             modules = [
@@ -65,6 +59,9 @@
               constraints: ormolu == ${versions.ormolu}
             '';
           };
+          hpack.version = versions.hpack;
+          ormolu.version = versions.ormolu;
+          weeder.version = versions.weeder;
         };
     };
 
@@ -79,6 +76,10 @@ in
       // {
         ## This check has a test that tries to write to $HOME, so we give it a fake one.
         "unison-cli:test:cli-tests" = haskell-nix-flake.checks."unison-cli:test:cli-tests".overrideAttrs (old: {
+          ## On macOS, this derivation requires access to `security`, which is outside the sandbox, so we tell Nix that
+          ## it doesn’t work in the sandbox. There is a lot of discussion, but no fix, with NixOS/nixpkgs#297775 maybe
+          ## being the best starting point.
+          __noChroot = pkgs.stdenv.isDarwin;
           ## The builder here doesn’t `runHook preBuild`, so we just prepend onto `buildPhase`.
           buildPhase =
             ''

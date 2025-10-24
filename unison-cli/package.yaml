@@ -4,15 +4,6 @@ copyright: Copyright (C) 2013-2018 Unison Computing, PBC and contributors
 
 ghc-options: -Wall
 
-dependencies:
-  - base
-  - text
-  - unison-parser-typechecker
-  - unison-prelude
-  - megaparsec
-  - unliftio
-  - directory
-
 library:
   source-dirs: src
   when:
@@ -21,25 +12,24 @@ library:
     - condition: "!os(windows)"
       dependencies: unix
   dependencies:
-    - attoparsec
     - Diff
     - IntervalMap
     - ListLike
     - aeson >= 2.0.0.0
     - aeson-pretty
     - ansi-terminal
+    - attoparsec
+    - base
     - bytestring
     - cmark
     - co-log-core
     - code-page
     - concurrent-output
     - conduit
-    - containers >= 0.6.3
-    - conduit
     - conduit-extra
-    - hs-mcp
-    - stm-chans
+    - containers >= 0.6.3
     - cryptonite
+    - directory
     - either
     - errors
     - extra
@@ -49,7 +39,9 @@ library:
     - frontmatter
     - fsnotify
     - generic-lens
+    - github
     - haskeline
+    - hs-mcp
     - http-client >= 0.7.6
     - http-client-tls
     - http-types
@@ -58,6 +50,7 @@ library:
     - lock-file
     - lsp >= 2.2.0.0
     - lsp-types >= 2.0.2.0
+    - megaparsec
     - memory
     - mtl
     - network-simple
@@ -78,7 +71,9 @@ library:
     - servant-client
     - servant-conduit
     - stm
+    - stm-chans
     - temporary
+    - text
     - text-ansi
     - text-builder
     - text-rope
@@ -93,6 +88,7 @@ library:
     - unison-hash
     - unison-merge
     - unison-parser-typechecker
+    - unison-prelude
     - unison-pretty-printer
     - unison-runtime
     - unison-share-api
@@ -100,9 +96,10 @@ library:
     - unison-sqlite
     - unison-syntax
     - unison-util-base32hex
+    - unison-util-file-embed
     - unison-util-recursion
     - unison-util-relation
-    - unison-util-file-embed
+    - unliftio
     - uuid
     - vector
     - wai
@@ -116,25 +113,31 @@ tests:
       - condition: false
         other-modules: Paths_unison_cli
     dependencies:
+      - base
       - code-page
       - containers
       - cryptonite
+      - directory
       - easytest
       - extra
       - here
       - lens
       - lsp
       - lsp-types
+      - megaparsec
       - mtl
       - temporary
+      - text
       - these
       - unison-cli
       - unison-core
       - unison-core1
       - unison-parser-typechecker
+      - unison-prelude
       - unison-pretty-printer
       - unison-syntax
       - unison-util-recursion
+      - unliftio
     main: Main.hs
     source-dirs: tests
 
@@ -147,12 +150,18 @@ executables:
     main: Transcripts.hs
     ghc-options: -threaded -rtsopts "-with-rtsopts=-I0 -N -qn4 -qg1" -v0
     dependencies:
+      - base
       - bytestring
       - code-page
+      - directory
       - easytest
       - filepath
+      - megaparsec
       - silently
+      - text
       - unison-cli
+      - unison-parser-typechecker
+      - unison-prelude
       - unliftio
 
 default-extensions:

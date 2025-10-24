@@ -27,6 +27,8 @@ extra-source-files:
     sql/015-add-project-branch-last-accessed.sql
     sql/016-add-merge-branch-tables.sql
     sql/017-add-update-branch-table.sql
+    sql/018-add-derived-dependents-by-dependency-index.sql
+    sql/019-add-upgrade-branch-table.sql
     sql/create.sql
 
 source-repository head
@@ -48,8 +50,6 @@ library
       U.Codebase.Sqlite.HashHandle
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
-      U.Codebase.Sqlite.NamedRef
-      U.Codebase.Sqlite.NameLookups
       U.Codebase.Sqlite.ObjectType
       U.Codebase.Sqlite.Operations
       U.Codebase.Sqlite.Orphans

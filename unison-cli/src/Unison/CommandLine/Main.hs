@@ -9,6 +9,7 @@ import Control.Lens ((?~))
 import Control.Lens.Lens
 import Crypto.Random qualified as Random
 import Data.IORef
+import Data.List qualified as List
 import Data.List.NonEmpty qualified as NEL
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
@@ -21,10 +22,10 @@ import System.Console.Haskeline.History qualified as Line
 import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
 import System.IO.Error (isDoesNotExistError)
-import Unison.Auth.CredentialManager (newCredentialManager)
+import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
-import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Pretty qualified as P
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
@@ -36,17 +37,18 @@ import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
 import Unison.Codebase.Editor.Output (NumberedArgs, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
 import Unison.CommandLine.InputPatterns qualified as IP
-import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser)
+import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal
+import Unison.Project qualified as Project
+import Unison.Runtime (Runtime)
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Share.Codeserver (isCustomCodeserver)
@@ -91,9 +93,17 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
 
     go :: Line.InputT IO Input
     go = do
-      let promptString = P.prettyProjectPath pp
-      let fullPrompt = P.toANSI 80 (P.red (P.string codeserverPrompt) <> promptString <> fromString prompt)
-      line <- Line.getInputLine fullPrompt
+      let statusString = if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge then "🧩 " else ""
+      let branchString = P.prettyProjectPath pp
+      let fullPrompt =
+            P.toANSI 80 $
+              fold
+                [ P.red (P.string codeserverPrompt),
+                  statusString,
+                  branchString,
+                  fromString prompt
+                ]
+      line <- Line.getInputLine $ Text.unpack fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
@@ -113,7 +123,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                 let expandedArgs' = IP.unifyArgument <$> expandedArgs
                     expandedArgsStr = unwords expandedArgs'
                 when (expandedArgs' /= ws) $ do
-                  liftIO . putStrLn $ fullPrompt <> expandedArgsStr
+                  liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
     settings :: Line.Settings IO
@@ -138,15 +148,17 @@ main ::
   Welcome.Welcome ->
   PP.ProjectPathIds ->
   [Either Event Input] ->
-  Runtime.Runtime Symbol ->
-  Runtime.Runtime Symbol ->
+  Runtime Symbol ->
+  Runtime Symbol ->
   Codebase IO Symbol Ann ->
   Maybe Server.BaseUrl ->
   UCMVersion ->
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion lspCheckForChanges shouldWatchFiles = do
+main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion authHTTPClient credentialManager lspCheckForChanges shouldWatchFiles = do
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
   let config = FSNotify.defaultConfig
@@ -171,13 +183,43 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 ShouldWatchFiles -> allow
           )
 
+      -- On startup, we tell the user about any existing project names that don't pass the new project name regex,
+      -- which isn't enforced yet.
+
+      invalidProjectNamesInputs <- do
+        projects <- Codebase.runTransaction codebase Queries.loadAllProjects
+        let invalidProjectNames =
+              mapMaybe
+                ( \project ->
+                    if Project.isValidNewProjectName project.name
+                      then Nothing
+                      else Just project.name
+                )
+                projects
+        pure case invalidProjectNames of
+          [] -> []
+          _ ->
+            let isReservedName (into @Text -> name) = name == "code" || name == "p"
+                hasReservedName = isJust (List.find isReservedName invalidProjectNames)
+             in [ Right . CreateMessage . P.warnCallout $
+                    P.wrap "We're updating UCM's project naming rules, and these names won’t be supported much longer:"
+                      <> P.newline
+                      <> P.newline
+                      <> P.group (P.commas (map P.prettyProjectName invalidProjectNames))
+                      <> P.newline
+                      <> P.newline
+                      <> P.wrap
+                        ( "Please"
+                            <> IP.makeExample IP.projectRenameInputPattern []
+                            <> "them using only ASCII letters, numbers, hyphens, and underscores."
+                            <> (if hasReservedName then "(You also can't use the names 'code' or 'p'.)" else mempty)
+                        )
+                ]
+
       let initialState = Cli.loopState0 ppIds
-      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs
+      initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs ++ invalidProjectNamesInputs
       pageOutput <- newIORef True
 
-      credentialManager <- newCredentialManager
-      let tokenProvider = AuthN.newTokenProvider credentialManager
-      authHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion
       initialEcho <- hGetEcho stdin
       let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
       let getInput :: Cli.LoopState -> IO Input
@@ -209,7 +251,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               else return Cli.InvalidSourceNameError
       let notify :: Output -> IO ()
           notify =
-            notifyUser (pure dir)
+            notifyUser (pure dir) fetchIssueFromGitHub
               >=> ( \o ->
                       ifM
                         (readIORef pageOutput)

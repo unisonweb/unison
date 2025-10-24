@@ -22,9 +22,14 @@ unique type Foo = Bar Nat
 
   Done.
 
-> delete.term Foo.Bar
+> delete.term.force Foo.Bar
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Now we've set up a situation where the original constructor missing.
@@ -57,5 +62,5 @@ unique type Foo = Bar Nat Nat
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try the update again.
+  each unnamed constructor, and then try updating again.
 ```

@@ -25,10 +25,9 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
-import Control.Exception (displayException, evaluate, fromException)
+import Control.Exception (displayException, fromException)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
@@ -40,43 +39,40 @@ import Ki qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS qualified as HTTP
 import Stats (recordRtsStats)
-import System.Directory
-  ( canonicalizePath,
-    getCurrentDirectory,
-    removeDirectoryRecursive,
-  )
+import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
 import System.Environment (getProgName, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
-import System.FilePath
-  ( replaceExtension,
-    takeExtension,
-    (</>),
-  )
+import System.FilePath (replaceExtension, takeExtension, (</>))
 import System.IO (stderr)
 import System.IO.CodePage (withCP65001)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
 import Text.Megaparsec qualified as MP
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Auth.CredentialManager qualified as AuthN
+import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens qualified as AuthN
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase (Codebase, CodebasePath)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input qualified as Input
+import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Execute (execute)
 import Unison.Codebase.Init (CodebaseInitOptions (..), InitError (..), InitResult (..), SpecifiedCodebase (..))
 import Unison.Codebase.Init qualified as CodebaseInit
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.Runtime qualified as Rt
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Codebase.SqliteCodebase qualified as SC
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine.Helpers (plural')
 import Unison.CommandLine.Main qualified as CommandLine
+import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub)
 import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
@@ -89,7 +85,6 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
 import Unison.Project (defaultBranchName)
-import Unison.Runtime.Exception (RuntimeExn (..))
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
@@ -151,9 +146,12 @@ main version = do
         PrintVersion ->
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
         MCPServer -> do
+          let ucmVersion = Version.gitDescribeWithDate version
+          credMan <- AuthN.newCredentialManager
+          authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
           getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
-              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir (Version.gitDescribeWithDate version)
+              MCP.runOnStdIO theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
         Init -> do
           exitError
             ( P.lines
@@ -170,7 +168,7 @@ main version = do
           getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
-                Left err -> exitError err
+                Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
         Run (RunFromFile file mainName) args
           | not (isDotU file) -> exitError "Files must have a .u extension."
@@ -184,6 +182,9 @@ main version = do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
+                      let ucmVersion = Version.gitDescribeWithDate version
+                      credMan <- liftIO $ AuthN.newCredentialManager
+                      authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
                       startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                       launch
                         version
@@ -191,7 +192,9 @@ main version = do
                         rt
                         sbrt
                         theCodebase
-                        [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                        [Left fileEvent, Right $ Input.ExecuteI NoProf mainName args, Right Input.QuitI]
+                        authenticatedHTTPClient
+                        credMan
                         serverUrl
                         (PP.toIds startProjectPath)
                         initRes
@@ -207,6 +210,9 @@ main version = do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
+                  let ucmVersion = Version.gitDescribeWithDate version
+                  credMan <- liftIO $ AuthN.newCredentialManager
+                  authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
                   startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                   launch
                     version
@@ -214,22 +220,25 @@ main version = do
                     rt
                     sbrt
                     theCodebase
-                    [Left fileEvent, Right $ Input.ExecuteI mainName args, Right Input.QuitI]
+                    [Left fileEvent, Right $ Input.ExecuteI NoProf mainName args, Right Input.QuitI]
+                    authenticatedHTTPClient
+                    credMan
                     serverUrl
                     (PP.toIds startProjectPath)
                     initRes
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
         Run (RunCompiled file) args ->
-          BL.readFile file >>= \bs ->
-            try (evaluate $ RTI.decodeStandalone bs) >>= \case
-              Left (PE _cs err) -> do
+          BS.readFile file >>= \bs ->
+            try (RTI.decodeStandalone bs) >>= \case
+              Left re -> do
+                exnMessage <- RTI.prettyRuntimeExn fetchIssueFromGitHub re
                 exitError . P.lines $
                   [ P.wrap . P.text $
                       "I was unable to parse this file as a compiled\
                       \ program. The parser generated the following error:",
                     "",
-                    P.indentN 2 $ err
+                    P.indentN 2 exnMessage
                   ]
               Right (Left err) ->
                 exitError . P.lines $
@@ -239,15 +248,11 @@ main version = do
                     "",
                     P.indentN 2 . P.wrap $ P.string err
                   ]
-              Left _ -> do
-                exitError . P.wrap . P.text $
-                  "I was unable to parse this file as a compiled\
-                  \ program. The parser generated an unrecognized error."
               Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
                     withArgs args (RTI.runStandalone False sto combIx) >>= \case
-                      Left err -> exitError err
+                      Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
                   vmatch = v == Version.gitDescribeWithDate version
@@ -322,11 +327,13 @@ main version = do
               -- https://gitlab.haskell.org/ghc/ghc/-/merge_requests/1224
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
-              mcpServerConfig <-
-                MCP.initServer theCodebase runtime sbRuntime (pure currentDir) $ Version.gitDescribeWithDate version
+              let ucmVersion = Version.gitDescribeWithDate version
+              credMan <- liftIO $ AuthN.newCredentialManager
+              authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
+              mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
               Server.startServer
                 isTest
-                Backend.BackendEnv {Backend.useNamesIndex = False}
+                Backend.BackendEnv
                 codebaseServerOpts
                 sbRuntime
                 theCodebase
@@ -358,7 +365,6 @@ main version = do
                       takeMVar mvar
                     WithCLI -> do
                       PT.putPrettyLn $ P.string "Now starting the Unison Codebase Manager (UCM)..."
-
                       launch
                         version
                         currentDir
@@ -366,6 +372,8 @@ main version = do
                         sbRuntime
                         theCodebase
                         []
+                        authenticatedHTTPClient
+                        credMan
                         mayBaseUrl
                         (PP.toIds startingProjectPath)
                         initRes
@@ -379,6 +387,9 @@ main version = do
       RTI.withRuntime False mode (Version.gitDescribeWithDate version) \runtime -> do
         RTI.withRuntime True mode (Version.gitDescribeWithDate version) \sbRuntime ->
           action (runtime, sbRuntime)
+    initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
+    initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do
+      AuthN.newAuthenticatedHTTPClient (AuthN.newTokenProvider credMan) ucmVersion
 
 isExitSuccess :: SomeException -> Bool
 isExitSuccess =
@@ -579,17 +590,19 @@ runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption a
 launch ::
   Version ->
   FilePath ->
-  Rt.Runtime Symbol ->
-  Rt.Runtime Symbol ->
+  RTI.Runtime Symbol ->
+  RTI.Runtime Symbol ->
   Codebase.Codebase IO Symbol Ann ->
   [Either Input.Event Input.Input] ->
+  AuthN.AuthenticatedHttpClient ->
+  AuthN.CredentialManager ->
   Maybe Server.BaseUrl ->
   PP.ProjectPathIds ->
   InitResult ->
   (PP.ProjectPathIds -> IO ()) ->
   CommandLine.ShouldWatchFiles ->
   IO ()
-launch version dir runtime sbRuntime codebase inputs serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
+launch version dir runtime sbRuntime codebase inputs authenticatedHTTPClient credMan serverBaseUrl startingPath initResult lspCheckForChanges shouldWatchFiles = do
   showWelcomeHint <- Codebase.runTransaction codebase Queries.doProjectsExist
   let isNewCodebase = case initResult of
         CreatedCodebase -> NewlyCreatedCodebase
@@ -606,6 +619,8 @@ launch version dir runtime sbRuntime codebase inputs serverBaseUrl startingPath 
         codebase
         serverBaseUrl
         ucmVersion
+        authenticatedHTTPClient
+        credMan
         lspCheckForChanges
         shouldWatchFiles
 

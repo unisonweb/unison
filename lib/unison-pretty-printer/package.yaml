@@ -76,4 +76,5 @@ tests:
       - easytest
       - containers
       - code-page
+      - text
       - unison-syntax

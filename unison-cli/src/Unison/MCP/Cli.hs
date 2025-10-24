@@ -11,7 +11,6 @@ import Crypto.Random qualified as Random
 import Data.Aeson
 import Data.IORef
 import Data.Sequence qualified as Seq
-import Data.Text qualified as Text
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -83,7 +82,7 @@ cliToMCP projCtx cli = do
   outputVar <- newTVarIO Seq.empty
   sourceCodeUpdatesVar <- newTVarIO Seq.empty
   let notify output = do
-        pretty <- Output.notifyUser workDir output
+        pretty <- Output.notifyUser workDir Output.fetchIssueFromGitHub output
         atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
   let notifyNumbered output = do
         let (pretty, nargs) = Output.notifyNumbered output
@@ -128,7 +127,7 @@ cliToMCP projCtx cli = do
     sourceCodeUpdates <- toList <$> readTVar sourceCodeUpdatesVar
     let outputMessages =
           msgs
-            & fmap (Text.pack . Pretty.toPlainUnbroken)
+            & fmap (Pretty.toPlain 0)
             & toList
     pure $
       ( CliOutput

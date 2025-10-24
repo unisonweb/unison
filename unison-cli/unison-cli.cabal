@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -52,11 +52,11 @@ library
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
-      Unison.Codebase.Editor.HandleInput.CommitMerge
-      Unison.Codebase.Editor.HandleInput.CommitUpgrade
+      Unison.Codebase.Editor.HandleInput.Cancel
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
+      Unison.Codebase.Editor.HandleInput.Delete
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteNamespace
       Unison.Codebase.Editor.HandleInput.DeleteProject
@@ -77,7 +77,6 @@ library
       Unison.Codebase.Editor.HandleInput.MoveTerm
       Unison.Codebase.Editor.HandleInput.MoveType
       Unison.Codebase.Editor.HandleInput.Names
-      Unison.Codebase.Editor.HandleInput.NamespaceDependencies
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
       Unison.Codebase.Editor.HandleInput.ProjectClone
       Unison.Codebase.Editor.HandleInput.ProjectCreate
@@ -96,7 +95,6 @@ library
       Unison.Codebase.Editor.HandleInput.Tests
       Unison.Codebase.Editor.HandleInput.Todo
       Unison.Codebase.Editor.HandleInput.UI
-      Unison.Codebase.Editor.HandleInput.Update
       Unison.Codebase.Editor.HandleInput.Update2
       Unison.Codebase.Editor.HandleInput.Upgrade
       Unison.Codebase.Editor.Input
@@ -136,6 +134,7 @@ library
       Unison.LSP.Configuration
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
+      Unison.LSP.DocumentSymbols
       Unison.LSP.FileAnalysis
       Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
@@ -236,6 +235,7 @@ library
     , frontmatter
     , fsnotify
     , generic-lens
+    , github
     , haskeline
     , hs-mcp
     , http-client >=0.7.6

@@ -17,6 +17,7 @@ library:
     - bytestring-to-vector
     - deepseq
     - memory
+    - murmur-hash
     - primitive
     - stringsearch
     - text
@@ -24,6 +25,7 @@ library:
     - unison-prelude
     - unison-util-rope
     - zlib
+    - zstd
 
 tests:
   util-bytes-tests:

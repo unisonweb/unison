@@ -37,6 +37,7 @@ module Unison.DataDeclaration
     asDataDecl_,
     declAsDataDecl_,
     setConstructorNames,
+    uniqueTypeGuid,
   )
 where
 
@@ -104,6 +105,13 @@ constructorType = \case
 
 data Modifier = Structural | Unique Text --  | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
+
+-- | Get the unique type GUID of a declaration, if it is a unique type.
+uniqueTypeGuid :: Decl v a -> Maybe Text
+uniqueTypeGuid decl =
+  case (asDataDecl decl).modifier of
+    Structural -> Nothing
+    Unique guid -> Just guid
 
 data DataDeclaration v a = DataDeclaration
   { modifier :: Modifier,

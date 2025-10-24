@@ -17,7 +17,6 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Util.Pretty qualified as P
@@ -40,7 +39,7 @@ handleNames ::
   Cli ()
 handleNames _ (nameQuery, Left errMsg) = do
   Cli.respond $
-    PrintMessage $
+    Literal $
       P.lines [prettyNameQuery, errMsg]
   where
     prettyNameQuery =

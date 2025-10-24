@@ -13,7 +13,6 @@ module Unison.Codebase.Editor.Output
     MoreEntriesThanShown (..),
     UndoFailureReason (..),
     ShareError (..),
-    UpdateOrUpgrade (..),
     isFailure,
     isNumberedFailure,
   )
@@ -75,6 +74,7 @@ import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
 import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
+import Unison.Runtime (Error)
 import Unison.Server.Backend (ShallowListEntry (..))
 import Unison.Server.SearchResultPrime (SearchResult')
 import Unison.Share.Sync.Types qualified as Sync
@@ -109,7 +109,6 @@ type HashLength = Int
 data NumberedOutput
   = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -123,8 +122,6 @@ data NumberedOutput
       (Map TermReferenceId [Text]) -- oks
       (Map TermReferenceId [Text]) -- fails
   | Output'Todo !TodoOutput
-  | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
-    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
@@ -148,6 +145,7 @@ data NumberedOutput
       (Maybe UTCTime {- current time, omitted in transcript tests to be more deterministic -})
       MoreEntriesThanShown
       [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
+  | DeletedDefinitions (DefnsF Set Name Name)
 
 data TodoOutput = TodoOutput
   { defnsInLib :: !Bool,
@@ -178,8 +176,6 @@ data Output
     Success
   | -- User did `update` before typechecking a file?
     NoUnisonFile
-  | -- Used in Welcome module to instruct user
-    PrintMessage (P.Pretty P.ColorText)
   | InvalidSourceName String
   | SourceLoadFailed String
   | -- No main function, the [Type v Ann] are the allowed types
@@ -216,8 +212,7 @@ data Output
   | BranchNotFound Path'
   | EmptyLooseCodePush Path'
   | EmptyProjectBranchPush (ProjectAndBranch ProjectName ProjectBranchName)
-  | NameNotFound (HQ'.HashQualified (Path.Split Path'))
-  | NamesNotFound [Name]
+  | TermAndOrTypeNameNotFound !(Maybe (Defn () ())) !(HQ'.HashQualified Name)
   | TypeNotFound (HQ'.HashQualified (Path.Split Path'))
   | TermNotFound (HQ'.HashQualified (Path.Split Path'))
   | MoveNothingFound Path'
@@ -273,7 +268,10 @@ data Output
   | TypeWarns Path.Absolute Text PPE.PrettyPrintEnv [Context.Warn Symbol Ann]
   | CompilerBugs Text PPE.PrettyPrintEnv [Context.CompilerBug Symbol Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
-  | EvaluationFailure Runtime.Error
+  | EvaluationFailure
+      -- | A function to apply to the `Error` after serializing it, allowing more context to be added.
+      (P.Pretty P.ColorText -> P.Pretty P.ColorText)
+      Error
   | Evaluated
       SourceFileContents
       PPE.PrettyPrintEnv
@@ -342,7 +340,6 @@ data Output
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
   | BadName Text
-  | CouldntLoadBranch CausalHash
   | HelpMessage Input.InputPattern
   | NamespaceEmpty (NonEmpty (Either ShortCausalHash ProjectPath))
   | NoOp
@@ -422,27 +419,28 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | DeleteFailure !FilePath !ProjectBranchName !ProjectBranchName
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
-  | UpdateIncompleteConstructorSet UpdateOrUpgrade Name (Map ConstructorId Name) (Maybe Int)
-  | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
+  | UpgradeFailure !ProjectBranchName !FilePath !NameSegment !NameSegment
   | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
-  | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
-  | MergeFailureWithMergetool !MergeSourceAndTarget !ProjectBranchName !Text !ExitCode
+  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))
   | MergeConflictInvolvingBuiltin !(Defn Name Name)
   | MergeDefnsInLib !MergeSourceOrTarget
   | InstalledLibdep !(ProjectAndBranch ProjectName ProjectBranchName) !NameSegment
-  | NoUpgradeInProgress
   | UseLibInstallNotPull !(ProjectAndBranch ProjectName ProjectBranchName)
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
   | Output'DebugSynhashTerm !TermReference !Hash !Text
-  | ConflictedDefn !Text {- what operation? -} !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | ConflictedDefn !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | IncoherentDeclDuringDelete !IncoherentDeclReason
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
+  | IncoherentDeclDuringUpgrade !IncoherentDeclReason
   | -- | A literal output message. Use this if it's too cumbersome to create a new Output constructor, e.g. for
     -- ephemeral progress messages that are just simple strings like "Loading branch..."
     Literal !(P.Pretty P.ColorText)
@@ -452,11 +450,12 @@ data Output
   | UCMServerNotRunning
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
   | BranchUpdate'BranchChanged
+  | SyncingFromTo CausalHash CausalHash
+  | CantDeleteConstructor !(NESet Name)
+  | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
-
-data UpdateOrUpgrade = UOUUpdate | UOUUpgrade
 
 -- | What did we create a project branch from?
 --
@@ -509,9 +508,9 @@ type SourceFileContents = Text
 
 isFailure :: Output -> Bool
 isFailure o = case o of
+  DeleteFailure {} -> True
   UpdateTypecheckingFailure {} -> True
   UpdateTypecheckingFailure2 {} -> True
-  UpdateIncompleteConstructorSet {} -> True
   AmbiguousCloneLocal {} -> True
   AmbiguousCloneRemote {} -> True
   ClonedProjectBranch {} -> False
@@ -519,8 +518,6 @@ isFailure o = case o of
   SaveTermNameConflict {} -> True
   RunResult {} -> False
   Success {} -> False
-  PrintMessage {} -> False
-  CouldntLoadBranch {} -> True
   NoUnisonFile {} -> True
   InvalidSourceName {} -> True
   SourceLoadFailed {} -> True
@@ -547,8 +544,7 @@ isFailure o = case o of
   BadName {} -> True
   BadNamespace {} -> True
   BranchNotFound {} -> True
-  NameNotFound {} -> True
-  NamesNotFound _ -> True
+  TermAndOrTypeNameNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
@@ -679,14 +675,15 @@ isFailure o = case o of
   MergeConflictInvolvingBuiltin {} -> True
   MergeDefnsInLib {} -> True
   InstalledLibdep {} -> False
-  NoUpgradeInProgress {} -> True
   UseLibInstallNotPull {} -> False
   PullIntoMissingBranch {} -> True
   NoMergeInProgress {} -> True
   Output'DebugSynhashTerm {} -> False
   ConflictedDefn {} -> True
+  IncoherentDeclDuringDelete {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
+  IncoherentDeclDuringUpgrade {} -> True
   Literal _ -> False
   SyncPullError {} -> True
   SyncFromCodebaseMissingProjectBranch {} -> True
@@ -694,12 +691,14 @@ isFailure o = case o of
   UCMServerNotRunning -> True
   BranchSquashSuccess {} -> False
   BranchUpdate'BranchChanged {} -> True
+  SyncingFromTo {} -> False
+  CantDeleteConstructor {} -> True
+  CantDoThatDuring {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
   AmbiguousReset {} -> True
   AmbiguousSwitch {} -> True
-  CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
   History {} -> False
@@ -707,7 +706,6 @@ isNumberedFailure = \case
   ListProjects {} -> False
   ShowDiffAfterCreateAuthor {} -> False
   ShowDiffAfterDeleteBranch {} -> False
-  ShowDiffAfterDeleteDefinitions {} -> False
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
@@ -716,3 +714,4 @@ isNumberedFailure = \case
   TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False
   ShowProjectBranchReflog {} -> False
+  DeletedDefinitions {} -> False

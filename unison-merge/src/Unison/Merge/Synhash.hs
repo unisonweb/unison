@@ -1,5 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-
 -- | Utilities for computing the "syntactic hash" of a decl or term, which is a hash that is computed after substituting
 -- references to other terms and decls with names from a pretty-print environment.
 --
@@ -26,12 +24,8 @@
 -- "foo" would have the same syntactic hash. This indicates (to our merge algorithm) that this was an auto-propagated
 -- update.
 module Unison.Merge.Synhash
-  ( synhashType,
-    synhashTerm,
-    synhashBuiltinTerm,
-    synhashDerivedTerm,
-    synhashBuiltinDecl,
-    synhashDerivedDecl,
+  ( synhashLcaDefns,
+    synhashDefns,
 
     -- * Exported for debugging
     hashBuiltinTermTokens,
@@ -41,34 +35,151 @@ where
 
 import Data.Char (ord)
 import Data.List qualified as List
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import U.Codebase.Reference (TypeReference)
 import Unison.ABT qualified as ABT
+import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration (DataDeclaration, Decl)
 import Unison.DataDeclaration qualified as DD
-import Unison.Hash (Hash)
+import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DeclNameLookup (DeclNameLookup)
+import Unison.DeclNameLookup qualified as DeclNameLookup
+import Unison.Hash (Hash (Hash))
 import Unison.HashQualified as HQ
 import Unison.Hashable qualified as H
 import Unison.Kind qualified as K
+import Unison.Merge.Synhashed (Synhashed (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.Parser.Ann (Ann)
+import Unison.PartialDeclNameLookup (PartialDeclNameLookup (..))
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Reference (Reference' (..), TermReferenceId)
-import Unison.Reference qualified as V1
+import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReferenceId)
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
-import Unison.Syntax.Name qualified as Name (toText, unsafeParseVar)
+import Unison.Symbol (Symbol)
+import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
+import Unison.Util.Map qualified as Map
 import Unison.Var (Var)
 import Witch (unsafeFrom)
+
+synhashLcaDefns ::
+  (HasCallStack) =>
+  (term -> Term Symbol Ann) ->
+  PrettyPrintEnv ->
+  PartialDeclNameLookup ->
+  DefnsF (Map Name) Referent TypeReference ->
+  Defns (Map TermReferenceId term) (Map TypeReferenceId (Decl Symbol Ann)) ->
+  DefnsF2 (Map Name) Synhashed Referent TypeReference
+synhashLcaDefns toTerm ppe declNameLookup defns hydratedDefns =
+  synhashDefnsWith hashReferent hashType defns
+  where
+    -- For the LCA only, if we don't have a name for every constructor, or we don't have a name for a decl, that's okay,
+    -- just use a dummy syntactic hash (e.g. where we return `Hash mempty` below in two places).
+    --
+    -- This is safe and correct; Alice/Bob can't have such a decl (it violates a merge precondition), so there's no risk
+    -- that we accidentally get an equal hash and classify a real update as unchanged.
+
+    hashReferent :: Name -> Referent -> Hash
+    hashReferent name = \case
+      Referent.Con (ConstructorReference ref _) _ ->
+        case Map.lookup name declNameLookup.constructorToDecl of
+          Nothing -> Hash mempty -- see note above
+          Just declName -> hashType declName ref
+      Referent.Ref ref -> synhashTermReference toTerm ppe hydratedDefns.terms ref
+
+    hashType :: Name -> TypeReference -> Hash
+    hashType name = \case
+      ReferenceBuiltin builtin -> synhashBuiltinDecl builtin
+      ReferenceDerived ref ->
+        case sequence (Map.lookupJust name declNameLookup.declToConstructors) of
+          Nothing -> Hash mempty -- see note above
+          Just names -> setConstructorNamesAndSynhashDerivedDecl ppe hydratedDefns.types names name ref
+
+-- | Computes syntactic hashes of non-LCA definitions.
+synhashDefns ::
+  (HasCallStack) =>
+  (term -> Term Symbol Ann) ->
+  PrettyPrintEnv ->
+  Defns (Map TermReferenceId term) (Map TypeReferenceId (Decl Symbol Ann)) ->
+  DeclNameLookup ->
+  DefnsF (Map Name) Referent TypeReference ->
+  DefnsF2 (Map Name) Synhashed Referent TypeReference
+synhashDefns toTerm ppe hydratedDefns declNameLookup =
+  synhashDefnsWith hashReferent hashType
+  where
+    hashReferent :: Name -> Referent -> Hash
+    hashReferent name = \case
+      -- We say that a referent constructor *in the namespace* (distinct from a referent that is in a term body) has a
+      -- synhash that is simply equal to the synhash of its type declaration. This is because the type declaration and
+      -- constructors are changed in lock-step: it is not possible to change one, but not the other.
+      --
+      -- For example, if Alice updates `type Foo = Bar Nat` to `type Foo = Bar Nat Nat`, we want different synhashes on
+      -- both the type (Foo) and the constructor (Foo.Bar).
+      Referent.Con (ConstructorReference ref _) _ -> hashType (DeclNameLookup.expectDeclName declNameLookup name) ref
+      Referent.Ref ref -> synhashTermReference toTerm ppe hydratedDefns.terms ref
+
+    hashType :: Name -> TypeReference -> Hash
+    hashType name = \case
+      ReferenceBuiltin builtin -> synhashBuiltinDecl builtin
+      ReferenceDerived ref ->
+        setConstructorNamesAndSynhashDerivedDecl
+          ppe
+          hydratedDefns.types
+          (DeclNameLookup.expectConstructorNames declNameLookup name)
+          name
+          ref
+
+synhashDefnsWith ::
+  (HasCallStack) =>
+  (Name -> term -> Hash) ->
+  (Name -> typ -> Hash) ->
+  DefnsF (Map Name) term typ ->
+  DefnsF2 (Map Name) Synhashed term typ
+synhashDefnsWith hashTerm hashType = do
+  bimap (Map.mapWithKey hashTerm1) (Map.mapWithKey hashType1)
+  where
+    hashTerm1 name term =
+      Synhashed (hashTerm name term) term
+
+    hashType1 name typ =
+      Synhashed (hashType name typ) typ
+
+synhashTermReference ::
+  (HasCallStack) =>
+  (term -> Term Symbol Ann) ->
+  PrettyPrintEnv ->
+  Map TermReferenceId term ->
+  TermReference ->
+  Hash
+synhashTermReference toTerm ppe termsById = \case
+  ReferenceBuiltin builtin -> synhashBuiltinTerm builtin
+  ReferenceDerived ref -> synhashDerivedTerm ppe (toTerm (Map.lookupJust ref termsById))
+
+setConstructorNamesAndSynhashDerivedDecl ::
+  (HasCallStack) =>
+  PrettyPrintEnv ->
+  Map TypeReferenceId (Decl Symbol Ann) ->
+  [Name] ->
+  Name ->
+  TypeReferenceId ->
+  Hash
+setConstructorNamesAndSynhashDerivedDecl ppe declsById names name ref =
+  declsById
+    & Map.lookupJust ref
+    & DataDeclaration.setConstructorNames (map Name.toVar names)
+    & synhashDerivedDecl ppe name
 
 type Token = H.Token Hash
 
@@ -215,17 +326,6 @@ hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =
   hashHQNameToken . PPE.termNameOrHashOnlyFq ppe
 
-synhashTerm ::
-  forall m v a.
-  (Monad m, Var v) =>
-  (TermReferenceId -> m (Term v a)) ->
-  PrettyPrintEnv ->
-  V1.TermReference ->
-  m Hash
-synhashTerm loadTerm ppe = \case
-  ReferenceBuiltin builtin -> pure (synhashBuiltinTerm builtin)
-  ReferenceDerived ref -> synhashDerivedTerm ppe <$> loadTerm ref
-
 hashTermFTokens :: (Var v) => PrettyPrintEnv -> Term.F v a a () -> [Token]
 hashTermFTokens ppe = \case
   Term.Int n -> [H.Tag 0, H.Int n]
@@ -253,13 +353,6 @@ hashTermFTokens ppe = \case
     H.Tag 18 : hashLengthToken cases : (cases >>= hashCaseTokens ppe)
   Term.TermLink rf -> [H.Tag 19, hashReferentToken ppe rf]
   Term.TypeLink r -> [H.Tag 20, hashTypeReferenceToken ppe r]
-
--- | Syntactically hash a type, using reference names rather than hashes.
--- Two types will have the same syntactic hash if they would
--- print the the same way under the given pretty-print env.
-synhashType :: (Var v) => PrettyPrintEnv -> Type v a -> Hash
-synhashType ppe ty =
-  H.accumulate $ hashTypeTokens ppe [] ty
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go

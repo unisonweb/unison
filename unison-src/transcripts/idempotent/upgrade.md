@@ -21,7 +21,7 @@ thingy = lib.old.foo + 10
 ```
 
 ``` ucm
-proj/main> add
+proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -58,8 +58,8 @@ proj/main> upgrade old new
 
 proj/main> ls lib
 
-  1. builtin/ (592 terms, 101 types)
-  2. new/     (1 term)
+  1. builtin. (667 terms, 103 types)
+  2. new.     (1 term)
 
 proj/main> view thingy
 
@@ -96,7 +96,7 @@ thingy = lib.old.foo + 10
 ```
 
 ``` ucm
-proj/main> add
+proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -113,25 +113,29 @@ proj/main> upgrade old new
 
   When you're done, you can run
 
-    upgrade.commit
+    update
 
   to merge your changes back into main and delete the temporary
   branch. Or, if you decide to cancel the upgrade instead, you
   can run
 
-    delete.branch /upgrade-old-to-new
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
 
 ``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
 thingy : Nat
 thingy =
   use Nat +
   foo + 10
+
 ```
 
-Resolve the error and commit the upgrade.
+Resolve the error and run `update` to finish the upgrade.
 
 ``` unison
 thingy = foo + +10
@@ -153,11 +157,9 @@ proj/upgrade-old-to-new> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  Done.
-
-proj/upgrade-old-to-new> upgrade.commit
-
   I fast-forward merged proj/upgrade-old-to-new into proj/main.
+
+  Done.
 
 proj/main> view thingy
 
@@ -168,14 +170,20 @@ proj/main> view thingy
 
 proj/main> ls lib
 
-  1. builtin/ (592 terms, 101 types)
-  2. new/     (1 term)
+  1. builtin. (667 terms, 103 types)
+  2. new.     (1 term)
 
 proj/main> branches
 
        Branch   Remote branch
   1.   main     
 ```
+
+``` ucm :hide
+proj/main> project.delete proj
+```
+
+# Upgrade sad path (showing delete on upgrade branch)
 
 ``` ucm :hide
 proj/main> builtins.merge lib.builtin
@@ -190,18 +198,15 @@ thingy = lib.old.foo + 10
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + lib.new.foo : Int
   + lib.old.foo : Nat
-  ~ thingy : Nat
-
-  (and 1 unchanged term)
-
-  + (added), ~ (modified)
+  + thingy      : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-proj/main> add
+proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -218,25 +223,29 @@ proj/main> upgrade old new
 
   When you're done, you can run
 
-    upgrade.commit
+    update
 
   to merge your changes back into main and delete the temporary
   branch. Or, if you decide to cancel the upgrade instead, you
   can run
 
-    delete.branch /upgrade-old-to-new
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
 
 ``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
 thingy : Nat
 thingy =
   use Nat +
   foo + 10
+
 ```
 
-Resolve the error and commit the upgrade.
+Resolve the error and run `update` to finish the upgrade.
 
 ``` unison
 thingy = foo + +10
@@ -258,23 +267,19 @@ proj/upgrade-old-to-new> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  Done.
-
-proj/upgrade-old-to-new> upgrade.commit
-
   I fast-forward merged proj/upgrade-old-to-new into proj/main.
 
-proj/main> view thingy
-
-  thingy : Int
-  thingy =
-    use Int +
-    foo + +10
+  Done.
 
 proj/main> ls lib
 
-  1. builtin/ (592 terms, 101 types)
-  2. new/     (1 term)
+  1. builtin. (667 terms, 103 types)
+  2. new.     (1 term)
+
+proj/main> ls .
+
+  1. lib.   (668 terms, 103 types)
+  2. thingy (Int)
 
 proj/main> branches
 
@@ -370,7 +375,7 @@ bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ``` ucm
-myproject/main> add
+myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -387,18 +392,21 @@ myproject/main> upgrade old new
 
   When you're done, you can run
 
-    upgrade.commit
+    update
 
   to merge your changes back into main and delete the temporary
   branch. Or, if you decide to cancel the upgrade instead, you
   can run
 
-    delete.branch /upgrade-old-to-new
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
 
 ``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
 bar : Nat
 bar =
   use Nat +
@@ -413,6 +421,7 @@ d.y.y.y.y : Nat
 d.y.y.y.y =
   use Nat +
   foo + 10
+
 ```
 
 ``` ucm :hide
@@ -447,7 +456,7 @@ mything = lib.old.foo + lib.old.foo
 ```
 
 ``` ucm
-foo/main> add
+foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -495,7 +504,7 @@ lib.dep__2.foo = 2
 ```
 
 ``` ucm
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -509,8 +518,8 @@ scratch/main> upgrade dep dep__2
 
 scratch/main> ls lib
 
-  1. builtin/ (592 terms, 101 types)
-  2. dep/     (1 term)
+  1. builtin. (667 terms, 103 types)
+  2. dep.     (1 term)
 ```
 
 ``` ucm :hide
@@ -540,7 +549,7 @@ lib.dep__2.foo = 3
 ```
 
 ``` ucm
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -553,9 +562,9 @@ scratch/main> upgrade hello dep__2
 
 scratch/main> ls lib
 
-  1. builtin/ (592 terms, 101 types)
-  2. dep/     (1 term)
-  3. dep__2/  (1 term)
+  1. builtin. (667 terms, 103 types)
+  2. dep.     (1 term)
+  3. dep__2.  (1 term)
 ```
 
 ``` ucm :hide

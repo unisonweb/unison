@@ -5,6 +5,7 @@ module Unison.Test.ColorText where
 
 -- import EasyTest
 import Data.Map qualified as Map
+import Data.Text (Text)
 import EasyTest
 import Text.RawString.QQ
 import Unison.Lexer.Pos (Pos (..))
@@ -25,12 +26,12 @@ test =
 -- commented out because they don't render exactly the same escape sequences, but they're equivalent4 as of this writing
 -- scope "inclusive-exclusive range" . expect . trace ("ex4e: " ++ show (rawRender ex4e) ++ "\n" ++ "ex4t: " ++ show (rawRender ex4t) ++ "\n")$ ex4e == ex4t
 
-ex4e :: String
+ex4e :: Text
 ex4e = toANSI . condensedExcerptToText 1 $ markup "abc" m
   where
     m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) Red
 
-ex4t :: String
+ex4t :: Text
 ex4t = toANSI $ "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
 
 ex2 :: AnnotatedExcerpt Color
@@ -46,7 +47,7 @@ ex2 =
         ]
     )
 
-renderEx2 :: String
+renderEx2 :: Text
 renderEx2 = toANSI . condensedExcerptToText 3 $ ex2
 
 ex3 :: AnnotatedExcerpt Color

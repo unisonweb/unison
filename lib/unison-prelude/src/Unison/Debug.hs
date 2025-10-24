@@ -46,6 +46,7 @@ data DebugFlag
   | PatternCoverageConstraintSolver
   | KindInference
   | Update
+  | Tests
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -74,6 +75,7 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "PATTERN_COVERAGE_CONSTRAINT_SOLVER" -> pure PatternCoverageConstraintSolver
       "KIND_INFERENCE" -> pure KindInference
       "UPDATE" -> pure Update
+      "TESTS" -> pure Tests
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -145,6 +147,10 @@ debugPatternCoverageConstraintSolver :: Bool
 debugPatternCoverageConstraintSolver = PatternCoverageConstraintSolver `Set.member` debugFlags
 {-# NOINLINE debugPatternCoverageConstraintSolver #-}
 
+debugTests :: Bool
+debugTests = Tests `Set.member` debugFlags
+{-# NOINLINE debugTests #-}
+
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Sync "The second number" 2)
 --
@@ -201,3 +207,4 @@ shouldDebug = \case
   PatternCoverageConstraintSolver -> debugPatternCoverageConstraintSolver
   KindInference -> debugKindInference
   Update -> debugUpdate
+  Tests -> debugTests

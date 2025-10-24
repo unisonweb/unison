@@ -14,6 +14,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
+import Data.Text.IO qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
@@ -30,7 +31,9 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -40,7 +43,6 @@ import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
@@ -114,15 +116,16 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
           Cli.respond (TermNotFound' . SH.shortenTo hqLength . Reference.toShortHash $ Reference.DerivedId r)
           pure []
         Just tm -> do
+          let testName = Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r)
+          Debug.whenDebug Debug.Tests $
+            liftIO (Text.putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
-          tm' <- RuntimeUtils.evalPureUnison fqnPPE False tm
+          tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalPureUnison fqnPPE False tm
           case tm' of
             Left e -> do
               Cli.respond $ TestIncrementalOutputEnd fqnPPE (n, total) r False
-              let testName = (Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r))
-                  e' = P.callout ("Error while evaluating test " <> P.backticked testName) e
-              Cli.returnEarly (EvaluationFailure e')
+              Cli.returnEarly $ EvaluationFailure (P.callout ("Error while evaluating test " <> P.backticked testName <> ":") . P.indentN 2) e
             Right tm' -> do
               -- After evaluation, cache the result of the test
               Cli.runTransaction (Codebase.putWatch WK.TestWatch r tm')
@@ -135,7 +138,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
 
 handleIOTest :: HQ.HashQualified Name -> Cli ()
 handleIOTest main = do
-  let mode = Permissive
+  let mode = Permissive NoProf
   runtime <- RuntimeUtils.selectRuntime mode
   names <- Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
@@ -145,9 +148,13 @@ handleIOTest main = do
   (fails, oks) <-
     Foldable.foldrM
       ( \(ref, typ) (f, o) -> do
-          when (not $ isIOTest typ) $
-            Cli.returnEarly (BadMainFunction "io.test" main typ suffixifiedPPE (Foldable.toList $ Runtime.ioTestTypes runtime))
-          bimap (\ts -> if null ts then f else Map.insert ref ts f) (\ts -> if null ts then o else Map.insert ref ts o) <$> runIOTest suffixifiedPPE ref
+          when (not $ isIOTest typ)
+            . Cli.returnEarly
+            . BadMainFunction "io.test" main typ suffixifiedPPE
+            . Foldable.toList
+            $ Runtime.ioTestTypes runtime
+          bimap (\ts -> if null ts then f else Map.insert ref ts f) (\ts -> if null ts then o else Map.insert ref ts o)
+            <$> runIOTest suffixifiedPPE ref
       )
       (Map.empty, Map.empty)
       refs
@@ -170,7 +177,7 @@ findTermsOfTypes codebase includeLib path filterTypes = do
 handleAllIOTests :: Cli ()
 handleAllIOTests = do
   Cli.Env {codebase} <- ask
-  runtime <- RuntimeUtils.selectRuntime Permissive
+  runtime <- RuntimeUtils.selectRuntime (Permissive NoProf)
   names <- Cli.currentNames
   let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
   let suffixifiedPPE = PPED.suffixifiedPPE pped
@@ -220,7 +227,7 @@ runIOTest ppe ref = do
   let a = ABT.annotation tm
       tm = DD.forceTerm a a (Term.refId a ref)
   -- Don't cache IO tests
-  tm' <- RuntimeUtils.evalUnisonTerm Permissive ppe False tm
+  tm' <- RuntimeUtils.evalUnisonTerm (Permissive NoProf) ppe False tm
   pure $ partitionTestResults tm'
 
 partitionTestResults :: Term Symbol Ann -> ([Text {- fails -}], [Text {- oks -}])

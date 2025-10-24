@@ -153,6 +153,8 @@ module Unison.Runtime.Stack
     useg,
     bseg,
     segFromList,
+    traverseListToSeg,
+    traverseAccumSegToList,
 
     -- * Unboxed type tags
     natTypeTag,
@@ -170,8 +172,9 @@ where
 
 import Control.Concurrent (MVar)
 import Control.Concurrent.STM (TVar)
-import Control.Exception (throw, throwIO)
+import Control.Exception (evaluate, throw, throwIO)
 import Control.Monad.Primitive
+import Control.Monad.State.Strict (StateT (..))
 import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
@@ -523,19 +526,41 @@ formData r t [v1] = Data1 r t v1
 formData r t [v1, v2] = Data2 r t v1 v2
 formData r t segList = DataG r t (segFromList segList)
 
+formDataSeg :: Reference -> PackedTag -> Seg -> Closure
+formDataSeg r t (usg, bsg) = case sizeofArray bsg of
+  0 -> Enum r t
+  1 -> Data1 r t (Val (indexByteArray usg 0) (indexArray bsg 0))
+  2 ->
+    Data2
+      r
+      t
+      (Val (indexByteArray usg 1) (indexArray bsg 1))
+      (Val (indexByteArray usg 0) (indexArray bsg 0))
+  _ -> DataG r t (usg, bsg)
+{-# INLINE formDataSeg #-}
+
 -- Build a data type, but apply replacements
-formDataReplaced :: Reference -> PackedTag -> SegList -> Closure
-formDataReplaced r t l
-  | t == TT.mapTipTag = case l of
-      [] -> tipClosure
+formDataReplaced :: Reference -> PackedTag -> Seg -> Closure
+formDataReplaced r t sg@(usg, bsg)
+  | t == TT.mapTipTag = case sizeofArray bsg of
+      0 -> tipClosure
       _ -> error "formDataReplaced: bad `Map`"
-  | t == TT.mapBinTag = case l of
-      [NatVal sz, k, v, BoxedVal (Foreign l), BoxedVal (Foreign r)]
-        | Just ul <- maybeUnwrapForeign Ty.hmapRef l,
-          Just ur <- maybeUnwrapForeign Ty.hmapRef r ->
-            Foreign . Wrap Ty.hmapRef $ Bin (fromIntegral sz) k v ul ur
+  | t == TT.mapBinTag = case sizeofArray bsg of
+      5
+        | !bk <- indexArray bsg 3,
+          !uk <- indexByteArray usg 3,
+          !bv <- indexArray bsg 2,
+          !uv <- indexByteArray usg 2,
+          Foreign l <- indexArray bsg 1,
+          Just (ul :: Map Val Val) <- maybeUnwrapBuiltin l,
+          Foreign r <- indexArray bsg 0,
+          Just (ur :: Map Val Val) <- maybeUnwrapBuiltin r,
+          sz <- indexByteArray usg 4,
+          Closure (GUnboxedTypeTag NatTag) <- indexArray bsg 4 ->
+            Foreign . Wrap Ty.hmapRef $
+              Bin sz (Val uk bk) (Val uv bv) ul ur
       _ -> error "formDataReplaced: bad `Map`"
-  | otherwise = formData r t l
+  | otherwise = formDataSeg r t sg
 
 tipClosure :: Closure
 tipClosure = Foreign $ Wrap Ty.hmapRef Tip
@@ -662,6 +687,45 @@ segFromList xs =
       ( \(Val unboxed boxed) -> ([unboxed], [boxed])
       )
     & \(us, bs) -> (useg us, bseg bs)
+
+traverseListToSeg :: (a -> IO Val) -> [a] -> IO Seg
+traverseListToSeg f src = do
+  udst <- newByteArray $ bytes sz
+  bdst <- newArray sz BlackHole
+  let fill _ [] = do
+        udst <- unsafeFreezeByteArray udst
+        bdst <- unsafeFreezeArray bdst
+        pure (udst, bdst)
+      fill i (x : xs) = do
+        Val un bx <- f x
+        writeByteArray udst i un
+        writeArray bdst i bx
+        fill (i - 1) xs
+  fill (sz - 1) src
+  where
+    sz = length src
+{-# INLINE traverseListToSeg #-}
+
+-- Note: this traverses the Seg left-to-right, which is backwards in
+-- element terms. This is more efficient for building the correct
+-- (reversed) list, but it means the effects happen in the opposite
+-- order of the resulting values. This is not a problem for intended
+-- uses, though, since the effect orders do not really matter.
+traverseAccumSegToList ::
+  (Val -> StateT s IO a) -> Seg -> StateT s IO [a]
+traverseAccumSegToList f (usrc, bsrc) = StateT \s -> go s [] 0
+  where
+    sz = sizeofArray bsrc
+
+    go s xs i
+      | i < sz = do
+          let !un = indexByteArray usrc i
+          bx <- indexArrayM bsrc i
+          (x, s) <- runStateT (f (Val un bx)) s
+          x <- evaluate x
+          go s (x : xs) (i + 1)
+      | otherwise = pure (xs, s)
+{-# INLINE traverseAccumSegToList #-}
 
 marshalToForeign :: (HasCallStack) => Closure -> Foreign
 marshalToForeign (Foreign x) = x
@@ -861,12 +925,14 @@ instance Show Stack where
 type UVal = Int
 
 -- | A runtime value, which is either a boxed or unboxed value, but we may not know which.
+--
+--   When it represents a boxed value, `getUnboxedVal` is meaningless, but when it represents an unboxed value,
+--   `getBoxedVal` tells us its type.
 data Val = Val {getUnboxedVal :: !UVal, getBoxedVal :: !BVal}
-  -- The Eq instance for Val is deliberately omitted because you need to take into account the fact that if a Val is boxed, the
-  -- unboxed side is garbage and should not be compared.
-  -- See universalEq.
   deriving (Show)
 
+-- | The `Eq` instance for `Val` can’t be derived because you need to take into account the fact that if a `Val` is
+--   boxed, the unboxed side is garbage and should not be compared.
 instance Eq Val where
   (==) = universalEq (==)
 

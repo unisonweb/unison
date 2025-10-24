@@ -12,7 +12,7 @@
 > ls .
 
   1. Foo  (builtin type)
-  2. lib/ (765 terms, 119 types)
+  2. lib. (840 terms, 121 types)
 ```
 
 It won't create a conflicted name, though.
@@ -29,7 +29,7 @@ It won't create a conflicted name, though.
 > ls .
 
   1. Foo  (builtin type)
-  2. lib/ (765 terms, 119 types)
+  2. lib. (840 terms, 121 types)
 ```
 
 You can use `debug.alias.type.force` for that.
@@ -43,5 +43,5 @@ You can use `debug.alias.type.force` for that.
 
   1. Foo  (builtin type)
   2. Foo  (builtin type)
-  3. lib/ (765 terms, 119 types)
+  3. lib. (840 terms, 121 types)
 ```

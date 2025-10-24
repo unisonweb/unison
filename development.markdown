@@ -69,29 +69,29 @@ Again you can leave off the flag. To run an executable with profiling enabled, d
 
 That will generate a `<executable-name>.prof` plain text file with profiling data. [More info on profiling](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html).
 
-## Building with cabal
+## Building with Cabal
 
-Unison can also be built/installed with cabal. You'll need the same ghc
+Unison can also be built/installed with Cabal. You'll need the same ghc
 used by `stack.yaml` to successfully build its dependencies.
 The provided project file is also in contrib/ so you'll need to specify
 its location on the command line.
 
 * To build all projects use
 
-    `cabal v2-build --project-file=contrib/cabal.project all`
+    `cabal build --project-file=contrib/cabal.project all`
 
 * Tests can be run with e.g.
 
-    `cabal v2-test --project-file=contrib/cabal.project all`
+    `cabal test --project-file=contrib/cabal.project all`
 
 * The executable can be installed with
 
-    `cabal v2-install --project-file=contrib/cabal.project unison`
+    `cabal install --project-file=contrib/cabal.project unison`
 
-* The install directory can be modified with the option `--installdir: ...`
+* The install directory can be modified with the option `--installdir=`
 
 * Take in account that if you want to load the project in haskell-language-server using cabal instead stack you will need:
-  * Copy or link `./contrib/cabal.project` to `./cabal.project`
+  * Symlink `contrib/cabal.project*` to the project root (for example, `ln -s contrib/cabal.project* ./`)
   * Delete or rename the existing `./hie.yaml`. The default behaviour without `hie.yaml` works with cabal.
 
 ## Building on Windows
@@ -122,3 +122,13 @@ Stack doesn't work deterministically in Windows due to mismatched expectations a
 ## Nix support
 
 See the [readme](./nix/README.md).
+
+## Weeding
+
+The Nix devShell includes Weeder, a tool for detecting dead code.
+
+Before running it, make sure your build is up-to-date (`stack build --bench --no-run-benchmarks --test --no-run-tests --haddock`).
+
+Not building tests will result in false reports of dead code, because Weeder won’t see call sites of things used only by tests. However, if Weeder runs clean on the entire codebase, you can `stack clean && stack build && weeder` and the complaints Weeder emits will then be things that are defined in production code, but are only used in benchmarks, tests, or Haddock. This indicates either dead code that we’re testing, or test utilities that live in the wrong place. The former should be removed, and the later should be moved.
+
+__NB__: Sometimes weeder complains about HIE files being built with the wrong GHC version. To fix this, I’ve had success with deleting my .direnv cache. You can specify multiple directories for Weeder to search with `--hie-directory`, but can’t specify a directory to exclude.

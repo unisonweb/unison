@@ -81,7 +81,6 @@
 -- machinery was invented.
 module Unison.DeclCoherencyCheck
   ( IncoherentDeclReason (..),
-    checkDeclCoherency,
     lenientCheckDeclCoherency,
 
     -- * Getting all failures rather than just the first
@@ -134,22 +133,6 @@ data IncoherentDeclReason
     IncoherentDeclReason'NestedDeclAlias !Name !Name -- shorter name, longer name
   | IncoherentDeclReason'StrayConstructor !TypeReferenceId !Name
   deriving stock (Eq, Show)
-
-checkDeclCoherency ::
-  (HasCallStack) =>
-  Nametree (DefnsF (Map NameSegment) Referent TypeReference) ->
-  Map TypeReferenceId Int ->
-  Either IncoherentDeclReason DeclNameLookup
-checkDeclCoherency nametree numConstructorsById =
-  checkDeclCoherencyWith
-    (\refId -> Right (expectNumConstructors refId numConstructorsById))
-    OnIncoherentDeclReasons
-      { onConstructorAlias = \x y z -> Left (IncoherentDeclReason'ConstructorAlias x y z),
-        onMissingConstructorName = \x -> Left (IncoherentDeclReason'MissingConstructorName x),
-        onNestedDeclAlias = \x y -> Left (IncoherentDeclReason'NestedDeclAlias x y),
-        onStrayConstructor = \x y -> Left (IncoherentDeclReason'StrayConstructor x y)
-      }
-    nametree
 
 -- | Invariant: lists aren't all empty
 data IncoherentDeclReasons = IncoherentDeclReasons
@@ -236,10 +219,7 @@ checkDeclCoherencyWith loadDeclNumConstructors callbacks =
     go prefix (Nametree defns children) = do
       for_
         (Map.toList defns.terms)
-        ( checkDeclCoherencyWith_DoTerms
-            callbacks
-            prefix
-        )
+        (checkDeclCoherencyWith_DoTerms callbacks prefix)
       childrenWeWentInto <-
         forMaybe
           (Map.toList defns.types)

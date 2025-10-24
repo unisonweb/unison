@@ -31,12 +31,17 @@ loadUniqueTypeGuid pp name = do
 
   Codebase.loadUniqueTypeGuid loadBranchAtPath fullPP finalSegment >>= \case
     Just guid -> pure (Just guid)
-    Nothing ->
-      Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
-        Just parentCausalHashId -> loadUniqueTypeGuidFromUpdateParent name parentCausalHashId
-        Nothing ->
-          Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
+    Nothing
+      | pp.branch.isUpdate ->
+          Queries.loadUpdateBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
+            Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
             Nothing -> pure Nothing
+      | pp.branch.isUpgrade ->
+          Queries.loadUpgradeBranchParentCausalHashId pp.project.projectId pp.branch.branchId >>= \case
+            Just parentCausalHashId -> loadUniqueTypeGuidFromParent name parentCausalHashId
+            Nothing -> pure Nothing
+      | pp.branch.isMerge ->
+          Queries.loadMergeBranchParents pp.project.projectId pp.branch.branchId >>= \case
             Just (bobMaybeBranchId, bobCausalHashId, aliceMaybeBranchId, aliceCausalHashId) ->
               loadUniqueTypeGuidFromMergeParents
                 pp
@@ -45,9 +50,12 @@ loadUniqueTypeGuid pp name = do
                 bobCausalHashId
                 aliceMaybeBranchId
                 aliceCausalHashId
+            Nothing -> pure Nothing
+      | otherwise -> pure Nothing
 
-loadUniqueTypeGuidFromUpdateParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)
-loadUniqueTypeGuidFromUpdateParent name causalHashId = do
+-- update or upgrade parent
+loadUniqueTypeGuidFromParent :: Name -> Sqlite.CausalHashId -> Sqlite.Transaction (Maybe Text)
+loadUniqueTypeGuidFromParent name causalHashId = do
   namespaceHashId <- Queries.expectCausalValueHashId causalHashId
   Queries.loadNamespaceUniqueTypeGuid namespaceHashId name
 

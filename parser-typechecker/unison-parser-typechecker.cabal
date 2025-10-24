@@ -54,6 +54,7 @@ library
       Unison.Codebase.ProjectPath
       Unison.Codebase.PushBehavior
       Unison.Codebase.Runtime
+      Unison.Codebase.Runtime.Profile
       Unison.Codebase.Serialization
       Unison.Codebase.ShortCausalHash
       Unison.Codebase.SqliteCodebase
@@ -118,8 +119,6 @@ library
       Unison.PrettyPrintEnv.Names
       Unison.PrettyPrintEnv.Util
       Unison.PrettyPrintEnvDecl
-      Unison.PrettyPrintEnvDecl.Names
-      Unison.PrettyPrintEnvDecl.Sqlite
       Unison.PrintError
       Unison.Result
       Unison.Share.Types
@@ -140,6 +139,7 @@ library
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
+      Unison.UnconflictedLocalDefnsView
       Unison.Typechecker.Variance
       Unison.UnisonFile
       Unison.UnisonFile.Env
@@ -215,6 +215,7 @@ library
     , megaparsec
     , mmorph
     , mtl
+    , murmur-hash
     , mutable-containers
     , network-uri
     , nonempty-containers

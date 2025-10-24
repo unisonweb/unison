@@ -67,6 +67,7 @@ module Unison.Codebase.Branch
 
     -- *** Libdep manipulations
     libdeps_,
+    hasDefnsInLib,
     withoutLib,
     withoutTransitiveLibs,
     deleteLibdep,
@@ -81,6 +82,8 @@ module Unison.Codebase.Branch
     edits_,
 
     -- ** Term/type queries
+    deepDefns,
+    deepDefnsIds,
     deepTerms,
     deepTypes,
     deepPaths,
@@ -90,13 +93,13 @@ module Unison.Codebase.Branch
     deepTypeReferences,
     deepTypeReferenceIds,
     asUnconflicted,
-    UnconflictedBranchView (..),
     consBranchSnapshot,
   )
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
 import Data.Map qualified as Map
+import Data.Monoid (Any (..))
 import Data.Semialign qualified as Align
 import Data.These (These (..))
 import U.Codebase.Branch.Type (NamespaceStats (..))
@@ -107,10 +110,10 @@ import Unison.Codebase.Branch.Type
     Branch0 (asUnconflicted),
     NamespaceHash,
     Star,
-    UnconflictedBranchView (..),
     UnwrappedBranch,
     branch0,
     children_,
+    deepDefns,
     deepPaths,
     deepTerms,
     deepTypes,
@@ -195,6 +198,13 @@ libdeps_ :: Traversal' (Branch0 m) (Map NameSegment (Branch m))
 libdeps_ =
   children_ . ix NameSegment.libSegment . head_ . children_
 
+-- | Are there any pesky definitions (terms or types) directly in lib.*, where they shouldn't be?
+hasDefnsInLib :: Branch0 m -> Bool
+hasDefnsInLib branch =
+  case branch ^? children_ . ix NameSegment.libSegment . head_ of
+    Just libdeps -> not (Star2.isEmpty (libdeps ^. terms_)) || not (Star2.isEmpty (libdeps ^. types_))
+    Nothing -> False
+
 -- | Remove any lib subtrees reachable within the branch.
 -- Note: This DOES affect the hash.
 withoutLib :: Branch0 m -> Branch0 m
@@ -239,6 +249,10 @@ deepTermReferences :: Branch0 m -> Set TermReference
 deepTermReferences =
   Set.mapMaybe Referent.toTermReference . deepReferents
 
+deepDefnsIds :: Branch0 m -> DefnsF Set TermReferenceId TypeReferenceId
+deepDefnsIds branch =
+  Defns {terms = deepTermReferenceIds branch, types = deepTypeReferenceIds branch}
+
 deepTermReferenceIds :: Branch0 m -> Set TermReferenceId
 deepTermReferenceIds =
   Set.mapMaybe Referent.toTermReferenceId . deepReferents
@@ -263,16 +277,33 @@ namespaceStats b =
 head_ :: Lens' (Branch m) (Branch0 m)
 head_ = history_ . Causal.head_
 
+-- | Discards the history of a Branch0, or returns the same branch if
+-- there was already no history.
+--
+-- Returns whether any history was actually discarded, so we may avoid
+-- unnecessary re-hashing.
+discardHistoryIfNecessary :: (Applicative m) => Branch m -> (Any, Branch m)
+discardHistoryIfNecessary b =
+  case _history b of
+    Causal.One _ _ b0 -> do
+      let (Any changed, b0') = discardHistory0IfNecessary b0
+      -- Avoid re-hashing things by returning the original if nothing actually changed
+      if changed
+        then (Any True, one b0')
+        else (Any False, b)
+    _ -> (Any True, one $ discardHistory0 (head b))
+
+discardHistory0IfNecessary :: (Applicative m) => Branch0 m -> (Any, Branch0 m)
+discardHistory0IfNecessary b0 = do
+  b0 & children_ . traversed %%~ discardHistoryIfNecessary
+
 -- | Discards the history of a Branch0's children, recursively
 discardHistory0 :: (Applicative m) => Branch0 m -> Branch0 m
-discardHistory0 = over children_ (fmap tweak)
-  where
-    tweak b = one (discardHistory0 (head b))
+discardHistory0 b0 = snd $ discardHistory0IfNecessary b0
 
 -- | Discards the history of a Branch and its children, recursively
 discardHistory :: (Applicative m) => Branch m -> Branch m
-discardHistory b =
-  one (discardHistory0 (head b))
+discardHistory b = snd $ discardHistoryIfNecessary b
 
 -- | `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: (Monad m) => Branch m -> Branch m -> m Bool

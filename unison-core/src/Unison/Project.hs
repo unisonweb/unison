@@ -9,6 +9,7 @@ module Unison.Project
     projectNameUserSlug,
     projectNameToUserProjectSlugs,
     prependUserSlugToProjectName,
+    isValidNewProjectName,
     ProjectBranchName,
     projectBranchNameUserSlug,
     projectBranchNameToValidProjectBranchNameText,
@@ -74,6 +75,31 @@ projectNameParser = do
         isStartChar :: Char -> Bool
         isStartChar c =
           Char.isAlpha c || c == '_'
+
+-- Parse a project name, and whether it ended in a forward slash (which is, of course, not part of the name)
+newProjectNameParser :: Megaparsec.Parsec Void Text (ProjectName, Bool)
+newProjectNameParser = do
+  userSlug <-
+    asum
+      [ do
+          user <- userSlugParser
+          pure (Text.Builder.char '@' <> user <> Text.Builder.char '/'),
+        pure mempty
+      ]
+  projectSlug <- projectSlugParser
+  hasTrailingSlash <- isJust <$> optional (Megaparsec.char '/')
+  pure (UnsafeProjectName (Text.Builder.run (userSlug <> projectSlug)), hasTrailingSlash)
+  where
+    projectSlugParser :: Megaparsec.Parsec Void Text Text.Builder
+    projectSlugParser = do
+      name <- Megaparsec.takeWhile1P Nothing \c -> Char.isAsciiLower c || Char.isAsciiUpper c || Char.isDigit c || c == '-' || c == '_'
+      when (name == "p" || name == "code") do
+        fail ("Project cannot be named 'code' or 'p'")
+      pure (Text.Builder.text name)
+
+isValidNewProjectName :: ProjectName -> Bool
+isValidNewProjectName (UnsafeProjectName projectName) =
+  isRight (Megaparsec.parse newProjectNameParser "" projectName)
 
 -- | Get the user slug at the beginning of a project name, if there is one.
 --

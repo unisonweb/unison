@@ -96,7 +96,7 @@ hoverInfo uri pos =
             nameAtCursor <- MaybeT . pure $ Name.parseText symAtCursor
             decl <- LSPQ.getTypeDeclaration uri refId
             let typ =
-                  Text.pack . Pretty.toPlain prettyWidth . Pretty.syntaxToColor $
+                  Pretty.toPlain prettyWidth . Pretty.syntaxToColor $
                     DeclPrinter.prettyDecl pped DeclPrinter.RenderUniqueTypeGuids'No ref (HQ.NameOnly nameAtCursor) decl
             pure typ
           LD.TermReferent ref -> do
@@ -106,7 +106,7 @@ hoverInfo uri pos =
 
     renderTypeSigForHover :: (Var v) => PPED.PrettyPrintEnvDecl -> Text -> Type.Type v a -> Text
     renderTypeSigForHover pped name typ =
-      let renderedType = Text.pack $ TypePrinter.prettyStr (Just prettyWidth) (PPED.suffixifiedPPE pped) typ
+      let renderedType = TypePrinter.prettyStr prettyWidth (PPED.suffixifiedPPE pped) typ
        in markdownify (name <> " : " <> renderedType)
 
     hoverInfoForLiteral :: MaybeT m Text

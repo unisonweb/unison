@@ -36,7 +36,6 @@ library
       Unison.Kind
       Unison.LabeledDependency
       Unison.Name
-      Unison.Name.Forward
       Unison.Name.Internal
       Unison.Names
       Unison.Names.ResolutionResult
@@ -100,6 +99,7 @@ library
     , bytestring
     , containers >=0.6.3
     , cryptonite
+    , deepseq
     , edit-distance
     , extra
     , fuzzyfind

@@ -92,5 +92,5 @@ createOrUpdateBranch description destBranch causalHash = do
       pp <- Cli.getCurrentProjectPath
       void $ Branch.createBranch description createFrom pp.project (pure destBranch.branch)
 
-handleSyncFromCodeserver :: ShareProjects.IncludeSquashedHead -> ShareProjects.RemoteProjectBranch -> Cli (Either Output.ShareError CausalHash)
+handleSyncFromCodeserver :: ShareProjects.IncludeSquashedHead -> ShareProjects.RemoteProjectBranch -> Bool -> Cli (Either Output.ShareError CausalHash)
 handleSyncFromCodeserver = downloadProjectBranchFromShare

@@ -17,6 +17,7 @@ import Control.Lens
 import Control.Monad.Reader
 import Crypto.Random qualified as Random
 import Data.Align (alignWith)
+import Data.Align qualified as Align
 import Data.Foldable
 import Data.Foldable qualified as Foldable
 import Data.IntervalMap.Lazy (IntervalMap)
@@ -62,7 +63,6 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.PrintError qualified as PrintError
 import Unison.Referent qualified as Referent
 import Unison.Result (Note)
@@ -159,6 +159,7 @@ checkFileContents fileUri sourceName fileVersion contents = do
           & foldMap (\(RangedCodeAction {_codeActionRanges, _codeAction}) -> (,_codeAction) <$> _codeActionRanges)
           & toRangeMap
   let typeSignatureHints = fromMaybe mempty (mkTypeSignatureHints <$> parsedFile <*> typecheckedFile)
+  let documentSymbols = fromMaybe mempty (mkDocumentSymbols <$> parsedFile <*> pure typecheckedFile)
   let fileSummary = FileSummary.mkFileSummary parsedFile typecheckedFile
   let unusedBindingDiagnostics = fileSummary ^.. _Just . to termsBySymbol . folded . folding (\(_topLevelAnn, _refId, trm, _type) -> UnusedBindings.analyseTerm fileUri trm)
   let tokenMap = getTokenMap tokens
@@ -182,7 +183,8 @@ checkFileContents fileUri sourceName fileVersion contents = do
             parsedFile,
             typecheckedFile,
             notes,
-            localBindingInfo
+            localBindingInfo,
+            documentSymbols
           }
   pure fileAnalysis
 
@@ -349,7 +351,7 @@ analyseNotes fileUri ppe src notes = do
       Result.Parsing err -> do
         let diags = do
               (errMsg, ranges) <- PrintError.renderParseErrors src err
-              let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
+              let txtMsg = Pretty.toPlain 80 errMsg
               range <- ranges
               pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error [] txtMsg []
         -- TODO: Some parsing errors likely have reasonable code actions
@@ -402,7 +404,7 @@ analyseNotes fileUri ppe src notes = do
       [(Range, [(Text, Range)])] ->
       [Diagnostic]
     noteDiagnostic note ranges =
-      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
+      let msg = Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
        in do
             (range, references) <- ranges
             pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error [] msg references
@@ -410,9 +412,9 @@ analyseNotes fileUri ppe src notes = do
     nameResolutionCodeActions :: [Diagnostic] -> [Context.Suggestion Symbol Ann] -> [RangedCodeAction]
     nameResolutionCodeActions diags suggestions = do
       Context.Suggestion {suggestionName, suggestionType, suggestionMatch} <- sortOn nameResolutionSuggestionPriority suggestions
-      let prettyType = TypePrinter.prettyStr Nothing ppe suggestionType
+      let prettyType = TypePrinter.prettyStr 0 ppe suggestionType
       let ranges = (diags ^.. folded . range)
-      let rca = rangedCodeAction ("Use " <> Name.toText suggestionName <> " : " <> Text.pack prettyType) diags ranges
+      let rca = rangedCodeAction ("Use " <> Name.toText suggestionName <> " : " <> prettyType) diags ranges
       pure $
         rca
           & includeEdits fileUri (Name.toText suggestionName) ranges
@@ -435,10 +437,10 @@ analyseNotes fileUri ppe src notes = do
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
             hqNameSuggestion <- MaybeT . pure $ PPE.terms ppe ref
             typ <- MaybeT . liftIO . Codebase.runTransaction codebase $ Codebase.getTypeOfReferent codebase ref
-            let prettyType = TypePrinter.prettyStr Nothing ppe typ
+            let prettyType = TypePrinter.prettyStr 0 ppe typ
             let txtName = HQ'.toText hqNameSuggestion
             let ranges = (diags ^.. folded . range)
-            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> prettyType) diags ranges
             pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
@@ -539,3 +541,47 @@ mkTypeSignatureHints parsedFile typecheckedFile = do
                 pure $ TypeSignatureHint name (Referent.fromTermReferenceId ref) newRange typ
             )
    in typeHints
+
+-- | Get info on the top-level symbols in the file.
+mkDocumentSymbols :: UF.UnisonFile Symbol Ann -> Maybe (UF.TypecheckedUnisonFile Symbol Ann) -> [UDocumentSymbol]
+mkDocumentSymbols parsedFile typecheckedFile =
+  let alignTerms = \case
+        This (ann, _trm) -> (ann, Nothing)
+        That (ann, _ref, _wk, _trm, typ) -> (ann, Just typ)
+        These _ (ann, _ref, _wk, _trm, typ) -> (ann, Just typ)
+      termSymbols :: [UDocumentSymbol]
+      termSymbols =
+        Align.alignWith alignTerms parsedFile.terms (maybe mempty UF.hashTermsId typecheckedFile)
+          & Map.toList
+          & mapMaybe \(v, (ann, mayTyp)) -> do
+            name <- Name.parseText (Var.name v)
+            range <- annToRange ann
+            let children = []
+            pure $ UDocumentSymbol name mayTyp TermSymbol range children
+      declSymbols :: [UDocumentSymbol]
+      declSymbols =
+        parsedFile.dataDeclarationsId
+          & Map.toList
+          & mapMaybe \(v, (_ref, decl)) -> do
+            name <- Name.parseText (Var.name v)
+            range <- annToRange (DD.annotation decl)
+            let children = declChildren decl
+            pure $ UDocumentSymbol name Nothing DataDeclSymbol range children
+      effectSymbols :: [UDocumentSymbol]
+      effectSymbols =
+        parsedFile.effectDeclarationsId
+          & Map.toList
+          & mapMaybe \(v, (_ref, eff)) -> do
+            let decl = DD.toDataDecl eff
+            name <- Name.parseText (Var.name v)
+            range <- annToRange (DD.annotation decl)
+            let children = declChildren decl
+            pure $ UDocumentSymbol name Nothing EffectDeclSymbol range children
+   in termSymbols <> declSymbols <> effectSymbols
+  where
+    declChildren :: DD.DataDeclaration Symbol Ann -> [UDocumentSymbol]
+    declChildren decl = do
+      (ann, sym, typ) <- DD.constructors' decl
+      name <- maybeToList $ Name.parseText (Var.name sym)
+      range <- maybeToList $ annToRange ann
+      pure $ UDocumentSymbol name (Just typ) TermSymbol range []

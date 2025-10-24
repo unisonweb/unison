@@ -51,6 +51,9 @@
   `branches`      lists all branches in the current project
   `branches foo`  lists all branches in the project `foo`
 
+  cancel
+  `cancel`  cancels the in-progress merge, update, or upgrade.
+
   clear
   `clear`  Clears the screen.
 
@@ -163,44 +166,44 @@
   debug.numberedArgs
   Dump the contents of the numbered args state.
 
-  delete
+  delete (or rm)
   `delete foo` removes the term or type name `foo` from the namespace.                
   `delete foo bar` removes the term or type name `foo` and `bar` from the namespace.  
 
-  delete.branch (or branch.delete)
+  delete.branch (or branch.delete, rm.branch)
   `delete.branch foo/bar`  deletes the branch `bar` in the
                            project `foo`
   `delete.branch /bar`     deletes the branch `bar` in the
                            current project
 
-  delete.namespace
+  delete.force (or rm.force)
+  `delete.force foo` removes the term or type name `foo` from the namespace.                
+  `delete.force foo bar` removes the term or type name `foo` and `bar` from the namespace.  
+
+  delete.namespace (or rm.namespace)
   `delete.namespace <foo>` deletes the namespace `foo`
 
-  delete.namespace.force
+  delete.namespace.force (or rm.namespace.force)
   `delete.namespace.force <foo>` deletes the namespace `foo`,deletion will proceed even if other code depends on definitions in foo.
 
-  delete.project (or project.delete)
+  delete.project (or project.delete, rm.project)
   `delete.project foo`  deletes the local project `foo`
 
-  delete.term
+  delete.term (or rm.term)
   `delete.term foo` removes the term name `foo` from the namespace.                
   `delete.term foo bar` removes the term name `foo` and `bar` from the namespace.  
 
-  delete.term.verbose
-  `delete.term.verbose foo` removes the term name `foo` from the namespace.                
-  `delete.term.verbose foo bar` removes the term name `foo` and `bar` from the namespace.  
+  delete.term.force (or rm.term.force)
+  `delete.term.force foo` removes the term name `foo` from the namespace.                
+  `delete.term.force foo bar` removes the term name `foo` and `bar` from the namespace.  
 
-  delete.type
+  delete.type (or rm.type)
   `delete.type foo` removes the type name `foo` from the namespace.                
   `delete.type foo bar` removes the type name `foo` and `bar` from the namespace.  
 
-  delete.type.verbose
-  `delete.type.verbose foo` removes the type name `foo` from the namespace.                
-  `delete.type.verbose foo bar` removes the type name `foo` and `bar` from the namespace.  
-
-  delete.verbose
-  `delete.verbose foo` removes the term or type name `foo` from the namespace.                
-  `delete.verbose foo bar` removes the term or type name `foo` and `bar` from the namespace.  
+  delete.type.force (or rm.type.force)
+  `delete.type.force foo` removes the type name `foo` from the namespace.                
+  `delete.type.force foo bar` removes the type name `foo` and `bar` from the namespace.  
 
   dependencies
   List the dependencies of the specified definition.
@@ -503,7 +506,7 @@
   `io.test.all`  runs unit tests for the current branch that use
                  IO
 
-  lib.install (or install.lib)
+  lib.install (or install.lib, install)
   The `lib.install` command installs a dependency into the `lib`
   namespace.
 
@@ -573,6 +576,10 @@
                                                            at
                                                            `lib.myproject_dev`
 
+  lib.upgrade (or upgrade.lib, upgrade)
+  `upgrade old new` upgrades library dependency `lib.old` to
+  `lib.new`, and, if successful, deletes `lib.old`.
+
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current
                namespace.
@@ -594,28 +601,16 @@
   merge
   `merge /branch` merges `branch` into the current branch
 
-  merge.commit (or commit.merge)
-  `merge.commit` merges a temporary branch created by the
-  `merge` command back into its parent branch, and removes the
-  temporary branch.
-
-  For example, if you've done `merge topic` from main, then
-  `merge.commit` is equivalent to doing
-
-    * switch /main
-    * merge /merge-topic-into-main
-    * delete.branch /merge-topic-into-main
-
-  move (or rename)
+  move (or rename, mv)
   `move foo bar` renames the term, type, and namespace foo to bar.
 
-  move.namespace (or rename.namespace)
+  move.namespace (or rename.namespace, mv.namespace)
   `move.namespace foo bar` renames the path `foo` to `bar`.
 
-  move.term (or rename.term)
+  move.term (or rename.term, mv.term)
   `move.term foo bar` renames `foo` to `bar`.
 
-  move.type (or rename.type)
+  move.type (or rename.type, mv.type)
   `move.type foo bar` renames `foo` to `bar`.
 
   names
@@ -626,9 +621,6 @@
   `names` without arguments invokes a search to select
   names/hashes to list, which requires that `fzf` can be found
   within your PATH.
-
-  namespace.dependencies
-  List the external dependencies of the specified namespace.
 
   project.create (or create.project)
   `project.create`      creates a project with a random name
@@ -833,6 +825,43 @@
                         provided at the command line when
                         running mymain as an executable.
 
+  run.profiled
+  `run.profiled mymain args ...`  
+    
+    Runs `!mymain`, where `mymain` is searched for in the most
+    recent typechecked file, or in the codebase.
+    
+    After running, some profiling information will be displayed
+    in addition to the result value. The tree is filtered to the
+    25 most expensive functions to try to provide a reasonable
+    amount of output. For full profiling information, use
+    `run.profiled.full`.
+    
+    Any provided arguments will be passed as program arguments
+    as though they were provided at the command line when
+    running `mymain` as an executable.
+
+  run.profiled.full
+  `run.profiled.full mymain outfile args ...`  
+    
+    Runs `!mymain`, where `mymain` is searched for in the most
+    recent typechecked file, or in the codebase.
+    
+    After running, profiling information will be written to the
+    specified file. If the file name given ends in `.ticks` or
+    `.folded`, a tick count file will be produced, suitable for
+    use with flamegraph.pl at
+    
+        https://github.com/brendangregg/FlameGraph
+    
+    Otherwise, the file will contain a list of the 25 most
+    costly functions together with the full recorded call tree
+    for the program with percentage costs.
+    
+    Any provided arguments will be passed as program arguments
+    as though they were provided at the command line when
+    running `mymain` as an executable.
+
   switch
   `switch`          opens an interactive selector to pick a
                     project and branch
@@ -926,22 +955,6 @@
   accordingly. If the process can't be completed automatically,
   the dependents will be added back to the scratch file for your
   review.
-
-  upgrade
-  `upgrade old new` upgrades library dependency `lib.old` to
-  `lib.new`, and, if successful, deletes `lib.old`.
-
-  upgrade.commit (or commit.upgrade)
-  `upgrade.commit` merges a temporary branch created by the
-  `upgrade` command back into its parent branch, and removes the
-  temporary branch.
-
-  For example, if you've done `upgrade foo bar` from main, then
-  `upgrade.commit` is equivalent to doing
-
-    * switch /main
-    * merge /upgrade-foo-to-bar
-    * delete.branch /upgrade-foo-to-bar
 
   version
   Print the version of unison you're running

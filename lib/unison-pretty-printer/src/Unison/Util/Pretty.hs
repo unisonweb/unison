@@ -90,7 +90,6 @@ module Unison.Util.Pretty
     parenthesizeCommas,
     parenthesizeIf,
     render,
-    renderUnbroken,
     rightPad,
     sep,
     sepNonEmpty,
@@ -112,10 +111,8 @@ module Unison.Util.Pretty
     table,
     text,
     toANSI,
-    toAnsiUnbroken,
     toHTML,
     toPlain,
-    toPlainUnbroken,
     underline,
     withSyntax,
     wrap,
@@ -282,8 +279,7 @@ wrapPreserveSpaces p = wrapImplPreserveSpaces (toLeaves [p])
       Wrap _ -> hd : toLeaves tl
       Append hds -> toLeaves (toList hds ++ tl)
 
--- Cut a list every time a predicate changes.  Produces a list of
--- non-empty lists.
+-- | Cut a list every time a predicate changes. Produces a list of non-empty lists.
 alternations :: (LL.ListLike s c) => (c -> Bool) -> s -> [s]
 alternations p s = reverse $ go True s []
   where
@@ -300,32 +296,27 @@ wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
 group :: Pretty s -> Pretty s
 group p = Pretty (delta p) (Group p)
 
-toANSI :: Width -> Pretty CT.ColorText -> String
-toANSI avail p = CT.toANSI (render avail p)
+toANSI :: Width -> Pretty CT.ColorText -> Text
+toANSI avail = CT.toANSI . render avail
 
-toAnsiUnbroken :: Pretty ColorText -> String
-toAnsiUnbroken p = CT.toANSI (renderUnbroken p)
+toPlain :: Width -> Pretty CT.ColorText -> Text
+toPlain avail = CT.toPlain . render avail
 
-toPlain :: Width -> Pretty CT.ColorText -> String
-toPlain avail p = CT.toPlain (render avail p)
-
-toHTML :: String -> Width -> Pretty CT.ColorText -> String
-toHTML cssPrefix avail p = CT.toHTML cssPrefix (render avail p)
-
-toPlainUnbroken :: Pretty ColorText -> String
-toPlainUnbroken p = CT.toPlain (renderUnbroken p)
+toHTML :: Text -> Pretty CT.ColorText -> Text
+toHTML cssPrefix = CT.toHTML cssPrefix . render 0
 
 syntaxToColor :: Pretty (ST.SyntaxText' r) -> Pretty ColorText
 syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
--- set the syntax, overriding any present syntax
+-- | set the syntax, overriding any present syntax
 withSyntax ::
   ST.Element r -> Pretty (ST.SyntaxText' r) -> Pretty (ST.SyntaxText' r)
 withSyntax e = fmap $ ST.syntax e
 
-renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
-renderUnbroken = render maxBound
-
+-- | Renders to the underlying literal type.
+--
+--   Since `Width` less than @1@ is invalid, those values result in rendering without introducing any automatic line
+--   breaks.
 render :: (Monoid s, IsString s) => Width -> Pretty s -> s
 render availableWidth p = go mempty [Right p]
   where
@@ -355,7 +346,9 @@ render availableWidth p = go mempty [Right p]
       Wrap ps -> foldMap flow ps
 
     fits p cur =
-      maxCol (surgery cur <> delta p) < availableWidth
+      if availableWidth <= 0
+        then True
+        else maxCol (surgery cur <> delta p) < availableWidth
       where
         -- Surgically modify 'cur' to pretend it has not exceeded availableWidth.
         -- This is necessary because sometimes things cannot be split and *must*
@@ -1041,8 +1034,8 @@ plural f p = case length f of
   1 -> p
   -- todo: consider use of plural package
   _ ->
-    p <> case reverse (toPlainUnbroken p) of
-      's' : _ -> "es"
+    p <> case Text.unsnoc (toPlain 0 p) of
+      Just (_, 's') -> "es"
       _ -> "s"
 
 border :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s

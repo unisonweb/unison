@@ -105,7 +105,11 @@ data ForeignFunc
   | Tls_ClientConfig_default
   | Tls_ServerConfig_default
   | Tls_ClientConfig_certificates_set
+  | Tls_ClientConfig_certificates_get
+  | Tls_ClientConfig_validation_disableHostNameValidation
+  | Tls_ClientConfig_validation_disableCertificateValidation
   | Tls_ServerConfig_certificates_set
+  | Tls_ServerConfig_certificates_get
   | TVar_new
   | TVar_read
   | TVar_write
@@ -158,8 +162,10 @@ data ForeignFunc
   | IO_randomBytes
   | Bytes_zlib_compress
   | Bytes_gzip_compress
+  | Bytes_zstd_compress
   | Bytes_zlib_decompress
   | Bytes_gzip_decompress
+  | Bytes_zstd_decompress
   | Bytes_toBase16
   | Bytes_toBase32
   | Bytes_toBase64
@@ -195,11 +201,19 @@ data ForeignFunc
   | MutableByteArray_read32be
   | MutableByteArray_read40be
   | MutableByteArray_read64be
+  | MutableByteArray_read16le
+  | MutableByteArray_read24le
+  | MutableByteArray_read32le
+  | MutableByteArray_read40le
+  | MutableByteArray_read64le
   | MutableArray_write
   | MutableByteArray_write8
   | MutableByteArray_write16be
   | MutableByteArray_write32be
   | MutableByteArray_write64be
+  | MutableByteArray_write16le
+  | MutableByteArray_write32le
+  | MutableByteArray_write64le
   | ImmutableArray_read
   | ImmutableByteArray_read8
   | ImmutableByteArray_read16be
@@ -207,6 +221,11 @@ data ForeignFunc
   | ImmutableByteArray_read32be
   | ImmutableByteArray_read40be
   | ImmutableByteArray_read64be
+  | ImmutableByteArray_read16le
+  | ImmutableByteArray_read24le
+  | ImmutableByteArray_read32le
+  | ImmutableByteArray_read40le
+  | ImmutableByteArray_read64le
   | MutableByteArray_freeze_force
   | MutableArray_freeze_force
   | MutableByteArray_freeze
@@ -292,6 +311,61 @@ data ForeignFunc
   | Json_unconsText
   | Json_tryUnconsText
   | Avro_decodeBinary
+  | Integer_fromText
+  | Integer_unsafeFromText
+  | Integer_toText
+  | Integer_fromInt
+  | Integer_toInt
+  | Integer_add
+  | Integer_sub
+  | Integer_mul
+  | Integer_div
+  | Integer_mod
+  | Integer_pow
+  | Integer_shl
+  | Integer_shr
+  | Integer_and
+  | Integer_or
+  | Integer_xor
+  | Integer_eq
+  | Integer_lt
+  | Integer_le
+  | Integer_gt
+  | Integer_ge
+  | Integer_neg
+  | Integer_abs
+  | Integer_signum
+  | Integer_toFloat
+  | Integer_popCount
+  | Integer_truncate0
+  | Integer_isEven
+  | Integer_isOdd
+  | Natural_fromText
+  | Natural_unsafeFromText
+  | Natural_toText
+  | Natural_fromNat
+  | Natural_toNat
+  | Natural_toFloat
+  | Natural_add
+  | Natural_sub
+  | Natural_mul
+  | Natural_div
+  | Natural_mod
+  | Natural_pow
+  | Natural_shl
+  | Natural_shr
+  | Natural_and
+  | Natural_or
+  | Natural_xor
+  | Natural_eq
+  | Natural_lt
+  | Natural_le
+  | Natural_gt
+  | Natural_ge
+  | Natural_popCount
+  | Natural_isEven
+  | Natural_isOdd
+  | Universal_murmurHashUntyped
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -394,6 +468,10 @@ foreignFuncBuiltinName = \case
   Tls_ServerConfig_default -> "Tls.ServerConfig.default"
   Tls_ClientConfig_certificates_set -> "Tls.ClientConfig.certificates.set"
   Tls_ServerConfig_certificates_set -> "Tls.ServerConfig.certificates.set"
+  Tls_ClientConfig_certificates_get -> "Tls.ClientConfig.certificates.get"
+  Tls_ServerConfig_certificates_get -> "Tls.ServerConfig.certificates.get"
+  Tls_ClientConfig_validation_disableCertificateValidation -> "Tls.ClientConfig.validation.disableCertificateValidation"
+  Tls_ClientConfig_validation_disableHostNameValidation -> "Tls.ClientConfig.validation.disableHostNameValidation"
   TVar_new -> "TVar.new"
   TVar_read -> "TVar.read"
   TVar_write -> "TVar.write"
@@ -446,8 +524,10 @@ foreignFuncBuiltinName = \case
   IO_randomBytes -> "IO.randomBytes"
   Bytes_zlib_compress -> "Bytes.zlib.compress"
   Bytes_gzip_compress -> "Bytes.gzip.compress"
+  Bytes_zstd_compress -> "Bytes.zstd.compress"
   Bytes_zlib_decompress -> "Bytes.zlib.decompress"
   Bytes_gzip_decompress -> "Bytes.gzip.decompress"
+  Bytes_zstd_decompress -> "Bytes.zstd.decompress"
   Bytes_toBase16 -> "Bytes.toBase16"
   Bytes_toBase32 -> "Bytes.toBase32"
   Bytes_toBase64 -> "Bytes.toBase64"
@@ -483,11 +563,19 @@ foreignFuncBuiltinName = \case
   MutableByteArray_read32be -> "MutableByteArray.read32be"
   MutableByteArray_read40be -> "MutableByteArray.read40be"
   MutableByteArray_read64be -> "MutableByteArray.read64be"
+  MutableByteArray_read16le -> "MutableByteArray.read16le"
+  MutableByteArray_read24le -> "MutableByteArray.read24le"
+  MutableByteArray_read32le -> "MutableByteArray.read32le"
+  MutableByteArray_read40le -> "MutableByteArray.read40le"
+  MutableByteArray_read64le -> "MutableByteArray.read64le"
   MutableArray_write -> "MutableArray.write"
   MutableByteArray_write8 -> "MutableByteArray.write8"
   MutableByteArray_write16be -> "MutableByteArray.write16be"
   MutableByteArray_write32be -> "MutableByteArray.write32be"
   MutableByteArray_write64be -> "MutableByteArray.write64be"
+  MutableByteArray_write16le -> "MutableByteArray.write16le"
+  MutableByteArray_write32le -> "MutableByteArray.write32le"
+  MutableByteArray_write64le -> "MutableByteArray.write64le"
   ImmutableArray_read -> "ImmutableArray.read"
   ImmutableByteArray_read8 -> "ImmutableByteArray.read8"
   ImmutableByteArray_read16be -> "ImmutableByteArray.read16be"
@@ -495,6 +583,11 @@ foreignFuncBuiltinName = \case
   ImmutableByteArray_read32be -> "ImmutableByteArray.read32be"
   ImmutableByteArray_read40be -> "ImmutableByteArray.read40be"
   ImmutableByteArray_read64be -> "ImmutableByteArray.read64be"
+  ImmutableByteArray_read16le -> "ImmutableByteArray.read16le"
+  ImmutableByteArray_read24le -> "ImmutableByteArray.read24le"
+  ImmutableByteArray_read32le -> "ImmutableByteArray.read32le"
+  ImmutableByteArray_read40le -> "ImmutableByteArray.read40le"
+  ImmutableByteArray_read64le -> "ImmutableByteArray.read64le"
   MutableByteArray_freeze_force -> "MutableByteArray.freeze!"
   MutableArray_freeze_force -> "MutableArray.freeze!"
   MutableByteArray_freeze -> "MutableByteArray.freeze"
@@ -580,3 +673,58 @@ foreignFuncBuiltinName = \case
   Json_unconsText -> "Json.unconsText"
   Json_tryUnconsText -> "Json.tryUnconsText"
   Avro_decodeBinary -> "avro.Value.tryDecodeBytes"
+  Integer_toText -> "Integer.toText"
+  Integer_fromText -> "Integer.fromText"
+  Integer_unsafeFromText -> "Integer.unsafeFromText"
+  Integer_fromInt -> "Integer.fromInt"
+  Integer_toInt -> "Integer.toInt"
+  Integer_add -> "Integer.add"
+  Integer_sub -> "Integer.sub"
+  Integer_mul -> "Integer.mul"
+  Integer_div -> "Integer.div"
+  Integer_mod -> "Integer.mod"
+  Integer_pow -> "Integer.pow"
+  Integer_shl -> "Integer.shiftLeft"
+  Integer_shr -> "Integer.shiftRight"
+  Integer_and -> "Integer.and"
+  Integer_or -> "Integer.or"
+  Integer_xor -> "Integer.xor"
+  Integer_eq -> "Integer.eq"
+  Integer_lt -> "Integer.lt"
+  Integer_le -> "Integer.lteq"
+  Integer_gt -> "Integer.gt"
+  Integer_ge -> "Integer.gteq"
+  Integer_neg -> "Integer.neg"
+  Integer_abs -> "Integer.abs"
+  Integer_signum -> "Integer.signum"
+  Integer_toFloat -> "Integer.toFloat"
+  Integer_popCount -> "Integer.popCount"
+  Integer_truncate0 -> "Integer.truncate0"
+  Integer_isEven -> "Integer.isEven"
+  Integer_isOdd -> "Integer.isOdd"
+  Natural_toText -> "Natural.toText"
+  Natural_fromText -> "Natural.fromText"
+  Natural_unsafeFromText -> "Natural.unsafeFromText"
+  Natural_fromNat -> "Natural.fromNat"
+  Natural_toNat -> "Natural.toNat"
+  Natural_toFloat -> "Natural.toFloat"
+  Natural_add -> "Natural.add"
+  Natural_sub -> "Natural.sub"
+  Natural_mul -> "Natural.mul"
+  Natural_div -> "Natural.div"
+  Natural_mod -> "Natural.mod"
+  Natural_pow -> "Natural.pow"
+  Natural_shl -> "Natural.shiftLeft"
+  Natural_shr -> "Natural.shiftRight"
+  Natural_and -> "Natural.and"
+  Natural_or -> "Natural.or"
+  Natural_xor -> "Natural.xor"
+  Natural_eq -> "Natural.eq"
+  Natural_lt -> "Natural.lt"
+  Natural_le -> "Natural.lteq"
+  Natural_gt -> "Natural.gt"
+  Natural_ge -> "Natural.gteq"
+  Natural_popCount -> "Natural.popCount"
+  Natural_isEven -> "Natural.isEven"
+  Natural_isOdd -> "Natural.isOdd"
+  Universal_murmurHashUntyped -> "Universal.murmurHashUntyped"

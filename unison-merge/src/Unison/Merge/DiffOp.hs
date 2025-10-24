@@ -1,10 +1,13 @@
 module Unison.Merge.DiffOp
   ( DiffOp (..),
     DiffOp2 (..),
+    Unison.Merge.DiffOp.map,
+    Unison.Merge.DiffOp.traverse,
   )
 where
 
 import Unison.Merge.Updated (Updated)
+import Unison.Merge.Updated qualified as Updated
 
 -- | A diff operation is one of:
 --
@@ -15,7 +18,19 @@ data DiffOp a
   = DiffOp'Add !a
   | DiffOp'Delete !a
   | DiffOp'Update !(Updated a)
-  deriving stock (Foldable, Functor, Show, Traversable)
+  deriving stock (Show)
+
+map :: (a -> b) -> DiffOp a -> DiffOp b
+map f = \case
+  DiffOp'Add x -> DiffOp'Add (f x)
+  DiffOp'Delete x -> DiffOp'Delete (f x)
+  DiffOp'Update x -> DiffOp'Update (Updated.map f x)
+
+traverse :: (Applicative f) => (a -> f b) -> DiffOp a -> f (DiffOp b)
+traverse f = \case
+  DiffOp'Add x -> DiffOp'Add <$> f x
+  DiffOp'Delete x -> DiffOp'Delete <$> f x
+  DiffOp'Update x -> DiffOp'Update <$> Updated.traverse f x
 
 -- | Like 'DiffOp', but updates are tagged as propagated (True) or not (False).
 --
@@ -27,4 +42,4 @@ data DiffOp2 a
   = DiffOp2'Add !a
   | DiffOp2'Delete !a
   | DiffOp2'Update !(Updated a) !Bool {- is propagated? -}
-  deriving stock (Foldable, Functor, Show, Traversable)
+  deriving stock (Show)

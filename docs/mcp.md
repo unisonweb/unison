@@ -12,10 +12,13 @@ This approach allows agents to connect to UCM's MCP server directly via stdin/st
 
 Note that this causes an additional UCM to run as an entirely independent process for each agent you're using.
 
+#### Claude Code
+
 To configure the MCP for use with Claude (and any tools which read Claude's json config), edit your Claude Desktop config JSON file, which is found:
 
 * On Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
 * On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+* On Linux: `$HOME/.claude.json`
 
 Configure a `unison` key in your `mcpServers` object as below. Replace `<path-to-ucm>` with the path to your `ucm` executable.
 E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to find your UCM executable path.
@@ -27,12 +30,13 @@ E.g. on Mac this is likely `/opt/homebrew/bin/ucm`, you can run `which ucm` to f
       "command": "<path-to-ucm>",
       "args": ["mcp"]
     }
+  }
 }
 ```
 
-E.g. my complete file on Mac looks like this:
+_e.g._ my complete file on macOS looks like this:
 
-```
+``` json
 {
   "mcpServers": {
     "unison": {
@@ -45,6 +49,32 @@ E.g. my complete file on Mac looks like this:
 
 After saving the file, restart the Claude Desktop app. You should then see a new "unison" option in the MCP server list.
 
+#### Codex
+
+Codex is primarily used for OpenAI models, but can be used with other model providers that support the OpenAI API.
+
+Configuration is similar to Claude Code; locate your Codex config file:
+
+* On Linux: `$HOME/.codex/config.toml`
+
+``` toml
+[mcp_servers.unison]
+command = "/path/to/ucm"
+args = ["mcp"]
+```
+
+Restart `codex`; you should now be able to see the Unison MCP server by entering `/mcp` in Codex:
+
+```
+/mcp
+
+🔌  MCP Tools
+
+  • Server: unison
+    • Command: /home/bbarker/.nix-profile/bin/ucm mcp
+    • Tools: docs, get-current-project-context, lib-install, list-definition-dependencies, list-definition-dependents, list-library-definitions, list-local-projects, list-project-branches,
+list-project-definitions, list-project-libraries, search-by-type, search-definitions-by-name, share-project-readme, share-project-search, typecheck-code, view-definitions
+```
 
 ### Connecting to a running UCM executable (not recommended)
 
@@ -71,7 +101,9 @@ After saving the file, restart the Claude Desktop app. You should now see a new 
 
 ## Usage
 
-By default, Claude will now automatically use the Unison MCP server when it deems it appropriate, however
-if you're planning to ask Claude to write some Unison code it's recommended you use one of the Unison MCP prompts
-to kick off your interaction. You can find them by clicking the "plus" icon next to the prompt input box, and then
+By default, your coding assistant will automatically use the Unison MCP server when it deems it appropriate, however 
+you'll get much better results with additional prompting. You may wish to start with the prompts [in this repository](https://github.com/unisoncomputing/unison-llm-support/tree/main), in particular this [main prompt](https://github.com/unisoncomputing/unison-llm-support/blob/main/instructions.md) which delegates to one of several "modes" depending on the situation, with clear instructions for each.
+
+There are also some prompts available in the MCP server itself (for instance, there is a Unison language guide). 
+If you're using Claude Desktop, you can find these prompts by clicking the "plus" icon next to the prompt input box, and then
 choosing `Add from unison` and selecting the appropriate prompt.

@@ -166,6 +166,10 @@ isNone = cases
 when : Boolean -> '{e} () ->{e} ()
 when b th = if b then !th else ()
 
+isSome = cases
+  Some _ -> true
+  None -> false
+
 structural ability Stream a where
    emit: a -> ()
 

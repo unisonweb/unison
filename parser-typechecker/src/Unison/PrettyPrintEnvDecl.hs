@@ -1,10 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.PrettyPrintEnvDecl
   ( PrettyPrintEnvDecl (..),
+    makePPED,
     biasTo,
     empty,
     addFallback,
+    leftBiased,
   )
 where
 
@@ -12,6 +12,7 @@ import Unison.Name (Name)
 import Unison.Prelude hiding (empty)
 import Unison.PrettyPrintEnv (PrettyPrintEnv (..))
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnv.Names qualified as PPE
 
 -- A pair of PrettyPrintEnvs:
 --   - suffixifiedPPE uses the shortest unique suffix
@@ -26,6 +27,13 @@ data PrettyPrintEnvDecl = PrettyPrintEnvDecl
     suffixifiedPPE :: PrettyPrintEnv
   }
   deriving stock (Generic, Show)
+
+makePPED :: PPE.Namer -> PPE.Suffixifier -> PrettyPrintEnvDecl
+makePPED namer suffixifier =
+  PrettyPrintEnvDecl
+    { unsuffixifiedPPE = PPE.makePPE namer PPE.dontSuffixify,
+      suffixifiedPPE = PPE.makePPE namer suffixifier
+    }
 
 -- | Lifts 'biasTo' over a PrettyPrintEnvDecl
 biasTo :: [Name] -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
@@ -43,3 +51,11 @@ empty = PrettyPrintEnvDecl PPE.empty PPE.empty
 addFallback :: PrettyPrintEnvDecl -> PrettyPrintEnvDecl -> PrettyPrintEnvDecl
 addFallback (PrettyPrintEnvDecl unsuff1 suff1) (PrettyPrintEnvDecl unsuff2 suff2) =
   PrettyPrintEnvDecl (unsuff1 `PPE.addFallback` unsuff2) (suff1 `PPE.addFallback` suff2)
+
+leftBiased :: [PrettyPrintEnvDecl] -> PrettyPrintEnvDecl
+leftBiased = \case
+  [] -> empty
+  ppe : ppes ->
+    case ppes of
+      [] -> ppe
+      _ -> ppe `addFallback` leftBiased ppes

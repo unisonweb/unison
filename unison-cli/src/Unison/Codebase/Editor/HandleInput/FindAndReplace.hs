@@ -35,7 +35,6 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPE hiding (biasTo, empty)
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -66,7 +65,7 @@ handleStructuredFindReplaceI rule = do
       uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
-  let rendered = Text.pack . P.toPlain 80 $ renderRewrittenFile ppe msg uf'
+  let rendered = P.toPlain 80 $ renderRewrittenFile ppe msg uf'
   liftIO $ env.writeSource (Text.pack dest) rendered True
   Cli.respond $ OutputRewrittenFile dest vs
 

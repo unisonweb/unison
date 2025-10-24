@@ -9,12 +9,13 @@ module Unison.Names
     conflicts,
     contains,
     difference,
+    Unison.Names.empty,
     filter,
     filterBySHs,
     filterTypes,
-    fromReferenceIds,
     fromUnconflicted,
     fromUnconflictedReferenceIds,
+    fromUnconflictedRelation,
     map,
     makeAbsolute,
     makeRelative,
@@ -35,7 +36,9 @@ module Unison.Names
     restrictReferences,
     refTermsNamed,
     refTermsHQNamed,
+    references,
     referenceIds,
+    unconflictedReferenceIds,
     termReferences,
     termReferents,
     typeReferences,
@@ -61,6 +64,7 @@ module Unison.Names
 where
 
 import Control.Lens (_2)
+import Data.Bifoldable (bifoldMap)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Semialign (alignWith)
@@ -70,6 +74,7 @@ import Data.These (These (..))
 import Text.EditDistance
 import Text.FuzzyFind qualified as FZF
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.ConstructorReference qualified as ConstructorReference
 import Unison.ConstructorType qualified as CT
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -86,7 +91,10 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns qualified as Defns
 import Unison.Util.Nametree (Nametree, unflattenNametree)
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
@@ -109,18 +117,10 @@ instance Semigroup (Names) where
     Names (e1 <> e2) (t1 <> t2)
 
 instance Monoid (Names) where
-  mempty = Names mempty mempty
+  mempty = Unison.Names.empty
 
 isEmpty :: Names -> Bool
 isEmpty n = R.null n.terms && R.null n.types
-
--- | Construct a 'Names' from unconflicted reference ids.
-fromReferenceIds :: DefnsF (Relation Name) TermReferenceId TypeReferenceId -> Names
-fromReferenceIds defns =
-  Names
-    { terms = Relation.mapRan Referent.fromTermReferenceId defns.terms,
-      types = Relation.mapRan Reference.fromId defns.types
-    }
 
 fromUnconflicted :: DefnsF (Map Name) Referent TypeReference -> Names
 fromUnconflicted defns =
@@ -135,6 +135,13 @@ fromUnconflictedReferenceIds defns =
   Names
     { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId defns.terms),
       types = Relation.fromMap (Map.map Reference.fromId defns.types)
+    }
+
+fromUnconflictedRelation :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
+fromUnconflictedRelation defns =
+  Names
+    { terms = Relation.swap (BiMultimap.toRelation defns.terms),
+      types = Relation.swap (BiMultimap.toRelation defns.types)
     }
 
 map :: (Name -> Name) -> Names -> Names
@@ -236,13 +243,74 @@ queryEditDistances' nameToText query names = do
 editDistance :: String -> String -> Int
 editDistance = restrictedDamerauLevenshteinDistance defaultEditCosts
 
--- | Get all (untagged) term/type references ids in a @Names@.
-referenceIds :: Names -> Set Reference.Id
-referenceIds Names {terms, types} =
-  fromTerms <> fromTypes
+-- | Get all term/type references in a @Names@.
+references :: Names -> DefnsF Set TermReference TypeReference
+references names =
+  f names.terms <> g names.types
   where
-    fromTerms = Set.mapMaybe Referent.toReferenceId (Relation.ran terms)
-    fromTypes = Set.mapMaybe Reference.toId (Relation.ran types)
+    f :: Relation Name Referent -> DefnsF Set TermReference TypeReference
+    f =
+      foldMap (foldMap referentToDefns) . Relation.domain
+
+    g :: (Ord terms) => Relation Name TypeReference -> DefnsF Set terms TypeReference
+    g =
+      Defns.fromTypes . Relation.ran
+
+-- | Get all term/type references ids in a @Names@.
+referenceIds :: Names -> DefnsF Set TermReferenceId TypeReferenceId
+referenceIds names =
+  f names.terms <> g names.types
+  where
+    f :: Relation Name Referent -> DefnsF Set TermReferenceId TypeReferenceId
+    f =
+      foldMap (foldMap referentToDefnsIds) . Relation.domain
+
+    g :: (Ord terms) => Relation Name TypeReference -> DefnsF Set terms TypeReferenceId
+    g =
+      Defns.fromTypes . foldMap (Set.mapMaybe Reference.toId) . Relation.domain
+
+-- | Get all term/type references ids in unconflicted names.
+unconflictedReferenceIds ::
+  Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) ->
+  DefnsF Set TermReferenceId TypeReferenceId
+unconflictedReferenceIds =
+  bifoldMap f g
+  where
+    f :: BiMultimap Referent Name -> DefnsF Set TermReferenceId TypeReferenceId
+    f =
+      foldMap referentToDefnsIds . BiMultimap.range
+
+    g :: (Ord terms) => BiMultimap TypeReference Name -> DefnsF Set terms TypeReferenceId
+    g =
+      Defns.fromTypes
+        . Map.foldl' (\acc -> maybe acc (`Set.insert` acc) . Reference.toId) Set.empty
+        . BiMultimap.range
+
+referentToDefns :: Referent -> DefnsF Set TermReference TypeReference
+referentToDefns = \case
+  Referent.Con ref _ ->
+    ref
+      & view ConstructorReference.reference_
+      & Set.singleton
+      & Defns.fromTypes
+  Referent.Ref ref ->
+    ref
+      & Set.singleton
+      & Defns.fromTerms
+
+referentToDefnsIds :: Referent -> DefnsF Set TermReferenceId TypeReferenceId
+referentToDefnsIds = \case
+  Referent.Con ref _ ->
+    ref
+      & view ConstructorReference.reference_
+      & Reference.toId
+      & maybe Set.empty Set.singleton
+      & Defns.fromTypes
+  Referent.Ref ref ->
+    ref
+      & Reference.toId
+      & maybe Set.empty Set.singleton
+      & Defns.fromTerms
 
 -- | Returns all constructor term references. Constructors are omitted.
 termReferences :: Names -> Set TermReference
@@ -452,6 +520,10 @@ difference a b =
   Names
     (R.difference a.terms b.terms)
     (R.difference a.types b.types)
+
+empty :: Names
+empty =
+  Names R.empty R.empty
 
 contains :: Names -> Reference -> Bool
 contains names =

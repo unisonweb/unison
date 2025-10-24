@@ -29,13 +29,17 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..))
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils
+  ( EvalMode (..),
+    modeProfSpec,
+  )
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..), TermSlurp (..))
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
+import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -50,14 +54,13 @@ import Unison.Parsers qualified as Parsers
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
-import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
 import Unison.Reference (TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Result qualified as Result
+import Unison.Runtime (Error)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
@@ -97,22 +100,18 @@ loadUnisonFile sourceName text = do
   unisonFile <- parseAndTypecheckUnisonFile oldNames sourceName text
   let unisonFileNames = UF.typecheckedToNames unisonFile
   let newNames = UF.addNamesFromTypeCheckedUnisonFile unisonFile oldNames
-  let newPpe = PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
+  let newPpe = PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 newNames) (PPE.suffixifyByHash newNames))
   pp <- Cli.getCurrentProjectPath
 
-  maybeUpdateBranchParentCausalHash <-
-    Cli.runTransaction do
-      Queries.projectBranchIsUpdateBranch pp.project.projectId pp.branch.branchId >>= \case
-        False -> pure Nothing
-        True ->
-          case pp.branch.parentBranchId of
-            Nothing -> pure Nothing -- impossible
-            Just updateBranchParentBranchId -> do
-              causalHashId <- Queries.expectProjectBranchHead pp.project.projectId updateBranchParentBranchId
-              causalHash <- Queries.expectCausalHash causalHashId
-              pure (Just causalHash)
+  maybeUpdateOrUpgradeBranchParentCausalHash <-
+    if pp.branch.isUpdate || pp.branch.isUpgrade
+      then case pp.branch.parentBranchId of
+        Nothing -> pure Nothing
+        Just parentBranchId ->
+          Just <$> Cli.runTransaction (Queries.expectProjectBranchHeadHash pp.project.projectId parentBranchId)
+      else pure Nothing
 
-  case maybeUpdateBranchParentCausalHash of
+  case maybeUpdateOrUpgradeBranchParentCausalHash of
     Nothing -> do
       slurpEntries <-
         Cli.runTransaction do
@@ -137,15 +136,16 @@ loadUnisonFile sourceName text = do
             getTermAliases oldNames.terms slurpEntries.terms
 
       let oldPpe =
-            PPE.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
+            PPED.suffixifiedPPE (PPED.makePPED (PPE.hqNamer 10 oldNames) (PPE.suffixifyByHash oldNames))
 
       Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
-    Just updateBranchParentCausalHash -> do
-      updateBranchParent <- liftIO (Codebase.expectBranchForHash env.codebase updateBranchParentCausalHash)
-      let updateBranchParent0 = Branch.head updateBranchParent
-      let updateBranchParentNames = Branch.toNames updateBranchParent0
-      let updateBranchParentLocalNames = Branch.toNames (Branch.deleteLibdeps updateBranchParent0)
-      let updateBranchLocalNames = Names.shadowing unisonFileNames (Branch.toNames (Branch.deleteLibdeps oldBranch0))
+    Just updateOrUpgradeBranchParentCausalHash -> do
+      updateOrUpgradeBranchParent <- liftIO (Codebase.expectBranchForHash env.codebase updateOrUpgradeBranchParentCausalHash)
+      let updateOrUpgradeBranchParent0 = Branch.head updateOrUpgradeBranchParent
+      let updateOrUpgradeBranchParentNames = Branch.toNames updateOrUpgradeBranchParent0
+      let updateOrUpgradeBranchParentLocalNames = Branch.toNames (Branch.deleteLibdeps updateOrUpgradeBranchParent0)
+      let updateOrUpgradeBranchLocalNames =
+            Names.shadowing unisonFileNames (Branch.toNames (Branch.deleteLibdeps oldBranch0))
 
       slurpEntries <-
         Cli.runTransaction do
@@ -154,37 +154,37 @@ loadUnisonFile sourceName text = do
               env.codebase
               unisonFile
               True
-              (Relation.domain updateBranchParentLocalNames.terms)
-              (Relation.domain updateBranchLocalNames.terms)
+              (Relation.domain updateOrUpgradeBranchParentLocalNames.terms)
+              (Relation.domain updateOrUpgradeBranchLocalNames.terms)
           types <-
             slurpTypes
               env.codebase
               unisonFile
               False
-              (Relation.domain updateBranchParentLocalNames.types)
-              (Relation.domain updateBranchLocalNames.types)
+              (Relation.domain updateOrUpgradeBranchParentLocalNames.types)
+              (Relation.domain updateOrUpgradeBranchLocalNames.types)
           pure Defns {terms, types}
 
       let aliases :: Map Referent (NESet Name)
           aliases =
-            getTermAliases updateBranchParentNames.terms slurpEntries.terms
+            getTermAliases updateOrUpgradeBranchParentNames.terms slurpEntries.terms
 
       let oldPpe =
-            PPE.suffixifiedPPE $
+            PPED.suffixifiedPPE $
               PPED.makePPED
-                (PPE.hqNamer 10 updateBranchParentNames)
-                (PPE.suffixifyByHash updateBranchParentNames)
+                (PPE.hqNamer 10 updateOrUpgradeBranchParentNames)
+                (PPE.suffixifyByHash updateOrUpgradeBranchParentNames)
 
       Cli.respond (Output.Typechecked oldPpe newPpe slurpEntries aliases)
 
   when (not . null $ UF.watchComponents unisonFile) do
     Timing.time "evaluating watches" do
-      evalUnisonFile Permissive newPpe unisonFile [] >>= \case
+      evalUnisonFile (Permissive NoProf) newPpe unisonFile [] >>= \case
         Right (bindings, e) -> do
           when (not (null e)) do
             let f (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
             Cli.respond $ Output.Evaluated text newPpe bindings (Map.map f e)
-        Left err -> Cli.respond (Output.EvaluationFailure err)
+        Left err -> Cli.respond (Output.EvaluationFailure id err)
 
   #latestTypecheckedFile .= Just (Right unisonFile)
 
@@ -425,7 +425,7 @@ evalUnisonFile ::
   [String] ->
   Cli
     ( Either
-        Runtime.Error
+        Error
         ( [(Symbol, Term Symbol ())],
           Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
         )
@@ -435,7 +435,8 @@ evalUnisonFile mode ppe unisonFile args = do
 
   let theRuntime = case mode of
         Sandboxed -> env.sandboxedRuntime
-        Permissive -> env.runtime
+        Permissive _ -> env.runtime
+      prof = modeProfSpec mode
 
   let watchCache :: Reference.Id -> IO (Maybe (Term Symbol ()))
       watchCache ref = do
@@ -444,12 +445,18 @@ evalUnisonFile mode ppe unisonFile args = do
 
   Cli.with_ (withArgs args) do
     let codeLookup = Codebase.codebaseToCodeLookup env.codebase
-    liftIO (Runtime.evaluateWatches codeLookup ppe watchCache theRuntime unisonFile) >>= \case
-      Right (nts, errs, map) -> do
-        when (not $ null errs) (RuntimeUtils.displayDecompileErrors errs)
+    liftIO (Runtime.evaluateWatches codeLookup ppe prof watchCache theRuntime unisonFile) >>= \case
+      Right (nts, resp, map) -> do
+        cache <- case resp of
+          Runtime.DecompErrs errs
+            | not $ null errs ->
+                False <$ RuntimeUtils.displayDecompileErrors errs
+          Runtime.Profile prof ->
+            True <$ Cli.respond (Output.Literal prof)
+          _ -> pure True
         for_ (Map.elems map) \(_loc, kind, hash, _src, value, isHit) -> do
           -- only update the watch cache when there are no errors
-          when (not isHit && null errs) do
+          when (not isHit && cache) do
             let value' = Term.amap (\() -> Ann.External) value
             Cli.runTransaction (Codebase.putWatch kind hash value')
         pure (Right (nts, map))

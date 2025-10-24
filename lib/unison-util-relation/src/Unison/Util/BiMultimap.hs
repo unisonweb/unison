@@ -1,7 +1,10 @@
 -- | A left-unique relation.
 module Unison.Util.BiMultimap
   ( BiMultimap,
+
+    -- ** Basic construction
     Unison.Util.BiMultimap.empty,
+    singleton,
 
     -- ** Basic queries
     isEmpty,
@@ -13,7 +16,13 @@ module Unison.Util.BiMultimap
     unsafeLookupRan,
     lookupPreimage,
 
+    -- ** Search
+    searchDom,
+    searchRan,
+    searchrRan,
+
     -- ** Mapping / traversing
+    mapDomMonotonic,
     unsafeTraverseDom,
 
     -- ** Filtering
@@ -23,6 +32,7 @@ module Unison.Util.BiMultimap
     restrictDom,
     restrictRan,
     withoutDom,
+    withoutDomMap,
     withoutRan,
 
     -- ** Maps
@@ -61,14 +71,19 @@ import Prelude hiding (filter)
 --
 -- "Left-unique" means that for all @(x, y)@ in the relation, @y@ is related only to @x@.
 data BiMultimap a b = BiMultimap
-  { toMultimap :: (Map a (NESet b)), -- intentionally lazy in case it's not used after `fromRange`
-    toMapR :: (Map b a)
+  { toMultimap :: Map a (NESet b), -- intentionally lazy in case it's not used after `fromRange`
+    toMapR :: Map b a
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | An empty left-unique relation.
 empty :: (Ord a, Ord b) => BiMultimap a b
-empty = BiMultimap mempty mempty
+empty =
+  BiMultimap Map.empty Map.empty
+
+singleton :: a -> b -> BiMultimap a b
+singleton x y =
+  BiMultimap (Map.singleton x (Set.NonEmpty.singleton y)) (Map.singleton y x)
 
 -- | Is a left-unique relation empty?
 isEmpty :: BiMultimap a b -> Bool
@@ -110,6 +125,25 @@ unsafeLookupRan b (BiMultimap _ r) =
 lookupPreimage :: (Ord a, Ord b) => b -> BiMultimap a b -> Set b
 lookupPreimage y (BiMultimap domain range) =
   maybe Set.empty (\x -> lookupDom_ x domain) (Map.lookup y range)
+
+searchDom :: (Ord a, Monoid m) => (a -> NESet b -> m) -> (a -> Ordering) -> BiMultimap a b -> m
+searchDom f keyOrdering =
+  Map.search f keyOrdering . domain
+
+searchRan :: (Ord a, Monoid m) => (a -> b -> m) -> (b -> Ordering) -> BiMultimap a b -> m
+searchRan f keyOrdering =
+  Map.search (\b a -> f a b) keyOrdering . range
+
+searchrRan :: (a -> b -> acc -> acc) -> acc -> (b -> Ordering) -> BiMultimap a b -> acc
+searchrRan f z keyOrdering =
+  Map.searchr (\b a -> f a b) z keyOrdering . range
+
+-- | Map monotonic over the domain a left-unique relation.
+--
+-- The caller is responsible for maintaining left-uniqueness.
+mapDomMonotonic :: (a -> b) -> BiMultimap a x -> BiMultimap b x
+mapDomMonotonic f (BiMultimap domain range) =
+  BiMultimap (Map.mapKeysMonotonic f domain) (Map.map f range)
 
 -- | Traverse over the domain a left-unique relation.
 --
@@ -162,11 +196,17 @@ withoutDom :: (Ord a, Ord b) => Set a -> BiMultimap a b -> BiMultimap a b
 withoutDom xs m =
   unsafeFromDomain (Map.withoutKeys (domain m) xs)
 
+-- | Restrict a left-unique relation to only those @(a, b)@ members whose @a@ is not in the given map keys.
+withoutDomMap :: (Ord a, Ord b) => Map a x -> BiMultimap a b -> BiMultimap a b
+withoutDomMap xs m =
+  unsafeFromDomain (Map.difference (domain m) xs)
+
 -- | Restrict a left-unique relation to only those @(a, b)@ members whose @b@ is not in the given set.
 withoutRan :: (Ord a, Ord b) => Set b -> BiMultimap a b -> BiMultimap a b
 withoutRan ys m =
   fromRange (Map.withoutKeys (range m) ys)
 
+-- | /O(1)/.
 domain :: BiMultimap a b -> Map a (NESet b)
 domain = toMultimap
 
@@ -216,8 +256,10 @@ ran =
 
 -- | Convert a left-unique relation to a relation (forgetting its left-uniqueness).
 toRelation :: (Ord a, Ord b) => BiMultimap a b -> Relation a b
-toRelation =
-  Relation.fromMultimap . Map.map Set.NonEmpty.toSet . domain
+toRelation m =
+  Relation.unsafeFromMultimaps
+    (Set.NonEmpty.toSet <$> domain m)
+    (Set.singleton <$> range m)
 
 -- | Insert a pair into a left-unique relation, maintaining left-uniqueness, preferring the latest inserted element.
 --

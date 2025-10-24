@@ -23,7 +23,7 @@ import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
-import Unison.PrettyPrintEnvDecl.Names qualified as PPED
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Syntax.Name qualified as Name
 import Unison.Util.Pretty (ColorText, Pretty)
@@ -50,8 +50,7 @@ handleDebugSynhashTerm name = do
             tokens
               & map prettyToken
               & Pretty.lines
-              & Pretty.toAnsiUnbroken
-              & Text.pack
+              & Pretty.toANSI 0
       liftIO (Text.writeFile (Text.unpack filename) renderedTokens)
       Cli.respond (Output'DebugSynhashTerm ref (Hashable.accumulate tokens) filename)
 

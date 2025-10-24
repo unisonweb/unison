@@ -10,6 +10,7 @@ module Unison.Name.Internal
   )
 where
 
+import Control.DeepSeq (NFData)
 import Control.Lens as Lens
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List (NonEmpty)
@@ -38,6 +39,7 @@ data Name
       -- | the name segments in reverse order
       (List.NonEmpty NameSegment)
   deriving stock (Eq, Generic, Show)
+  deriving anyclass (NFData)
 
 -- | Compare names (kinda) alphabetically: absolute comes before relative, but otherwise compare the name segments
 -- alphabetically, in order.

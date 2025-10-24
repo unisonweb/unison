@@ -20,6 +20,7 @@ module Unison.Hash
   )
 where
 
+import Control.DeepSeq (NFData)
 import Data.ByteString.Short (ShortByteString)
 import Data.ByteString.Short qualified as B.Short
 import U.Util.Base32Hex (Base32Hex)
@@ -28,7 +29,8 @@ import Unison.Prelude
 
 -- | A hash.
 newtype Hash = Hash {toShort :: ShortByteString}
-  deriving stock (Eq, Ord, Generic)
+  deriving stock (Eq, Generic, Ord)
+  deriving anyclass (NFData)
 
 instance Show Hash where
   show = show . toBase32HexText

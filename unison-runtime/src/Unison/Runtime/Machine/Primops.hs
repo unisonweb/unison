@@ -14,11 +14,8 @@ import Unison.Builtin.Decls qualified as Ty
 import Unison.Prelude hiding (Text)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
-import Unison.Runtime.ANF
-  ( Code,
-    Value,
-    codeGroup,
-  )
+import Unison.Runtime.ANF (Code, Value, codeGroup)
+import Unison.Runtime.Exception (die)
 import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
@@ -44,7 +41,7 @@ prim1wrap f stk i = do
   stk <$ f stk x
 {-# INLINE prim1wrap #-}
 
-prim1 :: CCache -> Stack -> Prim1 -> Int -> IO Stack
+prim1 :: CCache p -> Stack -> Prim1 -> Int -> IO Stack
 prim1 _env !stk DECI !i = prim1wrap deci stk i
 prim1 _env !stk DECN !i = prim1wrap decn stk i
 prim1 _env !stk INCI !i = prim1wrap inci stk i
@@ -131,7 +128,7 @@ prim2wrap2 f stk i j = do
 {-# INLINE prim2wrap2 #-}
 
 -- Primops applied to two stack indices
-primxx :: CCache -> Stack -> Prim2 -> Int -> Int -> IO Stack
+primxx :: CCache p -> Stack -> Prim2 -> Int -> Int -> IO Stack
 primxx _env stk ADDI i j = prim2wrap2 addi stk i j
 primxx _env stk SUBI i j = prim2wrap2 subi stk i j
 primxx _env stk MULI i j = prim2wrap2 muli stk i j
@@ -453,9 +450,9 @@ refn stk v = do
   ref <- IORef.newIORef v
   pokeBi stk ref
 
-rrfc :: CCache -> Stack -> IORef Val -> IO ()
+rrfc :: CCache p -> Stack -> IORef Val -> IO ()
 rrfc env stk ref
-  | sandboxed env = die "attempted to use sandboxed operation: Ref.readForCAS"
+  | sandboxed env = die [] "attempted to use sandboxed operation: Ref.readForCAS"
   | otherwise = do
       ticket <- Atomic.readForCAS ref
       pokeBi stk ticket
@@ -463,40 +460,40 @@ rrfc env stk ref
 tikr :: Stack -> Atomic.Ticket Val -> IO ()
 tikr stk t = poke stk (Atomic.peekTicket t)
 
-miss :: CCache -> Stack -> Referent -> IO ()
+miss :: CCache p -> Stack -> Referent -> IO ()
 miss env stk tl
-  | sandboxed env = die "attempted to use sandboxed operation: isMissing"
+  | sandboxed env = die [] "attempted to use sandboxed operation: isMissing"
   | otherwise = case tl of
       Ref link -> do
         m <- readTVarIO (intermed env)
         pokeBool stk (link `M.member` m)
-      _ -> die "exec:prim1:MISS: expected Ref"
+      _ -> die [] "exec:prim1:MISS: expected Ref"
 {-# INLINE miss #-}
 
-sdbl :: CCache -> Stack -> Referent -> IO ()
+sdbl :: CCache p -> Stack -> Referent -> IO ()
 sdbl env stk tl = writeBack stk =<< sandboxList env tl
 {-# INLINE sdbl #-}
 
-sandboxList :: CCache -> Referent -> IO [Reference]
+sandboxList :: CCache p -> Referent -> IO [Reference]
 sandboxList cc (Ref r) = do
   sands <- readTVarIO $ sandbox cc
   pure . maybe [] S.toList $ M.lookup r sands
 sandboxList _ _ = pure []
 
-lkup :: CCache -> Stack -> Referent -> IO ()
+lkup :: CCache p -> Stack -> Referent -> IO ()
 lkup env stk tl
-  | sandboxed env = die "attempted to use sandboxed operation: lookup"
+  | sandboxed env = die [] "attempted to use sandboxed operation: lookup"
   | otherwise = writeBack stk =<< lookupCode env tl
 {-# INLINE lkup #-}
 
-cvld :: CCache -> Stack -> [(Referent, Referenced Code)] -> IO ()
+cvld :: CCache p -> Stack -> [(Referent, Referenced Code)] -> IO ()
 cvld env stk news
-  | sandboxed env = die "attempted to use sandboxed operation: validate"
+  | sandboxed env = die [] "attempted to use sandboxed operation: validate"
   | otherwise =
       traverse extract news >>= codeValidate env >>= writeBack stk
   where
     extract (Ref r, dereference -> code) = pure (r, codeGroup code)
-    extract _ = die "Prim1:CVLD: Con reference"
+    extract _ = die [] "Prim1:CVLD: Con reference"
 {-# INLINE cvld #-}
 
 tltt :: Stack -> Referent -> IO ()
@@ -504,10 +501,10 @@ tltt stk r =
   pokeBi stk . UText.fromText . SH.toText $ toShortHash r
 {-# INLINE tltt #-}
 
-dbtx :: CCache -> Stack -> Val -> IO ()
+dbtx :: CCache p -> Stack -> Val -> IO ()
 dbtx env stk val
   | sandboxed env =
-      die "attempted to use sandboxed operation: Debug.toText"
+      die [] "attempted to use sandboxed operation: Debug.toText"
   | otherwise = writeBack stk traced
   where
     traced = case tracer env False val of
@@ -879,16 +876,16 @@ iorb :: Stack -> Bool -> Bool -> IO ()
 iorb stk x y = pokeBool stk $ x || y
 {-# INLINE iorb #-}
 
-sdbv :: CCache -> Stack -> [Referent] -> Referenced Value -> IO ()
+sdbv :: CCache p -> Stack -> [Referent] -> Referenced Value -> IO ()
 sdbv env stk allowed0 (dereference -> v)
   | sandboxed env =
-      die "attempted to use sandboxed operation: Value.validateSandboxed"
+      die [] "attempted to use sandboxed operation: Value.validateSandboxed"
   | otherwise = checkValueSandboxing env allowed v >>= writeBack stk
   where
     allowed = allowed0 >>= \case (Ref r) -> [r]; _ -> []
 {-# INLINE sdbv #-}
 
-sdbx :: CCache -> Stack -> [Referent] -> Closure -> IO ()
+sdbx :: CCache p -> Stack -> [Referent] -> Closure -> IO ()
 sdbx env stk allowed0 c = checkSandboxing env allowed c >>= pokeBool stk
   where
     allowed = allowed0 >>= \case (Ref r) -> [r]; _ -> []

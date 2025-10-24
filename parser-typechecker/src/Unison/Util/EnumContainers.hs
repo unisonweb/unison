@@ -22,6 +22,7 @@ module Unison.Util.EnumContainers
     lookupWithDefault,
     mapWithKey,
     foldMapWithKey,
+    foldlWithKey,
     mapToList,
     (!),
     findMin,
@@ -29,6 +30,7 @@ module Unison.Util.EnumContainers
     traverseSet_,
     traverseWithKey,
     setSize,
+    foldrSet,
   )
 where
 
@@ -171,6 +173,11 @@ mapWithKey f (EM m) = EM $ IM.mapWithKey (f . intToKey) m
 foldMapWithKey :: (EnumKey k) => (Monoid m) => (k -> a -> m) -> EnumMap k a -> m
 foldMapWithKey f (EM m) = IM.foldMapWithKey (f . intToKey) m
 
+{-# INLINE foldlWithKey #-}
+foldlWithKey :: (EnumKey k) => (r -> k -> a -> r) -> r -> EnumMap k a -> r
+foldlWithKey f z (EM m) =
+  IM.foldlWithKey' (\r k x -> f r (intToKey k) x) z m
+
 {-# INLINE mapToList #-}
 mapToList :: (EnumKey k) => EnumMap k a -> [(k, a)]
 mapToList (EM m) = first intToKey <$> IM.toList m
@@ -211,3 +218,7 @@ traverseWithKey f (EM m) = EM <$> IM.traverseWithKey (f . intToKey) m
 {-# INLINE setSize #-}
 setSize :: EnumSet k -> Int
 setSize (ES s) = IS.size s
+
+{-# INLINE foldrSet #-}
+foldrSet :: (EnumKey k) => (k -> r -> r) -> r -> EnumSet k -> r
+foldrSet f z (ES s) = IS.foldr (f . intToKey) z s

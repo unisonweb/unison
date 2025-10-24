@@ -11,6 +11,7 @@ import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
+import Unison.Codebase qualified as Codebase
 import Unison.HashQualified qualified as HQ
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
@@ -20,7 +21,6 @@ import Unison.Names qualified as Names
 import Unison.Prelude
 import Unison.Reference (TypeReference)
 import Unison.Referent (Referent)
-import Unison.Server.NameSearch.Sqlite qualified as Sqlite
 import Unison.ShortHash (ShortHash)
 import Unison.Util.Defns (Defns (..), DefnsF)
 
@@ -42,8 +42,8 @@ resolveHQName = \case
     resolveHashOnly hash = do
       env <- ask
       Cli.runTransaction do
-        terms <- Sqlite.termReferentsByShortHash env.codebase hash
-        types <- Sqlite.typeReferencesByShortHash hash
+        terms <- Codebase.termReferentsByShortHash env.codebase hash
+        types <- Codebase.typeReferencesByShortHash hash
         pure Defns {terms, types}
 
 resolveHQToLabeledDependencies :: HQ.HashQualified Name -> Cli (Set LabeledDependency)

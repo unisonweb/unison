@@ -70,7 +70,7 @@ scratch/main> update
   That's done. Now I'm making sure everything typechecks...
 
   Some definitions don't typecheck with your changes. I've
-  update the file scratch.u with the definitions that need
+  updated the file scratch.u with the definitions that need
   fixing. Once the file is compiling, try `update` again.
 
   I've also switched you to a new branch update-main for this
@@ -97,10 +97,10 @@ Foo.baz.set baz1 = cases Foo bar _ -> Foo bar baz1
 The definitions related to the update are only present in the scratch file now,
 and not in the temporary branch:
 
-``` unison
+``` ucm
 scratch/update-main> ls
 
-  1. lib/ (580 terms, 100 types)
+  1. lib. (667 terms, 103 types)
 ```
 
 so we can remove the unwanted definitions from the scratch file and `update` again to delete them:

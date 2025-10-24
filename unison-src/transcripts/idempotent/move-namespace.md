@@ -31,7 +31,7 @@ scratch/main> move.namespace . .root.at.path
 
 scratch/main> ls .
 
-  1. root/ (1 term)
+  1. root. (1 term)
 
 scratch/main> history
 
@@ -173,7 +173,7 @@ scratch/happy> move.namespace a b
 scratch/happy> ls b
 
   1. T       (type)
-  2. T/      (2 terms)
+  2. T.      (2 terms)
   3. termInA (Nat)
 
 scratch/happy> history b
@@ -181,7 +181,7 @@ scratch/happy> history b
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #ugqniosnp0
+  ⊙ 1. #oai4e4tpah
 
     + Adds / updates:
     
@@ -191,7 +191,7 @@ scratch/happy> history b
     
       T.T
 
-  □ 2. #a7r726o5ut (start of history)
+  □ 2. #i573phkaer (start of history)
 ```
 
 ## Namespace history

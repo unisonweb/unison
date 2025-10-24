@@ -3,9 +3,12 @@ module Unison.Names.ResolutionResult
     ResolutionFailure (..),
     ResolutionResult,
     getAnnotation,
+    getName,
   )
 where
 
+import Unison.ConstructorReference (ConstructorReference)
+import Unison.ConstructorType (ConstructorType)
 import Unison.HashQualified (HashQualified)
 import Unison.Name (Name)
 import Unison.Names (Names)
@@ -29,11 +32,19 @@ data ResolutionError ref
 data ResolutionFailure annotation
   = TypeResolutionFailure (HashQualified Name) annotation (ResolutionError TypeReference)
   | TermResolutionFailure (HashQualified Name) annotation (ResolutionError Referent)
+  | ConstructorResolutionFailure (HashQualified Name) annotation (ResolutionError (ConstructorReference, ConstructorType))
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 getAnnotation :: ResolutionFailure a -> a
 getAnnotation = \case
   TypeResolutionFailure _ a _ -> a
   TermResolutionFailure _ a _ -> a
+  ConstructorResolutionFailure _ a _ -> a
+
+getName :: ResolutionFailure a -> HashQualified Name
+getName = \case
+  TypeResolutionFailure n _ _ -> n
+  TermResolutionFailure n _ _ -> n
+  ConstructorResolutionFailure n _ _ -> n
 
 type ResolutionResult a r = Either (Seq (ResolutionFailure a)) r

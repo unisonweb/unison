@@ -1,5 +1,6 @@
 module Unison.DeclNameLookup
   ( DeclNameLookup (..),
+    Unison.DeclNameLookup.empty,
     expectDeclName,
     expectConstructorNames,
   )
@@ -39,6 +40,10 @@ data DeclNameLookup = DeclNameLookup
   }
   deriving stock (Generic)
   deriving (Semigroup) via (GenericSemigroupMonoid DeclNameLookup)
+
+empty :: DeclNameLookup
+empty =
+  DeclNameLookup Map.empty Map.empty
 
 expectDeclName :: (HasCallStack) => DeclNameLookup -> Name -> Name
 expectDeclName DeclNameLookup {constructorToDecl} x =
