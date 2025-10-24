@@ -3,6 +3,7 @@ module Unison.Test.Syntax.FileParser where
 import Data.Functor.Identity (Identity (..))
 import Data.List (uncons)
 import Data.Set (elems)
+import Data.Text qualified as Text
 import EasyTest
 import Text.Megaparsec.Error qualified as MPE
 import Unison.Parser.Ann qualified as P
@@ -73,7 +74,7 @@ expectFileParseFailure s expectation = scope s $ do
         Just (MPE.ErrorCustom e) -> expectation e
         Just _ -> crash "Error encountered was not custom"
         Nothing -> crash "No error found"
-    Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ renderParseErrorAsANSI 80 s e)
+    Left e -> crash . Text.unpack $ ("Parser failed with an error which was a trivial parser error: " <> renderParseErrorAsANSI 80 s e)
 
 emptyWatchTest :: Test ()
 emptyWatchTest =

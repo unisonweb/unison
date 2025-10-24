@@ -34,6 +34,7 @@ module Unison.Util.ColorText
   )
 where
 
+import Data.Text qualified as Text
 import System.Console.ANSI qualified as ANSI
 import Unison.Prelude
 import Unison.Util.AnnotatedText
@@ -102,31 +103,31 @@ invert ct = ct <&> Invert
 style :: Color -> ColorText -> ColorText
 style = annotate
 
-toHTML :: String -> ColorText -> String
+toHTML :: Text -> ColorText -> Text
 toHTML cssPrefix (AnnotatedText at) =
-  toList at >>= \case
-    Segment s color -> wrap color (s >>= newlineToBreak)
+  toList at
+    <&> (\(Segment s color) -> wrap color (newlinesToBreak s))
+    & Text.concat
   where
-    newlineToBreak '\n' = "<br/>\n"
-    newlineToBreak ch = [ch]
+    newlinesToBreak = Text.replace "\n" "<br/>\n"
     wrap Nothing s = "<code>" <> s <> "</code>"
     wrap (Just c) s =
       "<code class=" <> colorName c <> ">" <> s <> "</code>"
-    colorName c = "\"" <> cssPrefix <> "-" <> show c <> "\""
+    colorName c = "\"" <> cssPrefix <> "-" <> tShow c <> "\""
 
 -- Convert a `ColorText` to a `String`, ignoring colors
-toPlain :: ColorText -> String
-toPlain (AnnotatedText at) = join (toList $ segment <$> at)
+toPlain :: ColorText -> Text
+toPlain (AnnotatedText at) = (foldMap segment at)
 
 -- Convert a `ColorText` to a `String`, using ANSI codes to produce colors
-toANSI :: ColorText -> String
+toANSI :: ColorText -> Text
 toANSI (AnnotatedText chunks) =
-  join . toList $ snd (foldl' go (Nothing, mempty) chunks) <> resetANSI
+  Text.concat . toList $ snd (foldl' go (Nothing, mempty) chunks) <> resetANSI
   where
     go ::
-      (Maybe Color, Seq String) ->
+      (Maybe Color, Seq Text) ->
       Segment Color ->
-      (Maybe Color, Seq String)
+      (Maybe Color, Seq Text)
     go (prev, r) (toPair -> (text, new)) =
       if prev == new
         then (prev, r <> pure text)
@@ -136,10 +137,10 @@ toANSI (AnnotatedText chunks) =
               Nothing -> r <> resetANSI <> pure text
               Just style -> r <> resetANSI <> toANSI style <> pure text
           )
-    resetANSI :: Seq String
-    resetANSI = pure $ ANSI.setSGRCode [ANSI.Reset]
-    toANSI :: Color -> Seq String
-    toANSI c = pure $ ANSI.setSGRCode (toANSI' c)
+    resetANSI :: Seq Text
+    resetANSI = pure . Text.pack $ ANSI.setSGRCode [ANSI.Reset]
+    toANSI :: Color -> Seq Text
+    toANSI c = pure . Text.pack $ ANSI.setSGRCode (toANSI' c)
 
     toANSI' :: Color -> [ANSI.SGR]
     toANSI' c = case c of

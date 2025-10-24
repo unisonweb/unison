@@ -4,7 +4,6 @@ module Unison.LSP.DocumentSymbols
 where
 
 import Control.Lens hiding (List)
-import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens hiding (error)
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
@@ -41,7 +40,7 @@ asLspDocumentSymbols
       { _name = Name.toText symbolName,
         _detail = do
           typ <- symbolSignature
-          pure $ ": " <> (Text.pack $ TypePrinter.prettyStr typeWidth ppe typ),
+          pure $ ": " <> (TypePrinter.prettyStr typeWidth ppe typ),
         _kind = lspSymbolKind symbolKind,
         _tags = Just [],
         _deprecated = Nothing,

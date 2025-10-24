@@ -244,5 +244,5 @@ runIntegrityChecks regionVar = do
     IntegrityErrorDetected errs -> do
       let msg = prettyPrintIntegrityErrors errs
       let rendered = Pretty.toPlain 80 (Pretty.border 2 msg)
-      Sqlite.unsafeIO $ Region.setConsoleRegion region (Text.pack rendered)
+      Sqlite.unsafeIO $ Region.setConsoleRegion region rendered
       (abortMigration "Codebase integrity error detected.")
