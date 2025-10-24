@@ -907,20 +907,19 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
                   : ""
                   : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                      | (v, b) <- bindings
+                    | (v, b) <- bindings
                     ]
             prettyWatches =
               P.sep
                 "\n\n"
                 [ watchPrinter fileContents ppe ann kind evald isCacheHit
-                  | (ann, kind, evald, isCacheHit) <-
-                      sortOn (\(a, _, _, _) -> a) . toList $ watches
+                | (ann, kind, evald, isCacheHit) <-
+                    sortOn (\(a, _, _, _) -> a) . toList $ watches
                 ]
          in -- todo: use P.nonempty
             pure $
@@ -2387,10 +2386,11 @@ notifyUser dir issueFn = \case
   AnnotationAborted -> pure (P.wrap "Annotation aborted.")
   AuthorNameRequired ->
     pure $
-      P.hang "Please configure your a display name for your user."
-      $ P.lines [ "You can do so with: ",
-        IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
-              ]
+      P.hang "Please configure your a display name for your user." $
+        P.lines
+          [ "You can do so with: ",
+            IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
+          ]
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -3591,13 +3591,13 @@ listOfDefinitions' fscope ppe detailed results =
     --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
     termsWithMissingTypes =
       [ (name, Reference.idToShortHash r)
-        | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
+      | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
       ]
     missingTypes =
       nubOrdOn snd $
         [(name, r) | SR'.Tp name (MissingObject r) _ _ <- results]
           <> [ (name, Reference.toShortHash r)
-               | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
+             | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
              ]
     missingBuiltins =
       results >>= \case
@@ -3751,7 +3751,7 @@ prettyDiff diff =
                     P.column2 $
                       (P.hiBlack "Original name", P.hiBlack "New name(s)")
                         : [ (prettyName n, P.sep " " (prettyName <$> ns))
-                            | (n, ns) <- copied
+                          | (n, ns) <- copied
                           ]
                 ]
             else mempty

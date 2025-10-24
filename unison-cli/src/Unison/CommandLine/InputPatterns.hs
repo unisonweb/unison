@@ -2483,8 +2483,7 @@ configSet =
                 <> makeExample' configSet
                 <> "command sets the configuration key to the provided value. E.g.",
             "",
-            ( makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "Author Name"]
-            ),
+            (makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "Author Name"]),
             "",
             P.hang
               "Configuration options include:"
