@@ -156,8 +156,8 @@ import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
-import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Config qualified as Config
+import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -2475,7 +2475,7 @@ configSet =
     { patternName = "config.set",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      params = Parameters [("key", configKeyArg)] $ OnePlus ("value", noCompletionsArg),
       help =
         P.lines
           [ P.wrap $
@@ -2483,7 +2483,7 @@ configSet =
                 <> makeExample' configSet
                 <> "command sets the configuration key to the provided value. E.g.",
             "",
-            ( makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "vim"]
+            ( makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "Author Name"]
             ),
             "",
             P.hang
@@ -2491,12 +2491,12 @@ configSet =
               (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
           ],
       parse = \case
-        [key, value] -> do
+        (key : values) -> do
           key' <- unsupportedStructuredArgument configSet "a config key" key
-          value' <- unsupportedStructuredArgument configSet "a config value" value
+          values' <- for values (unsupportedStructuredArgument configSet "a config value")
           case Config.keyFromText (Text.pack key') of
             Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
-            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
+            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack $ unwords values')
         args -> wrongArgsLength "exactly two arguments" args
     }
 
