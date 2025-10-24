@@ -17,6 +17,7 @@ module Unison.CommandLine.Completion
     completeShareProject,
     completeShareBranchOrRelease,
     filenameCompletion,
+    configKeyCompletion,
     -- Unused for now, but may be useful later
     prettyCompletion,
   )
@@ -41,6 +42,7 @@ import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as P
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.Preferences qualified as Preferences
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent qualified as Referent
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
@@ -76,12 +78,12 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+      case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p <- Map.lookup h patterns
+          paramType <- IP.paramType (IP.params p) (length t)
+          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+        _ -> pure []
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -617,3 +619,11 @@ filenameCompletion query = do
   let prefix = reverse query
   (_leftovers, results) <- Line.completeFilename (prefix, "")
   pure results
+
+configKeyCompletion ::
+  (MonadIO m) =>
+  String ->
+  m [Completion]
+configKeyCompletion query = do
+  let options = Text.unpack <$> Preferences.allKeysText
+  pure $ exactComplete query options

@@ -718,6 +718,7 @@ loop e = do
         BranchRenameI name -> handleBranchRename name
         BranchesI name -> handleBranches name
         CloneI remoteNames localNames -> handleClone remoteNames localNames
+        ConfigSetI key value -> handleConfigSet key value
         BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
         ReleaseDraftI semver -> handleReleaseDraft semver
         UpgradeI old new -> handleUpgrade old new
@@ -799,6 +800,7 @@ inputDescription input =
     BranchesI {} -> wat
     ClearI {} -> wat
     CloneI {} -> wat
+    ConfigSetI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat

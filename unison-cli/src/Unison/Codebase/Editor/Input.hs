@@ -33,6 +33,7 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
+import U.Codebase.Preferences (PreferencesKey)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
@@ -247,6 +248,7 @@ data Input
   | EditDependentsI !(HQ.HashQualified Name)
   | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | CancelI
+  | ConfigSetI PreferencesKey Text
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

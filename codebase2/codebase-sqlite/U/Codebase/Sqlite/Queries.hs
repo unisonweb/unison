@@ -4051,8 +4051,8 @@ getLatestCausalAnnotation causalHashId =
         LIMIT 1
     |]
 
-annotateCausal :: CausalHashId -> Text -> Transaction ()
-annotateCausal causalHashId contents = do
+annotateCausal :: AuthorName -> CausalHashId -> Text -> Transaction ()
+annotateCausal authorName causalHashId contents = do
   mayExistingCommentId <-
     queryMaybeCol @ChangeCommentId
       [sql|
@@ -4064,8 +4064,8 @@ annotateCausal causalHashId contents = do
     Nothing ->
       queryOneCol @ChangeCommentId
         [sql|
-            INSERT INTO change_comments (causal_hash_id, created_at)
-            VALUES (:causalHashId, strftime('%s', 'now', 'subsec'))
+            INSERT INTO change_comments (author, causal_hash_id, created_at)
+            VALUES (:authorName, :causalHashId, strftime('%s', 'now', 'subsec'))
             RETURNING id
           |]
     Just cid -> pure cid

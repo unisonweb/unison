@@ -21,6 +21,10 @@ import UnliftIO.Process qualified as Proc
 
 handleAnnotate :: Maybe BranchId2 -> Cli ()
 handleAnnotate mayThingToAnnotate = do
+  authorName <-
+    Cli.runTransaction Q.getAuthorName >>= \case
+      Nothing -> Cli.returnEarly $ AuthorNameRequired
+      Just authorName -> pure authorName
   causalHash <- case mayThingToAnnotate of
     Nothing -> do
       Branch.headHash <$> Cli.getCurrentProjectRoot
@@ -43,13 +47,14 @@ handleAnnotate mayThingToAnnotate = do
     mayExistingCommentInfo <- Q.getLatestCausalAnnotation causalHashId
     let mayExistingCommentText = snd <$> mayExistingCommentInfo
     pure (causalHashId, mayExistingCommentText)
-  let template = fmap (annotationTemplate <>) mayExistingCommentText
-                   <|> Just annotationTemplate
+  let template =
+        fmap (annotationTemplate <>) mayExistingCommentText
+          <|> Just annotationTemplate
   mayNewMessage <- liftIO (editMessage template)
   case mayNewMessage of
     Nothing -> Cli.respond $ AnnotationAborted
     Just newMessage -> do
-      Cli.runTransaction $ Q.annotateCausal causalHashId newMessage
+      Cli.runTransaction $ Q.annotateCausal authorName causalHashId newMessage
       Cli.respond $ AnnotatedSuccessfully
   where
     annotationTemplate = "# Enter your comment below, then save and quit your editor to continue.\n"

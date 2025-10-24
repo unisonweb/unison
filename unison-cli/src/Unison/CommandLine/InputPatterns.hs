@@ -15,6 +15,7 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
+    configSet,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -156,6 +157,7 @@ import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Preferences qualified as Preferences
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -2467,6 +2469,37 @@ globalReflog =
     . const
     $ pure Input.ShowGlobalReflogI
 
+configSet :: InputPattern
+configSet =
+  InputPattern
+    { patternName = "config.set",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "The"
+                <> makeExample' configSet
+                <> "command sets the configuration key to the provided value. E.g.",
+            "",
+            ( makeExample configSet [P.text $ Preferences.keyToText Preferences.AuthorNameKey, "vim"]
+            ),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Preferences.allKeysText)
+          ],
+      parse = \case
+        [key, value] -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          value' <- unsupportedStructuredArgument configSet "a config value" value
+          case Preferences.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Preferences.allKeysText
+            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
+        args -> wrongArgsLength "exactly two arguments" args
+    }
+
 edit :: InputPattern
 edit =
   InputPattern
@@ -3647,6 +3680,7 @@ validInputs =
       cd,
       clear,
       clone,
+      configSet,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,
@@ -3907,6 +3941,15 @@ directoryPathArg =
   ParameterType
     { typeName = "directory-path",
       suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
+
+configKeyArg :: ParameterType
+configKeyArg =
+  ParameterType
+    { typeName = "config-key",
+      suggestions = \input _cb _http _p -> configKeyCompletion input,
       fzfResolver = Nothing,
       isStructured = False
     }

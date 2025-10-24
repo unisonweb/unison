@@ -456,6 +456,7 @@ data Output
   | InvalidAnnotationTarget Text
   | AnnotatedSuccessfully
   | AnnotationAborted
+  | AuthorNameRequired
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -700,6 +701,7 @@ isFailure o = case o of
   InvalidAnnotationTarget {} -> True
   AnnotatedSuccessfully {} -> False
   AnnotationAborted {} -> True
+  AuthorNameRequired {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

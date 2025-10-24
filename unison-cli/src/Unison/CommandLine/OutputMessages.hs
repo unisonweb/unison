@@ -2385,6 +2385,12 @@ notifyUser dir issueFn = \case
   InvalidAnnotationTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
   AnnotatedSuccessfully -> pure $ P.bold "Done."
   AnnotationAborted -> pure (P.wrap "Annotation aborted.")
+  AuthorNameRequired ->
+    pure $
+      P.hang "Please configure your a display name for your user."
+      P.lines [ "You can do so with: ",
+        IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
+              ]
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
