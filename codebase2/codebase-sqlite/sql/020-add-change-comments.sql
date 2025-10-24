@@ -1,3 +1,9 @@
+-- A simple table for storing user preferences as key/value pairs.
+CREATE TABLE preferences (
+  key TEXT NOT NULL PRIMARY KEY,
+  value TEXT NOT NULL
+)
+
 -- Add tables for storing change comments
 -- These tables deliberately contain less information than we'll probably need, with the
 -- plan that we'll migrate them and add new features on the way.
