@@ -465,47 +465,8 @@ RESPONSE:
 
 ## update-definitions
 
-MCP can't edit branches unless they are marked as editable.
-
-``` api
-POST /mcp
-BODY:
-  {
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-      "name": "update-definitions",
-      "arguments": {
-        "projectContext": {
-          "projectName": "scratch",
-          "branchName": "uneditable"
-        }, "code": {"text": "myTerm = 100"}
-      }
-    }
-  }
-
-RESPONSE:
-  {
-      "id": 1,
-      "jsonrpc": "2.0",
-      "result": {
-          "content": [
-              {
-                  "text": "The provided project-branch is not editable.\nPlease ask the user to allow edits to this project in their MCP configuration by adding `--mcp-editable-branches=scratch/uneditable` to the invocation of the Unison mcp within their agent's mcp configuration.",
-                  "type": "text"
-              }
-          ],
-          "isError": true
-      }
-  }
-
-```
-
-Transcripts allow mcp-editing on `agent-*` branches.
-
 ``` ucm
-scratch/agent-foo> builtins.merge lib.builtins
+scratch/foo> builtins.merge lib.builtins
 
   Done.
 ```
@@ -522,7 +483,7 @@ BODY:
       "arguments": {
         "projectContext": {
           "projectName": "scratch",
-          "branchName": "agent-foo"
+          "branchName": "foo"
         }, "code": {"text": "myTerm = 100"}
       }
     }
