@@ -2,7 +2,7 @@
 CREATE TABLE config (
   key TEXT NOT NULL PRIMARY KEY,
   value TEXT NOT NULL
-)
+);
 
 -- Add tables for storing change comments
 -- These tables deliberately contain less information than we'll probably need, with the
