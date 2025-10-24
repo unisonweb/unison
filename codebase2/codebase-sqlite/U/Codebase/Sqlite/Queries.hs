@@ -289,6 +289,10 @@ module U.Codebase.Sqlite.Queries
     x2cDecl,
     checkBranchExistsForCausalHash,
 
+    -- * Preferences
+    getAuthorName,
+    setAuthorName,
+
     -- * Types
     TextPathSegments,
     JsonParseFailure (..),
@@ -327,6 +331,8 @@ import U.Codebase.Branch.Type (NamespaceStats (..))
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
+import U.Codebase.Preferences (AuthorName, PreferencesKey)
+import U.Codebase.Preferences qualified as Preferences
 import U.Codebase.Reference (Reference' (..))
 import U.Codebase.Reference qualified as C (Reference)
 import U.Codebase.Reference qualified as C.Reference
@@ -4067,4 +4073,34 @@ annotateCausal causalHashId contents = do
     [sql|
       INSERT INTO change_comment_revisions (comment_id, contents, created_at)
       VALUES (:commentId, :contents, strftime('%s', 'now', 'subsec'))
+    |]
+
+getAuthorName :: Transaction (Maybe AuthorName)
+getAuthorName = do
+  r <- getPreference Preferences.AuthorNameKey <&> fmap Preferences.mkAuthorName
+  case r of
+    Just (Left err) -> error $ "getAuthorName: " <> Text.unpack err
+    Just (Right authorName) -> pure (Just authorName)
+    Nothing -> pure Nothing
+
+setAuthorName :: AuthorName -> Transaction ()
+setAuthorName authorName =
+  setPreference Preferences.AuthorNameKey (Preferences.unAuthorName authorName)
+
+setPreference :: PreferencesKey -> Text -> Transaction ()
+setPreference key value =
+  execute
+    [sql|
+      INSERT INTO preferences (key, value)
+      VALUES (:key, :value)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    |]
+
+getPreference :: PreferencesKey -> Transaction (Maybe Text)
+getPreference key =
+  queryMaybeCol
+    [sql|
+      SELECT value
+      FROM preferences
+      WHERE key = :key
     |]
