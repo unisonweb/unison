@@ -2083,7 +2083,7 @@ notifyUser dir issueFn = \case
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName main <> ".")
         ]
-  UpgradeSuccess old new maybeFinal ->
+  UpgradeSuccess old new unmanglings ->
     let prettyLib = P.blue . P.text . NameSegment.toEscapedText
         prettyOld = prettyLib old
         prettyNew = prettyLib new
@@ -2092,7 +2092,7 @@ notifyUser dir issueFn = \case
             <> prettyOld
             <> "to"
             <> P.group (prettyNew <> ",")
-            <> case maybeFinal of
+            <> case Map.lookup new unmanglings of
               Nothing ->
                 "and removed"
                   <> P.group (prettyOld <> ".")

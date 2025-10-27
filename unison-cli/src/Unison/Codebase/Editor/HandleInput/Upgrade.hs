@@ -7,6 +7,10 @@ where
 import Control.Lens ((?=))
 import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
+import Control.Monad.State.Strict (State)
+import Control.Monad.State.Strict qualified as State
+import Control.Monad.Trans.Writer.CPS (WriterT)
+import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
 import Data.List qualified as List
@@ -229,40 +233,33 @@ handleUpgrade oldName newName = do
         (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
         typecheckedUnisonFile
 
-  -- If new name ends in `__N`, that looks like a name we generated due to a name clash (e.g. by installing a `main`
-  -- branch of an unreleased dependency more than once), so we remove it, if possible.
-  let maybeFinalName = do
-        (NameSegment -> newNameWithoutSuffix, _) <-
-          unsnocUnderscoreUnderscoreNumber (NameSegment.toUnescapedText newName)
-        -- If the new name is `foo__2`, then we've parsed it into (`foo`, 2). We can use the name `foo` if either:
-        --
-        --   1. `foo` is the old name (which we're deleting, so we can reuse the name)
-        --   2. `foo` isn't already taken.
-        --
-        guard $
-          or
-            [ newNameWithoutSuffix == oldName,
-              not (Lens.has (Branch.libdeps_ . Lens.ix newNameWithoutSuffix) currentNamespace0)
-            ]
-        Just newNameWithoutSuffix
-
-  let finalNameBranchStep =
-        case maybeFinalName of
-          Nothing -> id
-          Just finalName ->
-            over
-              Branch.libdeps_
-              ( Map.deleteLookupJust newName
-                  >>> \(newLibdep, libdepsWithoutNewName) -> Map.insert finalName newLibdep libdepsWithoutNewName
-              )
+  let (unmanglings, newLibdeps) =
+        currentNamespace0
+          -- Start with the current namespace's libdeps
+          & view Branch.libdeps_
+          -- Delete all "old"
+          & (`Map.withoutKeys` foldMap (\info -> Set.singleton info.oldName) upgradeInfos)
+          -- Unmangle all "new", if possible, e.g. rename `foo__2` to `foo` if `foo` is available
+          & State.runState (Writer.execWriterT (traverse_ (\info -> maybeUnmangle info.newName) upgradeInfos))
+        where
+          -- If new name ends in `__N`, that looks like a name we generated due to a name clash (e.g. by installing a
+          -- `main` branch of an unreleased dependency more than once), so we remove it, if possible.
+          maybeUnmangle :: NameSegment -> WriterT (Map NameSegment NameSegment) (State (Map NameSegment libdep)) ()
+          maybeUnmangle newName =
+            whenJust (unsnocUnderscoreUnderscoreNumber (NameSegment.toUnescapedText newName)) \(NameSegment -> newNameWithoutSuffix, _) -> do
+              libdeps <- State.get
+              when (Map.notMember newNameWithoutSuffix libdeps) do
+                let (libdep, libdeps1) = Map.deleteLookupJust newName libdeps
+                Writer.tell (Map.singleton newName newNameWithoutSuffix)
+                State.put (Map.insert newNameWithoutSuffix libdep libdeps1)
 
   Cli.stepAt
     (textualDescriptionOfUpgrade upgradeInfos)
     ( PP.toRoot pp,
-      finalNameBranchStep . deleteAllOlds . Branch.batchUpdates branchUpdates
+      set Branch.libdeps_ newLibdeps . Branch.batchUpdates branchUpdates
     )
 
-  Cli.respond (Output.UpgradeSuccess oldName newName maybeFinalName)
+  Cli.respond (Output.UpgradeSuccess oldName newName unmanglings)
   where
     textualDescriptionOfUpgrade :: List.NonEmpty UpgradeInfo -> Text
     textualDescriptionOfUpgrade infos =
