@@ -33,6 +33,7 @@ import Control.Lens
 import Data.Char qualified as Char
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Text qualified as Text
 import System.Console.Haskeline qualified as Line
 import Text.Megaparsec qualified as MP
 import Text.Megaparsec.Char qualified as MP
@@ -241,12 +242,14 @@ type Parser = MP.Parsec Void String
 
 parseArgs :: String -> Maybe [String]
 parseArgs input =
-  fmap (either fst id) <$> MP.parseMaybe argsP input
+  fmap (either fst id) <$> parseArgsQuoted input
 
 -- | Like `parseArgs`, but indicates whether each argument was quoted, and also whether the quote was terminated..
 -- This is for things like tab-completion where the original string is important.
 parseArgsQuoted :: String -> Maybe [Either (String, Bool) String]
-parseArgsQuoted input = MP.parseMaybe argsP input
+parseArgsQuoted input = MP.parseMaybe argsP (strip input)
+  where
+    strip = Text.unpack . Text.strip . Text.pack
 
 -- | Parser for a single CLI argument, which may be a single word, or a quoted string.
 --

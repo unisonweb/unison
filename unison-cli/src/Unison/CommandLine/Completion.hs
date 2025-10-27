@@ -90,15 +90,19 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRe
         let completions = exactComplete cmdPrefix $ Map.keys patterns
         pure (prefix, completions)
       ((cmd : midArgs), lastArgStr) -> do
-        let requote = case lastArg of
-              Left _ -> \str -> "\"" <> str <> "\""
-              Right _ -> id
+        let requote completion =
+              let newReplacement = case lastArg of
+                    Left _ | completion.isFinished -> "\"" <> completion.replacement <> "\""
+                    Left (_, False) -> "\"" <> completion.replacement <> "\""
+                    Left (_, True) -> "\"" <> completion.replacement
+                    Right _ -> completion.replacement
+               in completion {Line.replacement = newReplacement}
         p <- hoistMaybe $ Map.lookup (argStr cmd) patterns
         paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs)
         completions <-
           lift $
             IP.suggestions paramType lastArgStr codebase authedHTTPClient ppCtx
-              <&> fmap (\completion -> completion {Line.replacement = requote (Line.replacement completion)})
+              <&> fmap requote
         pure (prefix, completions)
   where
     argStr :: Either (String, Bool) String -> String
