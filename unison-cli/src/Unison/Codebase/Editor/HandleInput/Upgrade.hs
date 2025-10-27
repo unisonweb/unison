@@ -40,6 +40,7 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -204,7 +205,7 @@ handleUpgrade oldName newName = do
           ( CreateFrom'Upgrade
               (pp.branch, Branch.headHash currentNamespace, uniqueTypeGuidsByName)
               ( unconflictedView.defns
-                  & bimap BiMultimap.range BiMultimap.range
+                  & NamesUtils.byName
                   & subtractDependents dependentsRefs
                   & Branch.fromUnconflictedDefns
                   & Branch.setLibdeps

@@ -35,6 +35,7 @@ import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
 import Unison.Prelude
@@ -112,7 +113,7 @@ makeDiffblob ::
   GThreeWay PartialDeclNameLookup DeclNameLookup ->
   m (Diffblob libdep)
 makeDiffblob logger hydrate loadNames defns libdeps declNameLookups = do
-  let defnsByName = bimap BiMultimap.range BiMultimap.range . (.defns) <$> defns
+  let defnsByName = NamesUtils.byName . (.defns) <$> defns
 
   logger.logDefns defnsByName
 

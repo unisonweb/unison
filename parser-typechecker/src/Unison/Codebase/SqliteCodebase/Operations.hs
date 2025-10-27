@@ -204,15 +204,15 @@ tryFlushBuffer buf saveComponent tryWaiting h =
 ------------------------------------------------------------------------------------------------------------------------
 -- Operations
 
-getTerm ::
-  -- | A 'getDeclType'-like lookup, possibly backed by a cache.
-  (C.Reference.Reference -> Transaction CT.ConstructorType) ->
-  Reference.Id ->
-  Transaction (Maybe (Term Symbol Ann))
-getTerm doGetDeclType (Reference.Id h i) =
-  runMaybeT do
-    term2 <- Ops.loadTermByReference (C.Reference.Id h i)
-    lift (Cv.term2to1 h doGetDeclType term2)
+-- getTerm ::
+--   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
+--   (C.Reference.Reference -> Transaction CT.ConstructorType) ->
+--   Reference.Id ->
+--   Transaction (Maybe (Term Symbol Ann))
+-- getTerm doGetDeclType (Reference.Id h i) =
+--   runMaybeT do
+--     term2 <- Ops.loadTermByReference (C.Reference.Id h i)
+--     lift (Cv.term2to1 h doGetDeclType term2)
 
 getDeclType :: C.Reference.Reference -> Transaction CT.ConstructorType
 getDeclType = \case
@@ -222,11 +222,11 @@ getDeclType = \case
 expectDeclTypeById :: C.Reference.Id -> Transaction CT.ConstructorType
 expectDeclTypeById = fmap Cv.decltype2to1 . Ops.expectDeclTypeById
 
-getTypeOfTermImpl :: Reference.Id -> Transaction (Maybe (Type Symbol Ann))
-getTypeOfTermImpl (Reference.Id h i) =
-  runMaybeT do
-    type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h i)
-    pure (Cv.ttype2to1 type2)
+-- getTypeOfTermImpl :: Reference.Id -> Transaction (Maybe (Type Symbol Ann))
+-- getTypeOfTermImpl (Reference.Id h i) =
+--   runMaybeT do
+--     type2 <- Ops.loadTypeOfTermByTermReference (C.Reference.Id h i)
+--     pure (Cv.ttype2to1 type2)
 
 getTermComponentWithTypes ::
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
@@ -238,11 +238,11 @@ getTermComponentWithTypes doGetDeclType h =
     tms <- Ops.loadTermComponent h
     for tms (bitraverse (lift . Cv.term2to1 h doGetDeclType) (pure . Cv.ttype2to1))
 
-getTypeDeclaration :: Reference.Id -> Transaction (Maybe (Decl Symbol Ann))
-getTypeDeclaration (Reference.Id h i) =
-  runMaybeT do
-    decl2 <- Ops.loadDeclByReference (C.Reference.Id h i)
-    pure (Cv.decl2to1 h decl2)
+-- getTypeDeclaration :: Reference.Id -> Transaction (Maybe (Decl Symbol Ann))
+-- getTypeDeclaration (Reference.Id h i) =
+--   runMaybeT do
+--     decl2 <- Ops.loadDeclByReference (C.Reference.Id h i)
+--     pure (Cv.decl2to1 h decl2)
 
 getDeclComponent :: Hash -> Transaction (Maybe [Decl Symbol Ann])
 getDeclComponent h =

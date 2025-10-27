@@ -43,6 +43,7 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
@@ -190,7 +191,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
       let nextNamespace :: Branch IO
           nextNamespace =
             nextNamespaceDefns
-              & bimap BiMultimap.range BiMultimap.range
+              & NamesUtils.byName
               & Branch.fromUnconflictedDefns
               & Branch.setLibdeps (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentNamespace0)
               & (`Branch.cons` currentNamespace)

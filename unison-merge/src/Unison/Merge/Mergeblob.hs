@@ -37,6 +37,7 @@ import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
@@ -142,7 +143,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                 (TypeReferenceId, Decl Symbol Ann)
             )
         hydratedDefnsByName =
-          nameHydratedRefs hydratedDefnsById . bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns
+          nameHydratedRefs hydratedDefnsById . NamesUtils.byName . (.defns) <$> blob.defns
 
     let dependentsNames :: TwoWay (DefnsF Set Name Name)
         dependentsNames =
@@ -178,7 +179,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
           renderUnisonFiles
             authors
             blob.declNameLookups
-            (bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns)
+            (NamesUtils.byName . (.defns) <$> blob.defns)
             hydratedDefnsByName
             libdepsNames
             conflictsNames
@@ -197,7 +198,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                   conflictsNames
                   blob.unconflicts
                   dependentsNames
-                  (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns)
+                  (NamesUtils.byName blob.defns.lca.defns)
 
               parsingEnv =
                 ParsingEnv
@@ -249,7 +250,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
               conflictsNames
               blob.unconflicts
               dependentsNames
-              (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns),
+              (NamesUtils.byName blob.defns.lca.defns),
           uniqueTypeGuids =
             Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
               <$> ThreeWay.forgetLca hydratedDefnsByName,
