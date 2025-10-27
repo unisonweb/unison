@@ -15,6 +15,7 @@ module Unison.MCP.Types
     SearchDefinitionsToolArguments (..),
     SearchByTypeToolArguments (..),
     DocsToolArguments (..),
+    RunToolArguments (..),
     ProjectContext (..),
     ProjectContextArgument (..),
     ProjectNameArgument (..),
@@ -68,6 +69,7 @@ data ToolKind
   | ShareProjectReadmeTool
   | TypecheckCodeTool
   | DocsTool
+  | RunTool
   | ListProjectDefinitionsTool
   | ListProjectLibrariesTool
   | ListLibraryDefinitionsTool
@@ -91,6 +93,7 @@ kindNameMapping =
       (ShareProjectReadmeTool, "share-project-readme"),
       (TypecheckCodeTool, "typecheck-code"),
       (DocsTool, "docs"),
+      (RunTool, "run"),
       (ListProjectDefinitionsTool, "list-project-definitions"),
       (ListProjectLibrariesTool, "list-project-libraries"),
       (ListLibraryDefinitionsTool, "list-library-definitions"),
@@ -404,6 +407,49 @@ instance FromJSON DocsToolArguments where
     projectContext <- o .: "projectContext"
     name <- Name.unsafeParseText <$> o .: "name"
     pure $ DocsToolArguments {projectContext, name}
+
+data RunToolArguments = RunToolArguments
+  { projectContext :: ProjectContext,
+    mainFunctionName :: Name,
+    args :: [Text]
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema RunToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "mainFunctionName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the main function to run, e.g. `main` or `mynamespace.myprogram`." :: Text)
+                  ],
+              "args"
+                .= object
+                  [ "type" .= ("array" :: Text),
+                    "items"
+                      .= object
+                        [ "type" .= ("string" :: Text),
+                          "description" .= ("An argument to pass to the main function." :: Text)
+                        ],
+                    "description" .= ("The arguments to pass to the main function." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "mainFunctionName", "args" :: Text]
+      ]
+
+instance FromJSON RunToolArguments where
+  parseJSON = withObject "RunToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    mainFunctionNameText <- o .: "mainFunctionName"
+    mainFunctionName <- case Name.parseTextEither mainFunctionNameText of
+      Left err -> fail $ "Invalid main function name: " ++ show err
+      Right name -> pure name
+    args <- o .: "args"
+    pure $ RunToolArguments {projectContext, mainFunctionName, args}
 
 data ProjectCodeToolArguments = ProjectCodeToolArguments
   { projectContext :: ProjectContext
