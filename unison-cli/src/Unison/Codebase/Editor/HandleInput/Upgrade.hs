@@ -72,7 +72,11 @@ import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 
 handleUpgrade :: NameSegment -> NameSegment -> Cli ()
-handleUpgrade oldName newName = do
+handleUpgrade oldName newName =
+  handleUpgrade1 ((oldName, newName) :| [])
+
+handleUpgrade1 :: List.NonEmpty (NameSegment, NameSegment) -> Cli ()
+handleUpgrade1 namePairs = do
   env <- ask
   pp <- Cli.getCurrentProjectPath
 
@@ -104,7 +108,7 @@ handleUpgrade oldName newName = do
   let currentNamespace0 = Branch.head currentNamespace
 
   upgradeInfos <-
-    traverse makeUpgradeInfo ((oldName, newName) :| [])
+    traverse makeUpgradeInfo namePairs
 
   let deleteAllOlds namespace =
         List.foldl' (\acc info -> Branch.deleteLibdep info.oldName acc) namespace upgradeInfos
@@ -259,7 +263,7 @@ handleUpgrade oldName newName = do
       set Branch.libdeps_ newLibdeps . Branch.batchUpdates branchUpdates
     )
 
-  Cli.respond (Output.UpgradeSuccess oldName newName unmanglings)
+  Cli.respond (Output.UpgradeSuccess namePairs unmanglings)
   where
     textualDescriptionOfUpgrade :: List.NonEmpty UpgradeInfo -> Text
     textualDescriptionOfUpgrade infos =

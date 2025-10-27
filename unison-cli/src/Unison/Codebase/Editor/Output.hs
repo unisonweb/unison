@@ -424,7 +424,7 @@ data Output
   | UpdateTypecheckingFailure
   | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
   | UpgradeFailure !ProjectBranchName !FilePath !(List.NonEmpty (NameSegment, NameSegment))
-  | UpgradeSuccess !NameSegment !NameSegment !(Map NameSegment NameSegment)
+  | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget
   | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget

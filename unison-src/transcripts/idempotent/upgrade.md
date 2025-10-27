@@ -54,7 +54,9 @@ proj/main> debug.fuzzy-options upgrade old _
 ``` ucm
 proj/main> upgrade old new
 
-  I upgraded old to new, and removed old.
+  I upgraded:
+
+    * old to new
 
 proj/main> ls lib
 
@@ -325,7 +327,9 @@ myproject/main> update
 
 myproject/main> upgrade old new
 
-  I upgraded old to new, and removed old.
+  I upgraded:
+
+    * old to new
 
 myproject/main> view mything
 
@@ -465,7 +469,9 @@ foo/main> update
 
 foo/main> upgrade old new
 
-  I upgraded old to new, and removed old.
+  I upgraded:
+
+    * old to new
 
 foo/main> view mything
 
@@ -513,8 +519,9 @@ scratch/main> update
 
 scratch/main> upgrade dep dep__2
 
-  I upgraded dep to dep__2, removed dep, and renamed dep__2 to
-  dep.
+  I upgraded:
+
+    * dep to dep__2 (renamed to dep)
 
 scratch/main> ls lib
 
@@ -558,7 +565,9 @@ scratch/main> update
 
 scratch/main> upgrade hello dep__2
 
-  I upgraded hello to dep__2, and removed hello.
+  I upgraded:
+
+    * hello to dep__2
 
 scratch/main> ls lib
 
