@@ -122,11 +122,19 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                 go
               Right (Just (expandedArgs, i)) -> do
                 let expandedArgs' = IP.unifyArgument <$> expandedArgs
-                    expandedArgsStr = unwords expandedArgs'
+                    expandedArgsStr =
+                      expandedArgs'
+                        <&> requote
+                        & unwords
                 when (expandedArgs' /= ws) $ do
                   liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
+    requote :: String -> String
+    requote s =
+      if elem ' ' s
+        then "\"" <> s <> "\""
+        else s
     settings :: Line.Settings IO
     settings =
       Line.Settings
