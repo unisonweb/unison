@@ -11,6 +11,7 @@ import Data.Set qualified as Set
 import Unison.DataDeclaration
 import Unison.Reference
 import Unison.Type
+import Unison.Typechecker.TypeLookup (TypeLookup (..))
 import Unison.Var (Var, freshIn)
 
 -- Polarity for variable occurrences during checking. This is used both
@@ -196,3 +197,7 @@ inferDeclVariances boot (Map.toList -> rdds) =
 
     trc p@(r, dd) = (p, r, Set.toList $ typeDependencies dd)
     sccs = stronglyConnComp $ fmap trc rdds
+
+fromTypeLookup ::
+  (Var v, Show a) => TypeLookup v a -> Map Reference [Variance]
+fromTypeLookup = inferDeclVariances defaultVariances . dataDecls

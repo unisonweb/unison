@@ -38,7 +38,7 @@ import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup)
 import Unison.Typechecker.TypeLookup qualified as TypeLookup
-import Unison.Typechecker.Variance (defaultVariances)
+import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -175,7 +175,7 @@ synthesizeForce tl typeOfFunc = do
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
-            variances = defaultVariances
+            variances = Variance.fromTypeLookup tl
           }
   case Result.runResultT
     ( Typechecker.synthesize

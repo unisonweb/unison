@@ -41,7 +41,7 @@ import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.Extractor (RedundantTypeAnnotation)
 import Unison.Typechecker.TypeLookup qualified as TL
-import Unison.Typechecker.Variance (defaultVariances, inferDeclVariances)
+import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnisonFile (definitionLocation)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -95,8 +95,6 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
   case shouldUseTndr of
     ShouldUseTndr'No -> do
       tl <- typeLookupf (UF.dependencies uf)
-      let variances =
-            inferDeclVariances defaultVariances $ TL.dataDecls tl
       pure
         Typechecker.Env
           { ambientAbilities = ambientAbilities,
@@ -104,7 +102,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
-            variances = variances
+            variances = Variance.fromTypeLookup tl
           }
     ShouldUseTndr'Yes parsingEnv -> do
       let resolveName :: Name -> Relation Name (ResolvesTo Referent)
@@ -190,8 +188,6 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
       let termsByShortname = getTermsByShortname possibleDepsExact
       let freeNameToFuzzyTermsByShortName = Map.mapWithKey (\_ v -> getTermsByShortname v) freeNameDepsFuzzy
 
-      let variances =
-            inferDeclVariances defaultVariances $ TL.dataDecls typeLookup
       pure
         Typechecker.Env
           { ambientAbilities,
@@ -199,7 +195,7 @@ computeTypecheckingEnvironment shouldUseTndr ambientAbilities typeLookupf uf =
             termsByShortname,
             freeNameToFuzzyTermsByShortName,
             topLevelComponents = Map.empty,
-            variances = variances
+            variances = Variance.fromTypeLookup typeLookup
           }
 
 -- | 'fuzzyFindByEditDistanceRanked' finds matches for the given 'name' within 'names' by edit distance.

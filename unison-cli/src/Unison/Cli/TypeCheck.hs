@@ -16,8 +16,7 @@ import Unison.Symbol (Symbol (Symbol))
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
-import Unison.Typechecker.TypeLookup (dataDecls)
-import Unison.Typechecker.Variance (defaultVariances, inferDeclVariances)
+import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnisonFile (UnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.Var qualified as Var
@@ -47,8 +46,6 @@ typecheckTerm codebase tm = do
   let v = Symbol 0 (Var.Inference Var.Other)
   let file = UF.UnisonFileId mempty mempty (Map.singleton v (External, tm)) mempty
   typeLookup <- Codebase.typeLookupForDependencies codebase (UF.dependencies file)
-  let variances =
-        inferDeclVariances defaultVariances $ dataDecls typeLookup
   let typecheckingEnv =
         Typechecker.Env
           { ambientAbilities = [],
@@ -56,7 +53,7 @@ typecheckTerm codebase tm = do
             termsByShortname = Map.empty,
             freeNameToFuzzyTermsByShortName = Map.empty,
             topLevelComponents = Map.empty,
-            variances = variances
+            variances = Variance.fromTypeLookup typeLookup
           }
   pure $ fmap extract $ FileParsers.synthesizeFile typecheckingEnv file
   where
