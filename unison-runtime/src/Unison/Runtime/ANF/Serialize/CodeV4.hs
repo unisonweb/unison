@@ -1,13 +1,10 @@
 module Unison.Runtime.ANF.Serialize.CodeV4 where
 
 import Control.Monad
-import Data.Binary.Get qualified as BGet
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
-import Data.Bytes.Get hiding (getBytes)
 import Data.Functor ((<&>))
 import Data.Map.Strict as Map (lookup)
-import Data.Serialize.Get qualified as SGet
 import Data.Word (Word64)
 import GHC.Stack
 import Unison.ABT.Normalized (Term (..))
@@ -22,6 +19,7 @@ import Unison.Runtime.Serialize hiding
   ( getReferent,
     putReferent,
   )
+import Unison.Runtime.Serialize.Get
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Type (ANFBlank), Var (..))
 import Prelude hiding (getChar, putChar)
@@ -47,7 +45,7 @@ putIndex :: Word64 -> Builder
 putIndex = putVarInt
 {-# INLINE putIndex #-}
 
-getIndex :: (MonadGet m) => m Word64
+getIndex :: (PrimBase m) => Get m Word64
 getIndex = getVarInt
 {-# INLINE getIndex #-}
 
@@ -56,14 +54,16 @@ putVar ctx v
   | Just i <- index ctx v = putIndex i
   | otherwise = exn [] "putVar: variable not in context"
 
-getVar :: (MonadGet m) => [v] -> m v
+getVar :: (PrimBase m) => [v] -> Get m v
 getVar ctx = deindex ctx <$> getIndex
+{-# INLINE getVar #-}
 
 putArgs :: (Eq v) => [v] -> [v] -> Builder
 putArgs ctx is = putFoldable (putVar ctx) is
 
-getArgs :: (MonadGet m) => [v] -> m [v]
+getArgs :: (PrimBase m) => [v] -> Get m [v]
 getArgs ctx = getList (getVar ctx)
+{-# INLINE getArgs #-}
 
 putCCs :: [Mem] -> Builder
 putCCs ccs = putLength n <> foldMap putCC ccs
@@ -72,13 +72,14 @@ putCCs ccs = putLength n <> foldMap putCC ccs
     putCC UN = BU.word8 0
     putCC BX = BU.word8 1
 
-getCCs :: (MonadGet m) => m [Mem]
+getCCs :: (PrimBase m) => Get m [Mem]
 getCCs =
   getList $
     getWord8 <&> \case
       0 -> UN
       1 -> BX
       _ -> exn [] "getCCs: bad calling convention"
+{-# INLINE getCCs #-}
 
 -- Serializes a `SuperGroup`.
 --
@@ -109,9 +110,9 @@ putGroup fops (Rec bs e) =
     ctx = pushCtx us []
 
 getGroup ::
-  (MonadGet m) =>
+  (PrimBase m) =>
   (Var v) =>
-  m (SuperGroup RefNum v)
+  Get m (SuperGroup RefNum v)
 getGroup = do
   l <- getLength
   let n = fromIntegral l
@@ -119,13 +120,15 @@ getGroup = do
       ctx = pushCtx vs []
   cs <- replicateM l (getComb ctx n)
   Rec (zip vs cs) <$> getComb ctx n
+{-# INLINEABLE getGroup #-}
 
 putCode :: Bool -> (Code RefNum) -> Builder
 putCode fops (CodeRep g c) =
   putGroup fops g <> putCacheability c
 
-getCode :: (MonadGet m) => m (Code RefNum)
+getCode :: (PrimBase m) => Get m (Code RefNum)
 getCode = CodeRep <$> getGroup <*> getCacheability
+{-# INLINEABLE getCode #-}
 
 putCodeWithHeader ::
   [Reference] -> [Reference] -> Bool -> Code RefNum -> Builder
@@ -134,7 +137,7 @@ putCodeWithHeader tyrs tmrs fops co =
     <> putFoldable putReference tmrs
     <> putCode fops co
 
-getCodeWithHeader :: (MonadGet m) => m (Referenced Code)
+getCodeWithHeader :: (PrimBase m) => Get m (Referenced Code)
 getCodeWithHeader = do
   tyl <- getLength
   tys <- replicateM tyl getReference
@@ -142,19 +145,19 @@ getCodeWithHeader = do
   tms <- replicateM tml getReference
   co <- getCode
   pure (WithRefs tys tms co)
-{-# SPECIALIZE getCodeWithHeader :: BGet.Get (Referenced Code) #-}
-{-# SPECIALIZE getCodeWithHeader :: SGet.Get (Referenced Code) #-}
+{-# INLINEABLE getCodeWithHeader #-}
 
 putCacheability :: Cacheability -> Builder
 putCacheability Uncacheable = BU.word8 0
 putCacheability Cacheable = BU.word8 1
 
-getCacheability :: (MonadGet m) => m Cacheability
+getCacheability :: (PrimBase m) => Get m Cacheability
 getCacheability =
   getWord8 >>= \case
     0 -> pure Uncacheable
     1 -> pure Cacheable
     n -> exn [] $ "getBLit: unrecognized cacheability byte: " ++ show n
+{-# INLINE getCacheability #-}
 
 putComb ::
   (Var v) =>
@@ -169,16 +172,17 @@ getFresh :: (Var v) => Word64 -> v
 getFresh n = freshenId n $ typed ANFBlank
 
 getComb ::
-  (MonadGet m) =>
+  (PrimBase m) =>
   (Var v) =>
   [v] ->
   Word64 ->
-  m (SuperNormal RefNum v)
+  Get m (SuperNormal RefNum v)
 getComb ctx frsh0 = do
   ccs <- getCCs
   let us = zipWith (\_ -> getFresh) ccs [frsh0 ..]
       frsh = frsh0 + fromIntegral (length ccs)
   Lambda ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
+{-# INLINEABLE getComb #-}
 
 putNormal ::
   (Var v) =>
@@ -229,11 +233,11 @@ putNormal fops ctx tm = case tm of
   v -> exn [] $ "putNormal: malformed term\n" ++ show v
 
 getNormal ::
-  (MonadGet m) =>
+  (PrimBase m) =>
   (Var v) =>
   [v] ->
   Word64 ->
-  m (ANormal RefNum v)
+  Get m (ANormal RefNum v)
 getNormal ctx frsh0 =
   getTag >>= \case
     VarT -> TVar <$> getVar ctx
@@ -285,6 +289,7 @@ getNormal ctx frsh0 =
       TLets (Indirect w) us ccs
         <$> getNormal ctx frsh0
         <*> getNormal (pushCtx us ctx) frsh
+{-# INLINEABLE getNormal #-}
 
 putFunc ::
   (Var v) =>
@@ -300,7 +305,7 @@ putFunc ctx f = case f of
   FPrim (Left p) -> putTag FPrimT <> putPOp p
   FPrim (Right f) -> putTag FForeignT <> putFOp f
 
-getFunc :: (MonadGet m, Var v) => [v] -> m (Func RefNum v)
+getFunc :: (PrimBase m, Var v) => [v] -> Get m (Func RefNum v)
 getFunc ctx =
   getTag >>= \case
     FVarT -> FVar <$> getVar ctx
@@ -310,6 +315,7 @@ getFunc ctx =
     FReqT -> FReq <$> getRefNum <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
     FForeignT -> FPrim . Right <$> getFOp
+{-# INLINEABLE getFunc #-}
 
 -- Note: this numbering is derived, and so not particularly stable.
 -- However, foreign functions are not serialized for interchange. This
@@ -318,19 +324,21 @@ getFunc ctx =
 putFOp :: ForeignFunc -> Builder
 putFOp = putVarInt . fromEnum
 
-getFOp :: (MonadGet m) => m ForeignFunc
+getFOp :: (PrimBase m) => Get m ForeignFunc
 getFOp = toEnum <$> getVarInt
+{-# INLINE getFOp #-}
 
 putPOp :: POp -> Builder
 putPOp op
   | Just w <- Map.lookup op pop2word = BU.word16BE w
   | otherwise = exn [] $ "putPOp: unknown POp: " ++ show op
 
-getPOp :: (MonadGet m) => m POp
+getPOp :: (PrimBase m) => Get m POp
 getPOp =
   getWord16be >>= \w -> case Map.lookup w word2pop of
     Just op -> pure op
     Nothing -> exn [] "getPOp: unknown enum code"
+{-# INLINE getPOp #-}
 
 putLit :: Lit RefNum -> Builder
 putLit = \case
@@ -342,7 +350,7 @@ putLit = \case
   LM r -> putTag LMT <> putNumberedReferent r
   LY r -> putTag LYT <> putRefNum r
 
-getLit :: (MonadGet m) => m (Lit RefNum)
+getLit :: (PrimBase m) => Get m (Lit RefNum)
 getLit =
   getTag >>= \case
     IT -> I <$> getInt
@@ -352,6 +360,7 @@ getLit =
     CT -> C <$> getChar
     LMT -> LM <$> getNumberedReferent
     LYT -> LY <$> getRefNum
+{-# INLINEABLE getLit #-}
 
 putBranches ::
   (Var v) =>
@@ -392,11 +401,11 @@ putBranches fops ctx bs = case bs of
   _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
-  (MonadGet m) =>
+  (PrimBase m) =>
   (Var v) =>
   [v] ->
   Word64 ->
-  m (Branched RefNum (ANormal RefNum v))
+  Get m (Branched RefNum (ANormal RefNum v))
 getBranches ctx frsh0 =
   getTag >>= \case
     MEmptyT -> pure MatchEmpty
@@ -427,6 +436,7 @@ getBranches ctx frsh0 =
         <$> getRefNum
         <*> getEnumMap getWord64be (getNormal ctx frsh0)
         <*> getMaybe (getNormal ctx frsh0)
+{-# INLINEABLE getBranches #-}
 
 putCase ::
   (Var v) =>
@@ -438,20 +448,22 @@ putCase fops ctx (ccs, (TAbss us e)) =
   putCCs ccs <> putNormal fops (pushCtx us ctx) e
 
 getCase ::
-  (MonadGet m) =>
+  (PrimBase m) =>
   (Var v) =>
   [v] ->
   Word64 ->
-  m ([Mem], ANormal RefNum v)
+  Get m ([Mem], ANormal RefNum v)
 getCase ctx frsh0 = do
   ccs <- getCCs
   let l = length ccs
       frsh = frsh0 + fromIntegral l
       us = getFresh <$> take l [frsh0 ..]
   (,) ccs . TAbss us <$> getNormal (pushCtx us ctx) frsh
+{-# INLINEABLE getCase #-}
 
 putCTag :: CTag -> Builder
 putCTag c = putVarInt $ fromEnum c
 
-getCTag :: (MonadGet m) => m CTag
+getCTag :: (PrimBase m) => Get m CTag
 getCTag = toEnum <$> getVarInt
+{-# INLINE getCTag #-}

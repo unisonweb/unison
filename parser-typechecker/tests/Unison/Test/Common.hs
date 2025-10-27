@@ -10,6 +10,7 @@ where
 import Control.Monad.Writer (tell)
 import Data.Functor.Identity (Identity (..))
 import Data.Sequence (Seq)
+import Data.Text qualified as Text
 import Text.Megaparsec.Error qualified as MPE
 import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as B
@@ -60,7 +61,7 @@ showParseError ::
   String ->
   MPE.ParseError Parser.Input (Parser.Error v) ->
   String
-showParseError s = Pr.toANSI 60 . prettyParseError s
+showParseError s = Text.unpack . Pr.toANSI 60 . prettyParseError s
 
 parseAndSynthesizeAsFile ::
   [Type Symbol] ->

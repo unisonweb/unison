@@ -19,6 +19,7 @@ module Unison.MCP.Types
     ProjectContextArgument (..),
     ProjectNameArgument (..),
     ProjectDefinitionNameArgument (..),
+    TestToolArguments (..),
     toToolName,
     fromToolName,
   )
@@ -32,6 +33,7 @@ import Data.Text qualified as Text
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
+import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
 import Unison.MCP.Wrapper (HasInputSchema (..))
 import Unison.Name (Name)
@@ -77,6 +79,7 @@ data ToolKind
   | GetCurrentProjectContextTool
   | DependenciesTool
   | DependentsTool
+  | TestsTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -98,7 +101,8 @@ kindNameMapping =
       (ListProjectBranchesTool, "list-project-branches"),
       (GetCurrentProjectContextTool, "get-current-project-context"),
       (DependenciesTool, "list-definition-dependencies"),
-      (DependentsTool, "list-definition-dependents")
+      (DependentsTool, "list-definition-dependents"),
+      (TestsTool, "run-tests")
     ]
 
 data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
@@ -340,37 +344,24 @@ instance HasInputSchema TypecheckCodeToolArguments where
             [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
               "code"
                 .= object
-                  [ "description" .= ("The source code to typecheck. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
-                    "oneOf"
-                      .= [ object
-                             [ "description" .= ("The file path to the source code." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "filePath"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("An absolute file path to the source code." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["filePath" :: Text],
-                               "additionalProperties" .= False
-                             ],
-                           object
-                             [ "description" .= ("The source code to typecheck." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "text"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("The source code to typecheck." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["text" :: Text],
-                               "additionalProperties" .= False
-                             ]
-                         ]
+                  [ "description" .= ("The source code to typecheck. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to typecheck." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The absolute file path to the source code to typecheck." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
                   ]
             ],
         "required" .= ["projectContext", "code" :: Text]
@@ -383,7 +374,7 @@ instance FromJSON TypecheckCodeToolArguments where
     source .:? "filePath" >>= \case
       Just filePath -> pure $ TypecheckCodeToolArguments {projectContext, code = Left filePath}
       Nothing -> do
-        text <- source .: "text"
+        text <- source .: "sourceCode"
         pure $ TypecheckCodeToolArguments {projectContext, code = Right text}
 
 data DocsToolArguments = DocsToolArguments
@@ -525,6 +516,34 @@ instance FromJSON ShareProjectSearchToolArguments where
   parseJSON = withObject "ShareProjectSearchToolArguments" $ \o -> do
     query <- o .: "query"
     pure $ ShareProjectSearchToolArguments {query}
+
+data TestToolArguments = TestToolArguments
+  { projectContext :: ProjectContext,
+    subnamespace :: Maybe Path.Relative
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema TestToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "subnamespace"
+                .= object
+                  [ "type" .= ["string" :: Text, "null"],
+                    "description" .= ("An optional subnamespace within the project to run tests in. E.g. `mynamespace.tests`. If null, tests in the entire project will be run." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext" :: Text]
+      ]
+
+instance FromJSON TestToolArguments where
+  parseJSON = withObject "TestToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    subnamespace <- fmap (Path.Relative . Path.unsafeParseText) <$> (o .:? "subnamespace")
+    pure $ TestToolArguments {projectContext, subnamespace}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =

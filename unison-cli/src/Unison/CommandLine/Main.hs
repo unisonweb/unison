@@ -93,9 +93,17 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
 
     go :: Line.InputT IO Input
     go = do
-      let promptString = P.prettyProjectPath pp
-      let fullPrompt = P.toANSI 80 (P.red (P.string codeserverPrompt) <> promptString <> fromString prompt)
-      line <- Line.getInputLine fullPrompt
+      let statusString = if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge then "🧩 " else ""
+      let branchString = P.prettyProjectPath pp
+      let fullPrompt =
+            P.toANSI 80 $
+              fold
+                [ P.red (P.string codeserverPrompt),
+                  statusString,
+                  branchString,
+                  fromString prompt
+                ]
+      line <- Line.getInputLine $ Text.unpack fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
@@ -115,7 +123,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                 let expandedArgs' = IP.unifyArgument <$> expandedArgs
                     expandedArgsStr = unwords expandedArgs'
                 when (expandedArgs' /= ws) $ do
-                  liftIO . putStrLn $ fullPrompt <> expandedArgsStr
+                  liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
     settings :: Line.Settings IO

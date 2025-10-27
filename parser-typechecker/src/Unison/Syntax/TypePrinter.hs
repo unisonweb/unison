@@ -46,7 +46,7 @@ pretty ppe = PP.syntaxToColor . prettySyntax ppe
 prettySyntax :: (Var v) => PrettyPrintEnv -> Type v a -> Pretty SyntaxText
 prettySyntax ppe = runPretty ppe . pretty0 Map.empty (-1)
 
-prettyStr :: (Var v) => Width -> PrettyPrintEnv -> Type v a -> String
+prettyStr :: (Var v) => Width -> PrettyPrintEnv -> Type v a -> Text
 prettyStr width ppe = PP.toPlain width . pretty ppe
 
 {- Explanation of precedence handling

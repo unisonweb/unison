@@ -65,7 +65,7 @@ handleStructuredFindReplaceI rule = do
       uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
-  let rendered = Text.pack . P.toPlain 80 $ renderRewrittenFile ppe msg uf'
+  let rendered = P.toPlain 80 $ renderRewrittenFile ppe msg uf'
   liftIO $ env.writeSource (Text.pack dest) rendered True
   Cli.respond $ OutputRewrittenFile dest vs
 

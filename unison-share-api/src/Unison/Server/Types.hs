@@ -293,9 +293,9 @@ data SemanticSyntaxDiff a
   = OnlyThisSide (NonEmpty (Segment a))
   | Both (NonEmpty (Segment a))
   | --  (fromSegment, toSegment) (shared annotation)
-    SegmentChange (String, String) (Maybe a)
+    SegmentChange (Text, Text) (Maybe a)
   | -- (shared segment) (fromAnnotation, toAnnotation)
-    AnnotationChange String (Maybe a, Maybe a)
+    AnnotationChange Text (Maybe a, Maybe a)
   deriving (Eq, Show, Ord, Generic)
 
 deriving instance (ToSchema a) => ToSchema (SemanticSyntaxDiff a)
