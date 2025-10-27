@@ -395,7 +395,7 @@ doMerge info = do
                 liftIO $
                   env.writeSource
                     (Text.pack scratchFilePath)
-                    (Text.pack $ Pretty.toPlain 80 mergeblob.unparsedFile)
+                    (Pretty.toPlain 80 mergeblob.unparsedFile)
                     True
                 done (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
               Just mergetool0 -> do
@@ -429,7 +429,7 @@ doMerge info = do
                         & Text.replace "$REMOTE" filenames.bob
                 exitCode <-
                   liftIO do
-                    let fileContents = Text.pack . Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles
+                    let fileContents = Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles
                     removeFile (Text.unpack mergedFilename) <|> pure ()
                     for_ ((,) <$> filenames <*> fileContents) \(name, contents) ->
                       env.writeSource name contents True

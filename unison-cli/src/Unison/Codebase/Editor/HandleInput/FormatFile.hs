@@ -118,7 +118,7 @@ formatFile makePPEDForFile formattingWidth currentPath inputParsedFile inputType
   let textEdits =
         nonGeneratedDefs & foldMap \((start, end), txt) -> do
           range <- maybeToList $ annToRange (Ann.Ann start end)
-          pure $ (TextReplacement (Text.pack $ Pretty.toPlain (Pretty.Width formattingWidth) txt) range)
+          pure $ (TextReplacement (Pretty.toPlain (Pretty.Width formattingWidth) txt) range)
   pure textEdits
   where
     isInFormatRange :: Ann.Ann -> Bool

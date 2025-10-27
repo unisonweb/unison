@@ -219,7 +219,7 @@ handleUpgrade oldName newName = do
           Nothing -> "scratch.u"
           Just (file, _) -> file
       #latestFile ?= (scratchFilePath, True)
-      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+      liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
       Cli.returnEarly (Output.UpgradeFailure pp.branch.name scratchFilePath oldName newName)
 
   branchUpdates <-

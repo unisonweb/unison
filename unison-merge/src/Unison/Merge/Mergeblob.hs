@@ -14,6 +14,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
+import Data.Text qualified as Text
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -219,7 +220,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                     maybeNamespace = Nothing,
                     localNamespacePrefixedTypesAndConstructors = mempty
                   }
-           in case runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 unparsedFile) parsingEnv) of
+           in case runIdentity (Parsers.parseFile "<merge>" (Text.unpack $ Pretty.toPlain 80 unparsedFile) parsingEnv) of
                 Left _err -> pure Nothing
                 Right file -> do
                   typeLookup <- loadTypeLookup (UnisonFile.dependencies file)

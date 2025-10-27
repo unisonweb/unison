@@ -378,6 +378,4 @@ renderUnisonFile declNameLookup namespace defns builtinDefns hydratedDefns =
               & UpdateUtils.nameHydratedRefIds2 defns.defns
               & over (#terms . mapped) snd
           )
-   in renderDefinitions builtinDefns1 nonBuiltinDefns
-        & Pretty.toPlain 80
-        & Text.pack
+   in Pretty.toPlain 80 (renderDefinitions builtinDefns1 nonBuiltinDefns)

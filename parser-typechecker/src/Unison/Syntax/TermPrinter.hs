@@ -1934,13 +1934,13 @@ prettyDoc2 ac tm = do
       contains :: Char -> Pretty SyntaxText -> Bool
       contains c p =
         PP.toPlain 0 (PP.syntaxToColor p)
-          & elem c
+          & Text.elem c
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
-        case filter (\s -> take 2 s == [c, c]) $
-          List.group (PP.toPlain 0 $ PP.syntaxToColor s) of
+        case filter (\s -> Text.take 2 s == Text.pack [c, c]) $
+          Text.group (PP.toPlain 0 $ PP.syntaxToColor s) of
           [] -> 2
-          x -> 1 + maximum (map length x)
+          x -> 1 + maximum (map Text.length x)
       oneMore c inner = replicate (longestRun c inner) c
       makeFence inner = PP.string $ replicate (max 3 $ longestRun '`' inner) '`'
       go :: Width -> Term3 v PrintAnnotation -> m (Pretty SyntaxText)

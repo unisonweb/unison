@@ -25,10 +25,9 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
-import Control.Exception (displayException, evaluate, fromException)
+import Control.Exception (displayException, fromException)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
@@ -230,8 +229,8 @@ main version = do
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
         Run (RunCompiled file) args ->
-          BL.readFile file >>= \bs ->
-            try (evaluate $ RTI.decodeStandalone bs) >>= \case
+          BS.readFile file >>= \bs ->
+            try (RTI.decodeStandalone bs) >>= \case
               Left re -> do
                 exnMessage <- RTI.prettyRuntimeExn fetchIssueFromGitHub re
                 exitError . P.lines $
