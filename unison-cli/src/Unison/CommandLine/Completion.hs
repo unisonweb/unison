@@ -25,6 +25,7 @@ where
 import Control.Lens
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
+import Data.Char qualified as Char
 import Data.List (isPrefixOf)
 import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
@@ -38,7 +39,9 @@ import Network.URI qualified as URI
 import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
 import System.Console.Haskeline.Completion qualified as Haskeline
+import Text.Megaparsec qualified as MP
 import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as MP
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.Reference qualified as Reference
@@ -76,12 +79,53 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWor
   if null prev
     then pure . exactComplete word $ Map.keys patterns
     else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+      case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p <- Map.lookup h patterns
+          paramType <- IP.paramType (IP.params p) (length t)
+          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
+        _ -> pure []
+
+type Parser = MP.Parsec Void String
+
+-- | Parser for a single CLI argument, which may be a single word, or a quoted string.
+--
+-- Also handles backslash-escaped quotes within quoted strings.
+argP :: Parser Text
+argP = do
+  MP.try quotedP MP.<|> unquotedP
+  where
+    escapedQuote :: Parser Char
+    escapedQuote = do
+      _ <- MP.char '\\'
+      MP.char '"'
+
+    quotedP :: Parser Text
+    quotedP = do
+      _ <- MP.char '"'
+      content <-
+        MP.manyTill
+          (escapedQuote <|> MP.anySingle)
+          -- Treat EOF as closing quote so completion still functions on unterminated quotes
+          (void (MP.char '"') <|> MP.eof)
+      pure $ Text.pack content
+    unquotedP :: Parser Text
+    unquotedP = Text.pack <$> MP.some (MP.satisfy (not . Char.isSpace))
+
+-- >>> MP.parseMaybe argsP "one two three"
+-- Just ["one","two","three"]
+--
+-- >>> MP.parseMaybe argsP "\"one two\" three"
+-- Just ["one two","three"]
+--
+-- >>> MP.parseMaybe argsP "one    two    three"
+-- Just ["one","two","three"]
+--
+-- Unfinished quote should auto-close quote at end of input
+-- >>> MP.parseMaybe argsP "one two \"three four"
+-- Just ["one","two","three four"]
+argsP :: Parser [Text]
+argsP = MP.sepBy argP MP.space
 
 -- | Things which we may want to complete for.
 data CompletionType
