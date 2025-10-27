@@ -13,9 +13,11 @@ import Control.Monad.Trans.Writer.CPS (WriterT)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
 import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
+import Data.Containers.ListUtils qualified as List
 import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -26,6 +28,7 @@ import U.Util.Text qualified as Text (unsafeToInt)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
@@ -38,6 +41,7 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
+import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -71,9 +75,28 @@ import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Witch (unsafeFrom)
 
-handleUpgrade :: NameSegment -> NameSegment -> Cli ()
-handleUpgrade oldName newName =
-  handleUpgrade1 ((oldName, newName) :| [])
+handleUpgrade :: [NameSegment] -> Cli ()
+handleUpgrade names0 = do
+  namePairs <-
+    let loop = \case
+          old : new : names1 -> do
+            when (old == new) do
+              Cli.returnEarly $
+                Output.Literal (Pretty.wrap ("I can't upgrade" <> Pretty.prettyLibdepName old <> "to itself!"))
+            ((old, new) :) <$> loop names1
+          [] -> pure []
+          [_] ->
+            Cli.returnEarly $
+              Output.Literal $
+                Pretty.wrap
+                  (InputPatterns.makeExample' InputPatterns.upgrade <> "takes an even number of arguments.")
+     in loop names0
+  case List.NonEmpty.nonEmpty (List.nubOrd namePairs) of
+    Just namePairs1 -> handleUpgrade1 namePairs1
+    Nothing ->
+      Cli.returnEarly $
+        Output.Literal $
+          Pretty.wrap (InputPatterns.makeExample' InputPatterns.upgrade <> "takes at least two arguments.")
 
 handleUpgrade1 :: List.NonEmpty (NameSegment, NameSegment) -> Cli ()
 handleUpgrade1 namePairs = do
@@ -85,9 +108,6 @@ handleUpgrade1 namePairs = do
   when pp.branch.isMerge (Cli.returnEarly (Output.CantDoThatDuring "a merge" "merge"))
 
   let makeUpgradeInfo (oldName, newName) = do
-        when (oldName == newName) do
-          Cli.returnEarlyWithoutOutput
-
         let oldPath = Path.Absolute (Path.fromList [NameSegment.libSegment, oldName])
         let newPath = Path.Absolute (Path.fromList [NameSegment.libSegment, newName])
 

@@ -2084,20 +2084,25 @@ notifyUser dir issueFn = \case
               <> P.group (prettyProjectBranchName main <> ".")
         ]
   UpgradeSuccess namePairs unmanglings ->
-    let prettyLib = P.blue . P.text . NameSegment.toEscapedText
-     in pure $
-          P.wrap "I upgraded:"
-            <> P.newline
-            <> P.newline
-            <> P.indentN
-              2
-              ( P.bulleted
-                  ( namePairs <&> \(old, new) ->
-                      case Map.lookup new unmanglings of
-                        Nothing -> prettyLib old <> " to " <> prettyLib new
-                        Just new1 -> prettyLib old <> " to " <> prettyLib new <> " (renamed to " <> prettyLib new1 <> ")"
-                  )
+    pure $
+      P.wrap "I upgraded:"
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( P.bulleted
+              ( namePairs <&> \(old, new) ->
+                  case Map.lookup new unmanglings of
+                    Nothing -> prettyLibdepName old <> " to " <> prettyLibdepName new
+                    Just new1 ->
+                      prettyLibdepName old
+                        <> " to "
+                        <> prettyLibdepName new
+                        <> " (renamed to "
+                        <> prettyLibdepName new1
+                        <> ")"
               )
+          )
   MergeFailure path aliceAndBob ->
     pure $
       P.lines $
