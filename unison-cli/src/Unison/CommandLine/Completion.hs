@@ -40,7 +40,6 @@ import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
 import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as MP
-import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as MP
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
@@ -74,58 +73,74 @@ haskelineTabComplete ::
   AuthenticatedHttpClient ->
   PP.ProjectPath ->
   Line.CompletionFunc m
-haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWordWithPrev Nothing " " $ \prev word ->
-  -- User hasn't finished a command name, complete from command names
-  if null prev
-    then pure . exactComplete word $ Map.keys patterns
-    else -- User has finished a command name; use completions for that command
-      case words $ reverse prev of
-        h : t -> fromMaybe (pure []) $ do
-          p <- Map.lookup h patterns
-          paramType <- IP.paramType (IP.params p) (length t)
-          pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-        _ -> pure []
+haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRev, _afterCursor) ->
+  fmap (fromMaybe (beforeCursorRev, [])) $ runMaybeT $ do
+    args <- hoistMaybe (MP.parseMaybe argsP beforeCursorRev)
+    (prefixArgs, lastArg) <- hoistMaybe $ unsnoc args
+    let prefix =
+          prefixArgs
+            <&> ( \case
+                    Left (txt, False) -> "\"" <> Text.unpack txt <> "\""
+                    Left (txt, True) -> "\"" <> Text.unpack txt
+                    Right txt -> Text.unpack txt
+                )
+            & unwords
+            & reverse
+    case (prefixArgs, argStr lastArg) of
+      ([], cmdPrefix) -> do
+        let completions = exactComplete cmdPrefix $ Map.keys patterns
+        pure (prefix, completions)
+      ((cmd : midArgs), lastArg) -> do
+        p <- hoistMaybe $ Map.lookup (argStr cmd) patterns
+        paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs + 1)
+        completions <- lift $ IP.suggestions paramType lastArg codebase authedHTTPClient ppCtx
+        pure (prefix, completions)
+  where
+    argStr :: Either (Text, Bool) Text -> String
+    argStr = Text.unpack . either fst id
 
 type Parser = MP.Parsec Void String
 
 -- | Parser for a single CLI argument, which may be a single word, or a quoted string.
 --
 -- Also handles backslash-escaped quotes within quoted strings.
-argP :: Parser Text
+argP :: Parser (Either (Text, Bool) Text)
 argP = do
-  MP.try quotedP MP.<|> unquotedP
+  MP.try (Left <$> quotedP) MP.<|> (Right <$> unquotedP)
   where
     escapedQuote :: Parser Char
     escapedQuote = do
       _ <- MP.char '\\'
       MP.char '"'
 
-    quotedP :: Parser Text
+    quotedP :: Parser (Text, Bool)
     quotedP = do
       _ <- MP.char '"'
-      content <-
-        MP.manyTill
+      (content, hasUnterminatedQuote) <-
+        MP.manyTill_
           (escapedQuote <|> MP.anySingle)
           -- Treat EOF as closing quote so completion still functions on unterminated quotes
-          (void (MP.char '"') <|> MP.eof)
-      pure $ Text.pack content
-    unquotedP :: Parser Text
-    unquotedP = Text.pack <$> MP.some (MP.satisfy (not . Char.isSpace))
+          (((MP.char '"') $> False) <|> (MP.eof $> True))
+      pure $ (Text.pack content, hasUnterminatedQuote)
+    unquotedP :: Parser (Text)
+    unquotedP = do
+      Text.pack <$> MP.some (MP.satisfy (not . Char.isSpace))
 
 -- >>> MP.parseMaybe argsP "one two three"
--- Just ["one","two","three"]
+-- Just [Right "one",Right "two",Right "three"]
 --
 -- >>> MP.parseMaybe argsP "\"one two\" three"
--- Just ["one two","three"]
+-- Just [Left ("one two",False),Right "three"]
 --
 -- >>> MP.parseMaybe argsP "one    two    three"
--- Just ["one","two","three"]
+-- Just [Right "one",Right "two",Right "three"]
 --
--- Unfinished quote should auto-close quote at end of input
+-- Unfinished quote should auto-close quote at end of input, but indicate that it was unterminated
 -- >>> MP.parseMaybe argsP "one two \"three four"
--- Just ["one","two","three four"]
-argsP :: Parser [Text]
-argsP = MP.sepBy argP MP.space
+-- Just [Right "one",Right "two",Left ("three four",True)]
+argsP :: Parser [Either (Text, Bool) Text]
+argsP = do
+  MP.sepBy argP MP.space
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -300,7 +315,7 @@ completeWithinNamespace compTypes query ppCtx = do
 -- (base,"List")
 parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
-  case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
+  case MP.runParser ((,) <$> Path.splitP' <*> MP.takeRest) "" (Text.unpack txt) of
     Left _err -> (Path.Current', txt)
     Right (name, rest) ->
       if take 1 rest == "."
