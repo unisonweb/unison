@@ -103,7 +103,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                   branchString,
                   fromString prompt
                 ]
-      line <- Line.getInputLine fullPrompt
+      line <- Line.getInputLine $ Text.unpack fullPrompt
       case line of
         Nothing -> pure QuitI
         Just l -> case words l of
@@ -123,7 +123,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                 let expandedArgs' = IP.unifyArgument <$> expandedArgs
                     expandedArgsStr = unwords expandedArgs'
                 when (expandedArgs' /= ws) $ do
-                  liftIO . putStrLn $ fullPrompt <> expandedArgsStr
+                  liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
     settings :: Line.Settings IO

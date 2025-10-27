@@ -19,6 +19,7 @@ import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
 import Unison.MCP.Cli (cliToMCP, handleInputMCP)
@@ -45,6 +46,7 @@ tools =
     shareProjectSearchTool,
     typecheckCodeTool,
     docsTool,
+    runTool,
     shareProjectReadmeTool,
     listProjectDefinitionsTool,
     listProjectLibrariesTool,
@@ -186,6 +188,27 @@ docsTool =
       toolArgType = Proxy,
       toolHandler = \(DocsToolArguments {name, projectContext}) -> handleToolError $ do
         output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+runTool :: Tool MCP
+runTool =
+  Tool
+    { toolName = toToolName RunTool,
+      toolDescription = "Execute/Run a given definition.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Run",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(RunToolArguments {mainFunctionName, projectContext, args}) -> handleToolError $ do
+        let input = ExecuteI NoProf (HQ.NameOnly mainFunctionName) (Text.unpack <$> args)
+        output <- handleInputMCP projectContext [Right input]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }

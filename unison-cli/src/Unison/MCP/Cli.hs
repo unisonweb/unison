@@ -11,7 +11,8 @@ import Crypto.Random qualified as Random
 import Data.Aeson
 import Data.IORef
 import Data.Sequence qualified as Seq
-import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import GHC.IO.Handle (hDuplicate, hDuplicateTo)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient qualified as AuthN
@@ -29,27 +30,34 @@ import Unison.Prelude
 import Unison.Sqlite (Transaction)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as Pretty
+import UnliftIO qualified
+import UnliftIO.IO qualified as IO
 import UnliftIO.STM
+import UnliftIO.Temporary (withSystemTempFile)
 import Prelude hiding (readFile, writeFile)
 
 data CliOutput = CliOutput
   { sourceCodeUpdates :: [Text],
-    outputMessages :: [Text]
+    outputMessages :: [Text],
+    stdout :: Text,
+    stderr :: Text
   }
   deriving (Eq, Show)
 
 instance Semigroup CliOutput where
-  CliOutput src1 out1 <> CliOutput src2 out2 =
-    CliOutput (src1 <> src2) (out1 <> out2)
+  CliOutput src1 out1 stdout1 stderr1 <> CliOutput src2 out2 stdout2 stderr2 =
+    CliOutput (src1 <> src2) (out1 <> out2) (stdout1 <> stdout2) (stderr1 <> stderr2)
 
 instance Monoid CliOutput where
-  mempty = CliOutput [] []
+  mempty = CliOutput [] [] "" ""
 
 instance ToJSON CliOutput where
-  toJSON (CliOutput sourceCodeUpdates outputMessages) =
+  toJSON CliOutput {sourceCodeUpdates, outputMessages, stdout, stderr} =
     object
       [ "sourceCodeUpdates" .= sourceCodeUpdates,
-        "outputMessages" .= outputMessages
+        "outputMessages" .= outputMessages,
+        "stdout" .= stdout,
+        "stderr" .= stderr
       ]
 
 ppForProjectContext :: ProjectContext -> ExceptT Text Transaction PP.ProjectPath
@@ -121,22 +129,57 @@ cliToMCP projCtx cli = do
 
   let startState = (Cli.loopState0 (PP.toIds initialPP))
   -- The actual output isn't important, all communication comes from notify, notifyNumbered, and writeSource.
-  (cliResult, _loopState) <- liftIO (Cli.runCli cliEnv startState cli)
+  (stdout, stderr, (cliResult, _loopState)) <- liftIO $ do
+    captureHandles (Cli.runCli cliEnv startState cli)
   -- flush the output buffer since it should now be filled.
   cliOut <- atomically $ do
     msgs <- readTVar outputVar
     sourceCodeUpdates <- toList <$> readTVar sourceCodeUpdatesVar
     let outputMessages =
           msgs
-            & fmap (Text.pack . Pretty.toPlain 0)
+            & fmap (Pretty.toPlain 0)
             & toList
     pure $
       ( CliOutput
           { sourceCodeUpdates,
-            outputMessages
+            outputMessages,
+            stdout,
+            stderr
           }
       )
   case cliResult of
     Cli.Continue -> pure (Nothing, cliOut)
     Cli.HaltRepl -> pure (Nothing, cliOut)
     Cli.Success a -> pure (Just a, cliOut)
+
+-- | Capture stdout, stderr for the duration of the given action,
+-- useful for providing input to programs and capturing results to return to agents.
+captureHandles :: IO a -> IO (Text, Text, a)
+captureHandles action = do
+  -- Create temporary files for the fake stdin and captured stdout
+  withSystemTempFile "stdout.txt" $ \stdoutPath stdoutHandle -> do
+    withSystemTempFile "stderr.txt" $ \stderrPath stderrHandle -> do
+      -- Replace stdin and stdout, run action, then restore
+      a <-
+        UnliftIO.bracket
+          ( do
+              oldStdout <- hDuplicate IO.stdout
+              hDuplicateTo stdoutHandle IO.stdout
+              oldStderr <- hDuplicate IO.stderr
+              hDuplicateTo stderrHandle IO.stderr
+              pure (oldStdout, oldStderr)
+          )
+          ( \(oldStdout, oldStderr) -> do
+              hDuplicateTo oldStdout IO.stdout
+              IO.hClose oldStdout
+              hDuplicateTo oldStderr IO.stderr
+              IO.hClose oldStderr
+          )
+          ( \_ -> do
+              action
+          )
+      IO.hClose stdoutHandle
+      output <- Text.readFile stdoutPath
+      IO.hClose stderrHandle
+      errOutput <- Text.readFile stderrPath
+      pure (output, errOutput, a)

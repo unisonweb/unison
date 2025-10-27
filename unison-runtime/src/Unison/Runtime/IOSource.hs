@@ -58,7 +58,7 @@ typecheckingEnv =
 parsedFile :: UF.UnisonFile Symbol Ann
 parsedFile =
   case runIdentity (Parsers.parseFile "<IO.u builtin>" sourceString parsingEnv) of
-    Left err -> error (Pretty.toANSI 0 (PrintError.prettyParseError sourceString err))
+    Left err -> error (Text.unpack $ Pretty.toANSI 0 (PrintError.prettyParseError sourceString err))
     Right file -> file
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
@@ -1022,8 +1022,8 @@ type SynthResult =
 type EitherResult = Either String TFile
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
-showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
+showNotes source env notes =
+  Text.unpack $ intercalateMap "\n\n" (PrintError.renderNoteAsANSI 60 env source) notes
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.makePPE (PPE.hqNamer 10 Builtin.names) PPE.dontSuffixify

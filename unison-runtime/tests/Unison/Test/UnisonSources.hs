@@ -4,6 +4,7 @@ import Control.Exception (throwIO)
 import Control.Lens.Tuple (_5)
 import Data.Map qualified as Map
 import Data.Text (unpack)
+import Data.Text qualified as Text
 import EasyTest
 import System.Directory (doesFileExist)
 import System.FilePath (joinPath, replaceExtension, splitPath)
@@ -83,8 +84,8 @@ go rt files how = do
   tests (makePassingTest rt how <$> files')
 
 showNotes :: (Foldable f) => String -> PrintError.Env -> f Note -> String
-showNotes source env =
-  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
+showNotes source env notes =
+  intercalateMap "\n\n" (Text.unpack . PrintError.renderNoteAsANSI 60 env source) notes
 
 decodeResult ::
   String -> SynthResult -> EitherResult --  String (UF.TypecheckedUnisonFile Symbol Ann)
@@ -123,11 +124,11 @@ resultTest rt uf filepath = do
   if rFileExists
     then scope "result" $ do
       values <- io $ unpack <$> readUtf8 valueFile
-      let report = throwIO . userError . Pretty.toPlain 0 <=< RTI.prettyError (pure . Pretty.shown)
+      let report = throwIO . userError . Text.unpack . Pretty.toPlain 0 <=< RTI.prettyError (pure . Pretty.shown)
       (bindings, _, watches) <-
         io $ either report pure =<< evaluateWatches Builtin.codeLookup PPE.empty NoProf (const $ pure Nothing) rt uf
       either
-        (crash . PrintError.renderParseErrorAsANSI 80 values)
+        (crash . Text.unpack . PrintError.renderParseErrorAsANSI 80 values)
         ( \tm -> do
             -- compare the watch expression from the .u with the expr in .ur
             let watchResult = head (view _5 <$> Map.elems watches)

@@ -22,6 +22,7 @@ import Data.Map.Strict qualified as M
 import Data.Set (Set)
 import Data.Set qualified as S
 import Data.String
+import Data.Text (Text)
 import Numeric
 import Unison.PrettyPrintEnv
 import Unison.Reference
@@ -364,7 +365,7 @@ foldedProfile ::
   PrettyPrintEnv ->
   Map Reference (Pretty ColorText) ->
   Profile k ->
-  (String, String)
+  (Text, Text)
 foldedProfile ppe misc (Prof _ tr refs) =
   ( toPlain 0 $ foldMapTrie f comp,
     toPlain 0 $ foldMapTrie f wake

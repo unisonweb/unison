@@ -108,6 +108,7 @@ import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
+import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.ABT.Normalized qualified as ABTN
 import Unison.Blank (nameb)
@@ -2649,7 +2650,7 @@ prettyFunc (FPrim op) = either shows shows op . showString " "
 
 showsShort :: Reference -> ShowS
 showsShort =
-  showString . Pretty.toPlain 0 . prettyShortHash . shortenTo 10 . toShortHash
+  showString . Text.unpack . Pretty.toPlain 0 . prettyShortHash . shortenTo 10 . toShortHash
 
 prettyBranches ::
   (Var v) => Int -> Branched Reference (ANormal Reference v) -> ShowS

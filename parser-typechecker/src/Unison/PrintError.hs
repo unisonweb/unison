@@ -1262,7 +1262,7 @@ renderContext env ctx@(C.Context es) =
 
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
-  fromString (Color.toPlain $ TermPrinter.pretty' 80 env (TypeVar.lowerTerm e))
+  fromString (Text.unpack $ Color.toPlain $ TermPrinter.pretty' 80 env (TypeVar.lowerTerm e))
 
 renderPattern :: Env -> Pattern ann -> ColorText
 renderPattern env =
@@ -1273,7 +1273,7 @@ renderPattern env =
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
-renderType' env = fromString . Pr.toPlain defaultWidth . renderType env (const id)
+renderType' env = fromString . Text.unpack . Pr.toPlain defaultWidth . renderType env (const id)
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
@@ -1415,10 +1415,10 @@ renderNoteAsANSI ::
   Env ->
   String ->
   Note v a ->
-  String
+  Text
 renderNoteAsANSI w e s = Pr.toANSI w . printNoteWithSource e s
 
-renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
+renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> Text
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource ::

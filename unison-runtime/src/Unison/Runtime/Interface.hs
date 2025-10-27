@@ -545,13 +545,13 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
           Just loc
             | ticky $ takeExtension loc -> do
                 let (comp, wake) = foldedProfile ppe fnames pout
-                writeFile loc comp
-                writeFile (loc <.> "wakeup") wake
+                writeUtf8 loc comp
+                writeUtf8 (loc <.> "wakeup") wake
                 pure $ Right (errs, tmr)
             | otherwise -> do
                 let (comp, wake) = fullProfile ppe fnames pout
-                writeFile loc $ toPlain 0 comp
-                writeFile (loc <.> "wakeup") $ toPlain 0 wake
+                writeUtf8 loc $ toPlain 0 comp
+                writeUtf8 (loc <.> "wakeup") $ toPlain 0 wake
                 pure $ Right (errs, tmr)
           Nothing ->
             pure $ Right (errs <> Profile (miniProfile ppe fnames pout), tmr)
@@ -953,7 +953,7 @@ getStoredCache =
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
-  render 50
+  Text.unpack . render 50
   where
     render = if fancy then toANSI else toPlain
 

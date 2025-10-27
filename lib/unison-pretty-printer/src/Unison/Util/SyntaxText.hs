@@ -56,6 +56,6 @@ data Element r
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate
 
--- Convert a `SyntaxText` to a `String`, ignoring syntax markup
-toPlain :: SyntaxText' r -> String
-toPlain (AnnotatedText at) = join (toList $ segment <$> at)
+-- Convert a `SyntaxText` to a `Text`, ignoring syntax markup
+toPlain :: SyntaxText' r -> Text
+toPlain (AnnotatedText at) = foldMap segment at

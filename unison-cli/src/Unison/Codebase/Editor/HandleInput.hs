@@ -649,7 +649,7 @@ loop e = do
                  in do
                       let d = Output.DN.DumpNamespace terms types patches children causalParents
                       -- the alternate implementation that doesn't rely on `traceM` blows up
-                      traceM $ P.toPlain 200 (prettyDump (h, d))
+                      traceM . Text.unpack $ P.toPlain 200 (prettyDump (h, d))
                       set h
                       goCausal (map getCausal (Foldable.toList (b ^. Branch.children_)) ++ queue)
               prettyDump (h, Output.DN.DumpNamespace terms types patches children causalParents) =
@@ -1007,7 +1007,7 @@ doDisplay outputLoc names tm = do
     FileLocation path _ -> Just <$> Directory.canonicalizePath path
     LatestFileLocation _ -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
   whenJust mayFP \fp -> do
-    liftIO $ prependFile fp (Text.pack . P.toPlain 80 $ rendered)
+    liftIO $ prependFile fp (P.toPlain 80 $ rendered)
   Cli.respond $ DisplayRendered mayFP rendered
   where
     suffixify =
