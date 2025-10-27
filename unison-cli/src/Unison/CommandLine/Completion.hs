@@ -25,7 +25,6 @@ where
 import Control.Lens
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
-import Data.Char qualified as Char
 import Data.List (isPrefixOf)
 import Data.List qualified as List
 import Data.List.Extra (nubOrdOn)
@@ -40,7 +39,6 @@ import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
 import System.Console.Haskeline.Completion qualified as Haskeline
 import Text.Megaparsec qualified as MP
-import Text.Megaparsec.Char qualified as MP
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.Reference qualified as Reference
@@ -75,72 +73,36 @@ haskelineTabComplete ::
   Line.CompletionFunc m
 haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRev, _afterCursor) ->
   fmap (fromMaybe (beforeCursorRev, [])) $ runMaybeT $ do
-    args <- hoistMaybe (MP.parseMaybe argsP beforeCursorRev)
+    args <- hoistMaybe $ IP.parseArgsQuoted (reverse beforeCursorRev)
     (prefixArgs, lastArg) <- hoistMaybe $ unsnoc args
     let prefix =
           prefixArgs
             <&> ( \case
-                    Left (txt, False) -> "\"" <> Text.unpack txt <> "\""
-                    Left (txt, True) -> "\"" <> Text.unpack txt
-                    Right txt -> Text.unpack txt
+                    Left (txt, False) -> "\"" <> txt <> "\""
+                    Left (txt, True) -> "\"" <> txt
+                    Right txt -> txt
                 )
             & unwords
             & reverse
+            & (" " <>)
     case (prefixArgs, argStr lastArg) of
       ([], cmdPrefix) -> do
         let completions = exactComplete cmdPrefix $ Map.keys patterns
         pure (prefix, completions)
-      ((cmd : midArgs), lastArg) -> do
+      ((cmd : midArgs), lastArgStr) -> do
+        let requote = case lastArg of
+              Left _ -> \str -> "\"" <> str <> "\""
+              Right _ -> id
         p <- hoistMaybe $ Map.lookup (argStr cmd) patterns
-        paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs + 1)
-        completions <- lift $ IP.suggestions paramType lastArg codebase authedHTTPClient ppCtx
+        paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs)
+        completions <-
+          lift $
+            IP.suggestions paramType lastArgStr codebase authedHTTPClient ppCtx
+              <&> fmap (\completion -> completion {Line.replacement = requote (Line.replacement completion)})
         pure (prefix, completions)
   where
-    argStr :: Either (Text, Bool) Text -> String
-    argStr = Text.unpack . either fst id
-
-type Parser = MP.Parsec Void String
-
--- | Parser for a single CLI argument, which may be a single word, or a quoted string.
---
--- Also handles backslash-escaped quotes within quoted strings.
-argP :: Parser (Either (Text, Bool) Text)
-argP = do
-  MP.try (Left <$> quotedP) MP.<|> (Right <$> unquotedP)
-  where
-    escapedQuote :: Parser Char
-    escapedQuote = do
-      _ <- MP.char '\\'
-      MP.char '"'
-
-    quotedP :: Parser (Text, Bool)
-    quotedP = do
-      _ <- MP.char '"'
-      (content, hasUnterminatedQuote) <-
-        MP.manyTill_
-          (escapedQuote <|> MP.anySingle)
-          -- Treat EOF as closing quote so completion still functions on unterminated quotes
-          (((MP.char '"') $> False) <|> (MP.eof $> True))
-      pure $ (Text.pack content, hasUnterminatedQuote)
-    unquotedP :: Parser (Text)
-    unquotedP = do
-      Text.pack <$> MP.some (MP.satisfy (not . Char.isSpace))
-
--- >>> MP.parseMaybe argsP "one two three"
--- Just [Right "one",Right "two",Right "three"]
---
--- >>> MP.parseMaybe argsP "\"one two\" three"
--- Just [Left ("one two",False),Right "three"]
---
--- >>> MP.parseMaybe argsP "one    two    three"
--- Just [Right "one",Right "two",Right "three"]
---
--- Unfinished quote should auto-close quote at end of input, but indicate that it was unterminated
--- >>> MP.parseMaybe argsP "one two \"three four"
--- Just [Right "one",Right "two",Left ("three four",True)]
-argsP :: Parser [Either (Text, Bool) Text]
-argsP = do
-  MP.sepBy argP MP.space
+    argStr :: Either (String, Bool) String -> String
+    argStr = either fst id
 
 -- | Things which we may want to complete for.
 data CompletionType
