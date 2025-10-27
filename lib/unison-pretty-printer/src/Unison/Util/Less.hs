@@ -1,14 +1,15 @@
 module Unison.Util.Less where
 
 import Control.Exception.Extra (ignore)
+import Data.Text.IO qualified as Text
 import System.Environment (lookupEnv)
-import System.IO (hClose, hPutStr)
+import System.IO (hClose)
 import System.Process
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
 
-less :: String -> IO ()
+less :: Text -> IO ()
 less str = do
   isInteractive <-
     lookupEnv "INSIDE_EMACS" >>= \case
@@ -19,7 +20,7 @@ less str = do
     else noPager
   where
     noPager :: IO ()
-    noPager = putStr str
+    noPager = Text.putStr str
     usePager :: IO ()
     usePager = do
       pager <-
@@ -37,7 +38,7 @@ less str = do
             createProcess process {std_in = CreatePipe}
 
           -- If pager exits before consuming all of stdin, `hPutStr` will crash.
-          ignore $ hPutStr stdin str
+          ignore $ Text.hPutStr stdin str
 
           -- If pager has already exited, hClose throws an exception.
           ignore $ hClose stdin

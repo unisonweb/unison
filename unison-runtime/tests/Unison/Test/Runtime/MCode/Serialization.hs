@@ -3,11 +3,10 @@
 -- | Round trip tests runtime serialization
 module Unison.Test.Runtime.MCode.Serialization (Unison.Test.Runtime.MCode.Serialization.test) where
 
+import Control.Monad.ST (ST, runST)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
-import Data.Bytes.Get (runGetS)
 import Data.Primitive (Prim, PrimArray, primArrayFromList)
-import Data.Serialize.Get (Get)
 import EasyTest qualified as EasyTest
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
@@ -17,6 +16,7 @@ import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
 import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, Ref, Section)
 import Unison.Runtime.Machine (Combs)
+import Unison.Runtime.Serialize.Get
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
 import Unison.Util.EnumContainers (EnumMap, EnumSet)
@@ -191,9 +191,14 @@ sCacheRoundtrip :: Property
 sCacheRoundtrip =
   getPutRoundtrip getStoredCache (putStoredCache) genStoredCache
 
-getPutRoundtrip :: (Eq a, Show a) => Get a -> (a -> Builder) -> Gen a -> Property
+getPutRoundtrip ::
+  (Eq a, Show a) =>
+  (forall s. Get (ST s) a) ->
+  (a -> Builder) ->
+  Gen a ->
+  Property
 getPutRoundtrip get put builder =
   property $ do
     v <- forAll builder
     let bytes = toStrict . toLazyByteString $ put v
-    runGetS get bytes === Right v
+    runST (runGetCatch get bytes) === Right v

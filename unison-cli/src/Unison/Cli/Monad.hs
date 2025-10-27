@@ -334,7 +334,7 @@ labelE f =
     Right <$> f (goto . Left)
 
 -- | Time an action.
-time :: String -> Cli a -> Cli a
+time :: Text -> Cli a -> Cli a
 time label action =
   if Debug.shouldDebug Debug.Timing
     then Cli \env k s -> do

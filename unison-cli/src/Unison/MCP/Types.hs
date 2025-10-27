@@ -344,37 +344,24 @@ instance HasInputSchema TypecheckCodeToolArguments where
             [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
               "code"
                 .= object
-                  [ "description" .= ("The source code to typecheck. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
-                    "oneOf"
-                      .= [ object
-                             [ "description" .= ("The file path to the source code." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "filePath"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("An absolute file path to the source code." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["filePath" :: Text],
-                               "additionalProperties" .= False
-                             ],
-                           object
-                             [ "description" .= ("The source code to typecheck." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "text"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("The source code to typecheck." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["text" :: Text],
-                               "additionalProperties" .= False
-                             ]
-                         ]
+                  [ "description" .= ("The source code to typecheck. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to typecheck." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The absolute file path to the source code to typecheck." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
                   ]
             ],
         "required" .= ["projectContext", "code" :: Text]
@@ -387,7 +374,7 @@ instance FromJSON TypecheckCodeToolArguments where
     source .:? "filePath" >>= \case
       Just filePath -> pure $ TypecheckCodeToolArguments {projectContext, code = Left filePath}
       Nothing -> do
-        text <- source .: "text"
+        text <- source .: "sourceCode"
         pure $ TypecheckCodeToolArguments {projectContext, code = Right text}
 
 data DocsToolArguments = DocsToolArguments

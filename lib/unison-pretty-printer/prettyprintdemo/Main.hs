@@ -4,13 +4,14 @@ module Main where
 
 import Data.String (fromString)
 import Data.Text (Text)
+import Data.Text.IO qualified as Text
 import Unison.Util.Pretty as PP
 
 main :: IO ()
 main = do
   -- putStrLn . PP.toANSI 60 $ ex1
   -- print $ examples
-  putStrLn . PP.toANSI 25 $ examples
+  Text.putStrLn . PP.toANSI 25 $ examples
   where
     -- ex1 = PP.linesSpaced [PP.red "hi", PP.blue "blue"]
     examples =

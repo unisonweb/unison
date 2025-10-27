@@ -350,7 +350,7 @@ analyseNotes fileUri ppe src notes = do
       Result.Parsing err -> do
         let diags = do
               (errMsg, ranges) <- PrintError.renderParseErrors src err
-              let txtMsg = Text.pack $ Pretty.toPlain 80 errMsg
+              let txtMsg = Pretty.toPlain 80 errMsg
               range <- ranges
               pure $ mkDiagnostic fileUri (uToLspRange range) DiagnosticSeverity_Error [] txtMsg []
         -- TODO: Some parsing errors likely have reasonable code actions
@@ -403,7 +403,7 @@ analyseNotes fileUri ppe src notes = do
       [(Range, [(Text, Range)])] ->
       [Diagnostic]
     noteDiagnostic note ranges =
-      let msg = Text.pack $ Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
+      let msg = Pretty.toPlain 80 $ PrintError.printNoteWithSource ppe src note
        in do
             (range, references) <- ranges
             pure $ mkDiagnostic fileUri range DiagnosticSeverity_Error [] msg references
@@ -413,7 +413,7 @@ analyseNotes fileUri ppe src notes = do
       Context.Suggestion {suggestionName, suggestionType, suggestionMatch} <- sortOn nameResolutionSuggestionPriority suggestions
       let prettyType = TypePrinter.prettyStr 0 ppe suggestionType
       let ranges = (diags ^.. folded . range)
-      let rca = rangedCodeAction ("Use " <> Name.toText suggestionName <> " : " <> Text.pack prettyType) diags ranges
+      let rca = rangedCodeAction ("Use " <> Name.toText suggestionName <> " : " <> prettyType) diags ranges
       pure $
         rca
           & includeEdits fileUri (Name.toText suggestionName) ranges
@@ -439,7 +439,7 @@ analyseNotes fileUri ppe src notes = do
             let prettyType = TypePrinter.prettyStr 0 ppe typ
             let txtName = HQ'.toText hqNameSuggestion
             let ranges = (diags ^.. folded . range)
-            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> Text.pack prettyType) diags ranges
+            let rca = rangedCodeAction ("Use " <> txtName <> " : " <> prettyType) diags ranges
             pure $ includeEdits fileUri txtName ranges rca
     isUserBlank :: Symbol -> Bool
     isUserBlank v = case Var.typeOf v of
