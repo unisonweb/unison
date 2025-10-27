@@ -175,12 +175,12 @@ data Resolution v loc = Resolution
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve ::
-  Monad f =>
-  Var v =>
-  Monoid loc =>
-  BuiltinAnnotation loc =>
-  Ord loc =>
-  Show loc =>
+  (Monad f) =>
+  (Var v) =>
+  (Monoid loc) =>
+  (BuiltinAnnotation loc) =>
+  (Ord loc) =>
+  (Show loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   TDNR f v loc (Type v loc)
@@ -432,18 +432,19 @@ check ppe env term typ =
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped ::
-  Monad f =>
-  Var v =>
-  BuiltinAnnotation loc =>
-  Ord loc =>
-  Show loc =>
-  Semigroup loc =>
+  (Monad f) =>
+  (Var v) =>
+  (BuiltinAnnotation loc) =>
+  (Ord loc) =>
+  (Show loc) =>
+  (Semigroup loc) =>
   PrettyPrintEnv ->
   Env v loc ->
   Term v loc ->
   f Bool
-wellTyped ppe env term = go <$>
-  runResultT (synthesize ppe enable env term)
+wellTyped ppe env term =
+  go
+    <$> runResultT (synthesize ppe enable env term)
   where
     go (may, _) = isJust may
     enable =

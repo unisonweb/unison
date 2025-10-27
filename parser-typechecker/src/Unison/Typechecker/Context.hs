@@ -276,7 +276,7 @@ liftTotalM (MT m) = MT $ \ppe pmcSwitch vars datas effects defs env ->
 
 checkVariance :: Type v loc -> M v loc (Maybe [Variance])
 checkVariance ty = MT \_ _ vars _ _ _ env ->
-  Success mempty . (, env) $ case ty of
+  Success mempty . (,env) $ case ty of
     Type.Ref' r -> Map.lookup r vars
     Type.Apps' (Type.Ref' r) args -> drop n <$> Map.lookup r vars
       where

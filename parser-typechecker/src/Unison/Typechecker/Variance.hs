@@ -1,4 +1,3 @@
-
 module Unison.Typechecker.Variance where
 
 import Control.Monad.State.Strict
@@ -7,7 +6,6 @@ import Data.Graph (flattenSCC, stronglyConnComp)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
-
 import Unison.DataDeclaration
 import Unison.Reference
 import Unison.Type
@@ -33,37 +31,37 @@ inv Exact = Exact
 act :: Polarity v -> Polarity v -> Polarity v
 act Positive p = p
 act Negative p = inv p
-act Exact    _ = Exact
-act _        _ = Exact -- TODO: revisit
+act Exact _ = Exact
+act _ _ = Exact -- TODO: revisit
 
 -- Concrete variance information for a parameter.
 data Variance = Any | Pos | Neg | Inv
   deriving (Eq, Ord, Show)
 
 both :: Variance -> Variance -> Variance
-both Any   v = v
-both   v Any = v
+both Any v = v
+both v Any = v
 both Pos Pos = Pos
 both Neg Neg = Neg
-both   _   _ = Inv
+both _ _ = Inv
 
 defaultVariances :: Map Reference [Variance]
 defaultVariances =
   Map.fromList
-    [ (listRef, [Pos])
-    , (iarrayRef, [Pos])
+    [ (listRef, [Pos]),
+      (iarrayRef, [Pos])
     ]
 
 lookupVariance :: Map Reference [Variance] -> Type v a -> Maybe [Variance]
 lookupVariance vs (Ref' r) = Map.lookup r vs
 lookupVariance _ _ = Nothing
 
-combine :: Ord v => [Map v [Polarity v]] -> Map v [Polarity v]
+combine :: (Ord v) => [Map v [Polarity v]] -> Map v [Polarity v]
 combine [] = Map.empty
-combine (m:ms) = foldl' (Map.unionWith (++)) m ms
+combine (m : ms) = foldl' (Map.unionWith (++)) m ms
 
 collectVariance ::
-  Var v =>
+  (Var v) =>
   Map Reference [Variance] ->
   Map Reference [v] ->
   Type v a ->
@@ -76,10 +74,11 @@ collectVariance prev group = descend Positive
       Effect1' e r ->
         Map.unionWith (++) (descend pol e) (descend pol r)
       Apps' f xs
-        | Ref' r <- f, Just bnd <- Map.lookup r group ->
-          combine $ zipWith (descend . act pol . As) bnd xs
+        | Ref' r <- f,
+          Just bnd <- Map.lookup r group ->
+            combine $ zipWith (descend . act pol . As) bnd xs
         | Just vs <- lookupVariance prev f ->
-          combine $ descend pol f : zipWith h vs xs
+            combine $ descend pol f : zipWith h vs xs
         -- if it's not in the info we have, assume invariant
         | otherwise -> combine $ descend pol f : map (descend Exact) xs
         where
@@ -88,7 +87,6 @@ collectVariance prev group = descend Positive
           h Neg t = descend (inv pol) t
           h Pos t = descend pol t
           h Inv t = descend Exact t
-
       Ann' t _ -> descend pol t
       Effects' ts -> combine $ map (descend pol) ts
       ForallsNamed' _ t -> descend pol t
@@ -103,16 +101,16 @@ collectDeclVariance ::
   DataDeclaration v a ->
   Map v [Polarity v]
 collectDeclVariance vars group decl =
-  combine
-    $ fmap (collectVariance vars group)
-    . split
-    =<< constructors decl
+  combine $
+    fmap (collectVariance vars group)
+      . split
+      =<< constructors decl
   where
     split (_, ForallsNamedOpt' _vs (Arrows' ts)) = ts
     split (_, t) = [t]
 
 -- Simplifies some polarities
-simplify :: Var v => v -> [Polarity v] -> [Polarity v]
+simplify :: (Var v) => v -> [Polarity v] -> [Polarity v]
 simplify v = reduce . Set.delete (As v) . Set.fromList
   where
     reduce s
@@ -120,12 +118,13 @@ simplify v = reduce . Set.delete (As v) . Set.fromList
       | Exact `Set.member` s = [Exact]
       -- both positive and negative is invariant
       | Positive `Set.member` s,
-        Negative `Set.member` s = [Exact]
+        Negative `Set.member` s =
+          [Exact]
       -- a variable that must be its own opposite is invariant
       | Op v `Set.member` s = [Exact]
       | otherwise = Set.toList s
 
-chain :: Var v => Map v [Polarity v] -> [Polarity v] -> [Polarity v]
+chain :: (Var v) => Map v [Polarity v] -> [Polarity v] -> [Polarity v]
 chain m = foldMap f
   where
     -- If an `As` or `Op` is not in the map, we will never be able to
@@ -145,7 +144,7 @@ checkFinished = traverse f
     f [Negative] = Just Neg
     f _ = Nothing
 
-solve :: Var v => Map v [Polarity v] -> Map v Variance
+solve :: (Var v) => Map v [Polarity v] -> Map v Variance
 solve map0
   | Just m <- checkFinished map0 = m
   | otherwise = solve . Map.mapWithKey simplify $ chain map0 <$> map0
@@ -181,7 +180,7 @@ freshDecl dd = do
   where
     fv u = state \avoid ->
       let v = freshIn avoid u
-      in (v, Set.insert v avoid)
+       in (v, Set.insert v avoid)
 
 inferDeclVariances ::
   (Var v, Show a) =>
