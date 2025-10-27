@@ -8,7 +8,6 @@ module Unison.LSP.CodeLens where
 import Control.Lens hiding (List)
 import Data.Aeson qualified as Aeson
 import Data.Map qualified as Map
-import Data.Text qualified as Text
 import Language.LSP.Protocol.Lens hiding (error)
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
@@ -54,7 +53,7 @@ codeLensHandler m respond =
     codeLenses <- ifor typeSignatureHints \_v (TypeSignatureHint name ref range typ) -> do
       ppe <- PPED.suffixifiedPPE <$> lift (ppedForFile fileUri)
       let rendered = case TypePrinter.prettySignaturesCT ppe [(ref, HQ.NameOnly name, typ)] of
-            [sig] -> Text.pack . CT.toPlain 80 $ sig
+            [sig] -> CT.toPlain 80 $ sig
             _ -> error "codeLensHandler: prettySignaturesCT returned more than one signature"
       let insertLocation =
             range

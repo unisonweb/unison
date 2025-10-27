@@ -18,6 +18,7 @@ import Control.Monad.Trans.Except
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as Nel
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Debug (DebugFlag (KindInference), shouldDebug)
 import Unison.KindInference.Constraint.Provenance (Provenance (..))
@@ -463,4 +464,4 @@ prettyUVar :: (Var v) => PrettyPrintEnv -> UVar v loc -> P.Pretty P.ColorText
 prettyUVar ppe (UVar s t) = TP.pretty ppe t <> " :: " <> P.prettyVar s
 
 tracePretty :: P.Pretty P.ColorText -> a -> a
-tracePretty p = trace (P.toANSI 0 p)
+tracePretty p = trace (Text.unpack $ P.toANSI 0 p)

@@ -19,6 +19,7 @@ import Data.Functor.Compose
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.Builtin.Decls (unitRef)
 import Unison.ConstructorReference (ConstructorReference, reference_)
 import Unison.Debug (DebugFlag (PatternCoverageConstraintSolver), shouldDebug)
@@ -650,7 +651,7 @@ addConstraint con0 nc = do
                 P.hang (P.green "resulting constraint: ") (maybe "contradiction" (prettyNormalizedConstraints ppe) x),
                 ""
               ]
-       in if shouldDebug PatternCoverageConstraintSolver then trace (P.toANSI 0 debugOutput) x else x
+       in if shouldDebug PatternCoverageConstraintSolver then trace (Text.unpack $ P.toANSI 0 debugOutput) x else x
 
 -- | Like 'addConstraint', but for a list of constraints
 addConstraints ::

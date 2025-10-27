@@ -90,7 +90,6 @@ textToSegment txt =
       ( \t ->
           t
             & Text.splitOn " "
-            & fmap (Text.unpack)
             & fmap \case
               "" -> Nothing
               w -> Just (Segment w Nothing)
@@ -202,7 +201,7 @@ unchangedDefinition = 1                 | unchangedDefinition = 1
 renderDiffText :: [Changed [Paired (Segment a)]] -> Text
 renderDiffText diffs =
   let renderSegment :: Segment a -> Text
-      renderSegment (Segment {segment}) = Text.pack segment
+      renderSegment (Segment {segment}) = segment
       renderPaired :: Paired (Segment a) -> Text
       renderPaired (OneSided s) = "{" <> renderSegment s <> "}"
       renderPaired (Paired s1 _) = renderSegment s1

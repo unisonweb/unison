@@ -73,12 +73,15 @@ library
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
       Unison.Runtime.Serialize
+      Unison.Runtime.Serialize.Get
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
   hs-source-dirs:
       src
+  c-sources:
+      cbits/i2d.c
   default-extensions:
       ApplicativeDo
       BangPatterns
@@ -119,7 +122,6 @@ library
     , binary
     , bytes
     , bytestring
-    , cereal
     , clock
     , containers >=0.6.3
     , crypton-x509
@@ -232,9 +234,7 @@ test-suite runtime-tests
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
-    , bytes
     , bytestring
-    , cereal
     , code-page
     , containers
     , cryptonite

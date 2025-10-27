@@ -14,6 +14,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
+import Data.Text.IO qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as DD
 import Unison.Cli.Monad (Cli)
@@ -117,7 +118,7 @@ handleTest TestInput {includeLibNamespace, path, showFailures, showSuccesses} = 
         Just tm -> do
           let testName = Cli.prettyTermName fqnPPE (Referent.fromTermReferenceId r)
           Debug.whenDebug Debug.Tests $
-            liftIO (putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
+            liftIO (Text.putStrLn $ "\nAbout to run test:" <> ("\n" <> P.toPlain 80 testName))
           Cli.respond $ TestIncrementalOutputStart fqnPPE (n, total) r
           --                        v don't cache; test cache populated below
           tm' <- Cli.time ("\n" <> P.toPlain 80 testName) $ RuntimeUtils.evalPureUnison fqnPPE False tm

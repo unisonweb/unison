@@ -7,12 +7,9 @@ module Unison.Runtime.ANF.Serialize.ValueV5
 where
 
 import Control.Monad (replicateM)
-import Data.Binary.Get qualified as BGet
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.ByteString.Lazy qualified as L
-import Data.Bytes.Get hiding (getBytes)
-import Data.Serialize.Get qualified as SGet
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF as ANF hiding (Tag)
 import Unison.Runtime.ANF.Serialize.CodeV4
@@ -27,6 +24,7 @@ import Unison.Runtime.Serialize hiding
     putReferent,
   )
 import Unison.Runtime.Serialize qualified as SER
+import Unison.Runtime.Serialize.Get
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
 
@@ -34,8 +32,9 @@ putGroupRef :: GroupRef RefNum -> Builder
 putGroupRef (GR r i) = putRefNum r <> putVarInt i
 {-# INLINE putGroupRef #-}
 
-getGroupRef :: (MonadGet m) => m (GroupRef RefNum)
+getGroupRef :: (PrimBase m) => Get m (GroupRef RefNum)
 getGroupRef = GR <$> getRefNum <*> getVarInt
+{-# INLINE getGroupRef #-}
 
 -- Notes
 --
@@ -95,7 +94,7 @@ putValue = \case
       <> putCont k
   BLit l -> putTag BLitT <> putBLit l
 
-getValue :: (MonadGet m) => m (Value RefNum)
+getValue :: (PrimBase m) => Get m (Value RefNum)
 getValue =
   getTag >>= \case
     PartialT -> do
@@ -112,8 +111,7 @@ getValue =
       k <- getCont
       pure $ Cont bs k
     BLitT -> BLit <$> getBLit
-{-# SPECIALIZE getValue :: BGet.Get (Value RefNum) #-}
-{-# SPECIALIZE getValue :: SGet.Get (Value RefNum) #-}
+{-# INLINEABLE getValue #-}
 
 putCont :: Cont RefNum -> Builder
 putCont = \case
@@ -131,7 +129,7 @@ putCont = \case
       <> putGroupRef gr
       <> putCont k
 
-getCont :: (MonadGet m) => m (Cont RefNum)
+getCont :: (PrimBase m) => Get m (Cont RefNum)
 getCont =
   getTag >>= \case
     KET -> pure KE
@@ -147,8 +145,7 @@ getCont =
         <*> getVarInt
         <*> getGroupRef
         <*> getCont
-{-# SPECIALIZE getCont :: BGet.Get (Cont RefNum) #-}
-{-# SPECIALIZE getCont :: SGet.Get (Cont RefNum) #-}
+{-# INLINEABLE getCont #-}
 
 putBLit :: BLit RefNum -> Builder
 putBLit = \case
@@ -173,7 +170,7 @@ putBLit = \case
   Map m ->
     putTag MapT <> putMapping putValue putValue m
 
-getBLit :: (MonadGet m) => m (BLit RefNum)
+getBLit :: (PrimBase m) => Get m (BLit RefNum)
 getBLit =
   getTag >>= \case
     TextT -> Text . Util.Text.fromText <$> getText
@@ -192,8 +189,7 @@ getBLit =
     ArrT -> Arr <$> getArray getValue
     CachedCodeT -> Code . flip CodeRep Cacheable <$> getGroup
     MapT -> Map <$> getMapping getValue getValue
-{-# SPECIALIZE getBLit :: BGet.Get (BLit RefNum) #-}
-{-# SPECIALIZE getBLit :: SGet.Get (BLit RefNum) #-}
+{-# INLINEABLE getBLit #-}
 
 putValueWithHeader ::
   [Reference] -> [Reference] -> Value RefNum -> Builder
@@ -212,7 +208,7 @@ versionedValueBytes ::
 versionedValueBytes tyrs tmrs v =
   BU.toLazyByteString $ putVersionedValue tyrs tmrs v
 
-getValueWithHeader :: (MonadGet m) => m (Referenced Value)
+getValueWithHeader :: (PrimBase m) => Get m (Referenced Value)
 getValueWithHeader = do
   tyl <- getLength
   tys <- replicateM tyl SER.getReference
@@ -220,5 +216,4 @@ getValueWithHeader = do
   tms <- replicateM tml SER.getReference
   v <- getValue
   pure (WithRefs tys tms v)
-{-# SPECIALIZE getValueWithHeader :: BGet.Get (Referenced Value) #-}
-{-# SPECIALIZE getValueWithHeader :: SGet.Get (Referenced Value) #-}
+{-# INLINEABLE getValueWithHeader #-}

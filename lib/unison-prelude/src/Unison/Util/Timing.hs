@@ -5,6 +5,7 @@ module Unison.Util.Timing
   )
 where
 
+import Data.Text (Text)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.CPUTime (getCPUTime)
@@ -12,7 +13,7 @@ import Text.Printf (printf)
 import Unison.Debug qualified as Debug
 import UnliftIO (MonadIO, liftIO)
 
-time :: (MonadIO m) => String -> m a -> m a
+time :: (MonadIO m) => Text -> m a -> m a
 time label action =
   if Debug.shouldDebug Debug.Timing
     then do
@@ -25,7 +26,7 @@ time label action =
 startTiming :: IO (Word64, Integer)
 startTiming = (,) <$> getMonotonicTimeNSec <*> getCPUTime
 
-stopTiming :: String -> (Word64, Integer) -> IO ()
+stopTiming :: Text -> (Word64, Integer) -> IO ()
 stopTiming label (systemTimeStart, cpuTimeStart) = do
   (systemTimeEnd, cpuTimeEnd) <- startTiming
   let systemDiff = realToFrac @Word64 @Double (systemTimeEnd - systemTimeStart)

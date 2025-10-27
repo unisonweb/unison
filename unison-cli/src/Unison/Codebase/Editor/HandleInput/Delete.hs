@@ -240,7 +240,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
                       & over (#terms . mapped) snd
                   )
 
-      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+      liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
 
       Cli.returnEarly (Output.DeleteFailure scratchFilePath projectAndBranch.branch.name)
 

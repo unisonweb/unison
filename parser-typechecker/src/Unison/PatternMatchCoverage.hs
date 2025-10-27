@@ -36,6 +36,7 @@ module Unison.PatternMatchCoverage
 where
 
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Debug.Trace
 import Unison.Debug
 import Unison.Pattern (Pattern)
@@ -82,5 +83,5 @@ checkMatch scrutineeType cases = do
   where
     title = P.bold
     doDebug out = case shouldDebug PatternCoverage of
-      True -> trace (P.toANSI 0 out)
+      True -> trace (Text.unpack $ P.toANSI 0 out)
       False -> id

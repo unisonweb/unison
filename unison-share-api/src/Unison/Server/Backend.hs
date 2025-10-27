@@ -962,8 +962,7 @@ docsInBranchToHtmlFiles runtime codebase currentBranch directory = do
 bestNameForTerm ::
   forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Referent -> Text
 bestNameForTerm ppe width =
-  Text.pack
-    . Pretty.render width
+  Pretty.render width
     . fmap UST.toPlain
     . TermPrinter.runPretty ppe
     . TermPrinter.pretty0 @v TermPrinter.emptyAc
@@ -972,8 +971,7 @@ bestNameForTerm ppe width =
 bestNameForType ::
   forall v. (Var v) => PPE.PrettyPrintEnv -> Width -> Reference -> Text
 bestNameForType ppe width =
-  Text.pack
-    . Pretty.render width
+  Pretty.render width
     . fmap UST.toPlain
     . TypePrinter.prettySyntax @v ppe
     . Type.ref ()
