@@ -126,7 +126,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                       expandedArgs'
                         <&> requote
                         & unwords
-                when (expandedArgs' /= ws) $ do
+                when (expandedArgs' /= fmap IP.renderCliArg ws) $ do
                   liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
