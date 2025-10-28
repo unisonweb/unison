@@ -63,26 +63,37 @@ data ExpansionFailure
 expandArguments ::
   NumberedArgs ->
   InputPattern.Parameters ->
-  [String] ->
+  [Either (String {- quoted -}) String] ->
   Either ExpansionFailure (InputPattern.Arguments, InputPattern.Parameters)
-expandArguments numberedArgs params =
-  bimap TooManyArguments (first $ reverse)
-    <=< InputPattern.foldParamsWithM
+expandArguments numberedArgs params args =
+  args
+    & (fmap . fmap) Left
+    & InputPattern.foldParamsWithM
       ( \acc (_, param) arg ->
-          if InputPattern.isStructured param
-            then
-              pure $
-                either
-                  ( maybe (arg : acc, []) (maybe (acc, []) (\(h :| t) -> (h : acc, t)) . nonEmpty . fmap pure)
-                      . expandNumber numberedArgs
-                  )
-                  ((,[]) . (: acc) . pure)
-                  arg
-            else (,[]) . (: acc) <$> either (pure . Left) (Left . UnexpectedStructuredArgument) arg
+          case arg of
+            -- Don't expand numbers in quoted args
+            Left quoted -> Right (Left quoted : acc, [])
+            Right structuredOrRaw ->
+              if InputPattern.isStructured param
+                -- If it's a structured argument, we can try to expand numbered args.
+                then case structuredOrRaw of
+                  Left raw ->
+                    case expandNumber numberedArgs raw of
+                      -- No valid number expansion, just a raw argument
+                      Nothing -> Right (Left raw : acc, [])
+                      -- The expansion resulted in no arguments
+                      Just [] -> Right (acc, [])
+                      -- The expansion resulted in one or more arguments, keep folding
+                      Just (h : t) -> Right $ (Right h : acc, (pure . pure) <$> t)
+                  Right structured -> Right $ ((Right structured : acc), [])
+                -- If it's not a structured argument, pass the raw argument or fail.
+                else case structuredOrRaw of
+                  Left raw -> Right $ (Left raw : acc, [])
+                  Right structured -> Left . UnexpectedStructuredArgument $ structured
       )
       []
       params
-    . fmap Left
+    >>= bimap (TooManyArguments . fmap join) (first $ reverse)
 
 data ParseFailure
   = NoCommand
@@ -154,7 +165,7 @@ parseInput ::
   -- | Input Pattern Map
   Map String InputPattern ->
   -- | command:arguments
-  [String] ->
+  [Either (String {- quoted -}) String] ->
   -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
   IO (Either ParseFailure (Maybe (InputPattern.Arguments, Input)))
@@ -167,12 +178,13 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns segments =
   case segments of
     [] -> throwE NoCommand
     command : args -> do
-      pat@(InputPattern {params, parse}) <- case Map.lookup command patterns of
+      let cmd = unquote command
+      pat@(InputPattern {params, parse}) <- case Map.lookup cmd patterns of
         Just pat -> pure pat
-        Nothing -> throwE $ UnknownCommand command
-      let mkResult finalArgs = except . bimap (SubParseFailure command pat) (Left command : finalArgs,) $ parse finalArgs
+        Nothing -> throwE $ UnknownCommand cmd
+      let mkResult finalArgs = except . bimap (SubParseFailure cmd pat) (Left command : finalArgs,) $ parse finalArgs
       (expandedArgs, remainingParams) <-
-        except . first (ExpansionFailure command pat) $ expandArguments numberedArgs params args
+        except . first (ExpansionFailure cmd pat) $ expandArguments numberedArgs params args
 
       if Fuzzy.isFZFInstalled
         then do
@@ -191,6 +203,8 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns segments =
         else do
           -- fzf isn't installed, just try to parse the args we have and probably get an error from the parser
           Just <$> mkResult expandedArgs
+  where
+    unquote = either id id
 
 -- Expand a numeric argument like `1` or a range like `3-9`
 expandNumber :: NumberedArgs -> String -> Maybe NumberedArgs
