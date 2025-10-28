@@ -577,8 +577,8 @@
                                                            `lib.myproject_dev`
 
   lib.upgrade (or upgrade.lib, upgrade)
-  `upgrade old new` upgrades library dependency `lib.old` to
-  `lib.new`, and, if successful, deletes `lib.old`.
+  `upgrade old new [old2 new2...]` upgrades library dependency
+  `lib.old` to `lib.new` (and `lib.old2` to `lib.new2`...).
 
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current
