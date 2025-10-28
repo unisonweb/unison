@@ -1,5 +1,5 @@
 ``` ucm :hide
-> builtins.merge
+> builtins.mergeio
 ```
 
 This transcript just runs the profiler with to-file output, to make
@@ -13,11 +13,18 @@ loop = cases
 
 loopTest : '()
 loopTest = do loop 1000
+
+cleanup : '{IO} ()
+cleanup = do
+  _ = removeFile.impl "loop.prof"
+  _ = removeFile.impl "loop.prof.wakeup"
+  ()
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + cleanup  : '{IO} ()
   + loop     : Nat -> ()
   + loopTest : '()
 
@@ -33,6 +40,10 @@ loopTest = do loop 1000
   Done.
 
 > run.profiled.full loopTest loop.prof
+
+  ()
+
+> run cleanup
 
   ()
 ```
