@@ -721,6 +721,114 @@ scratch/upgrade> ls lib
 scratch/main> project.delete scratch
 ```
 
+After a successful multi-lib upgrade, we do perform the same "name unmangling" step, but a sort of best-effort,
+one-at-a-time way, because it's entirely possible to have collisions on the target best name (e.g. both `foo__2` and
+`foo__3` want to be renamed to `foo`).
+
+Here's an example of two mangled names becoming unmangled successfully:
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo.foo = 17
+lib.foo__2.foo = 18
+lib.bar.bar = 19
+lib.bar__2.bar = 20
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar.bar    : Nat
+  + lib.bar__2.bar : Nat
+  + lib.foo.foo    : Nat
+  + lib.foo__2.foo : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade foo foo__2 bar bar__2
+
+  I upgraded:
+
+    * foo to foo__2 (renamed to foo)
+    * bar to bar__2 (renamed to bar)
+
+scratch/main> view foo bar
+
+  lib.bar.bar : Nat
+  lib.bar.bar = 20
+
+  lib.foo.foo : Nat
+  lib.foo.foo = 18
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+And here's an example of two mangled names fighting over unmangling to the same name, where only one succeeds:
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo.foo = 17
+lib.foo__2.foo = 18
+lib.bar.bar = 19
+lib.foo__3.bar = 20
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar.bar    : Nat
+  + lib.foo.foo    : Nat
+  + lib.foo__2.foo : Nat
+  + lib.foo__3.bar : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade foo foo__2 bar foo__3
+
+  I upgraded:
+
+    * foo to foo__2 (renamed to foo)
+    * bar to foo__3
+
+scratch/main> view foo bar
+
+  lib.foo.foo : Nat
+  lib.foo.foo = 18
+
+  lib.foo__3.bar : Nat
+  lib.foo__3.bar = 20
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
 # A couple simple cases
 
 ``` ucm :hide
