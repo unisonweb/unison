@@ -2345,20 +2345,20 @@ notifyUser dir issueFn = \case
           <> "then try again."
   where
     iveCreatedATemporaryBranch scratchFile =
-      P.wrap
-        ( "I've created a temporary branch and added the affected definitions to"
-            <> P.group (scratchFile <> ",")
-            <> "where you can fix them up or remove any that are obsolete."
-        )
+      P.wrap $
+        "I've created a temporary branch and added the affected definitions to"
+          <> P.group (scratchFile <> ",")
+          <> "where you can fix them up or remove any that are obsolete."
 
     onceYoureHappy baseBranch =
-      "Once you're happy with the results, use"
-        <> makeExample' IP.update
-        <> "to merge them back into"
-        <> P.group (prettyProjectBranchName baseBranch <> ",")
-        <> "or"
-        <> makeExample' IP.cancelInputPattern
-        <> "if you change your mind."
+      P.wrap $
+        "Once you're happy with the results, use"
+          <> makeExample' IP.update
+          <> "to merge them back into"
+          <> P.group (prettyProjectBranchName baseBranch <> ",")
+          <> "or"
+          <> makeExample' IP.cancelInputPattern
+          <> "if you change your mind."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

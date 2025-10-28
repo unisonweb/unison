@@ -113,7 +113,8 @@ proj/main> upgrade old new
   definitions to scratch.u, where you can fix them up or remove
   any that are obsolete.
 
-  Once you're happy with the results, use`update`to merge them back intomain,or`cancel`if you change your mind.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -215,7 +216,8 @@ proj/main> upgrade old new
   definitions to scratch.u, where you can fix them up or remove
   any that are obsolete.
 
-  Once you're happy with the results, use`update`to merge them back intomain,or`cancel`if you change your mind.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -376,7 +378,8 @@ myproject/main> upgrade old new
   definitions to scratch.u, where you can fix them up or remove
   any that are obsolete.
 
-  Once you're happy with the results, use`update`to merge them back intomain,or`cancel`if you change your mind.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
