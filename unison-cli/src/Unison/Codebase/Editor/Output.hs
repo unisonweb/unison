@@ -420,9 +420,9 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
-  | DeleteFailure !FilePath !ProjectBranchName !ProjectBranchName
+  | DeleteFailure !FilePath !ProjectBranchName
   | UpdateTypecheckingFailure
-  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
+  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName
   | UpgradeFailure !ProjectBranchName !FilePath !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
   | MergeFailure !FilePath !MergeSourceAndTarget

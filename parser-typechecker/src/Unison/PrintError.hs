@@ -573,44 +573,81 @@ renderTypeError e env src = case e of
         annotatedAsErrorSite src abilityCheckFailureSite,
         debugSummary note
       ]
+  AbilitySubtypeFailure {..} ->
+    mconcat
+      [ "I found an ability mismatch when checking the expression ",
+        describeStyle ErrorSite,
+        "\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated tsup,
+            (,Type2) <$> rangeForAnnotated tsub,
+            (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
+          ],
+        "\n",
+        Pr.lines $
+          [ "The check that",
+            "",
+            Pr.indentN 4 . style Type1 $ renderType' env tsub,
+            "",
+            "is a subtype of",
+            "",
+            Pr.indentN 4 . style Type2 $ renderType' env tsup,
+            "",
+            "failed because",
+            "",
+            Pr.indentN 4 . style Type1 $
+              "{" <> commas (renderType' env) sub <> "}",
+            "",
+            "is not a subtype of",
+            "",
+            Pr.indentN 4 . style Type2 $
+              "{" <> commas (renderType' env) sup <> "}"
+          ],
+        "\n\n",
+        debugSummary note
+      ]
   AbilityEqFailure {..} ->
     mconcat
       [ "I found an ability mismatch when checking the expression ",
         describeStyle ErrorSite,
-        "\n\n",
+        "\n",
         showSourceMaybes
           src
           [ (,Type1) <$> rangeForAnnotated tlhs,
             (,Type2) <$> rangeForAnnotated trhs,
             (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
           ],
-        "\n\n",
-        Pr.wrap $
-          mconcat
-            [ "When trying to match ",
-              style Type1 $ renderType' env tlhs,
-              " with ",
-              style Type2 $ renderType' env trhs,
-              case (lhs, rhs) of
-                ([], _) ->
-                  mconcat
-                    [ "the right hand side contained extra abilities: ",
-                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
-                    ]
-                (_, []) ->
-                  mconcat
-                    [ "the left hand side contained extra abilities: ",
-                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
-                    ]
-                _ ->
-                  mconcat
-                    [ " I could not make ",
-                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
-                      " on the left compatible with ",
-                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
-                      " on the right."
-                    ]
-            ],
+        "\n",
+        Pr.lines $
+          [ "When trying to match",
+            "",
+            Pr.indentN 4 . style Type1 $ renderType' env tlhs,
+            "",
+            "with",
+            "",
+            Pr.indentN 4 . style Type2 $ renderType' env trhs,
+            "",
+            case (lhs, rhs) of
+              ([], _) ->
+                mconcat
+                  [ "the right hand side contained extra abilities: ",
+                    style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                  ]
+              (_, []) ->
+                mconcat
+                  [ "the left hand side contained extra abilities: ",
+                    style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                  ]
+              _ ->
+                Pr.wrap . mconcat $
+                  [ " I could not make ",
+                    style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                    " on the left compatible with ",
+                    style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                    " on the right."
+                  ]
+          ],
         "\n\n",
         debugSummary note
       ]
