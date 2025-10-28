@@ -38,13 +38,6 @@ act _ _ = Exact -- TODO: revisit
 data Variance = Any | Pos | Neg | Inv
   deriving (Eq, Ord, Show)
 
-both :: Variance -> Variance -> Variance
-both Any v = v
-both v Any = v
-both Pos Pos = Pos
-both Neg Neg = Neg
-both _ _ = Inv
-
 defaultVariances :: Map Reference [Variance]
 defaultVariances =
   Map.fromList
