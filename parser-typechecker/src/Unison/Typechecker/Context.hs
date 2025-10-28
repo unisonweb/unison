@@ -2711,7 +2711,9 @@ subtype tx ty = scope (InSubtype tx ty) $ do
         Just (Pos : _) -> subtype y1 y2
         Just (Neg : _) -> subtype y2 y1
         Just (Inv : _) -> equate y1 y2
-        Just (Any : _) -> pure ()
+        -- Note: to allow 'phantom' type arguments to vary arbitrarily,
+        -- replace this with `pure ()`
+        Just (Any : _) -> equate y1 y2
         _ -> equate y1 y2
     go _ t (Type.Forall' t2) = do
       v <- ABT.freshen t2 freshenTypeVar
