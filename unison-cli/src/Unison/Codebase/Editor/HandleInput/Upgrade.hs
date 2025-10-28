@@ -93,6 +93,7 @@ handleUpgrade names0 = do
      in loop names0
   case List.NonEmpty.nonEmpty (List.nubOrd namePairs) of
     Just namePairs1 -> handleUpgrade1 namePairs1
+    -- I don't think the CLI actually lets you get here, because zero-arg `upgrade` kicks off FZF
     Nothing ->
       Cli.returnEarly $
         Output.Literal $
