@@ -2027,16 +2027,16 @@ scratch/alice> merge /bob
 
   Loading namespaces...
 
-  Sorry, I wasn't able to perform the merge:
+  Sorry, I wasn't able to perform the `merge`:
 
   On scratch/alice, the type Foo has a constructor with multiple
-  names, and I can't perform a merge in this situation:
+  names, and I can't `merge` in this situation:
 
     * Foo.Bar
     * Foo.some.other.Alias
 
   Please `delete.force` all but one name for each constructor,
-  and then try merging again.
+  and then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2096,14 +2096,14 @@ scratch/alice> merge /bob
 
   Loading namespaces...
 
-  Sorry, I wasn't able to perform the merge:
+  Sorry, I wasn't able to perform the `merge`:
 
   On scratch/alice, the type Foo has some constructors with
-  missing names, and I can't perform a merge in this situation.
+  missing names, and I can't `merge` in this situation.
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try merging again.
+  each unnamed constructor, and then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2162,9 +2162,9 @@ scratch/alice> merge /bob
   Loading namespaces...
 
   On scratch/alice, the type A.inner.X is an alias of A. I'm not
-  able to perform a merge when a type exists nested under an
-  alias of itself. Please separate them or `delete.force` one
-  copy, and then try merging again.
+  able to `merge` when a type exists nested under an alias of
+  itself. Please separate them or `delete.force` one copy, and
+  then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2227,14 +2227,14 @@ scratch/alice> merge bob
 
   Loading namespaces...
 
-  Sorry, I wasn't able to perform the merge, because I need all
-  constructor names to be nested somewhere beneath the
+  Sorry, I wasn't able to perform the `merge`, because I need
+  all constructor names to be nested somewhere beneath the
   corresponding type name.
 
   On scratch/alice, the constructor AliasOutsideFooNamespace is
   not nested beneath the corresponding type name. Please either
   use `move` to move it, or if it's an extra copy, you can
-  simply `delete.force` it. Then try merging again.
+  simply `delete.force` it. Then try `merge` again.
 ```
 
 ``` ucm :hide

@@ -44,14 +44,14 @@ unique type Foo = Bar Nat Nat
 ``` ucm :error
 > update
 
-  Sorry, I wasn't able to perform the update:
+  Sorry, I wasn't able to perform the `update`:
 
   The type Foo has a constructor with multiple names, and I
-  can't perform an update in this situation:
+  can't `update` in this situation:
 
     * Foo.Bar
     * Foo.BarAlias
 
   Please `delete.force` all but one name for each constructor,
-  and then try updating again.
+  and then try `update` again.
 ```

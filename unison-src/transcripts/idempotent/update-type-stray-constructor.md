@@ -52,12 +52,12 @@ Note that the constructor name shown here (implied to be called `Foo.Stray.Bar`)
 
 > update
 
-  Sorry, I wasn't able to perform the update:
+  Sorry, I wasn't able to perform the `update`:
 
   The type Foo has some constructors with missing names, and I
-  can't perform an update in this situation.
+  can't `update` in this situation.
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try updating again.
+  each unnamed constructor, and then try `update` again.
 ```
