@@ -258,6 +258,7 @@ data CliArg
       String
       Bool -- whether the quote was terminated
   | UnquotedArg String
+  deriving (Eq, Show)
 
 -- | Get the text representing a given 'CliArg'.
 renderCliArg :: CliArg -> String
@@ -297,8 +298,11 @@ parseArgs input = MP.parseMaybe argsP (strip input)
 -- Also handles backslash-escaped quotes within quoted strings.
 argP :: Parser CliArg
 argP = do
-  MP.try numberedArgP MP.<|> quotedArgP MP.<|> unquotedArgP
+  MP.try (numberedArgP <* wordBoundary)
+    MP.<|> (quotedArgP <* wordBoundary)
+    MP.<|> (unquotedArgP <* wordBoundary)
   where
+    wordBoundary = MP.lookAhead (MP.space1 <|> MP.eof)
     escapedQuote :: Parser Char
     escapedQuote = do
       _ <- MP.char '\\'
@@ -340,17 +344,21 @@ argP = do
       UnquotedArg <$> MP.some (MP.satisfy (not . Char.isSpace))
 
 -- >>> MP.parseMaybe argsP "one two three"
--- Just [Right "one",Right "two",Right "three"]
+-- Just [UnquotedArg "one",UnquotedArg "two",UnquotedArg "three"]
 --
 -- >>> MP.parseMaybe argsP "\"one two\" three"
--- Just [Left ("one two",False),Right "three"]
+-- Just [QuotedArg "one two" False,UnquotedArg "three"]
 --
 -- >>> MP.parseMaybe argsP "one    two    three"
--- Just [Right "one",Right "two",Right "three"]
+-- Just [UnquotedArg "one",UnquotedArg "two",UnquotedArg "three"]
 --
 -- Unfinished quote should auto-close quote at end of input, but indicate that it was unterminated
 -- >>> MP.parseMaybe argsP "one two \"three four"
--- Just [Right "one",Right "two",Left ("three four",True)]
+-- Just [UnquotedArg "one",UnquotedArg "two",QuotedArg "three four" True]
+--
+-- Should require args to take up a whole segment, and should fall back to raw args.
+-- >>> MP.parseMaybe argsP "1.2.3 abc-def"
+-- Just [NumberedArg (NumberedSingle 1),UnquotedArg ".2.3",UnquotedArg "abc-def"]
 argsP :: Parser [CliArg]
 argsP = do
   MP.sepBy argP MP.space
