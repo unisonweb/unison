@@ -31,6 +31,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup (..))
+import Unison.Typechecker.Variance (defaultVariances)
 import Unison.Util.Tuple qualified as Tuple
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -123,5 +124,6 @@ hashFieldAccessors ppe declName vars declRef dd = do
               },
           termsByShortname = mempty,
           freeNameToFuzzyTermsByShortName = Map.empty,
-          topLevelComponents = Map.empty
+          topLevelComponents = Map.empty,
+          variances = defaultVariances
         }

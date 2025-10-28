@@ -331,6 +331,7 @@ roots = [
     '''^Unison\.DataDeclaration\.labeledTypeDependencies$''',
     '''^Unison\.DataDeclaration\.mkDataDecl'$''',
     '''^Unison\.DataDeclaration\.updateDependencies$''',
+    '''^Unison\.DataDeclaration\.vmap$''',
     '''^Unison\.DeclNameLookup\.empty$''',
     '''^Unison\.HashQualified\.sortByLength$''',
     '''^Unison\.HashQualified\.hasName$''',

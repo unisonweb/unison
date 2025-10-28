@@ -140,6 +140,7 @@ library
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
       Unison.UnconflictedLocalDefnsView
+      Unison.Typechecker.Variance
       Unison.UnisonFile
       Unison.UnisonFile.Env
       Unison.UnisonFile.Names
