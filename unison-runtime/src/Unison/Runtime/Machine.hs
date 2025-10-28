@@ -881,8 +881,8 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
       -- Pending arguments. The continuation argument must be a function
       -- to be applied to them.
       | asize stk > 0 =
-          peek stk >>=
-            apply yld env henv activeThreads stk k False ZArgs
+          peek stk
+            >>= apply yld env henv activeThreads stk k False ZArgs
       | otherwise = yield yld env henv activeThreads stk k
       where
         henv = HEnv aenv denv
