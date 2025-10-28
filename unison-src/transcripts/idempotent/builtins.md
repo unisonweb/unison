@@ -524,6 +524,10 @@ test> checks [
       ]
 ```
 
+``` ucm :hide
+> add
+```
+
 ## `Any` functions
 
 ``` unison
@@ -884,17 +888,18 @@ Now that all the tests have been added to the codebase, let's view the test repo
     25. Sandbox.test1                       ◉ Passed
     26. Sandbox.test2                       ◉ Passed
     27. Sandbox.test3                       ◉ Passed
-    28. test.ebobca6b0t                     ◉ Passed
-    29. Text.tests.alignment                ◉ Passed
-    30. Text.tests.indexOf                  ◉ Passed
-    31. Text.tests.indexOfEmoji             ◉ Passed
-    32. Text.tests.literalsEq               ◉ Passed
-    33. Text.tests.patterns                 ◉ Passed
-    34. Text.tests.repeat                   ◉ Passed
-    35. Text.tests.takeDropAppend           ◉ Passed
-    36. Universal.murmurHash.tests          ◉ Passed
+    28. test.dtrliu8iuq                     ◉ Passed
+    29. test.ebobca6b0t                     ◉ Passed
+    30. Text.tests.alignment                ◉ Passed
+    31. Text.tests.indexOf                  ◉ Passed
+    32. Text.tests.indexOfEmoji             ◉ Passed
+    33. Text.tests.literalsEq               ◉ Passed
+    34. Text.tests.patterns                 ◉ Passed
+    35. Text.tests.repeat                   ◉ Passed
+    36. Text.tests.takeDropAppend           ◉ Passed
+    37. Universal.murmurHash.tests          ◉ Passed
 
-  ✅ 36 test(s) passing
+  ✅ 37 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```
