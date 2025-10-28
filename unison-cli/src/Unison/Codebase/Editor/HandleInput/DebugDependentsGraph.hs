@@ -6,6 +6,7 @@ where
 import Algebra.Graph.AdjacencyMap qualified as Graph
 import Data.List qualified as List
 import U.Codebase.Sqlite.Operations qualified as Operations
+import Data.Text.IO qualified as Text
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -91,4 +92,4 @@ handleDebugDependentsGraph = do
               adjacency
           )
 
-  liftIO (putStrLn (Pretty.toANSI 80 (Pretty.syntaxToColor output)))
+  liftIO (Text.putStrLn (Pretty.toANSI 80 (Pretty.syntaxToColor output)))
