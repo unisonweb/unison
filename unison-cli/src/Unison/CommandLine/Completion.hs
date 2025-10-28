@@ -50,6 +50,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.CommandLine.InputPattern (CliArg (..))
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
@@ -77,36 +78,32 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRe
     (prefixArgs, lastArg) <- hoistMaybe $ unsnoc args
     let prefix =
           prefixArgs
-            <&> ( \case
-                    Left (txt, False) -> "\"" <> txt <> "\""
-                    Left (txt, True) -> "\"" <> txt
-                    Right txt -> txt
-                )
+            <&> IP.renderCliArg
             & unwords
             & reverse
             & (" " <>)
-    case (prefixArgs, argStr lastArg) of
+    case (prefixArgs, lastArg) of
+      -- No completions for numbered args
+      (_, NumberedArg {}) -> pure (beforeCursorRev, [])
       ([], cmdPrefix) -> do
-        let completions = exactComplete cmdPrefix $ Map.keys patterns
+        let completions = exactComplete (IP.renderCliArgUnquoted cmdPrefix) $ Map.keys patterns
         pure (prefix, completions)
-      ((cmd : midArgs), lastArgStr) -> do
+      ((cmd : midArgs), lastArg) -> do
         let requote completion =
               let newReplacement = case lastArg of
-                    Left _ | completion.isFinished -> "\"" <> completion.replacement <> "\""
-                    Left (_, False) -> "\"" <> completion.replacement <> "\""
-                    Left (_, True) -> "\"" <> completion.replacement
-                    Right _ -> completion.replacement
+                    QuotedArg _ _
+                      | completion.isFinished -> "\"" <> completion.replacement <> "\""
+                    QuotedArg _ False -> "\"" <> completion.replacement <> "\""
+                    QuotedArg _ True -> "\"" <> completion.replacement
+                    UnquotedArg _ -> completion.replacement
                in completion {Line.replacement = newReplacement}
-        p <- hoistMaybe $ Map.lookup (argStr cmd) patterns
+        p <- hoistMaybe $ Map.lookup (IP.renderCliArgUnquoted cmd) patterns
         paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs)
         completions <-
           lift $
-            IP.suggestions paramType lastArgStr codebase authedHTTPClient ppCtx
+            IP.suggestions paramType (IP.renderCliArgUnquoted lastArg) codebase authedHTTPClient ppCtx
               <&> fmap requote
         pure (prefix, completions)
-  where
-    argStr :: Either (String, Bool) String -> String
-    argStr = either fst id
 
 -- | Things which we may want to complete for.
 data CompletionType

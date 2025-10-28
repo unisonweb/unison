@@ -21,6 +21,8 @@ module Unison.CommandLine.InputPattern
     parseArgs,
     CliArg (..),
     NumberedArg (..),
+    renderCliArg,
+    renderCliArgUnquoted,
 
     -- * Currently Unused
     minArgs,
@@ -256,6 +258,32 @@ data CliArg
       String
       Bool -- whether the quote was terminated
   | UnquotedArg String
+
+-- | Get the text representing a given 'CliArg'.
+renderCliArg :: CliArg -> String
+renderCliArg =
+  \case
+    NumberedArg n -> case n of
+      NumberedSingle i -> show i
+      NumberedRange s e -> show s <> "-" <> show e
+      NumberedAfterStart s -> show s <> "-"
+      NumberedBeforeEnd e -> "-" <> show e
+    QuotedArg s False -> "\"" <> s <> "\""
+    QuotedArg s True -> "\"" <> s
+    UnquotedArg s -> s
+
+-- | Like `renderCliArg`, but does not include quotes regardless of whether the argument was quoted.
+renderCliArgUnquoted :: CliArg -> String
+renderCliArgUnquoted =
+  \case
+    NumberedArg n -> case n of
+      NumberedSingle i -> show i
+      NumberedRange s e -> show s <> "-" <> show e
+      NumberedAfterStart s -> show s <> "-"
+      NumberedBeforeEnd e -> "-" <> show e
+    QuotedArg s False -> s
+    QuotedArg s True -> s
+    UnquotedArg s -> s
 
 -- | Like `parseArgs`, but indicates whether each argument was quoted, and also whether the quote was terminated..
 -- This is for things like tab-completion where the original string is important.
