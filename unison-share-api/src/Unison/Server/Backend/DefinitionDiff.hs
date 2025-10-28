@@ -13,7 +13,7 @@ import Data.Function
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty qualified as NEL
-import Data.List.Split qualified as Split
+import Data.Text qualified as Text
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Prelude
 import Unison.Server.Syntax (SyntaxText)
@@ -32,11 +32,6 @@ diffDisplayObjects from to = case (from, to) of
     | otherwise -> MismatchedDisplayObjects (MissingObject fromSH) (MissingObject toSH)
   (UserObject fromST, UserObject toST) -> DisplayObjectDiff (UserObject (semanticLinewiseDiff fromST toST))
   (l, r) -> MismatchedDisplayObjects l r
-
--- diffSyntaxText :: SyntaxText -> SyntaxText -> [SemanticSyntaxDiff Syntax.Element]
--- diffSyntaxText (AnnotatedText fromST) (AnnotatedText toST) =
---   diffSegments syntaxElementDiffEq fromST toST
---     & expandSpecialCases specialCaseAnnotations
 
 -- We special-case situations where the name of a definition changed but its hash didn't;
 -- and cases where the name didn't change but the hash did.
@@ -81,7 +76,13 @@ data DiffOrSame = Different | Same
 -- >>> let left = [s "line1", s "\n", s "line2", s "\n", s "line3", s "\n", s "line3"]
 -- >>> let right = [s "line1", s "\n", s "lineX", s "\n", s "line3"]
 -- >>> linewiseDiff (==) left right
--- ([Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]],[Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]])
+-- LinewiseDiff {lhsLines = [Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]], rhsLines = [Unchanged [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing})],Spacer,Unchanged [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]]}
+--
+-- >>> let s a = Segment a Nothing
+-- >>> let left = [s "line1", s "=\n", s "line2", s ",\n", s "line3", s "\n", s "line3"]
+-- >>> let right = [s "line1", s "\n", s "lineX", s ",\n,\n,", s "line3"]
+-- >>> linewiseDiff (==) left right
+-- LinewiseDiff {lhsLines = [Changed [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing}),OneSided (Segment {segment = "=", annotation = Nothing})],Changed [OneSided (Segment {segment = "line2", annotation = Nothing}),Paired (Segment {segment = ",", annotation = Nothing}) (Segment {segment = ",", annotation = Nothing})],Changed [OneSided (Segment {segment = "line3", annotation = Nothing})],Changed [Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]], rhsLines = [Changed [Paired (Segment {segment = "line1", annotation = Nothing}) (Segment {segment = "line1", annotation = Nothing})],Changed [OneSided (Segment {segment = "lineX", annotation = Nothing}),Paired (Segment {segment = ",", annotation = Nothing}) (Segment {segment = ",", annotation = Nothing})],Changed [OneSided (Segment {segment = ",", annotation = Nothing})],Changed [OneSided (Segment {segment = ",", annotation = Nothing}),Paired (Segment {segment = "line3", annotation = Nothing}) (Segment {segment = "line3", annotation = Nothing})]]}
 linewiseDiff ::
   forall f a.
   (Foldable f, Eq a, Show a) =>
@@ -93,8 +94,8 @@ linewiseDiff ::
   -- When lines are only present on one side, the other side has a Nothing in that position as padding.
   LinewiseDiff (Paired (Segment a))
 linewiseDiff diffEq left right =
-  let leftLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ left
-      rightLines = Split.splitWhen ((== "\n") . AT.segment) . toList $ right
+  let leftLines = splitOnLines . toList $ left
+      rightLines = splitOnLines . toList $ right
       groupedDiff = Diff.getGroupedDiff leftLines rightLines
       partitioned =
         groupedDiff
@@ -125,6 +126,20 @@ linewiseDiff diffEq left right =
         & \(lhsLines, rhsLines) ->
           LinewiseDiff {lhsLines, rhsLines}
   where
+    splitOnLines :: [Segment a] -> [[Segment a]]
+    splitOnLines xs =
+      xs
+        & foldMap
+          ( \(Segment {segment = s, annotation}) ->
+              Text.splitOn "\n" s
+                <&> (\seg -> Just $ Segment seg annotation)
+                & List.intersperse Nothing
+                & filter \case
+                  Nothing -> True
+                  Just (Segment {segment}) -> not (Text.null segment)
+          )
+        & List.splitOn [Nothing]
+        & fmap catMaybes
     pairLines :: forall x. [[x]] -> [[x]] -> ([[Paired x]], [[Paired x]])
     pairLines left right =
       let paired = zipWith (zipWith Paired) left right

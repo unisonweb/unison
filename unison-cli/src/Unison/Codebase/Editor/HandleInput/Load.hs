@@ -75,7 +75,8 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Timing qualified as Timing
 import Unison.Var qualified as Var
-import Unison.WatchKind qualified as WK
+import Unison.WatchKind (WatchKind)
+import Unison.WatchKind qualified as WatchKind
 
 handleLoad :: Maybe FilePath -> Cli ()
 handleLoad maybePath = do
@@ -245,11 +246,38 @@ slurpTerms codebase unisonFile isUpdate =
         Just (ConstructorReference _ conId, decl) ->
           pure (DataDeclaration.expectTypeOfConstructor (DataDeclaration.asDataDecl decl) conId)
         Nothing -> Codebase.expectTypeOfConstructor codebase ref
+
     getNewRefType :: Name -> TermReference -> Sqlite.Transaction (Type Symbol Ann)
     getNewRefType name ref =
       case Map.lookup (Name.toVar name) (UF.hashTermsId unisonFile) of
         Just (_, _, _, _, ty) -> pure ty
-        Nothing -> Codebase.expectTypeOfTerm codebase ref
+        Nothing ->
+          -- This is super unlikely in practice (but has been observed in a transcript) - the term name matches an
+          -- unnamed test watch's generated name. In this case, the map lookup above (by Name.toVar name) won't find the
+          -- unnamed test watch, as it has a var type of UnnamedWatch, not User.
+          case Map.lookup name unnamedTestWatchesByName of
+            Nothing -> Codebase.expectTypeOfTerm codebase ref
+            Just ty -> pure ty
+
+    unnamedTestWatchesByName :: Map Name (Type Symbol Ann)
+    unnamedTestWatchesByName =
+      foldr f Map.empty unisonFile.watchComponents
+      where
+        f ::
+          (WatchKind, [(Symbol, Ann, Term Symbol Ann, Type Symbol Ann)]) ->
+          Map Name (Type Symbol Ann) ->
+          Map Name (Type Symbol Ann)
+        f (WatchKind.TestWatch, component) acc = foldr g acc component
+        f _ acc = acc
+
+        g ::
+          (Symbol, Ann, Term Symbol Ann, Type Symbol Ann) ->
+          Map Name (Type Symbol Ann) ->
+          Map Name (Type Symbol Ann)
+        g (var, _, _, ty) acc =
+          case Var.typeOf var of
+            Var.UnnamedWatch _ _ -> Map.insert (Name.unsafeParseVar var) ty acc
+            _ -> acc
 
 slurpTypes ::
   Codebase m Symbol Ann ->
@@ -425,7 +453,7 @@ evalUnisonFile ::
     ( Either
         Error
         ( [(Symbol, Term Symbol ())],
-          Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
+          Map Symbol (Ann, WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
         )
     )
 evalUnisonFile mode ppe unisonFile args = do
