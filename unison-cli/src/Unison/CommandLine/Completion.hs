@@ -73,7 +73,7 @@ haskelineTabComplete ::
   Line.CompletionFunc m
 haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRev, _afterCursor) ->
   fmap (fromMaybe (beforeCursorRev, [])) $ runMaybeT $ do
-    args <- hoistMaybe $ IP.parseArgsQuoted (reverse beforeCursorRev)
+    args <- hoistMaybe $ IP.parseArgs (reverse beforeCursorRev)
     (prefixArgs, lastArg) <- hoistMaybe $ unsnoc args
     let prefix =
           prefixArgs
