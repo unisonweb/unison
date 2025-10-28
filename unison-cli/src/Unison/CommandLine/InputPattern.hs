@@ -359,6 +359,9 @@ argP = do
 -- Should require args to take up a whole segment, and should fall back to raw args.
 -- >>> MP.parseMaybe argsP "1.2.3 abc-def"
 -- Just [NumberedArg (NumberedSingle 1),UnquotedArg ".2.3",UnquotedArg "abc-def"]
+--
+-- >>> MP.parseMaybe argsP "release.draft 1.2.3"
+-- Just [UnquotedArg "release.draft",NumberedArg (NumberedSingle 1),UnquotedArg ".2.3"]
 argsP :: Parser [CliArg]
 argsP = do
   MP.sepBy argP MP.space
