@@ -349,26 +349,26 @@ searchDependencyToBeingUpdated1 ::
   [Defn TermReference TypeReference] ->
   StateT (Set (Defn TermReference TypeReference)) (Except [Defn TermReference TypeReference]) ()
 searchDependencyToBeingUpdated1 adjacency beingUpdated =
-  let search path = \case
-        [] -> pure ()
-        node : nodes -> do
-          seen <- State.get
-          if Set.member node seen
-            then search path nodes
-            else do
-              let adjacent = Set.difference (Map.findWithDefault Set.empty node adjacency) seen
-              case randomSetElem (Set.intersection adjacent beingUpdated) of
-                Just ref -> Except.throwError (ref : node : path)
-                Nothing -> do
-                  State.put $! Set.insert node seen
-                  search (node : path) (Set.toList adjacent)
-                  search path nodes
-   in search
-
--- in Except.runExcept $
---      State.evalStateT
---        (search [] (Set.toList dependencies))
---        Set.empty
+  search
+  where
+    search ::
+      [Defn TermReference TypeReference] ->
+      [Defn TermReference TypeReference] ->
+      StateT (Set (Defn TermReference TypeReference)) (Except [Defn TermReference TypeReference]) ()
+    search path = \case
+      [] -> pure ()
+      node : nodes -> do
+        seen <- State.get
+        if Set.member node seen
+          then search path nodes
+          else do
+            let adjacent = Set.difference (Map.findWithDefault Set.empty node adjacency) seen
+            case randomSetElem (Set.intersection adjacent beingUpdated) of
+              Just ref -> Except.throwError (ref : node : path)
+              Nothing -> do
+                State.put $! Set.insert node seen
+                search (node : path) (Set.toList adjacent)
+                search path nodes
 
 taggedDefns :: (Ord term, Ord typ) => DefnsF Set term typ -> Set (Defn term typ)
 taggedDefns defns =
