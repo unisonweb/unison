@@ -260,7 +260,6 @@ library
     , random-shuffle
     , raw-strings-qq
     , recover-rtti
-    , regex-tdfa
     , semialign
     , serialise
     , servant

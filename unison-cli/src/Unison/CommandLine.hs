@@ -17,14 +17,12 @@ import Control.Lens hiding (aside)
 import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.List (isPrefixOf, isSuffixOf)
-import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Data.Vector qualified as Vector
 import System.FilePath (takeFileName)
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
-import Text.Regex.TDFA ((=~))
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -35,7 +33,7 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.CommandLine.FZFResolvers qualified as FZFResolvers
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.Helpers (warn)
-import Unison.CommandLine.InputPattern (InputPattern (..))
+import Unison.CommandLine.InputPattern (Argument (..), CliArg (..), InputPattern (..), NumberedArg (..))
 import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.Parser.Ann (Ann)
@@ -52,7 +50,7 @@ allow p =
     && (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 data ExpansionFailure
-  = TooManyArguments (NonEmpty InputPattern.Argument)
+  = TooManyArguments (Data.List.NonEmpty.NonEmpty (Either CliArg StructuredArgument))
   | UnexpectedStructuredArgument StructuredArgument
 
 -- | Expanding numbers is a bit complicated. Each `Parameter` expects either structured or “unstructured” arguments. So
@@ -63,26 +61,40 @@ data ExpansionFailure
 expandArguments ::
   NumberedArgs ->
   InputPattern.Parameters ->
-  [String] ->
+  [CliArg] ->
   Either ExpansionFailure (InputPattern.Arguments, InputPattern.Parameters)
-expandArguments numberedArgs params =
-  bimap TooManyArguments (first $ reverse)
-    <=< InputPattern.foldParamsWithM
-      ( \acc (_, param) arg ->
-          if InputPattern.isStructured param
-            then
-              pure $
-                either
-                  ( maybe (arg : acc, []) (maybe (acc, []) (\(h :| t) -> (h : acc, t)) . nonEmpty . fmap pure)
-                      . expandNumber numberedArgs
-                  )
-                  ((,[]) . (: acc) . pure)
-                  arg
-            else (,[]) . (: acc) <$> either (pure . Left) (Left . UnexpectedStructuredArgument) arg
-      )
-      []
-      params
-    . fmap Left
+expandArguments numberedArgs params args = do
+  result <-
+    args
+      & fmap Left
+      & InputPattern.foldParamsWithM @(Either ExpansionFailure) @[Argument] @(Either CliArg StructuredArgument)
+        ( \acc (_, param) arg ->
+            case arg of
+              -- Don't expand numbers in quoted args
+              Left (InputPattern.QuotedArg quoted _) -> Right (RawArg quoted : acc, [])
+              Left (InputPattern.UnquotedArg raw) -> Right $ (RawArg raw : acc, [])
+              Left (InputPattern.NumberedArg n) ->
+                case expandNumber numberedArgs n of
+                  -- We parsed a number, but no numbered args were available. Resolve to no arguments.
+                  Nothing -> Right (acc, [])
+                  -- The expansion resulted in no arguments
+                  Just [] -> Right (acc, [])
+                  -- The expansion resulted in one or more arguments,
+                  -- Add the expanded args to the stack and keep folding.
+                  Just (h : t)
+                    | InputPattern.isStructured param -> Right $ (StructuredArg h : acc, Right <$> t)
+                    | otherwise -> Left . UnexpectedStructuredArgument $ h
+              Right structured
+                | InputPattern.isStructured param -> Right $ ((StructuredArg structured : acc), [])
+                | otherwise ->
+                    Left . UnexpectedStructuredArgument $ structured
+        )
+        []
+        params
+
+  case result of
+    Left eArgs -> Left $ TooManyArguments eArgs
+    Right (rArgs, params) -> Right (reverse rArgs, params)
 
 data ParseFailure
   = NoCommand
@@ -154,61 +166,64 @@ parseInput ::
   -- | Input Pattern Map
   Map String InputPattern ->
   -- | command:arguments
-  [String] ->
+  [CliArg] ->
   -- Returns either an error message or the fully expanded arguments list and parsed input.
   -- If the output is `Nothing`, the user cancelled the input (e.g. ctrl-c)
   IO (Either ParseFailure (Maybe (InputPattern.Arguments, Input)))
-parseInput codebase projPath currentProjectRoot numberedArgs patterns segments = runExceptT do
+parseInput codebase projPath currentProjectRoot numberedArgs patterns cliArgs = runExceptT do
   let getCurrentBranch0 :: IO (Branch0 IO)
       getCurrentBranch0 = do
         projRoot <- currentProjectRoot
         pure . Branch.head $ Branch.getAt' (projPath ^. PP.path_) projRoot
-
-  case segments of
+  (cmd, args) <- case cliArgs of
     [] -> throwE NoCommand
-    command : args -> do
-      pat@(InputPattern {params, parse}) <- case Map.lookup command patterns of
-        Just pat -> pure pat
-        Nothing -> throwE $ UnknownCommand command
-      let mkResult finalArgs = except . bimap (SubParseFailure command pat) (Left command : finalArgs,) $ parse finalArgs
-      (expandedArgs, remainingParams) <-
-        except . first (ExpansionFailure command pat) $ expandArguments numberedArgs params args
+    (NumberedArg {} : _) -> throwE NoCommand
+    (UnquotedArg cmd : args) -> pure (cmd, args)
+    (QuotedArg cmd _ : args) -> pure (cmd, args)
+  pat@(InputPattern {params, parse}) <- case Map.lookup cmd patterns of
+    Just pat -> pure pat
+    Nothing -> throwE $ UnknownCommand cmd
+  let mkResult :: [Argument] -> ExceptT ParseFailure IO ([Argument], Input)
+      mkResult finalArgs = except . bimap (SubParseFailure cmd pat) (RawArg cmd : finalArgs,) $ parse finalArgs
+  (expandedArgs, remainingParams) <-
+    except . first (ExpansionFailure cmd pat) $ expandArguments numberedArgs params args
 
-      if Fuzzy.isFZFInstalled
-        then do
-          argResult <- lift (fzfResolve codebase projPath getCurrentBranch0 remainingParams)
-          case argResult of
-            -- If there are no completion options, indicate that with an error.
-            Left err@(NoFZFOptions {}) -> throwError $ FZFResolveFailure pat err
-            -- If there's no resolver, just parse the args we have.
-            Left (NoFZFResolverForArgumentType {}) ->
-              Just <$> mkResult expandedArgs
-            Right mayResolvedArgs -> case mayResolvedArgs of
-              -- If fzf was cancelled, indicate that
-              Nothing -> pure $ Nothing
-              -- otherwise, parse the args we resolved
-              Just resolvedArgs -> Just <$> mkResult (expandedArgs <> resolvedArgs)
-        else do
-          -- fzf isn't installed, just try to parse the args we have and probably get an error from the parser
+  if Fuzzy.isFZFInstalled
+    then do
+      argResult <- lift (fzfResolve codebase projPath getCurrentBranch0 remainingParams)
+      case argResult of
+        -- If there are no completion options, indicate that with an error.
+        Left err@(NoFZFOptions {}) -> throwError $ FZFResolveFailure pat err
+        -- If there's no resolver, just parse the args we have.
+        Left (NoFZFResolverForArgumentType {}) ->
           Just <$> mkResult expandedArgs
+        Right mayResolvedArgs -> case mayResolvedArgs of
+          -- If fzf was cancelled, indicate that
+          Nothing -> pure $ Nothing
+          -- otherwise, parse the args we resolved
+          Just resolvedArgs -> Just <$> mkResult (expandedArgs <> resolvedArgs)
+    else do
+      -- fzf isn't installed, just try to parse the args we have and probably get an error from the parser
+      Just <$> mkResult expandedArgs
 
 -- Expand a numeric argument like `1` or a range like `3-9`
-expandNumber :: NumberedArgs -> String -> Maybe NumberedArgs
-expandNumber numberedArgs s =
-  catMaybes . fmap ((vargs Vector.!?) . pred) <$> expandedNumber
-  where
-    vargs = Vector.fromList numberedArgs
-    rangeRegex = "([0-9]+)-([0-9]+)" :: String
-    (junk, _, moreJunk, ns) =
-      s =~ rangeRegex :: (String, String, String, [String])
-    expandedNumber =
-      case readMay s of
-        Just i -> Just [i]
-        Nothing ->
-          -- check for a range
-          case (junk, moreJunk, ns) of
-            ("", "", [from, to]) -> enumFromTo <$> readMay from <*> readMay to
-            (_, _, _) -> Nothing
+expandNumber :: NumberedArgs -> NumberedArg -> Maybe NumberedArgs
+expandNumber numberedArgs selection =
+  case selection of
+    NumberedSingle n -> pure @[] <$> (numberedArgs ^? ix (pred n))
+    NumberedRange start end ->
+      numberedArgs
+        & drop (pred start)
+        & take (end - pred start)
+        & Just
+    NumberedBeforeEnd end ->
+      numberedArgs
+        & take end
+        & Just
+    NumberedAfterStart start ->
+      numberedArgs
+        & drop (pred start)
+        & Just
 
 data FZFResolveFailure
   = NoFZFResolverForArgumentType InputPattern.ParameterDescription
@@ -226,7 +241,7 @@ fzfResolve codebase ppCtx getCurrentBranch InputPattern.Parameters {requiredPara
   -- We build up a list of `ExceptT` inside an outer `ExceptT` to allow us to fail immediately if /any/ required
   -- argument is missing a resolver, before we start prompting the user to actually do a fuzzy search. Otherwise, we
   -- might ask the user to perform a search only to realize we don't have a resolver for a later arg.
-  argumentResolvers :: [MaybeT (ExceptT FZFResolveFailure IO) (NonEmpty InputPattern.Argument)] <-
+  argumentResolvers :: [MaybeT (ExceptT FZFResolveFailure IO) (Data.List.NonEmpty.NonEmpty InputPattern.Argument)] <-
     liftA2 (<>) (traverse (maybeFillArg False) requiredParams) case trailingParams of
       InputPattern.Optional _ _ -> pure mempty
       InputPattern.OnePlus p -> pure <$> maybeFillArg True p
@@ -238,7 +253,7 @@ fzfResolve codebase ppCtx getCurrentBranch InputPattern.Parameters {requiredPara
         (pure . fuzzyFillArg allowMulti argName)
         fzfResolver
     fuzzyFillArg ::
-      Bool -> Text -> InputPattern.FZFResolver -> MaybeT (ExceptT FZFResolveFailure IO) (NonEmpty InputPattern.Argument)
+      Bool -> Text -> InputPattern.FZFResolver -> MaybeT (ExceptT FZFResolveFailure IO) (Data.List.NonEmpty.NonEmpty InputPattern.Argument)
     fuzzyFillArg allowMulti argDesc fzfResolver = MaybeT do
       currentBranch <- Branch.withoutTransitiveLibs <$> liftIO getCurrentBranch
       results <- case fzfResolver of
@@ -254,7 +269,7 @@ fzfResolve codebase ppCtx getCurrentBranch InputPattern.Parameters {requiredPara
           liftIO (Fuzzy.fuzzySelect Fuzzy.defaultOptions {Fuzzy.allowMultiSelect = allowMulti} selections)
       -- If the user triggered the fuzzy finder, but selected nothing, abort the command rather than continuing
       -- execution with no arguments.
-      pure $ fmap (Left . Text.unpack <$>) . nonEmpty =<< results
+      pure $ fmap (RawArg . Text.unpack <$>) . Data.List.NonEmpty.nonEmpty =<< results
 
 prompt :: String
 prompt = "> "
