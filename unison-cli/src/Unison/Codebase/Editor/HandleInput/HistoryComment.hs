@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) 
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Text.RawString.QQ (r)
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -43,26 +44,24 @@ handleHistoryComment mayThingToAnnotate = do
             Cli.runTransaction $ ProjectUtils.getProjectBranchCausalHash pab.branch
         | otherwise -> Cli.returnEarly $ InvalidCommentTarget "commenting on paths is currently unsupported."
       UnqualifiedPath {} -> Cli.returnEarly $ InvalidCommentTarget "commenting on paths is currently unsupported."
-  (causalHashId, mayExistingCommentText) <- Cli.runTransaction $ do
+  (causalHashId, mayHistoryComment) <- Cli.runTransaction $ do
     causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
     mayExistingCommentInfo <- Q.getLatestCausalComment causalHashId
-    let mayExistingCommentText = snd <$> mayExistingCommentInfo
-    pure (causalHashId, mayExistingCommentText)
-  let template =
-        fmap (commentTemplate <>) mayExistingCommentText
-          <|> Just commentTemplate
-  mayNewMessage <- liftIO (editMessage template)
+    pure (causalHashId, mayExistingCommentInfo)
+  let populatedMsg = fromMaybe commentInstructions $ do
+        HistoryComment {subject, content} <- mayHistoryComment
+        pure $ Text.unlines [subject, "", content, commentInstructions]
+  mayNewMessage <- liftIO (editMessage (Just populatedMsg))
   case mayNewMessage of
     Nothing -> Cli.respond $ CommentAborted
     Just newMessage -> do
       Cli.runTransaction $ Q.commentOnCausal authorName causalHashId newMessage
       Cli.respond $ CommentedSuccessfully
   where
-    commentTemplate =
+    commentInstructions =
       [r|
 -- Enter your comment, then save and quit your editor to continue.
--- Lines that start with '--' will be ignored.
-|]
+-- Lines that start with '--' will be ignored.|]
 
 unisonEditorEnvVar :: String
 unisonEditorEnvVar = "UNISON_EDITOR"

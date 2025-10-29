@@ -1,7 +1,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
 
@@ -163,6 +162,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import U.Codebase.Sqlite.HistoryComment (HistoryComment(..))
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -301,26 +301,33 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
+      displayComment :: Bool -> Maybe (HistoryComment ()) -> [Pretty]
       displayComment prefixSpacer mayComment = case mayComment of
         Nothing -> []
-        Just comment ->
-          Monoid.whenM prefixSpacer [""] <> [P.indentN 2 (P.yellow $ P.text comment) <> P.newline]
+        Just (HistoryComment{author, subject, content}) ->
+          Monoid.whenM prefixSpacer [""]
+            <> [
+                P.bold (P.text author),
+                P.indent (P.blue (P.text "> ")) (P.yellow $ P.text subject),
+                P.indent (P.blue (P.text "> ")) (P.text content),
+                ""
+               ]
       handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
         (mayComment, E.EndOfLog h) ->
           ( P.lines $
-              [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
-              ]
-                <> displayComment True mayComment,
+              displayComment True mayComment
+                <> [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
+                   ],
             [h]
           )
         (mayComment, E.MergeTail h hs) ->
           ( P.lines $
-              [ P.wrap $ "This segment of history starts with a merge." <> ex,
-                "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h)
-              ]
-                <> displayComment True mayComment
+              displayComment True mayComment
+                <> [ P.wrap $ "This segment of history starts with a merge." <> ex,
+                     "",
+                     "⊙ " <> showNum n <> prettySCH (toSCH h)
+                   ]
                 <> [ "⑃",
                      P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
                    ],
@@ -328,22 +335,22 @@ notifyNumbered = \case
           )
         (mayComment, E.PageEnd h _n) ->
           ( P.lines $
-              [ P.wrap $ "There's more history before the versions shown here." <> ex,
-                "",
-                dots,
-                "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h)
-              ]
-                <> displayComment True mayComment,
+              displayComment True mayComment
+                <> [ P.wrap $ "There's more history before the versions shown here." <> ex,
+                     "",
+                     dots,
+                     "",
+                     "⊙ " <> showNum n <> prettySCH (toSCH h)
+                   ],
             [h]
           )
       dots = "⠇"
       displayCausal i sch mayComment diff =
         P.lines $
-          [ "⊙ " <> showNum i <> prettySCH sch,
-            ""
-          ]
-            <> displayComment False mayComment
+          displayComment False mayComment
+            <> [ "⊙ " <> showNum i <> prettySCH sch,
+                 ""
+               ]
             <> [ P.indentN 2 $ prettyDiff diff
                ]
       ex =
@@ -3495,7 +3502,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       maybe
         (P.red "type not found")
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ'.toHQ hq))
-    phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
+    phq' :: HQ'.HashQualified Name -> Pretty = P.syntaxToColor . prettyHashQualified'
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =

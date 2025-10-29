@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.HandleInput.History (handleHistory) where
 
 import Data.Map qualified as Map
 import U.Codebase.HashTags
+import U.Codebase.Sqlite.HistoryComment (HistoryComment)
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -29,7 +30,7 @@ handleHistory resultsCap diffCap from = do
   history <- doHistory schLength 0 branch []
   Cli.respondNumbered history
   where
-    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe Text, Names.Diff)] -> Cli.Cli NumberedOutput
+    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe (HistoryComment ()), Names.Diff)] -> Cli.Cli NumberedOutput
     doHistory schLength !n b acc =
       if maybe False (n >=) resultsCap
         then do
@@ -48,6 +49,8 @@ handleHistory resultsCap diffCap from = do
             mayComment <- getComment causalHash
             let elem = (causalHash, mayComment, Branch.namesDiff b' b)
             doHistory schLength (n + 1) b' (elem : acc)
+    getComment :: CausalHash -> Cli.Cli (Maybe (HistoryComment ()))
     getComment ch = Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash ch
-      fmap snd <$> Q.getLatestCausalComment causalHashId
+      Q.getLatestCausalComment causalHashId
+        <&> fmap void

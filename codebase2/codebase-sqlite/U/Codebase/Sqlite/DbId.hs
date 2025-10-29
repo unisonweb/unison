@@ -67,6 +67,6 @@ instance Show BranchHashId where
 instance Show CausalHashId where
   show h = "CausalHashId (" ++ show (unCausalHashId h) ++ ")"
 
-newtype ChangeCommentId = ChangeCommentId Word64
+newtype HistoryCommentId = HistoryCommentId Word64
   deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64

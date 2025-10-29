@@ -258,7 +258,7 @@ module U.Codebase.Sqlite.Queries
     addUpdateBranchTable,
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
-    addChangeComments,
+    addHistoryComments,
 
     -- ** schema version
     currentSchemaVersion,
@@ -347,9 +347,9 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
-    ChangeCommentId,
     HashId (..),
     HashVersion,
+    HistoryCommentId,
     ObjectId (..),
     PatchObjectId (..),
     ProjectBranchId (..),
@@ -365,6 +365,7 @@ import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
     LocalIds,
@@ -513,9 +514,9 @@ addUpgradeBranchTable :: Transaction ()
 addUpgradeBranchTable =
   executeStatements $(embedProjectStringFile "sql/019-add-upgrade-branch-table.sql")
 
-addChangeComments :: Transaction ()
-addChangeComments =
-  executeStatements $(embedProjectStringFile "sql/020-add-change-comments.sql")
+addHistoryComments :: Transaction ()
+addHistoryComments =
+  executeStatements $(embedProjectStringFile "sql/020-add-history-comments.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -4041,9 +4042,11 @@ saveSquashResult bhId chId =
       ON CONFLICT DO NOTHING
     |]
 
-getLatestCausalComment :: CausalHashId -> Transaction (Maybe (ChangeCommentId, Text))
+getLatestCausalComment ::
+  CausalHashId ->
+  Transaction (Maybe (HistoryComment HistoryCommentId))
 getLatestCausalComment causalHashId =
-  queryMaybeRow
+  queryMaybeRow @(Text, Text, Text, HistoryCommentId)
     [sql|
       SELECT cc.id, ccr.contents
         FROM change_comments AS cc
@@ -4052,11 +4055,13 @@ getLatestCausalComment causalHashId =
         ORDER BY ccr.created_at DESC
         LIMIT 1
     |]
+    <&> fmap \(author, subject, content, commentId) ->
+      HistoryComment {author, subject, content, commentId}
 
 commentOnCausal :: AuthorName -> CausalHashId -> Text -> Transaction ()
 commentOnCausal authorName causalHashId contents = do
   mayExistingCommentId <-
-    queryMaybeCol @ChangeCommentId
+    queryMaybeCol @HistoryCommentId
       [sql|
       SELECT id
         FROM change_comments
@@ -4064,7 +4069,7 @@ commentOnCausal authorName causalHashId contents = do
     |]
   commentId <- case mayExistingCommentId of
     Nothing ->
-      queryOneCol @ChangeCommentId
+      queryOneCol @HistoryCommentId
         [sql|
             INSERT INTO change_comments (author, causal_hash_id, created_at)
             VALUES (:authorName, :causalHashId, strftime('%s', 'now', 'subsec'))

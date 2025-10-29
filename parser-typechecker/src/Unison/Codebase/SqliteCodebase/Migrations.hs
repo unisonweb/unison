@@ -90,7 +90,7 @@ migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
       sqlMigration 20 Q.addUpdateBranchTable,
       sqlMigration 21 Q.addDerivedDependentsByDependencyIndex,
       sqlMigration 22 Q.addUpgradeBranchTable,
-      sqlMigration 23 Q.addChangeComments
+      sqlMigration 23 Q.addHistoryComments
     ]
   where
     runT :: Sqlite.Transaction () -> Sqlite.Connection -> IO ()
