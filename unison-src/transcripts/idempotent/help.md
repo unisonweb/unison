@@ -19,6 +19,11 @@
   alias.type
   `alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`.
 
+  annotate
+  `annotate`        Annotates the head of the current branch.
+  `annotate /main`  Annotates the current head of the `main`
+                    branch.
+
   api
   `api` provides details about the API.
 
@@ -93,6 +98,14 @@
                        directly loaded and executed by unison.
                        Said execution will have the effect of
                        running `!main`.
+
+  config.set
+  The `config.set` command sets the configuration key to the
+  provided value. E.g.
+
+  `config.set author.name Author Name`
+
+  Configuration options include: author.name
 
   create.author
   `create.author alicecoder "Alice McGee"` creates `alicecoder`

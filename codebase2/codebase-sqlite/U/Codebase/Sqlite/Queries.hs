@@ -233,6 +233,10 @@ module U.Codebase.Sqlite.Queries
     expectCurrentProjectPath,
     setCurrentProjectPath,
 
+    -- * Annotations
+    annotateCausal,
+    getLatestCausalAnnotation,
+
     -- * migrations
     runCreateSql,
     addTempEntityTables,
@@ -254,6 +258,7 @@ module U.Codebase.Sqlite.Queries
     addUpdateBranchTable,
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
+    addChangeComments,
 
     -- ** schema version
     currentSchemaVersion,
@@ -283,6 +288,12 @@ module U.Codebase.Sqlite.Queries
     x2cTerm,
     x2cDecl,
     checkBranchExistsForCausalHash,
+
+    -- * Config
+    getAuthorName,
+    setAuthorName,
+    getConfigValue,
+    setConfigValue,
 
     -- * Types
     TextPathSegments,
@@ -319,6 +330,8 @@ import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import U.Codebase.Config (AuthorName, ConfigKey)
+import U.Codebase.Config qualified as Config
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -334,6 +347,7 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
+    ChangeCommentId,
     HashId (..),
     HashVersion,
     ObjectId (..),
@@ -413,7 +427,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 22
+currentSchemaVersion = 23
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -498,6 +512,10 @@ addDerivedDependentsByDependencyIndex =
 addUpgradeBranchTable :: Transaction ()
 addUpgradeBranchTable =
   executeStatements $(embedProjectStringFile "sql/019-add-upgrade-branch-table.sql")
+
+addChangeComments :: Transaction ()
+addChangeComments =
+  executeStatements $(embedProjectStringFile "sql/020-add-change-comments.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -4021,4 +4039,70 @@ saveSquashResult bhId chId =
         :chId
         )
       ON CONFLICT DO NOTHING
+    |]
+
+getLatestCausalAnnotation :: CausalHashId -> Transaction (Maybe (ChangeCommentId, Text))
+getLatestCausalAnnotation causalHashId =
+  queryMaybeRow
+    [sql|
+      SELECT cc.id, ccr.contents
+        FROM change_comments AS cc
+        JOIN change_comment_revisions AS ccr ON cc.id = ccr.comment_id
+        WHERE cc.causal_hash_id = :causalHashId
+        ORDER BY ccr.created_at DESC
+        LIMIT 1
+    |]
+
+annotateCausal :: AuthorName -> CausalHashId -> Text -> Transaction ()
+annotateCausal authorName causalHashId contents = do
+  mayExistingCommentId <-
+    queryMaybeCol @ChangeCommentId
+      [sql|
+      SELECT id
+        FROM change_comments
+        WHERE causal_hash_id = :causalHashId
+    |]
+  commentId <- case mayExistingCommentId of
+    Nothing ->
+      queryOneCol @ChangeCommentId
+        [sql|
+            INSERT INTO change_comments (author, causal_hash_id, created_at)
+            VALUES (:authorName, :causalHashId, strftime('%s', 'now', 'subsec'))
+            RETURNING id
+          |]
+    Just cid -> pure cid
+  execute
+    [sql|
+      INSERT INTO change_comment_revisions (comment_id, contents, created_at)
+      VALUES (:commentId, :contents, strftime('%s', 'now', 'subsec'))
+    |]
+
+getAuthorName :: Transaction (Maybe AuthorName)
+getAuthorName = do
+  r <- getConfigValue Config.AuthorNameKey <&> fmap Config.mkAuthorName
+  case r of
+    Just (Left err) -> error $ "getAuthorName: " <> Text.unpack err
+    Just (Right authorName) -> pure (Just authorName)
+    Nothing -> pure Nothing
+
+setAuthorName :: AuthorName -> Transaction ()
+setAuthorName authorName =
+  setConfigValue Config.AuthorNameKey (Config.unAuthorName authorName)
+
+setConfigValue :: ConfigKey -> Text -> Transaction ()
+setConfigValue key value =
+  execute
+    [sql|
+      INSERT INTO config (key, value)
+      VALUES (:key, :value)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    |]
+
+getConfigValue :: ConfigKey -> Transaction (Maybe Text)
+getConfigValue key =
+  queryMaybeCol
+    [sql|
+      SELECT value
+      FROM config
+      WHERE key = :key
     |]
