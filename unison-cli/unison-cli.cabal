@@ -47,7 +47,6 @@ library
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AddRun
-      Unison.Codebase.Editor.HandleInput.Annotate
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
@@ -70,6 +69,7 @@ library
       Unison.Codebase.Editor.HandleInput.FormatFile
       Unison.Codebase.Editor.HandleInput.Global
       Unison.Codebase.Editor.HandleInput.History
+      Unison.Codebase.Editor.HandleInput.HistoryComment
       Unison.Codebase.Editor.HandleInput.InstallLib
       Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.Ls

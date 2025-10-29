@@ -50,4 +50,4 @@ handleHistory resultsCap diffCap from = do
             doHistory schLength (n + 1) b' (elem : acc)
     getComment ch = Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash ch
-      fmap snd <$> Q.getLatestCausalAnnotation causalHashId
+      fmap snd <$> Q.getLatestCausalComment causalHashId

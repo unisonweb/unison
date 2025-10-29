@@ -2354,25 +2354,9 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
-    where
-      iveCreatedATemporaryBranch scratchFile =
-        P.wrap $
-          "I've created a temporary branch and added the affected definitions to"
-            <> P.group (scratchFile <> ",")
-            <> "where you can fix them up or remove any that are obsolete."
-
-      onceYoureHappy baseBranch =
-        P.wrap $
-          "Once you're happy with the results, use"
-            <> makeExample' IP.update
-            <> "to merge them back into"
-            <> P.group (prettyProjectBranchName baseBranch <> ",")
-            <> "or"
-            <> makeExample' IP.cancelInputPattern
-            <> "if you change your mind."
-  InvalidAnnotationTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
-  AnnotatedSuccessfully -> pure $ P.bold "Done."
-  AnnotationAborted -> pure (P.wrap "Annotation aborted.")
+  InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  CommentedSuccessfully -> pure $ P.bold "Done."
+  CommentAborted -> pure (P.wrap "Annotation aborted.")
   AuthorNameRequired ->
     pure $
       P.hang "Please configure your a display name for your user." $
@@ -2380,6 +2364,22 @@ notifyUser dir issueFn = \case
           [ "You can do so with: ",
             IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
           ]
+  where
+    iveCreatedATemporaryBranch scratchFile =
+      P.wrap $
+        "I've created a temporary branch and added the affected definitions to"
+          <> P.group (scratchFile <> ",")
+          <> "where you can fix them up or remove any that are obsolete."
+
+    onceYoureHappy baseBranch =
+      P.wrap $
+        "Once you're happy with the results, use"
+          <> makeExample' IP.update
+          <> "to merge them back into"
+          <> P.group (prettyProjectBranchName baseBranch <> ",")
+          <> "or"
+          <> makeExample' IP.cancelInputPattern
+          <> "if you change your mind."
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

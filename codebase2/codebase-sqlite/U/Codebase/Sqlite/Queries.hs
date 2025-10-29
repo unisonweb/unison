@@ -233,9 +233,9 @@ module U.Codebase.Sqlite.Queries
     expectCurrentProjectPath,
     setCurrentProjectPath,
 
-    -- * Annotations
-    annotateCausal,
-    getLatestCausalAnnotation,
+    -- * History Comments
+    commentOnCausal,
+    getLatestCausalComment,
 
     -- * migrations
     runCreateSql,
@@ -4041,8 +4041,8 @@ saveSquashResult bhId chId =
       ON CONFLICT DO NOTHING
     |]
 
-getLatestCausalAnnotation :: CausalHashId -> Transaction (Maybe (ChangeCommentId, Text))
-getLatestCausalAnnotation causalHashId =
+getLatestCausalComment :: CausalHashId -> Transaction (Maybe (ChangeCommentId, Text))
+getLatestCausalComment causalHashId =
   queryMaybeRow
     [sql|
       SELECT cc.id, ccr.contents
@@ -4053,8 +4053,8 @@ getLatestCausalAnnotation causalHashId =
         LIMIT 1
     |]
 
-annotateCausal :: AuthorName -> CausalHashId -> Text -> Transaction ()
-annotateCausal authorName causalHashId contents = do
+commentOnCausal :: AuthorName -> CausalHashId -> Text -> Transaction ()
+commentOnCausal authorName causalHashId contents = do
   mayExistingCommentId <-
     queryMaybeCol @ChangeCommentId
       [sql|

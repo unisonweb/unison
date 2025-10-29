@@ -454,9 +454,9 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
-  | InvalidAnnotationTarget Text
-  | AnnotatedSuccessfully
-  | AnnotationAborted
+  | InvalidCommentTarget Text
+  | CommentedSuccessfully
+  | CommentAborted
   | AuthorNameRequired
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
@@ -699,9 +699,9 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
-  InvalidAnnotationTarget {} -> True
-  AnnotatedSuccessfully {} -> False
-  AnnotationAborted {} -> True
+  InvalidCommentTarget {} -> True
+  CommentedSuccessfully {} -> False
+  CommentAborted {} -> True
   AuthorNameRequired {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool

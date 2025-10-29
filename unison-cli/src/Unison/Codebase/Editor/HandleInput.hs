@@ -44,7 +44,6 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
-import Unison.Codebase.Editor.HandleInput.Annotate (handleAnnotate)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
@@ -67,6 +66,7 @@ import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI,
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Global qualified as Global
 import Unison.Codebase.Editor.HandleInput.History (handleHistory)
+import Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib, handleInstallLocalLib)
 import Unison.Codebase.Editor.HandleInput.LSPDebug qualified as LSPDebug
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
@@ -301,8 +301,8 @@ loop e = do
           when (not success) (Cli.respond StartOfCurrentPathHistory)
         HistoryI resultsCap diffCap from -> do
           handleHistory resultsCap diffCap from
-        AnnotateI toAnnotate -> do
-          handleAnnotate toAnnotate
+        HistoryCommentI toAnnotate -> do
+          handleHistoryComment toAnnotate
         UndoI -> do
           rootBranch <- Cli.getCurrentProjectRoot
           (_, prev) <-
@@ -827,9 +827,7 @@ inputDescription input =
     HistoryI {} -> wat
     IOTestAllI -> wat
     IOTestI {} -> wat
-    AnnotateI mayBranchId -> do
-      hashTxt <- traverse bid2 mayBranchId
-      pure $ "annotate" <> fromMaybe "" hashTxt
+    HistoryCommentI {} -> wat
     LibInstallI {} -> wat
     LibInstallLocalI {} -> wat
     ListDependenciesI {} -> wat

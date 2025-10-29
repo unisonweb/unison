@@ -68,7 +68,7 @@ module Unison.CommandLine.InputPatterns
     help,
     helpTopics,
     history,
-    annotate,
+    historyComment,
     ioTest,
     ioTestAll,
     libInstallInputPattern,
@@ -1676,27 +1676,27 @@ history =
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (BranchAtPath Path.Current')
       src : _ -> Input.HistoryI (Just 10) (Just 10) <$> handleBranchIdArg src
 
-annotate :: InputPattern
-annotate =
+historyComment :: InputPattern
+historyComment =
   InputPattern
-    "annotate"
-    []
+    "history.comment"
+    ["comment", "comment.history"]
     I.Visible
-    (Parameters [] $ Optional [("hash or branch to annotate", namespaceOrProjectBranchArg config)] Nothing)
+    (Parameters [] $ Optional [("hash or branch to create a comment after", namespaceOrProjectBranchArg config)] Nothing)
     ( P.wrapColumn2
-        [ ( makeExample annotate [],
-            "Annotates the head of the current branch."
+        [ ( makeExample historyComment [],
+            "Creates a comment after the head of the current branch."
           ),
-          ( makeExample annotate ["/main"],
-            "Annotates the current head of the `main` branch."
+          ( makeExample historyComment ["/main"],
+            "Creates a comment after the head of the `main` branch."
           )
         ]
     )
     \case
-      [] -> pure $ Input.AnnotateI Nothing
+      [] -> pure $ Input.HistoryCommentI Nothing
       [src] -> do
         target <- handleBranchId2Arg src
-        pure $ Input.AnnotateI (Just target)
+        pure $ Input.HistoryCommentI (Just target)
       _ -> wrongArgsLength "at most one argument" []
   where
     config =
@@ -3718,7 +3718,7 @@ validInputs =
       help,
       helpTopics,
       history,
-      annotate,
+      historyComment,
       ioTest,
       ioTestAll,
       libInstallInputPattern,

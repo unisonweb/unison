@@ -1,7 +1,8 @@
-module Unison.Codebase.Editor.HandleInput.Annotate (handleAnnotate) where
+module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) where
 
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
+import Text.RawString.QQ (r)
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -19,8 +20,8 @@ import UnliftIO.Directory (findExecutable)
 import UnliftIO.Environment qualified as Env
 import UnliftIO.Process qualified as Proc
 
-handleAnnotate :: Maybe BranchId2 -> Cli ()
-handleAnnotate mayThingToAnnotate = do
+handleHistoryComment :: Maybe BranchId2 -> Cli ()
+handleHistoryComment mayThingToAnnotate = do
   authorName <-
     Cli.runTransaction Q.getAuthorName >>= \case
       Nothing -> Cli.returnEarly $ AuthorNameRequired
@@ -35,29 +36,33 @@ handleAnnotate mayThingToAnnotate = do
         | path == Path.Root -> do
             pab <- ProjectUtils.resolveProjectBranch (ProjectAndBranch Nothing (Just projectBranchName))
             Cli.runTransaction $ ProjectUtils.getProjectBranchCausalHash pab.branch
-        | otherwise -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
+        | otherwise -> Cli.returnEarly $ InvalidCommentTarget "commenting on paths is currently unsupported."
       QualifiedBranchPath projectName projectBranchName path
         | path == Path.Root -> do
             pab <- ProjectUtils.resolveProjectBranch (ProjectAndBranch (Just projectName) (Just projectBranchName))
             Cli.runTransaction $ ProjectUtils.getProjectBranchCausalHash pab.branch
-        | otherwise -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
-      UnqualifiedPath {} -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
+        | otherwise -> Cli.returnEarly $ InvalidCommentTarget "commenting on paths is currently unsupported."
+      UnqualifiedPath {} -> Cli.returnEarly $ InvalidCommentTarget "commenting on paths is currently unsupported."
   (causalHashId, mayExistingCommentText) <- Cli.runTransaction $ do
     causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
-    mayExistingCommentInfo <- Q.getLatestCausalAnnotation causalHashId
+    mayExistingCommentInfo <- Q.getLatestCausalComment causalHashId
     let mayExistingCommentText = snd <$> mayExistingCommentInfo
     pure (causalHashId, mayExistingCommentText)
   let template =
-        fmap (annotationTemplate <>) mayExistingCommentText
-          <|> Just annotationTemplate
+        fmap (commentTemplate <>) mayExistingCommentText
+          <|> Just commentTemplate
   mayNewMessage <- liftIO (editMessage template)
   case mayNewMessage of
-    Nothing -> Cli.respond $ AnnotationAborted
+    Nothing -> Cli.respond $ CommentAborted
     Just newMessage -> do
-      Cli.runTransaction $ Q.annotateCausal authorName causalHashId newMessage
-      Cli.respond $ AnnotatedSuccessfully
+      Cli.runTransaction $ Q.commentOnCausal authorName causalHashId newMessage
+      Cli.respond $ CommentedSuccessfully
   where
-    annotationTemplate = "# Enter your comment below, then save and quit your editor to continue.\n"
+    commentTemplate =
+      [r|
+-- Enter your comment, then save and quit your editor to continue.
+-- Lines that start with '--' will be ignored.
+|]
 
 unisonEditorEnvVar :: String
 unisonEditorEnvVar = "UNISON_EDITOR"
@@ -83,7 +88,7 @@ getEditorProgram = runMaybeT $ do
 editMessage :: (MonadUnliftIO m) => Maybe Text -> m (Maybe Text)
 editMessage initialMessage = runMaybeT do
   editorProg <- MaybeT getEditorProgram
-  MaybeT $ UnliftIO.withSystemTempFile "ucm-annotation" $ \tempFilePath tempHandle -> runMaybeT do
+  MaybeT $ UnliftIO.withSystemTempFile "ucm-history-comment" $ \tempFilePath tempHandle -> runMaybeT do
     -- Write the initial message to the temp file, if any
     liftIO $ for_ initialMessage $ \msg -> Text.hPutStrLn tempHandle msg
     UnliftIO.hClose tempHandle
@@ -95,7 +100,7 @@ editMessage initialMessage = runMaybeT do
     let cleanedResult =
           result
             & Text.lines
-            & filter (not . Text.isPrefixOf "#")
+            & filter (not . Text.isPrefixOf "--")
             & Text.unlines
             & Text.strip
     guard $ not (Text.null cleanedResult)
