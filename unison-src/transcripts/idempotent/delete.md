@@ -493,12 +493,15 @@ scratch/main> add
 ``` ucm :error
 scratch/main> delete a b c
 
-  Some definitions depend on the ones you're trying to delete.
-  I've added them to scratch.u, where you can fix them or
-  comment them out. Once the file is compiling, run `update`.
+  I couldn't complete the delete, because some definitions are
+  still in use.
 
-  I've also switched you to a new branch update-main for this
-  work. On `update`, it will be merged back into main.
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
+
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -692,12 +695,15 @@ scratch/main> update
 ``` ucm :error
 scratch/main> delete ping
 
-  Some definitions depend on the ones you're trying to delete.
-  I've added them to scratch.u, where you can fix them or
-  comment them out. Once the file is compiling, run `update`.
+  I couldn't complete the delete, because some definitions are
+  still in use.
 
-  I've also switched you to a new branch update-main for this
-  work. On `update`, it will be merged back into main.
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
+
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u

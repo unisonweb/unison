@@ -50,6 +50,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
@@ -341,7 +342,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                 atomically . Q.undequeue cmdQueue $ Just p
                 pure $ Right switchCommand
               Nothing -> do
-                case words . Text.unpack $ lineTxt of
+                case fromMaybe [] $ IP.parseArgs (Text.unpack lineTxt) of
                   [] -> Cli.returnEarlyWithoutOutput
                   args -> do
                     liftIO $ outputUcmLine p

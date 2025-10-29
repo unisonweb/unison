@@ -230,3 +230,12 @@ myproject/main> debug.tab-complete merge mybr
 
    /mybranch
 ```
+
+# Tab complete quoted string
+
+``` ucm
+scratch/main> debug.tab-complete "vi
+
+   view
+   view.global
+```

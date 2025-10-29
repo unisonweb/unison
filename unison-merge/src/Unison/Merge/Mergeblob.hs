@@ -53,6 +53,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
@@ -231,7 +232,8 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                             termsByShortname = Map.empty,
                             typeLookup,
                             freeNameToFuzzyTermsByShortName = Map.empty,
-                            topLevelComponents = Map.empty
+                            topLevelComponents = Map.empty,
+                            variances = Variance.fromTypeLookup typeLookup
                           }
                   FileParsers.synthesizeFile typecheckingEnv file
                     & Result.runResultT

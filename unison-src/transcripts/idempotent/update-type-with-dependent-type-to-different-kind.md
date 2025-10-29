@@ -47,12 +47,15 @@ unique type Foo a = Bar Nat a
 
   That's done. Now I'm making sure everything typechecks...
 
-  Some definitions don't typecheck with your changes. I've
-  updated the file scratch.u with the definitions that need
-  fixing. Once the file is compiling, try `update` again.
+  I couldn't complete the update, because some existing
+  definitions would no longer typecheck.
 
-  I've also switched you to a new branch update-main for this
-  work. On `update`, it will be merged back into main.
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
+
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u

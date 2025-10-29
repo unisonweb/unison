@@ -107,21 +107,14 @@ proj/main> update
 ``` ucm :error
 proj/main> upgrade old new
 
-  I couldn't automatically upgrade old to new. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically upgrade old to new.
 
-  When you're done, you can run
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
 
-    update
-
-  to merge your changes back into main and delete the temporary
-  branch. Or, if you decide to cancel the upgrade instead, you
-  can run
-
-    cancel
-
-  to delete the temporary branch and switch back to main.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -217,21 +210,14 @@ proj/main> update
 ``` ucm :error
 proj/main> upgrade old new
 
-  I couldn't automatically upgrade old to new. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically upgrade old to new.
 
-  When you're done, you can run
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
 
-    update
-
-  to merge your changes back into main and delete the temporary
-  branch. Or, if you decide to cancel the upgrade instead, you
-  can run
-
-    cancel
-
-  to delete the temporary branch and switch back to main.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -386,21 +372,14 @@ myproject/main> update
 ``` ucm :error
 myproject/main> upgrade old new
 
-  I couldn't automatically upgrade old to new. However, I've
-  added the definitions that need attention to the top of
-  scratch.u.
+  I couldn't automatically upgrade old to new.
 
-  When you're done, you can run
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
 
-    update
-
-  to merge your changes back into main and delete the temporary
-  branch. Or, if you decide to cancel the upgrade instead, you
-  can run
-
-    cancel
-
-  to delete the temporary branch and switch back to main.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u

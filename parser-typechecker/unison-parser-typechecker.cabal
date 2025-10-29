@@ -139,6 +139,7 @@ library
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
+      Unison.Typechecker.Variance
       Unison.UnconflictedLocalDefnsView
       Unison.UnisonFile
       Unison.UnisonFile.Env

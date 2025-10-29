@@ -287,6 +287,7 @@ analyseNotes fileUri ppe src notes = do
               TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
+              TypeError.AbilitySubtypeFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
               TypeError.AbilityEqFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
               TypeError.ActionRestrictionFailure {mismatchSite} ->
                 singleRange $ ABT.annotation mismatchSite

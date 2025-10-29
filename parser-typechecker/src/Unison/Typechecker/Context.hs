@@ -105,6 +105,7 @@ import Unison.Type qualified as Type
 import Unison.Typechecker.Components (minimize')
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
+import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -244,6 +245,8 @@ newtype MT v loc f a = MT
       -- for debug output
       PrettyPrintEnv ->
       PatternMatchCoverageCheckAndKindInferenceSwitch ->
+      -- calculated variances for arguments of various types
+      Map Reference [Variance] ->
       -- Data declarations in scope
       DataDeclarations v loc ->
       -- Effect declarations in scope
@@ -263,20 +266,31 @@ type M v loc = MT v loc (Result v loc)
 type TotalM v loc = MT v loc (Either (CompilerBug v loc))
 
 liftResult :: Result v loc a -> M v loc a
-liftResult r = MT (\_ _ _ _ _ env -> (,env) <$> r)
+liftResult r = MT (\_ _ _ _ _ _ env -> (,env) <$> r)
 
 liftTotalM :: TotalM v loc a -> M v loc a
-liftTotalM (MT m) = MT $ \ppe pmcSwitch datas effects defs env ->
-  case m ppe pmcSwitch datas effects defs env of
+liftTotalM (MT m) = MT $ \ppe pmcSwitch vars datas effects defs env ->
+  case m ppe pmcSwitch vars datas effects defs env of
     Left bug -> CompilerBug bug mempty mempty
     Right a -> Success mempty a
+
+checkVariance :: Type v loc -> M v loc (Maybe [Variance])
+checkVariance ty = MT \_ _ vars _ _ _ env ->
+  Success mempty . (,env) $ case ty of
+    Type.Ref' r -> Map.lookup r vars
+    Type.Apps' (Type.Ref' r) args -> drop n <$> Map.lookup r vars
+      where
+        n = length args
+    _ -> Nothing
 
 -- Allows modifying the stored notes in a scoped way.
 -- This is based on the `pass` function in e.g. Control.Monad.Writer
 adjustNotes ::
   M v loc (a, InfoNote v loc -> InfoNote v loc) -> M v loc a
-adjustNotes (MT m) = MT $ \ppe pmcSwitch datas effects defs env ->
-  adjustResultNotes (twiddle <$> m ppe pmcSwitch datas effects defs env)
+adjustNotes (MT m) =
+  MT $ \ppe pmcSwitch vars datas effects defs env ->
+    adjustResultNotes
+      (twiddle <$> m ppe pmcSwitch vars datas effects defs env)
   where
     twiddle ((a, c), b) = ((a, b), c)
 
@@ -293,7 +307,7 @@ modEnv :: (Env v loc -> Env v loc) -> M v loc ()
 modEnv f = modEnv' $ ((),) . f
 
 modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
-modEnv' f = MT (\_ _ _ _ _ env -> pure . f $ env)
+modEnv' f = MT (\_ _ _ _ _ _ env -> pure . f $ env)
 
 data Unknown = Data | Effect deriving (Show)
 
@@ -504,7 +518,8 @@ scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
 -- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (MT m) = MT \ppe pmcSwitch datas effects defs env -> mapErrors (scope' p) (m ppe pmcSwitch datas effects defs env)
+scope p (MT m) = MT \ppe pmcSwitch vars datas effects defs env ->
+  mapErrors (scope' p) (m ppe pmcSwitch vars datas effects defs env)
 
 newtype Context v loc = Context [(Element v loc, Info v loc)]
 
@@ -847,9 +862,9 @@ extendN ctx es = foldM (flip extend) ctx es
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = MT go
   where
-    go ppe pmcSwitch datas effects defs env =
-      runM m1 ppe pmcSwitch datas effects defs env
-        <|> runM m2 ppe pmcSwitch datas effects defs env
+    go ppe pmcSwitch vars datas effects defs env =
+      runM m1 ppe pmcSwitch vars datas effects defs env
+        <|> runM m2 ppe pmcSwitch vars datas effects defs env
     s@(Success _ _) <|> _ = s
     TypeError _ _ <|> r = r
     CompilerBug _ _ _ <|> r = r -- swallowing bugs for now: when checking whether a type annotation
@@ -863,23 +878,25 @@ orElse m1 m2 = MT go
 -- hoistMaybe f (Result es is a) = Result es is (f a)
 
 getPrettyPrintEnv :: M v loc PrettyPrintEnv
-getPrettyPrintEnv = MT \ppe _ _ _ _ env -> pure (ppe, env)
+getPrettyPrintEnv = MT \ppe _ _ _ _ _ env -> pure (ppe, env)
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = MT \_ _ datas _ _ env -> pure (datas, env)
+getDataDeclarations = MT \_ _ _ datas _ _ env -> pure (datas, env)
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = MT \_ _ _ effects _ env -> pure (effects, env)
+getEffectDeclarations = MT \_ _ _ _ effects _ env -> pure (effects, env)
 
 getCurrentDefs :: M v loc [v]
-getCurrentDefs = MT \_ _ _ _ defs env -> pure (defs, env)
+getCurrentDefs = MT \_ _ _ _ _ defs env -> pure (defs, env)
 
 insideDef :: v -> M v loc r -> M v loc r
 insideDef v (MT m) =
-  MT $ \ppe pmc datas effs defs env -> m ppe pmc datas effs (v : defs) env
+  MT $ \ppe pmc vars datas effs defs env ->
+    m ppe pmc vars datas effs (v : defs) env
 
 getPatternMatchCoverageCheckAndKindInferenceSwitch :: M v loc PatternMatchCoverageCheckAndKindInferenceSwitch
-getPatternMatchCoverageCheckAndKindInferenceSwitch = MT \_ pmcSwitch _ _ _ env -> pure (pmcSwitch, env)
+getPatternMatchCoverageCheckAndKindInferenceSwitch =
+  MT \_ pmcSwitch _ _ _ _ env -> pure (pmcSwitch, env)
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = liftResult $ compilerBug bug
@@ -2687,12 +2704,17 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     go _ (Type.App' x1 y1) (Type.App' x2 y2) = do
       -- analogue of `-->`
       subtype x1 x2
-      -- We don't know the variance of the type argument, so we assume
-      -- (conservatively) that it's invariant, see
-      -- discussion https://github.com/unisonweb/unison/issues/512
+      x1 <- applyM x1
       y1 <- applyM y1
       y2 <- applyM y2
-      equate y1 y2
+      checkVariance x1 >>= \case
+        Just (Pos : _) -> subtype y1 y2
+        Just (Neg : _) -> subtype y2 y1
+        Just (Inv : _) -> equate y1 y2
+        -- Note: to allow 'phantom' type arguments to vary arbitrarily,
+        -- replace this with `pure ()`
+        Just (Any : _) -> equate y1 y2
+        _ -> equate y1 y2
     go _ t (Type.Forall' t2) = do
       v <- ABT.freshen t2 freshenTypeVar
       markThenRetract0 v $ do
@@ -3393,18 +3415,19 @@ synthesizeClosed ::
   (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
   PrettyPrintEnv ->
   PatternMatchCoverageCheckAndKindInferenceSwitch ->
+  Map Reference [Variance] ->
   [Type v loc] ->
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed ppe pmcSwitch abilities lookupType term0 =
+synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
    in case term of
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
-        Right term -> run ppe pmcSwitch datas effects $ do
+        Right term -> run ppe pmcSwitch vars datas effects $ do
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -3469,13 +3492,14 @@ run ::
   (Var v, Ord loc, Functor f) =>
   PrettyPrintEnv ->
   PatternMatchCoverageCheckAndKindInferenceSwitch ->
+  Map Reference [Variance] ->
   DataDeclarations v loc ->
   EffectDeclarations v loc ->
   MT v loc f a ->
   f a
-run ppe pmcSwitch datas effects m =
+run ppe pmcSwitch vars datas effects m =
   fmap fst
-    . runM m ppe pmcSwitch datas effects []
+    . runM m ppe pmcSwitch vars datas effects []
     $ Env 1 context0
 
 synthesizeClosed' ::
@@ -3499,8 +3523,8 @@ synthesizeClosed' abilities term = do
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
 succeeds m =
-  MT \ppe pmccSwitch datas effects defs env ->
-    case runM m ppe pmccSwitch datas effects defs env of
+  MT \ppe pmccSwitch vars datas effects defs env ->
+    case runM m ppe pmccSwitch vars datas effects defs env of
       Success _ _ -> Right (True, env)
       TypeError _ _ -> Right (False, env)
       CompilerBug bug _ _ -> Left bug
@@ -3515,7 +3539,7 @@ isSubtype' type1 type2 = succeeds $ do
 
 -- See documentation at 'Unison.Typechecker.fitsScheme'
 fitsScheme :: (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
-fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty $
+fitsScheme type1 type2 = run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty $
   succeeds $ do
     let vars = Set.toList $ Set.union (ABT.freeVars type1) (ABT.freeVars type2)
     reserveAll (TypeVar.underlying <$> vars)
@@ -3556,7 +3580,7 @@ isRedundant userType0 inferredType0 = do
 isSubtype ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
 isSubtype t1 t2 =
-  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled Map.empty Map.empty (isSubtype' t1 t2)
+  run PPE.empty PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled defaultVariances Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual ::
   (Var v, Ord loc) => Type v loc -> Type v loc -> Either (CompilerBug v loc) Bool
@@ -3586,22 +3610,22 @@ instance (Ord loc, Var v) => Show (Context v loc) where
 
 instance (Monad f) => Monad (MT v loc f) where
   return = pure
-  m >>= f = MT \ppe pmccSwitch datas effects defs env0 -> do
-    (a, env1) <- runM m ppe pmccSwitch datas effects defs env0
-    runM (f a) ppe pmccSwitch datas effects defs $! env1
+  m >>= f = MT \ppe pmccSwitch vars datas effects defs env0 -> do
+    (a, env1) <- runM m ppe pmccSwitch vars datas effects defs env0
+    runM (f a) ppe pmccSwitch vars datas effects defs $! env1
 
 instance (Monad f) => MonadFail.MonadFail (MT v loc f) where
   fail = error
 
 instance (Monad f) => Applicative (MT v loc f) where
-  pure a = MT (\_ _ _ _ _ env -> pure (a, env))
+  pure a = MT (\_ _ _ _ _ _ env -> pure (a, env))
   (<*>) = ap
 
 instance (Monad f) => MonadState (Env v loc) (MT v loc f) where
-  get = MT \_ _ _ _ _ env -> pure (env, env)
-  put env = MT \_ _ _ _ _ _ -> pure ((), env)
+  get = MT \_ _ _ _ _ _ env -> pure (env, env)
+  put env = MT \_ _ _ _ _ _ _ -> pure ((), env)
 
 instance (MonadFix f) => MonadFix (MT v loc f) where
-  mfix f = MT \ppe pmccSwitch a b c d ->
-    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch a b c d)
+  mfix f = MT \ppe pmccSwitch v a b c d ->
+    let res = mfix (\ ~(wubble, _finalenv) -> runM (f wubble) ppe pmccSwitch v a b c d)
      in res
