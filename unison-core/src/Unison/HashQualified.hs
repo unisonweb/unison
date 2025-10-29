@@ -20,6 +20,11 @@ data HashQualified n
   | HashQualified n ShortHash
   deriving stock (Eq, Foldable, Ord, Traversable, Functor, Show, Generic)
 
+asNameOnly :: HashQualified n -> Maybe n
+asNameOnly = \case
+  NameOnly n -> Just n
+  _ -> Nothing
+
 stripNamespace :: Name -> HashQualified Name -> HashQualified Name
 stripNamespace namespace hq = case hq of
   NameOnly name -> NameOnly $ strip name

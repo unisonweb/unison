@@ -67,6 +67,7 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPE
@@ -453,6 +454,7 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | StaleRun !PrettyPrintEnv !Name ![Defn TermReference TypeReference] !Bool {- True = found in file, False = found in codebase -}
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -694,6 +696,7 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  StaleRun {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

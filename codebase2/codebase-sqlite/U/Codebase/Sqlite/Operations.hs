@@ -64,6 +64,7 @@ module U.Codebase.Sqlite.Operations
     dependentsOfComponent,
     directDependentsWithinScope,
     transitiveDependentsWithinScope,
+    DependencyEdge (..),
     transitiveDependentsGraphWithinScope,
 
     -- ** type index
@@ -1140,11 +1141,17 @@ transitiveDependentsWithinScope scope0 query0
       -- Convert S -> C
       bitraverse (Set.traverse s2cReferenceId) (Set.traverse s2cReferenceId) dependents
 
+data DependencyEdge
+  = TermDependsOnTerm C.TermReferenceId C.TermReference
+  | TermDependsOnType C.TermReferenceId C.TypeReference
+  | TypeDependsOnType C.TypeReferenceId C.TypeReference
+
 transitiveDependentsGraphWithinScope ::
+  (C.Reference -> Bool) ->
   DefnsF Set C.TermReferenceId C.TypeReferenceId ->
   DefnsF Set C.TermReference C.TypeReference ->
-  Transaction [(C.Reference, C.Reference.Id)]
-transitiveDependentsGraphWithinScope scope0 query0
+  Transaction [DependencyEdge]
+transitiveDependentsGraphWithinScope isBuiltinType scope0 query0
   | defnsAreEmpty scope0 || defnsAreEmpty query0 = mempty
   | otherwise = do
       -- Convert C -> S
@@ -1154,12 +1161,22 @@ transitiveDependentsGraphWithinScope scope0 query0
       -- Do the query
       adjacency <- Q.getTransitiveDependentsGraphWithinScope scope1 query1
 
-      -- Convert S -> C
-      traverse
-        ( \(dependency :. dependent) ->
-            (,) <$> s2cReference dependency <*> s2cReferenceId dependent
-        )
-        adjacency
+      -- Convert S -> C and classify dependency edge (term depends on term, etc)
+      for adjacency \(dependent0 :. Only dependentType :. dependency0 :. Only dependencyType) -> do
+        dependent <- s2cReferenceId dependent0
+        dependency <- s2cReference dependency0
+        let edge =
+              case (dependentType, dependencyType) of
+                (ObjectType.TermComponent, Just ObjectType.TermComponent) -> TermDependsOnTerm
+                (ObjectType.TermComponent, Just ObjectType.DeclComponent) -> TermDependsOnType
+                (ObjectType.TermComponent, Nothing) | isBuiltinType dependency -> TermDependsOnType
+                (ObjectType.TermComponent, Nothing) -> TermDependsOnTerm
+                (ObjectType.DeclComponent, Just ObjectType.DeclComponent) -> TypeDependsOnType
+                (ObjectType.DeclComponent, Nothing) | isBuiltinType dependency -> TypeDependsOnType
+                (ObjectType.TermComponent, Just _) -> error ("term depends on " ++ show dependency)
+                (ObjectType.DeclComponent, Just _) -> error ("type depends on " ++ show dependency)
+                (ty, _) -> error ("dependent is " ++ show ty)
+        pure (edge dependent dependency)
 
 -- | returns a list of known definitions referencing `h`
 dependentsOfComponent :: H.Hash -> Transaction (Set C.Reference.Id)

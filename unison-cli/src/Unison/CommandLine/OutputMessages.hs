@@ -115,7 +115,7 @@ import Unison.PrintError
     renderTypeWarnings,
   )
 import Unison.Project (ProjectAndBranch (..), defaultBranchName)
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -2373,6 +2373,44 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  StaleRun ppe main reversePath inFile ->
+    let path = reverse reversePath
+     in pure $
+          P.wrap
+            ( "Sorry, I don't want to run"
+                <> prettyName main
+                <> "because it depends on something that hasn't been committed to the codebase yet:"
+            )
+            <> P.newline
+            <> ( path
+                   & map prettyDefn
+                   & (if inFile then (prettyName main :) else id)
+                   & List.foldl'
+                     ( \(n, acc) defn ->
+                         (n + 2, acc <> P.newline <> if n > 2 then P.indentN (n - 2) ("└ " <> defn) else P.indentN n defn)
+                     )
+                     (2, mempty)
+                   & snd
+               )
+            <> P.newline
+            <> P.newline
+            <> tip
+              ( let dependency =
+                      case reversePath of
+                        defn : _ -> prettyDefn defn
+                        [] -> prettyName main
+                 in "Run"
+                      <> IP.makeExample IP.editDependents [dependency]
+                      <> "to add all callers of"
+                      <> dependency
+                      <> "to the scratch file."
+              )
+    where
+      prettyDefn :: Defn TermReference TypeReference -> Pretty
+      prettyDefn =
+        P.syntaxToColor . prettyHashQualified . \case
+          TermDefn ref -> PPE.termName ppe (Referent.fromTermReference ref)
+          TypeDefn ref -> PPE.typeName ppe ref
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =

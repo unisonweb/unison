@@ -5,8 +5,9 @@ where
 
 import Algebra.Graph.AdjacencyMap qualified as Graph
 import Data.List qualified as List
-import U.Codebase.Sqlite.Operations qualified as Operations
 import Data.Text.IO qualified as Text
+import U.Codebase.Sqlite.Operations qualified as Operations
+import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -17,12 +18,12 @@ import Unison.Name (Name)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl (..))
-import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.NamePrinter (prettyHashQualified)
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (DefnsF)
 import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
@@ -34,38 +35,28 @@ handleDebugDependentsGraph = do
   let currentNamespaceSansLib =
         Branch.deleteLibdeps currentNamespace
 
-  let refToDefn :: Reference -> Maybe (Defn TermReference TypeReference)
-      refToDefn =
-        let defns = Branch.deepDefns currentNamespace
-         in \ref ->
-              if Relation.memberDom (Referent.fromTermReference ref) defns.terms
-                then Just (TermDefn ref)
-                else
-                  if Relation.memberDom ref defns.types
-                    then Just (TypeDefn ref)
-                    else Nothing
-
-  let refIdToDefn :: Reference.Id -> Maybe (Defn TermReference TypeReference)
-      refIdToDefn =
-        refToDefn . Reference.DerivedId
-
-  let scope :: DefnsF Set TermReference TypeReference
-      scope =
+  let query :: DefnsF Set TermReference TypeReference
+      query =
         bimap (Set.mapMaybe Referent.toTermReference . Relation.dom) Relation.dom (Branch.deepDefns currentNamespaceSansLib)
 
-  let query :: DefnsF Set TermReferenceId TypeReferenceId
-      query =
-        bimap (Set.mapMaybe Reference.toId) (Set.mapMaybe Reference.toId) scope
+  let scope :: DefnsF Set TermReferenceId TypeReferenceId
+      scope =
+        bimap (Set.mapMaybe Reference.toId) (Set.mapMaybe Reference.toId) query
 
   edges <-
-    Cli.runTransaction (Operations.transitiveDependentsGraphWithinScope query scope)
+    Cli.runTransaction (Operations.transitiveDependentsGraphWithinScope Builtin.isBuiltinType scope query)
 
-  let graph =
+  let graph :: Graph.AdjacencyMap (Defn TermReference TypeReference)
+      graph =
         List.foldl
-          ( \acc (dependency, dependent) ->
-              case (refIdToDefn dependent, refToDefn dependency) of
-                (Just source, Just target) -> Graph.overlay acc (Graph.edge source target)
-                _ -> acc
+          ( \acc edge ->
+              Graph.overlay acc case edge of
+                Operations.TermDependsOnTerm dependent dependency ->
+                  Graph.edge (TermDefn (Reference.fromId dependent)) (TermDefn dependency)
+                Operations.TermDependsOnType dependent dependency ->
+                  Graph.edge (TermDefn (Reference.fromId dependent)) (TypeDefn dependency)
+                Operations.TypeDependsOnType dependent dependency ->
+                  Graph.edge (TypeDefn (Reference.fromId dependent)) (TypeDefn dependency)
           )
           Graph.empty
           edges

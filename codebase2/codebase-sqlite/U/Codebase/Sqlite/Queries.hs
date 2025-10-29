@@ -2046,10 +2046,12 @@ getTransitiveDependentsWithinScope scope query = do
 
 -- | Like 'getTransitiveDependentsWithinScope', but returns the dependents as a searchable adjacency matrix rather than
 -- just a set of references.
+--
+-- Returns (dependent ref, dependent type, dependency, dependency type)
 getTransitiveDependentsGraphWithinScope ::
   DefnsF Set S.TermReferenceId S.TypeReferenceId ->
   DefnsF Set S.TermReference S.TypeReference ->
-  Transaction [S.Reference :. S.Reference.Id]
+  Transaction [S.Reference.Id :. Only ObjectType :. S.Reference :. Only (Maybe ObjectType)]
 getTransitiveDependentsGraphWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   let scopeTableName = [sql| dependents_search_scope |]
@@ -2063,7 +2065,7 @@ getTransitiveDependentsGraphWithinScope scope query = do
   for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
   for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
 
-  result :: [S.Reference :. S.Reference.Id] <-
+  result :: [S.Reference.Id :. Only ObjectType :. S.Reference :. Only (Maybe ObjectType)] <-
     queryListRow
       [sql|
         WITH RECURSIVE
@@ -2104,8 +2106,17 @@ getTransitiveDependentsGraphWithinScope scope query = do
               ON t.dependent_object_id = d.dependency_object_id
               AND t.dependent_component_index = d.dependency_component_index
         )
-        SELECT *
-        FROM transitive_dependents
+        SELECT
+          t.dependent_object_id,
+          t.dependent_component_index,
+          o1.type_id,
+          t.dependency_builtin,
+          t.dependency_object_id,
+          t.dependency_component_index,
+          o2.type_id
+        FROM transitive_dependents t
+          JOIN object o1 ON t.dependent_object_id = o1.id
+          LEFT JOIN object o2 ON t.dependency_object_id = o2.id
       |]
 
   execute [sql| DROP TABLE $scopeTableName |]
