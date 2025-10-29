@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) 
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Text.RawString.QQ (r)
+import U.Codebase.Config qualified as Config
 import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad (Cli)
@@ -54,8 +55,9 @@ handleHistoryComment mayThingToAnnotate = do
   mayNewMessage <- liftIO (editMessage (Just populatedMsg))
   case mayNewMessage of
     Nothing -> Cli.respond $ CommentAborted
-    Just newMessage -> do
-      Cli.runTransaction $ Q.commentOnCausal authorName causalHashId newMessage
+    Just (subject, content) -> do
+      let historyComment = HistoryComment {author = Config.unAuthorName authorName, subject, content, commentId = (), causal = causalHashId}
+      Cli.runTransaction $ Q.commentOnCausal historyComment
       Cli.respond $ CommentedSuccessfully
   where
     commentInstructions =
@@ -84,7 +86,7 @@ getEditorProgram = runMaybeT $ do
 
 -- | Trigger the user's preferred editing workflow to edit a message, using the provided message to pre-populate the editor.
 -- Returns Nothing if the editor was closed with a non-zero exit code, or the message is empty.
-editMessage :: (MonadUnliftIO m) => Maybe Text -> m (Maybe Text)
+editMessage :: (MonadUnliftIO m) => Maybe Text -> m (Maybe (Text, Text))
 editMessage initialMessage = runMaybeT do
   editorProg <- MaybeT getEditorProgram
   MaybeT $ UnliftIO.withSystemTempFile "ucm-history-comment" $ \tempFilePath tempHandle -> runMaybeT do
@@ -103,4 +105,8 @@ editMessage initialMessage = runMaybeT do
             & Text.unlines
             & Text.strip
     guard $ not (Text.null cleanedResult)
-    pure cleanedResult
+    let (subject, contents) =
+          case Text.lines cleanedResult of
+            [] -> ("", "")
+            (s : rest) -> (Text.strip s, Text.strip $ Text.unlines rest)
+    pure (subject, contents)

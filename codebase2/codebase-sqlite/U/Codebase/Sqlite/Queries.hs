@@ -4044,42 +4044,42 @@ saveSquashResult bhId chId =
 
 getLatestCausalComment ::
   CausalHashId ->
-  Transaction (Maybe (HistoryComment HistoryCommentId))
+  Transaction (Maybe (HistoryComment CausalHashId HistoryCommentId))
 getLatestCausalComment causalHashId =
-  queryMaybeRow @(Text, Text, Text, HistoryCommentId)
+  queryMaybeRow @(HistoryCommentId, CausalHashId, Text, Text, Text)
     [sql|
-      SELECT cc.id, ccr.contents
-        FROM change_comments AS cc
-        JOIN change_comment_revisions AS ccr ON cc.id = ccr.comment_id
+      SELECT cc.id, cc.causal_hash_id, cc.author, ccr.subject, ccr.contents
+        FROM history_comments AS cc
+        JOIN history_comment_revisions AS ccr ON cc.id = ccr.comment_id
         WHERE cc.causal_hash_id = :causalHashId
         ORDER BY ccr.created_at DESC
         LIMIT 1
     |]
-    <&> fmap \(author, subject, content, commentId) ->
-      HistoryComment {author, subject, content, commentId}
+    <&> fmap \(commentId, causal, author, subject, content) ->
+      HistoryComment {author, subject, content, commentId, causal}
 
-commentOnCausal :: AuthorName -> CausalHashId -> Text -> Transaction ()
-commentOnCausal authorName causalHashId contents = do
+commentOnCausal :: HistoryComment CausalHashId () -> Transaction ()
+commentOnCausal HistoryComment {author, content, subject, causal = causalHashId} = do
   mayExistingCommentId <-
     queryMaybeCol @HistoryCommentId
       [sql|
       SELECT id
-        FROM change_comments
+        FROM history_comments
         WHERE causal_hash_id = :causalHashId
     |]
   commentId <- case mayExistingCommentId of
     Nothing ->
       queryOneCol @HistoryCommentId
         [sql|
-            INSERT INTO change_comments (author, causal_hash_id, created_at)
-            VALUES (:authorName, :causalHashId, strftime('%s', 'now', 'subsec'))
+            INSERT INTO history_comments (author, causal_hash_id, created_at)
+            VALUES (:author, :causalHashId, strftime('%s', 'now', 'subsec'))
             RETURNING id
           |]
     Just cid -> pure cid
   execute
     [sql|
-      INSERT INTO change_comment_revisions (comment_id, contents, created_at)
-      VALUES (:commentId, :contents, strftime('%s', 'now', 'subsec'))
+      INSERT INTO history_comment_revisions (comment_id, subject, contents, created_at)
+      VALUES (:commentId, :subject, :content, strftime('%s', 'now', 'subsec'))
     |]
 
 getAuthorName :: Transaction (Maybe AuthorName)

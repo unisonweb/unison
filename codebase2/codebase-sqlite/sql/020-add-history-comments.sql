@@ -4,11 +4,11 @@ CREATE TABLE config (
   value TEXT NOT NULL
 );
 
--- Add tables for storing change comments
+-- Add tables for storing history comments
 -- These tables deliberately contain less information than we'll probably need, with the
 -- plan that we'll migrate them and add new features on the way.
 
-CREATE TABLE change_comments (
+CREATE TABLE history_comments (
   id INTEGER PRIMARY KEY,
   causal_hash_id INTEGER REFERENCES hash(id) NOT NULL,
   author TEXT NOT NULL,
@@ -19,10 +19,11 @@ CREATE TABLE change_comments (
   created_at TEXT NOT NULL
 );
 
-CREATE INDEX change_comments_by_causal_hash_id ON change_comments(causal_hash_id, created_at DESC);
+CREATE INDEX history_comments_by_causal_hash_id ON history_comments(causal_hash_id, created_at DESC);
 
-CREATE TABLE change_comment_revisions (
-  comment_id INTEGER REFERENCES change_comments(id),
+CREATE TABLE history_comment_revisions (
+  comment_id INTEGER REFERENCES history_comments(id),
+  subject TEXT NOT NULL,
   contents TEXT NOT NULL,
 
   -- Remember that SQLITE doesn't have any actual 'time' type,
@@ -35,4 +36,4 @@ CREATE TABLE change_comment_revisions (
   hidden BOOL NOT NULL DEFAULT FALSE
 );
 
-CREATE INDEX change_comment_revisions_by_comment_id_and_created_at ON change_comment_revisions(comment_id, created_at DESC);
+CREATE INDEX history_comment_revisions_by_comment_id_and_created_at ON history_comment_revisions(comment_id, created_at DESC);
