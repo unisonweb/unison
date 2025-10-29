@@ -17,6 +17,10 @@ module Unison.CommandLine.InputPattern
     FZFResolver (..),
     Visibility (..),
 
+    -- * Parse Arguments
+    parseArgs,
+    parseArgsQuoted,
+
     -- * Currently Unused
     minArgs,
     maxArgs,
@@ -26,9 +30,13 @@ module Unison.CommandLine.InputPattern
 where
 
 import Control.Lens
+import Data.Char qualified as Char
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Text qualified as Text
 import System.Console.Haskeline qualified as Line
+import Text.Megaparsec qualified as MP
+import Text.Megaparsec.Char qualified as MP
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
@@ -229,3 +237,57 @@ suggestionFallbacks suggesters inp codebase httpClient path = go suggesters
         then go rest
         else pure suggestions
     go [] = pure []
+
+type Parser = MP.Parsec Void String
+
+parseArgs :: String -> Maybe [String]
+parseArgs input =
+  fmap (either fst id) <$> parseArgsQuoted input
+
+-- | Like `parseArgs`, but indicates whether each argument was quoted, and also whether the quote was terminated..
+-- This is for things like tab-completion where the original string is important.
+parseArgsQuoted :: String -> Maybe [Either (String, Bool) String]
+parseArgsQuoted input = MP.parseMaybe argsP (strip input)
+  where
+    strip = Text.unpack . Text.strip . Text.pack
+
+-- | Parser for a single CLI argument, which may be a single word, or a quoted string.
+--
+-- Also handles backslash-escaped quotes within quoted strings.
+argP :: Parser (Either (String, Bool) String)
+argP = do
+  MP.try (Left <$> quotedP) MP.<|> (Right <$> unquotedP)
+  where
+    escapedQuote :: Parser Char
+    escapedQuote = do
+      _ <- MP.char '\\'
+      MP.char '"'
+
+    quotedP :: Parser (String, Bool)
+    quotedP = do
+      _ <- MP.char '"'
+      (content, hasUnterminatedQuote) <-
+        MP.manyTill_
+          (escapedQuote <|> MP.anySingle)
+          -- Treat EOF as closing quote so completion still functions on unterminated quotes
+          (((MP.char '"') $> False) <|> (MP.eof $> True))
+      pure $ (content, hasUnterminatedQuote)
+    unquotedP :: Parser String
+    unquotedP = do
+      MP.some (MP.satisfy (not . Char.isSpace))
+
+-- >>> MP.parseMaybe argsP "one two three"
+-- Just [Right "one",Right "two",Right "three"]
+--
+-- >>> MP.parseMaybe argsP "\"one two\" three"
+-- Just [Left ("one two",False),Right "three"]
+--
+-- >>> MP.parseMaybe argsP "one    two    three"
+-- Just [Right "one",Right "two",Right "three"]
+--
+-- Unfinished quote should auto-close quote at end of input, but indicate that it was unterminated
+-- >>> MP.parseMaybe argsP "one two \"three four"
+-- Just [Right "one",Right "two",Left ("three four",True)]
+argsP :: Parser [Either (String, Bool) String]
+argsP = do
+  MP.sepBy argP MP.space

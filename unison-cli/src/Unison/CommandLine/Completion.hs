@@ -38,7 +38,7 @@ import Network.URI qualified as URI
 import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
 import System.Console.Haskeline.Completion qualified as Haskeline
-import Text.Megaparsec qualified as P
+import Text.Megaparsec qualified as MP
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.Reference qualified as Reference
@@ -71,17 +71,42 @@ haskelineTabComplete ::
   AuthenticatedHttpClient ->
   PP.ProjectPath ->
   Line.CompletionFunc m
-haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWordWithPrev Nothing " " $ \prev word ->
-  -- User hasn't finished a command name, complete from command names
-  if null prev
-    then pure . exactComplete word $ Map.keys patterns
-    else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRev, _afterCursor) ->
+  fmap (fromMaybe (beforeCursorRev, [])) $ runMaybeT $ do
+    args <- hoistMaybe $ IP.parseArgsQuoted (reverse beforeCursorRev)
+    (prefixArgs, lastArg) <- hoistMaybe $ unsnoc args
+    let prefix =
+          prefixArgs
+            <&> ( \case
+                    Left (txt, False) -> "\"" <> txt <> "\""
+                    Left (txt, True) -> "\"" <> txt
+                    Right txt -> txt
+                )
+            & unwords
+            & reverse
+            & (" " <>)
+    case (prefixArgs, argStr lastArg) of
+      ([], cmdPrefix) -> do
+        let completions = exactComplete cmdPrefix $ Map.keys patterns
+        pure (prefix, completions)
+      ((cmd : midArgs), lastArgStr) -> do
+        let requote completion =
+              let newReplacement = case lastArg of
+                    Left _ | completion.isFinished -> "\"" <> completion.replacement <> "\""
+                    Left (_, False) -> "\"" <> completion.replacement <> "\""
+                    Left (_, True) -> "\"" <> completion.replacement
+                    Right _ -> completion.replacement
+               in completion {Line.replacement = newReplacement}
+        p <- hoistMaybe $ Map.lookup (argStr cmd) patterns
+        paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs)
+        completions <-
+          lift $
+            IP.suggestions paramType lastArgStr codebase authedHTTPClient ppCtx
+              <&> fmap requote
+        pure (prefix, completions)
+  where
+    argStr :: Either (String, Bool) String -> String
+    argStr = either fst id
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -256,7 +281,7 @@ completeWithinNamespace compTypes query ppCtx = do
 -- (base,"List")
 parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
-  case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
+  case MP.runParser ((,) <$> Path.splitP' <*> MP.takeRest) "" (Text.unpack txt) of
     Left _err -> (Path.Current', txt)
     Right (name, rest) ->
       if take 1 rest == "."
