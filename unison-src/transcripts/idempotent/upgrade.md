@@ -54,9 +54,7 @@ proj/main> debug.fuzzy-options upgrade old _
 ``` ucm
 proj/main> upgrade old new
 
-  I upgraded:
-
-    * old to new
+  I upgraded old to new.
 
 proj/main> ls lib
 
@@ -313,9 +311,7 @@ myproject/main> update
 
 myproject/main> upgrade old new
 
-  I upgraded:
-
-    * old to new
+  I upgraded old to new.
 
 myproject/main> view mything
 
@@ -448,9 +444,7 @@ foo/main> update
 
 foo/main> upgrade old new
 
-  I upgraded:
-
-    * old to new
+  I upgraded old to new.
 
 foo/main> view mything
 
@@ -498,9 +492,7 @@ scratch/main> update
 
 scratch/main> upgrade dep dep__2
 
-  I upgraded:
-
-    * dep to dep__2 (renamed to dep)
+  I upgraded dep to dep__2 (renamed to dep).
 
 scratch/main> ls lib
 
@@ -544,9 +536,7 @@ scratch/main> update
 
 scratch/main> upgrade hello dep__2
 
-  I upgraded:
-
-    * hello to dep__2
+  I upgraded hello to dep__2.
 
 scratch/main> ls lib
 
@@ -598,10 +588,7 @@ scratch/main> update
 
 scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
 
-  I upgraded:
-
-    * foo_1 to foo_2
-    * bar_1 to bar_2
+  I upgraded foo_1 to foo_2 and bar_1 to bar_2.
 
 scratch/main> view thing
 
@@ -661,20 +648,14 @@ scratch/main> update
 scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
 
   I couldn't automatically upgrade foo_1 to foo_2 and
-  bar_1 to bar_2. However, I've added the definitions that need
-  attention to the top of scratch.u.
+  bar_1 to bar_2.
 
-  When you're done, you can run
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
 
-    update
-
-  to merge your changes back into main and delete the temporary
-  branch. Or, if you decide to cancel the upgrade instead, you
-  can run
-
-    cancel
-
-  to delete the temporary branch and switch back to main.
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -738,10 +719,8 @@ scratch/main> update
 
 scratch/main> upgrade foo foo__2 bar bar__2
 
-  I upgraded:
-
-    * foo to foo__2 (renamed to foo)
-    * bar to bar__2 (renamed to bar)
+  I upgraded foo to foo__2 (renamed to foo) and
+  bar to bar__2 (renamed to bar).
 
 scratch/main> view foo bar
 
@@ -790,10 +769,7 @@ scratch/main> update
 
 scratch/main> upgrade foo foo__2 bar foo__3
 
-  I upgraded:
-
-    * foo to foo__2 (renamed to foo)
-    * bar to foo__3
+  I upgraded foo to foo__2 (renamed to foo) and bar to foo__3.
 
 scratch/main> view foo bar
 
@@ -862,9 +838,7 @@ Note that specifying an upgrade multiple times *is* allowed; the old-new pairs a
 ``` ucm
 scratch/main> upgrade foo_1 foo_2 foo_1 foo_2
 
-  I upgraded:
-
-    * foo_1 to foo_2
+  I upgraded foo_1 to foo_2.
 ```
 
 ``` ucm :hide

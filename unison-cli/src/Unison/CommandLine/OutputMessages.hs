@@ -145,7 +145,6 @@ import Unison.Syntax.NamePrinter
     prettyReferent,
     prettyShortHash,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -2033,45 +2032,42 @@ notifyUser dir issueFn = \case
   UpgradeFailure baseBranch scratchFile0 names -> do
     scratchFile <- renderFileName scratchFile0
     pure $
+      P.wrap
+        ( "I couldn't automatically upgrade"
+            <> ( names
+                   & fmap
+                     ( \(old, new) ->
+                         P.wrap $
+                           prettyLibdepName old
+                             <> "to"
+                             <> prettyLibdepName new
+                     )
+                   & P.oxfordCommasWith "."
+               )
+        )
+        <> P.newline
+        <> P.newline
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
+  UpgradeSuccess names unmanglings ->
+    pure $
       P.wrap $
-        "I couldn't automatically upgrade"
+        "I upgraded"
           <> ( names
                  & fmap
                    ( \(old, new) ->
-                       P.wrap
-                         ( P.text (NameSegment.toEscapedText old)
-                             <> "to"
-                             <> P.text (NameSegment.toEscapedText new)
-                         )
+                       let oldToNew =
+                             prettyLibdepName old
+                               <> "to"
+                               <> prettyLibdepName new
+                        in P.wrap case Map.lookup new unmanglings of
+                             Nothing -> oldToNew
+                             Just new1 -> oldToNew <> "(renamed to" <> P.group (prettyLibdepName new1 <> ")")
                    )
                  & P.oxfordCommasWith "."
              )
-          <> P.newline
-          <> P.newline
-          <> iveCreatedATemporaryBranch scratchFile
-          <> P.newline
-          <> P.newline
-          <> onceYoureHappy baseBranch
-  UpgradeSuccess namePairs unmanglings ->
-    pure $
-      P.wrap "I upgraded:"
-        <> P.newline
-        <> P.newline
-        <> P.indentN
-          2
-          ( P.bulleted
-              ( namePairs <&> \(old, new) ->
-                  case Map.lookup new unmanglings of
-                    Nothing -> prettyLibdepName old <> " to " <> prettyLibdepName new
-                    Just new1 ->
-                      prettyLibdepName old
-                        <> " to "
-                        <> prettyLibdepName new
-                        <> " (renamed to "
-                        <> prettyLibdepName new1
-                        <> ")"
-              )
-          )
   MergeFailure path aliceAndBob ->
     pure $
       P.lines $
