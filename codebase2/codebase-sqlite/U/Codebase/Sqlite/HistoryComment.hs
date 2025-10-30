@@ -2,8 +2,7 @@ module U.Codebase.Sqlite.HistoryComment (HistoryComment (..)) where
 
 import Data.Text (Text)
 
-data HistoryComment causal id
-  = HistoryComment
+data HistoryComment causal id = HistoryComment
   { author :: Text,
     subject :: Text,
     content :: Text,
