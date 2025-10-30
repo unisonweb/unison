@@ -131,8 +131,8 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(CausalHash, Names.Diff)]
-      HistoryTail -- 'origin point' of this view of history.
+      [(CausalHash, Maybe Text {- change comments -}, Names.Diff)]
+      (Maybe Text, HistoryTail) -- 'origin point' of this view of history.
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -454,6 +454,10 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | InvalidAnnotationTarget Text
+  | AnnotatedSuccessfully
+  | AnnotationAborted
+  | AuthorNameRequired
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -695,6 +699,10 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  InvalidAnnotationTarget {} -> True
+  AnnotatedSuccessfully {} -> False
+  AnnotationAborted {} -> True
+  AuthorNameRequired {} -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

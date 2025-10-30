@@ -288,12 +288,12 @@ notifyNumbered = \case
           P.lines
             [ note $ "The most recent namespace hash is immediately below this message.",
               "",
-              P.sep "\n\n" [go i (toSCH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              P.sep "\n\n" [displayCausal i (toSCH h) mayComment diff | (i, (h, mayComment, diff)) <- zip [1 ..] reversedHistory],
               "",
               tailMsg
             ]
         branchHashes :: [CausalHash]
-        branchHashes = (fst <$> reversedHistory) <> tailHashes
+        branchHashes = (view _1 <$> reversedHistory) <> tailHashes
      in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
@@ -301,42 +301,51 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
+      displayComment prefixSpacer mayComment = case mayComment of
+        Nothing -> []
+        Just comment ->
+          Monoid.whenM prefixSpacer [""] <> [P.indentN 2 (P.yellow $ P.text comment) <> P.newline]
       handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
-        E.EndOfLog h ->
-          ( P.lines
+        (mayComment, E.EndOfLog h) ->
+          ( P.lines $
               [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
-              ],
+              ]
+                <> displayComment True mayComment,
             [h]
           )
-        E.MergeTail h hs ->
-          ( P.lines
+        (mayComment, E.MergeTail h hs) ->
+          ( P.lines $
               [ P.wrap $ "This segment of history starts with a merge." <> ex,
                 "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                "⑃",
-                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
-              ],
+                "⊙ " <> showNum n <> prettySCH (toSCH h)
+              ]
+                <> displayComment True mayComment
+                <> [ "⑃",
+                     P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
+                   ],
             h : hs
           )
-        E.PageEnd h _n ->
-          ( P.lines
+        (mayComment, E.PageEnd h _n) ->
+          ( P.lines $
               [ P.wrap $ "There's more history before the versions shown here." <> ex,
                 "",
                 dots,
                 "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                ""
-              ],
+                "⊙ " <> showNum n <> prettySCH (toSCH h)
+              ]
+                <> displayComment True mayComment,
             [h]
           )
       dots = "⠇"
-      go i sch diff =
-        P.lines
+      displayCausal i sch mayComment diff =
+        P.lines $
           [ "⊙ " <> showNum i <> prettySCH sch,
-            "",
-            P.indentN 2 $ prettyDiff diff
+            ""
           ]
+            <> displayComment False mayComment
+            <> [ P.indentN 2 $ prettyDiff diff
+               ]
       ex =
         "Use"
           <> IP.makeExample IP.history ["#som3n4m3space"]
@@ -897,20 +906,19 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
                   : ""
                   : [ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
-                      | (v, b) <- bindings
+                    | (v, b) <- bindings
                     ]
             prettyWatches =
               P.sep
                 "\n\n"
                 [ watchPrinter fileContents ppe ann kind evald isCacheHit
-                  | (ann, kind, evald, isCacheHit) <-
-                      sortOn (\(a, _, _, _) -> a) . toList $ watches
+                | (ann, kind, evald, isCacheHit) <-
+                    sortOn (\(a, _, _, _) -> a) . toList $ watches
                 ]
          in -- todo: use P.nonempty
             pure $
@@ -2346,22 +2354,32 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
-  where
-    iveCreatedATemporaryBranch scratchFile =
-      P.wrap $
-        "I've created a temporary branch and added the affected definitions to"
-          <> P.group (scratchFile <> ",")
-          <> "where you can fix them up or remove any that are obsolete."
+    where
+      iveCreatedATemporaryBranch scratchFile =
+        P.wrap $
+          "I've created a temporary branch and added the affected definitions to"
+            <> P.group (scratchFile <> ",")
+            <> "where you can fix them up or remove any that are obsolete."
 
-    onceYoureHappy baseBranch =
-      P.wrap $
-        "Once you're happy with the results, use"
-          <> makeExample' IP.update
-          <> "to merge them back into"
-          <> P.group (prettyProjectBranchName baseBranch <> ",")
-          <> "or"
-          <> makeExample' IP.cancelInputPattern
-          <> "if you change your mind."
+      onceYoureHappy baseBranch =
+        P.wrap $
+          "Once you're happy with the results, use"
+            <> makeExample' IP.update
+            <> "to merge them back into"
+            <> P.group (prettyProjectBranchName baseBranch <> ",")
+            <> "or"
+            <> makeExample' IP.cancelInputPattern
+            <> "if you change your mind."
+  InvalidAnnotationTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  AnnotatedSuccessfully -> pure $ P.bold "Done."
+  AnnotationAborted -> pure (P.wrap "Annotation aborted.")
+  AuthorNameRequired ->
+    pure $
+      P.hang "Please configure your a display name for your user." $
+        P.lines
+          [ "You can do so with: ",
+            IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
+          ]
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -3562,13 +3580,13 @@ listOfDefinitions' fscope ppe detailed results =
     --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
     termsWithMissingTypes =
       [ (name, Reference.idToShortHash r)
-        | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
+      | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results
       ]
     missingTypes =
       nubOrdOn snd $
         [(name, r) | SR'.Tp name (MissingObject r) _ _ <- results]
           <> [ (name, Reference.toShortHash r)
-               | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
+             | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results
              ]
     missingBuiltins =
       results >>= \case
@@ -3722,7 +3740,7 @@ prettyDiff diff =
                     P.column2 $
                       (P.hiBlack "Original name", P.hiBlack "New name(s)")
                         : [ (prettyName n, P.sep " " (prettyName <$> ns))
-                            | (n, ns) <- copied
+                          | (n, ns) <- copied
                           ]
                 ]
             else mempty

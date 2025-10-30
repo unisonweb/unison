@@ -1,0 +1,102 @@
+module Unison.Codebase.Editor.HandleInput.Annotate (handleAnnotate) where
+
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Cli.Monad (Cli)
+import Unison.Cli.Monad qualified as Cli
+import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Editor.Input (BranchId2)
+import Unison.Codebase.Editor.Output (Output (..))
+import Unison.Codebase.Path qualified as Path
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
+import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.Prelude
+import UnliftIO qualified
+import UnliftIO.Directory (findExecutable)
+import UnliftIO.Environment qualified as Env
+import UnliftIO.Process qualified as Proc
+
+handleAnnotate :: Maybe BranchId2 -> Cli ()
+handleAnnotate mayThingToAnnotate = do
+  authorName <-
+    Cli.runTransaction Q.getAuthorName >>= \case
+      Nothing -> Cli.returnEarly $ AuthorNameRequired
+      Just authorName -> pure authorName
+  causalHash <- case mayThingToAnnotate of
+    Nothing -> do
+      Branch.headHash <$> Cli.getCurrentProjectRoot
+    Just (Left sch) -> do
+      Cli.runTransactionWithRollback \rollback -> Cli.resolveShortCausalHashToCausalHash rollback sch
+    Just (Right brp) -> case brp of
+      BranchPathInCurrentProject projectBranchName path
+        | path == Path.Root -> do
+            pab <- ProjectUtils.resolveProjectBranch (ProjectAndBranch Nothing (Just projectBranchName))
+            Cli.runTransaction $ ProjectUtils.getProjectBranchCausalHash pab.branch
+        | otherwise -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
+      QualifiedBranchPath projectName projectBranchName path
+        | path == Path.Root -> do
+            pab <- ProjectUtils.resolveProjectBranch (ProjectAndBranch (Just projectName) (Just projectBranchName))
+            Cli.runTransaction $ ProjectUtils.getProjectBranchCausalHash pab.branch
+        | otherwise -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
+      UnqualifiedPath {} -> Cli.returnEarly $ InvalidAnnotationTarget "annotating paths is currently unsupported."
+  (causalHashId, mayExistingCommentText) <- Cli.runTransaction $ do
+    causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
+    mayExistingCommentInfo <- Q.getLatestCausalAnnotation causalHashId
+    let mayExistingCommentText = snd <$> mayExistingCommentInfo
+    pure (causalHashId, mayExistingCommentText)
+  let template =
+        fmap (annotationTemplate <>) mayExistingCommentText
+          <|> Just annotationTemplate
+  mayNewMessage <- liftIO (editMessage template)
+  case mayNewMessage of
+    Nothing -> Cli.respond $ AnnotationAborted
+    Just newMessage -> do
+      Cli.runTransaction $ Q.annotateCausal authorName causalHashId newMessage
+      Cli.respond $ AnnotatedSuccessfully
+  where
+    annotationTemplate = "# Enter your comment below, then save and quit your editor to continue.\n"
+
+unisonEditorEnvVar :: String
+unisonEditorEnvVar = "UNISON_EDITOR"
+
+editorEnvVar :: String
+editorEnvVar = "EDITOR"
+
+getEditorProgram :: (MonadIO m) => m (Maybe FilePath)
+getEditorProgram = runMaybeT $ do
+  fromEnvVar unisonEditorEnvVar
+    <|> fromEnvVar editorEnvVar
+    <|> fromEnvVar "VISUAL"
+    <|> MaybeT (findExecutable "nano")
+    <|> MaybeT (findExecutable "vi")
+  where
+    fromEnvVar var = do
+      progName <- MaybeT $ Env.lookupEnv var
+      guard (not (null progName))
+      MaybeT $ findExecutable progName
+
+-- | Trigger the user's preferred editing workflow to edit a message, using the provided message to pre-populate the editor.
+-- Returns Nothing if the editor was closed with a non-zero exit code, or the message is empty.
+editMessage :: (MonadUnliftIO m) => Maybe Text -> m (Maybe Text)
+editMessage initialMessage = runMaybeT do
+  editorProg <- MaybeT getEditorProgram
+  MaybeT $ UnliftIO.withSystemTempFile "ucm-annotation" $ \tempFilePath tempHandle -> runMaybeT do
+    -- Write the initial message to the temp file, if any
+    liftIO $ for_ initialMessage $ \msg -> Text.hPutStrLn tempHandle msg
+    UnliftIO.hClose tempHandle
+    -- Launch the editor on the temp file
+    liftIO (UnliftIO.tryAny (Proc.callProcess editorProg [tempFilePath])) >>= \case
+      Left _ -> empty
+      Right () -> pure ()
+    result <- liftIO (readUtf8 tempFilePath)
+    let cleanedResult =
+          result
+            & Text.lines
+            & filter (not . Text.isPrefixOf "#")
+            & Text.unlines
+            & Text.strip
+    guard $ not (Text.null cleanedResult)
+    pure cleanedResult

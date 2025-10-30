@@ -15,6 +15,7 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
+    configSet,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -67,6 +68,7 @@ module Unison.CommandLine.InputPatterns
     help,
     helpTopics,
     history,
+    annotate,
     ioTest,
     ioTestAll,
     libInstallInputPattern,
@@ -154,6 +156,7 @@ import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
+import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -1673,6 +1676,36 @@ history =
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (BranchAtPath Path.Current')
       src : _ -> Input.HistoryI (Just 10) (Just 10) <$> handleBranchIdArg src
 
+annotate :: InputPattern
+annotate =
+  InputPattern
+    "annotate"
+    []
+    I.Visible
+    (Parameters [] $ Optional [("hash or branch to annotate", namespaceOrProjectBranchArg config)] Nothing)
+    ( P.wrapColumn2
+        [ ( makeExample annotate [],
+            "Annotates the head of the current branch."
+          ),
+          ( makeExample annotate ["/main"],
+            "Annotates the current head of the `main` branch."
+          )
+        ]
+    )
+    \case
+      [] -> pure $ Input.AnnotateI Nothing
+      [src] -> do
+        target <- handleBranchId2Arg src
+        pure $ Input.AnnotateI (Just target)
+      _ -> wrongArgsLength "at most one argument" []
+  where
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
+
 forkLocal :: InputPattern
 forkLocal =
   InputPattern
@@ -2414,6 +2447,36 @@ globalReflog =
     )
     . const
     $ pure Input.ShowGlobalReflogI
+
+configSet :: InputPattern
+configSet =
+  InputPattern
+    { patternName = "config.set",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg)] $ OnePlus ("value", noCompletionsArg),
+      help =
+        P.lines
+          [ P.wrap $
+              "The"
+                <> makeExample' configSet
+                <> "command sets the configuration key to the provided value. E.g.",
+            "",
+            (makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "Author Name"]),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+          ],
+      parse = \case
+        (key : values) -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          values' <- for values (unsupportedStructuredArgument configSet "a config value")
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
+            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack $ unwords values')
+        args -> wrongArgsLength "exactly two arguments" args
+    }
 
 edit :: InputPattern
 edit =
@@ -3593,6 +3656,7 @@ validInputs =
       cd,
       clear,
       clone,
+      configSet,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,
@@ -3654,6 +3718,7 @@ validInputs =
       help,
       helpTopics,
       history,
+      annotate,
       ioTest,
       ioTestAll,
       libInstallInputPattern,
@@ -3852,6 +3917,15 @@ directoryPathArg =
   ParameterType
     { typeName = "directory-path",
       suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
+
+configKeyArg :: ParameterType
+configKeyArg =
+  ParameterType
+    { typeName = "config-key",
+      suggestions = \input _cb _http _p -> configKeyCompletion input,
       fzfResolver = Nothing,
       isStructured = False
     }
