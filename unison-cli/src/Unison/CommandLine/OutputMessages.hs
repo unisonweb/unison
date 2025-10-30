@@ -163,6 +163,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import qualified U.Codebase.Config as Config
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -2375,6 +2376,16 @@ notifyUser dir issueFn = \case
           [ "You can do so with: ",
             IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
           ]
+  ConfigValueGet key value ->
+    case value of
+      Nothing -> pure $
+        P.wrap $
+          P.text (Config.keyToText key)
+            <> " is unset"
+      Just value ->
+        pure $ P.wrap $
+          P.text (Config.keyToText key)
+            <> " = " <> P.text value
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $

@@ -16,6 +16,7 @@ module Unison.CommandLine.InputPatterns
     clear,
     clone,
     configSet,
+    configGet,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -2478,6 +2479,33 @@ configSet =
         args -> wrongArgsLength "exactly two arguments" args
     }
 
+configGet :: InputPattern
+configGet =
+  InputPattern
+    { patternName = "config.get",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "Gets the value of the provided configuration key. E.g.",
+            "",
+            (makeExample configGet [P.text $ Config.keyToText Config.AuthorNameKey]),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+          ],
+      parse = \case
+        [key] -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
+            Just pkey -> Right $ Input.ConfigGetI pkey
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
 edit :: InputPattern
 edit =
   InputPattern
@@ -3656,6 +3684,7 @@ validInputs =
       cd,
       clear,
       clone,
+      configGet,
       configSet,
       createAuthor,
       debugAliasTermForce,

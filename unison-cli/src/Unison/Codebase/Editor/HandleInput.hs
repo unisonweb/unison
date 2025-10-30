@@ -50,7 +50,7 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
-import Unison.Codebase.Editor.HandleInput.ConfigSet (handleConfigSet)
+import Unison.Codebase.Editor.HandleInput.Config (handleConfigGet, handleConfigSet)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
@@ -719,6 +719,7 @@ loop e = do
         BranchRenameI name -> handleBranchRename name
         BranchesI name -> handleBranches name
         CloneI remoteNames localNames -> handleClone remoteNames localNames
+        ConfigGetI key -> handleConfigGet key
         ConfigSetI key value -> handleConfigSet key value
         BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
         ReleaseDraftI semver -> handleReleaseDraft semver
@@ -802,6 +803,7 @@ inputDescription input =
     ClearI {} -> wat
     CloneI {} -> wat
     ConfigSetI {} -> wat
+    ConfigGetI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat

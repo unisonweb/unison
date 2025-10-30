@@ -28,6 +28,7 @@ import Servant.Client qualified as Servant (ClientError)
 import System.Console.Haskeline qualified as Completion
 import System.Exit (ExitCode)
 import U.Codebase.Branch.Diff (NameChanges)
+import U.Codebase.Config (ConfigKey)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.HistoryComment (HistoryComment)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -459,6 +460,7 @@ data Output
   | CommentedSuccessfully
   | CommentAborted
   | AuthorNameRequired
+  | ConfigValueGet ConfigKey (Maybe Text)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -704,6 +706,7 @@ isFailure o = case o of
   CommentedSuccessfully {} -> False
   CommentAborted {} -> True
   AuthorNameRequired {} -> True
+  ConfigValueGet {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

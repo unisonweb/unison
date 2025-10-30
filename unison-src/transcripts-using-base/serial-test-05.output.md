@@ -21,7 +21,7 @@ mkTestCase = do
 
   + f          : (Nat, Nat, Nat) -> Nat
   + g          : Map Nat ((Nat, Nat, Nat) ->{g} Nat) ->{g} Text
-  + m          : Map Nat ((Nat, Nat, Nat) ->{g} Nat)
+  + m          : Map Nat ((Nat, Nat, Nat) ->{g1, g} Nat)
   + mkTestCase : '{IO, Exception} ()
 
   Run `update` to apply these changes to your codebase.

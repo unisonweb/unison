@@ -53,7 +53,7 @@ library
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
       Unison.Codebase.Editor.HandleInput.Cancel
-      Unison.Codebase.Editor.HandleInput.ConfigSet
+      Unison.Codebase.Editor.HandleInput.Config
       Unison.Codebase.Editor.HandleInput.DebugDefinition
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DebugSynhashTerm

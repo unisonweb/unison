@@ -19,11 +19,6 @@
   alias.type
   `alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`.
 
-  annotate
-  `annotate`        Annotates the head of the current branch.
-  `annotate /main`  Annotates the current head of the `main`
-                    branch.
-
   api
   `api` provides details about the API.
 
@@ -99,11 +94,18 @@
                        Said execution will have the effect of
                        running `!main`.
 
+  config.get
+  Gets the value of the provided configuration key. E.g.
+
+  `config.get author.name`
+
+  Configuration options include: author.name
+
   config.set
   The `config.set` command sets the configuration key to the
   provided value. E.g.
 
-  `config.set author.name Author Name`
+  `config.set author.name "Author Name"`
 
   Configuration options include: author.name
 
@@ -509,6 +511,12 @@
   `history #9dndk3kbsk13nbpeu`  Shows the history of the
                                 namespace with the given hash.
                                 The full hash must be provided.
+
+  history.comment (or comment, comment.history)
+  `history.comment`        Creates a comment after the head of
+                           the current branch.
+  `history.comment /main`  Creates a comment after the head of
+                           the `main` branch.
 
   io.test (or test.io)
   `io.test mytest`  Runs `!mytest`, where `mytest` is a delayed
