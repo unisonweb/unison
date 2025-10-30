@@ -738,7 +738,7 @@ loop e = do
         CloneI remoteNames localNames -> handleClone remoteNames localNames
         BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
         ReleaseDraftI semver -> handleReleaseDraft semver
-        UpgradeI old new -> handleUpgrade old new
+        UpgradeI libs -> handleUpgrade libs
         UpgradeCommitI ->
           Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
         LibInstallI remind libdep -> handleInstallLib remind libdep

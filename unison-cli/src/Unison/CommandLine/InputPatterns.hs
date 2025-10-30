@@ -3513,15 +3513,13 @@ upgrade =
       aliases = ["upgrade.lib", "upgrade"],
       visibility = I.Visible,
       params =
-        Parameters [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)] $
-          Optional [] Nothing,
+        Parameters
+          [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)]
+          (ZeroPlus ("dependency", dependencyArg)),
       help =
         P.wrap $
-          "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
-      parse = \case
-        [oldString, newString] ->
-          Input.UpgradeI <$> handleRelativeNameSegmentArg oldString <*> handleRelativeNameSegmentArg newString
-        args -> wrongArgsLength "exactly two arguments" args
+          "`upgrade old new [old2 new2...]` upgrades library dependency `lib.old` to `lib.new` (and `lib.old2` to `lib.new2`...).",
+      parse = \args -> Input.UpgradeI <$> traverse handleRelativeNameSegmentArg args
     }
 
 upgradeCommitInputPattern :: InputPattern
