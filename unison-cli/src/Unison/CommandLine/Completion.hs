@@ -75,34 +75,47 @@ haskelineTabComplete ::
 haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRev, _afterCursor) ->
   fmap (fromMaybe (beforeCursorRev, [])) $ runMaybeT $ do
     args <- hoistMaybe $ IP.parseArgs (reverse beforeCursorRev)
-    (prefixArgs, lastArg) <- hoistMaybe $ unsnoc args
-    let prefix =
-          prefixArgs
-            <&> IP.renderCliArg
-            & unwords
-            & reverse
-            & (" " <>)
+    let trailingSpace = take 1 beforeCursorRev == " "
+    (prefixArgs, lastArg) <-
+      (hoistMaybe $ unsnoc args)
+        <&> \(prefixArgs', lastArg') ->
+          -- If there's a trailing space, we want to complete against an argument _after_ the last actual one.
+          if trailingSpace
+            then (prefixArgs' <> [lastArg'], UnquotedArg "")
+            else (prefixArgs', lastArg')
+    let prefix
+          | null prefixArgs = ""
+          | otherwise =
+              prefixArgs
+                <&> IP.renderCliArg
+                & unwords
+                & reverse
+                & (" " <>)
+
+    let finalize completion =
+          let newReplacement = case lastArg of
+                QuotedArg _ _
+                  | completion.isFinished -> "\"" <> completion.replacement <> "\""
+                QuotedArg _ False -> "\"" <> completion.replacement <> "\""
+                QuotedArg _ True -> "\"" <> completion.replacement
+                UnquotedArg _ -> completion.replacement
+                NumberedArg _ -> completion.replacement
+           in completion {Line.replacement = newReplacement}
     case (prefixArgs, lastArg) of
       -- No completions for numbered args
       (_, NumberedArg {}) -> pure (beforeCursorRev, [])
       ([], cmdPrefix) -> do
-        let completions = exactComplete (IP.renderCliArgUnquoted cmdPrefix) $ Map.keys patterns
+        let completions =
+              (exactComplete (IP.renderCliArgUnquoted cmdPrefix) $ Map.keys patterns)
+                <&> finalize
         pure (prefix, completions)
       ((cmd : midArgs), lastArg) -> do
-        let requote completion =
-              let newReplacement = case lastArg of
-                    QuotedArg _ _
-                      | completion.isFinished -> "\"" <> completion.replacement <> "\""
-                    QuotedArg _ False -> "\"" <> completion.replacement <> "\""
-                    QuotedArg _ True -> "\"" <> completion.replacement
-                    UnquotedArg _ -> completion.replacement
-               in completion {Line.replacement = newReplacement}
         p <- hoistMaybe $ Map.lookup (IP.renderCliArgUnquoted cmd) patterns
         paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs)
         completions <-
           lift $
             IP.suggestions paramType (IP.renderCliArgUnquoted lastArg) codebase authedHTTPClient ppCtx
-              <&> fmap requote
+              <&> fmap finalize
         pure (prefix, completions)
 
 -- | Things which we may want to complete for.
