@@ -2454,7 +2454,7 @@ configSet =
     { patternName = "config.set",
       aliases = [],
       visibility = I.Visible,
-      params = Parameters [("key", configKeyArg)] $ OnePlus ("value", noCompletionsArg),
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
       help =
         P.lines
           [ P.wrap $
@@ -2462,19 +2462,19 @@ configSet =
                 <> makeExample' configSet
                 <> "command sets the configuration key to the provided value. E.g.",
             "",
-            (makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "Author Name"]),
+            (makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "\"Author Name\""]),
             "",
             P.hang
               "Configuration options include:"
               (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
           ],
       parse = \case
-        (key : values) -> do
+        (key : value : []) -> do
           key' <- unsupportedStructuredArgument configSet "a config key" key
-          values' <- for values (unsupportedStructuredArgument configSet "a config value")
+          value' <- unsupportedStructuredArgument configSet "a config value" value
           case Config.keyFromText (Text.pack key') of
             Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
-            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack $ unwords values')
+            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
         args -> wrongArgsLength "exactly two arguments" args
     }
 
