@@ -38,7 +38,6 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
-    - split
     - text
     - transformers
     - unison-codebase

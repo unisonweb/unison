@@ -88,11 +88,9 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
 
   projectAndBranch <- Cli.getCurrentProjectAndBranch
 
-  when (projectAndBranch.branch.isUpdate || projectAndBranch.branch.isUpgrade) do
-    Cli.returnEarly
-      if projectAndBranch.branch.isUpdate
-        then Output.CantDoThatDuring "an update" "update"
-        else Output.CantDoThatDuring "an upgrade" "upgrade"
+  when projectAndBranch.branch.isUpdate (Cli.returnEarly (Output.CantDoThatDuring "an update" "update"))
+  when projectAndBranch.branch.isUpgrade (Cli.returnEarly (Output.CantDoThatDuring "an upgrade" "upgrade"))
+  when projectAndBranch.branch.isUpgrade (Cli.returnEarly (Output.CantDoThatDuring "a merge" "merge"))
 
   currentNamespace <- Cli.getCurrentProjectRoot
   let currentNamespace0 = Branch.head currentNamespace
@@ -198,7 +196,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
 
       -- A failed delete makes an "update" branch, since it behaves like an update branch in every way. We even name the
       -- branch update-* so it doesn't feel like a weird new thing.
-      (_updateBranchId, updateBranchName) <-
+      (_updateBranchId, _updateBranchName) <-
         HandleInput.Branch.createBranch
           ("update " <> into @Text (ProjectAndBranch projectAndBranch.project.name projectAndBranch.branch.name))
           ( HandleInput.Branch.CreateFrom'Update
@@ -244,7 +242,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
 
       liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
 
-      Cli.returnEarly (Output.DeleteFailure scratchFilePath projectAndBranch.branch.name updateBranchName)
+      Cli.returnEarly (Output.DeleteFailure scratchFilePath projectAndBranch.branch.name)
 
   -- Identify the delete actions to apply to the current branch. This is just the delete target, plus constructors.
   let deleteActions :: [(Path.Absolute, Branch0 m -> Branch0 m)]

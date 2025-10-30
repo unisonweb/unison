@@ -40,6 +40,7 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
@@ -106,7 +107,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
       line <- Line.getInputLine $ Text.unpack fullPrompt
       case line of
         Nothing -> pure QuitI
-        Just l -> case words l of
+        Just l -> case fromMaybe [] $ IP.parseArgs l of
           [] -> go
           ws -> do
             liftIO (parseInput codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
@@ -121,11 +122,19 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                 go
               Right (Just (expandedArgs, i)) -> do
                 let expandedArgs' = IP.unifyArgument <$> expandedArgs
-                    expandedArgsStr = unwords expandedArgs'
-                when (expandedArgs' /= ws) $ do
+                    expandedArgsStr =
+                      expandedArgs'
+                        <&> requote
+                        & unwords
+                when (expandedArgs' /= fmap IP.renderCliArg ws) $ do
                   liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
+    requote :: String -> String
+    requote s =
+      if elem ' ' s
+        then "\"" <> s <> "\""
+        else s
     settings :: Line.Settings IO
     settings =
       Line.Settings
