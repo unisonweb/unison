@@ -22,6 +22,7 @@ CREATE TABLE history_comments (
 CREATE INDEX history_comments_by_causal_hash_id ON history_comments(causal_hash_id, created_at DESC);
 
 CREATE TABLE history_comment_revisions (
+  id INTEGER PRIMARY KEY,
   comment_id INTEGER REFERENCES history_comments(id),
   subject TEXT NOT NULL,
   contents TEXT NOT NULL,
