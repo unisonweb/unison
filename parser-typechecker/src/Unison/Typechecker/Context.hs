@@ -55,6 +55,7 @@ import Control.Monad.State
     gets,
     put,
     runStateT,
+    state,
   )
 import Data.Foldable qualified as Foldable
 import Data.Function (on)
@@ -274,14 +275,24 @@ liftTotalM (MT m) = MT $ \ppe pmcSwitch vars datas effects defs env ->
     Left bug -> CompilerBug bug mempty mempty
     Right a -> Success mempty a
 
+checkVarianceWith ::
+  Map Reference [Variance] ->
+  Type v loc ->
+  Maybe [Variance]
+checkVarianceWith vars = \case
+  Type.Ref' r -> Map.lookup r vars
+  Type.Apps' (Type.Ref' r) args ->
+    drop n <$> Map.lookup r vars
+    where
+      n = length args
+  _ -> Nothing
+
 checkVariance :: Type v loc -> M v loc (Maybe [Variance])
 checkVariance ty = MT \_ _ vars _ _ _ env ->
-  Success mempty . (,env) $ case ty of
-    Type.Ref' r -> Map.lookup r vars
-    Type.Apps' (Type.Ref' r) args -> drop n <$> Map.lookup r vars
-      where
-        n = length args
-    _ -> Nothing
+  Success mempty (checkVarianceWith vars ty, env)
+
+getVariances :: M v loc (Map Reference [Variance])
+getVariances = MT \_ _ vars _ _ _ env -> Success mempty (vars, env)
 
 -- Allows modifying the stored notes in a scoped way.
 -- This is based on the `pass` function in e.g. Control.Monad.Writer
@@ -1263,7 +1274,8 @@ synthesizeWanted trm@(Term.Var' v) = do
         -- which variable ot instantiate, so we ought to discard them
         -- early.
         (vs, t) <- ungeneralize' t
-        pure (discardCovariant (Set.fromList vs) t, [])
+        vars <- getVariances
+        pure (discardCovariant vars (Set.fromList vs) t, [])
 synthesizeWanted (Term.Ref' h) =
   compilerCrash $ UnannotatedReference h
 synthesizeWanted (Term.Ann' (Term.Ref' _) t)
@@ -1275,11 +1287,11 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
       t <- existentializeArrows t
       -- See note about ungeneralizing above in the Var case.
       t <- ungeneralize t
-      pure (discard t, [])
+      (,[]) <$> discard t
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
   where
     s = ABT.freeVars t
-    discard ty = discardCovariant fvs ty
+    discard ty = getVariances <&> \vars -> discardCovariant vars fvs ty
       where
         fvs = foldMap p $ ABT.freeVars ty
         p (TypeVar.Existential _ v) = Set.singleton v
@@ -1309,7 +1321,8 @@ synthesizeWanted (Term.LetRecAnnotatedTop' isTop letrec) = do
     e <- annotateLetRecBindings isTop letrec
     synthesize e
   want <- substAndDefaultWanted want ctx2
-  pure (generalizeExistentials ctx2 t, want)
+  vars <- getVariances
+  pure (generalizeExistentials ctx2 vars t, want)
 synthesizeWanted (Term.Handle' h body) = do
   -- To synthesize a handle block, we first synthesize the handler h,
   -- then push its allowed abilities onto the current ambient set when
@@ -1511,7 +1524,8 @@ synthesizeBinding top binding = do
         if top
           then do
             ctx <- retract
-            pure ((generalizeExistentials ctx tb, []), substituteSolved ctx)
+            vars <- getVariances
+            pure ((generalizeExistentials ctx vars tb, []), substituteSolved ctx)
           else do
             ctx <- retract
             -- Note: this is conservative about what we avoid
@@ -1540,7 +1554,8 @@ synthesizeBinding top binding = do
                 (repush, discard) = partitionEithers $ fmap p ctx
             appendContext repush
             markRetained keep
-            let tf = generalizeExistentials discard (applyCtx ctx tb)
+            vars <- getVariances
+            let tf = generalizeExistentials discard vars (applyCtx ctx tb)
             pure ((tf, []), substituteSolved ctx)
 
 getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
@@ -1998,8 +2013,10 @@ annotateLetRecBindings isTop letrec =
         pure (bindings, bindingTypes, vlocs)
       -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
       -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
+      vars <- getVariances
       let bindingArities = Term.arity <$> bindings
-          gen bindingType _arity = generalizeExistentials ctx2 bindingType
+          gen bindingType _arity =
+            generalizeExistentials ctx2 vars bindingType
           bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
           annotations = zipWith3 Ann vs vlocs bindingTypesGeneralized
 
@@ -2177,12 +2194,17 @@ forcedData ty = Type.freeVars ty
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
-generalizeExistentials :: (Var v, Ord loc) => [Element v loc] -> Type v loc -> Type v loc
-generalizeExistentials ctx ty0 = generalizeP pred ctx ty
+generalizeExistentials ::
+  (Var v, Ord loc) =>
+  [Element v loc] ->
+  Map Reference [Variance] ->
+  Type v loc ->
+  Type v loc
+generalizeExistentials ctx vars ty0 = generalizeP pred ctx ty
   where
     gens = Set.fromList $ mapMaybe (fmap snd . existentialP) ctx
 
-    ty = discardCovariant gens $ applyCtx ctx ty0
+    ty = discardCovariant vars gens $ applyCtx ctx ty0
     fvs = Type.freeVars ty
 
     pred e
@@ -2411,11 +2433,24 @@ defaultAbility _ = pure False
 --
 -- Expects a fully substituted type, so that it is unnecessary to
 -- check if an existential in the type has been solved.
-discardCovariant :: (Var v) => Set v -> Type v loc -> Type v loc
-discardCovariant _ ty | debugType "discardCovariant" ty = undefined
-discardCovariant gens ty =
+discardCovariant ::
+  (Var v) =>
+  Map Reference [Variance] ->
+  Set v ->
+  Type v loc ->
+  Type v loc
+discardCovariant _ _ ty | debugType "discardCovariant" ty = undefined
+discardCovariant vars gens ty =
   ABT.rewriteDown (strip $ keepVarsT True ty) ty
   where
+    keepVarsV pos (Pos, t) = keepVarsT pos t
+    keepVarsV pos (Neg, t) = keepVarsT (not pos) t
+    -- TODO: handle Any if we ever decide to have phantom variance.
+    -- In that case, no variables in a phantom position need to be kept.
+    --
+    -- Below is the invariant case, where all variables need to be kept.
+    keepVarsV _   (_, t) = foldMap exi $ Type.freeVars t
+
     keepVarsT pos (Type.Arrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
     keepVarsT pos (Type.Effect1' e o) =
@@ -2423,6 +2458,10 @@ discardCovariant gens ty =
     keepVarsT pos (Type.Effects' es) = foldMap (keepVarsE pos) es
     keepVarsT pos (Type.ForallNamed' _ t) = keepVarsT pos t
     keepVarsT pos (Type.IntroOuterNamed' _ t) = keepVarsT pos t
+    keepVarsT pos (Type.Apps' f xs)
+      | Just vs <- checkVarianceWith vars f,
+        length vs == length xs =
+          keepVarsT pos f <> foldMap (keepVarsV pos) (zip vs xs)
     keepVarsT _ t = foldMap exi $ Type.freeVars t
 
     exi (TypeVar.Existential _ v) = Set.singleton v
@@ -2466,13 +2505,20 @@ discardCovariant gens ty =
 -- but this is only used for type directed name resolution. A
 -- separate type check must pass if the candidate is allowed, which
 -- will ensure that the location has the right abilities.
-relax :: (Var v) => (Ord loc) => Type v loc -> Type v loc
-relax t = relax' True v t
+relax ::
+  (Var v) =>
+  (Ord loc) =>
+  Map Reference [Variance] ->
+  Type v loc ->
+  Type v loc
+relax vars t = evalState (relax' vars True fv t) fvs
   where
     fvs = foldMap f $ Type.freeVars t
     f (TypeVar.Existential _ v) = Set.singleton v
     f _ = mempty
-    v = ABT.freshIn fvs $ Var.inferAbility
+    fv = state \avoid ->
+      let v = ABT.freshIn avoid $ Var.inferAbility
+      in (v, Set.insert v avoid)
 
 -- The worker for `relax`.
 --
@@ -2490,24 +2536,44 @@ relax t = relax' True v t
 -- type is just `T`. However, it is undesirable to add these variables
 -- when relax' is used during variable instantiation, because it just
 -- adds ability inference ambiguity.
-relax' :: (Var v) => (Ord loc) => Bool -> v -> Type v loc -> Type v loc
-relax' nonArrow v t
-  | Type.Arrow' i o <- t =
-      Type.arrow (ABT.annotation t) i $ relax' nonArrow v o
-  | Type.ForallsNamed' vs b <- t =
-      Type.foralls loc vs $ relax' nonArrow v b
-  | Type.Effect' es r <- t,
-    Type.Arrow' i o <- r =
-      Type.effect loc es . Type.arrow (ABT.annotation t) i $ relax' nonArrow v o
-  | Type.Effect' es r <- t =
-      if any open es then t else Type.effect loc (tv : es) r
-  | nonArrow = Type.effect loc [tv] t
-  | otherwise = t
+relax' ::
+  (Monad f) =>
+  (Var v) =>
+  (Ord loc) =>
+  Map Reference [Variance] ->
+  Bool ->
+  f v ->
+  Type v loc ->
+  f (Type v loc)
+relax' vars nonArrow fv = rebuild True
   where
     open (Type.Var' (TypeVar.Existential {})) = True
     open _ = False
-    loc = ABT.annotation t
-    tv = Type.var loc (TypeVar.Existential B.Blank v)
+    ftv loc = Type.var loc . TypeVar.Existential B.Blank <$> fv
+
+    rebuild top t
+      | Type.Arrow' i o <- t =
+          Type.arrow (ABT.annotation t) i <$> rebuild False o
+      | Type.ForallsNamed' vs b <- t =
+          Type.foralls loc vs <$> rebuild False b
+      | Type.Effect' es r <- t,
+        Type.Arrow' i o <- r =
+          Type.effect loc es . Type.arrow (ABT.annotation t) i <$>
+            rebuild False o
+      | Type.Effect' es r <- t =
+          if any open es
+          then pure t
+          else ftv loc <&> \tv -> Type.effect loc (tv : es) r
+      | Type.App' f x <- t = do
+          f <- rebuild False f
+          x <- case checkVarianceWith vars f of
+            Just (Pos : _) -> rebuild False x
+            _ -> pure x
+          pure $ Type.app loc f x
+      | top, nonArrow = ftv loc <&> \tv -> Type.effect loc [tv] t
+      | otherwise = pure t
+      where
+        loc = ABT.annotation t
 
 -- Adds a mark to the checker context before calling `checkWanted`.
 -- The boolean argument is for exact ability match cases explained in
@@ -2743,8 +2809,9 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
       | Set.member v (existentials ctx)
           && notMember v (Type.freeVars t) = do
-          e <- extendExistential Var.inferAbility
-          instantiateR (relax' False e t) b v
+          vars <- getVariances
+          t <- relax' vars False (extendExistential Var.inferAbility) t
+          instantiateR t b v
     go _ (Type.Effects' es1) (Type.Effects' es2) =
       void $ subAbilities ((,) Nothing <$> es1) es2
     go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2
@@ -3518,7 +3585,8 @@ synthesizeClosed' abilities term = do
     scope (InSynthesize term) $
       t <$ subAbilities want abilities
   setContext ctx0 -- restore the initial context
-  pure $ generalizeExistentials ctx t
+  vars <- getVariances
+  pure $ generalizeExistentials ctx vars t
 
 -- Check if the given typechecking action succeeds.
 succeeds :: M v loc a -> TotalM v loc Bool
