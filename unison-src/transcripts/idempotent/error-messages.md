@@ -422,7 +422,7 @@ main2 = do
 
     Nat -> Nat -> Nat
 
-  which only accepts only 2 arguments.
+  which only accepts 2 arguments.
 
   Maybe you applied the function to too many arguments?
 

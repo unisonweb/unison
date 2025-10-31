@@ -425,7 +425,7 @@ renderTypeError e env src = case e of
             Pr.blue $ Pr.shown (length args),
             " arguments, but it has the type\n\n",
             Pr.indentN 2 $ style Type2 (renderType' env ft),
-            "\n\nwhich only accepts only ",
+            "\n\nwhich only accepts ",
             Pr.blue $ Pr.shown arity,
             maybePlural " argument" arity <> ".\n\n",
             "Maybe you applied the function to too many arguments?\n\n",
