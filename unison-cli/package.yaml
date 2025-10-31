@@ -22,7 +22,6 @@ library:
     - attoparsec
     - base
     - base64-bytestring
-    - blake3
     - bytestring
     - cmark
     - co-log-core

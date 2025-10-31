@@ -338,7 +338,13 @@ import U.Codebase.Config (AuthorName, ConfigKey)
 import U.Codebase.Config qualified as Config
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..), CommentHash (..), CommentRevisionHash, PatchHash (..))
+import U.Codebase.HashTags
+  ( BranchHash (..),
+    CausalHash (..),
+    CommentHash (..),
+    CommentRevisionHash (..),
+    PatchHash (..),
+  )
 import U.Codebase.Reference (Reference' (..))
 import U.Codebase.Reference qualified as C (Reference)
 import U.Codebase.Reference qualified as C.Reference
@@ -351,11 +357,12 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
-    CommentHashId,
-    CommentRevisionHashId,
+    CommentHashId (..),
+    CommentRevisionHashId (..),
     HashId (..),
     HashVersion,
     HistoryCommentId,
+    HistoryCommentRevisionId,
     KeyThumbprintId,
     ObjectId (..),
     PatchObjectId (..),
@@ -412,7 +419,11 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
-import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..), LatestHistoryComment)
+import Unison.HistoryComment
+  ( HistoryComment (..),
+    HistoryCommentRevision (..),
+    LatestHistoryComment,
+  )
 import Unison.KeyThumbprint (KeyThumbprint (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -637,10 +648,10 @@ expectCausalByCausalHash ch = do
   pure (hId, bhId)
 
 saveCommentHash :: CommentHash -> Transaction CommentHashId
-saveCommentHash = fmap CommentHash . saveHashHash . unCommentHash
+saveCommentHash = fmap CommentHashId . saveHashHash . unCommentHash
 
 saveCommentRevisionHash :: CommentRevisionHash -> Transaction CommentRevisionHashId
-saveCommentRevisionHash = fmap CommentRevisionHash . saveHashHash . unCommentRevisionHash
+saveCommentRevisionHash = fmap CommentRevisionHashId . saveHashHash . unCommentRevisionHash
 
 expectHashIdByHash :: Hash -> Transaction HashId
 expectHashIdByHash = expectHashId . Hash32.fromHash
@@ -4138,11 +4149,11 @@ saveSquashResult bhId chId =
 
 getLatestCausalComment ::
   CausalHashId ->
-  Transaction (Maybe (LatestHistoryComment KeyThumbprintId CausalHash CommentHash))
+  Transaction (Maybe (LatestHistoryComment KeyThumbprintId CausalHash HistoryCommentRevisionId CommentHash))
 getLatestCausalComment causalHashId =
-  queryMaybeRow @(Hash32, Hash32, Text, KeyThumbprintId, Text, Text, Time.UTCTime)
+  queryMaybeRow @(Hash32, Hash32, Text, KeyThumbprintId, HistoryCommentRevisionId, Text, Text, Time.UTCTime)
     [sql|
-      SELECT comment_hash.base32, causal_hash.base32, cc.author, cc.author_thumbprint_id, ccr.subject, ccr.contents, ccr.created_at
+      SELECT comment_hash.base32, causal_hash.base32, cc.author, cc.author_thumbprint_id, ccr.id, ccr.subject, ccr.contents, ccr.created_at
         FROM history_comments AS cc
         JOIN history_comment_revisions AS ccr ON cc.id = ccr.comment_id
         JOIN hash AS comment_hash ON comment_hash.id = cc.comment_hash_id
@@ -4151,11 +4162,12 @@ getLatestCausalComment causalHashId =
         ORDER BY ccr.created_at DESC
         LIMIT 1
     |]
-    <&> fmap \(commentHash, causalHash, author, authorThumbprint, subject, content, createdAt) ->
+    <&> fmap \(commentHash, causalHash, author, authorThumbprint, revisionId, subject, content, createdAt) ->
       HistoryCommentRevision
         { subject,
           content,
           createdAt,
+          revisionId,
           comment =
             HistoryComment
               { author,
@@ -4166,13 +4178,17 @@ getLatestCausalComment causalHashId =
               }
         }
 
-commentOnCausal :: LatestHistoryComment KeyThumbprintId CausalHashId CommentRevisionHash CommentHash -> Transaction CommentHash
+commentOnCausal :: LatestHistoryComment KeyThumbprint CausalHashId CommentRevisionHash CommentHash -> Transaction ()
 commentOnCausal
   HistoryCommentRevision
     { content,
       subject,
-      comment = HistoryComment {author, causal = causalHashId}
+      revisionId = commentRevisionHash,
+      comment = HistoryComment {author, authorThumbprint, causal = causalHashId, commentId = commentHash}
     } = do
+    commentHashId <- saveCommentHash commentHash
+    commentRevisionHashId <- saveCommentRevisionHash commentRevisionHash
+    thumbprintId <- expectPersonalKeyThumbprintId authorThumbprint
     mayExistingCommentId <-
       queryMaybeCol @HistoryCommentId
         [sql|
@@ -4184,15 +4200,15 @@ commentOnCausal
       Nothing ->
         queryOneCol @HistoryCommentId
           [sql|
-            INSERT INTO history_comments (author, causal_hash_id, created_at)
-            VALUES (:author, :causalHashId, strftime('%s', 'now', 'subsec'))
+            INSERT INTO history_comments (comment_hash_id, author_thumbprint_id, author, causal_hash_id, created_at)
+            VALUES (:commentHashId, :thumbprintId, :author, :causalHashId, strftime('%s', 'now', 'subsec'))
             RETURNING id
           |]
       Just cid -> pure cid
     execute
       [sql|
-      INSERT INTO history_comment_revisions (comment_id, subject, contents, created_at)
-      VALUES (:commentId, :subject, :content, strftime('%s', 'now', 'subsec'))
+      INSERT INTO history_comment_revisions (revision_hash_id, comment_id, subject, contents, created_at)
+      VALUES (:commentRevisionHashId, :commentId, :subject, :content, strftime('%s', 'now', 'subsec'))
     |]
 
 getAuthorName :: Transaction (Maybe AuthorName)

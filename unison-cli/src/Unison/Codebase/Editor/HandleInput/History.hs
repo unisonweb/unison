@@ -30,7 +30,7 @@ handleHistory resultsCap diffCap from = do
   history <- doHistory schLength 0 branch []
   Cli.respondNumbered history
   where
-    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe (LatestHistoryComment () () ()), Names.Diff)] -> Cli.Cli NumberedOutput
+    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe (LatestHistoryComment () () () ()), Names.Diff)] -> Cli.Cli NumberedOutput
     doHistory schLength !n b acc =
       if maybe False (n >=) resultsCap
         then do
@@ -49,10 +49,10 @@ handleHistory resultsCap diffCap from = do
             mayComment <- getComment causalHash
             let elem = (causalHash, mayComment, Branch.namesDiff b' b)
             doHistory schLength (n + 1) b' (elem : acc)
-    getComment :: CausalHash -> Cli.Cli (Maybe (LatestHistoryComment () () ()))
+    getComment :: CausalHash -> Cli.Cli (Maybe (LatestHistoryComment () () () ()))
     getComment ch = Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash ch
       Q.getLatestCausalComment causalHashId
         <&> fmap \hcr ->
           let comment = hcr.comment {authorThumbprint = (), causal = (), commentId = ()}
-           in hcr {comment = comment}
+           in hcr {comment = comment, revisionId = ()}

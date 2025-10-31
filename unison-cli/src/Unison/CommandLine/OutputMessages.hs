@@ -307,7 +307,7 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
-      displayComment :: Bool -> Maybe (LatestHistoryComment () () () ) -> [Pretty]
+      displayComment :: Bool -> Maybe (LatestHistoryComment () () () () ) -> [Pretty]
       displayComment prefixSpacer mayComment = case mayComment of
         Nothing -> []
         Just (HistoryCommentRevision {comment=HistoryComment{author}, subject, content}) ->
