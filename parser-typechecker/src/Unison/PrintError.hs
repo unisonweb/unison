@@ -355,47 +355,42 @@ renderTypeError e env src = case e of
         debugSummary note
       ]
   FunctionUnderApplied {..} ->
-    mconcat
-      [ Pr.lines
-          [ "I found a value  of type:  " <> style ErrorSite (renderType' env foundLeaf),
-            "where I expected to find:  " <> style Type2 (renderType' env expectedLeaf),
-            "\n\nIt looks like it may be a function application that's just missing these arguments:\n\n",
-            Monoid.intercalateMap ", " (style Type2 . renderType' env) needArgs
-          ],
-        "\n\n",
-        showSourceMaybes
-          src
-          [ -- these are overwriting the colored ranges for some reason?
-            --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-            -- , (,Color.ForceShow) <$> rangeForType foundType
-            -- , (,Color.ForceShow) <$> rangeForType expectedType
-            -- ,
-            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
-            (,Type2) <$> rangeForAnnotated expectedLeaf
-          ],
-        fromOverHere'
-          src
-          [styleAnnotated ErrorSite foundLeaf]
-          [styleAnnotated Type2 expectedLeaf],
-        unitHint,
-        intLiteralSyntaxTip mismatchSite expectedType,
-        debugNoteLoc
-          . mconcat
-          $ [ "\nloc debug:",
-              "\n  mismatchSite: ",
-              annotatedToEnglish mismatchSite,
-              "\n     foundType: ",
-              annotatedToEnglish foundType,
-              "\n     foundLeaf: ",
-              annotatedToEnglish foundLeaf,
-              "\n  expectedType: ",
-              annotatedToEnglish expectedType,
-              "\n  expectedLeaf: ",
-              annotatedToEnglish expectedLeaf,
-              "\n"
-            ],
-        debugSummary note
-      ]
+    let expectedTypeStr = style Type2 (renderType' env expectedLeaf)
+        actualTypeStr = style ErrorSite (renderType' env foundLeaf)
+     in mconcat
+          [ "This call-site has type " <> actualTypeStr <> ":\n",
+            showSourceMaybes src [styleAnnotated ErrorSite foundLeaf],
+            "\n\n",
+            "But I expected the type " <> expectedTypeStr <> " because of:\n",
+            showSourceMaybes
+              src
+              [ (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+                (,Type2) <$> rangeForAnnotated expectedLeaf
+              ],
+            "\n\n",
+            Pr.lines
+              [ "It looks like the function application is missing these arguments:\n",
+                Pr.indentN 2 $ Monoid.intercalateMap ", " (style Type2 . renderType' env) needArgs
+              ],
+            unitHint,
+            intLiteralSyntaxTip mismatchSite expectedType,
+            debugNoteLoc
+              . mconcat
+              $ [ "\nloc debug:",
+                  "\n  mismatchSite: ",
+                  annotatedToEnglish mismatchSite,
+                  "\n     foundType: ",
+                  annotatedToEnglish foundType,
+                  "\n     foundLeaf: ",
+                  annotatedToEnglish foundLeaf,
+                  "\n  expectedType: ",
+                  annotatedToEnglish expectedType,
+                  "\n  expectedLeaf: ",
+                  annotatedToEnglish expectedLeaf,
+                  "\n"
+                ],
+            debugSummary note
+          ]
     where
       unitHintMsg =
         "\nHint: Actions within a block must have type "
@@ -424,16 +419,16 @@ renderTypeError e env src = case e of
           ]
       arity ->
         mconcat
-          [ "It looks like this function call\n\n",
-            annotatedAsStyle Type2 src f,
+          [ "It looks like" <> style ErrorSite " this " <> "function call:\n\n",
+            annotatedAsStyle ErrorSite src f,
             "\n\nis being applied to ",
             Pr.blue $ Pr.shown (length args),
             " arguments, but it has the type\n\n",
-            style Type2 (renderType' env ft),
+            Pr.indentN 2 $ style Type2 (renderType' env ft),
             "\n\nwhich only accepts only ",
             Pr.blue $ Pr.shown arity,
             maybePlural " argument" arity <> ".\n\n",
-            "Did you apply the function to too many arguments? \n\n",
+            "Maybe you applied the function to too many arguments?\n\n",
             debugSummary note
           ]
     where
