@@ -137,8 +137,8 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(CausalHash, Maybe (LatestHistoryComment () () ()), Names.Diff)]
-      (Maybe (LatestHistoryComment () () ()), HistoryTail) -- 'origin point' of this view of history.
+      [(CausalHash, Maybe (LatestHistoryComment () () () ()), Names.Diff)]
+      (Maybe (LatestHistoryComment () () () ()), HistoryTail) -- 'origin point' of this view of history.
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
