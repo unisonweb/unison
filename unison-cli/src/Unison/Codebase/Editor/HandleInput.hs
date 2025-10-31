@@ -728,7 +728,7 @@ loop e = do
         Update2I -> handleUpdate2
         UpdateBuiltinsI -> Cli.respond NotImplemented
         UpgradeCommitI -> Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
-        UpgradeI old new -> handleUpgrade old new
+        UpgradeI libs -> handleUpgrade libs
         VersionI -> Cli.respond $ PrintVersion env.ucmVersion
 
 inputDescription :: Input -> Cli Text

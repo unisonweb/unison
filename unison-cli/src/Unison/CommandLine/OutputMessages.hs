@@ -146,7 +146,6 @@ import Unison.Syntax.NamePrinter
     prettyReferent,
     prettyShortHash,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -2017,14 +2016,21 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> onceYoureHappy baseBranch
-  UpgradeFailure baseBranch scratchFile0 old new -> do
+  UpgradeFailure baseBranch scratchFile0 names -> do
     scratchFile <- renderFileName scratchFile0
     pure $
       P.wrap
         ( "I couldn't automatically upgrade"
-            <> P.text (NameSegment.toEscapedText old)
-            <> "to"
-            <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
+            <> ( names
+                   & fmap
+                     ( \(old, new) ->
+                         P.wrap $
+                           prettyLibdepName old
+                             <> "to"
+                             <> prettyLibdepName new
+                     )
+                   & P.oxfordCommasWith "."
+               )
         )
         <> P.newline
         <> P.newline
@@ -2032,26 +2038,23 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> onceYoureHappy baseBranch
-  UpgradeSuccess old new maybeFinal ->
-    let prettyLib = P.blue . P.text . NameSegment.toEscapedText
-        prettyOld = prettyLib old
-        prettyNew = prettyLib new
-     in pure . P.wrap $
-          "I upgraded"
-            <> prettyOld
-            <> "to"
-            <> P.group (prettyNew <> ",")
-            <> case maybeFinal of
-              Nothing ->
-                "and removed"
-                  <> P.group (prettyOld <> ".")
-              Just final ->
-                "removed"
-                  <> P.group (prettyOld <> ",")
-                  <> "and renamed"
-                  <> prettyNew
-                  <> "to"
-                  <> P.group (prettyLib final <> ".")
+  UpgradeSuccess names unmanglings ->
+    pure $
+      P.wrap $
+        "I upgraded"
+          <> ( names
+                 & fmap
+                   ( \(old, new) ->
+                       let oldToNew =
+                             prettyLibdepName old
+                               <> "to"
+                               <> prettyLibdepName new
+                        in P.wrap case Map.lookup new unmanglings of
+                             Nothing -> oldToNew
+                             Just new1 -> oldToNew <> "(renamed to" <> P.group (prettyLibdepName new1 <> ")")
+                   )
+                 & P.oxfordCommasWith "."
+             )
   MergeFailure path aliceAndBob ->
     pure $
       P.lines $

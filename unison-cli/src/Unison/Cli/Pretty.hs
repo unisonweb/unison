@@ -4,11 +4,10 @@
 -- paths, and project names.
 module Unison.Cli.Pretty
   ( displayBranchHash,
-    prettyProjectPath,
-    prettyBranchRelativePath,
     prettyBase32Hex#,
     prettyBase32Hex,
     prettyBranchId,
+    prettyBranchRelativePath,
     prettyCausalHash,
     prettyDeclPair,
     prettyDeclTriple,
@@ -17,15 +16,18 @@ module Unison.Cli.Pretty
     prettyHash32,
     prettyHumanReadableTime,
     prettyLabeledDependencies,
+    prettyLibdepName,
     prettyMaybeProjectAndBranchName,
     prettyMergeSource,
     prettyMergeSourceOrTarget,
     prettyNamespaceKey,
     prettyPath,
+    prettyPath,
     prettyProjectAndBranchName,
     prettyProjectBranchName,
     prettyProjectName,
     prettyProjectNameSlash,
+    prettyProjectPath,
     prettyReadRemoteNamespace,
     prettyReadRemoteNamespaceWith,
     prettyRemoteBranchInfo,
@@ -110,6 +112,7 @@ import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.HashQualified qualified as HQ (unsafeFromVar)
 import Unison.Syntax.Name qualified as Name (unsafeParseVar)
 import Unison.Syntax.NamePrinter (SyntaxText, prettyHashQualified, styleHashQualified')
+import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
@@ -384,6 +387,10 @@ prettyLabeledDependencies ppe lds =
     ld = \case
       LD.TermReferent r -> prettyHashQualified (PPE.termNameOrHashOnly ppe r)
       LD.TypeReference r -> "type " <> prettyHashQualified (PPE.typeNameOrHashOnly ppe r)
+
+prettyLibdepName :: NameSegment -> Pretty
+prettyLibdepName =
+  P.blue . P.text . NameSegment.toEscapedText
 
 prettyUnisonFile :: forall v a. (Var v, Ord a) => PPED.PrettyPrintEnvDecl -> UF.UnisonFile v a -> P.Pretty P.ColorText
 prettyUnisonFile ppe uf@(UF.UnisonFileId datas effects terms watches) =

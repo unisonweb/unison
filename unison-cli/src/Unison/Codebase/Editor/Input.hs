@@ -217,7 +217,7 @@ data Input
   | Update2I
   | UpdateBuiltinsI
   | UpgradeCommitI
-  | UpgradeI !NameSegment !NameSegment
+  | UpgradeI ![NameSegment]
   | VersionI
   deriving (Eq, Show)
 
