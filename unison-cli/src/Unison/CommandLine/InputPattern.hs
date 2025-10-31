@@ -113,6 +113,8 @@ data TrailingParameters
     Optional [Parameter] (Maybe Parameter)
   | -- | A catch-all that requires at least one value
     OnePlus Parameter
+  | -- | A catch-all that doesn't require a value
+    ZeroPlus Parameter
 
 -- | The `Parameters` for an `InputPattern` are roughly
 --
@@ -144,16 +146,17 @@ foldParamsWithM fn z Parameters {requiredParams, trailingParams} = foldRequiredA
     foldRequiredArgs res = curry \case
       ([], as) -> case trailingParams of
         Optional optParams zeroPlus -> foldOptionalArgs res zeroPlus optParams as
+        ZeroPlus param -> foldCatchallArg res param as
         OnePlus param -> case as of
           [] -> pure $ pure (res, Parameters [] $ OnePlus param)
-          a : args -> foldCatchallArg res param $ a :| args
+          a : args -> foldCatchallArg1 res param $ a :| args
       (ps, []) -> pure $ pure (res, Parameters ps trailingParams)
       (p : ps, a : as) -> do
         (res', extraArgs) <- fn res p a
         foldRequiredArgs res' ps $ extraArgs <> as
     foldOptionalArgs res zp = curry \case
       (ps, []) -> pure $ pure (res, Parameters [] $ Optional ps zp)
-      ([], a : as) -> maybe (pure . Left) (foldCatchallArg res) zp $ a :| as
+      ([], a : as) -> maybe (pure . Left) (foldCatchallArg1 res) zp $ a :| as
       (p : ps, a : as) -> do
         (res', extraArgs) <- fn res p a
         foldOptionalArgs res' zp ps $ extraArgs <> as
@@ -163,7 +166,9 @@ foldParamsWithM fn z Parameters {requiredParams, trailingParams} = foldRequiredA
             a : args -> do
               (res', extraArgs) <- fn prevRes p a
               collectRemainingArgs res' $ extraArgs <> args
-       in collectRemainingArgs res . toList
+       in collectRemainingArgs res
+    foldCatchallArg1 res p =
+      foldCatchallArg res p . toList
 
 paramInfo :: Parameters -> Int -> Maybe (ParameterDescription, ParameterType)
 paramInfo Parameters {requiredParams, trailingParams} i =
@@ -175,6 +180,7 @@ paramInfo Parameters {requiredParams, trailingParams} i =
          in if rem < length optParams
               then pure $ optParams !! rem
               else zeroPlus
+      ZeroPlus arg -> pure arg
       OnePlus arg -> pure arg
 
 -- | `argType` gets called when the user tries to autocomplete an `i`th argument (zero-indexed).
@@ -187,6 +193,7 @@ minArgs :: Parameters -> Int
 minArgs Parameters {requiredParams, trailingParams} =
   length requiredParams + case trailingParams of
     Optional _ _ -> 0
+    ZeroPlus _ -> 0
     OnePlus _ -> 1
 
 maxArgs :: Parameters -> Maybe Int

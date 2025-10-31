@@ -50,6 +50,7 @@ import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
 import Unison.Codebase.Editor.HandleInput.BranchSquash (handleBranchSquash)
 import Unison.Codebase.Editor.HandleInput.Branches (handleBranches)
 import Unison.Codebase.Editor.HandleInput.Cancel (handleCancel)
+import Unison.Codebase.Editor.HandleInput.Config (handleConfigGet, handleConfigSet)
 import Unison.Codebase.Editor.HandleInput.DebugDefinition qualified as DebugDefinition
 import Unison.Codebase.Editor.HandleInput.DebugFoldRanges qualified as DebugFoldRanges
 import Unison.Codebase.Editor.HandleInput.DebugSynhashTerm (handleDebugSynhashTerm)
@@ -64,6 +65,8 @@ import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
 import Unison.Codebase.Editor.HandleInput.FormatFile qualified as Format
 import Unison.Codebase.Editor.HandleInput.Global qualified as Global
+import Unison.Codebase.Editor.HandleInput.History (handleHistory)
+import Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib, handleInstallLocalLib)
 import Unison.Codebase.Editor.HandleInput.LSPDebug qualified as LSPDebug
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
@@ -297,29 +300,9 @@ loop e = do
           success <- Cli.popd
           when (not success) (Cli.respond StartOfCurrentPathHistory)
         HistoryI resultsCap diffCap from -> do
-          branch <-
-            case from of
-              BranchAtSCH hash -> Cli.resolveShortCausalHash hash
-              BranchAtPath path' -> do
-                pp <- Cli.resolvePath' path'
-                Cli.getBranchFromProjectPath pp
-              BranchAtProjectPath pp -> Cli.getBranchFromProjectPath pp
-          schLength <- Cli.runTransaction Codebase.branchHashLength
-          history <- liftIO (doHistory schLength 0 branch [])
-          Cli.respondNumbered history
-          where
-            doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Names.Diff)] -> IO NumberedOutput
-            doHistory schLength !n b acc =
-              if maybe False (n >=) resultsCap
-                then pure (History diffCap schLength acc (PageEnd (Branch.headHash b) n))
-                else case Branch._history b of
-                  Causal.One {} -> pure (History diffCap schLength acc (EndOfLog $ Branch.headHash b))
-                  Causal.Merge _ _ _ tails ->
-                    pure (History diffCap schLength acc (MergeTail (Branch.headHash b) $ Map.keys tails))
-                  Causal.Cons _ _ _ tail -> do
-                    b' <- fmap Branch.Branch $ snd tail
-                    let elem = (Branch.headHash b, Branch.namesDiff b' b)
-                    doHistory schLength (n + 1) b' (elem : acc)
+          handleHistory resultsCap diffCap from
+        HistoryCommentI toAnnotate -> do
+          handleHistoryComment toAnnotate
         UndoI -> do
           rootBranch <- Cli.getCurrentProjectRoot
           (_, prev) <-
@@ -736,9 +719,11 @@ loop e = do
         BranchRenameI name -> handleBranchRename name
         BranchesI name -> handleBranches name
         CloneI remoteNames localNames -> handleClone remoteNames localNames
+        ConfigGetI key -> handleConfigGet key
+        ConfigSetI key value -> handleConfigSet key value
         BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
         ReleaseDraftI semver -> handleReleaseDraft semver
-        UpgradeI old new -> handleUpgrade old new
+        UpgradeI libs -> handleUpgrade libs
         UpgradeCommitI ->
           Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
         LibInstallI remind libdep -> handleInstallLib remind libdep
@@ -817,6 +802,8 @@ inputDescription input =
     BranchesI {} -> wat
     ClearI {} -> wat
     CloneI {} -> wat
+    ConfigSetI {} -> wat
+    ConfigGetI {} -> wat
     CreateMessage {} -> wat
     DebugClearWatchI {} -> wat
     DebugDoctorI {} -> wat
@@ -842,6 +829,7 @@ inputDescription input =
     HistoryI {} -> wat
     IOTestAllI -> wat
     IOTestI {} -> wat
+    HistoryCommentI {} -> wat
     LibInstallI {} -> wat
     LibInstallLocalI {} -> wat
     ListDependenciesI {} -> wat
