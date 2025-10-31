@@ -15,6 +15,8 @@ module Unison.CommandLine.InputPatterns
     cd,
     clear,
     clone,
+    configSet,
+    configGet,
     createAuthor,
     debugClearWatchCache,
     debugDoctor,
@@ -68,6 +70,7 @@ module Unison.CommandLine.InputPatterns
     help,
     helpTopics,
     history,
+    historyComment,
     ioTest,
     ioTestAll,
     libInstallInputPattern,
@@ -155,6 +158,7 @@ import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
+import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -1674,6 +1678,36 @@ history =
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (BranchAtPath Path.Current')
       src : _ -> Input.HistoryI (Just 10) (Just 10) <$> handleBranchIdArg src
 
+historyComment :: InputPattern
+historyComment =
+  InputPattern
+    "history.comment"
+    ["comment", "comment.history"]
+    I.Visible
+    (Parameters [] $ Optional [("hash or branch to create a comment after", namespaceOrProjectBranchArg config)] Nothing)
+    ( P.wrapColumn2
+        [ ( makeExample historyComment [],
+            "Creates a comment after the head of the current branch."
+          ),
+          ( makeExample historyComment ["/main"],
+            "Creates a comment after the head of the `main` branch."
+          )
+        ]
+    )
+    \case
+      [] -> pure $ Input.HistoryCommentI Nothing
+      [src] -> do
+        target <- handleBranchId2Arg src
+        pure $ Input.HistoryCommentI (Just target)
+      _ -> wrongArgsLength "at most one argument" []
+  where
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
+
 forkLocal :: InputPattern
 forkLocal =
   InputPattern
@@ -2450,6 +2484,63 @@ globalReflog =
     )
     . const
     $ pure Input.ShowGlobalReflogI
+
+configSet :: InputPattern
+configSet =
+  InputPattern
+    { patternName = "config.set",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "The"
+                <> makeExample' configSet
+                <> "command sets the configuration key to the provided value. E.g.",
+            "",
+            (makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "\"Author Name\""]),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+          ],
+      parse = \case
+        (key : value : []) -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          value' <- unsupportedStructuredArgument configSet "a config value" value
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
+            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
+        args -> wrongArgsLength "exactly two arguments" args
+    }
+
+configGet :: InputPattern
+configGet =
+  InputPattern
+    { patternName = "config.get",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "Gets the value of the provided configuration key. E.g.",
+            "",
+            (makeExample configGet [P.text $ Config.keyToText Config.AuthorNameKey]),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+          ],
+      parse = \case
+        [key] -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
+            Just pkey -> Right $ Input.ConfigGetI pkey
+        args -> wrongArgsLength "exactly one argument" args
+    }
 
 edit :: InputPattern
 edit =
@@ -3629,6 +3720,8 @@ validInputs =
       cd,
       clear,
       clone,
+      configGet,
+      configSet,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,
@@ -3691,6 +3784,7 @@ validInputs =
       help,
       helpTopics,
       history,
+      historyComment,
       ioTest,
       ioTestAll,
       libInstallInputPattern,
@@ -3889,6 +3983,15 @@ directoryPathArg =
   ParameterType
     { typeName = "directory-path",
       suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
+
+configKeyArg :: ParameterType
+configKeyArg =
+  ParameterType
+    { typeName = "config-key",
+      suggestions = \input _cb _http _p -> configKeyCompletion input,
       fzfResolver = Nothing,
       isStructured = False
     }

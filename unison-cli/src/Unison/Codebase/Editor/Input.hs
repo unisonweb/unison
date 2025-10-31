@@ -34,6 +34,7 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
+import U.Codebase.Config (ConfigKey)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
@@ -127,6 +128,8 @@ data Input
   | CancelI
   | ClearI
   | CloneI ProjectAndBranchNames (Maybe ProjectAndBranchNames)
+  | ConfigSetI ConfigKey Text
+  | ConfigGetI ConfigKey
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | CreateMessage (P.Pretty P.ColorText)
   | DebugClearWatchI
@@ -161,6 +164,8 @@ data Input
   | FindShallowI Path'
   | ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
   | HistoryI (Maybe Int {- cap on number of results -}) (Maybe Int {- cap on diff elements shown -}) BranchId
+  | -- An optional causal hash or branch to annotate.
+    HistoryCommentI (Maybe BranchId2 {- causal to annotate -})
   | IOTestAllI
   | IOTestI (HQ.HashQualified Name)
   | LibInstallI
