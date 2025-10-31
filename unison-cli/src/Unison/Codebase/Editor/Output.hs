@@ -28,7 +28,9 @@ import Servant.Client qualified as Servant (ClientError)
 import System.Console.Haskeline qualified as Completion
 import System.Exit (ExitCode)
 import U.Codebase.Branch.Diff (NameChanges)
+import U.Codebase.Config (ConfigKey)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.HistoryComment (HistoryComment)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -131,8 +133,8 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(CausalHash, Names.Diff)]
-      HistoryTail -- 'origin point' of this view of history.
+      [(CausalHash, Maybe (HistoryComment () ()), Names.Diff)]
+      (Maybe (HistoryComment () ()), HistoryTail) -- 'origin point' of this view of history.
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -454,6 +456,11 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | InvalidCommentTarget Text
+  | CommentedSuccessfully
+  | CommentAborted
+  | AuthorNameRequired
+  | ConfigValueGet ConfigKey (Maybe Text)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -695,6 +702,11 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  InvalidCommentTarget {} -> True
+  CommentedSuccessfully {} -> False
+  CommentAborted {} -> True
+  AuthorNameRequired {} -> True
+  ConfigValueGet {} -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

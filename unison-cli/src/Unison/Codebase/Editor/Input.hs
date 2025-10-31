@@ -33,6 +33,7 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
 import Data.These (These)
+import U.Codebase.Config (ConfigKey)
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
 import Unison.Codebase.Path (Path, Path')
 import Unison.Codebase.Path qualified as Path
@@ -163,6 +164,8 @@ data Input
   | -- First `Maybe Int` is cap on number of results, if any
     -- Second `Maybe Int` is cap on diff elements shown, if any
     HistoryI (Maybe Int) (Maybe Int) BranchId
+  | -- An optional causal hash or branch to annotate.
+    HistoryCommentI (Maybe BranchId2 {- causal to annotate -})
   | -- execute an IO thunk with args; boolean indicates profiling
     ExecuteI ProfileSpec (HQ.HashQualified Name) [String]
   | -- save the result of a previous Execute
@@ -245,6 +248,8 @@ data Input
   | EditDependentsI !(HQ.HashQualified Name)
   | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | CancelI
+  | ConfigSetI ConfigKey Text
+  | ConfigGetI ConfigKey
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

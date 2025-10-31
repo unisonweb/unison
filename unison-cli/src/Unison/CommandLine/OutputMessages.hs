@@ -1,7 +1,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
 
@@ -39,8 +38,10 @@ import System.Exit (ExitCode (..))
 import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
+import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -288,12 +289,12 @@ notifyNumbered = \case
           P.lines
             [ note $ "The most recent namespace hash is immediately below this message.",
               "",
-              P.sep "\n\n" [go i (toSCH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              P.sep "\n\n" [displayCausal i (toSCH h) mayComment diff | (i, (h, mayComment, diff)) <- zip [1 ..] reversedHistory],
               "",
               tailMsg
             ]
         branchHashes :: [CausalHash]
-        branchHashes = (fst <$> reversedHistory) <> tailHashes
+        branchHashes = (view _1 <$> reversedHistory) <> tailHashes
      in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
@@ -301,42 +302,62 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
+      displayComment :: Bool -> Maybe (HistoryComment () ()) -> [Pretty]
+      displayComment prefixSpacer mayComment = case mayComment of
+        Nothing -> []
+        Just (HistoryComment {author, subject, content}) ->
+          Monoid.whenM prefixSpacer [""]
+            <> [(P.text "⊙ " <> P.bold (P.text (author <> " 💬")))]
+            <> [ P.indent (P.blue "  ┃ ") (P.text subject)
+               ]
+            <> Monoid.whenM
+              (not (Text.null content))
+              [ (P.blue "  ┃ "),
+                P.indent (P.blue "  ┃ ") (P.text content)
+              ]
+            <> [ ""
+               ]
       handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
-        E.EndOfLog h ->
-          ( P.lines
-              [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
-              ],
+        (mayComment, E.EndOfLog h) ->
+          ( P.lines $
+              displayComment True mayComment
+                <> [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
+                   ],
             [h]
           )
-        E.MergeTail h hs ->
-          ( P.lines
-              [ P.wrap $ "This segment of history starts with a merge." <> ex,
-                "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                "⑃",
-                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
-              ],
+        (mayComment, E.MergeTail h hs) ->
+          ( P.lines $
+              displayComment True mayComment
+                <> [ P.wrap $ "This segment of history starts with a merge." <> ex,
+                     "",
+                     "⊙ " <> showNum n <> prettySCH (toSCH h)
+                   ]
+                <> [ "⑃",
+                     P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
+                   ],
             h : hs
           )
-        E.PageEnd h _n ->
-          ( P.lines
-              [ P.wrap $ "There's more history before the versions shown here." <> ex,
-                "",
-                dots,
-                "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                ""
-              ],
+        (mayComment, E.PageEnd h _n) ->
+          ( P.lines $
+              displayComment True mayComment
+                <> [ P.wrap $ "There's more history before the versions shown here." <> ex,
+                     "",
+                     dots,
+                     "",
+                     "⊙ " <> showNum n <> prettySCH (toSCH h)
+                   ],
             [h]
           )
       dots = "⠇"
-      go i sch diff =
-        P.lines
-          [ "⊙ " <> showNum i <> prettySCH sch,
-            "",
-            P.indentN 2 $ prettyDiff diff
-          ]
+      displayCausal i sch mayComment diff =
+        P.lines $
+          displayComment False mayComment
+            <> [ "⊙ " <> showNum i <> prettySCH sch,
+                 ""
+               ]
+            <> [ P.indentN 2 $ prettyDiff diff
+               ]
       ex =
         "Use"
           <> IP.makeExample IP.history ["#som3n4m3space"]
@@ -2346,6 +2367,29 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  CommentedSuccessfully -> pure $ P.bold "Done."
+  CommentAborted -> pure (P.wrap "Annotation aborted.")
+  AuthorNameRequired ->
+    pure $
+      P.hang "Please configure your a display name for your user." $
+        P.lines
+          [ "You can do so with: ",
+            IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
+          ]
+  ConfigValueGet key value ->
+    case value of
+      Nothing ->
+        pure $
+          P.wrap $
+            P.text (Config.keyToText key)
+              <> " is unset"
+      Just value ->
+        pure $
+          P.wrap $
+            P.text (Config.keyToText key)
+              <> " = "
+              <> P.text ("\"" <> value <> "\"")
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $
@@ -3477,7 +3521,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       maybe
         (P.red "type not found")
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ'.toHQ hq))
-    phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
+    phq' :: HQ'.HashQualified Name -> Pretty = P.syntaxToColor . prettyHashQualified'
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
