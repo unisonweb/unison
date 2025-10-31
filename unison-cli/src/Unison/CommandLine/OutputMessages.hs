@@ -307,7 +307,7 @@ notifyNumbered = \case
         Nothing -> []
         Just (HistoryComment {author, subject, content}) ->
           Monoid.whenM prefixSpacer [""]
-            <> [(P.text "⊙ " <> P.bold (P.text (author <> " 💬")))]
+            <> [(P.text "⊙ " <> P.bold (P.text author))]
             <> [ P.indent (P.blue "  ┃ ") (P.text subject)
                ]
             <> Monoid.whenM
