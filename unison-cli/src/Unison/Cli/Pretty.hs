@@ -22,7 +22,6 @@ module Unison.Cli.Pretty
     prettyMergeSourceOrTarget,
     prettyNamespaceKey,
     prettyPath,
-    prettyPath,
     prettyProjectAndBranchName,
     prettyProjectBranchName,
     prettyProjectName,
