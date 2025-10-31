@@ -432,7 +432,7 @@ applyingNonFunction = do
     Ex.pathStart
     _synthApp <- Ex.inSynthesizeApp
     (_, f, ft, args) <- Ex.inFunctionCall
-    let expectedArgCount = Type.arity ft
+    let expectedArgCount = Type.arityIgnoringEffects ft
         foundArgCount = length args
     -- unexpectedArgLoc = ABT.annotation arg
     whenM (expectedArgCount < foundArgCount) $ pure (f, ft, args)

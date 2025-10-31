@@ -406,10 +406,10 @@ renderTypeError e env src = case e of
           _ -> False
         _ -> False
   NotFunctionApplication {..} ->
-    case Type.arity ft of
+    case Type.arityIgnoringEffects ft of
       0 ->
         mconcat
-          [ "It looks like this expression is being called like a function:\n\n",
+          [ "It looks like" <> style ErrorSite " this " <> "expression is being called like a function:\n\n",
             annotatedAsStyle ErrorSite src f,
             "\n\nbut the thing being applied has the type:\n\n",
             style Type2 (renderType' env ft),

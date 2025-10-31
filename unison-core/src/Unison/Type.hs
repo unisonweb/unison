@@ -102,8 +102,18 @@ arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
-arity (Effect' _ o) = arity o
 arity _ = 0
+
+-- | Like 'arity', but counts arguments past effect boundaries.
+-- E.g. for this type: `a ->{e} b -> c`,
+--   'arity' returns 1.
+--   'arityIgnoringEffects' returns 2.
+arityIgnoringEffects :: Type v a -> Int
+arityIgnoringEffects (ForallNamed' _ body) = arityIgnoringEffects body
+arityIgnoringEffects (Arrow' _ o) = 1 + arityIgnoringEffects o
+arityIgnoringEffects (Ann' a _) = arityIgnoringEffects a
+arityIgnoringEffects (Effect' _ o) = arityIgnoringEffects o
+arityIgnoringEffects _ = 0
 
 -- some smart patterns
 pattern Ref' :: TypeReference -> ABT.Term F v a
