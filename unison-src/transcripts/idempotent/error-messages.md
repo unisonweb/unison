@@ -368,3 +368,62 @@ a ! b = 1
     - An `ability` declaration, like unique ability Foo where ...
     - A `type` declaration, like structural type Optional a = None | Some a
 ```
+
+### Function under-application
+
+``` unison :error
+main : 'Nat
+main = do
+  multiply x y = x Nat.* y
+  add x y = x Nat.+ y
+  doMath x y = add (multiply x y)
+  doMath 1 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  This call-site has type Nat -> Nat:
+      5 |   doMath x y = add (multiply x y)
+
+
+  But I expected the type Nat because of:
+      1 | main : 'Nat
+      2 | main = do
+      3 |   multiply x y = x Nat.* y
+      4 |   add x y = x Nat.+ y
+
+
+  It looks like the function application is missing these arguments:
+
+    Nat
+```
+
+### Function over-application
+
+``` unison :error
+main2 : 'Nat
+main2 = do
+  multiply x y = x Nat.* y
+  add x y = x Nat.+ y
+  doMath x y = add (multiply x y) 2 3
+  doMath 3 4
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  It looks like this function call:
+
+      5 |   doMath x y = add (multiply x y) 2 3
+
+
+  is being applied to 3 arguments, but it has the type
+
+    Nat -> Nat -> Nat
+
+  which only accepts only 2 arguments.
+
+  Maybe you applied the function to too many arguments?
+
+```
