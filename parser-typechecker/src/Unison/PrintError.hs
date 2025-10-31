@@ -533,12 +533,7 @@ renderTypeError e env src = case e of
         "\n\n",
         showSourceMaybes
           src
-          [ -- these are overwriting the colored ranges for some reason?
-            --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-            -- , (,Color.ForceShow) <$> rangeForType foundType
-            -- , (,Color.ForceShow) <$> rangeForType expectedType
-            -- ,
-            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+          [ (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
             (,Type2) <$> rangeForAnnotated expectedLeaf
           ],
         fromOverHere'
