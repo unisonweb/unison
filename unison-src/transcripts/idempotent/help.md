@@ -94,6 +94,21 @@
                        Said execution will have the effect of
                        running `!main`.
 
+  config.get
+  Gets the value of the provided configuration key. E.g.
+
+  `config.get author.name`
+
+  Configuration options include: author.name
+
+  config.set
+  The `config.set` command sets the configuration key to the
+  provided value. E.g.
+
+  `config.set author.name "Author Name"`
+
+  Configuration options include: author.name
+
   create.author
   `create.author alicecoder "Alice McGee"` creates `alicecoder`
   values in `metadata.authors` and `metadata.copyrightHolders.`
@@ -497,6 +512,12 @@
                                 namespace with the given hash.
                                 The full hash must be provided.
 
+  history.comment (or comment, comment.history)
+  `history.comment`        Creates a comment after the head of
+                           the current branch.
+  `history.comment /main`  Creates a comment after the head of
+                           the `main` branch.
+
   io.test (or test.io)
   `io.test mytest`  Runs `!mytest`, where `mytest` is a delayed
                     test that can use the `IO` and `Exception`
@@ -577,8 +598,8 @@
                                                            `lib.myproject_dev`
 
   lib.upgrade (or upgrade.lib, upgrade)
-  `upgrade old new` upgrades library dependency `lib.old` to
-  `lib.new`, and, if successful, deletes `lib.old`.
+  `upgrade old new [old2 new2...]` upgrades library dependency
+  `lib.old` to `lib.new` (and `lib.old2` to `lib.new2`...).
 
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current

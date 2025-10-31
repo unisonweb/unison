@@ -234,6 +234,10 @@ module U.Codebase.Sqlite.Queries
     expectCurrentProjectPath,
     setCurrentProjectPath,
 
+    -- * History Comments
+    commentOnCausal,
+    getLatestCausalComment,
+
     -- * migrations
     runCreateSql,
     addTempEntityTables,
@@ -255,6 +259,7 @@ module U.Codebase.Sqlite.Queries
     addUpdateBranchTable,
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
+    addHistoryComments,
 
     -- ** schema version
     currentSchemaVersion,
@@ -284,6 +289,12 @@ module U.Codebase.Sqlite.Queries
     x2cTerm,
     x2cDecl,
     checkBranchExistsForCausalHash,
+
+    -- * Config
+    getAuthorName,
+    setAuthorName,
+    getConfigValue,
+    setConfigValue,
 
     -- * Types
     TextPathSegments,
@@ -320,6 +331,8 @@ import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import U.Codebase.Config (AuthorName, ConfigKey)
+import U.Codebase.Config qualified as Config
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -337,6 +350,7 @@ import U.Codebase.Sqlite.DbId
     CausalHashId (..),
     HashId (..),
     HashVersion,
+    HistoryCommentId,
     ObjectId (..),
     PatchObjectId (..),
     ProjectBranchId (..),
@@ -352,6 +366,7 @@ import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
     LocalIds,
@@ -414,7 +429,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 22
+currentSchemaVersion = 23
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -499,6 +514,10 @@ addDerivedDependentsByDependencyIndex =
 addUpgradeBranchTable :: Transaction ()
 addUpgradeBranchTable =
   executeStatements $(embedProjectStringFile "sql/019-add-upgrade-branch-table.sql")
+
+addHistoryComments :: Transaction ()
+addHistoryComments =
+  executeStatements $(embedProjectStringFile "sql/020-add-history-comments.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -4102,4 +4121,74 @@ saveSquashResult bhId chId =
         :chId
         )
       ON CONFLICT DO NOTHING
+    |]
+
+getLatestCausalComment ::
+  CausalHashId ->
+  Transaction (Maybe (HistoryComment CausalHashId HistoryCommentId))
+getLatestCausalComment causalHashId =
+  queryMaybeRow @(HistoryCommentId, CausalHashId, Text, Text, Text)
+    [sql|
+      SELECT cc.id, cc.causal_hash_id, cc.author, ccr.subject, ccr.contents
+        FROM history_comments AS cc
+        JOIN history_comment_revisions AS ccr ON cc.id = ccr.comment_id
+        WHERE cc.causal_hash_id = :causalHashId
+        ORDER BY ccr.created_at DESC
+        LIMIT 1
+    |]
+    <&> fmap \(commentId, causal, author, subject, content) ->
+      HistoryComment {author, subject, content, commentId, causal}
+
+commentOnCausal :: HistoryComment CausalHashId () -> Transaction ()
+commentOnCausal HistoryComment {author, content, subject, causal = causalHashId} = do
+  mayExistingCommentId <-
+    queryMaybeCol @HistoryCommentId
+      [sql|
+      SELECT id
+        FROM history_comments
+        WHERE causal_hash_id = :causalHashId
+    |]
+  commentId <- case mayExistingCommentId of
+    Nothing ->
+      queryOneCol @HistoryCommentId
+        [sql|
+            INSERT INTO history_comments (author, causal_hash_id, created_at)
+            VALUES (:author, :causalHashId, strftime('%s', 'now', 'subsec'))
+            RETURNING id
+          |]
+    Just cid -> pure cid
+  execute
+    [sql|
+      INSERT INTO history_comment_revisions (comment_id, subject, contents, created_at)
+      VALUES (:commentId, :subject, :content, strftime('%s', 'now', 'subsec'))
+    |]
+
+getAuthorName :: Transaction (Maybe AuthorName)
+getAuthorName = do
+  r <- getConfigValue Config.AuthorNameKey <&> fmap Config.mkAuthorName
+  case r of
+    Just (Left err) -> error $ "getAuthorName: " <> Text.unpack err
+    Just (Right authorName) -> pure (Just authorName)
+    Nothing -> pure Nothing
+
+setAuthorName :: AuthorName -> Transaction ()
+setAuthorName authorName =
+  setConfigValue Config.AuthorNameKey (Config.unAuthorName authorName)
+
+setConfigValue :: ConfigKey -> Text -> Transaction ()
+setConfigValue key value =
+  execute
+    [sql|
+      INSERT INTO config (key, value)
+      VALUES (:key, :value)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    |]
+
+getConfigValue :: ConfigKey -> Transaction (Maybe Text)
+getConfigValue key =
+  queryMaybeCol
+    [sql|
+      SELECT value
+      FROM config
+      WHERE key = :key
     |]

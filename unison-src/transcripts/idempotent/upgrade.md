@@ -54,7 +54,7 @@ proj/main> debug.fuzzy-options upgrade old _
 ``` ucm
 proj/main> upgrade old new
 
-  I upgraded old to new, and removed old.
+  I upgraded old to new.
 
 proj/main> ls lib
 
@@ -311,7 +311,7 @@ myproject/main> update
 
 myproject/main> upgrade old new
 
-  I upgraded old to new, and removed old.
+  I upgraded old to new.
 
 myproject/main> view mything
 
@@ -444,7 +444,7 @@ foo/main> update
 
 foo/main> upgrade old new
 
-  I upgraded old to new, and removed old.
+  I upgraded old to new.
 
 foo/main> view mything
 
@@ -492,8 +492,7 @@ scratch/main> update
 
 scratch/main> upgrade dep dep__2
 
-  I upgraded dep to dep__2, removed dep, and renamed dep__2 to
-  dep.
+  I upgraded dep to dep__2 (renamed to dep).
 
 scratch/main> ls lib
 
@@ -537,13 +536,309 @@ scratch/main> update
 
 scratch/main> upgrade hello dep__2
 
-  I upgraded hello to dep__2, and removed hello.
+  I upgraded hello to dep__2.
 
 scratch/main> ls lib
 
   1. builtin. (667 terms, 103 types)
   2. dep.     (1 term)
   3. dep__2.  (1 term)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+# Upgrading more than one library at once
+
+Two libraries can be upgraded simultaneously.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo_1.foo = 17
+lib.foo_2.foo = 18
+lib.bar_1.bar = 19
+lib.bar_2.bar = 20
+
+thing = foo_1.foo + bar_1.bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar_1.bar : Nat
+  + lib.bar_2.bar : Nat
+  + lib.foo_1.foo : Nat
+  + lib.foo_2.foo : Nat
+  + thing         : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
+
+  I upgraded foo_1 to foo_2 and bar_1 to bar_2.
+
+scratch/main> view thing
+
+  thing : Nat
+  thing =
+    use Nat +
+    foo + bar
+
+scratch/main> ls lib
+
+  1. bar_2.   (1 term)
+  2. builtin. (667 terms, 103 types)
+  3. foo_2.   (1 term)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+If such a an upgrade fails, the branch name doesn't contain all of the dependency names, though.
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo_1.foo = 17
+lib.foo_2.foo = 18
+lib.bar_1.bar = 19
+lib.bar_2.bar = +20
+
+thing = foo_1.foo + bar_1.bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar_1.bar : Nat
+  + lib.bar_2.bar : Int
+  + lib.foo_1.foo : Nat
+  + lib.foo_2.foo : Nat
+  + thing         : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` ucm :error
+scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
+
+  I couldn't automatically upgrade foo_1 to foo_2 and
+  bar_1 to bar_2.
+
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
+
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
+```
+
+``` unison :added-by-ucm scratch.u
+-- The definitions below no longer typecheck after upgrading.
+-- Please fix the errors, then run `update`.
+
+thing : Nat
+thing =
+  use Nat +
+  foo + bar
+
+```
+
+``` ucm
+scratch/upgrade> ls lib
+
+  1. bar_2.   (1 term)
+  2. builtin. (667 terms, 103 types)
+  3. foo_2.   (1 term)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+After a successful multi-lib upgrade, we do perform the same "name unmangling" step, but a sort of best-effort,
+one-at-a-time way, because it's entirely possible to have collisions on the target best name (e.g. both `foo__2` and
+`foo__3` want to be renamed to `foo`).
+
+Here's an example of two mangled names becoming unmangled successfully:
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo.foo = 17
+lib.foo__2.foo = 18
+lib.bar.bar = 19
+lib.bar__2.bar = 20
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar.bar    : Nat
+  + lib.bar__2.bar : Nat
+  + lib.foo.foo    : Nat
+  + lib.foo__2.foo : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade foo foo__2 bar bar__2
+
+  I upgraded foo to foo__2 (renamed to foo) and
+  bar to bar__2 (renamed to bar).
+
+scratch/main> view foo bar
+
+  lib.bar.bar : Nat
+  lib.bar.bar = 20
+
+  lib.foo.foo : Nat
+  lib.foo.foo = 18
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+And here's an example of two mangled names fighting over unmangling to the same name, where only one succeeds:
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo.foo = 17
+lib.foo__2.foo = 18
+lib.bar.bar = 19
+lib.foo__3.bar = 20
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar.bar    : Nat
+  + lib.foo.foo    : Nat
+  + lib.foo__2.foo : Nat
+  + lib.foo__3.bar : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> upgrade foo foo__2 bar foo__3
+
+  I upgraded foo to foo__2 (renamed to foo) and bar to foo__3.
+
+scratch/main> view foo bar
+
+  lib.foo.foo : Nat
+  lib.foo.foo = 18
+
+  lib.foo__3.bar : Nat
+  lib.foo__3.bar = 20
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+# A couple simple cases
+
+``` ucm :hide
+scratch/main> builtins.merge lib.builtin
+```
+
+``` unison
+lib.foo_1.foo = 17
+lib.foo_2.foo = 18
+lib.bar_1.bar = 19
+lib.bar_2.bar = 20
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.bar_1.bar : Nat
+  + lib.bar_2.bar : Nat
+  + lib.foo_1.foo : Nat
+  + lib.foo_2.foo : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Odd number of arguments:
+
+``` ucm
+scratch/main> upgrade foo_1 foo_2 bar_1
+
+  `lib.upgrade` takes an even number of arguments.
+```
+
+Upgrading a dependency to itself:
+
+``` ucm
+scratch/main> upgrade foo_1 foo_1
+
+  I can't upgrade foo_1 to itself!
+```
+
+Note that specifying an upgrade multiple times *is* allowed; the old-new pairs are just de-duped:
+
+``` ucm
+scratch/main> upgrade foo_1 foo_2 foo_1 foo_2
+
+  I upgraded foo_1 to foo_2.
 ```
 
 ``` ucm :hide
