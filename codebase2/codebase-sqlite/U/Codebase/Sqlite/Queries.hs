@@ -339,7 +339,7 @@ import U.Codebase.Config (AuthorName, ConfigKey)
 import U.Codebase.Config qualified as Config
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
-import U.Codebase.HashTags (BranchHash (..), CausalHash (..), CommentHash (..), PatchHash (..))
+import U.Codebase.HashTags (BranchHash (..), CausalHash (..), CommentHash (..), CommentRevisionHash, PatchHash (..))
 import U.Codebase.Reference (Reference' (..))
 import U.Codebase.Reference qualified as C (Reference)
 import U.Codebase.Reference qualified as C.Reference
@@ -352,6 +352,8 @@ import U.Codebase.Sqlite.DbId
   ( BranchHashId (..),
     BranchObjectId (..),
     CausalHashId (..),
+    CommentHashId,
+    CommentRevisionHashId,
     HashId (..),
     HashVersion,
     HistoryCommentId,
@@ -412,7 +414,7 @@ import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.Hash32.Orphans.Sqlite ()
 import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..), LatestHistoryComment)
-import Unison.KeyThumbprint (KeyThumbprint(..))
+import Unison.KeyThumbprint (KeyThumbprint (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
@@ -634,6 +636,12 @@ expectCausalByCausalHash ch = do
   hId <- expectCausalHashIdByCausalHash ch
   bhId <- expectCausalValueHashId hId
   pure (hId, bhId)
+
+saveCommentHash :: CommentHash -> Transaction CommentHashId
+saveCommentHash = fmap CommentHash . saveHashHash . unCommentHash
+
+saveCommentRevisionHash :: CommentRevisionHash -> Transaction CommentRevisionHashId
+saveCommentRevisionHash = fmap CommentRevisionHash . saveHashHash . unCommentRevisionHash
 
 expectHashIdByHash :: Hash -> Transaction HashId
 expectHashIdByHash = expectHashId . Hash32.fromHash
@@ -4159,7 +4167,7 @@ getLatestCausalComment causalHashId =
               }
         }
 
-commentOnCausal :: LatestHistoryComment KeyThumbprintId CausalHashId () -> Transaction ()
+commentOnCausal :: LatestHistoryComment KeyThumbprintId CausalHashId CommentRevisionHash CommentHash -> Transaction CommentHash
 commentOnCausal
   HistoryCommentRevision
     { content,
@@ -4244,8 +4252,9 @@ resolveRemoteProjectBranchNames (ProjectAndBranch localProjectId localBranchId) 
 expectPersonalKeyThumbprintId :: KeyThumbprint -> Transaction KeyThumbprintId
 expectPersonalKeyThumbprintId thumbprint = do
   let thumbprintText = thumbprintToText thumbprint
-  mayExisting <- queryMaybeCol
-    [sql|
+  mayExisting <-
+    queryMaybeCol
+      [sql|
     SELECT id
     FROM key_thumbprints
     WHERE thumbprint = :thumbprintText

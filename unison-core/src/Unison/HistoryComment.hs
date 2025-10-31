@@ -8,8 +8,8 @@ where
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
 
-type LatestHistoryComment thumbprint causal commentId =
-  HistoryCommentRevision UTCTime (HistoryComment UTCTime thumbprint causal commentId)
+type LatestHistoryComment thumbprint causal revisionId commentId =
+  HistoryCommentRevision revisionId UTCTime (HistoryComment UTCTime thumbprint causal commentId)
 
 data HistoryComment createdAt thumbprint causal commentId = HistoryComment
   { author :: Text,
@@ -21,11 +21,12 @@ data HistoryComment createdAt thumbprint causal commentId = HistoryComment
   }
   deriving (Show, Eq, Functor)
 
-data HistoryCommentRevision createdAt comment = HistoryCommentRevision
+data HistoryCommentRevision revisionId createdAt comment = HistoryCommentRevision
   { subject :: Text,
     content :: Text,
     createdAt :: createdAt,
     -- The comment this is a revision for.
-    comment :: comment
+    comment :: comment,
+    revisionId :: revisionId
   }
   deriving (Show, Eq, Functor)
