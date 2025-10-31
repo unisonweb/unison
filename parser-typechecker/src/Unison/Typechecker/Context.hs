@@ -2449,7 +2449,7 @@ discardCovariant vars gens ty =
     -- In that case, no variables in a phantom position need to be kept.
     --
     -- Below is the invariant case, where all variables need to be kept.
-    keepVarsV _   (_, t) = foldMap exi $ Type.freeVars t
+    keepVarsV _ (_, t) = foldMap exi $ Type.freeVars t
 
     keepVarsT pos (Type.Arrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
@@ -2518,7 +2518,7 @@ relax vars t = evalState (relax' vars True fv t) fvs
     f _ = mempty
     fv = state \avoid ->
       let v = ABT.freshIn avoid $ Var.inferAbility
-      in (v, Set.insert v avoid)
+       in (v, Set.insert v avoid)
 
 -- The worker for `relax`.
 --
@@ -2558,12 +2558,12 @@ relax' vars nonArrow fv = rebuild True
           Type.foralls loc vs <$> rebuild False b
       | Type.Effect' es r <- t,
         Type.Arrow' i o <- r =
-          Type.effect loc es . Type.arrow (ABT.annotation t) i <$>
-            rebuild False o
+          Type.effect loc es . Type.arrow (ABT.annotation t) i
+            <$> rebuild False o
       | Type.Effect' es r <- t =
           if any open es
-          then pure t
-          else ftv loc <&> \tv -> Type.effect loc (tv : es) r
+            then pure t
+            else ftv loc <&> \tv -> Type.effect loc (tv : es) r
       | Type.App' f x <- t = do
           f <- rebuild False f
           x <- case checkVarianceWith vars f of
