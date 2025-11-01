@@ -62,6 +62,7 @@ library
       Unison.Codebase.SqliteCodebase.Conversions
       Unison.Codebase.SqliteCodebase.Migrations
       Unison.Codebase.SqliteCodebase.Migrations.Helpers
+      Unison.Codebase.SqliteCodebase.Migrations.MigrateHistoryComments
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17
       Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2
