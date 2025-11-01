@@ -390,7 +390,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
           Result (Notes v loc) (Maybe (Context.Suggestion v loc))
         resolve fuzzyNameMatch inferredType (NamedReference fqn foundType replace) =
           -- We found a name that matches or is similar. Check the type matches too.
-          case Context.isSubtype (TypeVar.liftType foundType) (Context.relax inferredType) of
+          case Context.isSubtype (TypeVar.liftType foundType) (Context.relax (variances env) inferredType) of
             Left bug -> Nothing <$ compilerBug bug
             -- Create a suggestion based on name and type similarity.
             Right typeMatches ->

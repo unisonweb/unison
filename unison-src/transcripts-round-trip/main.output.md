@@ -339,7 +339,7 @@ fix_4258 x y z =
 fix_4258_example : ()
 fix_4258_example = fix_4258 1 () 2
 
-fix_4340 : HandlerWebSocket (Nat ->{g, Abort} Text) y z p q
+fix_4340 : HandlerWebSocket (Nat ->{Abort} Text) y z p q
 fix_4340 = HandlerWebSocket cases
   1 -> "hi sdflkj sdlfkjsdflkj sldfkj sldkfj sdf asdlkfjs dlfkj sldfkj sdf"
   _ -> abort
@@ -531,7 +531,7 @@ longlines1 =
         "This has to laksdjf alsdkfj alskdjf asdf be a long enough string to force a line break"
         ())
 
-longlines2 : (Text, '{g} Bytes)
+longlines2 : (Text, 'Bytes)
 longlines2 =
   ( "adsf"
   , do

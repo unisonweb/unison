@@ -139,8 +139,7 @@ After adding to the codebase, here's the rewritten source:
     (i ->{g} o)
     -> Nat
     -> Rewrites
-      ( RewriteTerm Nat Nat,
-        RewriteTerm (i ->{g, g1} o) (i ->{g} o))
+      (RewriteTerm Nat Nat, RewriteTerm (i ->{g} o) (i ->{g} o))
   rule1 f x =
     use Nat +
     @rewrite
