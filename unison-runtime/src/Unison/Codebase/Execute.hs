@@ -62,7 +62,7 @@ execute codebase runtime mainPath =
     case mt of
       MainTerm.NotFound s -> throwError . UnstructuredError $ "Not found: " <> HQ.toText s
       MainTerm.BadType s _ -> throwError . UnstructuredError $ HQ.toText s <> " is not of type '{IO} ()"
-      MainTerm.Success _ tm _ -> do
+      MainTerm.Success _ _ tm _ -> do
         let codeLookup = codebaseToCodeLookup codebase
             ppe = PPE.empty
         (liftIO $ Runtime.evaluateTerm codeLookup ppe NoProf runtime tm) >>= \case

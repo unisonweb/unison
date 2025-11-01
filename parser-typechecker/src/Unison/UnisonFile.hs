@@ -37,6 +37,7 @@ module Unison.UnisonFile
     Unison.UnisonFile.rewrite,
     prepareRewrite,
     namespaceBindings,
+    toDefnsIdsByName,
   )
 where
 
@@ -57,10 +58,12 @@ import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -157,13 +160,13 @@ termBindings uf =
   Map.foldrWithKey (\k (a, t) b -> (k, a, t) : b) [] uf.terms
 
 -- backwards compatibility with the old data type
-dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration v a)
+dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, DataDeclaration v a)
 dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
 
-effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration v a)
+effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
-hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
+hashTerms :: TypecheckedUnisonFile v a -> Map v (a, TermReference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
@@ -489,3 +492,26 @@ typeNamespaceBindings uf =
   where
     datas = Map.keysSet uf.dataDeclarationsId'
     effs = Map.keysSet uf.effectDeclarationsId'
+
+-- | View the top-level definitions of a typechecked unison file as a map from name to ref id (throwing away
+-- constructors, as well as term and type bodies).
+toDefnsIdsByName :: forall a v. (Var v) => TypecheckedUnisonFile v a -> DefnsF (Map Name) TermReferenceId TypeReferenceId
+toDefnsIdsByName file =
+  Defns
+    { terms = Map.foldlWithKey' f Map.empty file.hashTermsId,
+      types = Map.union (g file.dataDeclarationsId') (g file.effectDeclarationsId')
+    }
+  where
+    f ::
+      Map Name TermReferenceId ->
+      v ->
+      (a, TermReferenceId, Maybe WatchKind, Term v a, Type v a) ->
+      Map Name TermReferenceId
+    f acc var (_, ref, wk, _, _) =
+      if WatchKind.watchKindShouldBeStoredInDatabase wk
+        then Map.insert (Name.unsafeParseVar var) ref acc
+        else acc
+
+    g :: Map v (TypeReferenceId, decl) -> Map Name TypeReferenceId
+    g =
+      Map.foldlWithKey' (\acc var (ref, _) -> Map.insert (Name.unsafeParseVar var) ref acc) Map.empty

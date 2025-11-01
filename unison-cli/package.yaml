@@ -17,6 +17,7 @@ library:
     - ListLike
     - aeson >= 2.0.0.0
     - aeson-pretty
+    - algebraic-graphs
     - ansi-terminal
     - attoparsec
     - base

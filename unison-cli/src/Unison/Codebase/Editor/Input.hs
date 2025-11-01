@@ -248,6 +248,7 @@ data Input
   | EditDependentsI !(HQ.HashQualified Name)
   | BranchSquashI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | CancelI
+  | DebugDependentsGraph
   | ConfigSetI ConfigKey Text
   | ConfigGetI ConfigKey
   deriving (Eq, Show)
