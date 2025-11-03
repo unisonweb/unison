@@ -133,6 +133,7 @@ data Input
   | CreateAuthorI NameSegment {- identifier -} Text {- name -}
   | CreateMessage (P.Pretty P.ColorText)
   | DebugClearWatchI
+  | DebugDependentsGraph
   | DebugDoctorI
   | DebugDumpNamespaceSimpleI
   | DebugDumpNamespacesI

@@ -19,6 +19,7 @@ module Unison.CommandLine.InputPatterns
     configGet,
     createAuthor,
     debugClearWatchCache,
+    debugDependentsGraph,
     debugDoctor,
     debugDumpNamespace,
     debugDumpNamespaceSimple,
@@ -3026,6 +3027,17 @@ debugClearWatchCache =
     . const
     $ pure Input.DebugClearWatchI
 
+debugDependentsGraph :: InputPattern
+debugDependentsGraph =
+  InputPattern
+    { patternName = "debug.dependents-graph",
+      aliases = [],
+      visibility = I.Hidden,
+      params = noParams,
+      help = "Show dependents graph for the current project",
+      parse = \_ -> pure Input.DebugDependentsGraph
+    }
+
 debugDoctor :: InputPattern
 debugDoctor =
   InputPattern
@@ -3726,6 +3738,7 @@ validInputs =
       debugAliasTermForce,
       debugAliasTypeForce,
       debugClearWatchCache,
+      debugDependentsGraph,
       debugDoctor,
       debugDumpNamespace,
       debugDumpNamespaceSimple,
