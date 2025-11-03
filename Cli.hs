@@ -2,7 +2,6 @@ module Unison.MCP.Cli
   ( handleInputMCP,
     ppForProjectContext,
     cliToMCP,
-    virtualSourceName,
   )
 where
 
@@ -25,7 +24,6 @@ import Unison.Codebase.Editor.Input (Event, Input)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.CommandLine (defaultLoadSourceFile, defaultWriteSourceFile)
 import Unison.CommandLine.OutputMessages qualified as Output
 import Unison.MCP.Types
 import Unison.MCP.Types qualified as MCP
@@ -38,9 +36,6 @@ import UnliftIO.IO qualified as IO
 import UnliftIO.STM
 import UnliftIO.Temporary (withSystemTempFile)
 import Prelude hiding (readFile, writeFile)
-
-virtualSourceName :: Text
-virtualSourceName = "<mcp-virtual-source>"
 
 data CliOutput = CliOutput
   { sourceCodeUpdates :: [Text],
@@ -127,16 +122,13 @@ cliToMCP projCtx onError cli = do
         atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
         pure nargs
 
-  let writeSource sourceName content replace = do
-        if sourceName == virtualSourceName
-          then
-            if replace
-              then do
-                atomically $ writeTVar sourceCodeUpdatesVar (Seq.singleton content)
-              else do
-                atomically $ modifyTVar sourceCodeUpdatesVar (<> Seq.singleton content)
+  let loadSource = error "loadSource is not implemented for the MCP server."
+  let writeSource _sourceName content replace = do
+        if replace
+          then do
+            atomically $ writeTVar sourceCodeUpdatesVar (Seq.singleton content)
           else do
-            defaultWriteSourceFile sourceName content replace
+            atomically $ modifyTVar sourceCodeUpdatesVar (<> Seq.singleton content)
 
   seedRef <- liftIO $ newIORef (0 :: Int)
   let cliEnv =
@@ -147,7 +139,7 @@ cliToMCP projCtx onError cli = do
             generateUniqueName = do
               i <- atomicModifyIORef' seedRef \i -> let !i' = i + 1 in (i', i)
               pure (Parser.uniqueBase32Namegen (Random.drgNewSeed (Random.seedFromInteger (fromIntegral i)))),
-            loadSource = defaultLoadSourceFile,
+            loadSource,
             lspCheckForChanges = \_ -> pure (),
             writeSource,
             notify,
