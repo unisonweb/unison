@@ -262,6 +262,7 @@ module U.Codebase.Sqlite.Queries
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
     addHistoryComments,
+    addHistoryCommentHashing,
 
     -- ** schema version
     currentSchemaVersion,
@@ -449,7 +450,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 23
+currentSchemaVersion = 25
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -538,6 +539,10 @@ addUpgradeBranchTable =
 addHistoryComments :: Transaction ()
 addHistoryComments =
   executeStatements $(embedProjectStringFile "sql/020-add-history-comments.sql")
+
+addHistoryCommentHashing :: Transaction ()
+addHistoryCommentHashing =
+  executeStatements $(embedProjectStringFile "sql/021-hash-history-comments.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
