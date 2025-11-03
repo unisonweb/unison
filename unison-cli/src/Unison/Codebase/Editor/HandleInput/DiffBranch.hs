@@ -39,6 +39,7 @@ import Unison.DataDeclaration (Decl, DeclOrBuiltin)
 import Unison.DeclCoherencyCheck (asOneRandomIncoherentDeclReason)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge qualified as Merge
+import Unison.Merge.DiffOp qualified as Merge.DiffOp
 import Unison.Merge.ThreeWay qualified as Merge.ThreeWay
 import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
 import Unison.Merge.TwoWay qualified as Merge.TwoWay
@@ -186,58 +187,58 @@ handleDiffBranch aliceArg bobArg = do
       hydratedDefns =
         newlyHydratedDefns <> diffblob.hydratedNarrowedDefns
 
-  -- Make a "libdeps diffs" blob suitable for rendering, which merely maps libdep name to its causal hash. `Nothing`
-  -- means the libdep was deleted.
-  let libdepsDiffs :: Merge.ThreeWay (Map NameSegment (Maybe CausalHash))
-      libdepsDiffs =
-        diffblob.libdepsDiffs
-          & fmap
-            ( Map.merge
-                -- If this libdep only exists in the lca, but not alice/bob, that means alice/bob just didn't touch it.
-                -- But the other party did – that's how it exists in the lca blob! So, we still want it in both
-                -- renderings.
-                (Map.mapMissing \_ -> Just)
-                -- If this libdep only exists in alice/bob, not lca, it's clearly an add
-                ( Map.mapMissing \_ -> \case
-                    Merge.DiffOp'Add libdep -> Just (Branch.headHash libdep)
-                    -- these are impossible
-                    Merge.DiffOp'Update _ -> error "expected Add"
-                    Merge.DiffOp'Delete _ -> error "expected Add"
-                )
-                -- If this libdep exists in both lca and alice/bob, it's clearly not an add
-                ( Map.zipWithMatched \_ _ -> \case
-                    Merge.DiffOp'Update libdeps -> Just (Branch.headHash libdeps.new)
-                    Merge.DiffOp'Delete _ -> Nothing
-                    -- impossible
-                    Merge.DiffOp'Add _ -> error "expected Update or Delete"
-                )
-                lcaLibdepsDiff
-            )
-          & Merge.TwoWay.toThreeWay (Map.map Just lcaLibdepsDiff)
-        where
-          -- The LCA libdeps diff is the causal hashes of every libdep updated or deleted by one party
-          lcaLibdepsDiff :: Map NameSegment CausalHash
-          lcaLibdepsDiff =
-            namespaces.lca
-              & view Branch.libdeps_
-              & (`Map.restrictKeys` deletedAndUpdatedLibdepsNames)
-              & Map.map Branch.headHash
-
-          -- Identify the names of the libdeps that were deleted or updated on alice & bob.
-          deletedAndUpdatedLibdepsNames :: Set NameSegment
-          deletedAndUpdatedLibdepsNames =
-            foldMap
-              ( Map.foldMapWithKey \name -> \case
-                  Merge.DiffOp'Add _ -> Set.empty
-                  Merge.DiffOp'Update _ -> Set.singleton name
-                  Merge.DiffOp'Delete _ -> Set.singleton name
-              )
-              diffblob.libdepsDiffs
-
   maybeDifftoolResult <-
     liftIO (lookupEnv "UCM_DIFFTOOL") >>= \case
       Nothing -> pure Nothing
       Just difftool0 -> do
+        -- Make a "libdeps diffs" blob suitable for rendering in files, which merely maps libdep name to its causal
+        -- hash. `Nothing` means the libdep was deleted.
+        let libdepsDiffs :: Merge.ThreeWay (Map NameSegment (Maybe CausalHash))
+            libdepsDiffs =
+              diffblob.libdepsDiffs
+                & fmap
+                  ( Map.merge
+                      -- If this libdep only exists in the lca, but not alice/bob, that means alice/bob just didn't
+                      -- touch it. But the other party did – that's how it exists in the lca blob! So, we still want it
+                      -- in both renderings.
+                      (Map.mapMissing \_ -> Just)
+                      -- If this libdep only exists in alice/bob, not lca, it's clearly an add
+                      ( Map.mapMissing \_ -> \case
+                          Merge.DiffOp'Add libdep -> Just (Branch.headHash libdep)
+                          -- these are impossible
+                          Merge.DiffOp'Update _ -> error "expected Add"
+                          Merge.DiffOp'Delete _ -> error "expected Add"
+                      )
+                      -- If this libdep exists in both lca and alice/bob, it's clearly not an add
+                      ( Map.zipWithMatched \_ _ -> \case
+                          Merge.DiffOp'Update libdeps -> Just (Branch.headHash libdeps.new)
+                          Merge.DiffOp'Delete _ -> Nothing
+                          -- impossible
+                          Merge.DiffOp'Add _ -> error "expected Update or Delete"
+                      )
+                      lcaLibdepsDiff
+                  )
+                & Merge.TwoWay.toThreeWay (Map.map Just lcaLibdepsDiff)
+              where
+                -- The LCA libdeps diff is the causal hashes of every libdep updated or deleted by one party
+                lcaLibdepsDiff :: Map NameSegment CausalHash
+                lcaLibdepsDiff =
+                  namespaces.lca
+                    & view Branch.libdeps_
+                    & (`Map.restrictKeys` deletedAndUpdatedLibdepsNames)
+                    & Map.map Branch.headHash
+
+                -- Identify the names of the libdeps that were deleted or updated on alice & bob.
+                deletedAndUpdatedLibdepsNames :: Set NameSegment
+                deletedAndUpdatedLibdepsNames =
+                  foldMap
+                    ( Map.foldMapWithKey \name -> \case
+                        Merge.DiffOp'Add _ -> Set.empty
+                        Merge.DiffOp'Update _ -> Set.singleton name
+                        Merge.DiffOp'Delete _ -> Set.singleton name
+                    )
+                    diffblob.libdepsDiffs
+
         makeTempFilename <-
           makeMakeTempFilename
 
@@ -366,6 +367,7 @@ handleDiffBranch aliceArg bobArg = do
     Output.ShowBranchDiff
       args
       ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.ThreeWay.forgetLca namespaces)
+      (Map.map (Merge.DiffOp.map Branch.headHash) <$> diffblob.libdepsDiffs)
       diffs
       maybeDifftoolResult
 
