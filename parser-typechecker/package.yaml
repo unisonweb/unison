@@ -20,6 +20,7 @@ library:
     - bytestring
     - concurrent-output
     - containers >= 0.6.3
+    - cryptonite
     - errors
     - extra
     - filelock
@@ -30,6 +31,7 @@ library:
     - hashtables
     - lens
     - megaparsec
+    - memory
     - mmorph
     - mtl
     - murmur-hash

@@ -35,6 +35,8 @@ module U.Codebase.Sqlite.Queries
     expectCausalHash,
     expectBranchHashForCausalHash,
     saveBranchHash,
+    saveHistoryCommentHash,
+    saveHistoryCommentRevisionHash,
 
     -- * hash_object table
     saveHashObject,
@@ -647,11 +649,11 @@ expectCausalByCausalHash ch = do
   bhId <- expectCausalValueHashId hId
   pure (hId, bhId)
 
-saveCommentHash :: HistoryCommentHash -> Transaction CommentHashId
-saveCommentHash = fmap CommentHashId . saveHashHash . unHistoryCommentHash
+saveHistoryCommentHash :: HistoryCommentHash -> Transaction CommentHashId
+saveHistoryCommentHash = fmap CommentHashId . saveHashHash . unHistoryCommentHash
 
-saveCommentRevisionHash :: HistoryCommentRevisionHash -> Transaction CommentRevisionHashId
-saveCommentRevisionHash = fmap CommentRevisionHashId . saveHashHash . unHistoryCommentRevisionHash
+saveHistoryCommentRevisionHash :: HistoryCommentRevisionHash -> Transaction CommentRevisionHashId
+saveHistoryCommentRevisionHash = fmap CommentRevisionHashId . saveHashHash . unHistoryCommentRevisionHash
 
 expectHashIdByHash :: Hash -> Transaction HashId
 expectHashIdByHash = expectHashId . Hash32.fromHash
@@ -4186,8 +4188,8 @@ commentOnCausal
       revisionId = commentRevisionHash,
       comment = HistoryComment {author, authorThumbprint, causal = causalHashId, commentId = commentHash}
     } = do
-    commentHashId <- saveCommentHash commentHash
-    commentRevisionHashId <- saveCommentRevisionHash commentRevisionHash
+    commentHashId <- saveHistoryCommentHash commentHash
+    commentRevisionHashId <- saveHistoryCommentRevisionHash commentRevisionHash
     thumbprintId <- expectPersonalKeyThumbprintId authorThumbprint
     mayExistingCommentId <-
       queryMaybeCol @HistoryCommentId

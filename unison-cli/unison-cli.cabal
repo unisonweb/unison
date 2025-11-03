@@ -115,7 +115,6 @@ library
       Unison.Codebase.Editor.StructuredArgument
       Unison.Codebase.Editor.UCMVersion
       Unison.Codebase.Editor.UriParser
-      Unison.Codebase.HistoryComments.Hashing
       Unison.Codebase.Transcript
       Unison.Codebase.Transcript.Parser
       Unison.Codebase.Transcript.Runner
@@ -292,7 +291,6 @@ library
     , unison-core
     , unison-core1
     , unison-hash
-    , unison-hashing-v2
     , unison-merge
     , unison-parser-typechecker
     , unison-prelude
