@@ -2687,6 +2687,16 @@ checkWanted exact want (Term.If' cond t f) ty = do
       checkWanted exact want cond . Type.boolean $ loc cond
   want <- scope (InIfBody $ loc t) $ checkWanted exact want t ty
   scope (InIfBody $ loc f) $ checkWanted exact want f ty
+checkWanted exact want (Term.List' es) lty
+  | Type.App' (Type.Ref' r) te <- lty,
+    r == Type.listRef =
+      Foldable.foldlM (\want e -> checkWanted exact want e te) want es
+  | Type.Var' (TypeVar.Existential _ v) <- lty = do
+      ev <- extendExistential v
+      let te = existentialp (loc lty) ev
+      subtype (Type.app' (Type.ref (loc lty) Type.listRef) te) lty
+      let f want e = checkWanted exact want e =<< applyM te
+      Foldable.foldlM f want es
 checkWanted _ want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
