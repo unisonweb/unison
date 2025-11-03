@@ -31,7 +31,7 @@ hashAllHistoryComments = do
     SELECT id, causal_hash.base32, author, thumbprint.thumbprint, created_at
       FROM history_comments
       JOIN hash causal_hash ON history_comments.causal_hash_id = causal_hash.id
-      JOIN key_thumbprint thumbprint ON history_comments.author_thumbprint_id = thumbprint.id
+      JOIN key_thumbprints thumbprint ON history_comments.author_thumbprint_id = thumbprint.id
     |]
   for_ historyComments $ \(HistoryCommentId commentId, causalHash, author, authorThumbprint, createdAt) -> do
     let historyComment =
