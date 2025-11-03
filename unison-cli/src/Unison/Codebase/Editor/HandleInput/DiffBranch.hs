@@ -5,6 +5,7 @@ where
 
 import Control.Lens (mapped, preview)
 import Control.Monad.Reader (ask)
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -22,6 +23,7 @@ import Unison.Cli.DirectoryUtils (makeMakeTempFilename)
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Pretty (prettyCausalHash, prettyLibdepName)
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Cli.UpdateUtils qualified as UpdateUtils
 import Unison.Codebase qualified as Codebase
@@ -39,7 +41,9 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge qualified as Merge
 import Unison.Merge.ThreeWay qualified as Merge.ThreeWay
 import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
+import Unison.Merge.TwoWay qualified as Merge.TwoWay
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.NamesUtils qualified as NamesUtils
 import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
@@ -182,6 +186,54 @@ handleDiffBranch aliceArg bobArg = do
       hydratedDefns =
         newlyHydratedDefns <> diffblob.hydratedNarrowedDefns
 
+  -- Make a "libdeps diffs" blob suitable for rendering, which merely maps libdep name to its causal hash. `Nothing`
+  -- means the libdep was deleted.
+  let libdepsDiffs :: Merge.ThreeWay (Map NameSegment (Maybe CausalHash))
+      libdepsDiffs =
+        diffblob.libdepsDiffs
+          & fmap
+            ( Map.merge
+                -- If this libdep only exists in the lca, but not alice/bob, that means alice/bob just didn't touch it.
+                -- But the other party did – that's how it exists in the lca blob! So, we still want it in both
+                -- renderings.
+                (Map.mapMissing \_ -> Just)
+                -- If this libdep only exists in alice/bob, not lca, it's clearly an add
+                ( Map.mapMissing \_ -> \case
+                    Merge.DiffOp'Add libdep -> Just (Branch.headHash libdep)
+                    -- these are impossible
+                    Merge.DiffOp'Update _ -> error "expected Add"
+                    Merge.DiffOp'Delete _ -> error "expected Add"
+                )
+                -- If this libdep exists in both lca and alice/bob, it's clearly not an add
+                ( Map.zipWithMatched \_ _ -> \case
+                    Merge.DiffOp'Update libdeps -> Just (Branch.headHash libdeps.new)
+                    Merge.DiffOp'Delete _ -> Nothing
+                    -- impossible
+                    Merge.DiffOp'Add _ -> error "expected Update or Delete"
+                )
+                lcaLibdepsDiff
+            )
+          & Merge.TwoWay.toThreeWay (Map.map Just lcaLibdepsDiff)
+        where
+          -- The LCA libdeps diff is the causal hashes of every libdep updated or deleted by one party
+          lcaLibdepsDiff :: Map NameSegment CausalHash
+          lcaLibdepsDiff =
+            namespaces.lca
+              & view Branch.libdeps_
+              & (`Map.restrictKeys` deletedAndUpdatedLibdepsNames)
+              & Map.map Branch.headHash
+
+          -- Identify the names of the libdeps that were deleted or updated on alice & bob.
+          deletedAndUpdatedLibdepsNames :: Set NameSegment
+          deletedAndUpdatedLibdepsNames =
+            foldMap
+              ( Map.foldMapWithKey \name -> \case
+                  Merge.DiffOp'Add _ -> Set.empty
+                  Merge.DiffOp'Update _ -> Set.singleton name
+                  Merge.DiffOp'Delete _ -> Set.singleton name
+              )
+              diffblob.libdepsDiffs
+
   maybeDifftoolResult <-
     liftIO (lookupEnv "UCM_DIFFTOOL") >>= \case
       Nothing -> pure Nothing
@@ -212,7 +264,7 @@ handleDiffBranch aliceArg bobArg = do
         exitCode <-
           liftIO do
             for_
-              ( (,,,,)
+              ( (,,,,,)
                   <$> filenames
                   <*> ( diffblob.declNameLookups
                           & over #lca (PartialDeclNameLookup.toDeclNameLookup Name.unsafeParseText)
@@ -221,11 +273,12 @@ handleDiffBranch aliceArg bobArg = do
                   <*> namespaces
                   <*> diffblob.defns
                   <*> changedBuiltinDefns
+                  <*> libdepsDiffs
               )
-              \(name, declNameLookup, namespace, defns, builtinDefns) ->
+              \(name, declNameLookup, namespace, defns, builtinDefns, libdeps) ->
                 env.writeSource
                   name
-                  (renderUnisonFile declNameLookup namespace defns builtinDefns hydratedDefns)
+                  (renderUnisonFile declNameLookup namespace libdeps defns builtinDefns hydratedDefns)
                   True
             let createProcess = (Process.shell (Text.unpack difftool)) {Process.delegate_ctlc = True}
             Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
@@ -309,13 +362,12 @@ handleDiffBranch aliceArg bobArg = do
               types = (newTypes diff, updatedTypes diff, deletedTypes diff)
             }
 
-  Cli.respond
-    ( Output.ShowBranchDiff
-        args
-        ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.ThreeWay.forgetLca namespaces)
-        diffs
-        maybeDifftoolResult
-    )
+  Cli.respond $
+    Output.ShowBranchDiff
+      args
+      ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.ThreeWay.forgetLca namespaces)
+      diffs
+      maybeDifftoolResult
 
 resolveDiffBranchArg ::
   (forall void. Output -> Sqlite.Transaction void) ->
@@ -337,26 +389,29 @@ mangleDiffBranchArg = \case
   DiffBranchArg'Branch branch -> projectBranchNameToValidProjectBranchNameText branch.branch
   DiffBranchArg'Hash hash -> Text.Builder.text (ShortCausalHash.toText hash)
 
-renderDefinitions ::
-  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) ->
-  DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText) ->
-  Pretty ColorText
-renderDefinitions builtinDefns nonBuiltinDefns =
-  zipDefnsWith Map.union Map.union builtinDefns nonBuiltinDefns
-    & (\defns -> Map.toList defns.terms ++ Map.toList defns.types)
-    & sortAlphabeticallyOn fst
-    & foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
-
 renderUnisonFile ::
   (Monoid a, Var v) =>
   DeclNameLookup ->
   Branch0 m ->
+  Map NameSegment (Maybe CausalHash) ->
   UnconflictedLocalDefnsView ->
   DefnsF (Map Name) Text Text ->
   Defns (Map TermReferenceId (Term v a, Type v a)) (Map TypeReferenceId (Decl v a)) ->
   Text
-renderUnisonFile declNameLookup namespace defns builtinDefns hydratedDefns =
-  let builtinDefns1 :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
+renderUnisonFile declNameLookup namespace libdeps defns builtinDefns hydratedDefns =
+  let renderedLibdeps :: Pretty ColorText
+      renderedLibdeps =
+        libdeps
+          & Map.toList
+          & sortAlphabeticallyOn fst
+          & map
+            ( \case
+                (libdep, Nothing) -> "-- lib." <> prettyLibdepName libdep <> " ="
+                (libdep, Just hash) -> "-- lib." <> prettyLibdepName libdep <> " = " <> prettyCausalHash hash
+            )
+          & Pretty.lines
+
+      builtinDefns1 :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
       builtinDefns1 =
         let f =
               Map.mapWithKey
@@ -378,4 +433,11 @@ renderUnisonFile declNameLookup namespace defns builtinDefns hydratedDefns =
               & UpdateUtils.nameHydratedRefIds2 defns.defns
               & over (#terms . mapped) snd
           )
-   in Pretty.toPlain 80 (renderDefinitions builtinDefns1 nonBuiltinDefns)
+
+      renderedDefns :: Pretty ColorText
+      renderedDefns =
+        zipDefnsWith Map.union Map.union builtinDefns1 nonBuiltinDefns
+          & (\defns -> Map.toList defns.terms ++ Map.toList defns.types)
+          & sortAlphabeticallyOn fst
+          & foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+   in Pretty.toPlain 80 (Pretty.sepNonEmpty "\n\n" [renderedLibdeps, renderedDefns])
