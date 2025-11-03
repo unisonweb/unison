@@ -75,6 +75,7 @@ import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.ColorText (Color)
 import Unison.Util.ColorText qualified as Color
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
@@ -332,14 +333,6 @@ renderTypeError e env src = case e of
               " expression ",
               "need to have the same type."
             ]
-  NotFunctionApplication {..} ->
-    mconcat
-      [ "This looks like a function call, but with a ",
-        style Type1 (renderType' env ft),
-        " where the function should be.  Are you missing an operator?\n\n",
-        annotatedAsStyle Type1 src f,
-        debugSummary note
-      ]
   ActionRestrictionFailure {..} ->
     mconcat
       [ Pr.lines
@@ -361,6 +354,87 @@ renderTypeError e env src = case e of
           ],
         debugSummary note
       ]
+  FunctionUnderApplied {..} ->
+    let expectedTypeStr = style Type2 (renderType' env expectedLeaf)
+        actualTypeStr = style ErrorSite (renderType' env foundLeaf)
+     in mconcat
+          [ "This call-site has type " <> actualTypeStr <> ":\n",
+            showSourceMaybes src [styleAnnotated ErrorSite foundLeaf],
+            "\n\n",
+            "But I expected the type " <> expectedTypeStr <> " because of:\n",
+            showSourceMaybes
+              src
+              [ (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+                (,Type2) <$> rangeForAnnotated expectedLeaf
+              ],
+            "\n\n",
+            Pr.lines
+              [ "It looks like the function application is missing these arguments:\n",
+                Pr.indentN 2 $ Monoid.intercalateMap ", " (style Type2 . renderType' env) needArgs
+              ],
+            unitHint,
+            intLiteralSyntaxTip mismatchSite expectedType,
+            debugNoteLoc
+              . mconcat
+              $ [ "\nloc debug:",
+                  "\n  mismatchSite: ",
+                  annotatedToEnglish mismatchSite,
+                  "\n     foundType: ",
+                  annotatedToEnglish foundType,
+                  "\n     foundLeaf: ",
+                  annotatedToEnglish foundLeaf,
+                  "\n  expectedType: ",
+                  annotatedToEnglish expectedType,
+                  "\n  expectedLeaf: ",
+                  annotatedToEnglish expectedLeaf,
+                  "\n"
+                ],
+            debugSummary note
+          ]
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
+          _ -> False
+        _ -> False
+  NotFunctionApplication {..} ->
+    case Type.arityIgnoringEffects ft of
+      0 ->
+        mconcat
+          [ "It looks like" <> style ErrorSite " this " <> "expression is being called like a function:\n\n",
+            annotatedAsStyle ErrorSite src f,
+            "\n\nbut the thing being applied has the type:\n\n",
+            style Type2 (renderType' env ft),
+            "\n\nWhich doesn't expect any arguments.",
+            "\n\n",
+            debugSummary note
+          ]
+      arity ->
+        mconcat
+          [ "It looks like" <> style ErrorSite " this " <> "function call:\n\n",
+            annotatedAsStyle ErrorSite src f,
+            "\n\nis being applied to ",
+            Pr.blue $ Pr.shown (length args),
+            " arguments, but it has the type\n\n",
+            Pr.indentN 2 $ style Type2 (renderType' env ft),
+            "\n\nwhich only accepts ",
+            Pr.blue $ Pr.shown arity,
+            maybePlural " argument" arity <> ".\n\n",
+            "Maybe you applied the function to too many arguments?\n\n",
+            debugSummary note
+          ]
+    where
+      maybePlural word n
+        | n == 1 = word
+        | otherwise = word <> "s"
   FunctionApplication {..} ->
     let fte = Type.removePureEffects False ft
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
@@ -454,12 +528,7 @@ renderTypeError e env src = case e of
         "\n\n",
         showSourceMaybes
           src
-          [ -- these are overwriting the colored ranges for some reason?
-            --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-            -- , (,Color.ForceShow) <$> rangeForType foundType
-            -- , (,Color.ForceShow) <$> rangeForType expectedType
-            -- ,
-            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+          [ (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
             (,Type2) <$> rangeForAnnotated expectedLeaf
           ],
         fromOverHere'

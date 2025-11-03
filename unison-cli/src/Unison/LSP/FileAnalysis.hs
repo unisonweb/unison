@@ -284,6 +284,7 @@ analyseNotes fileUri ppe src notes = do
               TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
               TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
               TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+              TypeError.FunctionUnderApplied {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
               TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
