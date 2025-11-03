@@ -3618,7 +3618,7 @@ upgrade =
       params =
         Parameters
           [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)]
-          (ZeroPlus ("dependency", dependencyArg)),
+          (Optional [] (Just ("dependency", dependencyArg))),
       help =
         P.wrap $
           "`upgrade old new [old2 new2...]` upgrades library dependency `lib.old` to `lib.new` (and `lib.old2` to `lib.new2`...).",
