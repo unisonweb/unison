@@ -2681,6 +2681,12 @@ checkWanted _ want e@(Term.Match' scrut cases) t = do
     PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled ->
       pure ()
   pure want
+checkWanted exact want (Term.If' cond t f) ty = do
+  want <-
+    scope InIfCond .
+      checkWanted exact want cond . Type.boolean $ loc cond
+  want <- scope (InIfBody $ loc t) $ checkWanted exact want t ty
+  scope (InIfBody $ loc f) $ checkWanted exact want f ty
 checkWanted _ want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
