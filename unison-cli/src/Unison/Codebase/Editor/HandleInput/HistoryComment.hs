@@ -1,20 +1,11 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) where
 
 import Control.Monad.Reader
-import Crypto.Hash qualified as CH
-import Data.ByteArray qualified as BA
-import Data.ByteString.Builder qualified as Builder
-import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
-import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX qualified as Time
 import Text.RawString.QQ (r)
 import U.Codebase.Config qualified as Config
-import U.Codebase.HashTags (CausalHash, CommentHash (..), CommentRevisionHash (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager qualified as CredMan
 import Unison.Auth.PersonalKey qualified as PK
@@ -25,14 +16,14 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (BranchId2)
 import Unison.Codebase.Editor.Output (Output (..))
+import Unison.Codebase.HistoryComments.Hashing
+  ( hashHistoryComment,
+    hashHistoryCommentRevision,
+  )
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.Core.Project (ProjectAndBranch (..))
-import Unison.Hash (Hash)
-import Unison.Hash qualified as Hash
-import Unison.Hashing.V2 (ContentAddressable (..))
 import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
-import Unison.KeyThumbprint (KeyThumbprint (..))
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
@@ -87,28 +78,26 @@ handleHistoryComment mayThingToAnnotate mayMessage = do
     Just (subject, content) -> do
       createdAt <- liftIO $ Time.getCurrentTime
       let historyComment =
-            HistoryComment
-              { author =
-                  Config.unAuthorName authorName,
-                commentId = (),
-                causal = causalHash,
-                createdAt,
-                authorThumbprint
-              }
-      let commentHash = CommentHash $ contentHash historyComment
+            hashHistoryComment $
+              HistoryComment
+                { author =
+                    Config.unAuthorName authorName,
+                  commentId = (),
+                  causal = causalHash,
+                  createdAt,
+                  authorThumbprint
+                }
       let historyCommentRevision =
-            HistoryCommentRevision
-              { revisionId = (),
-                subject,
-                content,
-                createdAt,
-                comment = commentHash
-              }
-      let commentRevisionHash = CommentRevisionHash $ contentHash historyComment
-      let hashedComment =
-            historyCommentRevision {revisionId = commentRevisionHash, comment = historyComment {commentId = commentHash, causal = causalHashId}}
-
-      Cli.runTransaction $ Q.commentOnCausal hashedComment
+            hashHistoryCommentRevision $
+              HistoryCommentRevision
+                { revisionId = (),
+                  subject,
+                  content,
+                  createdAt,
+                  comment = historyComment.commentId
+                }
+      let historyComment' = historyComment {causal = causalHashId}
+      Cli.runTransaction $ Q.commentOnCausal $ historyCommentRevision {comment = historyComment'}
       Cli.respond $ CommentedSuccessfully
     Nothing -> Cli.respond $ CommentAborted
   where

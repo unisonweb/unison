@@ -342,8 +342,8 @@ import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags
   ( BranchHash (..),
     CausalHash (..),
-    CommentHash (..),
-    CommentRevisionHash (..),
+    HistoryCommentHash (..),
+    HistoryCommentRevisionHash (..),
     PatchHash (..),
   )
 import U.Codebase.Reference (Reference' (..))
@@ -648,11 +648,11 @@ expectCausalByCausalHash ch = do
   bhId <- expectCausalValueHashId hId
   pure (hId, bhId)
 
-saveCommentHash :: CommentHash -> Transaction CommentHashId
-saveCommentHash = fmap CommentHashId . saveHashHash . unCommentHash
+saveCommentHash :: HistoryCommentHash -> Transaction CommentHashId
+saveCommentHash = fmap CommentHashId . saveHashHash . unHistoryCommentHash
 
-saveCommentRevisionHash :: CommentRevisionHash -> Transaction CommentRevisionHashId
-saveCommentRevisionHash = fmap CommentRevisionHashId . saveHashHash . unCommentRevisionHash
+saveCommentRevisionHash :: HistoryCommentRevisionHash -> Transaction CommentRevisionHashId
+saveCommentRevisionHash = fmap CommentRevisionHashId . saveHashHash . unHistoryCommentRevisionHash
 
 expectHashIdByHash :: Hash -> Transaction HashId
 expectHashIdByHash = expectHashId . Hash32.fromHash
@@ -4150,7 +4150,7 @@ saveSquashResult bhId chId =
 
 getLatestCausalComment ::
   CausalHashId ->
-  Transaction (Maybe (LatestHistoryComment KeyThumbprintId CausalHash HistoryCommentRevisionId CommentHash))
+  Transaction (Maybe (LatestHistoryComment KeyThumbprintId CausalHash HistoryCommentRevisionId HistoryCommentHash))
 getLatestCausalComment causalHashId =
   queryMaybeRow @(Hash32, Hash32, Text, KeyThumbprintId, HistoryCommentRevisionId, Text, Text, Time.UTCTime)
     [sql|
@@ -4175,11 +4175,11 @@ getLatestCausalComment causalHashId =
                 authorThumbprint,
                 causal = CausalHash . Hash32.toHash $ causalHash,
                 createdAt,
-                commentId = CommentHash . Hash32.toHash $ commentHash
+                commentId = HistoryCommentHash . Hash32.toHash $ commentHash
               }
         }
 
-commentOnCausal :: LatestHistoryComment KeyThumbprint CausalHashId CommentRevisionHash CommentHash -> Transaction ()
+commentOnCausal :: LatestHistoryComment KeyThumbprint CausalHashId HistoryCommentRevisionHash HistoryCommentHash -> Transaction ()
 commentOnCausal
   HistoryCommentRevision
     { content,
