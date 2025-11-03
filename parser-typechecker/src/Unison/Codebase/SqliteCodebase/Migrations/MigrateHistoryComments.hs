@@ -3,62 +3,74 @@
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateHistoryComments (hashHistoryCommentsMigration) where
 
-import Control.Lens
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Text qualified as Aeson
-import Data.Map qualified as Map
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy qualified as Text.Lazy
-import Data.UUID (UUID)
-import Data.UUID qualified as UUID
-import U.Codebase.Branch.Type qualified as V2Branch
-import U.Codebase.Causal qualified as V2Causal
-import U.Codebase.Sqlite.DbId (CausalHashId, ProjectBranchId (..), ProjectId (..))
-import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..), ProjectBranchRow (..))
+import Data.Time (UTCTime)
+import U.Codebase.HashTags
+import U.Codebase.Sqlite.DbId (HistoryCommentId (..), HistoryCommentRevisionId (HistoryCommentRevisionId))
+import U.Codebase.Sqlite.Orphans (AsSqlite (..))
 import U.Codebase.Sqlite.Queries qualified as Q
-import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.SqliteCodebase.Branch.Cache qualified as BranchCache
-import Unison.Codebase.SqliteCodebase.Operations qualified as CodebaseOps
-import Unison.Codebase.SqliteCodebase.Operations qualified as Ops
-import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
-import Unison.Debug qualified as Debug
-import Unison.NameSegment (NameSegment)
-import Unison.NameSegment.Internal (NameSegment (..))
-import Unison.NameSegment.Internal qualified as NameSegment
+import Unison.Hash (Hash)
+import Unison.Hashing.HistoryComments (hashHistoryComment, hashHistoryCommentRevision)
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
+import Unison.KeyThumbprint (KeyThumbprint (KeyThumbprint))
 import Unison.Prelude
-import Unison.Sqlite (queryListCol)
 import Unison.Sqlite qualified as Sqlite
-import Unison.Sqlite.Connection qualified as Connection
-import Unison.Syntax.NameSegment qualified as NameSegment
-import Unison.Util.Cache qualified as Cache
-import UnliftIO qualified
-import UnliftIO qualified as UnsafeIO
 
 -- | This migration just deletes all the old name lookups, it doesn't recreate them.
 -- On share we'll rebuild only the required name lookups from scratch.
 hashHistoryCommentsMigration :: Sqlite.Transaction ()
 hashHistoryCommentsMigration = do
-  Queries.expectSchemaVersion 23
+  Q.expectSchemaVersion 23
   hashAllHistoryComments
-  Queries.setSchemaVersion 24
+  Q.setSchemaVersion 24
 
 hashAllHistoryComments :: Sqlite.Transaction ()
 hashAllHistoryComments = do
   historyComments <-
-    Sqlite.queryListRow @(HistoryCommentId, CausalHash, Text, UTCTime)
+    Sqlite.queryListRow @(HistoryCommentId, AsSqlite Hash, Text, Text, UTCTime)
       [Sqlite.sql|
-    SELECT id, causal_hash.base32, author, created_at
+    SELECT id, causal_hash.base32, author, thumbprint.thumbprint, created_at
       FROM history_comments
+      JOIN hash causal_hash ON history_comments.causal_hash_id = causal_hash.id
+      JOIN key_thumbprint thumbprint ON history_comments.author_thumbprint_id = thumbprint.id
     |]
-  for_ historyComments $ \(HistoryCommentId commentId, causalHash, author, createdAt) -> do
-    let newCausalHash = hashHistoryComment causalHash author createdAt
+  for_ historyComments $ \(HistoryCommentId commentId, causalHash, author, authorThumbprint, createdAt) -> do
+    let historyComment =
+          HistoryComment
+            { author,
+              createdAt,
+              authorThumbprint = KeyThumbprint authorThumbprint,
+              causal = coerce @_ @CausalHash causalHash,
+              commentId = ()
+            }
+    let historyCommentHash = hashHistoryComment historyComment
+    historyCommentHashId <- Q.saveHistoryCommentHash historyCommentHash.commentId
     Sqlite.execute
       [Sqlite.sql|
       UPDATE history_comments
-         SET causal_hash = ?
-       WHERE id = ?
+         SET comment_hash_id = :historyCommentHashId
+       WHERE id = :commentId
       |]
-      (newCausalHash, commentId)
+  historyCommentRevisions <-
+    Sqlite.queryListRow @(HistoryCommentRevisionId, Text, Text, UTCTime, AsSqlite Hash)
+      [Sqlite.sql|
+    SELECT id, subject, content, created_at, comment_hash.base32
+      FROM history_comment_revisions
+      JOIN hash comment_hash ON history_comment_revisions.comment_hash_id = comment_hash.id
+    |]
+  for_ historyCommentRevisions $ \(HistoryCommentRevisionId revisionId, subject, content, createdAt, commentHash) -> do
+    let historyCommentRevision =
+          HistoryCommentRevision
+            { subject,
+              content,
+              createdAt,
+              comment = coerce @_ @HistoryCommentHash commentHash,
+              revisionId = ()
+            }
+    let historyCommentRevisionHash = hashHistoryCommentRevision historyCommentRevision
+    commentRevisionHashId <- Q.saveHistoryCommentRevisionHash historyCommentRevisionHash.revisionId
+    Sqlite.execute
+      [Sqlite.sql|
+      UPDATE history_comment_revisions
+         SET revision_hash_id = :commentRevisionHashId
+       WHERE id = :revisionId
+      |]

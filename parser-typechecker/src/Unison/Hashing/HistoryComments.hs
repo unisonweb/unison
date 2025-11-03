@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Codebase.HistoryComments.Hashing
+module Unison.Hashing.HistoryComments
   ( hashHistoryComment,
     hashHistoryCommentRevision,
   )
