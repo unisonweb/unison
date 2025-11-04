@@ -19,17 +19,17 @@ import Unison.Sqlite qualified as Sqlite
 -- On share we'll rebuild only the required name lookups from scratch.
 hashHistoryCommentsMigration :: Sqlite.Transaction ()
 hashHistoryCommentsMigration = do
-  Q.expectSchemaVersion 23
+  Q.expectSchemaVersion 24
   hashAllHistoryComments
-  Q.setSchemaVersion 24
+  Q.setSchemaVersion 25
 
 hashAllHistoryComments :: Sqlite.Transaction ()
 hashAllHistoryComments = do
   historyComments <-
     Sqlite.queryListRow @(HistoryCommentId, AsSqlite Hash, Text, Text, UTCTime)
       [Sqlite.sql|
-    SELECT id, causal_hash.base32, author, thumbprint.thumbprint, created_at
-      FROM history_comments
+    SELECT comment.id, causal_hash.base32, comment.author, thumbprint.thumbprint, comment.created_at
+      FROM history_comments comment
       JOIN hash causal_hash ON history_comments.causal_hash_id = causal_hash.id
       JOIN key_thumbprints thumbprint ON history_comments.author_thumbprint_id = thumbprint.id
     |]
@@ -53,9 +53,9 @@ hashAllHistoryComments = do
   historyCommentRevisions <-
     Sqlite.queryListRow @(HistoryCommentRevisionId, Text, Text, UTCTime, AsSqlite Hash)
       [Sqlite.sql|
-    SELECT id, subject, content, created_at, comment_hash.base32
-      FROM history_comment_revisions
-      JOIN hash comment_hash ON history_comment_revisions.comment_hash_id = comment_hash.id
+    SELECT hcr.id, hcr.subject, hcr.content, hcr.created_at, comment_hash.base32
+      FROM history_comment_revisions hcr
+      JOIN hash comment_hash ON hcr.comment_hash_id = comment_hash.id
     |]
   for_ historyCommentRevisions $ \(HistoryCommentRevisionId revisionId, subject, content, createdAt, commentHash) -> do
     let historyCommentRevision =
