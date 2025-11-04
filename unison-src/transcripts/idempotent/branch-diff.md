@@ -149,20 +149,22 @@ scratch/main> branch.diff /main /alice
 scratch/main> project.delete scratch
 ```
 
-Currently (and temporarily), `branch.diff` doesn't show changes to `lib.*`.
+`branch.diff` Also shows changes in `lib.*`:
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtin
 ```
 
 ``` unison
-lib.dep.foo = 17
+lib.foo.foo = 17
+lib.bar.bar = 18
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.dep.foo : Nat
+  + lib.bar.bar : Nat
+  + lib.foo.foo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -184,15 +186,18 @@ scratch/main> branch alice
 ```
 
 ``` unison
-lib.dep.foo = 18
+lib.foo.foo = 18
+lib.baz.baz = 19
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  ~ lib.dep.foo : Nat
+  + lib.baz.baz : Nat
+  ~ lib.foo.foo : Nat
+      (also named lib.bar.bar)
 
-  ~ (modified)
+  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -205,9 +210,19 @@ scratch/alice> update
 
   Done.
 
+scratch/alice> delete.namespace lib.bar
+
+  Done.
+
 scratch/alice> branch.diff /main /alice
 
-  Those branches are the same.
+  Changes on /alice:
+
+  + lib.baz
+  ~ lib.foo
+  - lib.bar
+
+  + (added), ~ (modified), - (deleted)
 ```
 
 ``` ucm :hide

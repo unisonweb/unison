@@ -1,6 +1,9 @@
 module Unison.Merge.DiffOp
   ( DiffOp (..),
     DiffOp2 (..),
+    isAdd,
+    isDelete,
+    isUpdate,
     Unison.Merge.DiffOp.map,
     Unison.Merge.DiffOp.traverse,
   )
@@ -19,6 +22,24 @@ data DiffOp a
   | DiffOp'Delete !a
   | DiffOp'Update !(Updated a)
   deriving stock (Show)
+
+instance Functor DiffOp where
+  fmap = Unison.Merge.DiffOp.map
+
+isAdd :: DiffOp a -> Bool
+isAdd = \case
+  DiffOp'Add _ -> True
+  _ -> False
+
+isDelete :: DiffOp a -> Bool
+isDelete = \case
+  DiffOp'Delete _ -> True
+  _ -> False
+
+isUpdate :: DiffOp a -> Bool
+isUpdate = \case
+  DiffOp'Update _ -> True
+  _ -> False
 
 map :: (a -> b) -> DiffOp a -> DiffOp b
 map f = \case

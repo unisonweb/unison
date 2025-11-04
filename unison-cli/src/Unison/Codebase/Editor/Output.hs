@@ -459,6 +459,7 @@ data Output
   | ShowBranchDiff
       !(Merge.TwoWay DiffBranchArg)
       !(Merge.TwoWay PPE.PrettyPrintEnv)
+      !(Merge.TwoWay (Map NameSegment (Merge.DiffOp CausalHash)))
       !( Merge.TwoWay
            ( Defns
                ( Map Name (Type Symbol Ann),

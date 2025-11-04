@@ -96,8 +96,11 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge (GUpdated (..), TwoWay (..))
+import Unison.Merge qualified as Merge
+import Unison.Merge.DiffOp qualified as Merge.DiffOp
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
@@ -2390,13 +2393,25 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
-  ShowBranchDiff branchArgs ppes diffs _maybeDifftoolResult -> do
-    let isEmpty Defns {terms = (a, b, c), types = (d, e, f)} =
-          Map.null a && Map.null b && Map.null c && Map.null d && Map.null e && Map.null f
+  ShowBranchDiff branchArgs ppes libdepsDiffs diffs _maybeDifftoolResult -> do
+    let isEmpty
+          libdepsDiff
+          Defns
+            { terms = (newTerms, updatedTerms, deletedTerms),
+              types = (newTypes, updatedTypes, deletedTypes)
+            } =
+            Map.null libdepsDiff
+              && Map.null newTerms
+              && Map.null updatedTerms
+              && Map.null deletedTerms
+              && Map.null newTypes
+              && Map.null updatedTypes
+              && Map.null deletedTypes
 
     let showBranchDiff ::
           PPE.PrettyPrintEnv ->
           Input.DiffBranchArg ->
+          Map NameSegment (Merge.DiffOp CausalHash) ->
           ( Defns
               ( Map Name (Type Symbol Ann),
                 Map Name (Type Symbol Ann),
@@ -2408,58 +2423,86 @@ notifyUser dir issueFn = \case
               )
           ) ->
           Pretty
-        showBranchDiff _ _ diff | isEmpty diff = mempty
-        showBranchDiff ppe branchArg diff = do
-          let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
-              renderType name decl =
-                P.syntaxToColor
-                  (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+        showBranchDiff _ _ libdepsDiff diff | isEmpty libdepsDiff diff = mempty
+        showBranchDiff ppe branchArg libdepsDiff diff = do
+          let colorAdd = P.green . ("+ " <>)
+              colorUpdate = P.yellow . ("~ " <>)
+              colorDelete = P.red . ("- " <>)
+
+          let renderLibdep :: NameSegment -> CausalHash -> Pretty
+              renderLibdep name _hash =
+                prettyName (Name.fromReverseSegments (name NEList.:| [NameSegment.libSegment]))
+
+          let renderLibdeps :: (Pretty -> Pretty) -> [(NameSegment, CausalHash)] -> Pretty
+              renderLibdeps colored libdeps =
+                libdeps
+                  & sortAlphabeticallyOn (view _1)
+                  & map (\(name, hash) -> colored (renderLibdep name hash))
+                  & P.lines
+
+          let renderedNewLibdeps :: Pretty
+              renderedNewLibdeps =
+                libdepsDiff
+                  & Map.toList
+                  & mapMaybe
+                    ( \case
+                        (name, Merge.DiffOp'Add hash) -> Just (name, hash)
+                        _ -> Nothing
+                    )
+                  & renderLibdeps colorAdd
+
+          let renderedUpdatedLibdeps :: Pretty
+              renderedUpdatedLibdeps =
+                libdepsDiff
+                  & Map.toList
+                  & mapMaybe
+                    ( \case
+                        (name, Merge.DiffOp'Update hashes) -> Just (name, hashes.new)
+                        _ -> Nothing
+                    )
+                  & renderLibdeps colorUpdate
+
+          let renderedDeletedLibdeps :: Pretty
+              renderedDeletedLibdeps =
+                libdepsDiff
+                  & Map.toList
+                  & mapMaybe
+                    ( \case
+                        (name, Merge.DiffOp'Delete hash) -> Just (name, hash)
+                        _ -> Nothing
+                    )
+                  & renderLibdeps colorDelete
 
           let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
               renderTypes colored types =
                 types
                   & Map.toList
                   & sortAlphabeticallyOn (view _1)
-                  & map (\(name, decl) -> colored (renderType name decl))
+                  & map
+                    ( \(name, decl) ->
+                        colored $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDeclOrBuiltinHeader
+                              DeclPrinter.RenderUniqueTypeGuids'No
+                              (HQ.fromName name)
+                              decl
+                    )
                   & P.lines
-
-          let renderedNewTypes :: Pretty
-              renderedNewTypes =
-                renderTypes (P.green . ("+ " <>)) (view _1 diff.types)
-
-          let renderedUpdatedTypes :: Pretty
-              renderedUpdatedTypes =
-                renderTypes (P.yellow . ("~ " <>)) (view _2 diff.types)
-
-          let renderedDeletedTypes :: Pretty
-              renderedDeletedTypes =
-                renderTypes (P.red . ("- " <>)) (view _3 diff.types)
-
-          let renderTerm :: (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
-              renderTerm colored name ty =
-                (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
 
           let renderTerms :: (Pretty -> Pretty) -> Map Name (Type Symbol Ann) -> Pretty
               renderTerms colored terms =
                 terms
                   & Map.toList
                   & sortAlphabeticallyOn (view _1)
-                  & map (\(name, ty) -> renderTerm colored name ty)
+                  & map
+                    ( \(name, ty) ->
+                        ( colored (prettyNameParens name),
+                          ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty)
+                        )
+                    )
                   & P.align
                   & map P.group
                   & P.lines
-
-          let renderedNewTerms :: Pretty
-              renderedNewTerms =
-                renderTerms (P.green . ("+ " <>)) (view _1 diff.terms)
-
-          let renderedUpdatedTerms :: Pretty
-              renderedUpdatedTerms =
-                renderTerms (P.yellow . ("~ " <>)) (view _2 diff.terms)
-
-          let renderedDeletedTerms :: Pretty
-              renderedDeletedTerms =
-                renderTerms (P.red . ("- " <>)) (view _3 diff.terms)
            in P.sepNonEmpty
                 "\n\n"
                 [ let prettyBranchArg =
@@ -2468,45 +2511,56 @@ notifyUser dir issueFn = \case
                           Input.DiffBranchArg'Hash hash -> prettySCH hash
                    in P.wrap ("Changes on " <> P.group (prettyBranchArg <> ":")),
                   P.linesNonEmpty
-                    [ renderedNewTypes,
-                      renderedUpdatedTypes,
-                      renderedDeletedTypes
+                    [ renderedNewLibdeps,
+                      renderedUpdatedLibdeps,
+                      renderedDeletedLibdeps
                     ],
                   P.linesNonEmpty
-                    [ renderedNewTerms,
-                      renderedUpdatedTerms,
-                      renderedDeletedTerms
+                    [ renderTypes colorAdd (view _1 diff.types),
+                      renderTypes colorUpdate (view _2 diff.types),
+                      renderTypes colorDelete (view _3 diff.types)
+                    ],
+                  P.linesNonEmpty
+                    [ renderTerms colorAdd (view _1 diff.terms),
+                      renderTerms colorUpdate (view _2 diff.terms),
+                      renderTerms colorDelete (view _3 diff.terms)
                     ]
                 ]
 
     pure $
-      if isEmpty diffs.alice && isEmpty diffs.bob
+      if isEmpty libdepsDiffs.alice diffs.alice && isEmpty libdepsDiffs.bob diffs.bob
         then "Those branches are the same."
         else
           P.sepNonEmpty
             "\n\n"
-            [ showBranchDiff ppes.alice branchArgs.alice diffs.alice,
-              showBranchDiff ppes.bob branchArgs.bob diffs.bob,
+            [ showBranchDiff ppes.alice branchArgs.alice libdepsDiffs.alice diffs.alice,
+              showBranchDiff ppes.bob branchArgs.bob libdepsDiffs.bob diffs.bob,
               let existAdds =
                     or
                       [ not (Map.null (view _1 diffs.alice.terms)),
                         not (Map.null (view _1 diffs.alice.types)),
                         not (Map.null (view _1 diffs.bob.terms)),
-                        not (Map.null (view _1 diffs.bob.types))
+                        not (Map.null (view _1 diffs.bob.types)),
+                        any Merge.DiffOp.isAdd libdepsDiffs.alice,
+                        any Merge.DiffOp.isAdd libdepsDiffs.bob
                       ]
                   existUpdates =
                     or
                       [ not (Map.null (view _2 diffs.alice.terms)),
                         not (Map.null (view _2 diffs.alice.types)),
                         not (Map.null (view _2 diffs.bob.terms)),
-                        not (Map.null (view _2 diffs.bob.types))
+                        not (Map.null (view _2 diffs.bob.types)),
+                        any Merge.DiffOp.isUpdate libdepsDiffs.alice,
+                        any Merge.DiffOp.isUpdate libdepsDiffs.bob
                       ]
                   existDeletes =
                     or
                       [ not (Map.null (view _3 diffs.alice.terms)),
                         not (Map.null (view _3 diffs.alice.types)),
                         not (Map.null (view _3 diffs.bob.terms)),
-                        not (Map.null (view _3 diffs.bob.types))
+                        not (Map.null (view _3 diffs.bob.types)),
+                        any Merge.DiffOp.isDelete libdepsDiffs.alice,
+                        any Merge.DiffOp.isDelete libdepsDiffs.bob
                       ]
                in case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
                     Just legend -> legend
