@@ -244,7 +244,6 @@ fzfResolve codebase ppCtx getCurrentBranch InputPattern.Parameters {requiredPara
   argumentResolvers :: [MaybeT (ExceptT FZFResolveFailure IO) (Data.List.NonEmpty.NonEmpty InputPattern.Argument)] <-
     liftA2 (<>) (traverse (maybeFillArg False) requiredParams) case trailingParams of
       InputPattern.Optional _ _ -> pure mempty
-      InputPattern.ZeroPlus p -> pure <$> maybeFillArg True p
       InputPattern.OnePlus p -> pure <$> maybeFillArg True p
   runMaybeT $ foldM (\bs -> ((bs <>) . toList <$>)) [] argumentResolvers
   where

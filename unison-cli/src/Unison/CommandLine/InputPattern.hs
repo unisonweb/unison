@@ -113,8 +113,6 @@ data TrailingParameters
     Optional [Parameter] (Maybe Parameter)
   | -- | A catch-all that requires at least one value
     OnePlus Parameter
-  | -- | A catch-all that doesn't require a value
-    ZeroPlus Parameter
 
 -- | The `Parameters` for an `InputPattern` are roughly
 --
@@ -146,7 +144,6 @@ foldParamsWithM fn z Parameters {requiredParams, trailingParams} = foldRequiredA
     foldRequiredArgs res = curry \case
       ([], as) -> case trailingParams of
         Optional optParams zeroPlus -> foldOptionalArgs res zeroPlus optParams as
-        ZeroPlus param -> foldCatchallArg res param as
         OnePlus param -> case as of
           [] -> pure $ pure (res, Parameters [] $ OnePlus param)
           a : args -> foldCatchallArg1 res param $ a :| args
@@ -180,7 +177,6 @@ paramInfo Parameters {requiredParams, trailingParams} i =
          in if rem < length optParams
               then pure $ optParams !! rem
               else zeroPlus
-      ZeroPlus arg -> pure arg
       OnePlus arg -> pure arg
 
 -- | `argType` gets called when the user tries to autocomplete an `i`th argument (zero-indexed).
@@ -193,7 +189,6 @@ minArgs :: Parameters -> Int
 minArgs Parameters {requiredParams, trailingParams} =
   length requiredParams + case trailingParams of
     Optional _ _ -> 0
-    ZeroPlus _ -> 0
     OnePlus _ -> 1
 
 maxArgs :: Parameters -> Maybe Int
