@@ -14,6 +14,7 @@ import Text.Printf (printf)
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.DbId (HashVersion (..), SchemaVersion (..))
 import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Auth.CredentialManager (getOrCreatePersonalKey)
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init (BackupStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
@@ -34,6 +35,7 @@ import Unison.Codebase.Type (LocalOrRemote (..))
 import Unison.ConstructorType qualified as CT
 import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
+import Unison.KeyThumbprint (KeyThumbprint)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sqlite.Connection qualified as Sqlite.Connection
@@ -44,6 +46,7 @@ import UnliftIO qualified
 -- | Mapping from schema version to the migration required to get there.
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
 migrations ::
+  KeyThumbprint ->
   (MVar Region.ConsoleRegion) ->
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
@@ -51,7 +54,7 @@ migrations ::
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   CodebasePath ->
   Map SchemaVersion (Sqlite.Connection -> IO ())
-migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
+migrations keyThumbprint regionVar getDeclType termBuffer declBuffer rootCodebasePath =
   Map.fromList
     [ (2, runT $ migrateSchema1To2 getDeclType termBuffer declBuffer),
       -- The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
@@ -93,7 +96,8 @@ migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
       sqlMigration 22 Q.addUpgradeBranchTable,
       sqlMigration 23 Q.addHistoryComments,
       sqlMigration 24 Q.addHistoryCommentHashing,
-      (25, runT hashHistoryCommentsMigration)
+      (25, runT $ hashHistoryCommentsMigration keyThumbprint),
+      sqlMigration 26 Q.historyCommentHashingCleanup
     ]
   where
     runT :: Sqlite.Transaction () -> Sqlite.Connection -> IO ()
@@ -128,6 +132,8 @@ checkCodebaseIsUpToDate = do
       | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
       | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
 
+type PersonalKeyThumbprint = Text
+
 -- | Migrates a codebase up to the most recent version known to ucm.
 -- This is a No-op if it's up to date
 -- Returns an error if the schema version is newer than this ucm knows about.
@@ -155,7 +161,8 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 
     Region.displayConsoleRegions do
       (`UnliftIO.finally` finalizeRegion) do
-        let migs = migrations regionVar getDeclType termBuffer declBuffer root
+        getOrCreatePersonalKey
+        let migs = migrations keyThumbprint regionVar getDeclType termBuffer declBuffer root
         -- The highest schema that this ucm knows how to migrate to.
         let highestKnownSchemaVersion = fst . head $ Map.toDescList migs
         currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion

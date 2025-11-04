@@ -10,6 +10,7 @@ library:
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -funbox-strict-fields
   dependencies:
     - base
+    - aeson
     - bytestring
     - containers >= 0.6.3
     - cryptonite
@@ -22,10 +23,12 @@ library:
     - megaparsec
     - memory
     - mtl
+    - network-uri
     - nonempty-containers
     - rfc5051
     - semialign
     - semigroups
+    - servant-client
     - text
     - text-builder
     - time

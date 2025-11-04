@@ -23,13 +23,9 @@ library
       Compat
       Stats
       System.Path
-      Unison.Auth.CredentialFile
-      Unison.Auth.CredentialManager
       Unison.Auth.Discovery
       Unison.Auth.HTTPClient
-      Unison.Auth.PersonalKey
       Unison.Auth.Tokens
-      Unison.Auth.Types
       Unison.Auth.UserInfo
       Unison.Cli.DirectoryUtils
       Unison.Cli.DownloadUtils

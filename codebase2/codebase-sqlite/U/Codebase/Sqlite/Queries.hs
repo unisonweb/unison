@@ -263,6 +263,7 @@ module U.Codebase.Sqlite.Queries
     addUpgradeBranchTable,
     addHistoryComments,
     addHistoryCommentHashing,
+    historyCommentHashingCleanup,
 
     -- ** schema version
     currentSchemaVersion,
@@ -543,6 +544,10 @@ addHistoryComments =
 addHistoryCommentHashing :: Transaction ()
 addHistoryCommentHashing =
   executeStatements $(embedProjectStringFile "sql/021-hash-history-comments.sql")
+
+historyCommentHashingCleanup :: Transaction ()
+historyCommentHashingCleanup =
+  executeStatements $(embedProjectStringFile "sql/022-hash-history-comments-cleanup.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =

@@ -88,6 +88,7 @@ createSchema = do
   Q.addUpgradeBranchTable
   Q.addHistoryComments
   Q.addHistoryCommentHashing
+  Q.historyCommentHashingCleanup
   (_, emptyCausalHashId) <- emptyCausalHash
   (_, ProjectBranchRow {projectId, branchId}) <-
     insertProjectAndBranch scratchProjectName scratchBranchName emptyCausalHashId
