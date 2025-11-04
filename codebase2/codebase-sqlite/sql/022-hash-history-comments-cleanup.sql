@@ -11,11 +11,10 @@ CREATE TABLE history_comments_new (
   -- using strftime('%s', 'now', 'subsec')
   created_at TEXT NOT NULL,
 
-  comment_hash_id UNIQUE INTEGER NOT NULL REFERENCES hash(id),
+  comment_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id),
   author_thumbprint_id INTEGER NOT NULL REFERENCES key_thumbprints(id)
 );
 
-CREATE INDEX history_comments_by_causal_hash_id ON history_comments_new(causal_hash_id, created_at DESC);
 
 CREATE TABLE history_comment_revisions_new (
   id INTEGER PRIMARY KEY,
@@ -32,10 +31,9 @@ CREATE TABLE history_comment_revisions_new (
   -- but you can ask to hide them.
   hidden BOOL NOT NULL DEFAULT FALSE,
 
-  revision_hash_id UNIQUE INTEGER NOT NULL REFERENCES hash(id)
+  revision_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id)
 );
 
-CREATE INDEX history_comment_revisions_by_comment_id_and_created_at ON history_comment_revisions_new(comment_id, created_at DESC);
 
 -- Copy data from old tables to new tables
 INSERT INTO history_comments_new (id, causal_hash_id, author, created_at, comment_hash_id, author_thumbprint_id)
@@ -53,3 +51,6 @@ DROP TABLE history_comment_revisions;
 -- Rename new tables to old table names
 ALTER TABLE history_comments_new RENAME TO history_comments;
 ALTER TABLE history_comment_revisions_new RENAME TO history_comment_revisions;
+
+CREATE INDEX history_comments_by_causal_hash_id ON history_comments(causal_hash_id, created_at DESC);
+CREATE INDEX history_comment_revisions_by_comment_id_and_created_at ON history_comment_revisions(comment_id, created_at DESC);

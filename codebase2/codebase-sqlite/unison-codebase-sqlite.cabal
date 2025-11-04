@@ -31,6 +31,7 @@ extra-source-files:
     sql/019-add-upgrade-branch-table.sql
     sql/020-add-history-comments.sql
     sql/021-hash-history-comments.sql
+    sql/022-hash-history-comments-cleanup.sql
     sql/create.sql
 
 source-repository head

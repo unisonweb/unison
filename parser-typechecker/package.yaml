@@ -55,6 +55,7 @@ library:
     - unison-codebase-sync
     - unison-core
     - unison-core1
+    - unison-credentials
     - unison-hash
     - unison-hashing-v2
     - unison-prelude

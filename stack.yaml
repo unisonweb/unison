@@ -23,6 +23,7 @@ packages:
   - lib/orphans/unison-hash-orphans-aeson
   - lib/orphans/unison-hash-orphans-sqlite
   - lib/orphans/uuid-orphans-sqlite
+  - lib/unison-credentials
   - lib/unison-dynlib
   - lib/unison-hash
   - lib/unison-hashing

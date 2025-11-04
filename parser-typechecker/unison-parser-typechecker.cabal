@@ -123,7 +123,6 @@ library
       Unison.PrettyPrintEnvDecl
       Unison.PrintError
       Unison.Result
-      Unison.Share.Types
       Unison.Syntax.DeclParser
       Unison.Syntax.DeclPrinter
       Unison.Syntax.FileParser
@@ -241,6 +240,7 @@ library
     , unison-codebase-sync
     , unison-core
     , unison-core1
+    , unison-credentials
     , unison-hash
     , unison-hashing-v2
     , unison-prelude
