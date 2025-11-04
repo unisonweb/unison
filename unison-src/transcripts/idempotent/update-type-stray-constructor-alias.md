@@ -44,12 +44,12 @@ unique type Foo = Bar Nat Nat
 ``` ucm :error
 > update
 
-  Sorry, I wasn't able to perform the update, because I need all
-  constructor names to be nested somewhere beneath the
+  Sorry, I wasn't able to perform the `update`, because I need
+  all constructor names to be nested somewhere beneath the
   corresponding type name.
 
   The constructor Stray.BarAlias is not nested beneath the
   corresponding type name. Please either use `move` to move it,
   or if it's an extra copy, you can simply `delete.force` it.
-  Then try updating again.
+  Then try `update` again.
 ```

@@ -95,6 +95,7 @@ import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Merge (GUpdated (..), TwoWay (..))
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
@@ -151,6 +152,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
@@ -970,10 +972,10 @@ notifyUser dir issueFn = \case
         (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
-                SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
-                SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
-                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+                SlurpResult.TypeSlurp'Add decl -> over _1 ((name, decl) :) acc
+                SlurpResult.TypeSlurp'Update decl -> over _2 ((name, decl.old, decl.new) :) acc
+                SlurpResult.TypeSlurp'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.TypeSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
             slurpEntries.types
@@ -996,10 +998,10 @@ notifyUser dir issueFn = \case
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
-                SlurpResult.TermSlurp'Update oldRef oldTy newRef newTy ->
+                SlurpResult.TermSlurp'Add (Typed ref ty) -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Update (Updated (Typed oldRef oldTy) (Typed newRef newTy)) ->
                   over _2 ((name, oldTy, toAliases oldRef, newTy, toAliases newRef) :) acc
-                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Delete (Typed ref ty) -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
                 SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
@@ -1130,30 +1132,15 @@ notifyUser dir issueFn = \case
                     <> P.num numUnchangedTerms
                     <> " unchanged term"
                     <> (if numUnchangedTerms == 1 then ")" else "s)"),
-              let legendAdded = P.green "+" <> " (added)"
-                  legendModified = P.yellow "~" <> " (modified)"
-                  legendDeleted = P.red "-" <> " (deleted)"
-               in ( if not existUpdates && not existDeletes
-                      then mempty
-                      else
-                        mconcat
-                          ( List.intersperse
-                              ", "
-                              ( catMaybes
-                                  [ if existAdds then Just legendAdded else Nothing,
-                                    if existUpdates then Just legendModified else Nothing,
-                                    if existDeletes then Just legendDeleted else Nothing
-                                  ]
-                              )
-                          )
-                          <> P.newline
-                          <> P.newline
+              ( case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
+                  Just legend -> legend <> P.newline <> P.newline
+                  Nothing -> mempty
+              )
+                <> P.wrap
+                  ( "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
                   )
-                    <> P.wrap
-                      ( "Run"
-                          <> makeExample' IP.update
-                          <> "to apply these changes to your codebase."
-                      )
             ]
         else "No changes found."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
@@ -2229,71 +2216,107 @@ notifyUser dir issueFn = \case
                TypeDefn _ -> IP.deleteTypeForce
            )
         <> "all but one of them, then try again."
-  IncoherentDeclDuringDelete reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "delete" "The type" "a delete" "deleting" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "delete" "The type" "a delete" "deleting" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "a delete" "deleting" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "delete" "The constructor" "deleting" name
+  IncoherentDeclDuringDelete target reason ->
+    let command =
+          case target of
+            Input.DeleteTarget'TermOrType -> IP.makeExample' IP.delete
+            Input.DeleteTarget'Term -> IP.makeExample' IP.deleteTerm
+            Input.DeleteTarget'Type -> IP.makeExample' IP.deleteType
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
+  IncoherentDeclDuringDiffBranch diffBranchArg reason ->
+    let command = IP.makeExample' IP.diffBranch
+        which =
+          case diffBranchArg of
+            Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
+            Input.DiffBranchArg'Hash hash -> prettySCH hash
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $
+              constructorAliasError
+                command
+                ("On" <> P.group (which <> ",") <> "the type")
+                typeName
+                conName1
+                conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $
+              missingConstructorNameError
+                command
+                ("On" <> P.group (which <> ",") <> "the type")
+                name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $
+              nestedDeclAliasError
+                ("On" <> P.group (which <> ",") <> "the type")
+                command
+                shorterName
+                longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $
+              strayConstructorError
+                command
+                ("On" <> P.group (which <> ",") <> "the constructor")
+                name
   IncoherentDeclDuringMerge aliceOrBob reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $
-          constructorAliasError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            typeName
-            conName1
-            conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $
-          missingConstructorNameError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $
-          nestedDeclAliasError
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            shorterName
-            longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $
-          strayConstructorError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
-            "merging"
-            name
+    let command = IP.makeExample' IP.mergeInputPattern
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $
+              constructorAliasError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                typeName
+                conName1
+                conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $
+              missingConstructorNameError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $
+              nestedDeclAliasError
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                command
+                shorterName
+                longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $
+              strayConstructorError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
+                name
   IncoherentDeclDuringUpdate reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "update" "The type" "an update" "updating" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "update" "The type" "an update" "updating" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "an update" "updating" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "update" "The constructor" "updating" name
+    let command = IP.makeExample' IP.update
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
   IncoherentDeclDuringUpgrade reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "upgrade" "The type" "an upgrade" "upgrading" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "upgrade" "The type" "an upgrade" "upgrading" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "an upgrade" "upgrading" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "upgrade" "The constructor" "upgrading" name
+    let command = IP.makeExample' IP.upgrade
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
   Literal message -> pure message
   SyncPullError syncErr ->
     case syncErr of
@@ -2367,6 +2390,128 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  ShowBranchDiff branchArgs ppes diffs _maybeDifftoolResult -> do
+    let isEmpty Defns {terms = (a, b, c), types = (d, e, f)} =
+          Map.null a && Map.null b && Map.null c && Map.null d && Map.null e && Map.null f
+
+    let showBranchDiff ::
+          PPE.PrettyPrintEnv ->
+          Input.DiffBranchArg ->
+          ( Defns
+              ( Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann)
+              )
+              ( Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann)
+              )
+          ) ->
+          Pretty
+        showBranchDiff _ _ diff | isEmpty diff = mempty
+        showBranchDiff ppe branchArg diff = do
+          let renderType :: Name -> DeclOrBuiltin Symbol Ann -> Pretty
+              renderType name decl =
+                P.syntaxToColor
+                  (DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ.fromName name) decl)
+
+          let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
+              renderTypes colored types =
+                types
+                  & Map.toList
+                  & sortAlphabeticallyOn (view _1)
+                  & map (\(name, decl) -> colored (renderType name decl))
+                  & P.lines
+
+          let renderedNewTypes :: Pretty
+              renderedNewTypes =
+                renderTypes (P.green . ("+ " <>)) (view _1 diff.types)
+
+          let renderedUpdatedTypes :: Pretty
+              renderedUpdatedTypes =
+                renderTypes (P.yellow . ("~ " <>)) (view _2 diff.types)
+
+          let renderedDeletedTypes :: Pretty
+              renderedDeletedTypes =
+                renderTypes (P.red . ("- " <>)) (view _3 diff.types)
+
+          let renderTerm :: (Pretty -> Pretty) -> Name -> Type Symbol Ann -> (Pretty, Pretty)
+              renderTerm colored name ty =
+                (colored (prettyNameParens name), ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty))
+
+          let renderTerms :: (Pretty -> Pretty) -> Map Name (Type Symbol Ann) -> Pretty
+              renderTerms colored terms =
+                terms
+                  & Map.toList
+                  & sortAlphabeticallyOn (view _1)
+                  & map (\(name, ty) -> renderTerm colored name ty)
+                  & P.align
+                  & map P.group
+                  & P.lines
+
+          let renderedNewTerms :: Pretty
+              renderedNewTerms =
+                renderTerms (P.green . ("+ " <>)) (view _1 diff.terms)
+
+          let renderedUpdatedTerms :: Pretty
+              renderedUpdatedTerms =
+                renderTerms (P.yellow . ("~ " <>)) (view _2 diff.terms)
+
+          let renderedDeletedTerms :: Pretty
+              renderedDeletedTerms =
+                renderTerms (P.red . ("- " <>)) (view _3 diff.terms)
+           in P.sepNonEmpty
+                "\n\n"
+                [ let prettyBranchArg =
+                        case branchArg of
+                          Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
+                          Input.DiffBranchArg'Hash hash -> prettySCH hash
+                   in P.wrap ("Changes on " <> P.group (prettyBranchArg <> ":")),
+                  P.linesNonEmpty
+                    [ renderedNewTypes,
+                      renderedUpdatedTypes,
+                      renderedDeletedTypes
+                    ],
+                  P.linesNonEmpty
+                    [ renderedNewTerms,
+                      renderedUpdatedTerms,
+                      renderedDeletedTerms
+                    ]
+                ]
+
+    pure $
+      if isEmpty diffs.alice && isEmpty diffs.bob
+        then "Those branches are the same."
+        else
+          P.sepNonEmpty
+            "\n\n"
+            [ showBranchDiff ppes.alice branchArgs.alice diffs.alice,
+              showBranchDiff ppes.bob branchArgs.bob diffs.bob,
+              let existAdds =
+                    or
+                      [ not (Map.null (view _1 diffs.alice.terms)),
+                        not (Map.null (view _1 diffs.alice.types)),
+                        not (Map.null (view _1 diffs.bob.terms)),
+                        not (Map.null (view _1 diffs.bob.types))
+                      ]
+                  existUpdates =
+                    or
+                      [ not (Map.null (view _2 diffs.alice.terms)),
+                        not (Map.null (view _2 diffs.alice.types)),
+                        not (Map.null (view _2 diffs.bob.terms)),
+                        not (Map.null (view _2 diffs.bob.types))
+                      ]
+                  existDeletes =
+                    or
+                      [ not (Map.null (view _3 diffs.alice.terms)),
+                        not (Map.null (view _3 diffs.alice.types)),
+                        not (Map.null (view _3 diffs.bob.terms)),
+                        not (Map.null (view _3 diffs.bob.types))
+                      ]
+               in case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
+                    Just legend -> legend
+                    Nothing -> mempty
+            ]
   StaleRun ppe main reversePath inFile ->
     let path = reverse reversePath
      in pure $
@@ -2444,6 +2589,26 @@ notifyUser dir issueFn = \case
           <> "or"
           <> makeExample' IP.cancelInputPattern
           <> "if you change your mind."
+
+prettyAddUpdateDeleteLegend :: Bool -> Bool -> Bool -> Maybe Pretty
+prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes
+  | not existUpdates && not existDeletes = Nothing
+  | otherwise =
+      Just $
+        mconcat
+          ( List.intersperse
+              ", "
+              ( catMaybes
+                  [ if existAdds then Just legendAdded else Nothing,
+                    if existUpdates then Just legendModified else Nothing,
+                    if existDeletes then Just legendDeleted else Nothing
+                  ]
+              )
+          )
+  where
+    legendAdded = P.green "+" <> " (added)"
+    legendModified = P.yellow "~" <> " (modified)"
+    legendDeleted = P.red "-" <> " (deleted)"
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -3958,16 +4123,16 @@ displayProjectBranchReflogEntries mayNow _ entries =
       (short, "") -> short
       (short, _) -> short <> "..."
 
-constructorAliasError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Name -> Name -> Pretty
-constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
+constructorAliasError :: Pretty -> Pretty -> Name -> Name -> Name -> Pretty
+constructorAliasError verb theType typeName conName1 conName2 =
   P.lines $
     [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
       "",
       P.wrap $
         theType
           <> prettyName typeName
-          <> "has a constructor with multiple names, and I can't perform"
-          <> aVerb
+          <> "has a constructor with multiple names, and I can't"
+          <> verb
           <> "in this situation:",
       "",
       P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
@@ -3976,20 +4141,20 @@ constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
         "Please"
           <> IP.makeExample' IP.deleteForce
           <> "all but one name for each constructor, and then try"
-          <> verbing
+          <> verb
           <> "again."
     ]
 
-missingConstructorNameError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Pretty
-missingConstructorNameError verb theType aVerb verbing name =
+missingConstructorNameError :: Pretty -> Pretty -> Name -> Pretty
+missingConstructorNameError command theType name =
   P.lines $
-    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
+    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (command <> ":"),
       "",
       P.wrap $
         theType
           <> prettyName name
-          <> "has some constructors with missing names, and I can't perform"
-          <> aVerb
+          <> "has some constructors with missing names, and I can't"
+          <> command
           <> "in this situation.",
       "",
       P.wrap $
@@ -3998,27 +4163,27 @@ missingConstructorNameError verb theType aVerb verbing name =
           <> "and"
           <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
           <> "to give names to each unnamed constructor, and then try"
-          <> verbing
+          <> command
           <> "again."
     ]
 
-nestedDeclAliasError :: Pretty -> Pretty -> Pretty -> Name -> Name -> Pretty
-nestedDeclAliasError theType aVerb verbing shorterName longerName =
+nestedDeclAliasError :: Pretty -> Pretty -> Name -> Name -> Pretty
+nestedDeclAliasError theType verb shorterName longerName =
   P.wrap $
     theType
       <> prettyName longerName
       <> "is an alias of"
       <> P.group (prettyName shorterName <> ".")
-      <> "I'm not able to perform"
-      <> aVerb
+      <> "I'm not able to"
+      <> verb
       <> "when a type exists nested under an alias of itself. Please separate them or"
       <> IP.makeExample' IP.deleteForce
       <> "one copy, and then try"
-      <> verbing
+      <> verb
       <> "again."
 
-strayConstructorError :: Pretty -> Pretty -> Pretty -> Name -> Pretty
-strayConstructorError verb theConstructor verbing name =
+strayConstructorError :: Pretty -> Pretty -> Name -> Pretty
+strayConstructorError verb theConstructor name =
   P.lines
     [ P.wrap $
         "Sorry, I wasn't able to perform the"
@@ -4033,6 +4198,6 @@ strayConstructorError verb theConstructor verbing name =
           <> "to move it, or if it's an extra copy, you can simply"
           <> IP.makeExample' IP.deleteForce
           <> "it. Then try"
-          <> verbing
+          <> verb
           <> "again."
     ]

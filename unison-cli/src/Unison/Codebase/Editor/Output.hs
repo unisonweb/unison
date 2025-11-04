@@ -55,6 +55,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.InputPattern qualified as Input
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (..))
@@ -62,6 +63,7 @@ import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -92,7 +94,7 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (DefnsF, defnsAreEmpty)
+import Unison.Util.Defns (Defns, DefnsF, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -284,14 +286,10 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
   | Typechecked
-      PPE.PrettyPrintEnv
-      PPE.PrettyPrintEnv
-      ( DefnsF
-          (Map Name)
-          (SR.TermSlurp Symbol Ann)
-          (SR.SlurpEntry (DD.DeclOrBuiltin Symbol Ann))
-      )
-      (Map Referent (NESet Name))
+      !PPE.PrettyPrintEnv
+      !PPE.PrettyPrintEnv
+      !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
+      !(Map Referent (NESet Name))
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -441,7 +439,8 @@ data Output
   | NoMergeInProgress
   | Output'DebugSynhashTerm !TermReference !Hash !Text
   | ConflictedDefn !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
-  | IncoherentDeclDuringDelete !IncoherentDeclReason
+  | IncoherentDeclDuringDelete !DeleteTarget !IncoherentDeclReason
+  | IncoherentDeclDuringDiffBranch !DiffBranchArg !IncoherentDeclReason
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
   | IncoherentDeclDuringUpgrade !IncoherentDeclReason
@@ -457,6 +456,22 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | ShowBranchDiff
+      !(Merge.TwoWay DiffBranchArg)
+      !(Merge.TwoWay PPE.PrettyPrintEnv)
+      !( Merge.TwoWay
+           ( Defns
+               ( Map Name (Type Symbol Ann),
+                 Map Name (Type Symbol Ann),
+                 Map Name (Type Symbol Ann)
+               )
+               ( Map Name (DeclOrBuiltin Symbol Ann),
+                 Map Name (DeclOrBuiltin Symbol Ann),
+                 Map Name (DeclOrBuiltin Symbol Ann)
+               )
+           )
+       )
+      !(Maybe (Text, ExitCode))
   | StaleRun !PrettyPrintEnv !Name ![Defn TermReference TypeReference] !Bool {- True = found in file, False = found in codebase -}
   | InvalidCommentTarget Text
   | CommentedSuccessfully
@@ -691,6 +706,7 @@ isFailure o = case o of
   Output'DebugSynhashTerm {} -> False
   ConflictedDefn {} -> True
   IncoherentDeclDuringDelete {} -> True
+  IncoherentDeclDuringDiffBranch {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
   IncoherentDeclDuringUpgrade {} -> True
@@ -704,6 +720,7 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  ShowBranchDiff {} -> False
   StaleRun {} -> True
   InvalidCommentTarget {} -> True
   CommentedSuccessfully {} -> False

@@ -15,6 +15,7 @@ module Unison.Cli.ProjectUtils
     getProjectAndBranchByNames,
     getProjectByName,
     expectProjectAndBranchByTheseNames,
+    expectProjectAndBranchByTheseNamesTx,
     getProjectBranchCausalHash,
 
     -- * Loading remote project info
@@ -197,6 +198,29 @@ expectProjectAndBranchByTheseNames = \case
           pure (ProjectAndBranch project branch)
     maybeProjectAndBranch & onNothing do
       Cli.returnEarly (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
+
+-- | Like 'expectProjectAndBranchByTheseNames', but in Transaction, and takes the current project and a rollback
+-- function as arguments.
+expectProjectAndBranchByTheseNamesTx ::
+  (forall void. Output -> Sqlite.Transaction void) ->
+  Sqlite.Project ->
+  These ProjectName ProjectBranchName ->
+  Sqlite.Transaction (ProjectAndBranch Sqlite.Project Sqlite.ProjectBranch)
+expectProjectAndBranchByTheseNamesTx rollback currentProject = \case
+  This projectName -> expectProjectAndBranchByTheseNamesTx rollback currentProject (These projectName defaultBranchName)
+  That branchName -> do
+    branch <-
+      Queries.loadProjectBranchByName currentProject.projectId branchName & onNothingM do
+        rollback (LocalProjectBranchDoesntExist (ProjectAndBranch currentProject.name branchName))
+    pure (ProjectAndBranch currentProject branch)
+  These projectName branchName -> do
+    maybeProjectAndBranch <-
+      runMaybeT do
+        project <- MaybeT (Queries.loadProjectByName projectName)
+        branch <- MaybeT (Queries.loadProjectBranchByName (project ^. #projectId) branchName)
+        pure (ProjectAndBranch project branch)
+    maybeProjectAndBranch & onNothing do
+      rollback (LocalProjectBranchDoesntExist (ProjectAndBranch projectName branchName))
 
 -- | Expect/resolve branch reference with the following rules:
 --

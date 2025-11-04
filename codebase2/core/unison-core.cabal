@@ -23,6 +23,7 @@ library
       Unison.Core.Project
       Unison.NameSegment
       Unison.NameSegment.Internal
+      Unison.OrBuiltin
       Unison.ShortHash
       Unison.Util.Alphabetical
   hs-source-dirs:

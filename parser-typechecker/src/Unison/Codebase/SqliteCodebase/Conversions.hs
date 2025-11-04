@@ -38,6 +38,8 @@ import Unison.Hash qualified as Hash
 import Unison.Hash qualified as V1
 import Unison.Kind qualified as V1.Kind
 import Unison.NameSegment (NameSegment)
+import Unison.OrBuiltin (OrBuiltin (..))
+import Unison.OrBuiltin qualified as OrBuiltin
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Pattern qualified as V1.Pattern
@@ -540,18 +542,16 @@ referent2toshorthash1 :: Maybe Int -> V2.Referent -> ShortHash
 referent2toshorthash1 hashLength ref =
   maybe id ShortHash.shortenTo hashLength $ case ref of
     V2.Referent.Ref r -> reference2toshorthash1 hashLength r
-    V2.Referent.Con r conId ->
-      case reference2toshorthash1 hashLength r of
-        ShortHash.ShortHash h p _con -> ShortHash.ShortHash h p (Just conId)
-        sh@(ShortHash.Builtin {}) -> sh
+    V2.Referent.Con r conId -> reference2toshorthash1 hashLength r & set (OrBuiltin.notBuiltin_ . #cid) (Just conId)
 
 -- | Generates a v1 short hash from a v2 reference.
 -- Also shortens the hash to the provided length. If 'Nothing', it will include the full
 -- length hash.
 reference2toshorthash1 :: Maybe Int -> V2.Reference.Reference -> ShortHash
 reference2toshorthash1 hashLength ref = maybe id ShortHash.shortenTo hashLength $ case ref of
-  V2.Reference.ReferenceBuiltin b -> ShortHash.Builtin b
-  V2.Reference.ReferenceDerived (V2.Reference.Id h i) -> ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing
+  V2.Reference.ReferenceBuiltin b -> Builtin b
+  V2.Reference.ReferenceDerived (V2.Reference.Id h i) ->
+    NotBuiltin (ShortHash.ShortHash (Hash.toBase32HexText h) (showComponentPos i) Nothing)
   where
     showComponentPos :: V2.Reference.Pos -> Maybe Word64
     showComponentPos 0 = Nothing

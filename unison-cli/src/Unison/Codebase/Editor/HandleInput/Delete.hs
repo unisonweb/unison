@@ -32,7 +32,6 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType (ConstructorType)
 import Unison.DataDeclaration (Decl)
@@ -44,6 +43,7 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
@@ -103,7 +103,11 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
   declNameLookup <-
     Cli.runTransactionWithRollback \rollback -> do
       Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentNamespace) unconflictedView
-        & onLeftM (rollback . Output.IncoherentDeclDuringDelete . DeclCoherencyCheck.asOneRandomIncoherentDeclReason)
+        & onLeftM
+          ( rollback
+              . Output.IncoherentDeclDuringDelete which
+              . DeclCoherencyCheck.asOneRandomIncoherentDeclReason
+          )
 
   -- Identify the term and types identified by the provided names.
   target :: Defns (BiMultimap TermReference Name) (BiMultimap TypeReference Name) <-
@@ -143,11 +147,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
           -- (1)
           transitiveDependents <- Operations.transitiveDependentsWithinScope scope nameless
           uniqueTypeGuidsByName <- makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types)
-          hydratedDependents <-
-            hydrateRefs
-              (Codebase.unsafeGetTermComponent env.codebase)
-              Operations.expectDeclComponent
-              transitiveDependents
+          hydratedDependents <- hydrateRefs env.codebase transitiveDependents
           pure (Left (uniqueTypeGuidsByName, hydratedDependents))
 
   declTypes <-
@@ -189,7 +189,7 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
       let nextNamespace :: Branch IO
           nextNamespace =
             nextNamespaceDefns
-              & bimap BiMultimap.range BiMultimap.range
+              & NamesUtils.byName
               & Branch.fromUnconflictedDefns
               & Branch.setLibdeps (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentNamespace0)
               & (`Branch.cons` currentNamespace)
@@ -222,12 +222,8 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
               <> "-- Please fix the errors and run `update`."
               <> Pretty.newline
               <> Pretty.newline
-              <> ( let f =
-                         foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
-                           . sortAlphabeticallyOn fst
-                           . Map.toList
-                    in bifoldMap f f dependents
-                 )
+              <> renderDefns dependents.types
+              <> renderDefns dependents.terms
             where
               dependents :: DefnsF (Map Name) (Pretty ColorText) (Pretty ColorText)
               dependents =
@@ -239,6 +235,12 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
                       & nameHydratedRefIds2 unconflictedView.defns
                       & over (#terms . mapped) snd
                   )
+
+              renderDefns :: Map Name (Pretty ColorText) -> Pretty ColorText
+              renderDefns =
+                foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+                  . sortAlphabeticallyOn fst
+                  . Map.toList
 
       liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
 

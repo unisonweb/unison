@@ -9,7 +9,6 @@ where
 
 import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
-import Data.Bifoldable (bifoldMap)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -39,7 +38,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
@@ -139,7 +137,7 @@ handleUpdate2 = do
 
             -- Hydrate the dependents for rendering
             hydratedDependents0 <-
-              hydrateRefs (Codebase.unsafeGetTermComponent env.codebase) Operations.expectDeclComponent dependentsRefs
+              hydrateRefs env.codebase dependentsRefs
 
             let hydratedDependents1 =
                   nameHydratedRefIds dependents1 hydratedDependents0
@@ -270,16 +268,14 @@ makePrettyUnisonFile originalFile dependents =
     <> "-- Please fix the errors and try `update` again."
     <> Pretty.newline
     <> Pretty.newline
-    <> ( dependents
-           & inAlphabeticalOrder
-           & let f = foldMap (\defn -> defn <> Pretty.newline <> Pretty.newline) in bifoldMap f f
-       )
+    <> renderDefns dependents.types
+    <> renderDefns dependents.terms
   where
-    inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
-    inAlphabeticalOrder =
-      bimap f f
-      where
-        f = map snd . sortAlphabeticallyOn fst . Map.toList
+    renderDefns :: Map Name (Pretty ColorText) -> Pretty ColorText
+    renderDefns =
+      foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+        . sortAlphabeticallyOn fst
+        . Map.toList
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
@@ -381,11 +377,10 @@ makePPE ::
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   PrettyPrintEnvDecl
 makePPE hashLen namespaceNames initialFileNames dependents =
-  PPED.addFallback
-    ( let names = initialFileNames <> Names.fromUnconflictedReferenceIds dependents
-       in PPED.makePPED (PPE.namer names) (PPE.suffixifyByName (Names.shadowing names namespaceNames))
-    )
-    ( PPED.makePPED
+  PPED.leftBiased
+    [ let names = initialFileNames <> Names.fromUnconflictedReferenceIds dependents
+       in PPED.makePPED (PPE.namer names) (PPE.suffixifyByName (Names.shadowing names namespaceNames)),
+      PPED.makePPED
         (PPE.hqNamer hashLen namespaceNames)
         -- We don't want to over-suffixify for a reference in the namespace. For example, say we have "foo.bar" in the
         -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
@@ -394,4 +389,4 @@ makePPE hashLen namespaceNames initialFileNames dependents =
         -- So, we use `shadowing`, which starts with the LHS names (the namespace), and adds to it names from the
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
         (PPE.suffixifyByHash (Names.shadowing namespaceNames initialFileNames))
-    )
+    ]

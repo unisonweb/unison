@@ -33,7 +33,10 @@ import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
+import Unison.Codebase (Codebase)
+import Unison.Codebase qualified as Codebase
 import Unison.ConstructorReference (GConstructorReference (..))
+import Unison.DataDeclaration (Decl)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
@@ -50,6 +53,8 @@ import Unison.Result qualified as Result
 import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
+import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -107,13 +112,13 @@ subtractDependents dependents =
 
 -- | Hydrate term/type references to actual terms/types.
 hydrateRefs ::
-  (Monad m) =>
-  (Hash -> m [term]) ->
-  (Hash -> m [typ]) ->
+  Codebase m v a ->
   DefnsF Set TermReferenceId TypeReferenceId ->
-  m (Defns (Map TermReferenceId term) (Map TypeReferenceId typ))
-hydrateRefs getTermComponent getTypeComponent =
-  bitraverse (hydrateRefs1 getTermComponent) (hydrateRefs1 getTypeComponent)
+  Transaction (Defns (Map TermReferenceId (Term v a, Type v a)) (Map TypeReferenceId (Decl v a)))
+hydrateRefs codebase =
+  bitraverse
+    (hydrateRefs1 (Codebase.unsafeGetTermComponent codebase))
+    (hydrateRefs1 (Codebase.expectTypeDeclarationComponent codebase))
 
 hydrateRefs1 ::
   forall defn m.

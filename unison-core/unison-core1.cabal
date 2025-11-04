@@ -40,6 +40,7 @@ library
       Unison.Names
       Unison.Names.ResolutionResult
       Unison.Names.ResolvesTo
+      Unison.NamesUtils
       Unison.NamesWithHistory
       Unison.PartialDeclNameLookup
       Unison.Pattern
@@ -53,6 +54,7 @@ library
       Unison.Term
       Unison.Type
       Unison.Type.Names
+      Unison.Typed
       Unison.Util.Components
       Unison.Util.Conflicted
       Unison.Util.Defn

@@ -11,7 +11,6 @@ import Control.Monad.State.Strict (State)
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Writer.CPS (WriterT)
 import Control.Monad.Trans.Writer.CPS qualified as Writer
-import Data.Bifoldable (bifoldMap)
 import Data.Char qualified as Char
 import Data.Containers.ListUtils qualified as List
 import Data.List qualified as List
@@ -40,7 +39,6 @@ import Unison.Codebase.Editor.HandleInput.Update2 (typecheckedUnisonFileToBranch
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.DeclNameLookup (DeclNameLookup (..))
@@ -51,6 +49,7 @@ import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.Names qualified as Names
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -186,10 +185,7 @@ handleUpgrade1 namePairs = do
             bimap Map.elemsSet Map.elemsSet dependents
 
       hydratedDependents0 <-
-        hydrateRefs
-          (Codebase.unsafeGetTermComponent env.codebase)
-          Operations.expectDeclComponent
-          dependentsRefs
+        hydrateRefs env.codebase dependentsRefs
 
       let hydratedDependents1 =
             nameHydratedRefIds dependents hydratedDependents0
@@ -227,7 +223,7 @@ handleUpgrade1 namePairs = do
           ( CreateFrom'Upgrade
               (pp.branch, Branch.headHash currentNamespace, uniqueTypeGuidsByName)
               ( unconflictedView.defns
-                  & bimap BiMultimap.range BiMultimap.range
+                  & NamesUtils.byName
                   & subtractDependents dependentsRefs
                   & Branch.fromUnconflictedDefns
                   & Branch.setLibdeps
@@ -301,16 +297,14 @@ makePrettyUnisonFile dependents =
     <> "-- Please fix the errors, then run `update`."
     <> Pretty.newline
     <> Pretty.newline
-    <> ( dependents
-           & inAlphabeticalOrder
-           & let f = foldMap (\defn -> defn <> Pretty.newline <> Pretty.newline) in bifoldMap f f
-       )
+    <> renderDefns dependents.types
+    <> renderDefns dependents.terms
   where
-    inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
-    inAlphabeticalOrder =
-      bimap f f
-      where
-        f = map snd . sortAlphabeticallyOn fst . Map.toList
+    renderDefns :: Map Name (Pretty ColorText) -> Pretty ColorText
+    renderDefns =
+      foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+        . sortAlphabeticallyOn fst
+        . Map.toList
 
 data UpgradeInfo = UpgradeInfo
   { oldName :: NameSegment,

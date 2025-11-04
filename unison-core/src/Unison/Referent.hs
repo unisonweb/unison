@@ -8,6 +8,8 @@ module Unison.Referent
     Id,
     pattern RefId,
     pattern ConId,
+    pattern Builtin,
+    asBuiltin,
     fold,
     toId,
     toReference,
@@ -42,7 +44,6 @@ import Unison.ConstructorType qualified as CT
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Prelude hiding (fold)
 import Unison.Reference (Reference, TermReference, TermReferenceId)
-import Unison.Reference qualified as R
 import Unison.Reference qualified as Reference
 import Unison.ReferentPrime (Referent' (..), reference_, termReference_, toReference')
 import Unison.ShortHash (ShortHash)
@@ -65,15 +66,24 @@ pattern Con r t = Con' r t
 {-# COMPLETE Ref, Con #-}
 
 -- | By definition, cannot be a builtin.
-type Id = Referent' R.Id
+type Id = Referent' Reference.Id
 
-pattern RefId :: R.Id -> Unison.Referent.Id
+pattern RefId :: Reference.Id -> Unison.Referent.Id
 pattern RefId r = Ref' r
 
 pattern ConId :: ConstructorReferenceId -> ConstructorType -> Unison.Referent.Id
 pattern ConId r t = Con' r t
 
 {-# COMPLETE RefId, ConId #-}
+
+-- | A builtin term reference.
+pattern Builtin :: Text -> Referent
+pattern Builtin name <- Ref' (Reference.Builtin name)
+
+asBuiltin :: Referent -> Maybe Text
+asBuiltin = \case
+  Builtin name -> Just name
+  _ -> Nothing
 
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent
@@ -95,13 +105,13 @@ fromId = \case
 -- todo: move these to ShortHash module
 toShortHash :: Referent -> ShortHash
 toShortHash = \case
-  Ref r -> R.toShortHash r
+  Ref r -> Reference.toShortHash r
   Con r _ -> ConstructorReference.toShortHash r
 
 toText :: Referent -> Text
 toText = \case
-  Ref r -> R.toText r
-  Con (ConstructorReference r cid) ct -> R.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
+  Ref r -> Reference.toText r
+  Con (ConstructorReference r cid) ct -> Reference.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
 
 ctorTypeText :: CT.ConstructorType -> Text
 ctorTypeText CT.Effect = EffectCtor
@@ -164,11 +174,11 @@ fromText t =
   either (const Nothing) Just $
     -- if the string has just one hash at the start, it's just a reference
     if refPart == "#" || refPart == "##"
-      then Ref <$> R.fromText t
+      then Ref <$> Reference.fromText t
       else
         if Text.all Char.isDigit cidPart && (not . Text.null) cidPart
           then do
-            r <- R.fromText (Text.dropEnd 1 refPart)
+            r <- Reference.fromText (Text.dropEnd 1 refPart)
             ctorType <- ctorType
             let maybeCid = readMaybe (Text.unpack cidPart)
             case maybeCid of

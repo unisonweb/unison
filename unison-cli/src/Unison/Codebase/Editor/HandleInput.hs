@@ -61,6 +61,7 @@ import Unison.Codebase.Editor.HandleInput.DeleteNamespace (handleDeleteNamespace
 import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.Dependencies (handleDependencies)
 import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
+import Unison.Codebase.Editor.HandleInput.DiffBranch (handleDiffBranch)
 import Unison.Codebase.Editor.HandleInput.EditDependents (handleEditDependents)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
@@ -191,197 +192,6 @@ loop e = do
         _ -> loadUnisonFile sourceName text
     Right input ->
       Cli.time "InputPattern" case input of
-        ApiI -> do
-          pp <- Cli.getCurrentProjectPath
-          whenJust env.serverBaseUrl \baseUrl ->
-            Cli.respond $
-              Literal $
-                P.lines
-                  [ "The API information is as follows:",
-                    P.newline,
-                    P.indentN 2 (P.hiBlue ("UI: " <> Pretty.text (Server.urlFor (Server.ProjectBranchUI (PP.toProjectAndBranch . PP.toNames $ pp) Path.Root Nothing) baseUrl))),
-                    P.newline,
-                    P.indentN 2 (P.hiBlue ("API: " <> Pretty.text (Server.urlFor Server.Api baseUrl)))
-                  ]
-        CreateMessage pretty ->
-          Cli.respond $ Literal pretty
-        ShowRootReflogI -> do
-          let numEntriesToShow = 500
-          (schLength, entries) <-
-            Cli.runTransaction $
-              (,) <$> Codebase.branchHashLength <*> Codebase.getDeprecatedRootReflog numEntriesToShow
-          let moreEntriesToLoad = length entries == numEntriesToShow
-          let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
-          let (shortEntries, numberedEntries) =
-                unzip $
-                  expandedEntries <&> \(time, hash, reason) ->
-                    let (exp, sa) = (SCH.fromHash schLength &&& SA.Namespace) hash
-                     in ((time, exp, reason), sa)
-          Cli.setNumberedArgs numberedEntries
-          Cli.respond $ ShowReflog shortEntries
-          where
-            expandEntries ::
-              ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool) ->
-              Maybe ((Maybe UTCTime, CausalHash, Text), ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool))
-            expandEntries ([], Just expectedHash, moreEntriesToLoad) =
-              if moreEntriesToLoad
-                then Nothing
-                else Just ((Nothing, expectedHash, "history starts here"), ([], Nothing, moreEntriesToLoad))
-            expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
-            expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
-              Just $
-                case mayExpectedHash of
-                  Just expectedHash
-                    | expectedHash == toRootCausalHash -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
-                    -- Historical discontinuity, insert a synthetic entry
-                    | otherwise -> ((Nothing, toRootCausalHash, "(external change)"), (entries, Nothing, moreEntriesToLoad))
-                  -- No expectation, either because this is the most recent entry or
-                  -- because we're recovering from a discontinuity
-                  Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
-        ShowProjectBranchReflogI mayProjBranch -> do
-          Reflogs.showProjectBranchReflog mayProjBranch
-        ShowGlobalReflogI -> do
-          Reflogs.showGlobalReflog
-        ShowProjectReflogI mayProj -> do
-          Reflogs.showProjectReflog mayProj
-        ResetI newRoot mtarget -> do
-          newRoot <- resolveBranchId2 newRoot
-          target <-
-            case mtarget of
-              Nothing -> Cli.getCurrentProjectPath
-              Just unresolvedProjectAndBranch -> do
-                targetProjectAndBranch <- ProjectUtils.resolveProjectBranch (second Just unresolvedProjectAndBranch)
-                pure $ PP.projectBranchRoot targetProjectAndBranch
-          description <- inputDescription input
-          _ <- Cli.updateAt description target (const newRoot)
-          Cli.respond Success
-        ForkLocalBranchI src0 dest0 -> do
-          (srcb, branchEmpty) <-
-            case src0 of
-              Left hash -> (,WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
-              Right path' -> do
-                srcPP <- ProjectUtils.resolveBranchRelativePath path'
-                srcb <- Cli.getBranchFromProjectPath srcPP
-                pure (srcb, WhichBranchEmptyPath srcPP)
-          description <- inputDescription input
-          dest <- ProjectUtils.resolveBranchRelativePath dest0
-          ok <- Cli.updateAtM description dest (const $ pure srcb)
-          Cli.respond
-            if ok
-              then Success
-              else BranchEmpty branchEmpty
-        MergeI branch -> handleMerge branch
-        MergeCommitI ->
-          Cli.returnEarly (Output.Literal "The `merge.commit` command has been removed in favor of `update`.")
-        DiffNamespaceI before after -> do
-          beforeLoc <- traverse ProjectUtils.resolveBranchRelativePath before
-          beforeBranch0 <- Branch.head <$> resolveBranchId2 before
-          afterLoc <- traverse ProjectUtils.resolveBranchRelativePath after
-          afterBranch0 <- Branch.head <$> resolveBranchId2 after
-          case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
-            (True, True) -> Cli.returnEarly . NamespaceEmpty $ (beforeLoc Nel.:| [afterLoc])
-            (True, False) -> Cli.returnEarly . NamespaceEmpty $ (beforeLoc Nel.:| [])
-            (False, True) -> Cli.returnEarly . NamespaceEmpty $ (afterLoc Nel.:| [])
-            (False, False) -> pure ()
-          (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
-          Cli.respondNumbered (ShowDiffNamespace beforeLoc afterLoc ppe diff)
-        MoveBranchI src' dest' -> do
-          hasConfirmed <- confirmedCommand input
-          description <- inputDescription input
-          doMoveBranch description hasConfirmed src' dest'
-        SwitchBranchI path' -> do
-          path <- Cli.resolvePath' path'
-          branchExists <- Cli.branchExistsAtPath' path'
-          when (not branchExists) (Cli.respond $ CreatedNewBranch (path ^. PP.absPath_))
-          Cli.cd (path ^. PP.absPath_)
-        UpI -> do
-          path0 <- Cli.getCurrentPath
-          whenJust (Path.ascend path0) Cli.cd
-        PopBranchI -> do
-          success <- Cli.popd
-          when (not success) (Cli.respond StartOfCurrentPathHistory)
-        HistoryI resultsCap diffCap from -> do
-          handleHistory resultsCap diffCap from
-        HistoryCommentI toAnnotate -> do
-          handleHistoryComment toAnnotate
-        UndoI -> do
-          rootBranch <- Cli.getCurrentProjectRoot
-          (_, prev) <-
-            liftIO (Branch.uncons rootBranch) & onNothingM do
-              Cli.returnEarly . CantUndo $
-                if Branch.isOne rootBranch
-                  then CantUndoPastStart
-                  else CantUndoPastMerge
-          description <- inputDescription input
-          pb <- getCurrentProjectBranch
-          Cli.updateProjectBranchRoot_ pb description (const prev)
-          (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
-          Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
-        UiI path' -> openUI path'
-        DocToMarkdownI docName -> do
-          names <- Cli.currentNames
-          let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-          docRefs <- Cli.runTransaction do
-            hqLength <- Codebase.hashLength
-            let nameSearch = NameSearch.makeNameSearch hqLength names
-            Backend.docsForDefinitionName env.codebase nameSearch Names.IncludeSuffixes docName
-          mdText <- liftIO $ do
-            for docRefs \docRef -> do
-              Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) env.codebase env.runtime (Identity docRef)
-              pure . Md.toText $ Md.toMarkdown doc
-          Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
-        DocsToHtmlI namespacePath' sourceDirectory -> do
-          projPath <- ProjectUtils.resolveBranchRelativePath namespacePath'
-          branch <- Cli.getBranchFromProjectPath projPath
-          _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles env.sandboxedRuntime env.codebase branch sourceDirectory)
-          pure ()
-        AliasTermI force src' dest' -> do
-          src <- traverse (traverse Cli.resolveSplit') src'
-          srcTerms <-
-            either
-              (Cli.runTransaction . Backend.termReferentsByShortHash env.codebase)
-              Cli.getTermsAt
-              src
-          srcTerm <-
-            Set.asSingleton srcTerms & onNothing do
-              Cli.returnEarly =<< case (Set.null srcTerms, src') of
-                (True, Left hash) -> pure (TermNotFound' hash)
-                (True, Right name) -> pure (TermNotFound name)
-                (False, Left hash) -> pure (HashAmbiguous hash srcTerms)
-                (False, Right name) -> do
-                  hqLength <- Cli.runTransaction Codebase.hashLength
-                  pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
-          dest <- Cli.resolveSplit' dest'
-          destTerms <- Cli.getTermsAt $ HQ'.NameOnly dest
-          when (not force && not (Set.null destTerms)) do
-            Cli.returnEarly (TermAlreadyExists dest' destTerms)
-          description <- inputDescription input
-          Cli.stepAt description (BranchUtil.makeAddTermName dest srcTerm)
-          Cli.respond Success
-        AliasTypeI force src' dest' -> do
-          src <- traverse (traverse Cli.resolveSplit') src'
-          srcTypes <-
-            either
-              (Cli.runTransaction . Backend.typeReferencesByShortHash)
-              Cli.getTypesAt
-              src
-          srcType <-
-            Set.asSingleton srcTypes & onNothing do
-              Cli.returnEarly =<< case (Set.null srcTypes, src') of
-                (True, Left hash) -> pure (TypeNotFound' hash)
-                (True, Right name) -> pure (TypeNotFound name)
-                (False, Left hash) -> pure (HashAmbiguous hash (Set.map Referent.Ref srcTypes))
-                (False, Right name) -> do
-                  hqLength <- Cli.runTransaction Codebase.hashLength
-                  pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
-          dest <- Cli.resolveSplit' dest'
-          destTypes <- Cli.getTypesAt $ HQ'.NameOnly dest
-          when (not force && not (Set.null destTypes)) do
-            Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-          description <- inputDescription input
-          Cli.stepAt description (BranchUtil.makeAddTypeName dest srcType)
-          Cli.respond Success
-
         -- this implementation will happily produce name conflicts,
         -- but will surface them in a normal diff at the end of the operation.
         AliasManyI srcs dest' -> do
@@ -439,10 +249,74 @@ loop e = do
 
             fixupOutput :: HQ'.HashQualified (Path.Split Path) -> HQ.HashQualified Name
             fixupOutput = HQ'.toHQ . fmap Path.nameFromSplit
-        NamesI global queries -> do
-          mapM_ (handleNames global) queries
-        DocsI srcs -> do
-          for_ srcs docsI
+        AliasTermI force src' dest' -> do
+          src <- traverse (traverse Cli.resolveSplit') src'
+          srcTerms <-
+            either
+              (Cli.runTransaction . Backend.termReferentsByShortHash env.codebase)
+              Cli.getTermsAt
+              src
+          srcTerm <-
+            Set.asSingleton srcTerms & onNothing do
+              Cli.returnEarly =<< case (Set.null srcTerms, src') of
+                (True, Left hash) -> pure (TermNotFound' hash)
+                (True, Right name) -> pure (TermNotFound name)
+                (False, Left hash) -> pure (HashAmbiguous hash srcTerms)
+                (False, Right name) -> do
+                  hqLength <- Cli.runTransaction Codebase.hashLength
+                  pure (DeleteNameAmbiguous hqLength name srcTerms Set.empty)
+          dest <- Cli.resolveSplit' dest'
+          destTerms <- Cli.getTermsAt $ HQ'.NameOnly dest
+          when (not force && not (Set.null destTerms)) do
+            Cli.returnEarly (TermAlreadyExists dest' destTerms)
+          description <- inputDescription input
+          Cli.stepAt description (BranchUtil.makeAddTermName dest srcTerm)
+          Cli.respond Success
+        AliasTypeI force src' dest' -> do
+          src <- traverse (traverse Cli.resolveSplit') src'
+          srcTypes <-
+            either
+              (Cli.runTransaction . Backend.typeReferencesByShortHash)
+              Cli.getTypesAt
+              src
+          srcType <-
+            Set.asSingleton srcTypes & onNothing do
+              Cli.returnEarly =<< case (Set.null srcTypes, src') of
+                (True, Left hash) -> pure (TypeNotFound' hash)
+                (True, Right name) -> pure (TypeNotFound name)
+                (False, Left hash) -> pure (HashAmbiguous hash (Set.map Referent.Ref srcTypes))
+                (False, Right name) -> do
+                  hqLength <- Cli.runTransaction Codebase.hashLength
+                  pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
+          dest <- Cli.resolveSplit' dest'
+          destTypes <- Cli.getTypesAt $ HQ'.NameOnly dest
+          when (not force && not (Set.null destTypes)) do
+            Cli.returnEarly (TypeAlreadyExists dest' destTypes)
+          description <- inputDescription input
+          Cli.stepAt description (BranchUtil.makeAddTypeName dest srcType)
+          Cli.respond Success
+        ApiI -> do
+          pp <- Cli.getCurrentProjectPath
+          whenJust env.serverBaseUrl \baseUrl ->
+            Cli.respond $
+              Literal $
+                P.lines
+                  [ "The API information is as follows:",
+                    P.newline,
+                    P.indentN 2 (P.hiBlue ("UI: " <> Pretty.text (Server.urlFor (Server.ProjectBranchUI (PP.toProjectAndBranch . PP.toNames $ pp) Path.Root Nothing) baseUrl))),
+                    P.newline,
+                    P.indentN 2 (P.hiBlue ("API: " <> Pretty.text (Server.urlFor Server.Api baseUrl)))
+                  ]
+        AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
+        BranchI source name -> handleBranch source name
+        BranchRenameI name -> handleBranchRename name
+        BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
+        BranchesI name -> handleBranches name
+        CancelI -> handleCancel
+        ClearI -> Cli.respond ClearScreen
+        CloneI remoteNames localNames -> handleClone remoteNames localNames
+        ConfigGetI key -> handleConfigGet key
+        ConfigSetI key value -> handleConfigSet key value
         CreateAuthorI authorNameSegment authorFullName -> do
           initialBranch <- Cli.getCurrentBranch
           AuthorInfo
@@ -474,158 +348,18 @@ loop e = do
             d = Referent.Ref . Reference.DerivedId
             base = Path.descend Path.Current' NameSegment.metadataSegment
             authorPath' = (Path.descend base NameSegment.authorsSegment, authorNameSegment)
-        MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
-        MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
-        MoveAllI src' dest' -> do
-          hasConfirmed <- confirmedCommand input
-          desc <- inputDescription input
-          handleMoveAll hasConfirmed src' dest' desc
-        DeleteBranchI name -> handleDeleteBranch name
-        DeleteI force which target -> handleDelete force which target
-        DeleteNamespaceI insistence path -> handleDeleteNamespace input insistence path
-        DeleteProjectI name -> handleDeleteProject name
-        DisplayI outputLoc namesToDisplay -> traverse_ (displayI outputLoc) namesToDisplay
-        ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
-        EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
-        FindShallowI pathArg -> handleLs pathArg
-        FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
-        StructuredFindI _fscope ws -> handleStructuredFindI ws
-        StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
-        TextFindI allowLib ws -> handleTextFindI allowLib ws
-        LoadI maybePath -> handleLoad maybePath
-        ClearI -> Cli.respond ClearScreen
-        SaveExecuteResultI resultName -> handleAddRun input resultName
-        Update2I -> handleUpdate2
-        TodoI -> handleTodo
-        TestI testInput -> Tests.handleTest testInput
-        ExecuteI prof main args -> handleRun prof main args
-        MakeStandaloneI output main -> doCompile False output main
-        IOTestI main -> Tests.handleIOTest main
-        IOTestAllI -> Tests.handleAllIOTests
-        MergeBuiltinsI opath -> do
-          description <- inputDescription input
-          -- these were added once, but maybe they've changed and need to be
-          -- added again.
-          let uf =
-                UF.typecheckedUnisonFile
-                  (Map.fromList Builtin.builtinDataDecls)
-                  (Map.fromList Builtin.builtinEffectDecls)
-                  [Builtin.builtinTermsSrc Intrinsic]
-                  mempty
-          Cli.runTransaction (Codebase.addDefsToCodebase env.codebase uf)
-          -- add the names; note, there are more names than definitions
-          -- due to builtin terms; so we don't just reuse `uf` above.
-          let srcb = BranchUtil.fromNames Builtin.names
-          currentPath <- Cli.getCurrentPath
-          let destPath = case opath of
-                Just path -> Path.resolve currentPath path
-                Nothing -> Path.descend currentPath NameSegment.builtinSegment
-          pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
-          _ <- Cli.updateAtM description pp \destb ->
-            liftIO (Branch.merge'' (Codebase.lca env.codebase) Branch.RegularMerge srcb destb)
-          Cli.respond Success
-        MergeIOBuiltinsI opath -> do
-          description <- inputDescription input
-          -- these were added once, but maybe they've changed and need to be
-          -- added again.
-          let uf =
-                UF.typecheckedUnisonFile
-                  (Map.fromList Builtin.builtinDataDecls)
-                  (Map.fromList Builtin.builtinEffectDecls)
-                  [Builtin.builtinTermsSrc Intrinsic]
-                  mempty
-          Cli.runTransaction do
-            Codebase.addDefsToCodebase env.codebase uf
-            -- these have not necessarily been added yet
-            Codebase.addDefsToCodebase env.codebase IOSource.typecheckedFile'
-          -- add the names; note, there are more names than definitions
-          -- due to builtin terms; so we don't just reuse `uf` above.
-          let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
-          let srcb = BranchUtil.fromNames names0
-          currentPath <- Cli.getCurrentPath
-          let destPath = case opath of
-                Just path -> Path.resolve currentPath path
-                Nothing -> Path.descend currentPath NameSegment.builtinSegment
-          pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
-          _ <- Cli.updateAtM description pp \destb ->
-            liftIO (Branch.merge'' (Codebase.lca env.codebase) Branch.RegularMerge srcb destb)
-          Cli.respond Success
-        PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
-        PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
-        SyncToFileI syncFileDest projectBranchName -> SyncV2.handleSyncToFile syncFileDest projectBranchName
-        SyncFromFileI syncFileSrc projectBranchName -> do
-          description <- inputDescription input
-          SyncV2.handleSyncFromFile description syncFileSrc projectBranchName
-        SyncFromCodebaseI srcCodebasePath srcBranch destBranch -> do
-          description <- inputDescription input
-          SyncV2.handleSyncFromCodebase description srcCodebasePath srcBranch destBranch
-        ListDependentsI hq -> handleDependents hq
-        ListDependenciesI hq -> handleDependencies hq
-        NamespaceDependenciesI _ ->
-          Cli.respond $
-            Output.Literal $
-              P.wrap $
-                "The `namespace.dependencies` command has been replaced by `todo`. Run `todo` instead."
-        DebugNumberedArgsI -> do
-          schLength <- Cli.runTransaction Codebase.branchHashLength
-          numArgs <- use #numberedArgs
-          Cli.respond (DumpNumberedArgs schLength numArgs)
-        DebugTypecheckedUnisonFileI -> do
-          hqLength <- Cli.runTransaction Codebase.hashLength
-          uf <- Cli.expectLatestTypecheckedFile
-          let datas, effects, terms :: [(Name, Reference.Id)]
-              datas = [(Name.unsafeParseVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
-              effects = [(Name.unsafeParseVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
-              terms = [(Name.unsafeParseVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
-          Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
-        DebugTabCompletionI inputs -> do
-          pp <- Cli.getCurrentProjectPath
-          let completionFunc = Completion.haskelineTabComplete IP.patternMap env.codebase env.authHTTPClient pp
-          (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
-          Cli.respond (DisplayDebugCompletions completions)
-        DebugLSPNameCompletionI prefix -> do
-          LSPDebug.debugLspNameCompletion prefix
-        DebugFuzzyOptionsI command args -> do
-          currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
-          case Map.lookup command InputPatterns.patternMap of
-            Just IP.InputPattern {params} ->
-              either (Cli.respond . DebugFuzzyOptionsIncorrectArgs) (pure . fst)
-                =<< IP.foldParamsWithM
-                  ( \_ (paramName, IP.ParameterType {fzfResolver}) arg ->
-                      if arg == "_"
-                        then case fzfResolver of
-                          Just IP.DefaultFZFFileSearch -> do
-                            (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName ["<files>"])
-                          Just (IP.FetchOptions getOptions) -> do
-                            pp <- Cli.getCurrentProjectPath
-                            results <- liftIO $ getOptions env.codebase pp currentBranch
-                            (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName (Text.unpack <$> results))
-                          Nothing -> (,[]) <$> Cli.respond DebugFuzzyOptionsNoResolver
-                        else pure ((), [])
-                  )
-                  ()
-                  params
-                  args
-            Nothing -> Cli.respond $ DebugFuzzyOptionsNoCommand command
-        DebugFormatI -> do
-          void $ runMaybeT do
-            (filePath, _) <- MaybeT Cli.getLatestFile
-            pf <- lift Cli.getLatestParsedFile
-            tf <- lift Cli.getLatestTypecheckedFile
-            names <- lift Cli.currentNames
-            let buildPPED uf tf =
-                  let names' = (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
-                   in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
-            let formatWidth = 80
-            currentPath <- lift $ Cli.getCurrentPath
-            updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
-            source <-
-              liftIO (env.loadSource (Text.pack filePath)) >>= \case
-                Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
-                Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
-                Cli.LoadSuccess contents -> pure contents
-            let updatedSource = Format.applyTextReplacements updates source
-            liftIO $ env.writeSource (Text.pack filePath) updatedSource True
+        CreateMessage pretty -> Cli.respond $ Literal pretty
+        DebugClearWatchI -> Cli.runTransaction Codebase.clearWatches
+        DebugDependentsGraph -> handleDebugDependentsGraph
+        DebugDoctorI -> do
+          r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
+          Cli.respond (IntegrityCheck r)
+        DebugDumpNamespaceSimpleI -> do
+          projectRootBranch0 <- Cli.getCurrentProjectRoot0
+          for_ (Relation.toList . Branch.deepTypes $ projectRootBranch0) \(r, name) ->
+            traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
+          for_ (Relation.toList . Branch.deepTerms $ projectRootBranch0) \(r, name) ->
+            traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
         DebugDumpNamespacesI -> do
           let seen h = State.gets (Set.member h)
               set h = State.modify (Set.insert h)
@@ -672,35 +406,55 @@ loop e = do
                     P.lines (P.text <$> if null names then ["<unnamed>"] else NameSegment.toEscapedText <$> names) <> P.newline <> prettyRef renderR r
           projectRoot <- Cli.getCurrentProjectRoot
           void . liftIO . flip State.execStateT mempty $ goCausal [getCausal projectRoot]
-        DebugDumpNamespaceSimpleI -> do
-          projectRootBranch0 <- Cli.getCurrentProjectRoot0
-          for_ (Relation.toList . Branch.deepTypes $ projectRootBranch0) \(r, name) ->
-            traceM $ show name ++ ",Type," ++ Text.unpack (Reference.toText r)
-          for_ (Relation.toList . Branch.deepTerms $ projectRootBranch0) \(r, name) ->
-            traceM $ show name ++ ",Term," ++ Text.unpack (Referent.toText r)
-        DebugTermI isVerbose hqName -> DebugDefinition.debugTerm isVerbose hqName
-        DebugLSPFoldRangesI -> do
-          DebugFoldRanges.debugFoldRanges
-        DebugTypeI hqName -> DebugDefinition.debugDecl hqName
-        DebugClearWatchI {} ->
-          Cli.runTransaction Codebase.clearWatches
-        DebugDependentsGraph -> handleDebugDependentsGraph
-        DebugDoctorI {} -> do
-          r <- Cli.runTransaction IntegrityCheck.integrityCheckFullCodebase
-          Cli.respond (IntegrityCheck r)
+        DebugFormatI -> do
+          void $ runMaybeT do
+            (filePath, _) <- MaybeT Cli.getLatestFile
+            pf <- lift Cli.getLatestParsedFile
+            tf <- lift Cli.getLatestTypecheckedFile
+            names <- lift Cli.currentNames
+            let buildPPED uf tf =
+                  let names' = (fromMaybe mempty $ (UF.typecheckedToNames <$> tf) <|> (UF.toNames <$> uf)) `Names.shadowing` names
+                   in pure (PPED.makePPED (PPE.hqNamer 10 names') (PPE.suffixifyByHashName names'))
+            let formatWidth = 80
+            currentPath <- lift $ Cli.getCurrentPath
+            updates <- MaybeT $ Format.formatFile buildPPED formatWidth currentPath pf tf Nothing
+            source <-
+              liftIO (env.loadSource (Text.pack filePath)) >>= \case
+                Cli.InvalidSourceNameError -> lift $ Cli.returnEarly $ Output.InvalidSourceName filePath
+                Cli.LoadError -> lift $ Cli.returnEarly $ Output.SourceLoadFailed filePath
+                Cli.LoadSuccess contents -> pure contents
+            let updatedSource = Format.applyTextReplacements updates source
+            liftIO $ env.writeSource (Text.pack filePath) updatedSource True
+        DebugFuzzyOptionsI command args -> do
+          currentBranch <- Branch.withoutTransitiveLibs <$> Cli.getCurrentBranch0
+          case Map.lookup command InputPatterns.patternMap of
+            Just IP.InputPattern {params} ->
+              either (Cli.respond . DebugFuzzyOptionsIncorrectArgs) (pure . fst)
+                =<< IP.foldParamsWithM
+                  ( \_ (paramName, IP.ParameterType {fzfResolver}) arg ->
+                      if arg == "_"
+                        then case fzfResolver of
+                          Just IP.DefaultFZFFileSearch -> do
+                            (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName ["<files>"])
+                          Just (IP.FetchOptions getOptions) -> do
+                            pp <- Cli.getCurrentProjectPath
+                            results <- liftIO $ getOptions env.codebase pp currentBranch
+                            (,[]) <$> Cli.respond (DebugDisplayFuzzyOptions paramName (Text.unpack <$> results))
+                          Nothing -> (,[]) <$> Cli.respond DebugFuzzyOptionsNoResolver
+                        else pure ((), [])
+                  )
+                  ()
+                  params
+                  args
+            Nothing -> Cli.respond $ DebugFuzzyOptionsNoCommand command
+        DebugLSPFoldRangesI -> DebugFoldRanges.debugFoldRanges
+        DebugLSPNameCompletionI prefix -> LSPDebug.debugLspNameCompletion prefix
         DebugNameDiffI fromSCH toSCH -> do
-          (schLen, fromCHs, toCHs) <-
-            Cli.runTransaction do
-              schLen <- Codebase.branchHashLength
-              fromCHs <- Codebase.causalHashesByPrefix fromSCH
-              toCHs <- Codebase.causalHashesByPrefix toSCH
-              pure (schLen, fromCHs, toCHs)
-          (fromCH, toCH) <- case (Set.toList fromCHs, Set.toList toCHs) of
-            ((_ : _ : _), _) -> Cli.returnEarly $ Output.BranchHashAmbiguous fromSCH (Set.map (SCH.fromHash schLen) fromCHs)
-            ([], _) -> Cli.returnEarly $ Output.NoBranchWithHash fromSCH
-            (_, []) -> Cli.returnEarly $ Output.NoBranchWithHash toSCH
-            (_, (_ : _ : _)) -> Cli.returnEarly $ Output.BranchHashAmbiguous toSCH (Set.map (SCH.fromHash schLen) toCHs)
-            ([fromCH], [toCH]) -> pure (fromCH, toCH)
+          (fromCH, toCH) <-
+            Cli.runTransactionWithRollback \abort -> do
+              fromCH <- Cli.resolveShortCausalHashToCausalHash abort fromSCH
+              toCH <- Cli.resolveShortCausalHashToCausalHash abort toSCH
+              pure (fromCH, toCH)
           output <-
             Cli.runTransaction do
               fromBranch <- Codebase.expectCausalBranchByCausalHash fromCH >>= V2Causal.value
@@ -709,30 +463,260 @@ loop e = do
               nameChanges <- V2Branch.Diff.allNameChanges Nothing treeDiff
               pure (DisplayDebugNameDiff nameChanges)
           Cli.respond output
-        UpdateBuiltinsI -> Cli.respond NotImplemented
-        QuitI -> Cli.haltRepl
-        AuthLoginI -> void $ authLogin (Codeserver.resolveCodeserver RemoteRepo.DefaultCodeserver)
-        VersionI -> Cli.respond $ PrintVersion env.ucmVersion
-        ProjectRenameI name -> handleProjectRename name
-        ProjectSwitchI name -> projectSwitch name
-        ProjectCreateI tryDownloadingBase name -> void $ projectCreate tryDownloadingBase name
-        ProjectsI -> handleProjects
-        BranchI source name -> handleBranch source name
-        BranchRenameI name -> handleBranchRename name
-        BranchesI name -> handleBranches name
-        CloneI remoteNames localNames -> handleClone remoteNames localNames
-        ConfigGetI key -> handleConfigGet key
-        ConfigSetI key value -> handleConfigSet key value
-        BranchSquashI branchToSquash destBranch -> handleBranchSquash branchToSquash destBranch
-        ReleaseDraftI semver -> handleReleaseDraft semver
-        UpgradeI libs -> handleUpgrade libs
-        UpgradeCommitI ->
-          Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
+        DebugNumberedArgsI -> do
+          schLength <- Cli.runTransaction Codebase.branchHashLength
+          numArgs <- use #numberedArgs
+          Cli.respond (DumpNumberedArgs schLength numArgs)
+        DebugSynhashTermI name -> handleDebugSynhashTerm name
+        DebugTabCompletionI inputs -> do
+          pp <- Cli.getCurrentProjectPath
+          let completionFunc = Completion.haskelineTabComplete IP.patternMap env.codebase env.authHTTPClient pp
+          (_, completions) <- liftIO $ completionFunc (reverse (unwords inputs), "")
+          Cli.respond (DisplayDebugCompletions completions)
+        DebugTermI isVerbose hqName -> DebugDefinition.debugTerm isVerbose hqName
+        DebugTypeI hqName -> DebugDefinition.debugDecl hqName
+        DebugTypecheckedUnisonFileI -> do
+          hqLength <- Cli.runTransaction Codebase.hashLength
+          uf <- Cli.expectLatestTypecheckedFile
+          let datas, effects, terms :: [(Name, Reference.Id)]
+              datas = [(Name.unsafeParseVar v, r) | (v, (r, _d)) <- Map.toList $ UF.dataDeclarationsId' uf]
+              effects = [(Name.unsafeParseVar v, r) | (v, (r, _e)) <- Map.toList $ UF.effectDeclarationsId' uf]
+              terms = [(Name.unsafeParseVar v, r) | (v, (_, r, _wk, _tm, _tp)) <- Map.toList $ UF.hashTermsId uf]
+          Cli.respond $ DumpUnisonFileHashes hqLength datas effects terms
+        DeleteBranchI name -> handleDeleteBranch name
+        DeleteI force which target -> handleDelete force which target
+        DeleteNamespaceI insistence path -> handleDeleteNamespace input insistence path
+        DeleteProjectI name -> handleDeleteProject name
+        DiffBranchI alice bob -> handleDiffBranch alice bob
+        DiffNamespaceI before after -> do
+          beforeLoc <- traverse ProjectUtils.resolveBranchRelativePath before
+          beforeBranch0 <- Branch.head <$> resolveBranchId2 before
+          afterLoc <- traverse ProjectUtils.resolveBranchRelativePath after
+          afterBranch0 <- Branch.head <$> resolveBranchId2 after
+          case (Branch.isEmpty0 beforeBranch0, Branch.isEmpty0 afterBranch0) of
+            (True, True) -> Cli.returnEarly . NamespaceEmpty $ (beforeLoc Nel.:| [afterLoc])
+            (True, False) -> Cli.returnEarly . NamespaceEmpty $ (beforeLoc Nel.:| [])
+            (False, True) -> Cli.returnEarly . NamespaceEmpty $ (afterLoc Nel.:| [])
+            (False, False) -> pure ()
+          (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
+          Cli.respondNumbered (ShowDiffNamespace beforeLoc afterLoc ppe diff)
+        DisplayI outputLoc namesToDisplay -> traverse_ (displayI outputLoc) namesToDisplay
+        DocsI srcs -> for_ srcs docsI
+        DocsToHtmlI namespacePath' sourceDirectory -> do
+          projPath <- ProjectUtils.resolveBranchRelativePath namespacePath'
+          branch <- Cli.getBranchFromProjectPath projPath
+          _evalErrs <- liftIO $ (Backend.docsInBranchToHtmlFiles env.sandboxedRuntime env.codebase branch sourceDirectory)
+          pure ()
+        DocToMarkdownI docName -> do
+          names <- Cli.currentNames
+          let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+          docRefs <- Cli.runTransaction do
+            hqLength <- Codebase.hashLength
+            let nameSearch = NameSearch.makeNameSearch hqLength names
+            Backend.docsForDefinitionName env.codebase nameSearch Names.IncludeSuffixes docName
+          mdText <- liftIO do
+            for docRefs \docRef -> do
+              Identity (_, _, doc, _evalErrs) <- Backend.renderDocRefs pped (Pretty.Width 80) env.codebase env.runtime (Identity docRef)
+              pure . Md.toText $ Md.toMarkdown doc
+          Cli.respond $ Output.MarkdownOut (Text.intercalate "\n---\n" mdText)
+        EditDependentsI name -> handleEditDependents name
+        EditNamespaceI paths -> handleEditNamespace (LatestFileLocation AboveFold) paths
+        ExecuteI prof main args -> handleRun prof main args
+        FindShallowI pathArg -> handleLs pathArg
+        FindI isVerbose fscope ws -> handleFindI isVerbose fscope ws input
+        ForkLocalBranchI src0 dest0 -> do
+          (srcb, branchEmpty) <-
+            case src0 of
+              Left hash -> (,WhichBranchEmptyHash hash) <$> Cli.resolveShortCausalHash hash
+              Right path' -> do
+                srcPP <- ProjectUtils.resolveBranchRelativePath path'
+                srcb <- Cli.getBranchFromProjectPath srcPP
+                pure (srcb, WhichBranchEmptyPath srcPP)
+          description <- inputDescription input
+          dest <- ProjectUtils.resolveBranchRelativePath dest0
+          ok <- Cli.updateAtM description dest (const $ pure srcb)
+          Cli.respond
+            if ok
+              then Success
+              else BranchEmpty branchEmpty
+        HistoryI resultsCap diffCap from -> do
+          handleHistory resultsCap diffCap from
+        HistoryCommentI toAnnotate -> do
+          handleHistoryComment toAnnotate
+        IOTestAllI -> Tests.handleAllIOTests
+        IOTestI main -> Tests.handleIOTest main
         LibInstallI remind libdep -> handleInstallLib remind libdep
         LibInstallLocalI src destLibName -> handleInstallLocalLib src destLibName
-        DebugSynhashTermI name -> handleDebugSynhashTerm name
-        EditDependentsI name -> handleEditDependents name
-        CancelI -> handleCancel
+        ListDependenciesI hq -> handleDependencies hq
+        ListDependentsI hq -> handleDependents hq
+        LoadI maybePath -> handleLoad maybePath
+        MakeStandaloneI output main -> doCompile False output main
+        MergeBuiltinsI opath -> do
+          description <- inputDescription input
+          -- these were added once, but maybe they've changed and need to be
+          -- added again.
+          let uf =
+                UF.typecheckedUnisonFile
+                  (Map.fromList Builtin.builtinDataDecls)
+                  (Map.fromList Builtin.builtinEffectDecls)
+                  [Builtin.builtinTermsSrc Intrinsic]
+                  mempty
+          Cli.runTransaction (Codebase.addDefsToCodebase env.codebase uf)
+          -- add the names; note, there are more names than definitions
+          -- due to builtin terms; so we don't just reuse `uf` above.
+          let srcb = BranchUtil.fromNames Builtin.names
+          currentPath <- Cli.getCurrentPath
+          let destPath = case opath of
+                Just path -> Path.resolve currentPath path
+                Nothing -> Path.descend currentPath NameSegment.builtinSegment
+          pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
+          _ <- Cli.updateAtM description pp \destb ->
+            liftIO (Branch.merge'' (Codebase.lca env.codebase) Branch.RegularMerge srcb destb)
+          Cli.respond Success
+        MergeCommitI ->
+          Cli.returnEarly (Output.Literal "The `merge.commit` command has been removed in favor of `update`.")
+        MergeI branch -> handleMerge branch
+        MergeIOBuiltinsI opath -> do
+          description <- inputDescription input
+          -- these were added once, but maybe they've changed and need to be
+          -- added again.
+          let uf =
+                UF.typecheckedUnisonFile
+                  (Map.fromList Builtin.builtinDataDecls)
+                  (Map.fromList Builtin.builtinEffectDecls)
+                  [Builtin.builtinTermsSrc Intrinsic]
+                  mempty
+          Cli.runTransaction do
+            Codebase.addDefsToCodebase env.codebase uf
+            -- these have not necessarily been added yet
+            Codebase.addDefsToCodebase env.codebase IOSource.typecheckedFile'
+          -- add the names; note, there are more names than definitions
+          -- due to builtin terms; so we don't just reuse `uf` above.
+          let names0 = Builtin.names <> UF.typecheckedToNames IOSource.typecheckedFile'
+          let srcb = BranchUtil.fromNames names0
+          currentPath <- Cli.getCurrentPath
+          let destPath = case opath of
+                Just path -> Path.resolve currentPath path
+                Nothing -> Path.descend currentPath NameSegment.builtinSegment
+          pp <- set PP.absPath_ destPath <$> Cli.getCurrentProjectPath
+          _ <- Cli.updateAtM description pp \destb ->
+            liftIO (Branch.merge'' (Codebase.lca env.codebase) Branch.RegularMerge srcb destb)
+          Cli.respond Success
+        MoveAllI src' dest' -> do
+          hasConfirmed <- confirmedCommand input
+          desc <- inputDescription input
+          handleMoveAll hasConfirmed src' dest' desc
+        MoveBranchI src' dest' -> do
+          hasConfirmed <- confirmedCommand input
+          description <- inputDescription input
+          doMoveBranch description hasConfirmed src' dest'
+        MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
+        MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
+        NamesI global queries -> mapM_ (handleNames global) queries
+        NamespaceDependenciesI _ ->
+          Cli.respond $
+            Output.Literal $
+              P.wrap $
+                "The `namespace.dependencies` command has been replaced by `todo`. Run `todo` instead."
+        PopBranchI -> do
+          success <- Cli.popd
+          when (not success) (Cli.respond StartOfCurrentPathHistory)
+        ProjectCreateI tryDownloadingBase name -> void $ projectCreate tryDownloadingBase name
+        ProjectRenameI name -> handleProjectRename name
+        ProjectSwitchI name -> projectSwitch name
+        ProjectsI -> handleProjects
+        PullI sourceTarget pullMode -> handlePull sourceTarget pullMode
+        PushRemoteBranchI pushRemoteBranchInput -> handlePushRemoteBranch pushRemoteBranchInput
+        QuitI -> Cli.haltRepl
+        ReleaseDraftI semver -> handleReleaseDraft semver
+        ResetI newRoot mtarget -> do
+          newRoot <- resolveBranchId2 newRoot
+          target <-
+            case mtarget of
+              Nothing -> Cli.getCurrentProjectPath
+              Just unresolvedProjectAndBranch -> do
+                targetProjectAndBranch <- ProjectUtils.resolveProjectBranch (second Just unresolvedProjectAndBranch)
+                pure $ PP.projectBranchRoot targetProjectAndBranch
+          description <- inputDescription input
+          _ <- Cli.updateAt description target (const newRoot)
+          Cli.respond Success
+        SaveExecuteResultI resultName -> handleAddRun input resultName
+        ShowDefinitionI outputLoc showDefinitionScope query -> handleShowDefinition outputLoc showDefinitionScope query
+        ShowGlobalReflogI -> Reflogs.showGlobalReflog
+        ShowProjectBranchReflogI mayProjBranch -> Reflogs.showProjectBranchReflog mayProjBranch
+        ShowProjectReflogI mayProj -> Reflogs.showProjectReflog mayProj
+        ShowRootReflogI -> do
+          let numEntriesToShow = 500
+          (schLength, entries) <-
+            Cli.runTransaction $
+              (,) <$> Codebase.branchHashLength <*> Codebase.getDeprecatedRootReflog numEntriesToShow
+          let moreEntriesToLoad = length entries == numEntriesToShow
+          let expandedEntries = List.unfoldr expandEntries (entries, Nothing, moreEntriesToLoad)
+          let (shortEntries, numberedEntries) =
+                unzip $
+                  expandedEntries <&> \(time, hash, reason) ->
+                    let (exp, sa) = (SCH.fromHash schLength &&& SA.Namespace) hash
+                     in ((time, exp, reason), sa)
+          Cli.setNumberedArgs numberedEntries
+          Cli.respond $ ShowReflog shortEntries
+          where
+            expandEntries ::
+              ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool) ->
+              Maybe ((Maybe UTCTime, CausalHash, Text), ([Reflog.Entry CausalHash Text], Maybe CausalHash, Bool))
+            expandEntries ([], Just expectedHash, moreEntriesToLoad) =
+              if moreEntriesToLoad
+                then Nothing
+                else Just ((Nothing, expectedHash, "history starts here"), ([], Nothing, moreEntriesToLoad))
+            expandEntries ([], Nothing, _moreEntriesToLoad) = Nothing
+            expandEntries (entries@(Reflog.Entry {time, fromRootCausalHash, toRootCausalHash, reason} : rest), mayExpectedHash, moreEntriesToLoad) =
+              Just $
+                case mayExpectedHash of
+                  Just expectedHash
+                    | expectedHash == toRootCausalHash -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+                    -- Historical discontinuity, insert a synthetic entry
+                    | otherwise -> ((Nothing, toRootCausalHash, "(external change)"), (entries, Nothing, moreEntriesToLoad))
+                  -- No expectation, either because this is the most recent entry or
+                  -- because we're recovering from a discontinuity
+                  Nothing -> ((Just time, toRootCausalHash, reason), (rest, Just fromRootCausalHash, moreEntriesToLoad))
+        StructuredFindI _fscope ws -> handleStructuredFindI ws
+        StructuredFindReplaceI ws -> handleStructuredFindReplaceI ws
+        SwitchBranchI path' -> do
+          path <- Cli.resolvePath' path'
+          branchExists <- Cli.branchExistsAtPath' path'
+          when (not branchExists) (Cli.respond $ CreatedNewBranch (path ^. PP.absPath_))
+          Cli.cd (path ^. PP.absPath_)
+        SyncFromCodebaseI srcCodebasePath srcBranch destBranch -> do
+          description <- inputDescription input
+          SyncV2.handleSyncFromCodebase description srcCodebasePath srcBranch destBranch
+        SyncFromFileI syncFileSrc projectBranchName -> do
+          description <- inputDescription input
+          SyncV2.handleSyncFromFile description syncFileSrc projectBranchName
+        SyncToFileI syncFileDest projectBranchName -> SyncV2.handleSyncToFile syncFileDest projectBranchName
+        TestI testInput -> Tests.handleTest testInput
+        TextFindI allowLib ws -> handleTextFindI allowLib ws
+        TodoI -> handleTodo
+        UiI path' -> openUI path'
+        UndoI -> do
+          rootBranch <- Cli.getCurrentProjectRoot
+          (_, prev) <-
+            liftIO (Branch.uncons rootBranch) & onNothingM do
+              Cli.returnEarly . CantUndo $
+                if Branch.isOne rootBranch
+                  then CantUndoPastStart
+                  else CantUndoPastMerge
+          description <- inputDescription input
+          pb <- getCurrentProjectBranch
+          Cli.updateProjectBranchRoot_ pb description (const prev)
+          (ppe, diff) <- diffHelper (Branch.head prev) (Branch.head rootBranch)
+          Cli.respondNumbered (Output.ShowDiffAfterUndo ppe diff)
+        UpI -> do
+          path0 <- Cli.getCurrentPath
+          whenJust (Path.ascend path0) Cli.cd
+        Update2I -> handleUpdate2
+        UpdateBuiltinsI -> Cli.respond NotImplemented
+        UpgradeCommitI -> Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
+        UpgradeI libs -> handleUpgrade libs
+        VersionI -> Cli.respond $ PrintVersion env.ucmVersion
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -822,6 +806,7 @@ inputDescription input =
     DeleteI {} -> wat
     DeleteNamespaceI {} -> wat
     DeleteProjectI {} -> wat
+    DiffBranchI {} -> wat
     DiffNamespaceI {} -> wat
     DisplayI {} -> wat
     DocsI {} -> wat

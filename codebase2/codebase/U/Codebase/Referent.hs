@@ -10,6 +10,7 @@ import U.Codebase.Decl (ConstructorId)
 import U.Codebase.Reference (Reference, Reference')
 import U.Codebase.Reference qualified as Reference
 import Unison.Hash (Hash)
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -100,5 +101,5 @@ toShortHash = \case
   Ref r -> Reference.toShortHash r
   Con r conId ->
     case Reference.toShortHash r of
-      SH.Builtin b -> SH.Builtin b
-      SH.ShortHash prefix cycle _cid -> SH.ShortHash prefix cycle (Just conId)
+      Builtin b -> Builtin b
+      NotBuiltin (SH.ShortHash prefix cycle _cid) -> NotBuiltin (SH.ShortHash prefix cycle (Just conId))

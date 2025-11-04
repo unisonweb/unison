@@ -17,6 +17,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.BranchDiff qualified as BranchDiff
 import Unison.Codebase.Editor.Output.BranchDiff qualified as OBranchDiff
 import Unison.DataDeclaration qualified as DD
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann (..))
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
@@ -50,7 +51,5 @@ diffHelper before after =
 
 declOrBuiltin :: Codebase m Symbol Ann -> Reference -> Sqlite.Transaction (Maybe (DD.DeclOrBuiltin Symbol Ann))
 declOrBuiltin codebase r = case r of
-  Reference.Builtin {} ->
-    pure . fmap DD.Builtin $ Map.lookup r Builtin.builtinConstructorType
-  Reference.DerivedId id ->
-    fmap DD.Decl <$> Codebase.getTypeDeclaration codebase id
+  Reference.Builtin {} -> pure . fmap Builtin $ Map.lookup r Builtin.builtinConstructorType
+  Reference.DerivedId id -> fmap NotBuiltin <$> Codebase.getTypeDeclaration codebase id

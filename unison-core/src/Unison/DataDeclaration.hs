@@ -4,7 +4,7 @@ module Unison.DataDeclaration
   ( DataDeclaration (..),
     EffectDeclaration (..),
     Decl,
-    DeclOrBuiltin (..),
+    DeclOrBuiltin,
     Modifier (..),
     allVars,
     asDataDecl,
@@ -52,6 +52,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.OrBuiltin (OrBuiltin)
 import Unison.Prelude
 import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -65,10 +66,8 @@ import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
-data DeclOrBuiltin v a
-  = Builtin CT.ConstructorType
-  | Decl (Decl v a)
-  deriving (Eq, Ord, Show)
+type DeclOrBuiltin v a =
+  OrBuiltin CT.ConstructorType (Decl v a)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id

@@ -13,11 +13,11 @@ where
 import Control.DeepSeq (NFData)
 import Control.Lens
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.OrBuiltin qualified as OrBuiltin
 import Unison.Prelude
 import Unison.Reference (TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.ShortHash (ShortHash)
-import Unison.ShortHash qualified as ShortHash
 
 -- | A reference to a constructor is represented by a reference to its type declaration, plus the ordinal constructor id.
 data GConstructorReference r
@@ -40,9 +40,7 @@ toId (ConstructorReference typeRef conId) =
 
 toShortHash :: ConstructorReference -> ShortHash
 toShortHash (ConstructorReference r i) =
-  case Reference.toShortHash r of
-    ShortHash.Builtin b -> ShortHash.Builtin b
-    ShortHash.ShortHash prefix cycle _cid -> ShortHash.ShortHash prefix cycle (Just i)
+  Reference.toShortHash r & set (OrBuiltin.notBuiltin_ . #cid) (Just i)
 
 toText :: ConstructorReference -> Text
 toText (ConstructorReference r _) =
