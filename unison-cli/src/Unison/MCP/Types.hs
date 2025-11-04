@@ -12,6 +12,7 @@ module Unison.MCP.Types
     ShareProjectReadmeToolArguments (..),
     ListLibraryDefinitionsToolArguments (..),
     ViewDefinitionsToolArguments (..),
+    UpdateDefinitionsToolArguments (..),
     SearchDefinitionsToolArguments (..),
     SearchByTypeToolArguments (..),
     DocsToolArguments (..),
@@ -74,6 +75,7 @@ data ToolKind
   | ListProjectLibrariesTool
   | ListLibraryDefinitionsTool
   | ViewDefinitionsTool
+  | UpdateDefinitionsTool
   | SearchDefinitionsTool
   | SearchByTypeTool
   | ListLocalProjectsTool
@@ -98,6 +100,7 @@ kindNameMapping =
       (ListProjectLibrariesTool, "list-project-libraries"),
       (ListLibraryDefinitionsTool, "list-library-definitions"),
       (ViewDefinitionsTool, "view-definitions"),
+      (UpdateDefinitionsTool, "update-definitions"),
       (SearchDefinitionsTool, "search-definitions-by-name"),
       (SearchByTypeTool, "search-by-type"),
       (ListLocalProjectsTool, "list-local-projects"),
@@ -271,6 +274,69 @@ instance FromJSON ViewDefinitionsToolArguments where
     projectContext <- o .: "projectContext"
     names <- fmap Name.unsafeParseText <$> o .: "names"
     pure $ ViewDefinitionsToolArguments {projectContext, names}
+
+data UpdateDefinitionsToolArguments = UpdateDefinitionsToolArguments
+  { projectContext :: ProjectContext,
+    code :: Either FilePath Text
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema UpdateDefinitionsToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "code"
+                .= object
+                  [ "description" .= ("The source code to update definitions to. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
+                    "oneOf"
+                      .= [ object
+                             [ "description" .= ("The file path to the source code." :: Text),
+                               "type" .= ("object" :: Text),
+                               "properties"
+                                 .= object
+                                   [ "filePath"
+                                       .= object
+                                         [ "type" .= ("string" :: Text),
+                                           "description" .= ("An absolute file path to the source code." :: Text)
+                                         ]
+                                   ],
+                               "required" .= ["filePath" :: Text],
+                               "additionalProperties" .= False
+                             ],
+                           object
+                             [ "description" .= ("The source code to use." :: Text),
+                               "type" .= ("object" :: Text),
+                               "properties"
+                                 .= object
+                                   [ "text"
+                                       .= object
+                                         [ "type" .= ("string" :: Text),
+                                           "description" .= ("The source code to use." :: Text)
+                                         ]
+                                   ],
+                               "required" .= ["text" :: Text],
+                               "additionalProperties" .= False
+                             ]
+                         ]
+                  ]
+            ],
+        "required" .= ["projectContext", "code" :: Text]
+      ]
+
+instance FromJSON UpdateDefinitionsToolArguments where
+  parseJSON = withObject "UpdateDefinitionsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    source <- o .: "code"
+    code <-
+      source .:? "filePath" >>= \case
+        Just filePath -> pure $ Left filePath
+        Nothing -> do
+          text <- source .: "text"
+          pure $ Right text
+    pure $ UpdateDefinitionsToolArguments {projectContext, code}
 
 data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
   { projectContext :: ProjectContext,
