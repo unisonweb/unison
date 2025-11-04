@@ -5,6 +5,7 @@ module Unison.Prelude
     safeReadUtf8StdIn,
     writeUtf8,
     prependUtf8,
+    atomicallyReplaceFile,
     uncurry4,
     reportBug,
     tShow,
@@ -100,6 +101,8 @@ import Text.Read as X (readMaybe)
 import UnliftIO as X (MonadUnliftIO (..), askRunInIO, askUnliftIO, try, withUnliftIO)
 import UnliftIO qualified
 import UnliftIO.Directory qualified as UnliftIO
+import UnliftIO.IO (hClose)
+import UnliftIO.Temporary (withSystemTempFile)
 import Witch as X (From (from), TryFrom (tryFrom), TryFromException (TryFromException), into, tryInto)
 import Witherable as X (filterA, forMaybe, mapMaybe, wither, witherMap)
 
@@ -250,6 +253,16 @@ writeUtf8 fileName txt = do
   UnliftIO.withFile fileName UnliftIO.WriteMode $ \handle -> do
     Handle.hSetEncoding handle IO.utf8
     Text.hPutStr handle txt
+
+-- | Atomically replace the contents of a file with some text
+-- Unfortunately this _still_ isn't atomic on Windows; but is still
+-- less likely to leave an empty file than writing directly to the output file.
+atomicallyReplaceFile :: (MonadIO m) => FilePath -> Text -> m ()
+atomicallyReplaceFile path txt = liftIO $ do
+  withSystemTempFile "temp" \fp outputHandle -> do
+    hClose outputHandle
+    liftIO $ writeUtf8 fp txt
+    UnliftIO.renameFile fp path
 
 -- | Atomically prepend some text to a file, creating the file if it doesn't already exist
 prependUtf8 :: FilePath -> Text -> IO ()
