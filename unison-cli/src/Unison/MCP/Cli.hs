@@ -92,10 +92,10 @@ cliToMCP projCtx cli = do
   sourceCodeUpdatesVar <- newTVarIO Seq.empty
   let notify output = do
         pretty <- Output.notifyUser workDir Output.fetchIssueFromGitHub output
-        atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
+        atomically $ modifyTVar' outputVar (<> Seq.singleton pretty)
   let notifyNumbered output = do
         let (pretty, nargs) = Output.notifyNumbered output
-        atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
+        atomically $ modifyTVar' outputVar (<> Seq.singleton pretty)
         pure nargs
 
   let loadSource = error "loadSource is not implemented for the MCP server."
@@ -104,7 +104,7 @@ cliToMCP projCtx cli = do
           then do
             atomically $ writeTVar sourceCodeUpdatesVar (Seq.singleton content)
           else do
-            atomically $ modifyTVar sourceCodeUpdatesVar (<> Seq.singleton content)
+            atomically $ modifyTVar' sourceCodeUpdatesVar (<> Seq.singleton content)
 
   seedRef <- liftIO $ newIORef (0 :: Int)
   let cliEnv =

@@ -38,7 +38,7 @@ ucmWorker ppedVar currentNamesVar nameSearchCacheVar currentPathVar changeSignal
       Env {codebase, completionsVar} <- ask
       getChanges signalChanges currentBranch >>= \case
         (_newPP, Nothing) -> loop signalChanges currentBranch
-        (newPP, Just newBranch) -> do
+        (newPP, Just !newBranch) -> do
           let newBranch0 = Branch.head newBranch
           let newNames = Branch.toNames newBranch0
           hl <- liftIO $ Codebase.runTransaction codebase Codebase.hashLength
