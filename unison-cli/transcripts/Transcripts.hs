@@ -29,15 +29,12 @@ import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
 import Unison.Util.Timing
-import UnliftIO (hClose)
 import UnliftIO.Directory
   ( createDirectoryIfMissing,
     listDirectory,
     renameDirectory,
-    renameFile,
   )
 import UnliftIO.STM qualified as STM
-import UnliftIO.Temporary (withSystemTempFile)
 
 data TestConfig = TestConfig
   { matchPrefix :: Maybe String
