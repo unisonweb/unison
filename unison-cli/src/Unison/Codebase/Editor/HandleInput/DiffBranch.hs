@@ -93,13 +93,8 @@ handleDiffBranch aliceArg bobArg = do
                 lca = lcaCausalHash
               }
 
-      -- Temporary restriction: we just don't support diffing unrelated branches
-      -- In the future: we think we want to set LCA=Alice in this case?
-
-      causalHashes <-
-        TwoOrThreeWay.toThreeWayA
-          (abort (Output.Literal "Sorry, I can't yet compute the difference between branches that don't have any history in common."))
-          causalHashes0
+      let causalHashes =
+            TwoOrThreeWay.toThreeWay causalHashes0.alice causalHashes0
 
       namespaces <-
         for causalHashes (Codebase.expectBranchForHashTx env.codebase)
