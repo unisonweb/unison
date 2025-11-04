@@ -2686,8 +2686,10 @@ checkWanted _ want e@(Term.Match' scrut cases) t = do
   pure want
 checkWanted exact want (Term.If' cond t f) ty = do
   want <-
-    scope InIfCond .
-      checkWanted exact want cond . Type.boolean $ loc cond
+    scope InIfCond
+      . checkWanted exact want cond
+      . Type.boolean
+      $ loc cond
   ty <- applyM ty
   want <- scope (InIfBody $ loc t) $ checkWantedScoped bexact want t ty
   ty <- applyM ty
@@ -2698,7 +2700,7 @@ checkWanted exact want (Term.List' es) lty
   | Type.App' (Type.Ref' r) te <- lty,
     r == Type.listRef =
       let f want e = checkWantedScoped bexact want e =<< applyM te
-      in Foldable.foldlM f want es
+       in Foldable.foldlM f want es
   | Type.Var' (TypeVar.Existential _ v) <- lty = do
       ev <- extendExistential v
       let te = existentialp (loc lty) ev
