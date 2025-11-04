@@ -37,8 +37,8 @@ import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
 import Unison.Pattern qualified as Pattern
 import Unison.Prelude
-import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.PrettyPrintEnv qualified as PPE
+import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Reference qualified as Reference
 import Unison.Result qualified as Result
 import Unison.Symbol (Symbol)
