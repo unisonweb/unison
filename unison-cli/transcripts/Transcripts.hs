@@ -11,7 +11,6 @@ import Data.List
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import EasyTest
-import System.Directory
 import System.Environment (getArgs)
 import System.FilePath
   ( replaceExtension,
@@ -30,7 +29,15 @@ import Unison.Codebase.Transcript.Runner as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
 import Unison.Util.Timing
+import UnliftIO (hClose)
+import UnliftIO.Directory
+  ( createDirectoryIfMissing,
+    listDirectory,
+    renameDirectory,
+    renameFile,
+  )
 import UnliftIO.STM qualified as STM
+import UnliftIO.Temporary (withSystemTempFile)
 
 data TestConfig = TestConfig
   { matchPrefix :: Maybe String
@@ -67,45 +74,39 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
                 transcriptSrc <- BS.readFile $ inputDir </> filePath
                 out <- silence $ runTranscript filePath transcriptSrc codebase
                 pure (filePath, out)
-    let writeOutput outputFile action = withSystemTempFile "transcript-output" \fp outputHandle ->
-          hClose outputHandle
-          action fp
-          renameFile fp outputFile
     for_ outputs \case
       (filePath, Left err) -> do
-        let actualOutputFile = outputDir </> outputFileForTranscript filePath
-        withOutput actualOutputFile \outputFile -> do
-          case err of
-            Transcript.PortBindingFailure -> do
-              let errMsg = "Failed to bind codebase server to the default port when running transcripts in " <> filePath
-              io . writeUtf8 outputFile $ Text.pack errMsg
-              when (not expectFailure) $ do
-                io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
-                crash errMsg
-            Transcript.ParseError errors -> do
-              let bundle = MP.errorBundlePretty errors
-                  errMsg = "Error parsing " <> filePath <> ": " <> bundle
-              -- Drop the file name, to avoid POSIX/Windows conflicts
-              io . writeUtf8 outputFile . Text.dropWhile (/= ':') $ Text.pack bundle
-              when (not expectFailure) $ do
-                io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
-                crash errMsg
-            Transcript.RunFailure errOutput -> do
-              let errText = Transcript.format errOutput
-              io $ writeUtf8 outputFile errText
-              when (not expectFailure) $ do
-                io $ Text.putStrLn errText
-                io $ recordFailure (inputDir </> filePath, errText)
-                crash $ "Failure in " <> filePath
+        let outputFile = outputDir </> outputFileForTranscript filePath
+        case err of
+          Transcript.PortBindingFailure -> do
+            let errMsg = "Failed to bind codebase server to the default port when running transcripts in " <> filePath
+            atomicallyReplaceFile outputFile $ Text.pack errMsg
+            when (not expectFailure) $ do
+              io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
+              crash errMsg
+          Transcript.ParseError errors -> do
+            let bundle = MP.errorBundlePretty errors
+                errMsg = "Error parsing " <> filePath <> ": " <> bundle
+            -- Drop the file name, to avoid POSIX/Windows conflicts
+            atomicallyReplaceFile outputFile . Text.dropWhile (/= ':') $ Text.pack bundle
+            when (not expectFailure) $ do
+              io $ recordFailure (inputDir </> filePath, Text.pack errMsg)
+              crash errMsg
+          Transcript.RunFailure errOutput -> do
+            let errText = Transcript.format errOutput
+            atomicallyReplaceFile outputFile errText
+            when (not expectFailure) $ do
+              io $ Text.putStrLn errText
+              io $ recordFailure (inputDir </> filePath, errText)
+              crash $ "Failure in " <> filePath
       (filePath, Right out) -> do
-        let actualOutputFile = outputDir </> if replaceOriginal then filePath else outputFileForTranscript filePath
-        withOutput actualOutputFile \outputFile -> do
-          io . createDirectoryIfMissing True $ takeDirectory outputFile
-          io . writeUtf8 outputFile $ Transcript.format out
-          when expectFailure $ do
-            let errMsg = "Expected a failure, but transcript was successful."
-            io $ recordFailure (filePath, Text.pack errMsg)
-            crash errMsg
+        let outputFile = outputDir </> if replaceOriginal then filePath else outputFileForTranscript filePath
+        io . createDirectoryIfMissing True $ takeDirectory outputFile
+        atomicallyReplaceFile outputFile $ Transcript.format out
+        when expectFailure $ do
+          let errMsg = "Expected a failure, but transcript was successful."
+          io $ recordFailure (filePath, Text.pack errMsg)
+          crash errMsg
     ok
   where
     files = prelude ++ [transcript]
