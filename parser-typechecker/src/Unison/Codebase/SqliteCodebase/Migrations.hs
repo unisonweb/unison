@@ -92,7 +92,7 @@ migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
       sqlMigration 21 Q.addDerivedDependentsByDependencyIndex,
       sqlMigration 22 Q.addUpgradeBranchTable,
       sqlMigration 23 Q.addHistoryComments,
-      sqlMigration 24 Q.addHistoryComments,
+      sqlMigration 24 Q.addHistoryCommentHashing,
       (25, runT hashHistoryCommentsMigration)
     ]
   where
