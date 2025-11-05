@@ -2638,13 +2638,16 @@ checkWanted exact want (Term.Lam' boundVarAnn body) (Type.Arrow'' i es o) = do
 checkWanted exact want tm@(Term.Var' _) ty@(Type.Arrow'' i es o) =
   synthesize tm >>= \case
     -- special case to detect quadratic abilities
-    (Type.Arrow'' j fs p, wnew) -> do
+    (ts@(Type.Arrow'' j fs p), wnew) -> do
       ctx <- getContext
-      subtype (apply ctx i) (apply ctx j)
-      ctx <- getContext
-      sub <- subAbilities ((Nothing,) . apply ctx <$> fs) (apply ctx <$> es)
-      ctx <- getContext
-      subtype (apply ctx p) (apply ctx o)
+      sub <- scope (InSubtype ts ty) do
+        -- morally this is a subtype call, but we've expanded it to
+        -- get some better information.
+        subtype (apply ctx i) (apply ctx j)
+        ctx <- getContext
+        sub <- subAbilities ((Nothing,) . apply ctx <$> fs) (apply ctx <$> es)
+        ctx <- getContext
+        sub <$ subtype (apply ctx p) (apply ctx o)
       exactAbilitiesWarning fs es exact sub
       coalesceWanted wnew want
     (u, wnew) -> do
@@ -2681,6 +2684,31 @@ checkWanted _ want e@(Term.Match' scrut cases) t = do
     PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled ->
       pure ()
   pure want
+checkWanted exact want (Term.If' cond t f) ty = do
+  want <-
+    scope InIfCond
+      . checkWanted exact want cond
+      . Type.boolean
+      $ loc cond
+  ty <- applyM ty
+  want <- scope (InIfBody $ loc t) $ checkWantedScoped bexact want t ty
+  ty <- applyM ty
+  scope (InIfBody $ loc f) $ checkWantedScoped bexact want f ty
+  where
+    bexact = isJust exact
+checkWanted exact want (Term.List' es) lty
+  | Type.App' (Type.Ref' r) te <- lty,
+    r == Type.listRef =
+      let f want e = checkWantedScoped bexact want e =<< applyM te
+       in Foldable.foldlM f want es
+  | Type.Var' (TypeVar.Existential _ v) <- lty = do
+      ev <- extendExistential v
+      let te = existentialp (loc lty) ev
+      subtype (Type.app' (Type.ref (loc lty) Type.listRef) te) lty
+      let f want e = checkWantedScoped bexact want e =<< applyM te
+      Foldable.foldlM f want es
+  where
+    bexact = isJust exact
 checkWanted _ want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
