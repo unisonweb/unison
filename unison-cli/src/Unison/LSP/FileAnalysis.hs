@@ -10,6 +10,7 @@ module Unison.LSP.FileAnalysis
     fileAnalysisWorker,
     getFileDefLocations,
     getFileNames,
+    analyseNotes,
   )
 where
 

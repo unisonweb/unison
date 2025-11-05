@@ -653,7 +653,7 @@ type Foo = Foo
 term : Foo
 term = if true
   then «"wrong"»
-  else «"also wrong"»
+  else "also wrong"
 |]
       ),
       ( "Should highlight the handler of handle expressions",
