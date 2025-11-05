@@ -535,6 +535,7 @@ renderTypeError e env src = case e of
           src
           [styleAnnotated Type1 foundLeaf]
           [styleAnnotated Type2 expectedLeaf],
+        missingDelayHint,
         unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
         debugNoteLoc
@@ -555,6 +556,20 @@ renderTypeError e env src = case e of
         debugSummary note
       ]
     where
+      missingDelayHint = case additionalInfo of
+        Nothing -> ""
+        Just MissingDelay ->
+          Pr.lines
+            [ "I expected the expression to be delayed, but it was not.",
+              "Are you missing a `do`?"
+            ]
+        Just SuperfluousDelay ->
+          Pr.lines
+            [ "",
+              "I didn't expect this expression to be delayed, but it was.",
+              "Are you using a `do` where you don't need one,",
+              "or are you missing a `()` to force an expression?"
+            ]
       unitHintMsg =
         "\nHint: Actions within a block must have type "
           <> style Type2 (renderType' env expectedLeaf)
