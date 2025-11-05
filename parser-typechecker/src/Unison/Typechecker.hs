@@ -129,6 +129,33 @@ synthesize ppe pmccSwitch env t =
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 
+-- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
+-- @x : a@ and @f : b -> t@. That is, if a value of type `a`
+-- can be passed to a function expecting a `b`, then `subtype a b`
+-- returns `Right b`. This function returns @Left note@ with information
+-- about the reason for subtyping failure otherwise.
+--
+-- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
+-- subtype :: Var v => Type v -> Type v -> Either Note (Type v)
+-- subtype t1 t2 = error "todo"
+-- let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
+-- in case Context.runM (Context.subtype t1' t2')
+--                      (Context.MEnv Context.env0 [] Map.empty True) of
+--   Left e -> Left e
+--   Right _ -> Right t2
+
+-- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
+-- isSubtype :: Var v => Type v -> Type v -> Bool
+-- isSubtype t1 t2 = case subtype t1 t2 of
+--   Left _ -> False
+--   Right _ -> True
+
+-- | Returns true if the two type are equal, up to alpha equivalence and
+-- order of quantifier introduction. Note that alpha equivalence considers:
+-- `forall b a . a -> b -> a` and
+-- `forall a b . a -> b -> a` to be different types
+-- equals :: Var v => Type v -> Type v -> Bool
+-- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
 isSubtype :: (Var v) => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
   handleCompilerBug (Context.isSubtype (tvar $ void t1) (tvar $ void t2))
@@ -452,34 +479,6 @@ wellTyped ppe env term =
     go (may, _) = isJust may
     enable =
       Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
-
--- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
--- @x : a@ and @f : b -> t@. That is, if a value of type `a`
--- can be passed to a function expecting a `b`, then `subtype a b`
--- returns `Right b`. This function returns @Left note@ with information
--- about the reason for subtyping failure otherwise.
---
--- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
--- subtype :: Var v => Type v -> Type v -> Either Note (Type v)
--- subtype t1 t2 = error "todo"
--- let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
--- in case Context.runM (Context.subtype t1' t2')
---                      (Context.MEnv Context.env0 [] Map.empty True) of
---   Left e -> Left e
---   Right _ -> Right t2
-
--- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
--- isSubtype :: Var v => Type v -> Type v -> Bool
--- isSubtype t1 t2 = case subtype t1 t2 of
---   Left _ -> False
---   Right _ -> True
-
--- | Returns true if the two type are equal, up to alpha equivalence and
--- order of quantifier introduction. Note that alpha equivalence considers:
--- `forall b a . a -> b -> a` and
--- `forall a b . a -> b -> a` to be different types
--- equals :: Var v => Type v -> Type v -> Bool
--- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
 
 -- | Checks if the mismatch between two types is due to a missing delay, if so returns a tag for which type is
 -- missing the delay
