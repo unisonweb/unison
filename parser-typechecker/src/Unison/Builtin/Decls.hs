@@ -84,12 +84,13 @@ tlsSignedCertRef = lookupDeclRef "io2.Tls.SignedCert"
 
 tlsPrivateKeyRef = lookupDeclRef "io2.Tls.PrivateKey"
 
-runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef :: Reference
+runtimeFailureRef, arithmeticFailureRef, miscFailureRef, stmFailureRef, threadKilledFailureRef, asyncCancelledFailureRef :: Reference
 runtimeFailureRef = lookupDeclRef "io2.RuntimeFailure"
 arithmeticFailureRef = lookupDeclRef "io2.ArithmeticFailure"
 miscFailureRef = lookupDeclRef "io2.MiscFailure"
 stmFailureRef = lookupDeclRef "io2.STMFailure"
 threadKilledFailureRef = lookupDeclRef "io2.ThreadKilledFailure"
+asyncCancelledFailureRef = lookupDeclRef "io2.AsyncCancelledFailure"
 
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
@@ -530,6 +531,7 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.MiscFailure", miscFailure),
           (v "io2.STMFailure", stmFailure),
           (v "io2.ThreadKilledFailure", threadKilledFailure),
+          (v "io2.AsyncCancelledFailure", asyncCancelledFailure),
           (v "crypto.CryptoFailure", cryptoFailure),
           (v "RewriteTerm", rewriteTerm),
           (v "RewriteSignature", rewriteType),
@@ -795,6 +797,13 @@ builtinDataDecls = rs1 ++ rs
     threadKilledFailure =
       DataDeclaration
         (Unique "e7e479ebb757edcd5acff958b00aa228ac75b0c53638d44cf9d62fca045c33cf")
+        ()
+        []
+        []
+
+    asyncCancelledFailure =
+      DataDeclaration
+        (Unique "f9fdcae7d12e37728dc7336097d4255c1277f1c7a46c6200e9d3d57b8d8d7273")
         ()
         []
         []
