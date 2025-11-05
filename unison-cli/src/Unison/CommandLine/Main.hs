@@ -4,7 +4,7 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import Control.Exception (catch, displayException, mask)
+import Control.Exception (displayException, mask)
 import Control.Lens ((?~))
 import Control.Lens.Lens
 import Crypto.Random qualified as Random
@@ -21,7 +21,6 @@ import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.History qualified as Line
 import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
-import System.IO.Error (isDoesNotExistError)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
@@ -58,7 +57,6 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as P
 import UnliftIO qualified
-import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
 
 getUserInput ::
@@ -244,20 +242,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               pp
               getProjectRoot
               (loopState ^. #numberedArgs)
-      let loadSourceFile :: Text -> IO Cli.LoadSourceResult
-          loadSourceFile fname =
-            if allow $ Text.unpack fname
-              then
-                let handle :: IOException -> IO Cli.LoadSourceResult
-                    handle e =
-                      case e of
-                        _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
-                        _ -> return Cli.LoadError
-                    go = do
-                      contents <- readUtf8 $ Text.unpack fname
-                      return $ Cli.LoadSuccess contents
-                 in catch go handle
-              else return Cli.InvalidSourceNameError
       let notify :: Output -> IO ()
           notify =
             notifyUser (pure dir) fetchIssueFromGitHub
@@ -291,23 +275,14 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                       ]
                 action
 
-      let writeSource :: Text -> Text -> Bool -> IO ()
-          writeSource fp contents addFold = do
-            path <- Directory.canonicalizePath (Text.unpack fp)
-            prependUtf8
-              path
-              if addFold
-                then contents <> "\n\n---- Anything below this line is ignored by Unison.\n\n"
-                else contents <> "\n\n"
-
       let env =
             Cli.Env
               { authHTTPClient,
                 codebase,
                 credentialManager,
-                loadSource = loadSourceFile,
+                loadSource = defaultLoadSourceFile,
                 lspCheckForChanges,
-                writeSource,
+                writeSource = defaultWriteSourceFile,
                 generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
                 notify,
                 notifyNumbered = \o ->
