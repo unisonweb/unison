@@ -39,8 +39,8 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - macos-13
-          - macos-14
+          - macos-15-intel
+          - macos-latest
           - windows-2025
           # - windows-11-arm
     steps:
@@ -210,8 +210,8 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - macos-13
-          - macos-14
+          - macos-15-intel
+          - macos-latest
           - windows-2025
           # - windows-11-arm
     steps:
@@ -297,8 +297,8 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - macos-13
-          - macos-14
+          - macos-15-intel
+          - macos-latest
           # - windows-2025 fails! :-\ https://github.com/unisonweb/unison/actions/runs/15706568824/job/44253742036?pr=5765
           # - windows-11-arm
     steps:

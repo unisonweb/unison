@@ -23,8 +23,8 @@ jobs:
         os:
           # - ubuntu-24.04 disabling this because it's been failing for a while
           # - ubuntu-24.04-arm https://github.com/unisonweb/unison/issues/5789
-          - macos-13
-          - macos-15
+          - macos-15-intel
+          - macos-latest
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: mount Nix store on larger partition
