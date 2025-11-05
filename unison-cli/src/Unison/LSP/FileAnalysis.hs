@@ -275,6 +275,7 @@ getTokenMap tokens =
     & fold
 
 analyseNotes ::
+  forall f m.
   (Foldable f, MonadIO m) =>
   (Codebase.Codebase IO Symbol Ann) ->
   Uri ->
