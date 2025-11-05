@@ -66,7 +66,6 @@ import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
-import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.TypeError
 import Unison.Typechecker.TypeVar qualified as TypeVar
@@ -557,14 +556,14 @@ renderTypeError e env src = case e of
         debugSummary note
       ]
     where
-      missingDelayHint = case Typechecker.isMismatchMissingDelay foundType expectedType of
+      missingDelayHint = case additionalInfo of
         Nothing -> ""
-        Just (Left _) ->
+        Just MissingDelay ->
           Pr.lines
             [ "I expected the expression to be delayed, but it was not.",
               "Are you missing a `do`?"
             ]
-        Just (Right _) ->
+        Just SuperfluousDelay ->
           Pr.lines
             [ "",
               "I didn't expect this expression to be delayed, but it was.",
