@@ -61,7 +61,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -98,7 +98,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Loading changes detected in <mcp-virtual-source>.\",\"Loading changes detected in <mcp-virtual-source>.\",\"No changes found.\",\"No changes found.\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"Loading changes detected in scratch.u.\",\"No changes found.\",\"  1 | > x = 1 + 2\\n        â§©\\n        3\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -135,7 +135,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"This is a scratch project for testing tools in MCP.\\n\\n\\n\",\"This is a scratch project for testing tools in MCP.\\n\\n\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"This is a scratch project for testing tools in MCP.\\n\\n\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -174,7 +174,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Some \\\"hello\\\"\",\"Some \\\"hello\\\"\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"hello\"}",
+                  "text": "{\"outputMessages\":[\"Some \\\"hello\\\"\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"hello\"}",
                   "type": "text"
               }
           ],
@@ -211,7 +211,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"content\":[{\"text\":\"{\\\"errorMessages\\\":[],\\\"outputMessages\\\":[\\\"1. main : '{IO, Exception} Optional Text\\\\n2. myFailingTest : [Result]\\\\n3. myPassingTest : [Result]\\\\n4. myTerm : Nat\\\\n5. type MyType\\\\n6. MyType.MyConstructor : MyType\\\\n7. README : Doc2\\\\n\\\",\\\"1. main : '{IO, Exception} Optional Text\\\\n2. myFailingTest : [Result]\\\\n3. myPassingTest : [Result]\\\\n4. myTerm : Nat\\\\n5. type MyType\\\\n6. MyType.MyConstructor : MyType\\\\n7. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[],\\\"stderr\\\":\\\"\\\",\\\"stdout\\\":\\\"\\\"}\",\"type\":\"text\"}],\"isError\":false}",
+                  "text": "{\"content\":[{\"text\":\"{\\\"outputMessages\\\":[\\\"1. main : '{IO, Exception} Optional Text\\\\n2. myFailingTest : [Result]\\\\n3. myPassingTest : [Result]\\\\n4. myTerm : Nat\\\\n5. type MyType\\\\n6. MyType.MyConstructor : MyType\\\\n7. README : Doc2\\\\n\\\"],\\\"sourceCodeUpdates\\\":[],\\\"stderr\\\":\\\"\\\",\\\"stdout\\\":\\\"\\\"}\",\"type\":\"text\"}],\"isError\":false}",
                   "type": "text"
               }
           ],
@@ -248,7 +248,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (840 terms, 121 types)\",\"1. builtins. (840 terms, 121 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"1. builtins. (840 terms, 122 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -282,7 +282,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"     Branch   Remote branch\\n1.   main     \"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -319,7 +319,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"type MyType = MyConstructor\\n\\nmyTerm : Nat\\nmyTerm = 99\",\"type MyType = MyConstructor\\n\\nmyTerm : Nat\\nmyTerm = 99\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"type MyType = MyConstructor\\n\\nmyTerm : Nat\\nmyTerm = 99\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -356,7 +356,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. myFailingTest : [Result]\\n2. myPassingTest : [Result]\\n3. myTerm : Nat\\n4. type MyType\\n5. MyType.MyConstructor : MyType\\n\",\"1. myFailingTest : [Result]\\n2. myPassingTest : [Result]\\n3. myTerm : Nat\\n4. type MyType\\n5. MyType.MyConstructor : MyType\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"1. myFailingTest : [Result]\\n2. myPassingTest : [Result]\\n3. myTerm : Nat\\n4. type MyType\\n5. MyType.MyConstructor : MyType\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -393,7 +393,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. myTerm : Nat\\n\",\"1. myTerm : Nat\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"1. myTerm : Nat\\n\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -462,7 +462,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Cached test results (`help testcache` to learn more)\\n\\n  1. myPassingTest   â passing\\n\\n  2. myFailingTest   â failing\\n\\nð« 1 test(s) failing, â 1 test(s) passing\\n\\nTip: Use view 1 to view the source of a test.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"outputMessages\":[\"Cached test results (`help testcache` to learn more)\\n\\n  1. myPassingTest   â passing\\n\\n  2. myFailingTest   â failing\\n\\nð« 1 test(s) failing, â 1 test(s) passing\\n\\nTip: Use view 1 to view the source of a test.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -505,11 +505,11 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Loading changes detected in <mcp-virtual-source>.\",\"Loading changes detected in <mcp-virtual-source>.\",\"+ myTerm : Nat\\n\\nRun `update` to apply these changes to your codebase.\",\"+ myTerm : Nat\\n\\nRun `update` to apply these changes to your codebase.\",\"Done.\",\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "Tool 'update-definitions' not found.",
                   "type": "text"
               }
           ],
-          "isError": false
+          "isError": true
       }
   }
 
