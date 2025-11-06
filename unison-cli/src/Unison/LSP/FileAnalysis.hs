@@ -10,6 +10,7 @@ module Unison.LSP.FileAnalysis
     fileAnalysisWorker,
     getFileDefLocations,
     getFileNames,
+    analyseNotes,
   )
 where
 
@@ -74,6 +75,7 @@ import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeError qualified as TypeError
 import Unison.UnisonFile qualified as UF
@@ -224,7 +226,8 @@ fileAnalysisWorker = forever do
 analyseFile :: (Lspish m) => (Foldable f) => Uri -> Text -> PPED.PrettyPrintEnvDecl -> f (Note Symbol Ann) -> m ([Diagnostic], [RangedCodeAction])
 analyseFile fileUri srcText pped notes = do
   let ppe = PPED.suffixifiedPPE pped
-  (noteDiags, noteActions) <- analyseNotes fileUri ppe (Text.unpack srcText) notes
+  Env {codebase} <- ask
+  (noteDiags, noteActions) <- analyseNotes codebase fileUri ppe (Text.unpack srcText) notes
   pure (noteDiags, noteActions)
 
 -- | Returns diagnostics which show a warning diagnostic when editing a term that's conflicted in the
@@ -272,8 +275,16 @@ getTokenMap tokens =
       )
     & fold
 
-analyseNotes :: forall m f. (Lspish m, Foldable f) => Uri -> PrettyPrintEnv -> String -> f (Note Symbol Ann) -> m ([Diagnostic], [RangedCodeAction])
-analyseNotes fileUri ppe src notes = do
+analyseNotes ::
+  forall f m.
+  (Foldable f, MonadIO m) =>
+  (Codebase.Codebase IO Symbol Ann) ->
+  Uri ->
+  PrettyPrintEnv ->
+  String ->
+  f (Note Symbol Ann) ->
+  m ([Diagnostic], [RangedCodeAction])
+analyseNotes codebase fileUri ppe src notes = do
   foldMapM go notes
   where
     go :: Note Symbol Ann -> m ([Diagnostic], [RangedCodeAction])
@@ -281,9 +292,15 @@ analyseNotes fileUri ppe src notes = do
       Result.TypeError errNote@(Context.ErrorNote {cause}) -> do
         let typeErr = TypeError.typeErrorFromNote errNote
             ranges = case typeErr of
-              TypeError.Mismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-              TypeError.BooleanMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
-              TypeError.ExistentialMismatch {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
+              TypeError.Mismatch {mismatchSite, foundType, expectedType}
+                | -- If it's a delay mismatch, the error is likely with the block definition (e.g. missing 'do') so we highlight the whole block.
+                  Just _ <- Typechecker.isMismatchMissingDelay foundType expectedType ->
+                    singleRange $ ABT.annotation mismatchSite
+                -- Otherwise we highlight the leafe nodes of the block
+                | otherwise -> leafNodeRanges "mismatch" mismatchSite
+              TypeError.BooleanMismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
+              TypeError.ExistentialMismatch {mismatchSite} -> leafNodeRanges "mismatch" mismatchSite
+              TypeError.FunctionUnderApplied {mismatchSite} -> singleRange $ ABT.annotation mismatchSite
               TypeError.FunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.NotFunctionApplication {f} -> singleRange $ ABT.annotation f
               TypeError.AbilityCheckFailure {abilityCheckFailureSite} -> singleRange abilityCheckFailureSite
@@ -380,6 +397,10 @@ analyseNotes fileUri ppe src notes = do
                 Context.OtherBug _s -> todoAnnotation
         pure (noteDiagnostic note ranges, [])
 
+    leafNodeRanges label mismatchSite = do
+      let locs = ABT.annotation <$> expressionLeafNodes mismatchSite
+      (r, rs) <- withNeighbours (locs >>= aToR)
+      pure (r, (label,) <$> rs)
     -- Diagnostics with this return value haven't been properly configured yet.
     todoAnnotation = []
     singleRange :: Ann -> [(Range, [a])]
@@ -431,7 +452,6 @@ analyseNotes fileUri ppe src notes = do
     typeHoleReplacementCodeActions diags v typ
       | not (isUserBlank v) = pure []
       | otherwise = do
-          Env {codebase} <- ask
           let cleanedTyp = Context.generalizeAndUnTypeVar typ -- TODO: is this right?
           refs <- liftIO . Codebase.runTransaction codebase $ Codebase.termsOfType codebase cleanedTyp
           forMaybe (toList refs) $ \ref -> runMaybeT $ do
@@ -585,3 +605,38 @@ mkDocumentSymbols parsedFile typecheckedFile =
       name <- maybeToList $ Name.parseText (Var.name sym)
       range <- maybeToList $ annToRange ann
       pure $ UDocumentSymbol name (Just typ) TermSymbol range []
+
+-- | Crawl a term and find the nodes which actually influence its return type. This is useful for narrowing down a giant
+-- "This let/do block has the wrong type" into "This specific line returns the wrong type"
+-- This is just a heuristic.
+expressionLeafNodes :: Term.Term2 vt at ap v a -> [Term.Term2 vt at ap v a]
+expressionLeafNodes abt =
+  case ABT.out abt of
+    ABT.Var {} -> [abt]
+    ABT.Cycle r -> expressionLeafNodes r
+    ABT.Abs _ r -> expressionLeafNodes r
+    ABT.Tm f -> case f of
+      Term.Int {} -> [abt]
+      Term.Nat {} -> [abt]
+      Term.Float {} -> [abt]
+      Term.Boolean {} -> [abt]
+      Term.Text {} -> [abt]
+      Term.Char {} -> [abt]
+      Term.Blank {} -> [abt]
+      Term.Ref {} -> [abt]
+      Term.Constructor {} -> [abt]
+      Term.Request {} -> [abt]
+      -- Not 100% sure whether the error should appear on the handler or action, maybe both?
+      Term.Handle handler _action -> expressionLeafNodes handler
+      Term.App _a _b -> [abt]
+      Term.Ann a _ -> expressionLeafNodes a
+      Term.List {} -> [abt]
+      Term.If _cond a b -> expressionLeafNodes a <> expressionLeafNodes b
+      Term.And {} -> [abt]
+      Term.Or {} -> [abt]
+      Term.Lam a -> expressionLeafNodes a
+      Term.LetRec _isTop _bindings body -> expressionLeafNodes body
+      Term.Let _isTop _bindings body -> expressionLeafNodes body
+      Term.Match _a cases -> cases & foldMap \(Term.MatchCase {matchBody}) -> expressionLeafNodes matchBody
+      Term.TermLink {} -> [abt]
+      Term.TypeLink {} -> [abt]

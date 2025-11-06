@@ -22,7 +22,7 @@ import Unison.Codebase.ProjectPath
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
-import Unison.MCP.Cli (cliToMCP, handleInputMCP)
+import Unison.MCP.Cli (cliToMCP, handleInputMCP, virtualSourceName)
 import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.Types
@@ -52,6 +52,7 @@ tools =
     listProjectLibrariesTool,
     listLibraryDefinitionsTool,
     viewDefinitionsTool,
+    updateTool,
     listLocalProjectsTool,
     listProjectBranchesTool,
     getCurrentProjectContextTool,
@@ -87,7 +88,7 @@ installLibTool =
           },
       toolArgType = Proxy,
       toolHandler = \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> handleToolError $ do
-        (_r, output) <- cliToMCP projectContext $ do
+        (_r, output) <- cliToMCP projectContext (const $ pure ()) $ do
           handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
@@ -118,6 +119,16 @@ shareProjectSearchTool =
             let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
             pure $ errorToolResult errorMsg
     }
+
+-- | Load and typecheck the provided code, THEN run the provided inputs within that scratchfile context.
+withCode :: Either FilePath Text -> [Input] -> ProjectContext -> EMCP CallToolResult
+withCode code inputs projectContext = do
+  (filePath, source) <- case code of
+    Left filePath -> (Text.pack filePath,) <$> liftIO (readUtf8 filePath)
+    Right codeSnippet -> pure (virtualSourceName, codeSnippet)
+  output <- handleInputMCP projectContext ([Left $ UnisonFileChanged filePath source] <> (Right <$> inputs))
+  let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+  pure $ textToolResult outputJSON
 
 typecheckCodeTool :: Tool MCP
 typecheckCodeTool =
@@ -153,6 +164,8 @@ typecheckCodeTool =
             m = Random.natIn 0 1000
             ensureEqual (n + m) (m + n)
           ```
+
+          If you intend to update code, you may call the Update Definitions tool directly instead, it will typecheck and update in one step.
         |],
       toolAnnotations =
         ToolAnnotations
@@ -164,12 +177,8 @@ typecheckCodeTool =
           },
       toolArgType = Proxy,
       toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> handleToolError do
-        source <- case code of
-          Left filePath -> liftIO $ readUtf8 filePath
-          Right codeSnippet -> pure codeSnippet
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" source]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-        pure $ textToolResult outputJSON
+        -- Just load the code, nothing more
+        withCode code [] projectContext
     }
 
 docsTool :: Tool MCP
@@ -253,8 +262,9 @@ listProjectDefinitionsTool =
           },
       toolArgType = Proxy,
       toolHandler = \(ProjectContextArgument projectContext) -> handleToolError $ do
+        let noop _ = pure ()
         output <-
-          cliToMCP projectContext Cli.getCurrentBranch0 >>= \case
+          cliToMCP projectContext noop Cli.getCurrentBranch0 >>= \case
             (Just b, _output) -> do
               let noLibBranch = Branch.deleteLibdeps b
               if (R.null $ Branch.deepTerms noLibBranch) && (R.null $ Branch.deepTypes noLibBranch)
@@ -332,6 +342,24 @@ viewDefinitionsTool =
             pure $ textToolResult outputJSON
     }
 
+updateTool :: Tool MCP
+updateTool =
+  Tool
+    { toolName = toToolName UpdateDefinitionsTool,
+      toolDescription = "Typecheck, then update definitions in the codebase to the provided code.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Update Definitions",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(UpdateDefinitionsToolArguments {projectContext, code}) -> handleToolError $ do
+        withCode code [Input.Update2I] projectContext
+    }
+
 listLocalProjectsTool :: Tool MCP
 listLocalProjectsTool =
   Tool
@@ -378,7 +406,7 @@ getCurrentProjectContextTool :: Tool MCP
 getCurrentProjectContextTool =
   Tool
     { toolName = toToolName GetCurrentProjectContextTool,
-      toolDescription = "Get the current project context.",
+      toolDescription = "Get the current project context. This is useful for determining the user's working branch, but all commands take an explicit project context, so it's unnecessary if you already know which context is desired.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Get Current Project Context",
