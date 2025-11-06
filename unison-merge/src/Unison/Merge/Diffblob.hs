@@ -212,7 +212,8 @@ makeDiffblob logger hydrate loadNames defns libdeps declNameLookups = do
         unconflicts
       }
 
--- | Like 'makeDiffblob', but for when the LCA of Alice & Bob is Alice.
+-- | Like 'makeDiffblob', but for a fast forward, and when the LCA is known not to have any type declarations with
+-- missing constructor names.
 makeFastForwardDiffblob ::
   forall libdep m.
   (Eq libdep, Monad m) =>

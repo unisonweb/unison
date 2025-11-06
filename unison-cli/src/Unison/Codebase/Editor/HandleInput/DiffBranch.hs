@@ -41,6 +41,7 @@ import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge.DiffOp
 import Unison.Merge.ThreeWay qualified as Merge.ThreeWay
+import Unison.Merge.TwoOrThreeWay qualified as Merge.TwoOrThreeWay
 import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
 import Unison.Merge.TwoWay qualified as Merge.TwoWay
 import Unison.Name (Name)
@@ -135,19 +136,31 @@ handleDiffBranch aliceArg bobArg = do
 
       pure (namespaces0, diffblob)
 
+  let namespacesNu :: Merge.TwoOrThreeWay (Branch0 Sqlite.Transaction)
+      namespacesNu = Merge.ThreeWay.toTwoOrThreeWay namespaces
+
   -- Identify the set of all names changed (added, deleted, updated) on both branches.
   let changedNames :: DefnsF Set Name Name
       changedNames =
         foldMap (bimap Map.keysSet Map.keysSet) diffblob.diffsFromLCA
 
   -- Restrict all definitions to just those changed names (regardless of which branch changed it)
-  let changedDefns :: Merge.ThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
+  let changedDefns :: Merge.TwoOrThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
       changedDefns =
-        diffblob.defns <&> \defns ->
-          NamesUtils.restrictNames changedNames defns.defns
+        ( if isJust namespacesNu.lca
+            then
+              diffblob.defns
+                & Merge.ThreeWay.toTwoOrThreeWay
+            else
+              diffblob.defns
+                & Merge.ThreeWay.forgetLca
+                & Merge.TwoWay.toTwoOrThreeWay Nothing
+        )
+          <&> \defns ->
+            NamesUtils.restrictNames changedNames defns.defns
 
   -- Extract out just the builtins, to be rendered specially in the file later
-  let changedBuiltinDefns :: Merge.ThreeWay (DefnsF (Map Name) Text Text)
+  let changedBuiltinDefns :: Merge.TwoOrThreeWay (DefnsF (Map Name) Text Text)
       changedBuiltinDefns =
         changedDefns
           <&> bimap
@@ -218,7 +231,8 @@ handleDiffBranch aliceArg bobArg = do
                 -- The LCA libdeps diff is the causal hashes of every libdep updated or deleted by one party
                 lcaLibdepsDiff :: Map NameSegment CausalHash
                 lcaLibdepsDiff =
-                  namespaces.lca
+                  namespacesNu.lca
+                    & fromMaybe namespacesNu.alice -- a missing LCA means we're treating Alice as LCA
                     & view Branch.libdeps_
                     & (`Map.restrictKeys` deletedAndUpdatedLibdepsNames)
                     & Map.map Branch.headHash
@@ -259,23 +273,37 @@ handleDiffBranch aliceArg bobArg = do
 
         exitCode <-
           liftIO do
-            for_
-              ( (,,,,,)
-                  <$> filenames
-                  <*> ( diffblob.declNameLookups
-                          & over #lca (PartialDeclNameLookup.toDeclNameLookup Name.unsafeParseText)
-                          & Merge.ThreeWay.gtoThreeWay
-                      )
-                  <*> namespaces
-                  <*> diffblob.defns
-                  <*> changedBuiltinDefns
-                  <*> libdepsDiffs
-              )
-              \(name, declNameLookup, namespace, defns, builtinDefns, libdeps) ->
-                env.writeSource
-                  name
-                  (renderUnisonFile declNameLookup namespace libdeps defns builtinDefns hydratedDefns)
-                  True
+            let renderedUnisonFiles :: Merge.ThreeWay Text
+                renderedUnisonFiles =
+                  Merge.TwoWay.toThreeWay
+                    ( -- These either both have a Nothing lca or both have a Just lca
+                      case (namespacesNu.lca, changedBuiltinDefns.lca) of
+                        (Just lca, Just builtins) ->
+                          renderUnisonFile
+                            -- FIXME whoops, we can't always `unsafeParseText` out of a missing name in the LCA here...
+                            -- need a rendering function that knows how to print decls with missing names, I guess
+                            (PartialDeclNameLookup.toDeclNameLookup Name.unsafeParseText diffblob.declNameLookups.lca)
+                            lca
+                            libdepsDiffs.lca
+                            diffblob.defns.lca
+                            builtins
+                            hydratedDefns
+                        _ -> aliceAndBobFiles.alice
+                    )
+                    aliceAndBobFiles
+                  where
+                    aliceAndBobFiles :: Merge.TwoWay Text
+                    aliceAndBobFiles =
+                      renderUnisonFile
+                        <$> Merge.ThreeWay.gforgetLca diffblob.declNameLookups
+                        <*> Merge.TwoOrThreeWay.forgetLca namespacesNu
+                        <*> Merge.ThreeWay.forgetLca libdepsDiffs
+                        <*> Merge.ThreeWay.forgetLca diffblob.defns
+                        <*> Merge.TwoOrThreeWay.forgetLca changedBuiltinDefns
+                        <*> pure hydratedDefns
+
+            for_ ((,) <$> filenames <*> renderedUnisonFiles) \(name, contents) ->
+              env.writeSource name contents True
             let createProcess = (Process.shell (Text.unpack difftool)) {Process.delegate_ctlc = True}
             Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
 
@@ -361,7 +389,7 @@ handleDiffBranch aliceArg bobArg = do
   Cli.respond $
     Output.ShowBranchDiff
       args
-      ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.ThreeWay.forgetLca namespaces)
+      ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.TwoOrThreeWay.forgetLca namespacesNu)
       (Map.map (Merge.DiffOp.map Branch.headHash) <$> diffblob.libdepsDiffs)
       diffs
       maybeDifftoolResult
