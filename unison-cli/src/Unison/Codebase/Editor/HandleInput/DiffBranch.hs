@@ -40,10 +40,11 @@ import Unison.DeclCoherencyCheck (asOneRandomIncoherentDeclReason)
 import Unison.DeclNameLookup (DeclNameLookup)
 import Unison.Merge qualified as Merge
 import Unison.Merge.DiffOp qualified as Merge.DiffOp
+import Unison.Merge.Diffblob qualified as Merge
 import Unison.Merge.ThreeWay qualified as Merge.ThreeWay
 import Unison.Merge.TwoOrThreeWay qualified as Merge.TwoOrThreeWay
-import Unison.Merge.TwoOrThreeWay qualified as TwoOrThreeWay
 import Unison.Merge.TwoWay qualified as Merge.TwoWay
+import Unison.Merge.Updated qualified as Merge.Updated
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.NamesUtils qualified as NamesUtils
@@ -77,25 +78,47 @@ import Unison.Var (Var)
 
 handleDiffBranch :: DiffBranchArg -> DiffBranchArg -> Cli ()
 handleDiffBranch aliceArg bobArg = do
-  let args = Merge.TwoWay {alice = aliceArg, bob = bobArg}
+  let originalArgs = Merge.TwoWay {alice = aliceArg, bob = bobArg}
 
   env <- ask
 
   currentProject <- Cli.getCurrentProject
 
-  (namespaces, diffblob) <-
+  (namespaces, diffblob, swapped) <-
     Cli.runTransactionWithRollback \abort -> do
-      aliceAndBobCausalHashes <- traverse (resolveDiffBranchArg abort currentProject) args
-      lcaCausalHash <- Operations.lca aliceAndBobCausalHashes.alice aliceAndBobCausalHashes.bob
-      let causalHashes0 =
-            Merge.TwoOrThreeWay
-              { alice = aliceAndBobCausalHashes.alice,
-                bob = aliceAndBobCausalHashes.bob,
-                lca = lcaCausalHash
-              }
+      causalHashes2 <-
+        traverse (resolveDiffBranchArg abort currentProject) originalArgs
 
-      let causalHashes =
-            TwoOrThreeWay.toThreeWay causalHashes0.alice causalHashes0
+      -- If the causal hashes are the same, there's certainly no diff to show
+      when (Merge.TwoWay.twoWay (==) causalHashes2) do
+        abort Output.ShowEmptyBranchDiff
+
+      maybeLcaCausalHash <-
+        Operations.lca causalHashes2.alice causalHashes2.bob
+
+      -- From now on, all throughout the algorithm, a missing LCA means one of two things, which we treat uniformly:
+      --
+      --   1. The LCA is Alice, i.e. this is is a fast-forward to Bob
+      --   2. The LCA is actually missing, i.e. the branches don't share a history
+      --
+      -- In both cases, we treat Alice as the effective LCA for the purpose of the diff. (In the no-history case, this
+      -- allows users to see the diff between e.g. two squashed releases, in a readable/intuitive way, so long as they
+      -- put the older release first on the command line.
+      --
+      -- You might wonder: what if the LCA is actually Bob, and Alice is ahead? We track that with a separate boolean,
+      -- "swapped". If swapped, we're treating Alice as Bob and vice-versa, so just before displaying the diff, we swap
+      -- them back. So, this case is also (1).
+      let causalHashes :: Merge.TwoOrThreeWay CausalHash
+          swapped :: Bool
+          (causalHashes, swapped) =
+            case maybeLcaCausalHash of
+              Nothing -> (Merge.TwoWay.toTwoOrThreeWay Nothing causalHashes2, False)
+              Just lcaCausalHash
+                | lcaCausalHash == causalHashes2.alice ->
+                    (Merge.TwoWay.toTwoOrThreeWay Nothing causalHashes2, False)
+                | lcaCausalHash == causalHashes2.bob ->
+                    (Merge.TwoWay.toTwoOrThreeWay Nothing (Merge.TwoWay.swap causalHashes2), True)
+                | otherwise -> (Merge.TwoWay.toTwoOrThreeWay maybeLcaCausalHash causalHashes2, False)
 
       namespaces <-
         for causalHashes (Codebase.expectBranchForHashTx env.codebase)
@@ -108,36 +131,51 @@ handleDiffBranch aliceArg bobArg = do
           Branch.asUnconflicted namespace
             & onLeft (abort . Output.ConflictedDefn)
 
-      declNameLookups <- do
-        aliceAndBob <-
-          sequence $
-            ( \x y z ->
-                Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash x) y
-                  & onLeftM
-                    ( abort
-                        . Output.IncoherentDeclDuringDiffBranch z
-                        . asOneRandomIncoherentDeclReason
-                    )
-            )
-              <$> Merge.ThreeWay.forgetLca namespaces
-              <*> Merge.ThreeWay.forgetLca defns
-              <*> args
-        lca <- Codebase.getBranchPartialDeclNameLookup env.codebase (Branch.namespaceHash namespaces.lca) defns.lca
-        pure (Merge.ThreeWay.gfromTwoWay lca aliceAndBob)
+      declNameLookups2 :: Merge.TwoWay DeclNameLookup <-
+        sequence $
+          ( \x y z ->
+              Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash x) y
+                & onLeftM
+                  ( abort
+                      . Output.IncoherentDeclDuringDiffBranch z
+                      . asOneRandomIncoherentDeclReason
+                  )
+          )
+            <$> Merge.TwoOrThreeWay.forgetLca namespaces
+            <*> Merge.TwoOrThreeWay.forgetLca defns
+            <*> (if swapped then Merge.TwoWay.swap originalArgs else originalArgs)
 
       diffblob <-
-        Merge.makeDiffblob
-          Merge.emptyDiffblobLog
-          (UpdateUtils.hydrateRefs env.codebase . fold)
-          (\_ -> pure (Branch.toNames <$> namespaces0))
-          defns
-          (view Branch.libdeps_ <$> namespaces0)
-          declNameLookups
+        -- These are all Just or all Nothing
+        case (namespaces.lca, defns.lca) of
+          (Just lcaNamespace, Just lcaDefns) -> do
+            let namespaces0' = Merge.TwoOrThreeWay.toThreeWay (Branch.head lcaNamespace) namespaces0
+            lcaDeclNameLookup <-
+              Codebase.getBranchPartialDeclNameLookup env.codebase (Branch.namespaceHash lcaNamespace) lcaDefns
+            Merge.makeDiffblob
+              Merge.emptyDiffblobLog
+              (UpdateUtils.hydrateRefs env.codebase . fold)
+              (\_ -> pure (Branch.toNames <$> namespaces0'))
+              (Merge.TwoOrThreeWay.toThreeWay lcaDefns defns)
+              (view Branch.libdeps_ <$> namespaces0')
+              (Merge.TwoWay.gtoThreeWay lcaDeclNameLookup declNameLookups2)
+          _ ->
+            let f :: Merge.TwoOrThreeWay a -> Merge.Updated a
+                f x =
+                  Merge.Updated x.alice x.bob
+             in Merge.makeFastForwardDiffblob
+                  (UpdateUtils.hydrateRefs env.codebase . Merge.Updated.fold)
+                  (\_ -> pure (Merge.Updated.map Branch.toNames (f namespaces0)))
+                  (f defns)
+                  (Merge.Updated.map (view Branch.libdeps_) (f namespaces0))
+                  (Merge.TwoWay.twoWay Merge.Updated declNameLookups2)
 
-      pure (namespaces0, diffblob)
+      pure (namespaces0, diffblob, swapped)
 
-  let namespacesNu :: Merge.TwoOrThreeWay (Branch0 Sqlite.Transaction)
-      namespacesNu = Merge.ThreeWay.toTwoOrThreeWay namespaces
+  let maybeSwap :: Merge.TwoWay a -> Merge.TwoWay a
+      maybeSwap
+        | swapped = Merge.TwoWay.swap
+        | otherwise = id
 
   -- Identify the set of all names changed (added, deleted, updated) on both branches.
   let changedNames :: DefnsF Set Name Name
@@ -147,7 +185,7 @@ handleDiffBranch aliceArg bobArg = do
   -- Restrict all definitions to just those changed names (regardless of which branch changed it)
   let changedDefns :: Merge.TwoOrThreeWay (Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name))
       changedDefns =
-        ( if isJust namespacesNu.lca
+        ( if isJust namespaces.lca
             then
               diffblob.defns
                 & Merge.ThreeWay.toTwoOrThreeWay
@@ -231,8 +269,8 @@ handleDiffBranch aliceArg bobArg = do
                 -- The LCA libdeps diff is the causal hashes of every libdep updated or deleted by one party
                 lcaLibdepsDiff :: Map NameSegment CausalHash
                 lcaLibdepsDiff =
-                  namespacesNu.lca
-                    & fromMaybe namespacesNu.alice -- a missing LCA means we're treating Alice as LCA
+                  namespaces.lca
+                    & fromMaybe namespaces.alice -- a missing LCA means we're treating Alice as LCA
                     & view Branch.libdeps_
                     & (`Map.restrictKeys` deletedAndUpdatedLibdepsNames)
                     & Map.map Branch.headHash
@@ -261,7 +299,7 @@ handleDiffBranch aliceArg bobArg = do
                   }
               where
                 slugs =
-                  mangleDiffBranchArg <$> args
+                  mangleDiffBranchArg <$> maybeSwap originalArgs
 
         let difftool =
               difftool0
@@ -277,7 +315,7 @@ handleDiffBranch aliceArg bobArg = do
                 renderedUnisonFiles =
                   Merge.TwoWay.toThreeWay
                     ( -- These either both have a Nothing lca or both have a Just lca
-                      case (namespacesNu.lca, changedBuiltinDefns.lca) of
+                      case (namespaces.lca, changedBuiltinDefns.lca) of
                         (Just lca, Just builtins) ->
                           renderUnisonFile
                             -- FIXME whoops, we can't always `unsafeParseText` out of a missing name in the LCA here...
@@ -296,7 +334,7 @@ handleDiffBranch aliceArg bobArg = do
                     aliceAndBobFiles =
                       renderUnisonFile
                         <$> Merge.ThreeWay.gforgetLca diffblob.declNameLookups
-                        <*> Merge.TwoOrThreeWay.forgetLca namespacesNu
+                        <*> Merge.TwoOrThreeWay.forgetLca namespaces
                         <*> Merge.ThreeWay.forgetLca libdepsDiffs
                         <*> Merge.ThreeWay.forgetLca diffblob.defns
                         <*> Merge.TwoOrThreeWay.forgetLca changedBuiltinDefns
@@ -388,10 +426,10 @@ handleDiffBranch aliceArg bobArg = do
 
   Cli.respond $
     Output.ShowBranchDiff
-      args
-      ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> Merge.TwoOrThreeWay.forgetLca namespacesNu)
-      (Map.map (Merge.DiffOp.map Branch.headHash) <$> diffblob.libdepsDiffs)
-      diffs
+      originalArgs
+      ((.suffixifiedPPE) . Branch.toPrettyPrintEnvDecl 10 <$> maybeSwap (Merge.TwoOrThreeWay.forgetLca namespaces))
+      (Map.map (Merge.DiffOp.map Branch.headHash) <$> maybeSwap diffblob.libdepsDiffs)
+      (maybeSwap diffs)
       maybeDifftoolResult
 
 resolveDiffBranchArg ::
