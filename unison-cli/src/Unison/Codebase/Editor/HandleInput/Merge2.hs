@@ -381,7 +381,7 @@ doMerge info = do
             --                Yes                    Yes                                              Run that cool tool
 
             maybeMergetool <-
-              if not (defnsAreEmpty mergeblob.conflicts.alice)
+              if not env.isTranscriptTest && not (defnsAreEmpty mergeblob.conflicts.alice)
                 then liftIO (lookupEnv "UCM_MERGETOOL")
                 else pure Nothing
 
