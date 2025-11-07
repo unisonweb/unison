@@ -231,11 +231,26 @@ scratch/main> project.delete scratch
 
 If two branches don't share any history, `branch.diff` treats the first argument as the LCA.
 
-``` ucm :hide
-scratch/main> builtins.mergeio lib.builtin
+``` unison
+main = "main"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + main : ##Text
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
 scratch/main> branch.create-empty topic
 
   Done. I've created an empty branch scratch/topic.
@@ -244,13 +259,13 @@ scratch/main> branch.create-empty topic
 ```
 
 ``` unison
-foo = 17
+topic = "topic"
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + foo : ##Nat
+  + topic : ##Text
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -263,23 +278,23 @@ scratch/topic> update
 
   Done.
 
-scratch/topic> builtins.mergeio lib.builtin
-
-  Done.
-
 scratch/topic> branch.diff /main /topic
 
   Changes on /topic:
 
-  + foo : Nat
+  + topic : ##Text
+  - main : ##Text
+
+  + (added), - (deleted)
 
 scratch/topic> branch.diff /topic /main
 
   Changes on /main:
 
-  - foo : Nat
+  + main : ##Text
+  - topic : ##Text
 
-  - (deleted)
+  + (added), - (deleted)
 ```
 
 ``` ucm :hide
