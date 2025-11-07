@@ -25,6 +25,7 @@ data HashMismatch = HashMismatch
   { expectedHash :: Hash,
     actualHash :: Hash
   }
+  deriving (Eq, Show)
 
 data DeclHashingError
   = DeclHashMismatch HashMismatch

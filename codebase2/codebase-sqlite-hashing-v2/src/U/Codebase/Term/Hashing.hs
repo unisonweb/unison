@@ -2,8 +2,10 @@ module U.Codebase.Term.Hashing where
 
 import Control.Lens
 import Data.Foldable qualified as Foldable
+import Data.List qualified as List
 import Data.Map qualified as Map
 import U.Codebase.HashTags
+import U.Codebase.Reference
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.HashHandle (HashMismatch (..))
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
@@ -15,6 +17,7 @@ import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
 import U.Core.ABT qualified as ABT
+import Unison.Debug qualified as Debug
 import Unison.Hash32
 import Unison.Hash32 qualified as Hash32
 import Unison.Hashing.V2 qualified as H2
@@ -25,21 +28,32 @@ import Unison.Var qualified as Var
 
 verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
 verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) =
-  Foldable.toList elements
-    & fmap s2cTermWithType
-    & Reference.component hash
-    & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
-    & Map.fromList
-    & C.Term.unhashComponent hash Var.unnamedRef
-    & Map.toList
-    & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
-    & Map.fromList
-    & H2.hashTermComponents
-    & altMap \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
-      if hash == hash'
-        then Nothing
-        else Just (HashMismatch hash hash')
+  let componentMap =
+        Foldable.toList elements
+          & fmap s2cTermWithType
+          & Reference.component hash
+          & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+          & Map.fromList
+      results = validatePermutations componentMap
+   in case List.find isNothing (Debug.debug Debug.Temp ("HASHRESULTS " <> show hash) results) of
+        Just Nothing -> Nothing
+        _ -> head results
   where
+    validatePermutations compMap = do
+      (_i, permutationIndex) <- Debug.debug Debug.Temp ("Hashing.verifyTermFormatHash  PERMUTATION of hash " <> show hash) <$> zip [1 :: Int ..] $ List.permutations [1 .. Map.size compMap]
+      let refToVar (Id h pos) = Id h (fromIntegral $ permutationIndex ^?! ix (fromIntegral pos))
+      let mayMismatch =
+            compMap
+              & C.Term.unhashComponent hash (Var.unnamedRef . refToVar)
+              & Map.toList
+              & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
+              & Map.fromList
+              & H2.hashTermComponents
+              & altMap \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
+                if hash == hash'
+                  then Nothing
+                  else Just (HashMismatch hash hash')
+      pure mayMismatch
     mapTermV ::
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' S.Symbol) S.Symbol a ->
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' Unison.Symbol) Unison.Symbol a
