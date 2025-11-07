@@ -64,7 +64,7 @@ withCancellation mayTimeoutMillis handler message respond = do
   where
     removeFromMap reqId = do
       cancelMapVar <- asks cancellationMapVar
-      atomically $ modifyTVar cancelMapVar $ Map.delete reqId
+      atomically $ modifyTVar' cancelMapVar $ Map.delete reqId
     withTimeout :: Lsp () -> Lsp ()
     withTimeout action =
       case mayTimeoutMillis of

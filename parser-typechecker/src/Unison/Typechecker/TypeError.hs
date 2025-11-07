@@ -9,8 +9,10 @@ import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.Context qualified as C
 import Unison.Typechecker.Extractor qualified as Ex
+import Unison.Typechecker.TypeVar (lowerType)
 import Unison.Util.Monoid (whenM)
 import Unison.Var (Var)
 import Prelude hiding (all, and, or)
@@ -21,6 +23,12 @@ data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
 data ExistentialMismatch = IfBody | ListBody | CaseBody
   deriving (Show)
 
+-- | Additional mismatch info, which can be useful for providing hints in error messages.
+data MismatchInfo
+  = MissingDelay
+  | SuperfluousDelay
+  deriving (Show, Eq, Ord)
+
 data TypeError v loc
   = Mismatch
       { foundType :: C.Type v loc, -- overallType1
@@ -28,7 +36,8 @@ data TypeError v loc
         foundLeaf :: C.Type v loc, -- leaf1
         expectedLeaf :: C.Type v loc, -- leaf2
         mismatchSite :: C.Term v loc,
-        note :: C.ErrorNote v loc
+        note :: C.ErrorNote v loc,
+        additionalInfo :: Maybe MismatchInfo
       }
   | BooleanMismatch
       { getBooleanMismatch :: BooleanMismatch,
@@ -63,7 +72,17 @@ data TypeError v loc
   | NotFunctionApplication
       { f :: C.Term v loc,
         ft :: C.Type v loc,
-        note :: C.ErrorNote v loc
+        note :: C.ErrorNote v loc,
+        args :: [C.Term v loc]
+      }
+  | FunctionUnderApplied
+      { foundType :: C.Type v loc, -- overallType1
+        expectedType :: C.Type v loc, -- overallType2
+        foundLeaf :: C.Type v loc, -- leaf1
+        expectedLeaf :: C.Type v loc, -- leaf2
+        mismatchSite :: C.Term v loc,
+        note :: C.ErrorNote v loc,
+        needArgs :: [Type v loc]
       }
   | AbilityCheckFailure
       { ambient :: [C.Type v loc],
@@ -306,9 +325,29 @@ generalMismatch = do
   n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
+  let mayNeedArgs = findUnderApplication foundLeaf expectedLeaf
+  -- If the found type is a function, and the result of that function matches the expected type,
+  -- it's likely we're missing some arguments from a function.
+
   case Type.cleanups [sub foundType, sub expectedType, sub foundLeaf, sub expectedLeaf] of
-    [ft, et, fl, el] -> pure $ Mismatch ft et fl el mismatchSite n
+    [ft, et, fl, el] -> do
+      let delayMismatch = Typechecker.isMismatchMissingDelay foundType expectedType
+      case (mayNeedArgs, delayMismatch) of
+        (_, Just (Left {})) -> pure $ Mismatch ft et fl el mismatchSite n (Just MissingDelay)
+        (_, Just (Right {})) -> pure $ Mismatch ft et fl el mismatchSite n (Just SuperfluousDelay)
+        (Just needArgs, _) -> pure $ FunctionUnderApplied ft et fl el mismatchSite n (lowerType <$> needArgs)
+        _ -> do
+          pure $ Mismatch ft et fl el mismatchSite n Nothing
     _ -> error "generalMismatch: Mismatched type binding"
+  where
+    findUnderApplication found expected
+      | Right True <- C.isSubtype found expected = pure []
+      | otherwise =
+          case found of
+            Type.Arrow' i o -> (i :) <$> findUnderApplication o expected
+            Type.ForallNamed' _ body -> findUnderApplication body expected
+            Type.Effect' _ inner -> findUnderApplication inner expected
+            _ -> Nothing
 
 and,
   or,
@@ -399,15 +438,15 @@ applyingNonFunction :: (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.errorNote
-  (f, ft) <- Ex.unique $ do
+  (f, ft, args) <- Ex.unique $ do
     Ex.pathStart
-    (arity0Type, _arg, _argNum) <- Ex.inSynthesizeApp
+    _synthApp <- Ex.inSynthesizeApp
     (_, f, ft, args) <- Ex.inFunctionCall
-    let expectedArgCount = Type.arity ft
+    let expectedArgCount = Type.arityIgnoringEffects ft
         foundArgCount = length args
     -- unexpectedArgLoc = ABT.annotation arg
-    whenM (expectedArgCount < foundArgCount) $ pure (f, arity0Type)
-  pure $ NotFunctionApplication f (Type.cleanup ft) n
+    whenM (expectedArgCount < foundArgCount) $ pure (f, ft, args)
+  pure $ NotFunctionApplication f (Type.cleanup ft) n args
 
 -- | Want to collect this info:
 -- The `n`th argument to `f` is `foundType`, but I was expecting `expectedType`.
