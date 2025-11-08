@@ -518,6 +518,8 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp be, unitValue)
           | Just (ie :: AsyncException) <- fromException exn =
               (Rf.threadKilledFailureRef, disp ie, unitValue)
+          | Just (ie :: UnliftIO.AsyncCancelled) <- fromException exn =
+              (Rf.asyncCancelledFailureRef, disp ie, unitValue)
           | Just (Panic msg v) <- fromException exn,
             msg <- Util.Text.pack $ "panic: " ++ msg =
               (Rf.miscFailureRef, msg, fromMaybe unitValue v)
