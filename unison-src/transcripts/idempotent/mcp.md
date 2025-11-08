@@ -248,7 +248,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (840 terms, 121 types)\",\"1. builtins. (840 terms, 121 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (840 terms, 122 types)\",\"1. builtins. (840 terms, 122 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
