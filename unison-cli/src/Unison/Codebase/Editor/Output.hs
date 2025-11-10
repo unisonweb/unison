@@ -456,6 +456,7 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | ShowEmptyBranchDiff
   | ShowBranchDiff
       !(Merge.TwoWay DiffBranchArg)
       !(Merge.TwoWay PPE.PrettyPrintEnv)
@@ -721,6 +722,7 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  ShowEmptyBranchDiff {} -> False
   ShowBranchDiff {} -> False
   StaleRun {} -> True
   InvalidCommentTarget {} -> True

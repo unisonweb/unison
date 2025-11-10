@@ -2,6 +2,7 @@
 module Unison.Merge.Libdeps
   ( LibdepDiffOp (..),
     diffLibdeps,
+    diffLibdeps1,
     mergeLibdepsDiffs,
     applyLibdepsDiff,
     getTwoFreshLibdepNames,
@@ -20,7 +21,7 @@ import Unison.Merge.ThreeWay qualified as ThreeWay
 import Unison.Merge.TwoDiffOps (TwoDiffOps (..))
 import Unison.Merge.TwoDiffOps qualified as TwoDiffOps
 import Unison.Merge.TwoWay (TwoWay (..))
-import Unison.Merge.Updated (GUpdated (..))
+import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude hiding (catMaybes)
@@ -45,19 +46,21 @@ diffLibdeps ::
   -- | Library dependencies diffs.
   TwoWay (Map k (DiffOp v))
 diffLibdeps libdeps =
-  f <$> ThreeWay.forgetLca libdeps
-  where
-    f :: Map k v -> Map k (DiffOp v)
-    f =
-      Map.merge
-        (Map.mapMissing \_ -> DiffOp'Delete)
-        (Map.mapMissing \_ -> DiffOp'Add)
-        ( Map.zipWithMaybeMatched \_ old new ->
-            if old == new
-              then Nothing
-              else Just (DiffOp'Update Updated {old, new})
-        )
-        libdeps.lca
+  diffLibdeps1 <$> ThreeWay.toUpdated libdeps
+
+-- | Like 'diffLibdeps', but for one LCA->Head side of a diff.
+diffLibdeps1 :: (Ord k, Eq v) => Updated (Map k v) -> Map k (DiffOp v)
+diffLibdeps1 libdeps =
+  Map.merge
+    (Map.mapMissing \_ -> DiffOp'Delete)
+    (Map.mapMissing \_ -> DiffOp'Add)
+    ( Map.zipWithMaybeMatched \_ old new ->
+        if old == new
+          then Nothing
+          else Just (DiffOp'Update Updated {old, new})
+    )
+    libdeps.old
+    libdeps.new
 
 -- Merge two library dependency diffs together:
 --

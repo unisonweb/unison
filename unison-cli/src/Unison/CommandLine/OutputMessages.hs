@@ -2393,6 +2393,7 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  ShowEmptyBranchDiff -> pure prettyEmptyBranchDiff
   ShowBranchDiff branchArgs ppes libdepsDiffs diffs _maybeDifftoolResult -> do
     let isEmpty
           libdepsDiff
@@ -2529,7 +2530,7 @@ notifyUser dir issueFn = \case
 
     pure $
       if isEmpty libdepsDiffs.alice diffs.alice && isEmpty libdepsDiffs.bob diffs.bob
-        then "Those branches are the same."
+        then prettyEmptyBranchDiff
         else
           P.sepNonEmpty
             "\n\n"
@@ -4255,3 +4256,7 @@ strayConstructorError verb theConstructor name =
           <> verb
           <> "again."
     ]
+
+prettyEmptyBranchDiff :: Pretty
+prettyEmptyBranchDiff =
+  "Those branches are the same."

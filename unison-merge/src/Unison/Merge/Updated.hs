@@ -3,6 +3,7 @@ module Unison.Merge.Updated
     GUpdated (..),
     bimap,
     bitraverse,
+    Unison.Merge.Updated.fold,
     Unison.Merge.Updated.foldMap,
     fromPair,
     Unison.Merge.Updated.map,
@@ -37,6 +38,10 @@ bimap f g (Updated x y) =
 bitraverse :: (Applicative f) => (a -> f b) -> (c -> f d) -> GUpdated a c -> f (GUpdated b d)
 bitraverse f g (Updated x y) =
   Updated <$> f x <*> g y
+
+fold :: (Semigroup a) => Updated a -> a
+fold (Updated x y) =
+  x <> y
 
 foldMap :: (Semigroup m) => (a -> m) -> Updated a -> m
 foldMap f (Updated x y) =
