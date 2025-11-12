@@ -225,7 +225,6 @@ library
     , ansi-terminal
     , attoparsec
     , base
-    , base64-bytestring
     , bytestring
     , cmark
     , co-log-core
@@ -251,10 +250,8 @@ library
     , http-client >=0.7.6
     , http-client-tls
     , http-types
-    , jose
     , ki
     , lens
-    , lock-file
     , lsp >=2.2.0.0
     , lsp-types >=2.0.2.0
     , megaparsec
@@ -291,6 +288,7 @@ library
     , unison-codebase-sqlite-hashing-v2
     , unison-core
     , unison-core1
+    , unison-credentials
     , unison-hash
     , unison-merge
     , unison-parser-typechecker

@@ -8,16 +8,19 @@ dependencies:
   - base
   - aeson
   - containers
+  - filepath
   - jose
   - text
   - base64-bytestring
   - lens
+  - lock-file
   - memory
   - network-uri
   - time
+  - transformers
   - unison-core1
   - unison-prelude
-  - lock-file
+  - unliftio
 
 library:
   source-dirs: src
@@ -44,6 +47,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes

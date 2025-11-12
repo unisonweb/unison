@@ -222,12 +222,10 @@ library
     , mtl
     , murmur-hash
     , mutable-containers
-    , network-uri
     , nonempty-containers
     , pretty-simple
     , regex-tdfa
     , semialign
-    , servant-client
     , stm
     , text
     , these
