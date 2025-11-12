@@ -1,9 +1,11 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Codebase.SqliteCodebase.Migrations.MigrateHistoryComments (hashHistoryCommentsMigration) where
 
 import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId (HistoryCommentId (..), HistoryCommentRevisionId (HistoryCommentRevisionId))
 import U.Codebase.Sqlite.Orphans (AsSqlite (..))
@@ -16,6 +18,15 @@ import Unison.KeyThumbprint (KeyThumbprint)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 
+-- Convert milliseconds since epoch to UTCTime _exactly_.
+-- UTCTime has picosecond precision so this is lossless.
+millisToUTCTime :: Int64 -> UTCTime
+millisToUTCTime ms =
+  toRational ms
+    & (/ (1_000 :: Rational))
+    & fromRational
+    & posixSecondsToUTCTime
+
 -- | This migration just deletes all the old name lookups, it doesn't recreate them.
 -- On share we'll rebuild only the required name lookups from scratch.
 hashHistoryCommentsMigration :: KeyThumbprint -> Sqlite.Transaction ()
@@ -26,19 +37,20 @@ hashHistoryCommentsMigration defaultKeyThumbprint = do
 
 hashAllHistoryComments :: KeyThumbprint -> Sqlite.Transaction ()
 hashAllHistoryComments defaultKeyThumbprint = do
+  keyThumbprintId <- Q.ensurePersonalKeyThumbprintId defaultKeyThumbprint
   historyComments <-
-    Sqlite.queryListRow @(HistoryCommentId, AsSqlite Hash, Text, UTCTime)
+    Sqlite.queryListRow @(HistoryCommentId, AsSqlite Hash, Text, Int64)
       [Sqlite.sql|
-    SELECT comment.id, causal_hash.base32, comment.author, thumbprint.thumbprint, comment.created_at
+    SELECT comment.id, causal_hash.base32, comment.author, CAST(comment.created_at  * 1000 AS INTEGER)
       FROM history_comments comment
       JOIN hash causal_hash ON comment.causal_hash_id = causal_hash.id
     |]
   Debug.debugM Debug.Temp "Got comments" historyComments
-  for_ historyComments $ \(HistoryCommentId commentId, causalHash, author, createdAt) -> do
+  for_ historyComments $ \(HistoryCommentId commentId, causalHash, author, createdAtMs) -> do
     let historyComment =
           HistoryComment
             { author,
-              createdAt,
+              createdAt = millisToUTCTime createdAtMs,
               authorThumbprint = defaultKeyThumbprint,
               causal = coerce @_ @CausalHash causalHash,
               commentId = ()
@@ -49,25 +61,26 @@ hashAllHistoryComments defaultKeyThumbprint = do
     Sqlite.execute
       [Sqlite.sql|
       UPDATE history_comments
-         SET comment_hash_id = :historyCommentHashId
+         SET comment_hash_id = :historyCommentHashId,
+             author_thumbprint_id = :keyThumbprintId
        WHERE id = :commentId
       |]
   historyCommentRevisions <-
-    Sqlite.queryListRow @(HistoryCommentRevisionId, Text, Text, UTCTime, AsSqlite Hash)
+    Sqlite.queryListRow @(HistoryCommentRevisionId, Text, Text, Int64, AsSqlite Hash)
       [Sqlite.sql|
-    SELECT hcr.id, hcr.subject, hcr.contents, hcr.created_at, comment_hash.base32
+    SELECT hcr.id, hcr.subject, hcr.contents, CAST(hcr.created_at  * 1000 AS INTEGER), comment_hash.base32
       FROM history_comment_revisions hcr
       JOIN history_comments comment ON hcr.comment_id = comment.id
       JOIN hash comment_hash ON comment.comment_hash_id = comment_hash.id
     |]
   Debug.debugM Debug.Temp "Got revisions" historyCommentRevisions
-  for_ historyCommentRevisions $ \(HistoryCommentRevisionId revisionId, subject, content, createdAt, commentHash) -> do
+  for_ historyCommentRevisions $ \(HistoryCommentRevisionId revisionId, subject, content, createdAtMs, commentHash) -> do
     Debug.debugM Debug.Temp "Hashing history comment revision" (subject, content)
     let historyCommentRevision =
           HistoryCommentRevision
             { subject,
               content,
-              createdAt,
+              createdAt = millisToUTCTime createdAtMs,
               comment = coerce @_ @HistoryCommentHash commentHash,
               revisionId = ()
             }

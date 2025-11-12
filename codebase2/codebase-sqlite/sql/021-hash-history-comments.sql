@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS key_thumbprints (
 
 ALTER TABLE history_comments
   -- The hash used for comment identity.
-  -- It's the hash of (causal_hash <> author <> created_at)
+  -- It's the hash of (causal_hash <> author <> created_at_ms)
   ADD COLUMN comment_hash_id INTEGER NULL REFERENCES hash(id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_history_comments_comment_hash_id
@@ -18,7 +18,7 @@ ALTER TABLE history_comments
 
 ALTER TABLE history_comment_revisions
   -- The hash used for this revision's identity.
-  -- It's the hash of (comment_hash <> subject <> contents <> hidden <> created_at)
+  -- It's the hash of (comment_hash <> subject <> contents <> hidden <> created_at_ms)
   ADD COLUMN revision_hash_id INTEGER NULL REFERENCES hash(id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_history_comment_revisions_revision_hash_id
