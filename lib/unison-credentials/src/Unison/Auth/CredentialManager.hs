@@ -3,7 +3,7 @@
 module Unison.Auth.CredentialManager
   ( saveCredentials,
     CredentialManager,
-    newCredentialManager,
+    globalCredentialManager,
     getCodeserverCredentials,
     getOrCreatePersonalKey,
     isExpired,
@@ -30,10 +30,10 @@ import UnliftIO qualified
 newtype CredentialManager = CredentialManager (UnliftIO.MVar (Maybe Credentials {- Credentials may or may not be initialized -}))
 
 -- | A global CredentialManager instance/singleton.
-globalCredentialsManager :: CredentialManager
-globalCredentialsManager = unsafePerformIO do
+globalCredentialManager :: CredentialManager
+globalCredentialManager = unsafePerformIO do
   CredentialManager <$> UnliftIO.newMVar Nothing
-{-# NOINLINE globalCredentialsManager #-}
+{-# NOINLINE globalCredentialManager #-}
 
 -- | Fetches the user's personal key from the active profile, if it exists.
 -- Otherwise it creates a new personal key, saves it to the active profile, and returns it.
@@ -73,9 +73,6 @@ getCodeserverCredentials credMan aud = runExceptT do
   lift (isExpired codeserverCreds) >>= \case
     True -> throwE (ReauthRequired aud)
     False -> pure codeserverCreds
-
-newCredentialManager :: CredentialManager
-newCredentialManager = globalCredentialsManager
 
 -- | Checks whether CodeserverCredentials are expired.
 isExpired :: (MonadIO m) => CodeserverCredentials -> m Bool

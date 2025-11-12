@@ -96,7 +96,7 @@ withRunner ::
   (Runner -> m r) ->
   m r
 withRunner isTest verbosity ucmVersion action = do
-  credMan <- AuthN.newCredentialManager
+  let credMan = AuthN.globalCredentialManager
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary

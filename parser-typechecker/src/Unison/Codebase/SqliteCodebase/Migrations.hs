@@ -162,7 +162,7 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 
     Region.displayConsoleRegions do
       (`UnliftIO.finally` finalizeRegion) do
-        credMan <- CredMan.newCredentialManager
+        let credMan = CredMan.globalCredentialManager
         keyThumbprint <- PK.personalKeyThumbprint <$> CredMan.getOrCreatePersonalKey credMan
         let migs = migrations keyThumbprint regionVar getDeclType termBuffer declBuffer root
         -- The highest schema that this ucm knows how to migrate to.

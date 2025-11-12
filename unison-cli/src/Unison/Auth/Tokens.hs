@@ -10,6 +10,7 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Network.HTTP.Types qualified as Network
 import System.Environment (lookupEnv)
 import Unison.Auth.CredentialManager
+import Unison.Auth.CredentialManager qualified as CredMan
 import Unison.Auth.Discovery (fetchDiscoveryDoc)
 import Unison.Auth.Types
 import Unison.Auth.UserInfo (getUserInfo)
@@ -37,7 +38,7 @@ newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
       -- If the access token is provided via environment variable, we don't need to refresh it.
       pure accessToken
     Nothing -> do
-      creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCodeserverCredentials manager host
+      creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ CredMan.getCodeserverCredentials manager host
       let Tokens {accessToken = currentAccessToken} = tokens
       expired <- isExpired creds
       if expired
