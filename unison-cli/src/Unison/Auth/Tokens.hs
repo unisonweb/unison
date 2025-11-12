@@ -37,7 +37,7 @@ newTokenProvider manager host = UnliftIO.try @_ @CredentialFailure $ do
       -- If the access token is provided via environment variable, we don't need to refresh it.
       pure accessToken
     Nothing -> do
-      creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCredentials manager host
+      creds@CodeserverCredentials {tokens, discoveryURI} <- throwEitherM $ getCodeserverCredentials manager host
       let Tokens {accessToken = currentAccessToken} = tokens
       expired <- isExpired creds
       if expired

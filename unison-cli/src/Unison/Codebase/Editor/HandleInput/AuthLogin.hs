@@ -23,7 +23,7 @@ import Network.Wai
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import U.Codebase.Sqlite.Queries qualified as Q
-import Unison.Auth.CredentialManager (getCredentials, saveCredentials)
+import Unison.Auth.CredentialManager (getCodeserverCredentials, saveCredentials)
 import Unison.Auth.Discovery (discoveryURIForCodeserver, fetchDiscoveryDoc)
 import Unison.Auth.Types
   ( Code,
@@ -55,7 +55,7 @@ ucmOAuthClientID = "ucm"
 ensureAuthenticatedWithCodeserver :: CodeserverURI -> Cli UserInfo
 ensureAuthenticatedWithCodeserver codeserverURI = do
   Cli.Env {credentialManager} <- ask
-  getCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
+  getCodeserverCredentials credentialManager (codeserverIdFromCodeserverURI codeserverURI) >>= \case
     Right (CodeserverCredentials {userInfo}) -> pure userInfo
     Left _ -> authLogin codeserverURI
 

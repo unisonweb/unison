@@ -42,6 +42,10 @@ cradle:
     - path: "lib/unison-hashing/src"
       component: "unison-hashing:lib"
 
+    - path: "lib/unison-credentials/src"
+      component: "unison-credentials:lib"
+
+
     - path: "lib/unison-prelude/src"
       component: "unison-prelude:lib"
 
@@ -98,7 +102,7 @@ cradle:
 
     - path: "parser-typechecker/tests"
       component: "unison-parser-typechecker:test:parser-typechecker-tests"
-      
+
     - path: "unison-runtime/src"
       component: "unison-runtime:lib"
 
