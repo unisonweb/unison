@@ -107,7 +107,7 @@ cliToMCP projCtx onError cli = do
   MCP.Env {ucmVersion, codebase, runtime, workDir} <- ask
   initialPP <- ExceptT . liftIO $ Codebase.runTransactionExceptT codebase $ do
     ppForProjectContext projCtx
-  credMan <- AuthN.newCredentialManager
+  let credMan = AuthN.globalCredentialManager
   let tokenProvider :: AuthN.TokenProvider
       tokenProvider = AuthN.newTokenProvider credMan
   authenticatedHTTPClient <- AuthN.newAuthenticatedHTTPClient tokenProvider ucmVersion

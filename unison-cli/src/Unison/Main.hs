@@ -147,7 +147,7 @@ main version = do
           Text.putStrLn $ Text.pack progName <> " version: " <> Version.gitDescribeWithDate version
         MCPServer -> do
           let ucmVersion = Version.gitDescribeWithDate version
-          credMan <- AuthN.newCredentialManager
+          let credMan = AuthN.globalCredentialManager
           authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
           getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
@@ -183,7 +183,7 @@ main version = do
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
                       let ucmVersion = Version.gitDescribeWithDate version
-                      credMan <- liftIO $ AuthN.newCredentialManager
+                      let credMan = AuthN.globalCredentialManager
                       authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
                       startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                       launch
@@ -211,7 +211,7 @@ main version = do
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
                   let ucmVersion = Version.gitDescribeWithDate version
-                  credMan <- liftIO $ AuthN.newCredentialManager
+                  let credMan = AuthN.globalCredentialManager
                   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
                   startProjectPath <- Codebase.runTransaction theCodebase Codebase.expectCurrentProjectPath
                   launch
@@ -328,7 +328,7 @@ main version = do
               void . Ki.fork scope $ LSP.spawnLsp lspFormattingConfig theCodebase runtime changeSignal
               let isTest = False
               let ucmVersion = Version.gitDescribeWithDate version
-              credMan <- liftIO $ AuthN.newCredentialManager
+              let credMan = AuthN.globalCredentialManager
               authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
               mcpServerConfig <- MCP.initServer theCodebase runtime sbRuntime (Just currentDir) ucmVersion authenticatedHTTPClient
               Server.startServer
