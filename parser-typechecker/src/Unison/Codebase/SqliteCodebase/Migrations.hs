@@ -14,7 +14,6 @@ import Text.Printf (printf)
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.DbId (HashVersion (..), SchemaVersion (..))
 import U.Codebase.Sqlite.Queries qualified as Q
-import Unison.Auth.CredentialManager (getOrCreatePersonalKey)
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init (BackupStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
@@ -42,6 +41,8 @@ import Unison.Sqlite.Connection qualified as Sqlite.Connection
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty qualified as Pretty
 import UnliftIO qualified
+import Unison.Auth.CredentialManager qualified as CredMan
+import Unison.Auth.PersonalKey qualified as PK
 
 -- | Mapping from schema version to the migration required to get there.
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
@@ -161,7 +162,8 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 
     Region.displayConsoleRegions do
       (`UnliftIO.finally` finalizeRegion) do
-        getOrCreatePersonalKey
+        credMan <- CredMan.newCredentialManager
+        keyThumbprint <- PK.personalKeyThumbprint <$> CredMan.getOrCreatePersonalKey credMan
         let migs = migrations keyThumbprint regionVar getDeclType termBuffer declBuffer root
         -- The highest schema that this ucm knows how to migrate to.
         let highestKnownSchemaVersion = fst . head $ Map.toDescList migs
