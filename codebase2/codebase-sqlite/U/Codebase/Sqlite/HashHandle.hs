@@ -1,6 +1,8 @@
 module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
     HashMismatch (..),
+    HashValidationError (..),
+    IncompleteElementOrderingError (..),
     DeclHashingError (..),
   )
 where
@@ -25,6 +27,13 @@ data HashMismatch = HashMismatch
   { expectedHash :: Hash,
     actualHash :: Hash
   }
+
+data IncompleteElementOrderingError = IncompleteElementOrderingError ComponentHash
+  deriving (Eq, Show, Ord)
+
+data HashValidationError
+  = HashValidationMismatch HashMismatch
+  | HashValidationIncompleteElementOrdering IncompleteElementOrderingError
 
 data DeclHashingError
   = DeclHashMismatch HashMismatch
@@ -58,7 +67,7 @@ data HashHandle = HashHandle
     verifyTermFormatHash ::
       ComponentHash ->
       TermFormat.HashTermFormat ->
-      Maybe (HashMismatch),
+      Maybe HashValidationError,
     verifyDeclFormatHash ::
       ComponentHash ->
       DeclFormat.HashDeclFormat ->

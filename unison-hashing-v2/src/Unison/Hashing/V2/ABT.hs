@@ -7,8 +7,15 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Hashing.V2.ABT (Unison.ABT.Term, hash, hashComponents) where
+module Unison.Hashing.V2.ABT
+  ( Unison.ABT.Term,
+    IncompleteElementOrderingError (..),
+    hash,
+    hashComponents,
+  )
+where
 
+import Data.Containers.ListUtils qualified as List
 import Data.List hiding (cycle, find)
 import Data.List qualified as List (sort)
 import Data.Map qualified as Map
@@ -20,20 +27,25 @@ import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
+data IncompleteElementOrderingError = IncompleteElementOrderingError
+  deriving (Show, Eq, Ord)
+
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   forall a f v.
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v) =>
   Map.Map v (Term f v a) ->
-  (Hash, [(v, Term f v a)])
-hashComponent byName =
+  Either IncompleteElementOrderingError (Hash, [(v, Term f v a)])
+hashComponent byName = do
   let ts = Map.toList byName
       -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
       -- individual names.
       (hashes, env) = doHashCycle [] ts
-      -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
-      -- name that gets tumbled into the hash.
-      commonTokens :: [Hashable.Token]
+  when (List.nubOrd hashes /= hashes) $ do
+    Left IncompleteElementOrderingError
+  -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
+  -- name that gets tumbled into the hash.
+  let commonTokens :: [Hashable.Token]
       commonTokens = Hashable.Tag 1 : map Hashable.Hashed hashes
       -- Use a helper function that hashes a single term given its name, now that we have an environment in which we can
       -- look the name up, as well as the common tokens.
@@ -47,30 +59,33 @@ hashComponent byName =
           & sortOn fst
           & unzip
       overallHash = Hashable.accumulate (map Hashable.Hashed hashes')
-   in (overallHash, permutedTerms)
+  pure (overallHash, permutedTerms)
 
 -- Group the definitions into strongly connected components and hash
 -- each component. Substitute the hash of each component into subsequent
 -- components (using the `termFromHash` function). Requires that the
 -- overall component has no free variables.
 hashComponents ::
+  forall f v a.
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v) =>
   (Hash -> Word64 -> Term f v ()) ->
   Map.Map v (Term f v a) ->
-  [(Hash, [(v, Term f v a)])]
-hashComponents termFromHash termsByName =
+  Either IncompleteElementOrderingError [(Hash, [(v, Term f v a)])]
+hashComponents termFromHash termsByName = do
   let bound = Set.fromList (Map.keys termsByName)
       escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
       sccs = components (Map.toList termsByName)
-      go _ [] = []
-      go prevHashes (component : rest) =
+      go :: Map v (Term f v ()) -> [[(v, Term f v a)]] -> Either IncompleteElementOrderingError [(Hash, [(v, Term f v a)])]
+      go _ [] = pure $ []
+      go prevHashes (component : rest) = do
         let sub = substsInheritAnnotation (Map.toList prevHashes)
-            (h, sortedComponent) = hashComponent $ Map.fromList [(v, sub t) | (v, t) <- component]
-            curHashes = Map.fromList [(v, termFromHash h i) | ((v, _), i) <- sortedComponent `zip` [0 ..]]
+        (h, sortedComponent) <- hashComponent $ Map.fromList [(v, sub t) | (v, t) <- component]
+        let curHashes = Map.fromList [(v, termFromHash h i) | ((v, _), i) <- sortedComponent `zip` [0 ..]]
             newHashes = prevHashes `Map.union` curHashes
             newHashesL = Map.toList newHashes
             sortedComponent' = [(v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent]
-         in (h, sortedComponent') : go newHashes rest
+        sortedRest <- go newHashes rest
+        pure $ ((h, sortedComponent') : sortedRest)
    in if Set.null escapedVars
         then go Map.empty sccs
         else

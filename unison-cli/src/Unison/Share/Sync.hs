@@ -40,6 +40,7 @@ import Servant.Client (BaseUrl)
 import Servant.Client qualified as Servant
 import System.Environment (lookupEnv)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.HashHandle qualified as HH
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
@@ -181,7 +182,14 @@ validateEntities entities =
       let entityWithHashes = entity & Share.entityHashes_ %~ Share.hashJWTHash
       case EV.validateEntity hash entityWithHashes of
         Nothing -> pure ()
-        Just err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
+        Just (Left err@(HH.IncompleteElementOrderingError _componentHash)) ->
+          error $
+            "Unexpected incomplete element ordering error during entity validation for hash "
+              <> show hash
+              <> ": "
+              <> show err
+              <> ". This should never happen during normal operation. Please report this as a bug."
+        Just (Right err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed}))) ->
           let expectedMismatches = case et of
                 Share.TermComponentType -> expectedComponentHashMismatches
                 Share.DeclComponentType -> expectedComponentHashMismatches
@@ -192,7 +200,7 @@ validateEntities entities =
                   | expected == computed -> pure ()
                 _ -> do
                   Left err
-        Just err -> do
+        Just (Right err) -> do
           Left err
 
 -- | Validate entities received from the server unless this flag is set to false.

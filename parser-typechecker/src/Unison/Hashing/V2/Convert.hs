@@ -65,7 +65,7 @@ hashTermComponents ::
   Map v (Memory.Reference.TermReferenceId, Memory.Term.Term v a, Memory.Type.Type v a, extra)
 hashTermComponents mTerms =
   case h2mTermMap mTerms of
-    (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponents hTerms
+    (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> (fromRight (error "hashTermComponents encountered unexpected ABT.IncompleteElementOrderingError") $ Hashing.hashTermComponents hTerms)
   where
     h2mTermMap m =
       m
