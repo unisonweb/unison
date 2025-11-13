@@ -21,6 +21,7 @@ import Data.List qualified as List (sort)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT
+import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Tokenizable (Hashable1, hash1)
 import Unison.Hashing.V2.Tokenizable qualified as Hashable
@@ -38,11 +39,9 @@ hashComponent ::
   Either IncompleteElementOrderingError (Hash, [(v, Term f v a)])
 hashComponent byName = do
   let ts = Map.toList byName
-      -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
-      -- individual names.
-      (hashes, env) = doHashCycle [] ts
-  when (List.nubOrd hashes /= hashes) $ do
-    Left IncompleteElementOrderingError
+  -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
+  -- individual names.
+  (hashes, env) <- doHashCycle [] ts
   -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
   -- name that gets tumbled into the hash.
   let commonTokens :: [Hashable.Token]
@@ -124,14 +123,14 @@ hash' env = \case
             ++ show v
             ++ " environment = "
             ++ show env
-  Cycle' vs t -> hash1 (hashCycle vs env) undefined t
+  Cycle' vs t -> hash1 (fromRight (error "Encountered ambigous element ordering for component") . hashCycle vs env) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
-    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([Hash], Term f v a -> Hash)
-    hashCycle cycle env ts =
-      let (ts', env') = doHashCycle env (zip cycle ts)
-       in (ts', hash' env')
+    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either IncompleteElementOrderingError ([Hash], Term f v a -> Hash)
+    hashCycle cycle env ts = do
+      (ts', env') <- doHashCycle env (zip cycle ts)
+      pure (ts', hash' env')
 
 -- | @doHashCycle env terms@ hashes cycle @terms@ in environment @env@, and returns the canonical ordering of the hashes
 -- of those terms, as well as an updated environment with each of the terms' bindings in the canonical ordering.
@@ -140,16 +139,20 @@ doHashCycle ::
   (Eq v, Functor f, Hashable1 f, Show v) =>
   [Either [v] v] ->
   [(v, Term f v a)] ->
-  ([Hash], [Either [v] v])
-doHashCycle env namedTerms =
-  (map (hash' newEnv) permutedTerms, newEnv)
+  Either IncompleteElementOrderingError ([Hash], [Either [v] v])
+doHashCycle env namedTerms = do
+  Debug.debugM Debug.Temp "Unison.Hashing.V2.ABT.doHashCycle" (hashes, env, fst <$> namedTerms)
+  when (List.nubOrd hashes /= hashes) $ Left IncompleteElementOrderingError
+  pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where
     names = map fst namedTerms
     -- The environment in which we compute the canonical permutation of terms
     permutationEnv = Left names : env
+    hashes = (hash' permutationEnv . snd) <$> namedTerms
     (permutedNames, permutedTerms) =
-      namedTerms
-        & sortOn (hash' permutationEnv . snd)
+      zip namedTerms hashes
+        & sortOn snd
+        & fmap fst
         & unzip
     -- The new environment, which includes the names of all of the terms in the cycle, now that we have computed their
     -- canonical ordering
