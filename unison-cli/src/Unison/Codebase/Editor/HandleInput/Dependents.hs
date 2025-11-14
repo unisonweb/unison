@@ -4,33 +4,28 @@ module Unison.Codebase.Editor.HandleInput.Dependents
 where
 
 import Control.Lens (review)
-import Data.Bifoldable (bifoldMap, binull)
+import Data.Bifoldable (binull)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
-import Data.These (These (..))
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NameResolutionUtils (resolveHQName)
-import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
-import Unison.ConstructorReference (ConstructorReferenceId, GConstructorReference (..))
-import Unison.DataDeclaration (Decl)
+import Unison.ConstructorReference (ConstructorReferenceId)
+import Unison.DataDeclaration (DataDeclaration, Decl, EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
-import Unison.Names (Names (..))
 import Unison.NamesUtils qualified as NamesUtils
-import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -39,19 +34,18 @@ import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ReferentPrime qualified as Referent'
-import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
 import Unison.Syntax.Name qualified as Name
+import Unison.Term (Term)
 import Unison.Term qualified as Term
-import Unison.Type qualified as Type
+import Unison.Type (Type)
+import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.UnisonFile.Names qualified as UnisonFile
-import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, defnsAreEmpty)
 import Unison.Util.Map qualified as Map
-import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
-import Unison.Util.Set qualified as Set
+import Unison.Var (Var)
+import Unison.WatchKind (WatchKind)
 import Unison.WatchKind qualified as WatchKind
 
 handleDependents :: HQ.HashQualified Name -> Cli ()
@@ -61,7 +55,7 @@ handleDependents hq = do
   -- If the given name doesn't match anything in the codebase, then as a fallback, we look at the latest Unison file to
   -- report dependents. This covers the common case that something (and all of its dependents) were removed from the
   -- underlying namespace and placed in a file, e.g. when resolving a failed update.
-  if binull codebaseRefs
+  if defnsAreEmpty codebaseRefs
     then handleFileDependents hq
     else handleCodebaseDependents codebaseRefs
 
@@ -110,62 +104,19 @@ handleFileDependents hq = do
     Cli.getLatestTypecheckedFile & onNothingM do
       notFound
 
-  let fileConstructors :: Map Symbol (ConstructorReferenceId, Decl Symbol Ann)
-      fileConstructors =
-        UnisonFile.constructorsId unisonFile
-
-  let fileTermReferences :: Relation Name Referent.Id
-      fileTermReferences =
-        Relation.empty
-          & addRefs
-          & addCons
-        where
-          addRefs :: Relation Name Referent.Id -> Relation Name Referent.Id
-          addRefs acc =
-            Map.foldlWithKey' f acc unisonFile.hashTermsId
-            where
-              f acc var (_, ref, _, _, _) =
-                Relation.insert
-                  (Name.unsafeParseVar var)
-                  (review Referent'.termReference_ ref)
-                  acc
-
-          addCons :: Relation Name Referent.Id -> Relation Name Referent.Id
-          addCons acc =
-            Map.foldlWithKey' f acc fileConstructors
-            where
-              f ::
-                Relation Name Referent.Id ->
-                Symbol ->
-                (ConstructorReferenceId, Decl Symbol Ann) ->
-                Relation Name Referent.Id
-              f acc var (ref, decl) =
-                Relation.insert
-                  (Name.unsafeParseVar var)
-                  (Referent'.Con' ref (DataDeclaration.constructorType decl))
-                  acc
-
-  let fileTypeReferences :: Relation Name TypeReferenceId
-      fileTypeReferences =
-        Relation.empty
-          & g unisonFile.dataDeclarationsId'
-          & g unisonFile.effectDeclarationsId'
-        where
-          g :: Map Symbol (TypeReferenceId, decl) -> Relation Name TypeReferenceId -> Relation Name TypeReferenceId
-          g decls acc =
-            Map.foldlWithKey' f acc decls
-
-          f :: Relation Name TypeReferenceId -> Symbol -> (TypeReferenceId, decl) -> Relation Name TypeReferenceId
-          f acc var (ref, _) =
-            Relation.insert (Name.unsafeParseVar var) ref acc
-
   -- Search the file for dependencies that match the given name.
   let dependenciesRefs :: DefnsF Set Referent.Id TypeReferenceId
       dependenciesRefs =
-        Defns
-          { terms = Name.searchByRankedSuffix name fileTermReferences,
-            types = Name.searchByRankedSuffix name fileTypeReferences
-          }
+        unisonFile
+          & fileToReferentsIds
+          & bimap search search
+        where
+          search :: (Ord ref) => Map Name ref -> Set ref
+          search defns =
+            Name.gsearchBySuffix
+              (maybe Set.empty Set.singleton . (`Map.lookup` defns))
+              (\order -> Map.search (\_ -> Set.singleton) order defns)
+              name
 
   when (binull dependenciesRefs) do
     notFound
@@ -173,62 +124,6 @@ handleFileDependents hq = do
   let dependenciesRefs1 :: DefnsF Set TermReferenceId TypeReferenceId
       dependenciesRefs1 =
         NamesUtils.referentsToRefs dependenciesRefs
-
-  let termDependents :: Map TermReferenceId (NESet TermReferenceId)
-      typeTermDependents :: Map TypeReferenceId (NESet TermReferenceId)
-      (termDependents, typeTermDependents) =
-        Map.foldl' f (Map.empty, Map.empty) unisonFile.hashTermsId
-        where
-          f (accTerms, accTypes) (_, x, wk, term, _)
-            | WatchKind.watchKindShouldBeStoredInDatabase wk =
-                ( Set.foldl' dependsOnTerm accTerms dependencies.terms,
-                  Set.foldl' dependsOnType accTypes dependencies.types
-                )
-            | otherwise = (accTerms, accTypes)
-            where
-              dependencies :: DefnsF Set TermReference TypeReference
-              dependencies =
-                Term.dependencies term
-
-              -- If `term x` depends on `term y`, and `term y` is in the set of things we want to report dependents of,
-              -- then record `term y` => {`term x`} in our term dependents map.
-              dependsOnTerm acc y =
-                fromMaybe acc do
-                  y' <- Reference.toId y
-                  guard (Set.member (Referent'.Ref' y') dependenciesRefs.terms)
-                  Just (Map.upsert (maybe (Set.NonEmpty.singleton x) (Set.NonEmpty.insert x)) y' acc)
-
-              -- If `term x` depends on `type y`, and `type y` is in the set of things we want to report dependents of,
-              -- then record `type y` => {`term x`} in our type dependents map.
-              dependsOnType acc y =
-                fromMaybe acc do
-                  y' <- Reference.toId y
-                  guard (Set.member y' dependenciesRefs.types)
-                  Just (Map.upsert (maybe (Set.NonEmpty.singleton x) (Set.NonEmpty.insert x)) y' acc)
-
-  let typeTypeDependents :: Map TypeReferenceId (NESet TypeReferenceId)
-      typeTypeDependents =
-        Map.foldl' g (Map.foldl' f Map.empty unisonFile.dataDeclarationsId') unisonFile.effectDeclarationsId'
-        where
-          f acc (x, dataDecl) =
-            Set.foldl (h2 x) acc (DataDeclaration.typeDependencies dataDecl)
-
-          g acc (x, effectDecl) =
-            f acc (x, DataDeclaration.toDataDecl effectDecl)
-
-          -- If `type x` depends on `type y`, and `type y` is in the set of things we want to report dependents of,
-          -- either directly or because we want to report dependents of one of its constructors, then record
-          -- `type y` => {`type x`} in our type dependents map.
-          h2 ::
-            TypeReferenceId ->
-            Map TypeReferenceId (NESet TypeReferenceId) ->
-            TypeReference ->
-            Map TypeReferenceId (NESet TypeReferenceId)
-          h2 x acc y =
-            fromMaybe acc do
-              y' <- Reference.toId y
-              guard (Set.member y' dependenciesRefs1.types)
-              Just (Map.upsert (maybe (Set.NonEmpty.singleton x) (Set.NonEmpty.insert x)) y' acc)
 
   namespace <- Cli.getCurrentProjectRoot0
   let ppe =
@@ -241,15 +136,7 @@ handleFileDependents hq = do
 
   let dependents :: DefnsF Set TermReferenceId TypeReferenceId
       dependents =
-        let f deps ref =
-              maybe Set.empty Set.NonEmpty.toSet (Map.lookup ref deps)
-         in Defns
-              { terms =
-                  Set.union
-                    (foldMap (f termDependents) dependenciesRefs1.terms)
-                    (foldMap (f typeTermDependents) dependenciesRefs1.types),
-                types = foldMap (f typeTypeDependents) dependenciesRefs1.types
-              }
+        identifyFileDependents dependenciesRefs1 unisonFile
 
   let dependentNames ::
         DefnsF
@@ -279,6 +166,149 @@ handleFileDependents hq = do
     notFound :: Cli a
     notFound =
       Cli.returnEarly (LabeledReferenceNotFound hq)
+
+-- Extract the referents ids out of a unison file. This probably doesn't belong in this module; it's just kind of a
+-- variant of 'toNames', but more efficient (no relations, just maps) and with fewer impossible cases (e.g. conflicted
+-- names, builtins).
+fileToReferentsIds :: forall a v. (Var v) => TypecheckedUnisonFile v a -> DefnsF (Map Name) Referent.Id TypeReferenceId
+fileToReferentsIds unisonFile =
+  Defns
+    { terms =
+        Map.empty
+          & addTerms unisonFile.hashTermsId
+          & addConstructors (UnisonFile.constructorsId unisonFile),
+      types =
+        Map.empty
+          & addDecls unisonFile.dataDeclarationsId'
+          & addDecls unisonFile.effectDeclarationsId'
+    }
+  where
+    addTerms ::
+      Map v (a, TermReferenceId, Maybe WatchKind, Term v a, Type v a) ->
+      Map Name Referent.Id ->
+      Map Name Referent.Id
+    addTerms terms acc =
+      Map.foldlWithKey' f acc terms
+      where
+        f acc var (_, ref, _, _, _) =
+          Map.insert
+            (Name.unsafeParseVar var)
+            (review Referent'.termReference_ ref)
+            acc
+
+    addConstructors :: Map v (ConstructorReferenceId, Decl v a) -> Map Name Referent.Id -> Map Name Referent.Id
+    addConstructors constructors acc =
+      Map.foldlWithKey' f acc constructors
+      where
+        f acc var (ref, decl) =
+          Map.insert
+            (Name.unsafeParseVar var)
+            (Referent'.Con' ref (DataDeclaration.constructorType decl))
+            acc
+
+    addDecls :: Map v (TypeReferenceId, decl) -> Map Name TypeReferenceId -> Map Name TypeReferenceId
+    addDecls decls acc =
+      Map.foldlWithKey' f acc decls
+      where
+        f acc var (ref, _) =
+          Map.insert (Name.unsafeParseVar var) ref acc
+
+identifyFileDependents ::
+  forall a v.
+  (Ord v) =>
+  DefnsF Set TermReferenceId TypeReferenceId ->
+  TypecheckedUnisonFile v a ->
+  DefnsF Set TermReferenceId TypeReferenceId
+identifyFileDependents dependencies unisonFile =
+  Defns
+    { terms =
+        Set.union
+          (foldMap (lookupSet termTermDependents) dependencies.terms)
+          (foldMap (lookupSet typeTermDependents) dependencies.types),
+      types = foldMap (lookupSet typeTypeDependents) dependencies.types
+    }
+  where
+    termTermDependents :: Map TermReferenceId (NESet TermReferenceId)
+    typeTermDependents :: Map TypeReferenceId (NESet TermReferenceId)
+    (termTermDependents, typeTermDependents) =
+      termDependenciesByDependent dependencies unisonFile.hashTermsId
+
+    typeTypeDependents :: Map TypeReferenceId (NESet TypeReferenceId)
+    typeTypeDependents =
+      Map.union
+        (typeDependenciesByDependent dependencies unisonFile.dataDeclarationsId')
+        ( typeDependenciesByDependent
+            dependencies
+            ( coerce
+                @(Map v (TypeReferenceId, EffectDeclaration v a))
+                @(Map v (TypeReferenceId, DataDeclaration v a))
+                unisonFile.effectDeclarationsId'
+            )
+        )
+
+    lookupSet :: forall k a. (Ord k) => Map k (NESet a) -> k -> Set a
+    lookupSet m k =
+      maybe Set.empty Set.NonEmpty.toSet (Map.lookup k m)
+
+termDependenciesByDependent ::
+  (Ord v) =>
+  DefnsF Set TermReferenceId TypeReferenceId ->
+  Map v (a, TermReferenceId, Maybe WatchKind, Term v a, Type v a) ->
+  (Map TermReferenceId (NESet TermReferenceId), Map TypeReferenceId (NESet TermReferenceId))
+termDependenciesByDependent dependenciesRefs1 =
+  Map.foldl' f (Map.empty, Map.empty)
+  where
+    f (accTerms, accTypes) (_, x, wk, term, _)
+      | WatchKind.watchKindShouldBeStoredInDatabase wk =
+          ( Set.foldl' dependsOnTerm accTerms dependencies.terms,
+            Set.foldl' dependsOnType accTypes dependencies.types
+          )
+      | otherwise = (accTerms, accTypes)
+      where
+        dependencies :: DefnsF Set TermReference TypeReference
+        dependencies =
+          Term.dependencies term
+
+        -- If `term x` depends on `term y`, and `term y` is in the set of things we want to report dependents of,
+        -- then record `term y` => {`term x`} in our term dependents map.
+        dependsOnTerm acc y =
+          fromMaybe acc do
+            y' <- Reference.toId y
+            guard (Set.member y' dependenciesRefs1.terms)
+            Just (Map.upsert (maybe (Set.NonEmpty.singleton x) (Set.NonEmpty.insert x)) y' acc)
+
+        -- If `term x` depends on `type y`, and `type y` is in the set of things we want to report dependents of,
+        -- then record `type y` => {`term x`} in our type dependents map.
+        dependsOnType acc y =
+          fromMaybe acc do
+            y' <- Reference.toId y
+            guard (Set.member y' dependenciesRefs1.types)
+            Just (Map.upsert (maybe (Set.NonEmpty.singleton x) (Set.NonEmpty.insert x)) y' acc)
+
+typeDependenciesByDependent ::
+  (Ord v) =>
+  DefnsF Set TermReferenceId TypeReferenceId ->
+  Map v (TypeReferenceId, DataDeclaration v a) ->
+  Map TypeReferenceId (NESet TypeReferenceId)
+typeDependenciesByDependent dependencies =
+  Map.foldl' f Map.empty
+  where
+    f acc (x, dataDecl) =
+      Set.foldl (g x) acc (DataDeclaration.typeDependencies dataDecl)
+
+    -- If `type x` depends on `type y`, and `type y` is in the set of things we want to report dependents of,
+    -- either directly or because we want to report dependents of one of its constructors, then record
+    -- `type y` => {`type x`} in our type dependents map.
+    g ::
+      TypeReferenceId ->
+      Map TypeReferenceId (NESet TypeReferenceId) ->
+      TypeReference ->
+      Map TypeReferenceId (NESet TypeReferenceId)
+    g x acc y =
+      fromMaybe acc do
+        y' <- Reference.toId y
+        guard (Set.member y' dependencies.types)
+        Just (Map.upsert (maybe (Set.NonEmpty.singleton x) (Set.NonEmpty.insert x)) y' acc)
 
 nameDependencies ::
   PPE.PrettyPrintEnv ->
