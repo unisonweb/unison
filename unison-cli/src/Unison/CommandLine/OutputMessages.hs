@@ -132,6 +132,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
@@ -169,7 +170,6 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
-import Unison.ShortHash qualified as SH
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
