@@ -7,7 +7,9 @@ ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-si
 dependencies:
   - base
   - aeson
+  - bytestring
   - containers
+  - crypton
   - filepath
   - jose
   - text
@@ -15,6 +17,7 @@ dependencies:
   - lens
   - lock-file
   - memory
+  - mtl
   - network-uri
   - time
   - transformers
