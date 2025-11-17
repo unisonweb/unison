@@ -239,6 +239,9 @@ putInstr = \case
   (SandboxingFailure {}) ->
     -- Sandboxing failures should only exist in code we're actively running, it shouldn't be serialized.
     error "putInstr: Unexpected serialized Sandboxing Failure"
+  DLLCall ->
+    -- same for DLL calls; those happen exclusively at runtime
+    error "putInstr: Unexpected serialized DLLCall"
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =

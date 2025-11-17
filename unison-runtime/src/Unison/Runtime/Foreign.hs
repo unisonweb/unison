@@ -38,6 +38,7 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF (Code, Value)
 import Unison.Runtime.Array
+import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
@@ -362,6 +363,10 @@ instance BuiltinForeign Integer where
 instance BuiltinForeign Natural where
   foreignName = Tagged "Natural"
   foreignRef = Tagged Ty.naturalRef
+
+instance BuiltinForeign DLL where
+  foreignName = Tagged "DLL"
+  foreignRef = Tagged Ty.ffiDllRef
 
 data HashAlgorithm where
   -- Reference is a reference to the hash algorithm

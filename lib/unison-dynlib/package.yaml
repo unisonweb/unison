@@ -1,0 +1,48 @@
+name: unison-dynlib
+github: unisonweb/unison
+copyright: Copyright (C) 2025 Unison Computing, PBC and contributors
+
+ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+
+dependencies:
+  - base
+
+library:
+  when:
+    - condition: false
+      other-modules: Paths_unison_hash
+    - condition: "os(windows)"
+      dependencies: Win32
+      source-dirs: src-win32
+    - condition: "!os(windows)"
+      dependencies: unix
+      source-dirs: src-unix
+
+default-extensions:
+  - ApplicativeDo
+  - BangPatterns
+  - BlockArguments
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DerivingVia
+  - DoAndIfThenElse
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - GeneralizedNewtypeDeriving
+  - ImportQualifiedPost
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - ViewPatterns

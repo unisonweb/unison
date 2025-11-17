@@ -177,8 +177,10 @@ import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die)
+import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
+import Unison.Runtime.Foreign.Dynamic as Dyn
 import Unison.Runtime.Foreign.Function.Type
   ( ForeignFunc (..),
     foreignFuncBuiltinName,
@@ -1155,6 +1157,20 @@ foreignCallHelper = \case
   Natural_le -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l <= r)
   Natural_gt -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l > r)
   Natural_ge -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l >= r)
+  FFI_openDLL -> mkForeignIOExn $ \(fname :: Text) ->
+    evaluate =<< openDLL (unpack fname)
+  FFI_int64 -> mkForeign $ \() -> pure $ I64
+  FFI_uint64 -> mkForeign $ \() -> pure $ U64
+  FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
+  FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
+  FFI_arr -> mkForeign $ \(t, FFSpec ts r) -> evaluate $ FFSpec (t:ts) r
+  FFI_getDLLSym -> mkForeignIOExn $ \(dll, sym, spec) -> do
+    df <- loadForeign dll spec sym
+    let dummyRef = Builtin . Data.Text.pack $ cName df
+        dummyCix = CIx dummyRef maxBound 0
+        n = numArgs . cSpec $ df
+        comb = LamI (n+1) (n+2) (Ins DLLCall . Yield $ VArg1 0)
+    evaluate $ PApV dummyCix comb [encodeVal df]
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1234,6 +1250,22 @@ mkForeignExn f args stk =
     Right r -> do
       stk <- bump stk
       (False, stk) <$ writeBack stk r
+
+-- | This is a simple wrapper for `mkForeignExn` that adds `IOException`
+--   handling to the provided function.
+mkForeignIOExn ::
+  (ForeignConvention a, ForeignConvention r) =>
+  (a -> IO r) ->
+  Args ->
+  Stack ->
+  IO (Bool, Stack)
+mkForeignIOExn f = mkForeignExn $ tryIOE . f
+  where
+    tryIOE :: IO a -> IO (Either (F.Failure Val) a)
+    tryIOE = fmap handleIOE . UnliftIO.try
+    handleIOE :: Either IOException a -> Either (F.Failure Val) a
+    handleIOE (Left e) = Left $ F.Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
+    handleIOE (Right a) = Right a
 
 -- | mkForeignTls is for foreign functions that may throw TLS-specific exceptions or IOExceptions.
 --   It wraps the IO action in two layers of exception handling: first for TLS exceptions, then for IOExceptions.
@@ -2960,6 +2992,12 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   encodeVal = encodeBuiltin
   readAtIndex = readBuiltinAt
   writeBack = writeBuiltin
+
+  readsAt stk (VArg1 i) = readAtIndex stk i
+  readsAt _ args = readsAtError argname args
+    where
+      Tagged name = foreignName @b
+      argname = "one " ++ name ++ " argument"
 
 -- Replacing Functions/Data Types
 --

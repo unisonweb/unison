@@ -497,6 +497,16 @@ data GInstr comb
       !Bool -- catch exceptions
       !ForeignFunc -- FFI call
       !Args -- arguments
+  | -- Call a dynamically loaded function. The vacuous form of this
+    -- instruction is due to the very limited circumstances it can be
+    -- called in. Foreign DLL functions are only loaded at runtime, so
+    -- never inlined. This means that this instruction always occurs in
+    -- the special form produced by the loading function. The entire
+    -- body of the closure is `Ins DLLCall (Yield $ VArg1 0)`, and the
+    -- arguments to the closure are the loaded DLL function followed by
+    -- all its arguments. The function knows how many arguments it
+    -- takes, so we don't need to store that information here.
+    DLLCall
   | -- Set the value of an affine reference. Note that references are
     -- shared for the prompts of simultaneously installed affine
     -- handlers, so setting one sets all.
