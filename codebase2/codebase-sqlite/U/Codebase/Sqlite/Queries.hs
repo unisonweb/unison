@@ -4182,9 +4182,10 @@ getLatestCausalComment ::
   CausalHashId ->
   Transaction (Maybe (LatestHistoryComment KeyThumbprintId CausalHash HistoryCommentRevisionId HistoryCommentHash))
 getLatestCausalComment causalHashId =
-  queryMaybeRow @(Hash32, Hash32, Text, KeyThumbprintId, Int64, HistoryCommentRevisionId, Text, Text, Int64)
+  -- FromRow instances cap out at 10-tuples, so we do a cheeky :. trick.
+  queryMaybeRow @((Hash32, Hash32, Text, KeyThumbprintId, Int64, HistoryCommentRevisionId, Text, Text, Bool) :. (ByteString, Int64))
     [sql|
-      SELECT comment_hash.base32, causal_hash.base32, cc.author, cc.author_thumbprint_id, cc.created_at_ms, ccr.id, ccr.subject, ccr.contents, ccr.created_at_ms
+      SELECT comment_hash.base32, causal_hash.base32, cc.author, cc.author_thumbprint_id, cc.created_at_ms, ccr.id, ccr.subject, ccr.contents, ccr.hidden, ccr.author_signature, ccr.created_at_ms
         FROM history_comments AS cc
         JOIN history_comment_revisions AS ccr ON cc.id = ccr.comment_id
         JOIN hash AS comment_hash ON comment_hash.id = cc.comment_hash_id
@@ -4193,12 +4194,14 @@ getLatestCausalComment causalHashId =
         ORDER BY ccr.created_at_ms DESC
         LIMIT 1
     |]
-    <&> fmap \(commentHash, causalHash, author, authorThumbprint, commentCreatedAtMs, revisionId, subject, content, revisionCreatedAtMs) ->
+    <&> fmap \((commentHash, causalHash, author, authorThumbprint, commentCreatedAtMs, revisionId, subject, content, isHidden) :. (authorSignature, revisionCreatedAtMs)) ->
       HistoryCommentRevision
         { subject,
           content,
           createdAt = millisToUTCTime revisionCreatedAtMs,
           revisionId,
+          isHidden,
+          authorSignature,
           comment =
             HistoryComment
               { author,

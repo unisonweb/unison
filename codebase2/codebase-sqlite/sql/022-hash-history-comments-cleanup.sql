@@ -38,6 +38,9 @@ CREATE TABLE history_comment_revisions_new (
   hidden BOOL NOT NULL DEFAULT FALSE,
 
   revision_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id)
+
+  --  The signature of the author on the revision hash.
+  author_signature BLOB NOT NULL
 );
 
 -- We convert the created_at to created_at_ms by multiplying by 1000 and casting to INTEGER.
