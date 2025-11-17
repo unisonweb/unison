@@ -478,6 +478,7 @@ data Output
   | InvalidCommentTarget Text
   | CommentedSuccessfully
   | CommentAborted
+  | CommentFailed Text
   | AuthorNameRequired
   | ConfigValueGet ConfigKey (Maybe Text)
 
@@ -728,6 +729,7 @@ isFailure o = case o of
   InvalidCommentTarget {} -> True
   CommentedSuccessfully {} -> False
   CommentAborted {} -> True
+  CommentFailed {} -> True
   AuthorNameRequired {} -> True
   ConfigValueGet {} -> False
 

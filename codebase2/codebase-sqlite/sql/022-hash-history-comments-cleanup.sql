@@ -44,8 +44,8 @@ CREATE TABLE history_comment_revisions_new (
 );
 
 -- We convert the created_at to created_at_ms by multiplying by 1000 and casting to INTEGER.
-INSERT INTO history_comment_revisions_new (id, comment_id, subject, contents, created_at_ms, hidden, revision_hash_id)
-  SELECT id, comment_id, subject, contents, CAST((created_at * 1000) AS INTEGER), hidden, revision_hash_id
+INSERT INTO history_comment_revisions_new (id, comment_id, subject, contents, created_at_ms, hidden, author_signature, revision_hash_id)
+  SELECT id, comment_id, subject, contents, CAST((created_at * 1000) AS INTEGER), hidden, author_signature, revision_hash_id
   FROM history_comment_revisions;
 
 -- Drop old tables
