@@ -169,6 +169,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Unison.ShortHash qualified as SH
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -1282,7 +1283,7 @@ notifyUser dir issueFn = \case
             <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
-        P.indentN 2 $ P.lines (P.shown <$> Set.toList rs),
+        P.indentN 2 $ P.lines (P.text . SH.toText . Referent.toShortHash <$> Set.toList rs),
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
