@@ -2567,18 +2567,18 @@ notifyUser dir issueFn = \case
                     Just legend -> legend
                     Nothing -> mempty
             ]
-  StaleRun ppe main reversePath inFile ->
-    let path = reverse reversePath
+  StaleRun ppe main (endOfPath NEList.:| reversePath) inFile ->
+    let path = reverse ((True, endOfPath) : map (False,) reversePath)
      in pure $
           P.wrap
             ( "Sorry, I don't want to run"
-                <> prettyName main
+                <> prettyMain
                 <> "because it depends on something that hasn't been committed to the codebase yet:"
             )
             <> P.newline
             <> ( path
-                   & map prettyDefn
-                   & (if inFile then (prettyName main :) else id)
+                   & map (\(end, defn) -> prettyDefn defn <> prettyWhere end)
+                   & (if inFile then ((prettyMain <> prettyWhere True) :) else id)
                    & List.foldl'
                      ( \(n, acc) defn ->
                          (n + 2, acc <> P.newline <> if n > 2 then P.indentN (n - 2) ("└ " <> defn) else P.indentN n defn)
@@ -2589,22 +2589,36 @@ notifyUser dir issueFn = \case
             <> P.newline
             <> P.newline
             <> tip
-              ( let dependency =
-                      case reversePath of
-                        defn : _ -> prettyDefn defn
-                        [] -> prettyName main
-                 in "Run"
-                      <> IP.makeExample IP.editDependents [dependency]
-                      <> "to add all callers of"
-                      <> dependency
+              ( if inFile
+                  then
+                    let dependency = prettyDefn endOfPath
+                     in "Run"
+                          <> IP.makeExample IP.editDependents [dependency]
+                          <> "to add all callers of"
+                          <> dependency
+                          <> "to the scratch file."
+                  else
+                    "Run"
+                      <> IP.makeExample IP.edit [prettyMain]
+                      <> "to add"
+                      <> prettyMain
                       <> "to the scratch file."
               )
     where
+      prettyWhere :: Bool -> Pretty
+      prettyWhere = \case
+        True -> " (in file)"
+        False -> " (in codebase)"
+
       prettyDefn :: Defn TermReference TypeReference -> Pretty
       prettyDefn =
         P.syntaxToColor . prettyHashQualified . \case
           TermDefn ref -> PPE.termName ppe (Referent.fromTermReference ref)
           TypeDefn ref -> PPE.typeName ppe ref
+
+      prettyMain :: Pretty
+      prettyMain =
+        prettyName main
   InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
   CommentedSuccessfully -> pure $ P.bold "Done."
   CommentAborted -> pure (P.wrap "Annotation aborted.")
