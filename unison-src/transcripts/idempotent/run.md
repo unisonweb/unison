@@ -223,8 +223,14 @@ scratch/main> run baz
     └ bar (in codebase)
       └ foo (in file)
 
-  Tip: Run `edit.dependents foo` to add all callers of foo to
-       the scratch file.
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit.dependents foo` to
+  add all callers of foo to the scratch file without performing
+  an `update`.
+
+  Then, you can try `run baz` again for an up-to-date result.
 ```
 
 ``` ucm :hide
@@ -283,7 +289,13 @@ scratch/main> run bar
     bar (in codebase)
     └ foo (in file)
 
-  Tip: Run `edit bar` to add bar to the scratch file.
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit bar` to add bar to
+  the scratch file without performing an `update`.
+
+  Then, you can try `run bar` again for an up-to-date result.
 ```
 
 ``` ucm :hide
@@ -343,7 +355,13 @@ scratch/main> run foo
     foo (in codebase)
     └ A (in file)
 
-  Tip: Run `edit foo` to add foo to the scratch file.
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit foo` to add foo to
+  the scratch file without performing an `update`.
+
+  Then, you can try `run foo` again for an up-to-date result.
 ```
 
 ``` ucm :hide

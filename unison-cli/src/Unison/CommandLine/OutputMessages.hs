@@ -2588,21 +2588,35 @@ notifyUser dir issueFn = \case
                )
             <> P.newline
             <> P.newline
-            <> tip
-              ( if inFile
-                  then
-                    let dependency = prettyDefn endOfPath
-                     in "Run"
-                          <> IP.makeExample IP.editDependents [dependency]
-                          <> "to add all callers of"
-                          <> dependency
-                          <> "to the scratch file."
-                  else
-                    "Run"
-                      <> IP.makeExample IP.edit [prettyMain]
-                      <> "to add"
-                      <> prettyMain
-                      <> "to the scratch file."
+            <> P.wrap
+              ( "You can"
+                  <> IP.makeExample' IP.update
+                  <> "to save and propagate these changes into your branch."
+              )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "If you don't want that, you can run"
+                  <> ( if inFile
+                         then
+                           let dependency = prettyDefn endOfPath
+                            in IP.makeExample IP.editDependents [dependency]
+                                 <> "to add all callers of"
+                                 <> dependency
+                         else
+                           IP.makeExample IP.edit [prettyMain]
+                             <> "to add"
+                             <> prettyMain
+                     )
+                  <> "to the scratch file without performing an"
+                  <> P.group (IP.makeExample' IP.update <> ".")
+              )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "Then, you can try"
+                  <> IP.makeExample IP.execute [prettyMain]
+                  <> "again for an up-to-date result."
               )
     where
       prettyWhere :: Bool -> Pretty
