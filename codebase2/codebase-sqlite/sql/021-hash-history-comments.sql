@@ -19,7 +19,8 @@ ALTER TABLE history_comments
 ALTER TABLE history_comment_revisions
   -- The hash used for this revision's identity.
   -- It's the hash of (comment_hash <> subject <> contents <> hidden <> created_at_ms)
-  ADD COLUMN revision_hash_id INTEGER NULL REFERENCES hash(id);
+  ADD COLUMN revision_hash_id INTEGER NULL REFERENCES hash(id),
+  ADD COLUMN author_signature BLOB NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_history_comment_revisions_revision_hash_id
   ON history_comment_revisions(revision_hash_id);

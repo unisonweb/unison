@@ -2888,9 +2888,10 @@ notifyUser dir issueFn = \case
       prettyMain :: Pretty
       prettyMain =
         prettyName main
-  InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  InvalidCommentTarget msg -> pure (P.wrap $ "Comment failed, " <> P.text msg)
   CommentedSuccessfully -> pure $ P.bold "Done."
-  CommentAborted -> pure (P.wrap "Annotation aborted.")
+  CommentAborted -> pure (P.wrap "Comment aborted.")
+  CommentFailed err -> pure (P.fatalCallout $ P.wrap $ "Comment failed, " <> P.text err)
   AuthorNameRequired ->
     pure $
       P.hang "Please configure your a display name for your user." $

@@ -6,6 +6,7 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock.POSIX qualified as Time
 import Text.RawString.QQ (r)
 import U.Codebase.Config qualified as Config
+import U.Codebase.HashTags
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.CredentialManager qualified as CredMan
 import Unison.Auth.PersonalKey qualified as PK
@@ -16,14 +17,15 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (BranchId2)
 import Unison.Codebase.Editor.Output (Output (..))
+import Unison.Codebase.Path qualified as Path
+import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
+import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.Hash qualified as Hash
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
 import Unison.HistoryComments.Hashing
   ( hashHistoryComment,
     hashHistoryCommentRevision,
   )
-import Unison.Codebase.Path qualified as Path
-import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
-import Unison.Core.Project (ProjectAndBranch (..))
-import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
@@ -33,7 +35,8 @@ import UnliftIO.Process qualified as Proc
 handleHistoryComment :: Maybe BranchId2 -> Maybe Text -> Cli ()
 handleHistoryComment mayThingToAnnotate mayMessage = do
   Cli.Env {credentialManager} <- ask
-  authorThumbprint <- PK.personalKeyThumbprint <$> liftIO (CredMan.getOrCreatePersonalKey credentialManager)
+  personalKey <- liftIO (CredMan.getOrCreatePersonalKey credentialManager)
+  let authorThumbprint = PK.personalKeyThumbprint personalKey
   mayAuthorName <-
     Cli.runTransaction do
       authorName <- Q.getAuthorName
@@ -94,10 +97,21 @@ handleHistoryComment mayThingToAnnotate mayMessage = do
                   subject,
                   content,
                   createdAt,
+                  -- Hard coded for now, we can change this later if we want to support hiding comments
+                  isHidden = False,
+                  authorSignature = "",
                   comment = historyComment.commentId
                 }
       let historyComment' = historyComment {causal = causalHashId}
-      Cli.runTransaction $ Q.commentOnCausal $ historyCommentRevision {comment = historyComment'}
+      let historyCommentRevisionHashBytes =
+            historyCommentRevision.revisionId
+              & unHistoryCommentRevisionHash
+              & Hash.toByteString
+      PK.PersonalKeySignature authorSignature <-
+        PK.signWithPersonalKey personalKey historyCommentRevisionHashBytes >>= \case
+          Left err -> Cli.returnEarly $ CommentFailed (Text.pack (show err))
+          Right sig -> pure sig
+      Cli.runTransaction $ Q.commentOnCausal $ historyCommentRevision {comment = historyComment', authorSignature = authorSignature}
       Cli.respond $ CommentedSuccessfully
     Nothing -> Cli.respond $ CommentAborted
   where

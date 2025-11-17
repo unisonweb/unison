@@ -16,6 +16,7 @@ module Unison.Auth.PersonalKey
     personalKeyThumbprint,
     signWithPersonalKey,
     verifyWithPersonalKey,
+    PersonalKeySignature (..),
   )
 where
 
