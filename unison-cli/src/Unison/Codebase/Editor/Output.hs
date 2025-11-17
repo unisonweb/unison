@@ -474,7 +474,7 @@ data Output
            )
        )
       !(Maybe (Text, ExitCode))
-  | StaleRun !PrettyPrintEnv !Name ![Defn TermReference TypeReference] !Bool {- True = found in file, False = found in codebase -}
+  | StaleRun !PrettyPrintEnv !Name !(List.NonEmpty (Defn TermReference TypeReference)) !Bool {- True = found in file, False = found in codebase -}
   | InvalidCommentTarget Text
   | CommentedSuccessfully
   | CommentAborted

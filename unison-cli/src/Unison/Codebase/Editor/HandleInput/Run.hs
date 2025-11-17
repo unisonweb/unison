@@ -11,6 +11,8 @@ import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.State.Strict qualified as State
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as List (NonEmpty)
+import Data.List.NonEmpty qualified as List.NonEmpty
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -257,6 +259,8 @@ checkStale hqMain maybeCodebaseRef = do
     whenJustM Cli.getLatestTypecheckedFile \unisonFile -> do
       namespace <- Cli.getCurrentBranch0
 
+      -- Whittle down the namespace to just the definitions that are "shadowed" by a different hash with the same name,
+      -- defined in the latest typechecked Unison file. These are the "being updated" things.
       let beingUpdated :: DefnsF Set TermReference TypeReference
           beingUpdated =
             keepBeingUpdated
@@ -334,10 +338,10 @@ searchDependencyToBeingUpdated ::
   Map (Defn TermReference TypeReference) (Set (Defn TermReference TypeReference)) ->
   Set (Defn TermReference TypeReference) ->
   Set (Defn TermReference TypeReference) ->
-  Either [Defn TermReference TypeReference] ()
+  Either (List.NonEmpty (Defn TermReference TypeReference)) ()
 searchDependencyToBeingUpdated adjacency beingUpdated dependencies =
   case randomSetElem (Set.intersection dependencies beingUpdated) of
-    Just ref -> Left [ref]
+    Just ref -> Left (List.NonEmpty.singleton ref)
     Nothing ->
       Except.runExcept $
         State.evalStateT
@@ -349,14 +353,14 @@ searchDependencyToBeingUpdated1 ::
   Set (Defn TermReference TypeReference) ->
   [Defn TermReference TypeReference] ->
   [Defn TermReference TypeReference] ->
-  StateT (Set (Defn TermReference TypeReference)) (Except [Defn TermReference TypeReference]) ()
+  StateT (Set (Defn TermReference TypeReference)) (Except (List.NonEmpty (Defn TermReference TypeReference))) ()
 searchDependencyToBeingUpdated1 adjacency beingUpdated =
   search
   where
     search ::
       [Defn TermReference TypeReference] ->
       [Defn TermReference TypeReference] ->
-      StateT (Set (Defn TermReference TypeReference)) (Except [Defn TermReference TypeReference]) ()
+      StateT (Set (Defn TermReference TypeReference)) (Except (List.NonEmpty (Defn TermReference TypeReference))) ()
     search path = \case
       [] -> pure ()
       node : nodes -> do
@@ -366,7 +370,7 @@ searchDependencyToBeingUpdated1 adjacency beingUpdated =
           else do
             let adjacent = Set.difference (Map.findWithDefault Set.empty node adjacency) seen
             case randomSetElem (Set.intersection adjacent beingUpdated) of
-              Just ref -> Except.throwError (ref : node : path)
+              Just ref -> Except.throwError (ref List.NonEmpty.:| node : path)
               Nothing -> do
                 State.put $! Set.insert node seen
                 search (node : path) (Set.toList adjacent)
