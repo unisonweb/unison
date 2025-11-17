@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.Hashing.HistoryComments
+module Unison.HistoryComments.Hashing
   ( hashHistoryComment,
     hashHistoryCommentRevision,
   )
@@ -47,13 +47,14 @@ instance ContentAddressable (HistoryComment UTCTime KeyThumbprint CausalHash any
 
 -- Hash a comment revision
 instance ContentAddressable (HistoryCommentRevision any UTCTime HistoryCommentHash) where
-  contentHash HistoryCommentRevision {subject, content, createdAt, comment = commentHash} =
+  contentHash HistoryCommentRevision {subject, content, createdAt, comment = commentHash, isHidden} =
     CH.hashUpdates
       CH.hashInit
       [ BL.toStrict . Builder.toLazyByteString $ Builder.int32BE commentHashingVersion,
         Hash.toByteString (into @Hash commentHash),
         Text.encodeUtf8 subject,
         Text.encodeUtf8 content,
+        if isHidden then "1" else "0",
         -- Encode UTCTime as a UTC 8601 seconds since epoch
         createdAt
           & Time.utcTimeToPOSIXSeconds
