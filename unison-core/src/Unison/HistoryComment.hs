@@ -7,6 +7,7 @@ where
 
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
+import Data.ByteString (ByteString)
 
 type LatestHistoryComment thumbprint causal revisionId commentId =
   HistoryCommentRevision revisionId UTCTime (HistoryComment UTCTime thumbprint causal commentId)
@@ -27,6 +28,8 @@ data HistoryCommentRevision revisionId createdAt comment = HistoryCommentRevisio
     createdAt :: createdAt,
     -- The comment this is a revision for.
     comment :: comment,
+    isHidden :: Bool,
+    authorSignature :: ByteString,
     revisionId :: revisionId
   }
   deriving (Show, Eq, Functor)
