@@ -16,7 +16,7 @@ import Unison.Cli.ProjectUtils qualified as ProjectUtils
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.Input (BranchId2)
 import Unison.Codebase.Editor.Output (Output (..))
-import Unison.Hashing.HistoryComments
+import Unison.HistoryComments.Hashing
   ( hashHistoryComment,
     hashHistoryCommentRevision,
   )

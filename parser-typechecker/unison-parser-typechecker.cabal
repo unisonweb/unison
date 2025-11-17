@@ -83,8 +83,8 @@ library
       Unison.CodebasePath
       Unison.DataDeclaration.Dependencies
       Unison.FileParsers
-      Unison.Hashing.HistoryComments
       Unison.Hashing.V2.Convert
+      Unison.HistoryComments.Hashing
       Unison.KindInference
       Unison.KindInference.Constraint.Context
       Unison.KindInference.Constraint.Pretty
