@@ -68,13 +68,6 @@ packages:
       size: 284
   original:
     hackage: network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
-- completed:
-    hackage: blake3-0.3@sha256:5517c394b60f88918df78eb8356799fd3b1a09e16b82af36be6edb85d6c3e108,2838
-    pantry-tree:
-      sha256: d5200c6f006a3a790a25d63b9823ce125c8a64c15300259ce467643f364683a2
-      size: 1649
-  original:
-    hackage: blake3-0.3@sha256:5517c394b60f88918df78eb8356799fd3b1a09e16b82af36be6edb85d6c3e108,2838
 snapshots:
 - completed:
     sha256: 8e7996960d864443a66eb4105338bbdd6830377b9f6f99cd5527ef73c10c01e7
