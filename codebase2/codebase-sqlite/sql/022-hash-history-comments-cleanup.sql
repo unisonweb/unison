@@ -37,7 +37,7 @@ CREATE TABLE history_comment_revisions_new (
   -- but you can ask to hide them.
   hidden BOOL NOT NULL DEFAULT FALSE,
 
-  revision_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id)
+  revision_hash_id INTEGER UNIQUE NOT NULL REFERENCES hash(id),
 
   --  The signature of the author on the revision hash.
   author_signature BLOB NOT NULL
