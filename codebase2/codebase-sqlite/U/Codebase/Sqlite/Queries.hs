@@ -4218,6 +4218,7 @@ commentOnCausal
     { content,
       subject,
       revisionId = commentRevisionHash,
+      authorSignature,
       comment = HistoryComment {author, authorThumbprint, causal = causalHashId, commentId = commentHash}
     } = do
     commentHashId <- saveHistoryCommentHash commentHash
@@ -4243,8 +4244,8 @@ commentOnCausal
       Just cid -> pure cid
     execute
       [sql|
-      INSERT INTO history_comment_revisions (revision_hash_id, comment_id, subject, contents, created_at)
-      VALUES (:commentRevisionHashId, :commentId, :subject, :content, :createdAtMs)
+      INSERT INTO history_comment_revisions (revision_hash_id, comment_id, subject, contents, author_signature, created_at_ms)
+      VALUES (:commentRevisionHashId, :commentId, :subject, :content, :authorSignature, :createdAtMs)
     |]
 
 getAuthorName :: Transaction (Maybe AuthorName)
