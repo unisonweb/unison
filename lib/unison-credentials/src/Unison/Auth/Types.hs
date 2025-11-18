@@ -150,7 +150,8 @@ instance Aeson.ToJSON Credentials where
 instance Aeson.FromJSON Credentials where
   parseJSON = Aeson.withObject "Credentials" $ \obj -> do
     credentials <- obj .: "credentials"
-    personalKeys <- obj .: "personal_keys"
+    -- If there are no personal keys, default to an empty map for back-compat.
+    personalKeys <- fromMaybe Map.empty <$> obj .:? "personal_keys"
     activeProfile <- obj .: "active_profile"
     pure Credentials {..}
 
