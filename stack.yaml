@@ -67,7 +67,6 @@ extra-deps:
   - recover-rtti-0.4.3@sha256:01adcbab70a6542914df28ac120a23a923d8566236f2c0295998e9419f53dd62,4672
   - numerals-0.4.1@sha256:f138b4a0efbde3b3c6cbccb788eff683cb8a5d046f449729712fd174c5ee8a78,11430
   - network-udp-0.0.0@sha256:408d2d4fa1a25e49e95752ee124cca641993404bb133ae10fb81daef22d876ae,1075
-  - blake3-0.3@sha256:5517c394b60f88918df78eb8356799fd3b1a09e16b82af36be6edb85d6c3e108,2838
 
   # TODO: The revision pinned here doesn’t exist in the Nix snapshot of Hackage we use. Uncomment this once we update
   #       the Nix inputs (likely via #5796).
@@ -77,11 +76,6 @@ extra-deps:
 flags:
   haskeline:
     terminfo: false
-  blake3:
-    avx512: false
-    avx2: false
-    sse41: false
-    sse2: false
 
 allow-newer: true
 allow-newer-deps:
