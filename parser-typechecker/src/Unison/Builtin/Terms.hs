@@ -8,6 +8,7 @@ import Data.Map qualified as Map
 import Unison.Builtin.Decls qualified as Decls
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Hashing.V2.Convert qualified as H
+import Unison.Prelude
 import Unison.Reference qualified as Reference
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -16,7 +17,6 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Unison.Prelude
 
 builtinTermsSrc :: a -> [(Symbol, a, Term Symbol a, Type Symbol a)]
 builtinTermsSrc ann =

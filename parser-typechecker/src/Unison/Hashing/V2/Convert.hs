@@ -1,7 +1,7 @@
 -- | Description: Converts V1 types to the V2 hashing types
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
-    Hashing.HashingFailure(..),
+    Hashing.HashingFailure (..),
     Hashing.crashOnHashingFailure,
     hashBranch0,
     hashCausal,
