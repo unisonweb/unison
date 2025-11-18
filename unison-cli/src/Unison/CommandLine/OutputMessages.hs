@@ -41,7 +41,6 @@ import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference qualified as Reference
-import Unison.HistoryComment (HistoryComment (..), LatestHistoryComment, HistoryCommentRevision (..))
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -93,6 +92,7 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..), LatestHistoryComment)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge (GUpdated (..), TwoWay (..))
@@ -307,10 +307,10 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
-      displayComment :: Bool -> Maybe (LatestHistoryComment () () () () ) -> [Pretty]
+      displayComment :: Bool -> Maybe (LatestHistoryComment () () () ()) -> [Pretty]
       displayComment prefixSpacer mayComment = case mayComment of
         Nothing -> []
-        Just (HistoryCommentRevision {comment=HistoryComment{author}, subject, content}) ->
+        Just (HistoryCommentRevision {comment = HistoryComment {author}, subject, content}) ->
           Monoid.whenM prefixSpacer [""]
             <> [(P.text "⊙ " <> P.bold (P.text author))]
             <> [ P.indent (P.blue "  ┃ ") (P.text subject)

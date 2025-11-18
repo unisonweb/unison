@@ -5,9 +5,9 @@ module Unison.HistoryComment
   )
 where
 
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
-import Data.ByteString (ByteString)
 
 type LatestHistoryComment thumbprint causal revisionId commentId =
   HistoryCommentRevision revisionId UTCTime (HistoryComment UTCTime thumbprint causal commentId)
