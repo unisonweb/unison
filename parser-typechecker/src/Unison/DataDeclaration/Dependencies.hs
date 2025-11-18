@@ -100,7 +100,7 @@ hashFieldAccessors ppe declName vars declRef dd = do
   typecheckedAccessors
     & Map.fromList
     & Hashing.hashTermComponents
-    & either (\err -> error $ reportBug "E253299" $ "hashFieldAccessors: hashing failed with error: " <> show err) id
+    & Hashing.crashOnHashingFailure
     & Map.map Tuple.drop4th
     & Just
   where

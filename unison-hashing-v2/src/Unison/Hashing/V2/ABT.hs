@@ -34,6 +34,9 @@ data HashingFailure
     IncompleteElementOrderingError
   deriving (Show, Eq, Ord)
 
+-- | We don't expect to encounter these, but if we do we should print a nice message.
+--
+-- In the future we will hopefully prevent this error entirely.
 crashOnHashingFailure :: (HasCallStack) => Either HashingFailure a -> a
 crashOnHashingFailure = \case
   Left hf -> error $ reportBug "E253299" (renderHashingFailure hf)

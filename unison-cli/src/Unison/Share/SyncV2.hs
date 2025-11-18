@@ -216,7 +216,7 @@ batchValidateEntities entities = do
     IO.evaluate $ EV.validateTempEntity hash entity
   for_ mismatches \case
     Left err@(HH.IncompleteElementOrderingError _componentHash) ->
-      error $ "Unexpected IncompleteElementOrderingError during sync validation for hash: " <> show err
+      HH.crashOnHashingFailure (Left err)
     Right err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
       let expectedMismatches = case et of
             Share.TermComponentType -> expectedComponentHashMismatches

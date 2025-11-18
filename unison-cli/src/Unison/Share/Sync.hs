@@ -183,12 +183,7 @@ validateEntities entities =
       case EV.validateEntity hash entityWithHashes of
         Nothing -> pure ()
         Just (Left err@(HH.IncompleteElementOrderingError _componentHash)) ->
-          error $
-            "Unexpected incomplete element ordering error during entity validation for hash "
-              <> show hash
-              <> ": "
-              <> show err
-              <> ". This should never happen during normal operation. Please report this as a bug."
+          HH.crashOnHashingFailure (Left err)
         Just (Right err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed}))) ->
           let expectedMismatches = case et of
                 Share.TermComponentType -> expectedComponentHashMismatches
