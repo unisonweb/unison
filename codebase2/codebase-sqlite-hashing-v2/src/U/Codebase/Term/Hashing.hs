@@ -5,7 +5,7 @@ import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.Sqlite.HashHandle (HashMismatch (..), HashValidationError (..), IncompleteElementOrderingError (..))
+import U.Codebase.Sqlite.HashHandle (HashMismatch (..), HashValidationError (..), HashingFailure (..))
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Symbol qualified as S
@@ -36,7 +36,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIn
       & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
       & Map.fromList
       & H2.hashTermComponents
-      & mapLeft (const $ HashValidationIncompleteElementOrdering $ IncompleteElementOrderingError $ ComponentHash hash)
+      & mapLeft (const $ HashingFailure $ IncompleteElementOrderingError $ ComponentHash hash)
   r
     & traverse_ \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
       if hash == hash'

@@ -2,8 +2,9 @@ module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
     HashMismatch (..),
     HashValidationError (..),
-    IncompleteElementOrderingError (..),
     DeclHashingError (..),
+    HashingFailure (..),
+    crashOnHashingFailure,
   )
 where
 
@@ -28,12 +29,34 @@ data HashMismatch = HashMismatch
     actualHash :: Hash
   }
 
-data IncompleteElementOrderingError = IncompleteElementOrderingError ComponentHash
+data HashingFailure
+  = -- | two or more component elements can not be completely ordered with respect to one another
+    -- https://github.com/unisonweb/unison/issues/2787
+    IncompleteElementOrderingError ComponentHash
   deriving (Eq, Show, Ord)
+
+crashOnHashingFailure :: (HasCallStack) => Either HashingFailure a -> a
+crashOnHashingFailure = \case
+  Left hf -> error $ reportBug "E253299" (renderHashingFailure hf)
+  Right a -> a
+  where
+    renderHashingFailure :: HashingFailure -> String
+    renderHashingFailure = \case
+      IncompleteElementOrderingError (ComponentHash h) ->
+        unlines
+          [ "Failed to hash the component: " <> show h,
+            "Hashing failed because cyclic definitions because the definitions could not be completely ordered.",
+            "This happens when multiple definitions in a mutually recursive cycle are identical except",
+            "for references to other elements in the same cycle.",
+              "If all elements are identical, consider simple recursion instead of mutual recursion,",
+            "If mutual recursion is required, you may disambiguate identical definitions by",
+              "adding a dummy comment like:",
+            "_ = \"this is the foo definition\""
+          ]
 
 data HashValidationError
   = HashValidationMismatch HashMismatch
-  | HashValidationIncompleteElementOrdering IncompleteElementOrderingError
+  | HashingFailure HashingFailure
 
 data DeclHashingError
   = DeclHashMismatch HashMismatch

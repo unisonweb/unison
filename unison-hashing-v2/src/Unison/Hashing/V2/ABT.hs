@@ -9,7 +9,8 @@
 
 module Unison.Hashing.V2.ABT
   ( Unison.ABT.Term,
-    IncompleteElementOrderingError (..),
+    HashingFailure (..),
+    crashOnHashingFailure,
     hash,
     hashComponents,
   )
@@ -21,22 +22,43 @@ import Data.List qualified as List (sort)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT
-import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Tokenizable (Hashable1, hash1)
 import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
-data IncompleteElementOrderingError = IncompleteElementOrderingError
+data HashingFailure =
+  -- | two or more component elements can not be completely ordered with respect to one another
+  -- https://github.com/unisonweb/unison/issues/2787
+  IncompleteElementOrderingError
   deriving (Show, Eq, Ord)
+
+crashOnHashingFailure :: (HasCallStack) => Either HashingFailure a -> a
+crashOnHashingFailure = \case
+  Left hf -> error $ reportBug "E253299" (renderHashingFailure hf)
+  Right a -> a
+  where
+    renderHashingFailure :: HashingFailure -> String
+    renderHashingFailure = \case
+      IncompleteElementOrderingError ->
+        unlines
+          [ "Hashing failed because cyclic definitions because the definitions could not be completely ordered.",
+            "This happens when multiple definitions in a mutually recursive cycle are identical except",
+            "for references to other elements in the same cycle.",
+              "If all elements are identical, consider simple recursion instead of mutual recursion,",
+            "If mutual recursion is required, you may disambiguate identical definitions by",
+              "adding a dummy comment like:",
+            "_ = \"this is the foo definition\""
+          ]
+
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   forall a f v.
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v) =>
   Map.Map v (Term f v a) ->
-  Either IncompleteElementOrderingError (Hash, [(v, Term f v a)])
+  Either HashingFailure (Hash, [(v, Term f v a)])
 hashComponent byName = do
   let ts = Map.toList byName
   -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
@@ -69,12 +91,12 @@ hashComponents ::
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v) =>
   (Hash -> Word64 -> Term f v ()) ->
   Map.Map v (Term f v a) ->
-  Either IncompleteElementOrderingError [(Hash, [(v, Term f v a)])]
+  Either HashingFailure [(Hash, [(v, Term f v a)])]
 hashComponents termFromHash termsByName = do
   let bound = Set.fromList (Map.keys termsByName)
       escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
       sccs = components (Map.toList termsByName)
-      go :: Map v (Term f v ()) -> [[(v, Term f v a)]] -> Either IncompleteElementOrderingError [(Hash, [(v, Term f v a)])]
+      go :: Map v (Term f v ()) -> [[(v, Term f v a)]] -> Either HashingFailure [(Hash, [(v, Term f v a)])]
       go _ [] = pure $ []
       go prevHashes (component : rest) = do
         let sub = substsInheritAnnotation (Map.toList prevHashes)
@@ -127,7 +149,7 @@ hash' env = \case
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
-    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either IncompleteElementOrderingError ([Hash], Term f v a -> Hash)
+    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either HashingFailure ([Hash], Term f v a -> Hash)
     hashCycle cycle env ts = do
       (ts', env') <- doHashCycle env (zip cycle ts)
       pure (ts', hash' env')
@@ -139,9 +161,10 @@ doHashCycle ::
   (Eq v, Functor f, Hashable1 f, Show v) =>
   [Either [v] v] ->
   [(v, Term f v a)] ->
-  Either IncompleteElementOrderingError ([Hash], [Either [v] v])
+  Either HashingFailure ([Hash], [Either [v] v])
 doHashCycle env namedTerms = do
-  Debug.debugM Debug.Temp "Unison.Hashing.V2.ABT.doHashCycle" (hashes, env, fst <$> namedTerms)
+  -- Ensure that all of the hashes we use for ordering components are unique;
+  -- if not, we have an incomplete ordering of the elements in the cycle
   when (List.nubOrd hashes /= hashes) $ Left IncompleteElementOrderingError
   pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where

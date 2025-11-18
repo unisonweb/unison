@@ -35,13 +35,13 @@ import Unison.Sync.Types qualified as Share
 
 -- | Note: We currently only validate Namespace hashes.
 -- We should add more validation as more entities are shared.
-validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe (Either HH.IncompleteElementOrderingError Share.EntityValidationError)
+validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe (Either HH.HashingFailure Share.EntityValidationError)
 validateEntity expectedHash32 entity = do
   validateTempEntity expectedHash32 $ Share.entityToTempEntity id entity
 
 -- | Note: We currently only validate Namespace hashes.
 -- We should add more validation as more entities are shared.
-validateTempEntity :: Hash32 -> TempEntity -> Maybe (Either HH.IncompleteElementOrderingError Share.EntityValidationError)
+validateTempEntity :: Hash32 -> TempEntity -> Maybe (Either HH.HashingFailure Share.EntityValidationError)
 validateTempEntity expectedHash32 tempEntity = do
   case tempEntity of
     Entity.TC (TermFormat.SyncTerm localComp) -> do
@@ -103,14 +103,14 @@ validateBranchFull expectedHash localIds bytes = do
         then Nothing
         else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unBranchHash actualHash))
 
-validateTerm :: Hash -> (TermFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe (Either HH.IncompleteElementOrderingError Share.EntityValidationError))
+validateTerm :: Hash -> (TermFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe (Either HH.HashingFailure Share.EntityValidationError))
 validateTerm expectedHash syncLocalComp = do
   case Decode.unsyncTermComponent syncLocalComp of
     Left decodeErr -> Just . Right $ (Share.InvalidByteEncoding (Hash32.fromHash expectedHash) Share.TermComponentType (tShow decodeErr))
     Right localComp -> do
       case HH.verifyTermFormatHash v2HashHandle (ComponentHash expectedHash) (TermFormat.Term localComp) of
         Nothing -> Nothing
-        Just (HH.HashValidationIncompleteElementOrdering incompleteOrdering) -> Just . Left $ incompleteOrdering
+        Just (HH.HashingFailure incompleteOrdering) -> Just . Left $ incompleteOrdering
         Just (HH.HashValidationMismatch (HH.HashMismatch {expectedHash, actualHash})) -> Just . Right $ Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
 
 validateDecl :: Hash -> (DeclFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe Share.EntityValidationError)

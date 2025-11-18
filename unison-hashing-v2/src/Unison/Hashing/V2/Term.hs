@@ -93,7 +93,7 @@ hashTermComponents ::
   forall v a extra.
   (Var v) =>
   Map v (Term v a, Type v a, extra) ->
-  Either ABT.IncompleteElementOrderingError (Map v (ReferenceId, Term v a, Type v a, extra))
+  Either ABT.HashingFailure (Map v (ReferenceId, Term v a, Type v a, extra))
 hashTermComponents terms = do
   hashed <- ReferenceUtil.hashComponents (refId ()) terms'
   pure $ Zip.zipWith keepExtra terms hashed
