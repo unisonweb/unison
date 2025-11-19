@@ -861,6 +861,8 @@ roots = [
     '''^Unison\.Test\.Ucm\.deleteCodebase$''',
     '''^Unison\.Test\.UriParser\.mkPath$''',
     '''^Unison\.Test\.UriParser\.sch$''',
+    '''^Unison\.Auth\.PersonalKey\.publicKey$''',
+    '''^Unison\.Auth\.PersonalKey\.verifyWithPersonalKey$''',
 ]
 type-class-roots = true
 unused-types = true
