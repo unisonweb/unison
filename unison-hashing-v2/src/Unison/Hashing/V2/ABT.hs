@@ -153,7 +153,7 @@ hash' env = \case
             ++ show v
             ++ " environment = "
             ++ show env
-  Cycle' vs t -> hash1 (fromRight (error "Encountered ambigous element ordering for component") . hashCycle vs env) undefined t
+  Cycle' vs t -> hash1 (crashOnHashingFailure . hashCycle vs env) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
