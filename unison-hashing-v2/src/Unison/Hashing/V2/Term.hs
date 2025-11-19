@@ -120,7 +120,7 @@ hashTermComponents terms = do
 hashTermComponentsWithoutTypes :: (Var v) => Map v (Term v a) -> Map v (ReferenceId, Term v a)
 hashTermComponentsWithoutTypes terms =
   ReferenceUtil.hashComponents (refId ()) terms
-    & fromRight (error "hashTermComponentsWithoutTypes got unexpected IncompleteElementOrderingError")
+    & ABT.crashOnHashingFailure
 
 hashClosedTerm :: (Var v) => Term v a -> ReferenceId
 hashClosedTerm tm = ReferenceId (ABT.hash tm) 0
