@@ -484,17 +484,17 @@ exec env henv !activeThreads !stk !k _ (TryForce i)
 exec _ henv !_activeThreads !stk !k _ DLLCall = do
   cf <- peekBi stk
   let n = DLL.numArgs $ DLL.cSpec cf
-  stk <-
-    allocaArray n \storage ->
-      allocaArray n \cArgs ->
-        alloca \(cRet :: Ptr Int) -> do
-          copyArgs stk n storage cArgs
-          DLL.callForeign cf cArgs cRet
-          stk <- bump stk
-          case DLL.cResult cf of
-            DLL.I64 -> Store.peek cRet >>= pokeI stk
-            DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
-          pure stk
+  -- Note: pre-bump, because you can't pass stk out of these blocks
+  -- without boxing (or customizing allocaArray).
+  stk <- bump stk
+  allocaArray n \storage ->
+    allocaArray n \cArgs ->
+      alloca \(cRet :: Ptr Int) -> do
+        copyArgs stk n storage cArgs
+        DLL.callForeign cf cArgs cRet
+        case DLL.cResult cf of
+          DLL.I64 -> Store.peek cRet >>= pokeI stk
+          DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
   pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
@@ -506,10 +506,10 @@ exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
 -- location. All our FFI arguments are 64-bit, though, so we can just
 -- use a contiguous array.
 copyArgs :: Stack -> Int -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
-copyArgs !stk n = go 1
+copyArgs !stk n = go 2
   where
     go i !p !h
-      | i <= n = do
+      | i <= n+1 = do
           k <- upeekOff stk i
           Store.poke p k
           Store.poke h (castPtr p)
@@ -517,6 +517,7 @@ copyArgs !stk n = go 1
       | otherwise = pure ()
     szp = Store.sizeOf (0 :: Int)
     szh = Store.sizeOf (undefined :: Ptr CValue)
+{-# INLINE copyArgs #-}
 
 encodeExn ::
   Stack ->
