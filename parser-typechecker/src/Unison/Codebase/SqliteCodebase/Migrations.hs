@@ -132,8 +132,6 @@ checkCodebaseIsUpToDate = do
       | schemaVersion < Q.currentSchemaVersion -> CodebaseRequiresMigration schemaVersion Q.currentSchemaVersion
       | otherwise -> CodebaseUnknownSchemaVersion schemaVersion
 
-type PersonalKeyThumbprint = Text
-
 -- | Migrates a codebase up to the most recent version known to ucm.
 -- This is a No-op if it's up to date
 -- Returns an error if the schema version is newer than this ucm knows about.
