@@ -39,6 +39,7 @@ library:
     - servant-openapi3
     - servant-server
     - text
+    - time
     - transformers
     - unison-codebase
     - unison-codebase-sqlite
