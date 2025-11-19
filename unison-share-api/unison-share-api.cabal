@@ -25,6 +25,8 @@ library
       Unison.Server.Doc.Markdown.Render
       Unison.Server.Doc.Markdown.Types
       Unison.Server.Errors
+      Unison.Server.HistoryComments.API
+      Unison.Server.HistoryComments.Types
       Unison.Server.Local
       Unison.Server.Local.Definitions
       Unison.Server.Local.Endpoints.Current
@@ -118,6 +120,7 @@ library
     , servant-openapi3
     , servant-server
     , text
+    , time
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
