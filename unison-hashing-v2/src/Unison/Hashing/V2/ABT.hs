@@ -31,8 +31,9 @@ import Prelude hiding (abs, cycle)
 data HashingFailure
   = -- | two or more component elements can not be completely ordered with respect to one another
     -- https://github.com/unisonweb/unison/issues/2787
-    IncompleteElementOrderingError
-  deriving (Show, Eq, Ord)
+    IncompleteElementOrderingError ([String {- Variable names of component definitions -}])
+  deriving stock (Show, Eq, Ord)
+  deriving anyclass (Exception)
 
 -- | We don't expect to encounter these, but if we do we should print a nice message.
 --
@@ -44,9 +45,10 @@ crashOnHashingFailure = \case
   where
     renderHashingFailure :: HashingFailure -> String
     renderHashingFailure = \case
-      IncompleteElementOrderingError ->
+      IncompleteElementOrderingError names ->
         unlines
-          [ "Hashing failed because cyclic definitions because the definitions could not be completely ordered.",
+          [ "Hashing failed because the following cyclic definitions could not be completely ordered:",
+            "  " ++ intercalate ", " names,
             "This happens when multiple definitions in a mutually recursive cycle are identical except",
             "for references to other elements in the same cycle.",
             "If all elements are identical, consider simple recursion instead of mutual recursion,",
@@ -167,7 +169,7 @@ doHashCycle ::
 doHashCycle env namedTerms = do
   -- Ensure that all of the hashes we use for ordering components are unique;
   -- if not, we have an incomplete ordering of the elements in the cycle
-  when (List.nubOrd hashes /= hashes) $ Left IncompleteElementOrderingError
+  when (List.nubOrd hashes /= hashes) $ Left $ IncompleteElementOrderingError (show <$> names)
   pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where
     names = map fst namedTerms
