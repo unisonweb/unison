@@ -244,6 +244,10 @@
   deprecated.root-reflog
   `deprecated.root-reflog` lists the changes that have affected the root namespace. This has been deprecated in favor of `reflog` which shows the reflog for the current project.
 
+  diff.branch (or branch.diff)
+  `diff.branch one two` shows a diff between branches `one` and
+                        `two`
+
   diff.namespace
   `diff.namespace before after` shows how the namespace `after`
                                 differs from the namespace
