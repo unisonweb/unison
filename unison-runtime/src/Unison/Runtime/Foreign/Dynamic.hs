@@ -4,7 +4,6 @@ module Unison.Runtime.Foreign.Dynamic where
 
 import Control.Monad (unless)
 import Data.Tagged (Tagged (..))
-import Data.Word
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
 import Foreign.LibFFI.Internal
@@ -15,7 +14,8 @@ import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign
 import Unison.Type (ffiTypeRef, ffiSpecRef, ffiFuncRef)
 
-data FFType = I64 | U64 deriving (Eq, Ord, Show)
+data FFType = I64 | U64 | D64
+  deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFType where
   foreignName = Tagged "FFI.Type"
@@ -50,6 +50,7 @@ instance BuiltinForeign CDynFunc where
 encodeType :: FFType -> Ptr CType
 encodeType I64 = ffi_type_sint64
 encodeType U64 = ffi_type_uint64
+encodeType D64 = ffi_type_double
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes []     !_ = pure ()
