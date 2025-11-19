@@ -4,6 +4,7 @@ module Unison.Runtime.FFI.DLL where
 
 import Foreign.Ptr
 import System.Win32.DLL
+import System.Win32.Types
 
 data DLL = DLL !FilePath !HMODULE
 
