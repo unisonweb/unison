@@ -4146,7 +4146,18 @@ listDependentsOrDependencies labelStart label targets types terms =
              )
           <> "no"
           <> P.group (P.text label <> ".")
-    else P.sepNonEmpty "\n\n" [hdr, typesOut, termsOut, tip msg]
+    else
+      P.sepNonEmpty
+        "\n\n"
+        [ hdr,
+          typesOut,
+          termsOut,
+          -- Since `view foo` doesn't currently work on `foo` defined in the scratch file, as a precaution, we just omit
+          -- this tip any time we're listing dependencies or dependents of anything in the scratch file.
+          if any (== Just True) targets.terms || any (== Just True) targets.types
+            then mempty
+            else tip msg
+        ]
   where
     prettyTargets =
       P.syntaxToColor $
