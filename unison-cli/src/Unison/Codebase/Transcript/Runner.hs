@@ -133,7 +133,7 @@ withRunner isTest verbosity ucmVersion action = do
                   authenticatedHTTPClient
                   credMan
                   stanzas
-                & catchExceptions
+                  & catchExceptions
   where
     catchExceptions :: forall x. IO (Either Error x) -> IO (Either Error x)
     catchExceptions io =

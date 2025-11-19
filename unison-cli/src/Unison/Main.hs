@@ -551,7 +551,6 @@ runTranscripts' version progName transcriptDir markdownFiles = do
                           ],
                           Transcript.format msg
                         )
-
                       Transcript.Exception someException ->
                         ( [ P.indentN 2 $ "An unexpected exception occurred while running the following file: " <> P.string fileName,
                             "",
