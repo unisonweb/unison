@@ -15,8 +15,3 @@ openDLL path = DLL path <$> Posix.dlopen path [Posix.RTLD_LAZY]
 
 getDLLSym :: DLL -> String -> IO (FunPtr a)
 getDLLSym (DLL _ dll) symbol = Posix.dlsym dll symbol
-
-closeDLL :: DLL -> IO ()
-closeDLL (DLL _ dll) = Posix.dlclose dll
-
-

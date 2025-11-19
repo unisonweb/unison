@@ -28,8 +28,6 @@ instance BuiltinForeign FFSpec where
   foreignName = Tagged "FFI.Spec"
   foreignRef = Tagged ffiSpecRef
 
-type CABI = Word32
-
 data CSpec = CSpec
   { cInterface :: !(ForeignPtr CIF)
   , numArgs :: !Int

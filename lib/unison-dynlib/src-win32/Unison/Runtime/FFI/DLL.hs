@@ -18,7 +18,3 @@ getDLLSym (DLL module) symbol = do
   ptr <- getProcAddress module symbol
   pure $ castPtrToFunPtr ptr
 
-closeDLL :: DLL -> IO ()
-closeDLL (DLL module) = freeLibrary module
-
-
