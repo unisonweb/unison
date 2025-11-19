@@ -14,7 +14,7 @@ openDLL :: FilePath -> IO DLL
 openDLL path = DLL path <$> loadLibrary path
 
 getDLLSym :: DLL -> String -> IO (FunPtr a)
-getDLLSym (DLL module) symbol = do
-  ptr <- getProcAddress module symbol
+getDLLSym (DLL mod) symbol = do
+  ptr <- getProcAddress mod symbol
   pure $ castPtrToFunPtr ptr
 
