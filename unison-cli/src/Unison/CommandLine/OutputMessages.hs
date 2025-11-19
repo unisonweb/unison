@@ -1501,7 +1501,7 @@ notifyUser dir issueFn = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents dependencies dependents ->
+  ListDependents dependencies dependents -> do
     pure $
       listDependentsOrDependencies
         "Dependents"
@@ -1514,7 +1514,7 @@ notifyUser dir issueFn = \case
       listDependentsOrDependencies
         "Dependencies"
         "dependencies"
-        dependents
+        (let f = Map.fromSet (\_ -> Nothing) in bimap f f dependents)
         dependencies.types
         dependencies.terms
   ListStructuredFind terms ->
@@ -4131,7 +4131,7 @@ listFind allowLib _ tms =
 listDependentsOrDependencies ::
   Text ->
   Text ->
-  DefnsF2 Set HQ.HashQualified Name Name ->
+  DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   Pretty
@@ -4140,7 +4140,7 @@ listDependentsOrDependencies labelStart label targets types terms =
     then
       P.wrap $
         prettyTargets
-          <> ( if Set.size targets.terms + Set.size targets.types == 1
+          <> ( if Map.size targets.terms + Map.size targets.types == 1
                  then "has"
                  else "have"
              )
@@ -4151,8 +4151,20 @@ listDependentsOrDependencies labelStart label targets types terms =
     prettyTargets =
       P.syntaxToColor $
         P.sep ", " $
-          map (\name -> "type " <> prettyHashQualified name) (Set.toList targets.types)
-            ++ map prettyHashQualified (Set.toList targets.terms)
+          fold
+            [ targets.types
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> "type " <> prettyHashQualified name
+                  (name, Just False) -> "type " <> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> "type " <> prettyHashQualified name <> " (in file)",
+              targets.terms
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> prettyHashQualified name
+                  (name, Just False) -> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> prettyHashQualified name <> " (in file)"
+            ]
     msg = "Try " <> IP.makeExample IP.view args <> " to see the source of any numbered item in the above list."
     args = [P.shown (length types + length terms)]
     hdr = P.text labelStart <> " of: " <> prettyTargets

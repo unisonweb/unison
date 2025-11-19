@@ -330,12 +330,15 @@ data Output
       )
   | -- | List direct dependents of a type or term.
     ListDependents
-      (DefnsF2 Set HQ.HashQualified Name Name)
-      ( DefnsF
-          []
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-      )
+      -- Nothing = don't say where the dependency is (because it's in the codebase and not in the file)
+      -- Just False = say "in codebase" (because it's in both, and we are reporting on codebase version)
+      -- Just True = say "in file" (because it's not in the codebase)
+      !(DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool)
+      !( DefnsF
+           []
+           (HQ'.HashQualified Name, HQ'.HashQualified Name)
+           (HQ'.HashQualified Name, HQ'.HashQualified Name)
+       )
   | DumpNumberedArgs HashLength NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]

@@ -42,7 +42,7 @@ import Unison.Type (Type)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.UnisonFile.Names qualified as UnisonFile
-import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, defnsAreEmpty)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Map qualified as Map
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
@@ -89,7 +89,29 @@ handleCodebaseDependents dependenciesRefs = do
         let names = Branch.toNames namespace
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
 
-  Cli.respond (ListDependents (nameDependencies ppe dependenciesRefs) dependentNames)
+  -- Name the dependencies, for output
+  let namedDependencies :: DefnsF2 Set HQ.HashQualified Name Name
+      namedDependencies =
+        nameDependencies ppe dependenciesRefs
+
+  maybeUnisonFile <-
+    Cli.getLatestTypecheckedFile
+
+  -- Determine whether we want to put an "(in codebase)" next to each dependency. We do when that name is also found
+  -- in the latest typechecked file (since we're reporting on the codebase version).
+  let namedDependencies1 :: DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool
+      namedDependencies1 =
+        case maybeUnisonFile of
+          Nothing -> let f = Map.fromSet \_ -> Nothing in bimap f f namedDependencies
+          Just unisonFile ->
+            let f :: Map Name ref -> Set (HQ.HashQualified Name) -> Map (HQ.HashQualified Name) (Maybe Bool)
+                f defnsInFile =
+                  Map.fromSet \case
+                    HQ.NameOnly name | Map.member name defnsInFile -> Just False
+                    _ -> Nothing
+             in zipDefnsWith f f (fileToReferentsIds unisonFile) namedDependencies
+
+  Cli.respond (ListDependents namedDependencies1 dependentNames)
 
 handleFileDependents :: HQ.HashQualified Name -> Cli ()
 handleFileDependents hq = do
@@ -153,13 +175,18 @@ handleFileDependents hq = do
 
   Cli.respond $
     ListDependents
-      ( nameDependencies
-          ppe
-          ( bimap
-              (Set.map Referent.fromId)
-              (Set.map Reference.fromId)
-              dependenciesRefs
-          )
+      ( let f = Map.fromSet \_ -> Just True
+         in bimap
+              f
+              f
+              ( nameDependencies
+                  ppe
+                  ( bimap
+                      (Set.map Referent.fromId)
+                      (Set.map Reference.fromId)
+                      dependenciesRefs
+                  )
+              )
       )
       dependentNames
   where

@@ -155,3 +155,131 @@ scratch/main> dependencies MyType
 
   type MyType has no dependencies.
 ```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+`dependents` has limited support for reporting dependents of things defined in the scratch file. At present,
+`dependents foo` will simply fall back on reporting on dependents of the things suffixed `foo` in the latest typechecked
+Unison file only when no things with suffix `foo` are found in the codebase.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` unison
+foo = 17
+bar = foo + foo
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + bar : Nat
+  + foo : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+This demonstrates that when `foo` is found in the codebase, its codebase dependents are reported, regardless if new or
+different dependents are staged in the scratch file.
+
+``` unison
+baz = foo + foo + foo
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + baz : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> dependents foo
+
+  Dependents of: foo
+
+    Terms:
+
+    1. bar
+
+  Tip: Try `view 1` to see the source of any numbered item in
+       the above list.
+```
+
+This demonstrates that when `foo` is found in the codebase *and* is changed in the scratch file, same thing (but we
+do call out that we are reporting dependents of the codebase version).
+
+``` unison
+foo = 18
+baz = foo + foo + foo
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + baz : Nat
+  ~ foo : Nat
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> dependents foo
+
+  Dependents of: foo (in codebase)
+
+    Terms:
+
+    1. bar
+
+  Tip: Try `view 1` to see the source of any numbered item in
+       the above list.
+```
+
+This demonstrates falling back on the scratch file when the symbol isn't found in the codebase.
+
+``` unison
+baz = foo + foo + foo
+qux = baz + baz
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + baz : Nat
+  + qux : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> dependents baz
+
+  Dependents of: baz (in file)
+
+    Terms:
+
+    1. qux
+
+  Tip: Try `view 1` to see the source of any numbered item in
+       the above list.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
