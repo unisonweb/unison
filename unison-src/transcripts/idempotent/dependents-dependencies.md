@@ -275,9 +275,6 @@ scratch/main> dependents baz
     Terms:
 
     1. qux
-
-  Tip: Try `view 1` to see the source of any numbered item in
-       the above list.
 ```
 
 ``` ucm :hide
