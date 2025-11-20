@@ -305,11 +305,11 @@ jobs:
       - name: dll-ffi-win smoke tests
         if: runner.os == 'Windows'
         run: |
-          clang -c -o \
+          clang -DWINDOWS_BUILD -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
             unison-src/transcripts-manual/dll-ffi/test.c
 
-          clang -shared -o \
+          clang -DWINDOWS_BUILD -shared -o \
             unison-src/transcripts-manual/dll-ffi/libtest.dll \
             unison-src/transcripts-manual/dll-ffi/test.o
 
