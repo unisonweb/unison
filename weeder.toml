@@ -219,7 +219,7 @@ roots = [
     '''^Unison\.Cli\.Pretty\.prettyBranchId$''',
     '''^Unison\.Cli\.Pretty\.prettyBranchRelativePath$''',
     '''^Unison\.Cli\.Pretty\.prettyDeclPair$''',
-    '''^Unison\.Cli\.Pretty\.prettyLabeledDependencie$''',
+    '''^Unison\.Cli\.Pretty\.prettyLabeledDependencies$''',
     '''^Unison\.Cli\.Pretty\.prettyNamespaceKey$''',
     '''^Unison\.Cli\.Pretty\.prettyWriteRemoteNamespace$''',
     '''^Unison\.Cli\.Pretty\.shareOrigin$''',

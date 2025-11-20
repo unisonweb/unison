@@ -159,7 +159,7 @@ import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF2)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -1501,24 +1501,22 @@ notifyUser dir issueFn = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents ppe lds defns ->
+  ListDependents dependencies dependents -> do
     pure $
       listDependentsOrDependencies
-        ppe
         "Dependents"
         "dependents"
-        lds
-        (map (HQ'.toHQ *** HQ'.toHQ) defns.types)
-        (map (HQ'.toHQ *** HQ'.toHQ) defns.terms)
-  ListDependencies ppe lds defns ->
+        dependencies
+        (map (HQ'.toHQ *** HQ'.toHQ) dependents.types)
+        (map (HQ'.toHQ *** HQ'.toHQ) dependents.terms)
+  ListDependencies dependents dependencies ->
     pure $
       listDependentsOrDependencies
-        ppe
         "Dependencies"
         "dependencies"
-        lds
-        defns.types
-        defns.terms
+        (let f = Map.fromSet (\_ -> Nothing) in bimap f f dependents)
+        dependencies.types
+        dependencies.terms
   ListStructuredFind terms ->
     pure $ listFind False Nothing terms
   ListTextFind True terms ->
@@ -4131,21 +4129,56 @@ listFind allowLib _ tms =
         <> " to bring these into your scratch file."
 
 listDependentsOrDependencies ::
-  PPE.PrettyPrintEnv ->
   Text ->
   Text ->
-  Set LabeledDependency ->
+  DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   Pretty
-listDependentsOrDependencies ppe labelStart label lds types terms =
+listDependentsOrDependencies labelStart label targets types terms =
   if null types && null terms
-    then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."
-    else P.sepNonEmpty "\n\n" [hdr, typesOut, termsOut, tip msg]
+    then
+      P.wrap $
+        prettyTargets
+          <> ( if Map.size targets.terms + Map.size targets.types == 1
+                 then "has"
+                 else "have"
+             )
+          <> "no"
+          <> P.group (P.text label <> ".")
+    else
+      P.sepNonEmpty
+        "\n\n"
+        [ hdr,
+          typesOut,
+          termsOut,
+          -- Since `view foo` doesn't currently work on `foo` defined in the scratch file, as a precaution, we just omit
+          -- this tip any time we're listing dependencies or dependents of anything in the scratch file.
+          if any (== Just True) targets.terms || any (== Just True) targets.types
+            then mempty
+            else tip msg
+        ]
   where
+    prettyTargets =
+      P.syntaxToColor $
+        P.sep ", " $
+          fold
+            [ targets.types
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> "type " <> prettyHashQualified name
+                  (name, Just False) -> "type " <> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> "type " <> prettyHashQualified name <> " (in file)",
+              targets.terms
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> prettyHashQualified name
+                  (name, Just False) -> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> prettyHashQualified name <> " (in file)"
+            ]
     msg = "Try " <> IP.makeExample IP.view args <> " to see the source of any numbered item in the above list."
     args = [P.shown (length types + length terms)]
-    hdr = P.text labelStart <> " of: " <> prettyLabeledDependencies ppe lds
+    hdr = P.text labelStart <> " of: " <> prettyTargets
     typesOut =
       if null types
         then mempty

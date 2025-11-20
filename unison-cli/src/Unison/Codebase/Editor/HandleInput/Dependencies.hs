@@ -4,7 +4,7 @@ module Unison.Codebase.Editor.HandleInput.Dependencies
 where
 
 import Control.Arrow ((***))
-import Data.Bifoldable (bifoldMap, binull)
+import Data.Bifoldable (binull)
 import Data.Set qualified as Set
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -16,7 +16,6 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.LabeledDependency qualified as LD
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.Prelude
@@ -25,13 +24,13 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.Reference (Reference)
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualifiedPrime qualified as HQ'
-import Unison.Util.Defns (Defns (..), DefnsF)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 
 handleDependencies :: HQ.HashQualified Name -> Cli ()
 handleDependencies hq = do
-  refs <- resolveHQName hq
+  dependentsRefs <- resolveHQName hq
 
-  when (binull refs) do
+  when (binull dependentsRefs) do
     Cli.returnEarly (LabeledReferenceNotFound hq)
 
   namespace <- Cli.getCurrentProjectRoot0
@@ -40,7 +39,7 @@ handleDependencies hq = do
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
 
   dependencies <- do
-    Cli.runTransaction $ Codebase.directDependencies refs
+    Cli.runTransaction $ Codebase.directDependencies dependentsRefs
 
   let dependencyNames ::
         DefnsF
@@ -82,5 +81,11 @@ handleDependencies hq = do
     & map (SA.HashQualified . fst)
     & Cli.setNumberedArgs
 
-  let lds = bifoldMap (Set.map LD.referent) (Set.map LD.typeRef) refs
-  Cli.respond (ListDependencies ppe lds dependencyNames)
+  let dependentsNames :: DefnsF2 Set HQ.HashQualified Name Name
+      dependentsNames =
+        bimap
+          (Set.map (PPE.termNameOrHashOnly ppe))
+          (Set.map (PPE.typeNameOrHashOnly ppe))
+          dependentsRefs
+
+  Cli.respond (ListDependencies dependentsNames dependencyNames)
