@@ -44,6 +44,7 @@ where
 import Control.Lens
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Vector qualified as Vector
 import Unison.ABT qualified as ABT
@@ -407,18 +408,23 @@ nonEmpty uf =
     || any (not . null) (topLevelComponents' uf)
     || any (not . null) (watchComponents uf)
 
-hashConstructors ::
-  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v Referent.Id
+hashConstructors :: forall v a. (Ord v, Show v) => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
-  Map.union
-    (Map.map (\(ref, _) -> Referent.ConId ref CT.Data) (hashDataConstructors file))
-    (Map.map (\(ref, _) -> Referent.ConId ref CT.Effect) (hashEffectConstructors file))
+  Map.merge
+    (Map.mapMissing \_ (ref, _) -> Referent.ConId ref CT.Data)
+    (Map.mapMissing \_ (ref, _) -> Referent.ConId ref CT.Effect)
+    (Map.zipWithMatched \v _ _ -> error (show v ++ " is a decl and an effect?"))
+    (hashDataConstructors file)
+    (hashEffectConstructors file)
 
-constructorsId :: (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, Decl v a)
+constructorsId :: (Ord v, Show v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, Decl v a)
 constructorsId file =
-  Map.union
-    (Map.map (\(ref, decl) -> (ref, Right decl)) (hashDataConstructors file))
-    (Map.map (\(ref, decl) -> (ref, Right decl)) (hashEffectConstructors file))
+  Map.merge
+    (Map.mapMissing \_ (ref, dataDecl) -> (ref, Right dataDecl))
+    (Map.mapMissing \_ (ref, effectDecl) -> (ref, Left effectDecl))
+    (Map.zipWithMatched \v _ _ -> error (show v ++ " is a decl and an effect?"))
+    (hashDataConstructors file)
+    (hashEffectConstructors file)
 
 hashDataConstructors ::
   forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, DataDeclaration v a)
@@ -426,9 +432,13 @@ hashDataConstructors =
   Map.foldl' stepHashConstructors Map.empty . dataDeclarationsId'
 
 hashEffectConstructors ::
-  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, DataDeclaration v a)
+  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, EffectDeclaration v a)
 hashEffectConstructors =
-  List.foldl' stepHashConstructors Map.empty . over (mapped . _2) DD.toDataDecl . Map.elems . effectDeclarationsId'
+  coerce @(Map v (ConstructorReferenceId, DataDeclaration v a)) @(Map v (ConstructorReferenceId, EffectDeclaration v a))
+    . List.foldl' stepHashConstructors Map.empty
+    . coerce @[(TypeReferenceId, EffectDeclaration v a)] @[(TypeReferenceId, DataDeclaration v a)]
+    . Map.elems
+    . effectDeclarationsId'
 
 stepHashConstructors ::
   forall a v.

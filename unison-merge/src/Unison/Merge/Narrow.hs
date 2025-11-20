@@ -1,5 +1,6 @@
 module Unison.Merge.Narrow
   ( narrowDefns,
+    narrowDefnsTotal,
   )
 where
 
@@ -38,6 +39,21 @@ narrowDefns ::
 narrowDefns declNameLookups defns =
   narrowDefns1 <$> ThreeWay.gtoUpdated declNameLookups <*> ThreeWay.toUpdated defns
 
+-- | Like 'narrowDefns', but just between the LCA and a branch head, and for when the LCA is known not to have any type
+-- declarations with missing constructor names.
+narrowDefnsTotal ::
+  Updated DeclNameLookup ->
+  Updated (DefnsF (Map Name) Referent TypeReference) ->
+  Updated (DefnsF (Map Name) Referent TypeReference)
+narrowDefnsTotal declNameLookups defns =
+  Updated.zipWith
+    Defns
+    (narrowTermsTotal declNameLookups types)
+    (narrowTypesTotal declNameLookups terms)
+  where
+    (types, terms) =
+      Updated.unzipWith Defns.toPair defns
+
 narrowDefns1 ::
   (HasCallStack) =>
   GUpdated PartialDeclNameLookup DeclNameLookup ->
@@ -71,6 +87,29 @@ narrowTerms declNameLookup =
           newDeclName = DeclNameLookup.expectDeclName declNameLookup.new name
       _ -> False
 
+-- | Like 'narrowTerms', but for when the LCA is known not to have any type declarations with missing constructor names.
+narrowTermsTotal ::
+  (HasCallStack) =>
+  Updated DeclNameLookup ->
+  Updated (Map Name Referent) ->
+  Updated (Map Name Referent)
+narrowTermsTotal declNameLookup =
+  filterOutEqualSynhash \name oldRef newRef ->
+    case (oldRef, newRef) of
+      -- Drop hash-equal terms
+      TwoTerms x y -> x == y
+      TwoBuiltinConstructors x y -> x == y
+      -- Drop equal constructors only if they would have equal synhashes, i.e. their types have the same namings of
+      -- constructors
+      TwoNonBuiltinConstructors x y -> x == y && sameConstructorNames
+        where
+          sameConstructorNames = oldConstructorNames == newConstructorNames
+          oldConstructorNames = DeclNameLookup.expectConstructorNames declNameLookup.old oldDeclName
+          newConstructorNames = DeclNameLookup.expectConstructorNames declNameLookup.new newDeclName
+          oldDeclName = DeclNameLookup.expectDeclName declNameLookup.old name
+          newDeclName = DeclNameLookup.expectDeclName declNameLookup.new name
+      _ -> False
+
 pattern TwoTerms :: TermReference -> TermReference -> (Referent, Referent)
 pattern TwoTerms x y <- (Referent.Ref x, Referent.Ref y)
 
@@ -100,6 +139,24 @@ narrowTypes declNameLookup =
         where
           sameConstructorNames = oldConstructorNames == map Just newConstructorNames
           oldConstructorNames = PartialDeclNameLookup.expectConstructorNames declNameLookup.old name
+          newConstructorNames = DeclNameLookup.expectConstructorNames declNameLookup.new name
+      _ -> False
+
+-- | Like 'narrowTypes', but for when the LCA is known not to have any type declarations with missing constructor names.
+narrowTypesTotal ::
+  (HasCallStack) =>
+  Updated DeclNameLookup ->
+  Updated (Map Name TypeReference) ->
+  Updated (Map Name TypeReference)
+narrowTypesTotal declNameLookup =
+  filterOutEqualSynhash \name oldRef newRef ->
+    case (oldRef, newRef) of
+      TwoBuiltinTypes x y -> x == y
+      -- Drop equal types only if they would have equal synhashes, i.e. they have the same namings of constructors
+      TwoNonBuiltinTypes x y -> x == y && sameConstructorNames
+        where
+          sameConstructorNames = oldConstructorNames == newConstructorNames
+          oldConstructorNames = DeclNameLookup.expectConstructorNames declNameLookup.old name
           newConstructorNames = DeclNameLookup.expectConstructorNames declNameLookup.new name
       _ -> False
 

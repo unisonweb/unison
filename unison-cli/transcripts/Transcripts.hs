@@ -181,10 +181,7 @@ test config = do
   buildTests config (testBuilder False True recordFailure) ("unison-src" </> "transcripts" </> "idempotent") Nothing
   buildTests config (testBuilder False False recordFailure) ("unison-src" </> "transcripts-using-base") Nothing
   buildTests config (testBuilder True False recordFailure) ("unison-src" </> "transcripts" </> "errors") Nothing
-  enumerateTests config (testBuilder False False recordFailure) $
-    [ ".github/ISSUE_TEMPLATE/bug_report.md",
-      ".github/pull_request_template.md"
-    ]
+  enumerateTests config (testBuilder False False recordFailure) $ [] -- add any explicitly named transcript files here
   failures <- io $ STM.readTVarIO failuresVar
   -- Print all aggregated failures
   when (not $ null failures) . io $ Text.putStrLn $ "Failures:"

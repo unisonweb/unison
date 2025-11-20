@@ -229,22 +229,72 @@ scratch/alice> branch.diff /main /alice
 scratch/main> project.delete scratch
 ```
 
-Currently (and temporarily), `branch.diff` doesn't work if the two branches don't share any history.
+If two branches don't share any history, `branch.diff` treats the first argument as the LCA.
 
-``` ucm :hide
-scratch/main> builtins.mergeio lib.builtin
+``` unison
+main = "main"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + main : ##Text
+
+  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
 scratch/main> branch.create-empty topic
 
   Done. I've created an empty branch scratch/topic.
 
   Tip: Use `merge /somebranch` to initialize this branch.
+```
 
-scratch/main> branch.diff /main /topic
+``` unison
+topic = "topic"
+```
 
-  Sorry, I can't yet compute the difference between branches that don't have any history in common.
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + topic : ##Text
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/topic> branch.diff /main /topic
+
+  Changes on /topic:
+
+  + topic : ##Text
+  - main : ##Text
+
+  + (added), - (deleted)
+
+scratch/topic> branch.diff /topic /main
+
+  Changes on /main:
+
+  + main : ##Text
+  - topic : ##Text
+
+  + (added), - (deleted)
 ```
 
 ``` ucm :hide

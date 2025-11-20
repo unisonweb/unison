@@ -132,6 +132,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
@@ -159,7 +160,7 @@ import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF2)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -1282,7 +1283,7 @@ notifyUser dir issueFn = \case
             <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
-        P.indentN 2 $ P.lines (P.shown <$> Set.toList rs),
+        P.indentN 2 $ P.lines (P.text . SH.toText . Referent.toShortHash <$> Set.toList rs),
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
@@ -1501,24 +1502,22 @@ notifyUser dir issueFn = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents ppe lds defns ->
+  ListDependents dependencies dependents -> do
     pure $
       listDependentsOrDependencies
-        ppe
         "Dependents"
         "dependents"
-        lds
-        (map (HQ'.toHQ *** HQ'.toHQ) defns.types)
-        (map (HQ'.toHQ *** HQ'.toHQ) defns.terms)
-  ListDependencies ppe lds defns ->
+        dependencies
+        (map (HQ'.toHQ *** HQ'.toHQ) dependents.types)
+        (map (HQ'.toHQ *** HQ'.toHQ) dependents.terms)
+  ListDependencies dependents dependencies ->
     pure $
       listDependentsOrDependencies
-        ppe
         "Dependencies"
         "dependencies"
-        lds
-        defns.types
-        defns.terms
+        (let f = Map.fromSet (\_ -> Nothing) in bimap f f dependents)
+        dependencies.types
+        dependencies.terms
   ListStructuredFind terms ->
     pure $ listFind False Nothing terms
   ListTextFind True terms ->
@@ -2393,6 +2392,7 @@ notifyUser dir issueFn = \case
           <> "Please complete the"
           <> (P.group (P.text verb) <> ",")
           <> "then try again."
+  ShowEmptyBranchDiff -> pure prettyEmptyBranchDiff
   ShowBranchDiff branchArgs ppes libdepsDiffs diffs _maybeDifftoolResult -> do
     let isEmpty
           libdepsDiff
@@ -2529,7 +2529,7 @@ notifyUser dir issueFn = \case
 
     pure $
       if isEmpty libdepsDiffs.alice diffs.alice && isEmpty libdepsDiffs.bob diffs.bob
-        then "Those branches are the same."
+        then prettyEmptyBranchDiff
         else
           P.sepNonEmpty
             "\n\n"
@@ -2566,18 +2566,18 @@ notifyUser dir issueFn = \case
                     Just legend -> legend
                     Nothing -> mempty
             ]
-  StaleRun ppe main reversePath inFile ->
-    let path = reverse reversePath
+  StaleRun ppe main (endOfPath NEList.:| reversePath) inFile ->
+    let path = reverse ((True, endOfPath) : map (False,) reversePath)
      in pure $
           P.wrap
             ( "Sorry, I don't want to run"
-                <> prettyName main
+                <> prettyMain
                 <> "because it depends on something that hasn't been committed to the codebase yet:"
             )
             <> P.newline
             <> ( path
-                   & map prettyDefn
-                   & (if inFile then (prettyName main :) else id)
+                   & map (\(end, defn) -> prettyDefn defn <> prettyWhere end)
+                   & (if inFile then ((prettyMain <> prettyWhere True) :) else id)
                    & List.foldl'
                      ( \(n, acc) defn ->
                          (n + 2, acc <> P.newline <> if n > 2 then P.indentN (n - 2) ("└ " <> defn) else P.indentN n defn)
@@ -2587,23 +2587,51 @@ notifyUser dir issueFn = \case
                )
             <> P.newline
             <> P.newline
-            <> tip
-              ( let dependency =
-                      case reversePath of
-                        defn : _ -> prettyDefn defn
-                        [] -> prettyName main
-                 in "Run"
-                      <> IP.makeExample IP.editDependents [dependency]
-                      <> "to add all callers of"
-                      <> dependency
-                      <> "to the scratch file."
+            <> P.wrap
+              ( "You can"
+                  <> IP.makeExample' IP.update
+                  <> "to save and propagate these changes into your branch."
+              )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "If you don't want that, you can run"
+                  <> ( if inFile
+                         then
+                           let dependency = prettyDefn endOfPath
+                            in IP.makeExample IP.editDependents [dependency]
+                                 <> "to add all callers of"
+                                 <> dependency
+                         else
+                           IP.makeExample IP.edit [prettyMain]
+                             <> "to add"
+                             <> prettyMain
+                     )
+                  <> "to the scratch file without performing an"
+                  <> P.group (IP.makeExample' IP.update <> ".")
+              )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "Then, you can try"
+                  <> IP.makeExample IP.execute [prettyMain]
+                  <> "again for an up-to-date result."
               )
     where
+      prettyWhere :: Bool -> Pretty
+      prettyWhere = \case
+        True -> " (in file)"
+        False -> " (in codebase)"
+
       prettyDefn :: Defn TermReference TypeReference -> Pretty
       prettyDefn =
         P.syntaxToColor . prettyHashQualified . \case
           TermDefn ref -> PPE.termName ppe (Referent.fromTermReference ref)
           TypeDefn ref -> PPE.typeName ppe ref
+
+      prettyMain :: Pretty
+      prettyMain =
+        prettyName main
   InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
   CommentedSuccessfully -> pure $ P.bold "Done."
   CommentAborted -> pure (P.wrap "Annotation aborted.")
@@ -4102,21 +4130,56 @@ listFind allowLib _ tms =
         <> " to bring these into your scratch file."
 
 listDependentsOrDependencies ::
-  PPE.PrettyPrintEnv ->
   Text ->
   Text ->
-  Set LabeledDependency ->
+  DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   Pretty
-listDependentsOrDependencies ppe labelStart label lds types terms =
+listDependentsOrDependencies labelStart label targets types terms =
   if null types && null terms
-    then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."
-    else P.sepNonEmpty "\n\n" [hdr, typesOut, termsOut, tip msg]
+    then
+      P.wrap $
+        prettyTargets
+          <> ( if Map.size targets.terms + Map.size targets.types == 1
+                 then "has"
+                 else "have"
+             )
+          <> "no"
+          <> P.group (P.text label <> ".")
+    else
+      P.sepNonEmpty
+        "\n\n"
+        [ hdr,
+          typesOut,
+          termsOut,
+          -- Since `view foo` doesn't currently work on `foo` defined in the scratch file, as a precaution, we just omit
+          -- this tip any time we're listing dependencies or dependents of anything in the scratch file.
+          if any (== Just True) targets.terms || any (== Just True) targets.types
+            then mempty
+            else tip msg
+        ]
   where
+    prettyTargets =
+      P.syntaxToColor $
+        P.sep ", " $
+          fold
+            [ targets.types
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> "type " <> prettyHashQualified name
+                  (name, Just False) -> "type " <> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> "type " <> prettyHashQualified name <> " (in file)",
+              targets.terms
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> prettyHashQualified name
+                  (name, Just False) -> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> prettyHashQualified name <> " (in file)"
+            ]
     msg = "Try " <> IP.makeExample IP.view args <> " to see the source of any numbered item in the above list."
     args = [P.shown (length types + length terms)]
-    hdr = P.text labelStart <> " of: " <> prettyLabeledDependencies ppe lds
+    hdr = P.text labelStart <> " of: " <> prettyTargets
     typesOut =
       if null types
         then mempty
@@ -4255,3 +4318,7 @@ strayConstructorError verb theConstructor name =
           <> verb
           <> "again."
     ]
+
+prettyEmptyBranchDiff :: Pretty
+prettyEmptyBranchDiff =
+  "Those branches are the same."

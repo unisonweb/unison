@@ -38,16 +38,23 @@ module Unison.Name
     unqualified,
     isUnqualified,
 
+    -- * Suffix-based searching on collections of names
+
+    -- ** Search
+    searchBySuffix,
+    gsearchBySuffix,
+    searchUnconflictedBySuffix,
+    searchByRankedSuffix,
+
+    -- ** Filter
+    filterBySuffix,
+    filterByRankedSuffix,
+
     -- * To organize later
     commonPrefix,
     compareSuffix,
-    filterByRankedSuffix,
-    filterBySuffix,
     filterUnconflictedBySuffix,
     preferShallowLibDepth,
-    searchByRankedSuffix,
-    searchBySuffix,
-    searchUnconflictedBySuffix,
     sortByText,
     sortNamed,
     sortNames,
@@ -337,7 +344,13 @@ lastSegment = List.NonEmpty.head . reverseSegments
 -- NB: Implementation uses logarithmic time lookups, not a linear scan.
 searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
 searchBySuffix suffix rel =
-  R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
+  gsearchBySuffix (`R.lookupDom` rel) (`R.searchDom` rel) suffix
+
+-- | Like 'searchBySuffix', but takes a lookup and a search function rather than a relation. This allows searching in
+-- similar structures, like BiMultimap or just Map.
+gsearchBySuffix :: (Ord r) => (Name -> Set r) -> ((Name -> Ordering) -> Set r) -> Name -> Set r
+gsearchBySuffix lookup search name =
+  lookup name `orElse` search (compareSuffix name)
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
 

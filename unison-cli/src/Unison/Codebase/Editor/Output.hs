@@ -94,7 +94,7 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (Defns, DefnsF, defnsAreEmpty)
+import Unison.Util.Defns (Defns, DefnsF, DefnsF2, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -322,22 +322,23 @@ data Output
   | NoBranchWithHash ShortCausalHash
   | -- | List direct dependencies of a type or term.
     ListDependencies
-      PPE.PrettyPrintEnv
-      (Set LabeledDependency)
+      (DefnsF2 Set HQ.HashQualified Name Name)
       ( DefnsF
           []
           (HQ.HashQualified Name, HQ.HashQualified Name)
           (HQ.HashQualified Name, HQ.HashQualified Name)
       )
-  | -- | List dependents of a type or term.
+  | -- | List direct dependents of a type or term.
     ListDependents
-      PPE.PrettyPrintEnv
-      (Set LabeledDependency)
-      ( DefnsF
-          []
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-      )
+      -- Nothing = don't say where the dependency is (because it's in the codebase and not in the file)
+      -- Just False = say "in codebase" (because it's in both, and we are reporting on codebase version)
+      -- Just True = say "in file" (because it's not in the codebase)
+      !(DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool)
+      !( DefnsF
+           []
+           (HQ'.HashQualified Name, HQ'.HashQualified Name)
+           (HQ'.HashQualified Name, HQ'.HashQualified Name)
+       )
   | DumpNumberedArgs HashLength NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -456,6 +457,7 @@ data Output
   | SyncingFromTo CausalHash CausalHash
   | CantDeleteConstructor !(NESet Name)
   | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | ShowEmptyBranchDiff
   | ShowBranchDiff
       !(Merge.TwoWay DiffBranchArg)
       !(Merge.TwoWay PPE.PrettyPrintEnv)
@@ -473,7 +475,7 @@ data Output
            )
        )
       !(Maybe (Text, ExitCode))
-  | StaleRun !PrettyPrintEnv !Name ![Defn TermReference TypeReference] !Bool {- True = found in file, False = found in codebase -}
+  | StaleRun !PrettyPrintEnv !Name !(List.NonEmpty (Defn TermReference TypeReference)) !Bool {- True = found in file, False = found in codebase -}
   | InvalidCommentTarget Text
   | CommentedSuccessfully
   | CommentAborted
@@ -721,6 +723,7 @@ isFailure o = case o of
   SyncingFromTo {} -> False
   CantDeleteConstructor {} -> True
   CantDoThatDuring {} -> True
+  ShowEmptyBranchDiff {} -> False
   ShowBranchDiff {} -> False
   StaleRun {} -> True
   InvalidCommentTarget {} -> True

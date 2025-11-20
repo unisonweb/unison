@@ -8,6 +8,7 @@ module Unison.Merge.TwoWay
     sequenceDefns,
     swap,
     toThreeWay,
+    toTwoOrThreeWay,
     twoWay,
     unzipMap,
     updatedToThreeWay,
@@ -18,7 +19,7 @@ where
 import Control.Lens (Lens')
 import Data.Zip (unzipWith)
 import Unison.Merge.EitherWay (EitherWay (..))
-import Unison.Merge.Internal.Types (GThreeWay (..), ThreeWay (..), TwoWay (..))
+import Unison.Merge.Internal.Types (GThreeWay (..), ThreeWay (..), TwoOrThreeWay (..), TwoWay (..))
 import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Prelude
 import Unison.Util.Defns (Defns (..), DefnsF)
@@ -56,6 +57,10 @@ swap (TwoWay x y) =
 toThreeWay :: a -> TwoWay a -> ThreeWay a
 toThreeWay lca TwoWay {alice, bob} =
   ThreeWay {lca, alice, bob}
+
+toTwoOrThreeWay :: Maybe a -> TwoWay a -> TwoOrThreeWay a
+toTwoOrThreeWay lca TwoWay {alice, bob} =
+  TwoOrThreeWay {lca, alice, bob}
 
 twoWay :: (a -> a -> b) -> TwoWay a -> b
 twoWay f TwoWay {alice, bob} =

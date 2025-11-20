@@ -4,6 +4,7 @@ module Unison.PartialDeclNameLookup
     expectDeclName,
     expectConstructorNames,
     toDeclNameLookup,
+    fromDeclNameLookup,
   )
 where
 
@@ -81,3 +82,10 @@ toDeclNameLookup unsafeParseText partialDeclNameLookup =
             name :: Name
             name =
               unsafeParseText (name0 <> if i == 0 then Text.empty else Text.pack (show i))
+
+fromDeclNameLookup :: DeclNameLookup -> PartialDeclNameLookup
+fromDeclNameLookup declNameLookup =
+  PartialDeclNameLookup
+    { constructorToDecl = declNameLookup.constructorToDecl,
+      declToConstructors = Map.map (map Just) declNameLookup.declToConstructors
+    }

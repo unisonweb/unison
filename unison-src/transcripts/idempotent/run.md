@@ -219,12 +219,18 @@ scratch/main> run baz
   Sorry, I don't want to run baz because it depends on something
   that hasn't been committed to the codebase yet:
 
-    baz
-    └ bar
-      └ foo
+    baz (in file)
+    └ bar (in codebase)
+      └ foo (in file)
 
-  Tip: Run `edit.dependents foo` to add all callers of foo to
-       the scratch file.
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit.dependents foo` to
+  add all callers of foo to the scratch file without performing
+  an `update`.
+
+  Then, you can try `run baz` again for an up-to-date result.
 ```
 
 ``` ucm :hide
@@ -280,11 +286,16 @@ scratch/main> run bar
   Sorry, I don't want to run bar because it depends on something
   that hasn't been committed to the codebase yet:
 
-    bar
-    └ foo
+    bar (in codebase)
+    └ foo (in file)
 
-  Tip: Run `edit.dependents foo` to add all callers of foo to
-       the scratch file.
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit bar` to add bar to
+  the scratch file without performing an `update`.
+
+  Then, you can try `run bar` again for an up-to-date result.
 ```
 
 ``` ucm :hide
@@ -341,11 +352,16 @@ scratch/main> run foo
   Sorry, I don't want to run foo because it depends on something
   that hasn't been committed to the codebase yet:
 
-    foo
-    └ A
+    foo (in codebase)
+    └ A (in file)
 
-  Tip: Run `edit.dependents A` to add all callers of A to the
-       scratch file.
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit foo` to add foo to
+  the scratch file without performing an `update`.
+
+  Then, you can try `run foo` again for an up-to-date result.
 ```
 
 ``` ucm :hide

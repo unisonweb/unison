@@ -2366,7 +2366,7 @@ diffBranch =
   InputPattern
     { patternName = "diff.branch",
       aliases = ["branch.diff"],
-      visibility = I.Hidden,
+      visibility = I.Visible,
       params =
         Parameters
           { requiredParams =
@@ -2382,7 +2382,13 @@ diffBranch =
                   ],
             trailingParams = Optional [] Nothing
           },
-      help = "TODO",
+      help =
+        ( P.column2
+            [ ( "`diff.branch one two`",
+                P.wrap "shows a diff between branches `one` and `two`"
+              )
+            ]
+        ),
       parse = \case
         [branch1, branch2] ->
           Input.DiffBranchI
