@@ -2,6 +2,8 @@ module Unison.Server.HistoryComments.Types
   ( DownloadCommentsRequest (..),
     UploadCommentsResponse (..),
     HistoryCommentChunk (..),
+    HistoryComment (..),
+    HistoryCommentRevision (..),
   )
 where
 
