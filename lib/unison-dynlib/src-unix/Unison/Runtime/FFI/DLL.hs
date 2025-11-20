@@ -1,4 +1,3 @@
-
 -- Common interface wrapping Posix DLL loading functions.
 module Unison.Runtime.FFI.DLL where
 

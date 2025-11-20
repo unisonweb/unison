@@ -510,11 +510,11 @@ copyArgs :: Stack -> Int -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
 copyArgs !stk n = go 2
   where
     go i !p !h
-      | i <= n+1 = do
+      | i <= n + 1 = do
           k <- upeekOff stk i
           Store.poke p k
           Store.poke h (castPtr p)
-          go (i+1) (plusPtr p szp) (plusPtr h szh)
+          go (i + 1) (plusPtr p szp) (plusPtr h szh)
       | otherwise = pure ()
     szp = Store.sizeOf (0 :: Int)
     szh = Store.sizeOf (undefined :: Ptr CValue)

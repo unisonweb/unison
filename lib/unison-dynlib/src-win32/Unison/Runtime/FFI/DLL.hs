@@ -1,4 +1,3 @@
-
 -- Common interface wrapping Win32 DLL loading functions.
 module Unison.Runtime.FFI.DLL where
 
@@ -18,4 +17,3 @@ getDLLSym :: DLL -> String -> IO (FunPtr a)
 getDLLSym (DLL _ mod) symbol = do
   ptr <- getProcAddress mod symbol
   pure $ castPtrToFunPtr ptr
-

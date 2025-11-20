@@ -12,7 +12,7 @@ import Foreign.Ptr
 import Foreign.Storable qualified as Store
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign
-import Unison.Type (ffiTypeRef, ffiSpecRef, ffiFuncRef)
+import Unison.Type (ffiFuncRef, ffiSpecRef, ffiTypeRef)
 
 data FFType = I64 | U64 | D64
   deriving (Eq, Ord, Show)
@@ -29,15 +29,16 @@ instance BuiltinForeign FFSpec where
   foreignRef = Tagged ffiSpecRef
 
 data CSpec = CSpec
-  { cInterface :: !(ForeignPtr CIF)
-  , numArgs :: !Int
+  { cInterface :: !(ForeignPtr CIF),
+    numArgs :: !Int
   }
 
-data CDynFunc = forall a. CDynFunc
-  { cName :: String
-  , cResult :: !FFType
-  , cSpec :: {-# UNPACK #-} !CSpec
-  , cFun :: !(FunPtr a)
+data CDynFunc = forall a.
+  CDynFunc
+  { cName :: String,
+    cResult :: !FFType,
+    cSpec :: {-# UNPACK #-} !CSpec,
+    cFun :: !(FunPtr a)
   }
 
 instance Show CDynFunc where
@@ -53,8 +54,8 @@ encodeType U64 = ffi_type_uint64
 encodeType D64 = ffi_type_double
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
-encodeTypes []     !_ = pure ()
-encodeTypes (t:ts) !p = do
+encodeTypes [] !_ = pure ()
+encodeTypes (t : ts) !p = do
   Store.poke p $ encodeType t
   encodeTypes ts (plusPtr p sz)
   where
@@ -72,7 +73,7 @@ prepareSpec (FFSpec args ret) = do
       unless (status == ffi_ok) $
         error "FFI initialization error"
 
-  pure $ CSpec { cInterface, numArgs }
+  pure $ CSpec {cInterface, numArgs}
   where
     numArgs = length args
     n = fromIntegral numArgs
