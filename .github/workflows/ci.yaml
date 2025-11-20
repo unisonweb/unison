@@ -284,6 +284,7 @@ jobs:
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |
           echo "passing=true" >> "${{env.transcript_test_results}}"
+
       - name: dll-ffi-unix smoke tests
         if: runner.os != 'Windows'
         run: |
@@ -296,7 +297,12 @@ jobs:
             unison-src/transcripts-manual/dll-ffi/test.o
 
           ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-unix.md
-      - name: dll-ffi-win32 smoke tests
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-unix.output.md
+
+      - name: dll-ffi-win smoke tests
         if: runner.os == 'Windows'
         run: |
           clang -c -o \
@@ -308,6 +314,10 @@ jobs:
             unison-src/transcripts-manual/dll-ffi/test.o
 
           ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-win.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-win.output.md
 
   interpreter-tests:
     name: run interpreter tests
