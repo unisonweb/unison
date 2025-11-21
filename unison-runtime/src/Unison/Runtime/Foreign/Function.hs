@@ -1169,12 +1169,12 @@ foreignCallHelper = \case
   FFI_getDLLSym -> mkForeignExn $ \(dll, sym, spec) ->
     let name = getDLLPath dll ++ "$" ++ sym
         n = length $ ffArgs spec
-    in catchLoad name do
-      df <- loadForeign dll spec sym
-      let dummyRef = Builtin . Data.Text.pack $ cName df
-          dummyCix = CIx dummyRef maxBound 0
-          comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
-      evaluate $ PApV dummyCix comb [encodeVal df]
+     in catchLoad name do
+          df <- loadForeign dll spec sym
+          let dummyRef = Builtin . Data.Text.pack $ cName df
+              dummyCix = CIx dummyRef maxBound 0
+              comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
+          evaluate $ PApV dummyCix comb [encodeVal df]
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1206,8 +1206,8 @@ foreignCallHelper = \case
       where
         io :: IOException -> IO (Either (F.Failure Val) a)
         io ex =
-          pure . Left
-            $ F.Failure Ty.ioFailureRef (pack $ show ex) unitValue
+          pure . Left $
+            F.Failure Ty.ioFailureRef (pack $ show ex) unitValue
 
         prep :: PrepException -> IO (Either (F.Failure Val) a)
         prep BadVoid =

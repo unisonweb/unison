@@ -2,8 +2,8 @@
 
 module Unison.Runtime.Foreign.Dynamic where
 
-import Control.Monad (unless)
 import Control.Exception
+import Control.Monad (unless)
 import Data.Tagged (Tagged (..))
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
@@ -66,7 +66,8 @@ encodeTypes (t : ts) !p = do
   where
     sz = Store.sizeOf (undefined :: Ptr CType)
 
-data PrepException = BadVoid | BadInit deriving Show
+data PrepException = BadVoid | BadInit deriving (Show)
+
 instance Exception PrepException
 
 adjustSpec :: FFSpec -> IO FFSpec
