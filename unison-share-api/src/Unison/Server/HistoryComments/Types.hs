@@ -50,8 +50,7 @@ instance Serialise HistoryComment where
     commentHash <- decode
     pure HistoryComment {author, createdAt, authorThumbprint, causalHash, commentHash}
 
-data HistoryCommentRevision
-  = HistoryCommentRevision
+data HistoryCommentRevision = HistoryCommentRevision
   { subject :: Text,
     content :: Text,
     createdAt :: UTCTime,
