@@ -285,6 +285,40 @@ jobs:
         run: |
           echo "passing=true" >> "${{env.transcript_test_results}}"
 
+      - name: dll-ffi-unix smoke tests
+        if: runner.os != 'Windows'
+        run: |
+          clang -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.so \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-unix.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-unix.output.md
+
+      - name: dll-ffi-win smoke tests
+        if: runner.os == 'Windows'
+        run: |
+          clang -DWINDOWS_BUILD -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -DWINDOWS_BUILD -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.dll \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-win.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-win.output.md
+
   interpreter-tests:
     name: run interpreter tests
     needs: build-ucm

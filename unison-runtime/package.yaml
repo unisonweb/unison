@@ -73,6 +73,7 @@ library:
     - hashable
     - iproute
     - lens
+    - libffi
     - memory
     - mmorph
     - mtl
@@ -96,6 +97,7 @@ library:
     - unison-codebase-sqlite
     - unison-core
     - unison-core1
+    - unison-dynlib
     - unison-hash
     - unison-parser-typechecker
     - unison-prelude

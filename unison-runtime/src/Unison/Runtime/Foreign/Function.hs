@@ -177,8 +177,10 @@ import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die)
+import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
+import Unison.Runtime.Foreign.Dynamic as Dyn
 import Unison.Runtime.Foreign.Function.Type
   ( ForeignFunc (..),
     foreignFuncBuiltinName,
@@ -1155,6 +1157,24 @@ foreignCallHelper = \case
   Natural_le -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l <= r)
   Natural_gt -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l > r)
   Natural_ge -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l >= r)
+  FFI_openDLL -> mkForeignIOExn $ \(fname :: Text) ->
+    evaluate =<< openDLL (unpack fname)
+  FFI_int64 -> mkForeign \() -> pure $ I64
+  FFI_uint64 -> mkForeign \() -> pure $ U64
+  FFI_double -> mkForeign \() -> pure $ D64
+  FFI_void -> mkForeign \() -> pure $ Void
+  FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
+  FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
+  FFI_arr -> mkForeign $ \(t, FFSpec ts r) -> evaluate $ FFSpec (t : ts) r
+  FFI_getDLLSym -> mkForeignExn $ \(dll, sym, spec) ->
+    let name = getDLLPath dll ++ "$" ++ sym
+        n = length $ ffArgs spec
+     in catchLoad name do
+          df <- loadForeign dll spec sym
+          let dummyRef = Builtin . Data.Text.pack $ cName df
+              dummyCix = CIx dummyRef maxBound 0
+              comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
+          evaluate $ PApV dummyCix comb [encodeVal df]
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1180,6 +1200,30 @@ foreignCallHelper = \case
       pure $ case e of
         Left se -> Left (Util.Text.pack (show se))
         Right a -> Right a
+
+    catchLoad :: String -> IO a -> IO (Either Failure a)
+    catchLoad name act = fmap Right act `catch` io `catch` prep
+      where
+        io :: IOException -> IO (Either (F.Failure Val) a)
+        io ex =
+          pure . Left $
+            F.Failure Ty.ioFailureRef (pack $ show ex) unitValue
+
+        prep :: PrepException -> IO (Either (F.Failure Val) a)
+        prep BadVoid =
+          pure . Left $ F.Failure Ty.miscFailureRef vmsg unitValue
+        prep BadInit =
+          pure . Left $ F.Failure Ty.miscFailureRef imsg unitValue
+
+        vmsg =
+          "bad FFI signature for `"
+            <> pack name
+            <> "`: cannot combine void with other arguments"
+
+        imsg =
+          "FFI interface initialization failed for `"
+            <> pack name
+            <> "`: unknown internal failure"
 
 {-# INLINE mkHashAlgorithm #-}
 mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => Data.Text.Text -> alg -> Args -> Stack -> IO (Bool, Stack)
@@ -1234,6 +1278,22 @@ mkForeignExn f args stk =
     Right r -> do
       stk <- bump stk
       (False, stk) <$ writeBack stk r
+
+-- | This is a simple wrapper for `mkForeignExn` that adds `IOException`
+--   handling to the provided function.
+mkForeignIOExn ::
+  (ForeignConvention a, ForeignConvention r) =>
+  (a -> IO r) ->
+  Args ->
+  Stack ->
+  IO (Bool, Stack)
+mkForeignIOExn f = mkForeignExn $ tryIOE . f
+  where
+    tryIOE :: IO a -> IO (Either (F.Failure Val) a)
+    tryIOE = fmap handleIOE . UnliftIO.try
+    handleIOE :: Either IOException a -> Either (F.Failure Val) a
+    handleIOE (Left e) = Left $ F.Failure Ty.ioFailureRef (Util.Text.pack (show e)) unitValue
+    handleIOE (Right a) = Right a
 
 -- | mkForeignTls is for foreign functions that may throw TLS-specific exceptions or IOExceptions.
 --   It wraps the IO action in two layers of exception handling: first for TLS exceptions, then for IOExceptions.
@@ -2960,6 +3020,12 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   encodeVal = encodeBuiltin
   readAtIndex = readBuiltinAt
   writeBack = writeBuiltin
+
+  readsAt stk (VArg1 i) = readAtIndex stk i
+  readsAt _ args = readsAtError argname args
+    where
+      Tagged name = foreignName @b
+      argname = "one " ++ name ++ " argument"
 
 -- Replacing Functions/Data Types
 --

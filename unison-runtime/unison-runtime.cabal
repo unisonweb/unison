@@ -59,6 +59,7 @@ library
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
       Unison.Runtime.Foreign
+      Unison.Runtime.Foreign.Dynamic
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
       Unison.Runtime.Interface
@@ -139,6 +140,7 @@ library
     , inspection-testing
     , iproute
     , lens
+    , libffi
     , memory
     , mmorph
     , mtl
@@ -161,6 +163,7 @@ library
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
+    , unison-dynlib
     , unison-hash
     , unison-parser-typechecker
     , unison-prelude

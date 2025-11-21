@@ -381,6 +381,12 @@ timeSpecRef = Reference.Builtin "TimeSpec"
 hmapRef :: TypeReference
 hmapRef = Reference.Builtin "Map"
 
+ffiTypeRef, ffiSpecRef, ffiDllRef, ffiFuncRef :: TypeReference
+ffiTypeRef = Reference.Builtin "FFI.Type"
+ffiSpecRef = Reference.Builtin "FFI.Spec"
+ffiDllRef = Reference.Builtin "FFI.DLL"
+ffiFuncRef = Reference.Builtin "FFI.Func"
+
 any :: (Ord v) => a -> Type v a
 any a = ref a anyRef
 

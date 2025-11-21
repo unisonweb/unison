@@ -366,6 +366,15 @@ data ForeignFunc
   | Natural_isEven
   | Natural_isOdd
   | Universal_murmurHashUntyped
+  | FFI_openDLL
+  | FFI_int64
+  | FFI_uint64
+  | FFI_double
+  | FFI_void
+  | FFI_base
+  | FFI_baseIO
+  | FFI_arr
+  | FFI_getDLLSym
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -728,3 +737,12 @@ foreignFuncBuiltinName = \case
   Natural_isEven -> "Natural.isEven"
   Natural_isOdd -> "Natural.isOdd"
   Universal_murmurHashUntyped -> "Universal.murmurHashUntyped"
+  FFI_openDLL -> "FFI.openDLL"
+  FFI_int64 -> "FFI.int64"
+  FFI_uint64 -> "FFI.uint64"
+  FFI_double -> "FFI.double"
+  FFI_void -> "FFI.void"
+  FFI_base -> "FFI.base"
+  FFI_baseIO -> "FFI.baseIO"
+  FFI_arr -> "FFI.arr"
+  FFI_getDLLSym -> "FFI.getDLLSym"

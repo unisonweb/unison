@@ -256,7 +256,10 @@ builtinTypesSrc =
     B' "ClientSockAddr" CT.Data,
     B' "PinnedByteArray" CT.Data,
     B' "Integer" CT.Data,
-    B' "Natural" CT.Data
+    B' "Natural" CT.Data,
+    B' "FFI.Type" CT.Data,
+    B' "FFI.Spec" CT.Data,
+    B' "FFI.DLL" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -810,7 +813,20 @@ builtinsSrc =
     B "Natural.gteq" $ natural --> natural --> boolean,
     B "Natural.toFloat" $ natural --> float,
     B "Natural.isEven" $ natural --> boolean,
-    B "Natural.isOdd" $ natural --> boolean
+    B "Natural.isOdd" $ natural --> boolean,
+    B "FFI.openDLL" $ text --> ioexn dll,
+    B "FFI.int64" $ ffiType int,
+    B "FFI.uint64" $ ffiType nat,
+    B "FFI.double" $ ffiType float,
+    B "FFI.void" $ ffiType unit,
+    B "FFI.base" . forall2 "a" "b" $ \a b ->
+      ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
+    B "FFI.baseIO" . forall2 "a" "b" $ \a b ->
+      ffiType a --> ffiType b --> ffiSpec (a --> io b),
+    B "FFI.arr" . forall2 "a" "b" $ \a b ->
+      ffiType a --> ffiSpec b --> ffiSpec (a --> Type.effect () [] b),
+    B "FFI.getDLLSym" . forall1 "a" $ \a ->
+      dll --> text --> ffiSpec a --> ioexn a
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1176,6 +1192,9 @@ iof = io . eithert failure
 iot :: Type
 iot = (Type.effects () [Type.builtinIO ()])
 
+ioexn :: Type -> Type
+ioexn = Type.effect () [Type.builtinIO (), DD.exceptionType ()]
+
 failure :: Type
 failure = DD.failureType ()
 
@@ -1202,6 +1221,15 @@ iarrayt a = Type.iarrayType () `app` a
 
 marrayt :: Type -> Type -> Type
 marrayt g a = Type.marrayType () `app` g `app` a
+
+ffiType :: Type -> Type
+ffiType t = Type.ref () Type.ffiTypeRef `app` t
+
+ffiSpec :: Type -> Type
+ffiSpec t = Type.ref () Type.ffiSpecRef `app` t
+
+dll :: Type
+dll = Type.ref () Type.ffiDllRef
 
 socket, threadId, handle, phandle, unit :: Type
 socket = Type.socket ()
