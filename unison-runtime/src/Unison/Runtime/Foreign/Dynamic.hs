@@ -3,6 +3,7 @@
 module Unison.Runtime.Foreign.Dynamic where
 
 import Control.Monad (unless)
+import Control.Exception
 import Data.Tagged (Tagged (..))
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
@@ -14,7 +15,7 @@ import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign
 import Unison.Type (ffiFuncRef, ffiSpecRef, ffiTypeRef)
 
-data FFType = I64 | U64 | D64
+data FFType = I64 | U64 | D64 | Void
   deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFType where
@@ -23,6 +24,9 @@ instance BuiltinForeign FFType where
 
 -- arguments and return type
 data FFSpec = FFSpec [FFType] !FFType deriving (Eq, Ord, Show)
+
+ffArgs :: FFSpec -> [FFType]
+ffArgs (FFSpec as _) = as
 
 instance BuiltinForeign FFSpec where
   foreignName = Tagged "FFI.Spec"
@@ -52,6 +56,7 @@ encodeType :: FFType -> Ptr CType
 encodeType I64 = ffi_type_sint64
 encodeType U64 = ffi_type_uint64
 encodeType D64 = ffi_type_double
+encodeType Void = ffi_type_void
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes [] !_ = pure ()
@@ -61,22 +66,31 @@ encodeTypes (t : ts) !p = do
   where
     sz = Store.sizeOf (undefined :: Ptr CType)
 
-prepareSpec :: FFSpec -> IO CSpec
-prepareSpec (FFSpec args ret) = do
-  cInterface <- mallocForeignPtrBytes sizeOf_cif
+data PrepException = BadVoid | BadInit deriving Show
+instance Exception PrepException
 
+adjustSpec :: FFSpec -> IO FFSpec
+adjustSpec sp@(FFSpec as r)
+  | [Void] <- as = pure $ FFSpec [] r
+  | any (== Void) as = throwIO BadVoid
+  | otherwise = pure sp
+
+prepareSpec :: FFSpec -> IO CSpec
+prepareSpec spec = do
+  FFSpec args ret <- adjustSpec spec
+  let numArgs = length args
+      n = fromIntegral numArgs
+
+  cInterface <- mallocForeignPtrBytes sizeOf_cif
   withForeignPtr cInterface \cif ->
     allocaArray numArgs \argTys -> do
       let retTy = encodeType ret
       encodeTypes args argTys
       status <- ffi_prep_cif cif ffi_default_abi n retTy argTys
       unless (status == ffi_ok) $
-        error "FFI initialization error"
+        throwIO BadInit
 
   pure $ CSpec {cInterface, numArgs}
-  where
-    numArgs = length args
-    n = fromIntegral numArgs
 
 loadForeign :: DLL -> FFSpec -> String -> IO CDynFunc
 loadForeign dll fspec@(FFSpec _ r) sym =

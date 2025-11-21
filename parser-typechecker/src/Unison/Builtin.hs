@@ -817,6 +817,8 @@ builtinsSrc =
     B "FFI.openDLL" $ text --> ioexn dll,
     B "FFI.int64" $ ffiType int,
     B "FFI.uint64" $ ffiType nat,
+    B "FFI.double" $ ffiType float,
+    B "FFI.void" $ ffiType unit,
     B "FFI.base" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.baseIO" . forall2 "a" "b" $ \a b ->

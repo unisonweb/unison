@@ -496,6 +496,7 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
           DLL.I64 -> Store.peek cRet >>= pokeI stk
           DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
           DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
+          DLL.Void -> poke stk unitValue
   pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t

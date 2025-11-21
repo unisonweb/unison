@@ -1159,18 +1159,22 @@ foreignCallHelper = \case
   Natural_ge -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l >= r)
   FFI_openDLL -> mkForeignIOExn $ \(fname :: Text) ->
     evaluate =<< openDLL (unpack fname)
-  FFI_int64 -> mkForeign $ \() -> pure $ I64
-  FFI_uint64 -> mkForeign $ \() -> pure $ U64
+  FFI_int64 -> mkForeign \() -> pure $ I64
+  FFI_uint64 -> mkForeign \() -> pure $ U64
+  FFI_double -> mkForeign \() -> pure $ D64
+  FFI_void -> mkForeign \() -> pure $ Void
   FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
   FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
   FFI_arr -> mkForeign $ \(t, FFSpec ts r) -> evaluate $ FFSpec (t : ts) r
-  FFI_getDLLSym -> mkForeignIOExn $ \(dll, sym, spec) -> do
-    df <- loadForeign dll spec sym
-    let dummyRef = Builtin . Data.Text.pack $ cName df
-        dummyCix = CIx dummyRef maxBound 0
-        n = numArgs . cSpec $ df
-        comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
-    evaluate $ PApV dummyCix comb [encodeVal df]
+  FFI_getDLLSym -> mkForeignExn $ \(dll, sym, spec) ->
+    let name = getDLLPath dll ++ "$" ++ sym
+        n = length $ ffArgs spec
+    in catchLoad name do
+      df <- loadForeign dll spec sym
+      let dummyRef = Builtin . Data.Text.pack $ cName df
+          dummyCix = CIx dummyRef maxBound 0
+          comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
+      evaluate $ PApV dummyCix comb [encodeVal df]
   where
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
@@ -1196,6 +1200,30 @@ foreignCallHelper = \case
       pure $ case e of
         Left se -> Left (Util.Text.pack (show se))
         Right a -> Right a
+
+    catchLoad :: String -> IO a -> IO (Either Failure a)
+    catchLoad name act = fmap Right act `catch` io `catch` prep
+      where
+        io :: IOException -> IO (Either (F.Failure Val) a)
+        io ex =
+          pure . Left
+            $ F.Failure Ty.ioFailureRef (pack $ show ex) unitValue
+
+        prep :: PrepException -> IO (Either (F.Failure Val) a)
+        prep BadVoid =
+          pure . Left $ F.Failure Ty.miscFailureRef vmsg unitValue
+        prep BadInit =
+          pure . Left $ F.Failure Ty.miscFailureRef imsg unitValue
+
+        vmsg =
+          "bad FFI signature for `"
+            <> pack name
+            <> "`: cannot combine void with other arguments"
+
+        imsg =
+          "FFI interface initialization failed for `"
+            <> pack name
+            <> "`: unknown internal failure"
 
 {-# INLINE mkHashAlgorithm #-}
 mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => Data.Text.Text -> alg -> Args -> Stack -> IO (Bool, Stack)

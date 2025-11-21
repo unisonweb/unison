@@ -369,6 +369,8 @@ data ForeignFunc
   | FFI_openDLL
   | FFI_int64
   | FFI_uint64
+  | FFI_double
+  | FFI_void
   | FFI_base
   | FFI_baseIO
   | FFI_arr
@@ -738,6 +740,8 @@ foreignFuncBuiltinName = \case
   FFI_openDLL -> "FFI.openDLL"
   FFI_int64 -> "FFI.int64"
   FFI_uint64 -> "FFI.uint64"
+  FFI_double -> "FFI.double"
+  FFI_void -> "FFI.void"
   FFI_base -> "FFI.base"
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"
