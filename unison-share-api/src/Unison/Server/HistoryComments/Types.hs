@@ -13,8 +13,7 @@ import Codec.Serialise.Class (Serialise (..))
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Time (UTCTime)
-import Data.Word (Word64)
-import GHC.Word (Word8)
+import Data.Word (Word8)
 import Unison.Hash32 (Hash32)
 import Unison.Server.Orphans ()
 import Unison.Server.Types
@@ -58,7 +57,7 @@ data HistoryCommentRevision
     createdAt :: UTCTime,
     isHidden :: Bool,
     authorSignature :: ByteString,
-    revisionHash :: Word64
+    revisionHash :: Hash32
   }
 
 instance Serialise HistoryCommentRevision where

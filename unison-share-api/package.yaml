@@ -17,6 +17,7 @@ library:
     - bytestring
     - cborg
     - containers
+    - conduit
     - Diff
     - directory
     - errors
