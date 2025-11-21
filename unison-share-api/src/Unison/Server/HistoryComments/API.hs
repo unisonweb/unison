@@ -24,7 +24,7 @@ type UploadCommentsStream =
     :> Post '[JSON] UploadCommentsResponse
 
 data Routes mode = Routes
-  { uploadComments :: mode :- "history-comments" :> "upload" :> UploadCommentsStream,
-    downloadComments :: mode :- "history-comments" :> "download" :> DownloadCommentsStream
+  { uploadHistoryComments :: mode :- "history-comments" :> "upload" :> UploadCommentsStream,
+    downloadHistoryComments :: mode :- "history-comments" :> "download" :> DownloadCommentsStream
   }
   deriving stock (Generic)

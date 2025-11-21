@@ -15,11 +15,9 @@ import Control.Concurrent.STM.TBMQueue qualified as STM
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader (ask)
-import Control.Monad.ST (ST, stToIO)
 import Control.Monad.State
 import Data.Attoparsec.ByteString qualified as A
 import Data.Attoparsec.ByteString.Char8 qualified as A8
-import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.Attoparsec qualified as C
 import Data.Conduit.Combinators qualified as C
@@ -65,9 +63,10 @@ import Unison.Sync.Types qualified as Share
 import Unison.Sync.Types qualified as Sync
 import Unison.SyncV2.API (Routes (downloadEntitiesStream))
 import Unison.SyncV2.API qualified as SyncV2
-import Unison.SyncV2.Types (CBORBytes, CBORStream, DependencyType (..))
+import Unison.SyncV2.Types (DependencyType (..))
 import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.Servant.CBOR
 import Unison.Util.Servant.CBOR qualified as CBOR
 import Unison.Util.Timing qualified as Timing
 import UnliftIO qualified
@@ -131,7 +130,7 @@ syncFromFile shouldValidate syncFilePath = do
     runExceptT do
       mapExceptT liftIO $ Timing.time "File Sync" $ do
         header <- mapExceptT C.runResourceT $ do
-          let stream = C.sourceFile syncFilePath C..| C.ungzip C..| decodeUnframedEntities
+          let stream = C.transPipe (withExceptT cborStreamingErrorToSyncError) (C.sourceFile syncFilePath C..| C.ungzip C..| decodeUnframedEntities)
           (header, rest) <- initializeStream (setTotal progressCounters) stream
           streamIntoCodebase progressCounters shouldValidate codebase header rest
           pure header
@@ -434,54 +433,6 @@ _decodeFramedEntity bs = do
     Left err -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err
     Right chunk -> pure chunk
 
--- | Unpacks a stream of tightly-packed CBOR entities without any framing/separators.
-decodeUnframedEntities :: forall a. (CBOR.Serialise a) => Stream ByteString a
-decodeUnframedEntities = C.transPipe (mapExceptT (lift . stToIO)) $ do
-  C.await >>= \case
-    Nothing -> pure ()
-    Just bs -> do
-      d <- newDecoder
-      loop bs d
-  where
-    newDecoder :: ConduitT ByteString a (ExceptT SyncErr (ST s)) (Maybe ByteString -> ST s (CBOR.IDecode s a))
-    newDecoder = do
-      (lift . lift) CBOR.deserialiseIncremental >>= \case
-        CBOR.Done _ _ _ -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorStreamFailure "Invalid initial decoder"
-        CBOR.Fail _ _ err -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err
-        CBOR.Partial k -> pure k
-    loop :: ByteString -> (Maybe ByteString -> ST s (CBOR.IDecode s a)) -> ConduitT ByteString a (ExceptT SyncErr (ST s)) ()
-    loop bs k = do
-      (lift . lift) (k (Just bs)) >>= \case
-        CBOR.Fail _ _ err -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err
-        CBOR.Partial k' -> do
-          -- We need more input, try to get some
-          nextBS <- C.await
-          case nextBS of
-            Nothing -> do
-              -- No more input, try to finish up the decoder.
-              (lift . lift) (k' Nothing) >>= \case
-                CBOR.Done _ _ a -> C.yield a
-                CBOR.Fail _ _ err -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err
-                CBOR.Partial _ -> throwError . SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorStreamFailure "Unexpected end of input"
-            Just bs' ->
-              -- Have some input, keep going.
-              loop bs' k'
-        CBOR.Done rem _ a -> do
-          C.yield a
-          if BS.null rem
-            then do
-              -- If we had no leftovers, we can check if there's any input left.
-              C.await >>= \case
-                Nothing -> pure ()
-                Just bs'' -> do
-                  -- If we have input left, start up a new decoder.
-                  k <- newDecoder
-                  loop bs'' k
-            else do
-              -- We have leftovers, start a new decoder and use those.
-              k <- newDecoder
-              loop rem k
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Servant stuff
 
@@ -506,11 +457,14 @@ withConduit clientEnv callback clientM = do
       Left err -> pure . Left . TransportError $ (handleClientError clientEnv err)
       Right sourceT -> do
         conduit <- liftIO $ Servant.fromSourceIO sourceT
-        (runInIO . runExceptT $ callback (conduit C..| unpackCBORBytesStream))
+        (runInIO . runExceptT $ callback (conduit C..| C.transPipe (withExceptT cborStreamingErrorToSyncError) unpackCBORBytesStream))
 
-unpackCBORBytesStream :: (CBOR.Serialise a) => Stream (CBORStream a) a
-unpackCBORBytesStream =
-  C.map (BL.toStrict . coerce @_ @BL.ByteString) C..| decodeUnframedEntities
+cborStreamingErrorToSyncError :: CBOR.CBORStreamError -> SyncErr
+cborStreamingErrorToSyncError =
+  \case
+    CBORStreamDeserializationError err -> SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorDeserializationFailure err
+    CBORStreamInitializationError msg -> SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorStreamFailure msg
+    CBORStreamUnexpectedEndOfInput -> SyncError . SyncV2.PullError'Sync $ SyncV2.SyncErrorStreamFailure "Unexpected end of input"
 
 handleClientError :: Servant.ClientEnv -> Servant.ClientError -> CodeserverTransportError
 handleClientError clientEnv err =

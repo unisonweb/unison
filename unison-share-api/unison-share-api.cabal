@@ -98,6 +98,7 @@ library
     , bytes
     , bytestring
     , cborg
+    , conduit
     , containers
     , directory
     , errors
