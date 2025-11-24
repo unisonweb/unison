@@ -372,7 +372,7 @@ term = let
       ( "let-rec blocks",
         [here|
 term = let
-  x a = a && y true
+  x a = a && y false
   y b = b && x true
   x true && y true
 |]
