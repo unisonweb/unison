@@ -82,4 +82,3 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
       outMsgs <- atomically $ some $ readTBQueue q
       liftIO $ sendBinaryDatas conn outMsgs
       sendWorker triggerClose q
-
