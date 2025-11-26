@@ -123,6 +123,7 @@ library
     , servant-openapi3
     , servant-server
     , servant-websockets
+    , stm-chans
     , text
     , time
     , transformers

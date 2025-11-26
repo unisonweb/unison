@@ -7,41 +7,49 @@ module Unison.Util.Websockets
 where
 
 import Control.Applicative
+import Control.Concurrent.STM.TBMQueue
 import Control.Lens (Profunctor (..))
 import Control.Monad
 import Data.Text (Text)
-import GHC.Natural
 import Ki.Unlifted qualified as Ki
 import Network.WebSockets
 import UnliftIO
 
 -- | Allows interfacing with a websocket as a pair of bounded queues.
 data Queues i o = Queues
-  { -- Receive from the client
-    receive :: STM o,
-    -- Send to the client
-    send :: i -> STM ()
+  { -- Receive from the client. Returns Nothing if the connection is closed.
+    receive :: STM (Maybe o),
+    -- Send to the client. Returns False if the connection is closed.
+    send :: i -> STM Bool
   }
 
 instance Profunctor Queues where
   dimap f g (Queues {receive, send}) =
     Queues
-      { receive = g <$> receive,
+      { receive = fmap g <$> receive,
         send = send . f
       }
 
-withQueues :: forall i o m a. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Natural -> Natural -> Connection -> (Queues i o -> m a) -> m (Either ConnectionException a)
+withQueues :: forall i o m a. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> Int -> Connection -> (Queues i o -> m a) -> m (Either ConnectionException a)
 withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
-  receiveQ <- liftIO $ newTBQueueIO inputBuffer
-  sendQ <- liftIO $ newTBQueueIO outputBuffer
+  receiveQ <- liftIO $ newTBMQueueIO inputBuffer
+  sendQ <- liftIO $ newTBMQueueIO outputBuffer
   connectionClosedMVar <- liftIO $ newEmptyTMVarIO
-  let receive = do readTBQueue receiveQ
-  let send msg = writeTBQueue sendQ msg
+  let receive = do readTBMQueue receiveQ
+  let send msg = do
+        writeTBMQueue sendQ msg
+        isClosedTBMQueue sendQ
 
   let triggerClose :: forall n. (MonadIO n) => (Maybe ConnectionException) -> n ()
       triggerClose mayErr = do
         newlyClosed <- atomically $ do
-          tryPutTMVar connectionClosedMVar mayErr
+          newlyClosed <- tryPutTMVar connectionClosedMVar mayErr
+          when newlyClosed $ do
+            -- Close the queues to signal to workers to stop.
+            closeTBMQueue receiveQ
+            closeTBMQueue sendQ
+          pure newlyClosed
+
         when newlyClosed $ do
           -- If we closed due to a connection error, we don't need to send a close.
           -- If we're shutting down normally, we send a close message.
@@ -62,10 +70,10 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   liftIO $ triggerClose Nothing
   pure result
   where
-    recvWorker :: (Maybe ConnectionException -> m ()) -> TBQueue o -> m ()
+    recvWorker :: (Maybe ConnectionException -> m ()) -> TBMQueue o -> m ()
     recvWorker triggerClose q = UnliftIO.handle (handler triggerClose) $ do
       msg <- liftIO $ receiveData conn
-      atomically $ writeTBQueue q msg
+      atomically $ writeTBMQueue q msg
       recvWorker triggerClose q
 
     handler :: (Maybe ConnectionException -> m ()) -> ConnectionException -> m ()
@@ -76,8 +84,21 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
       -- Other cases are exceptional
       err -> triggerClose (Just err)
 
-    sendWorker :: (Maybe ConnectionException -> m ()) -> TBQueue i -> m ()
+    sendWorker :: (Maybe ConnectionException -> m ()) -> TBMQueue i -> m ()
     sendWorker triggerClose q = UnliftIO.handle (handler triggerClose) $ do
-      outMsgs <- atomically $ some $ readTBQueue q
-      liftIO $ sendBinaryDatas conn outMsgs
-      sendWorker triggerClose q
+      let flushQ = do
+            xs <- many $ do
+              readTBMQueue q >>= \case
+                Nothing -> empty
+                Just outMsg -> pure outMsg
+            isClosedTBMQueue q >>= \case
+              True -> pure (Left xs)
+              False -> do
+                pure (Right xs)
+      outMsgs <- atomically $ flushQ
+      case outMsgs of
+        Left msgs ->
+          liftIO $ sendBinaryDatas conn msgs
+        Right msgs -> do
+          liftIO $ sendBinaryDatas conn msgs
+          sendWorker triggerClose q
