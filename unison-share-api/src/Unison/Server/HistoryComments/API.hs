@@ -5,23 +5,16 @@ module Unison.Server.HistoryComments.API (api, API, Routes (..)) where
 import Data.Proxy
 import GHC.Generics (Generic)
 import Servant.API
-import Unison.Server.HistoryComments.Types
-import Unison.SyncV2.Types
-import Unison.Util.Servant.CBOR (CBOR)
+import Servant.API.WebSocket
 
 api :: Proxy API
 api = Proxy
 
 type API = NamedRoutes Routes
 
-type DownloadCommentsStream =
-  -- | The causal hash the client needs. The server should provide it and all of its dependencies
-  ReqBody '[CBOR, JSON] DownloadCommentsRequest
-    :> StreamPost NoFraming OctetStream (SourceIO (CBORStream HistoryCommentChunk))
+type DownloadCommentsStream = WebSocket
 
-type UploadCommentsStream =
-  StreamBody NoFraming OctetStream (SourceIO (CBORStream HistoryCommentChunk))
-    :> Post '[JSON] UploadCommentsResponse
+type UploadCommentsStream = WebSocket
 
 data Routes mode = Routes
   { uploadHistoryComments :: mode :- "history-comments" :> "upload" :> UploadCommentsStream,
