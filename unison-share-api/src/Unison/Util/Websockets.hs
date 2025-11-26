@@ -20,23 +20,17 @@ data Queues i o = Queues
   { -- Receive from the client
     receive :: STM o,
     -- Send to the client
-    send :: i -> STM (),
-    shutdown :: IO (),
-    -- This succeeds with a 'Just' value if the connection was closed due to an exception,
-    -- 'Nothing' if it was closed normally, or retries if the connection is still open.
-    connectionClosed :: STM (Maybe ConnectionException)
+    send :: i -> STM ()
   }
 
 instance Profunctor Queues where
-  dimap f g (Queues {receive, send, shutdown, connectionClosed}) =
+  dimap f g (Queues {receive, send}) =
     Queues
       { receive = g <$> receive,
-        send = send . f,
-        shutdown,
-        connectionClosed
+        send = send . f
       }
 
-withQueues :: forall i o m a. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Natural -> Natural -> Connection -> (Queues i o -> m a) -> m a
+withQueues :: forall i o m a. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Natural -> Natural -> Connection -> (Queues i o -> m a) -> m (Either ConnectionException a)
 withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   receiveQ <- liftIO $ newTBQueueIO inputBuffer
   sendQ <- liftIO $ newTBQueueIO outputBuffer
@@ -55,13 +49,18 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
             Nothing -> liftIO $ sendClose conn ("Server is shutting down" :: Text)
             _ -> pure ()
 
-  let queues = Queues {receive, send, shutdown = (triggerClose Nothing), connectionClosed = readTMVar connectionClosedMVar}
+  let queues = Queues {receive, send}
   _ <- Ki.fork scope $ recvWorker triggerClose receiveQ
   _ <- Ki.fork scope $ sendWorker triggerClose sendQ
-  r <- action queues
+  let waitConnectionError = atomically do
+        mayErr <- readTMVar connectionClosedMVar
+        case mayErr of
+          Nothing -> empty
+          Just err -> pure err
+  result <- race waitConnectionError (action queues)
   -- Ensure the connection is closed when done.
   liftIO $ triggerClose Nothing
-  pure r
+  pure result
   where
     recvWorker :: (Maybe ConnectionException -> m ()) -> TBQueue o -> m ()
     recvWorker triggerClose q = UnliftIO.handle (handler triggerClose) $ do
