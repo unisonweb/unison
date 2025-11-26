@@ -1,10 +1,10 @@
 module Unison.Share.HistoryComments () where
 
-import Unison.Auth.Tokens (newTokenProvider, TokenProvider)
 import Data.Proxy (Proxy)
 import Network.WebSockets qualified as WS
 import Servant.API
 import Servant.Client qualified as Servant
+import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Server.HistoryComments.API qualified as HistoryCommentsAPI
