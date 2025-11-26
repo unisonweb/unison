@@ -40,6 +40,7 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
+    - servant-websockets
     - text
     - time
     - transformers
