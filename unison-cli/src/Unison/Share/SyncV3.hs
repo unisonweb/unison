@@ -3,13 +3,13 @@ module Unison.Share.SyncV3
   )
 where
 
-import Network.Socket (withSocketsDo)
 import Control.Arrow ((&&&))
 import Control.Monad.Reader
 import Data.Set qualified as Set
 import Data.Text.Encoding as Text
 import GHC.Natural
 import Ki qualified
+import Network.Socket (withSocketsDo)
 import Network.WebSockets qualified as WS
 import U.Codebase.HashTags
 import U.Codebase.Sqlite.DbId
@@ -137,7 +137,7 @@ doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, r
   Debug.debugLogM Debug.Temp "Awaiting completion"
   result <-
     atomically $
-        (Right <$> finished)
+      (Right <$> finished)
         <|> (Right <$> Ki.awaitAll scope)
         <|> (Left . Left <$> readTMVar errorVar)
         <|> (Left . Right <$> connectionClosed)
