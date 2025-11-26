@@ -17,6 +17,7 @@ import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Hash (Hash)
 import Unison.Hashable qualified as Hashable
+import Unison.Merge.Diffblob qualified as Diffblob
 import Unison.Merge.Synhash (hashBuiltinTermTokens, hashDerivedTermTokens)
 import Unison.Name (Name)
 import Unison.Names qualified as Names
@@ -33,7 +34,9 @@ handleDebugSynhashTerm :: Name -> Cli ()
 handleDebugSynhashTerm name = do
   namespace <- Cli.getCurrentBranch0
   let names = Branch.toNames namespace
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+  let pped =
+        let names1 = Diffblob.canonicalizeNamesForSynhashing names
+         in PPED.makePPED (PPE.namer names1) (PPE.suffixifyByHash names1)
 
   for_ (Names.refTermsNamed names name) \ref -> do
     maybeTokens <-

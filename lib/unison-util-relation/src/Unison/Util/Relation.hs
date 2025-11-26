@@ -715,9 +715,17 @@ mapRanMonotonic f Relation {domain, range} =
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList
 
-fromMultimap :: (Ord a, Ord b) => Map a (Set b) -> Relation a b
-fromMultimap m =
-  foldl' (\r (a, bs) -> insertManyRan a bs r) empty $ Map.toList m
+fromMultimap :: forall a b. (Ord a, Ord b) => Map a (Set b) -> Relation a b
+fromMultimap domain =
+  Relation {domain, range}
+  where
+    range :: Map b (Set a)
+    range =
+      Map.foldlWithKey' step Map.empty domain
+
+    step :: Map b (Set a) -> a -> Set b -> Map b (Set a)
+    step acc a bs =
+      Map.unionWith Set.union (Map.fromSet (const (Set.singleton a)) bs) acc
 
 toMultimap :: Relation a b -> Map a (Set b)
 toMultimap = domain
