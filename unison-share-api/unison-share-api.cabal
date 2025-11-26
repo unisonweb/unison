@@ -55,6 +55,7 @@ library
       Unison.SyncV2.Types
       Unison.Util.Find
       Unison.Util.Servant.CBOR
+      Unison.Util.Websockets
   hs-source-dirs:
       src
   default-extensions:
@@ -108,6 +109,7 @@ library
     , hs-mcp
     , http-media
     , http-types
+    , ki-unlifted
     , lens
     , lucid
     , memory
@@ -148,6 +150,7 @@ library
     , wai
     , wai-cors
     , warp
+    , websockets
     , yaml
   default-language: Haskell2010
 
