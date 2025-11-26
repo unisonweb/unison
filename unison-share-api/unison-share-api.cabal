@@ -114,6 +114,7 @@ library
     , lucid
     , memory
     , mtl
+    , network
     , nonempty-containers
     , openapi3
     , regex-tdfa
@@ -153,6 +154,7 @@ library
     , wai-cors
     , warp
     , websockets
+    , wuss
     , yaml
   default-language: Haskell2010
 
