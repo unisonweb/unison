@@ -25,7 +25,10 @@ data DownloadCommentsRequest = DownloadCommentsRequest
     since :: UTCTime
   }
 
-data UploadCommentsResponse = UploadCommentsResponse
+data UploadCommentsResponse
+  = UploadCommentsProjectBranchNotFound BranchRef
+  | UploadCommentsNotAuthorized BranchRef
+  | UploadCommentsGenericFailure Text
 
 data HistoryComment = HistoryComment
   { author :: Text,
