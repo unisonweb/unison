@@ -3,6 +3,7 @@
 module Unison.Util.Websockets
   ( withQueues,
     Queues (..),
+    withCodeserverWebsocket,
   )
 where
 
@@ -10,10 +11,15 @@ import Control.Applicative
 import Control.Concurrent.STM.TBMQueue
 import Control.Lens (Profunctor (..))
 import Control.Monad
-import Data.Text (Text)
+import Data.Text.Encoding qualified as Text
 import Ki.Unlifted qualified as Ki
+import Network.Socket
 import Network.WebSockets
+import Network.WebSockets qualified as WS
+import Unison.Prelude
+import Unison.Share.Types
 import UnliftIO
+import Wuss qualified
 
 -- | Allows interfacing with a websocket as a pair of bounded queues.
 data Queues i o = Queues
@@ -102,3 +108,28 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
         Right msgs -> do
           liftIO $ sendBinaryDatas conn msgs
           sendWorker triggerClose q
+
+-- | Connect a websocket to the codeserver at the given URI.
+-- The action will be called with a 'Queues' to send and receive messages,
+-- when the action completes, the websocket connection will be closed.
+withCodeserverWebsocket :: (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException r)
+withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath action = do
+  let host = codeserverRegName codeserver
+  let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
+  headers <-
+    (liftIO (tokenProvider (codeserverIdFromCodeserverURI codeserver))) <&> \case
+      Left {} -> []
+      Right token -> [("Authorization", "Bearer " <> Text.encodeUtf8 token)]
+  let wsRunner = case codeserverScheme codeserver of
+        Https ->
+          let tlsPort = 443
+              port = maybe tlsPort fromIntegral $ (codeserverPort) codeserver
+           in Wuss.runSecureClientWith host port
+        Http ->
+          let tlsPort = 443 :: Int
+              port = maybe tlsPort id $ (codeserverPort) codeserver
+           in WS.runClientWith host port
+  toIO <- askRunInIO
+  liftIO $ withSocketsDo $ (wsRunner codeserverPath connectionOptions headers) \conn -> do
+    withQueues msgBufferSize msgBufferSize conn $ \queues -> do
+      toIO $ action queues

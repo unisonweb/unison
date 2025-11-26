@@ -32,6 +32,7 @@ library:
     - lucid
     - memory
     - mtl
+    - network
     - nonempty-containers
     - openapi3
     - regex-tdfa
@@ -71,6 +72,7 @@ library:
     - websockets
     - wai-cors
     - warp
+    - wuss
     - yaml
 
 tests:
