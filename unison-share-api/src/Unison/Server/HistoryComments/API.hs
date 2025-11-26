@@ -6,7 +6,7 @@ import Data.Proxy
 import GHC.Generics (Generic)
 import Servant.API
 import Servant.API.WebSocket
-import Unison.Server.Types (RequiredQueryParam, BranchRef)
+import Unison.Server.Types (BranchRef, RequiredQueryParam)
 
 api :: Proxy API
 api = Proxy
