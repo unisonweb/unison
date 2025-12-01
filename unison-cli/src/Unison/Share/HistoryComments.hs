@@ -1,201 +1,49 @@
-module Unison.Share.HistoryComments () where
+module Unison.Share.HistoryComments (uploadCommentsClient) where
 
-import Unison.Auth.Tokens (newTokenProvider, TokenProvider)
-import Data.Proxy (Proxy)
+import Control.Monad.Reader
+import Data.Proxy (Proxy (..))
+import Data.Text qualified as Text
 import Network.WebSockets qualified as WS
 import Servant.API
 import Servant.Client qualified as Servant
+import Unison.Auth.Tokens (TokenProvider, newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Server.HistoryComments.API qualified as HistoryCommentsAPI
+import Unison.Server.HistoryComments.Types
 import Unison.Server.Types
 import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Util.Websockets
 
 type HistoryCommentsAPI = ("ucm" :> "v1" :> "history-comments" :> HistoryCommentsAPI.API)
 
 historyCommentsAPI :: Proxy HistoryCommentsAPI
 historyCommentsAPI = Proxy @HistoryCommentsAPI
 
-downloadCommentsClientM :: BranchRef -> WS.Connection -> Servant.ClientM ()
-uploadCommentsClientM :: BranchRef -> WS.Connection -> Servant.ClientM ()
-HistoryCommentsAPI.Routes
-  { uploadHistoryComments = downloadCommentsClientM,
-    downloadHistoryComments = uploadCommentsClientM
-  } = Servant.client historyCommentsAPI
+-- downloadCommentsClientM :: BranchRef -> WS.Connection -> Servant.ClientM ()
+-- uploadCommentsClientM :: BranchRef -> WS.Connection -> Servant.ClientM ()
+-- HistoryCommentsAPI.Routes
+--   { uploadHistoryComments = downloadCommentsClientM,
+--     downloadHistoryComments = uploadCommentsClientM
+--   } = Servant.client historyCommentsAPI
 
-uploadHistoryCommentsImpl ::
+msgBufferSize :: Int
+msgBufferSize = 100
+
+uploadCommentsClient ::
   -- | The Unison Share URL.
   Codeserver.CodeserverURI ->
   -- | The branch to download from.
   BranchRef ->
   Cli ()
-uploadHistoryCommentsImpl codeserver branchRef = do
+uploadCommentsClient codeserver branchRef = do
   Cli.Env {codebase, credentialManager} <- ask
-  let host = Codeserver.codeserverRegName codeserver
-  let syncV3Path = "/ucm/v1/history-comments/upload"
+  let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam branchRef)
   -- Enable compression
-  let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
-  let tokenProvider = Creds.newTokenProvider credentialManager
-  headers <-
-    (liftIO (tokenProvider (codeserverIdFromCodeserverURI codeserver))) <&> \case
-      Left {} -> []
-      Right token -> [("Authorization", "Bearer " <> Text.encodeUtf8 token)]
-  let runner = case Codeserver.codeserverScheme codeserver of
-        Codeserver.Https ->
-          let tlsPort = 443
-              port = maybe tlsPort fromIntegral $ (Codeserver.codeserverPort) codeserver
-           in Wuss.runSecureClientWith host port
-        Codeserver.Http ->
-          let tlsPort = 443 :: Int
-              port = maybe tlsPort id $ (Codeserver.codeserverPort) codeserver
-           in WS.runClientWith host port
-  Debug.debugLogM Debug.Temp "Obtaining Connection"
-  liftIO $ withSocketsDo $ (runner syncV3Path connectionOptions headers) \conn -> do
-    Debug.debugLogM Debug.Temp "Obtained Connection"
-    withQueues inputBuffer outputBuffer conn $ \queues@Queues {send} -> do
-      Debug.debugLogM Debug.Temp "Obtained Queues"
-      let initMsg =
-            InitMsg
-              { initMsgClientVersion = syncV3ClientVersion,
-                initMsgBranchRef = branchRef,
-                initMsgRootCausal = hashJwt,
-                initMsgRequestedDepth = Nothing
-              }
-      Debug.debugLogM Debug.Temp "Sending init message"
-      atomically $ send $ Msg $ ReceiverInitStream initMsg
-      Debug.debugLogM Debug.Temp "Init message sent"
-      pendingRequestsVar <- newTVarIO (Set.singleton (CausalEntity, rootCausalHash))
-      yetToRequestVar <- newTVarIO Set.empty
-      toIngestQueue <- newTBQueueIO transactionBatchSize
-      let initState =
-            SyncState
-              { pendingRequestsVar,
-                yetToRequestVar,
-                toIngestQueue,
-                rootCausalHash
-              }
+  let tokenProvider = newTokenProvider credentialManager
+  result <- liftIO $ withCodeserverWebsocket @IO @HistoryCommentChunk @() msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> do
+    error "Send comments"
 
-      liftIO (doSync codebase initState queues) >>= \case
-        -- TODO: proper error handling
-        Left err -> error $ show err
-        Right () -> pure ()
-      Debug.debugLogM Debug.Temp "!Done sync, flushing temp entities"
-      causalId <- liftIO $ flushTemp codebase (Share.hashJWTHash hashJwt)
-      pure $ Right (Sync.hash32ToCausalHash rootCausalHash, causalId)
-
-data SyncState = SyncState
-  { pendingRequestsVar :: TVar (Set (EntityKind, Hash32)),
-    yetToRequestVar :: TVar (Set (EntityKind, Hash32)),
-    toIngestQueue :: TBQueue (Entity Hash32 Text),
-    rootCausalHash :: Hash32
-  }
-
--- | Given a stream that's already been initialized, receive entities and issue requests as needed.
-doSync :: Codebase IO v a -> SyncState -> Queues (MsgOrError SyncError (FromReceiverMessage Share.HashJWT Hash32)) (MsgOrError SyncError (FromEmitterMessage Hash32 Text)) -> IO (Either SyncError ())
-doSync codebase SyncState {pendingRequestsVar, yetToRequestVar, toIngestQueue, rootCausalHash} (Queues {send, receive, shutdown, connectionClosed}) = Ki.scoped \scope -> do
-  errorVar <- newEmptyTMVarIO
-  let onErr err = do
-        atomically $ putTMVar errorVar err
-        shutdown
-  _ <- Ki.fork scope (receiverWorker onErr)
-  _ <- Ki.fork scope (requesterWorker onErr)
-  _ <- Ki.fork scope (ingestionWorker onErr)
-  let finished = do
-        pending <- readTVar pendingRequestsVar
-        yetToReq <- readTVar yetToRequestVar
-        guard $ Set.null pending && Set.null yetToReq
-
-  Debug.debugLogM Debug.Temp "Awaiting completion"
-  result <-
-    atomically $
-      (Right <$> finished)
-        <|> (Right <$> Ki.awaitAll scope)
-        <|> (Left . Left <$> readTMVar errorVar)
-        <|> (Left . Right <$> connectionClosed)
-
-  Debug.debugM Debug.Temp "End result" result
   case result of
-    Left (Left syncErr) -> pure $ Left syncErr
-    Left (Right mayConnErr) -> case mayConnErr of
-      Nothing -> pure $ Right ()
-      Just connErr -> pure $ Left $ ConnectionError (tShow connErr)
-    Right () -> pure $ Right ()
-  where
-    receiverWorker :: (SyncError -> IO ()) -> IO ()
-    receiverWorker onErr = do
-      Debug.debugLogM Debug.Temp "Receiver waiting for message"
-      atomically receive >>= \case
-        Msg (EmitterEntityMsg entity) -> do
-          atomically $ do
-            writeTBQueue toIngestQueue entity
-          receiverWorker onErr
-        Err err -> onErr err
-    requesterWorker :: (SyncError -> IO ()) -> IO ()
-    requesterWorker _onErr = forever do
-      Debug.debugLogM Debug.Temp "Requester waiting to send requests"
-      atomically $ do
-        requests <- readTVar yetToRequestVar
-        guard $ not (Set.null requests)
-        writeTVar yetToRequestVar Set.empty
-        modifyTVar' pendingRequestsVar (Set.union requests)
-        send $ Msg $ ReceiverEntityRequest $ EntityRequestMsg (Set.toList requests)
-
-    ingestionWorker :: (SyncError -> IO ()) -> IO ()
-    ingestionWorker _onErr = forever do
-      Debug.debugLogM Debug.Temp "Ingestion waiting for entities"
-      newEntities <- atomically $ do
-        flushTBQueue toIngestQueue
-      Codebase.runTransaction codebase $ do
-        -- TODO: do hash validation based on shouldValidate
-        for_ newEntities $ \(Entity {entityKind, entityHash, entityDepth, entityData = CBOR.CBORBytes entityBytes}) -> do
-          Q.insertTempEntitySyncV3 rootCausalHash (tShow entityKind) entityHash (unEntityDepth entityDepth) entityBytes
-
-      tempEntities <- case for newEntities (CBOR.deserialiseOrFailCBORBytes . entityData) of
-        -- TODO: proper error handling
-        Left err -> error $ show err
-        Right tempEntities -> pure tempEntities
-      let allDeps = foldMap tempEntityDependencies tempEntities
-      -- TODO: double-check whether it's okay to have this as a separate atomic block.
-      alreadyRequestedEntities <- atomically $ do
-        pending <- readTVar pendingRequestsVar
-        reqs <- readTVar yetToRequestVar
-        pure $ Set.union pending reqs
-      let unrequestedDeps = Set.difference allDeps alreadyRequestedEntities
-      missingDeps <-
-        (Set.toList unrequestedDeps) & filterA \(_depKind, depHash) -> do
-          Codebase.runTransaction codebase (Q.entityLocationSyncV3 depHash) <&> \case
-            Nothing -> True
-            _ -> False
-      let newlyInserted =
-            newEntities
-              <&> (entityKind &&& entityHash)
-              & Set.fromList
-      -- Request any deps we're missing which also haven't already been requested
-      atomically $ do
-        pending <- readTVar pendingRequestsVar
-        let missingDepsSet = Set.fromList missingDeps
-        let unRequestedDeps = Set.difference missingDepsSet pending
-        modifyTVar' yetToRequestVar (Set.union unRequestedDeps)
-        modifyTVar' pendingRequestsVar (\pending -> Set.difference pending newlyInserted)
-
-flushTemp :: Codebase IO v a -> Hash32 -> IO CausalHashId
-flushTemp codebase rootCausalHash = do
-  Codebase.runTransaction codebase $ do
-    Q.streamTempEntitiesSyncV3 rootCausalHash \next ->
-      do
-        let loop = do
-              next >>= \case
-                Nothing -> pure ()
-                Just (hash, tempEntityBytes) ->
-                  do
-                    Debug.debugLogM Debug.Temp $ "Flushing temp entity: " <> show hash
-                    tempEntity <- case CBOR.deserialiseOrFailCBORBytes (CBOR.CBORBytes tempEntityBytes) of
-                      -- TODO: proper error handling
-                      Left err -> error $ show err
-                      Right tempEntity -> pure tempEntity
-                    Debug.debugLogM Debug.Temp $ "Saving in main" <> show hash
-                    void $ Q.saveTempEntityInMain v2HashHandle hash tempEntity
-                    loop
-        loop
-    Debug.debugLogM Debug.Temp "Flushed temp entities, getting causal hash id"
-    Q.expectCausalHashIdByCausalHash (Sync.hash32ToCausalHash rootCausalHash)
+    Left _err -> error "handle err"
+    Right () -> pure ()

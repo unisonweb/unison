@@ -1,4 +1,6 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Unison.Util.Websockets
   ( withQueues,
@@ -112,7 +114,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
 -- | Connect a websocket to the codeserver at the given URI.
 -- The action will be called with a 'Queues' to send and receive messages,
 -- when the action completes, the websocket connection will be closed.
-withCodeserverWebsocket :: (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException r)
+withCodeserverWebsocket :: forall m i o r e. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException r)
 withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath action = do
   let host = codeserverRegName codeserver
   let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
