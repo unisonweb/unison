@@ -2,7 +2,9 @@ module Unison.Share.HistoryComments (uploadCommentsClient) where
 
 import Control.Monad.Reader
 import Data.Proxy (Proxy (..))
+import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Void
 import Network.WebSockets qualified as WS
 import Servant.API
 import Servant.Client qualified as Servant
@@ -41,7 +43,7 @@ uploadCommentsClient codeserver branchRef = do
   let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam branchRef)
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
-  result <- liftIO $ withCodeserverWebsocket @IO @HistoryCommentChunk @() msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> do
+  result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentChunk) @Text msgBufferSize codeserver tokenProvider path \Queues {send} -> do
     error "Send comments"
 
   case result of

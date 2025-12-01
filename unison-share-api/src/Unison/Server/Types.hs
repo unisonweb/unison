@@ -907,7 +907,7 @@ instance FromJSON TermOrTypeTag where
       Right tag -> pure tag
 
 newtype BranchRef = BranchRef {unBranchRef :: Text}
-  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON) via Text
+  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON, ToHttpApiData) via Text
 
 instance From (ProjectAndBranch ProjectName ProjectBranchName) BranchRef where
   from pab = BranchRef $ from pab
