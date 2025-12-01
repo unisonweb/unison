@@ -5,6 +5,7 @@
 module Unison.Util.Websockets
   ( withQueues,
     Queues (..),
+    MsgOrError (..),
     withCodeserverWebsocket,
   )
 where
