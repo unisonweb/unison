@@ -7,7 +7,7 @@
 nested.cycle.ping n = n Nat.+ pong n
 
 {{ pong doc }}
-nested.cycle.pong n = n Nat.+ ping n
+nested.cycle.pong n = n Nat.+ ping n + 1
 
 toplevel = "hi"
 
@@ -80,7 +80,7 @@ nested.cycle.ping.doc = {{ ping doc }}
 nested.cycle.pong : Nat -> Nat
 nested.cycle.pong n =
   use Nat +
-  n + nested.cycle.ping n
+  n + nested.cycle.ping n + 1
 
 nested.cycle.pong.doc : Doc2
 nested.cycle.pong.doc = {{ pong doc }}
@@ -120,7 +120,7 @@ nested.cycle.ping.doc = {{ ping doc }}
 nested.cycle.pong : Nat -> Nat
 nested.cycle.pong n =
   use Nat +
-  n + nested.cycle.ping n
+  n + nested.cycle.ping n + 1
 
 nested.cycle.pong.doc : Doc2
 nested.cycle.pong.doc = {{ pong doc }}

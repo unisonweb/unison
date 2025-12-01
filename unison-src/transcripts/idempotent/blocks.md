@@ -240,7 +240,7 @@ structural ability SpaceAttack where
 
 ex n =
   zap1 planet = launchMissiles planet + zap2 planet
-  zap2 planet = launchMissiles planet + zap1 planet
+  zap2 planet = launchMissiles planet + zap1 planet + 1
   zap1 "pluto"
 ```
 
