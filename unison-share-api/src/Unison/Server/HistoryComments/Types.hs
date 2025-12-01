@@ -59,17 +59,20 @@ data HistoryCommentRevision = HistoryCommentRevision
     createdAt :: UTCTime,
     isHidden :: Bool,
     authorSignature :: ByteString,
-    revisionHash :: Hash32
+    revisionHash :: Hash32,
+    commentHash :: Hash32
   }
 
 instance Serialise HistoryCommentRevision where
-  encode (HistoryCommentRevision {subject, content, createdAt, isHidden, authorSignature, revisionHash}) =
+  encode (HistoryCommentRevision {subject, content, createdAt, isHidden, authorSignature, revisionHash, commentHash}) =
     encode subject
       <> encode content
       <> encode createdAt
       <> encode isHidden
       <> encode authorSignature
       <> encode revisionHash
+      <> encode commentHash
+
   decode = do
     subject <- decode
     content <- decode
@@ -77,7 +80,8 @@ instance Serialise HistoryCommentRevision where
     isHidden <- decode
     authorSignature <- decode
     revisionHash <- decode
-    pure HistoryCommentRevision {subject, content, createdAt, isHidden, authorSignature, revisionHash}
+    commentHash <- decode
+    pure HistoryCommentRevision {subject, content, createdAt, isHidden, authorSignature, revisionHash, commentHash}
 
 data HistoryCommentChunk
   = HistoryCommentChunk HistoryComment

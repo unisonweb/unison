@@ -104,7 +104,6 @@ library:
     - vector
     - wai
     - warp
-    - websockets
     - witch
     - witherable
 

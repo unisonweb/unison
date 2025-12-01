@@ -240,6 +240,8 @@ module U.Codebase.Sqlite.Queries
     -- * History Comments
     commentOnCausal,
     getLatestCausalComment,
+    streamHistoryCommentsForCausal,
+    expectHistoryCommentById,
 
     -- * migrations
     runCreateSql,
@@ -4211,6 +4213,51 @@ getLatestCausalComment causalHashId =
               }
         }
 
+expectHistoryCommentById ::
+  HistoryCommentId ->
+  Transaction (HistoryComment Time.UTCTime KeyThumbprint Hash32 Hash32, [HistoryCommentRevision Hash32 Time.UTCTime Hash32])
+expectHistoryCommentById commentId = do
+  comment <-
+    queryOneRow @(Hash32, Hash32, Text, Text, Int64)
+      [sql|
+      SELECT comment_hash.base32, causal_hash.base32, cc.author, kt.thumbprint, cc.created_at_ms
+        FROM history_comments AS cc
+        JOIN hash AS comment_hash ON comment_hash.id = cc.comment_hash_id
+        JOIN hash AS causal_hash ON causal_hash.id = cc.causal_hash_id
+        JOIN key_thumbprints AS kt ON kt.id = cc.author_thumbprint_id
+        WHERE cc.id = :commentId
+    |]
+      <&> \(commentHash, causalHash, author, authorThumbprint, createdAtMs) ->
+        HistoryComment
+          { author,
+            authorThumbprint = KeyThumbprint authorThumbprint,
+            causal = causalHash,
+            createdAt = millisToUTCTime createdAtMs,
+            commentId = commentHash
+          }
+  revisions <-
+    queryListRow
+      @(Hash32, Text, Text, Bool, ByteString, Int64)
+      [sql|
+      SELECT ccrh.base32, ccr.subject, ccr.contents, ccr.hidden, ccr.author_signature, ccr.created_at_ms
+        FROM history_comment_revisions AS ccr
+        JOIN hash AS ccrh ON ccrh.id = ccr.revision_hash_id
+        WHERE ccr.comment_id = :commentId
+        ORDER BY ccr.created_at_ms ASC
+        |]
+      <&> fmap \(revisionHash, subject, content, isHidden, authorSignature, createdAtMs) ->
+        HistoryCommentRevision
+          { subject,
+            content,
+            createdAt = millisToUTCTime createdAtMs,
+            revisionId = revisionHash,
+            isHidden,
+            authorSignature,
+            comment = comment.commentId
+          }
+
+  pure (comment, revisions)
+
 commentOnCausal :: LatestHistoryComment KeyThumbprint CausalHashId HistoryCommentRevisionHash HistoryCommentHash -> Transaction ()
 commentOnCausal
   HistoryCommentRevision
@@ -4297,3 +4344,20 @@ ensurePersonalKeyThumbprintId thumbprint = do
           VALUES (:thumbprintText)
           RETURNING id
         |]
+
+-- | Stream all the history comments in the history of a branch.
+streamHistoryCommentsForCausal :: CausalHashId -> (Transaction (Maybe HistoryCommentId) -> Transaction r) -> Transaction r
+streamHistoryCommentsForCausal rootCHID action = do
+  queryStreamCol
+    [sql|
+    WITH RECURSIVE branch_history(causal_hash_id) AS(
+      SELECT :rootCHID
+      UNION ALL
+      SELECT cp.causal_id
+        FROM causal_parent cp
+        JOIN branch_history bh ON cp.parent_causal_id = bh.causal_hash_id
+    ) SELECT hc.id
+        FROM branch_history bh
+        JOIN history_comments hc ON hc.causal_hash_id = bh.causal_hash_id
+    |]
+    action

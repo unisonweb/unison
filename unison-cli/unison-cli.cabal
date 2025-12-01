@@ -304,7 +304,6 @@ library
     , vector
     , wai
     , warp
-    , websockets
     , witch
     , witherable
   default-language: Haskell2010
