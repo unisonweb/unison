@@ -135,3 +135,50 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
   liftIO $ withSocketsDo $ (wsRunner codeserverPath connectionOptions headers) \conn -> do
     withQueues msgBufferSize msgBufferSize conn $ \queues -> do
       toIO $ action queues
+
+-- | Type used for websocket messages that can either be a message or an error.
+data MsgOrError err a
+  = Msg a
+  | Err err
+  deriving (Show, Eq, Ord)
+
+-- | Roundtrip test:
+-- >>> import qualified Codec.Serialise as CBOR
+-- >>> CBOR.deserialise (CBOR.serialise (Msg "test" :: MsgOrError Text Text)) == Msg "test"
+-- True
+-- >>> CBOR.deserialise (CBOR.serialise (Err "error" :: MsgOrError Text Text)) == Err "error"
+-- True
+instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError err a) where
+  encode = \case
+    Msg a -> CBOR.encode (0 :: Int) <> CBOR.encode a
+    Err e -> CBOR.encode (1 :: Int) <> CBOR.encode e
+
+  decode = do
+    tag <- CBOR.decode @Int
+    case tag of
+      0 -> Msg <$> CBOR.decode
+      1 -> Err <$> CBOR.decode
+      _ -> fail $ "Unknown MsgOrError tag: " <> show tag
+
+-- | Roundtrip test:
+-- >>> import qualified Network.WebSockets as WS
+-- >>> let msgVal = Msg "test" :: MsgOrError SyncError Text
+-- >>> WS.fromLazyByteString (WS.toLazyByteString msgVal) == msgVal
+-- True
+-- >>> let errVal = Err (InitializationError "init error") :: MsgOrError SyncError Text
+-- >>> WS.fromLazyByteString (WS.toLazyByteString errVal) == errVal
+-- True
+-- >>> let dataMsg = WS.Binary (WS.toLazyByteString msgVal)
+-- >>> WS.fromDataMessage dataMsg == msgVal
+-- True
+instance (Serialise msg) => WebSocketsData (MsgOrError (Either DeserialiseFailure e) msg) where
+  fromLazyByteString bytes =
+    CBOR.deserialiseOrFail bytes
+      & either (\err -> Err . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) id
+
+  toLazyByteString = CBOR.serialise
+
+  fromDataMessage dm = do
+    case dm of
+      WS.Text bytes _ -> WS.fromLazyByteString bytes
+      WS.Binary bytes -> WS.fromLazyByteString bytes

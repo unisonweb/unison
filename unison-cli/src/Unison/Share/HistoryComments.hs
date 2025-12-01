@@ -3,6 +3,8 @@ module Unison.Share.HistoryComments (uploadCommentsClient) where
 import Control.Monad.Reader
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
+import Unison.Auth.Tokens (newTokenProvider, TokenProvider)
+import Data.Proxy (Proxy)
 import Network.WebSockets qualified as WS
 import Servant.API
 import Servant.Client qualified as Servant
