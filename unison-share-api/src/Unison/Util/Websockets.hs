@@ -9,10 +9,12 @@ module Unison.Util.Websockets
   )
 where
 
+import Codec.Serialise qualified as CBOR
 import Control.Applicative
 import Control.Concurrent.STM.TBMQueue
 import Control.Lens (Profunctor (..))
 import Control.Monad
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Ki.Unlifted qualified as Ki
 import Network.Socket
@@ -139,7 +141,8 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
 -- | Type used for websocket messages that can either be a message or an error.
 data MsgOrError err a
   = Msg a
-  | Err err
+  | UserErr err
+  | DeserialiseFailure Text
   deriving (Show, Eq, Ord)
 
 -- | Roundtrip test:
@@ -151,30 +154,37 @@ data MsgOrError err a
 instance (CBOR.Serialise a, CBOR.Serialise err) => CBOR.Serialise (MsgOrError err a) where
   encode = \case
     Msg a -> CBOR.encode (0 :: Int) <> CBOR.encode a
-    Err e -> CBOR.encode (1 :: Int) <> CBOR.encode e
+    UserErr e -> CBOR.encode (1 :: Int) <> CBOR.encode e
+    DeserialiseFailure msg -> CBOR.encode (2 :: Int) <> CBOR.encode msg
 
   decode = do
     tag <- CBOR.decode @Int
     case tag of
       0 -> Msg <$> CBOR.decode
-      1 -> Err <$> CBOR.decode
+      1 -> UserErr <$> CBOR.decode
+      2 -> DeserialiseFailure <$> CBOR.decode
       _ -> fail $ "Unknown MsgOrError tag: " <> show tag
 
 -- | Roundtrip test:
 -- >>> import qualified Network.WebSockets as WS
--- >>> let msgVal = Msg "test" :: MsgOrError SyncError Text
+-- >>> let msgVal = Msg "test" :: MsgOrError Text Text
 -- >>> WS.fromLazyByteString (WS.toLazyByteString msgVal) == msgVal
 -- True
--- >>> let errVal = Err (InitializationError "init error") :: MsgOrError SyncError Text
+-- >>> let errVal = UserErr "whoops" :: MsgOrError Text Text
+-- >>> WS.fromLazyByteString (WS.toLazyByteString errVal) == errVal
+-- True
+--
+-- >>> let errVal = DeserialiseFailure "whoops" :: MsgOrError Text Text
 -- >>> WS.fromLazyByteString (WS.toLazyByteString errVal) == errVal
 -- True
 -- >>> let dataMsg = WS.Binary (WS.toLazyByteString msgVal)
 -- >>> WS.fromDataMessage dataMsg == msgVal
 -- True
-instance (Serialise msg) => WebSocketsData (MsgOrError (Either DeserialiseFailure e) msg) where
+instance (CBOR.Serialise msg, CBOR.Serialise e) => WebSocketsData (MsgOrError e msg) where
   fromLazyByteString bytes =
-    CBOR.deserialiseOrFail bytes
-      & either (\err -> Err . EncodingFailure $ "Error decoding CBOR message from bytes: " <> tShow err) id
+    case CBOR.deserialiseOrFail bytes of
+      Left err -> DeserialiseFailure (Text.pack (show err))
+      Right msg -> msg
 
   toLazyByteString = CBOR.serialise
 
