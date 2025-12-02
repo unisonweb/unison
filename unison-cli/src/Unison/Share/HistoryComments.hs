@@ -2,7 +2,6 @@ module Unison.Share.HistoryComments (uploadCommentsClient) where
 
 import Control.Monad.Reader
 import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
 import Data.Void
 import Servant.API
 import U.Codebase.Sqlite.DbId (CausalHashId)
@@ -83,7 +82,7 @@ uploadCommentsClient rootCausalHashId codeserver branchRef = do
             Share.HistoryComment
               { author,
                 createdAt,
-                authorThumbprint = Text.encodeUtf8 authorThumbprint,
+                authorThumbprint,
                 Share.causalHash = causal,
                 commentHash
               }
