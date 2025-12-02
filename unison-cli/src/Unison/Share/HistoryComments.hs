@@ -1,15 +1,17 @@
-module Unison.Share.HistoryComments (uploadCommentsClient) where
+module Unison.Share.HistoryComments (uploadHistoryComments) where
 
 import Control.Monad.Reader
 import Data.Text qualified as Text
 import Data.Void
 import Servant.API
-import U.Codebase.Sqlite.DbId (CausalHashId)
+import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.Tokens (newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Hash32 (Hash32)
+import Unison.Hash32 qualified as Hash32
 import Unison.HistoryComment qualified as HC
 import Unison.KeyThumbprint (KeyThumbprint (KeyThumbprint))
 import Unison.Prelude
@@ -34,35 +36,37 @@ import UnliftIO.STM
 msgBufferSize :: Int
 msgBufferSize = 20
 
-uploadCommentsClient ::
+uploadHistoryComments ::
   -- | The local branch causal to upload comments for.
-  CausalHashId ->
+  Hash32 ->
   -- | The Unison Share URL.
   Codeserver.CodeserverURI ->
   -- | The remote branch to upload for.
   BranchRef ->
   Cli ()
-uploadCommentsClient rootCausalHashId codeserver branchRef = do
+uploadHistoryComments rootCausalHash32 codeserver branchRef = do
   Cli.Env {codebase, credentialManager} <- ask
   let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam branchRef)
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
   result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentChunk) @Text msgBufferSize codeserver tokenProvider path \Queues {send} -> do
-    Codebase.runTransaction codebase $ Q.streamHistoryCommentsForCausal rootCausalHashId \getCommentId -> do
-      let loop = do
-            result <- runMaybeT $ do
-              commentId <- MaybeT $ getCommentId
-              (comment, revisions) <- lift $ Q.expectHistoryCommentById commentId
-              success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
-              guard success
-              for_ revisions \revision -> do
-                success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Right revision))
+    Codebase.runTransaction codebase $ do
+      rootCausalHashId <- Q.expectCausalHashIdByCausalHash $ CausalHash $ Hash32.toHash rootCausalHash32
+      Q.streamHistoryCommentsForCausal rootCausalHashId \getCommentId -> do
+        let loop = do
+              result <- runMaybeT $ do
+                commentId <- MaybeT $ getCommentId
+                (comment, revisions) <- lift $ Q.expectHistoryCommentById commentId
+                success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
                 guard success
-            -- Loop till a send fails or we run out of comments
-            case result of
-              Just () -> loop
-              Nothing -> pure ()
-      loop
+                for_ revisions \revision -> do
+                  success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Right revision))
+                  guard success
+              -- Loop till a send fails or we run out of comments
+              case result of
+                Just () -> loop
+                Nothing -> pure ()
+        loop
 
   case result of
     Left err -> error $ "uploadCommentsClient:" <> show err

@@ -30,6 +30,22 @@ data UploadCommentsResponse
   | UploadCommentsNotAuthorized BranchRef
   | UploadCommentsGenericFailure Text
 
+instance Serialise UploadCommentsResponse where
+  encode = \case
+    UploadCommentsProjectBranchNotFound br ->
+      encode (0 :: Word8) <> encode br
+    UploadCommentsNotAuthorized br ->
+      encode (1 :: Word8) <> encode br
+    UploadCommentsGenericFailure errMsg ->
+      encode (2 :: Word8) <> encode errMsg
+  decode = do
+    tag <- decode :: Decoder s Word8
+    case tag of
+      0 -> UploadCommentsProjectBranchNotFound <$> decode
+      1 -> UploadCommentsNotAuthorized <$> decode
+      2 -> UploadCommentsGenericFailure <$> decode
+      _ -> fail "Invalid UploadCommentsResponse tag"
+
 data HistoryComment = HistoryComment
   { author :: Text,
     createdAt :: UTCTime,
