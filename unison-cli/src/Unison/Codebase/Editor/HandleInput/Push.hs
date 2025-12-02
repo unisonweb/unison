@@ -45,9 +45,11 @@ import Unison.Project
     prependUserSlugToProjectName,
     projectNameUserSlug,
   )
+import Unison.Server.Types (BranchRef (..))
 import Unison.Share.API.Hash qualified as Share.API
 import Unison.Share.API.Projects qualified as Share.API
 import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.HistoryComments qualified as HC
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
@@ -390,14 +392,16 @@ data UploadPlan = UploadPlan
 -- Execute an upload plan.
 executeUploadPlan :: UploadPlan -> Cli ()
 executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
+  let codeserverURI = Codeserver.defaultCodeserver
+  let remoteTarget = into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))
   (uploadResult, numUploaded) <-
     Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
       uploadResult <-
         Share.uploadEntities
-          (codeserverBaseURL Codeserver.defaultCodeserver)
+          (codeserverBaseURL codeserverURI)
           -- On the wire, the remote branch is encoded as e.g.
           --   { "repo_info": "@unison/base/@arya/topic", ... }
-          (Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))))
+          (Share.RepoInfo remoteTarget)
           (Set.NonEmpty.singleton causalHash)
           uploadedCallback
       numUploaded <- liftIO getNumUploaded
@@ -407,6 +411,8 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
     (Cli.returnEarly . Output.ShareError) case err0 of
       Share.SyncError err -> ShareErrorUploadEntities err
       Share.TransportError err -> ShareErrorTransport err
+  -- TODO: Unify RepoInfo and BranchRef?
+  HC.uploadHistoryComments causalHash codeserverURI (BranchRef remoteTarget)
   afterUploadAction
   let ProjectAndBranch projectName branchName = remoteBranch
   Cli.respond (ViewOnShare (Share.hardCodedUri, projectName, branchName))
