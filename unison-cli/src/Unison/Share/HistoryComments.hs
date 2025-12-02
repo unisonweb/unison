@@ -66,7 +66,7 @@ uploadCommentsClient rootCausalHashId codeserver branchRef = do
       loop
 
   case result of
-    Left _err -> error "handle err"
+    Left err -> error $ "uploadCommentsClient:" <> show err
     Right () -> pure ()
   where
     intoChunk = \case
