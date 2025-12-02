@@ -1,5 +1,9 @@
 cabal-version: 1.12
 
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
 name:           unison-dynlib
 version:        0.0.0
 homepage:       https://github.com/unisonweb/unison#readme
@@ -14,51 +18,48 @@ source-repository head
 
 library
   exposed-modules:
-    Unison.Runtime.FFI.DLL
-
+      Unison.Runtime.FFI.DLL
+  other-modules:
+      Paths_unison_dynlib
+  default-extensions:
+      ApplicativeDo
+      BangPatterns
+      BlockArguments
+      DeriveAnyClass
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DerivingVia
+      DoAndIfThenElse
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      ImportQualifiedPost
+      LambdaCase
+      MultiParamTypeClasses
+      NamedFieldPuns
+      OverloadedStrings
+      PatternSynonyms
+      RankNTypes
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
       base
-
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-
-  if os(windows)
-    build-depends:
-      Win32
-    hs-source-dirs:
-      src-win32
-
-  if !os(windows)
-    build-depends:
-      unix
-    hs-source-dirs:
-      src-unix
-
   default-language: Haskell2010
-  default-extensions:
-    ApplicativeDo
-    BangPatterns
-    BlockArguments
-    DeriveAnyClass
-    DeriveFunctor
-    DeriveGeneric
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DoAndIfThenElse
-    DuplicateRecordFields
-    FlexibleContexts
-    FlexibleInstances
-    GeneralizedNewtypeDeriving
-    ImportQualifiedPost
-    LambdaCase
-    MultiParamTypeClasses
-    NamedFieldPuns
-    OverloadedStrings
-    PatternSynonyms
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    ViewPatterns
+  if os(windows)
+    hs-source-dirs:
+        src-win32
+    build-depends:
+        Win32
+  if !os(windows)
+    hs-source-dirs:
+        src-unix
+    build-depends:
+        unix

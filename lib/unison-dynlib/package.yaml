@@ -1,6 +1,7 @@
 name: unison-dynlib
 github: unisonweb/unison
 copyright: Copyright (C) 2025 Unison Computing, PBC and contributors
+license: MIT
 
 ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
@@ -8,6 +9,8 @@ dependencies:
   - base
 
 library:
+  exposed-modules:
+    - Unison.Runtime.FFI.DLL
   when:
     - condition: false
       other-modules: Paths_unison_hash
