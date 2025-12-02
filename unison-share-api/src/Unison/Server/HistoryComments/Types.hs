@@ -33,7 +33,7 @@ data UploadCommentsResponse
 data HistoryComment = HistoryComment
   { author :: Text,
     createdAt :: UTCTime,
-    authorThumbprint :: ByteString,
+    authorThumbprint :: Text,
     causalHash :: Hash32,
     commentHash :: Hash32
   }
