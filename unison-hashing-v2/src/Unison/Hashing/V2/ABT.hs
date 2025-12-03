@@ -43,13 +43,16 @@ instance Show HashingFailure where
       renderHashingFailure = \case
         IncompleteElementOrderingError names ->
           unlines
-            [ "Hashing failed because the following cyclic definitions could not be completely ordered:",
+            [ "🐞",
+              "",
+              "Sorry, you've encountered a weird situation that we are aware of and are currently working on a fix for.",
+              "I'll explain what happened and how you can work around it.",
+              "",
+              "The following cyclic definitions could not be completely ordered:",
               "  " ++ intercalate ", " names,
-              "This happens when multiple definitions in a mutually recursive cycle are identical except",
-              "for references to other elements in the same cycle.",
-              "If all elements are identical, consider simple recursion instead of mutual recursion,",
-              "If mutual recursion is required, you may disambiguate identical definitions by",
-              "adding a dummy comment like:",
+              "This happens when multiple definitions in a mutually recursive cycle have a very similar structure.",
+              "",
+              "You can work around this by restructuring them to be less similar, e.g. by adding a pure expression to distinguish them, like:",
               "_ = \"this is the foo definition\""
             ]
 
