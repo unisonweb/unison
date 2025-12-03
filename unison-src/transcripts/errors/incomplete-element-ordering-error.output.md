@@ -1,11 +1,15 @@
 Exception when running incomplete-element-ordering-error.md: 🐞
 
-Hashing failed because cyclic definitions because the definitions could not be completely ordered.
-This happens when multiple definitions in a mutually recursive cycle are identical except
-for references to other elements in the same cycle.
-If all elements are identical, consider simple recursion instead of mutual recursion,
-If mutual recursion is required, you may disambiguate identical definitions by
-adding a dummy comment like:
+🐞
+
+Sorry, you've encountered a weird situation that we are aware of and are currently working on a fix for.
+I'll explain what happened and how you can work around it.
+
+The following cyclic definitions could not be completely ordered:
+  User "bar", User "foo"
+This happens when multiple definitions in a mutually recursive cycle have a very similar structure.
+
+You can work around this by restructuring them to be less similar, e.g. by adding a pure expression to distinguish them, like:
 _ = "this is the foo definition"
 
 
@@ -18,8 +22,3 @@ Bug reference: E253299
 If there's already an issue with this reference, you can give a 👍
 on the issue to let the team know you encountered it, and you can add
 any additional details you know of to the issue.
-
-CallStack (from HasCallStack):
-  error, called at src/Unison/Hashing/V2/ABT.hs:42:14 in unison-hashing-v2-0.0.0-8lPXbJPlm6sDj9SGQtF5JE:Unison.Hashing.V2.ABT
-  crashOnHashingFailure, called at src/Unison/UnisonFile.hs:281:17 in unison-parser-typechecker-0.0.0-E7FuwoDrRadBVo69eIX64V:Unison.UnisonFile
-  typecheckedUnisonFile, called at src/Unison/FileParsers.hs:323:7 in unison-parser-typechecker-0.0.0-E7FuwoDrRadBVo69eIX64V:Unison.FileParsers
