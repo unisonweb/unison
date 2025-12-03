@@ -653,8 +653,7 @@ pretty0
 
       isDelay (Delay' _) = True
       isDelay _ = False
-      sepList' f sep xs = fold . intersperse sep <$> traverse f xs
-      varList = runIdentity . sepList' (Identity . PP.text . Var.name) PP.softbreak
+      varList = intercalateMap PP.softbreak (PP.text . Var.name)
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
