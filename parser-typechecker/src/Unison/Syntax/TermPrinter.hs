@@ -653,7 +653,7 @@ pretty0
 
       isDelay (Delay' _) = True
       isDelay _ = False
-      varList = intercalateMap PP.softbreak (PP.text . Var.name)
+      varList = intercalateMap PP.softbreak prettyBinder
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
@@ -1071,20 +1071,20 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
               x : y : _ ->
                 PP.sep
                   " "
-                  [ fmt S.Var $ PP.text (Var.name x),
+                  [ fmt S.Var $ prettyBinder x,
                     styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v,
-                    fmt S.Var $ PP.text (Var.name y)
+                    fmt S.Var $ prettyBinder y
                   ]
               [x] ->
                 PP.sep
                   " "
                   [ renderName v,
-                    fmt S.Var $ PP.text (Var.name x)
+                    fmt S.Var $ prettyBinder x
                   ]
               _ -> l "error"
           | null vs = renderName v
           | otherwise = renderName v `PP.hang` args vs
-        args = PP.spacedMap $ fmt S.Var . PP.text . Var.name
+        args = PP.spacedMap $ fmt S.Var . prettyBinder
         renderName n =
           let n' = elideFQN im n
            in parenIfInfix n' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier n') n'
@@ -2356,6 +2356,13 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
     tweak _ p = p
     varToName :: (Var v) => v -> [Name]
     varToName = toList . Name.parseText . Var.name . Var.reset
+
+prettyBinder :: (IsString s, Var v) => v -> Pretty s
+prettyBinder var =
+  let text = Var.name var
+   in case Name.parseText text of
+        Just name | Name.isSymboly name -> "(" <> PP.text text <> ")"
+        _ -> PP.text text
 
 isLeaf :: Term2 vt at ap v a -> Bool
 isLeaf (Var' {}) = True
