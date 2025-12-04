@@ -9,6 +9,7 @@ import Control.Monad.State qualified as State
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.Sequence qualified as Seq
 import Data.Sequence qualified as Sequence
@@ -163,9 +164,7 @@ bindNames unsafeVarToName nameToVar localVars namespace =
   -- across all calls to `bindNames` with different terms
   \term -> do
     let freeTmVars = ABT.freeVarOccurrences localVars term
-        freeTyVars =
-          [ (v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- as
-          ]
+        freeTyVars = [(v, a) | (v, as) <- Map.toList (freeTypeVarAnnotations term), a <- toList as]
 
         okTm :: (v, a) -> Maybe (v, ResolvesTo Referent)
         okTm (v, _) =
@@ -338,7 +337,7 @@ freeVars = ABT.freeVars
 freeTypeVars :: (Ord vt) => Term' vt v a -> Set vt
 freeTypeVars t = Map.keysSet $ freeTypeVarAnnotations t
 
-freeTypeVarAnnotations :: (Ord vt) => Term' vt v a -> Map vt [a]
+freeTypeVarAnnotations :: (Ord vt) => Term' vt v a -> Map vt (NonEmpty a)
 freeTypeVarAnnotations e = multimap $ go Set.empty e
   where
     go bound tm = case tm of

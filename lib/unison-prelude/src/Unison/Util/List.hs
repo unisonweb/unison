@@ -1,35 +1,35 @@
 module Unison.Util.List where
 
+import Control.Arrow ((&&&))
+import Data.Either.Validation (eitherToValidation, validationToEither)
 import Data.List qualified as List
-import Data.List.Extra qualified as List
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Prelude
 
-multimap :: (Foldable f) => (Ord k) => f (k, v) -> Map k [v]
-multimap kvs =
-  -- preserve the order of the values from the original list
-  reverse <$> foldl' step Map.empty kvs
+multimap :: (Foldable f) => (Ord k) => f (k, v) -> Map k (NonEmpty v)
+multimap = foldr step Map.empty
   where
-    step m (k, v) = Map.insertWith (++) k [v] m
+    step (k, v) = Map.insertWith (<>) k (pure v)
 
-groupBy :: (Foldable f, Ord k) => (v -> k) -> f v -> Map k [v]
-groupBy f vs = reverse <$> foldl' step Map.empty vs
+groupBy :: (Foldable f, Ord k) => (v -> k) -> f v -> Map k (NonEmpty v)
+groupBy f = foldr step Map.empty
   where
-    step m v = Map.insertWith (++) (f v) [v] m
+    step v = Map.insertWith (<>) (f v) (pure v)
+
+groupOn :: (Foldable f, Eq k) => (a -> k) -> f a -> [(NonEmpty a)]
+groupOn f = NE.groupBy ((==) `on2` f)
+  where
+    (.*.) `on2` f = \x -> let fx = f x in \y -> fx .*. f y
 
 -- | group _consecutive_ elements by a key.
 -- e.g.
 -- >>> groupMap (\n -> (odd n, show n)) [1, 3, 4, 6, 7]
 -- [(True,["1","3"]),(False,["4","6"]),(True,["7"])]
-groupMap :: (Foldable f, Eq k) => (a -> (k, b)) -> f a -> [(k, [b])]
-groupMap f xs =
-  xs
-    & toList
-    & fmap f
-    & List.groupOn fst
-    -- head is okay since groupOn only returns populated lists.
-    <&> \grp -> (fst . head $ grp, snd <$> grp)
+groupMap :: (Foldable f, Functor f, Eq k) => (a -> (k, b)) -> f a -> [(k, NonEmpty b)]
+groupMap f = fmap (fst . NE.head &&& fmap snd) . groupOn fst . fmap f
 
 -- returns the subset of `f a` which maps to unique `b`s.
 -- prefers earlier copies, if many `a` map to some `b`.
@@ -52,10 +52,8 @@ uniqueBy' f = reverse . uniqueBy f . reverse . toList
 safeHead :: (Foldable f) => f a -> Maybe a
 safeHead = headMay . toList
 
-validate :: (Semigroup e, Foldable f) => (a -> Either e b) -> f a -> Either e [b]
-validate f as = case partitionEithers (f <$> toList as) of
-  ([], bs) -> Right bs
-  (e : es, _) -> Left (foldl' (<>) e es)
+validate :: (Semigroup e, Traversable f) => (a -> Either e b) -> f a -> Either e (f b)
+validate f = validationToEither . traverse (eitherToValidation . f)
 
 -- Intercalate a list with separators determined by inspecting each
 -- adjacent pair.
