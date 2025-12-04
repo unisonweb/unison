@@ -133,7 +133,13 @@ withRunner isTest verbosity ucmVersion action = do
                   authenticatedHTTPClient
                   credMan
                   stanzas
+                  & catchExceptions
   where
+    catchExceptions :: forall x. IO (Either Error x) -> IO (Either Error x)
+    catchExceptions io =
+      UnliftIO.tryAny (io >>= UnliftIO.evaluate) >>= \case
+        Left someException -> pure $ Left (Exception someException)
+        Right r -> pure r
     withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
@@ -583,5 +589,6 @@ data Error
   = ParseError (P.ParseErrorBundle Text Void)
   | RunFailure Transcript
   | PortBindingFailure
+  | Exception SomeException
   deriving stock (Show)
   deriving anyclass (Exception)

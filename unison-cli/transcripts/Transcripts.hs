@@ -92,6 +92,12 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
               io $ Text.putStrLn errText
               io $ recordFailure (inputDir </> filePath, errText)
               crash $ "Failure in " <> filePath
+          Transcript.Exception someException -> do
+            let errMsg = Text.pack $ "Exception when running " <> filePath <> ": " <> (show someException)
+            io . writeUtf8 outputFile $ errMsg
+            when (not expectFailure) $ do
+              io $ recordFailure (inputDir </> filePath, errMsg)
+              crash (Text.unpack errMsg)
       (filePath, Right out) -> do
         let outputFile = outputDir </> if replaceOriginal then filePath else outputFileForTranscript filePath
         io . createDirectoryIfMissing True $ takeDirectory outputFile

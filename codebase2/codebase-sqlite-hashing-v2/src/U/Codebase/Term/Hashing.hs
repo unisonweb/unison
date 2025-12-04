@@ -5,7 +5,7 @@ import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import U.Codebase.HashTags
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.Sqlite.HashHandle (HashMismatch (..))
+import U.Codebase.Sqlite.HashHandle (HashMismatch (..), HashValidationError (..), HashingFailure (..))
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.Symbol qualified as S
@@ -23,23 +23,29 @@ import Unison.Prelude
 import Unison.Symbol qualified as Unison
 import Unison.Var qualified as Var
 
-verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe (HashMismatch)
-verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) =
-  Foldable.toList elements
-    & fmap s2cTermWithType
-    & Reference.component hash
-    & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
-    & Map.fromList
-    & C.Term.unhashComponent hash Var.unnamedRef
-    & Map.toList
-    & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
-    & Map.fromList
-    & H2.hashTermComponents
-    & altMap \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
+verifyTermFormatHash :: ComponentHash -> TermFormat.HashTermFormat -> Maybe HashValidationError
+verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIndexedComponent elements)) = toMaybe $ do
+  r <-
+    Foldable.toList elements
+      & fmap s2cTermWithType
+      & Reference.component hash
+      & fmap (\((tm, typ), refId) -> (refId, ((mapTermV tm), (mapTypeV typ))))
+      & Map.fromList
+      & C.Term.unhashComponent hash Var.unnamedRef
+      & Map.toList
+      & fmap (\(_refId, (v, trm, typ)) -> (v, (H2.v2ToH2Term trm, H2.v2ToH2Type typ, ())))
+      & Map.fromList
+      & H2.hashTermComponents
+      & mapLeft (const $ HashingFailure $ IncompleteElementOrderingError $ ComponentHash hash)
+  r
+    & traverse_ \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
       if hash == hash'
-        then Nothing
-        else Just (HashMismatch hash hash')
+        then pure ()
+        else Left . HashValidationMismatch $ (HashMismatch hash hash')
   where
+    toMaybe = \case
+      Left e -> Just e
+      Right () -> Nothing
     mapTermV ::
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' S.Symbol) S.Symbol a ->
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' Unison.Symbol) Unison.Symbol a

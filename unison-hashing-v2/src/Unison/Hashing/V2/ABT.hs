@@ -7,8 +7,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Hashing.V2.ABT (Unison.ABT.Term, hash, hashComponents) where
+module Unison.Hashing.V2.ABT
+  ( Unison.ABT.Term,
+    HashingFailure (..),
+    crashOnHashingFailure,
+    hash,
+    hashComponents,
+  )
+where
 
+import Control.Exception (throw)
+import Data.Containers.ListUtils qualified as List
 import Data.List hiding (cycle, find)
 import Data.List qualified as List (sort)
 import Data.Map qualified as Map
@@ -20,20 +29,55 @@ import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
+data HashingFailure
+  = -- | two or more component elements can not be completely ordered with respect to one another
+    -- https://github.com/unisonweb/unison/issues/2787
+    IncompleteElementOrderingError ([String {- Variable names of component definitions -}])
+  deriving stock (Eq, Ord)
+  deriving anyclass (Exception)
+
+instance Show HashingFailure where
+  show hf = reportBug "E253299" (renderHashingFailure hf)
+    where
+      renderHashingFailure :: HashingFailure -> String
+      renderHashingFailure = \case
+        IncompleteElementOrderingError names ->
+          unlines
+            [ "🐞",
+              "",
+              "Sorry, you've encountered a weird situation that we are aware of and are currently working on a fix for.",
+              "I'll explain what happened and how you can work around it.",
+              "",
+              "The following cyclic definitions could not be completely ordered:",
+              "  " ++ intercalate ", " names,
+              "This happens when multiple definitions in a mutually recursive cycle have a very similar structure.",
+              "",
+              "You can work around this by restructuring them to be less similar, e.g. by adding a pure expression to distinguish them, like:",
+              "_ = \"this is the foo definition\""
+            ]
+
+-- | We don't expect to encounter these, but if we do we should print a nice message.
+--
+-- In the future we will hopefully prevent this error entirely.
+crashOnHashingFailure :: (HasCallStack) => Either HashingFailure a -> a
+crashOnHashingFailure = \case
+  Left hf -> throw hf
+  Right a -> a
+
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   forall a f v.
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v) =>
   Map.Map v (Term f v a) ->
-  (Hash, [(v, Term f v a)])
-hashComponent byName =
+  Either HashingFailure (Hash, [(v, Term f v a)])
+hashComponent byName = do
   let ts = Map.toList byName
-      -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
-      -- individual names.
-      (hashes, env) = doHashCycle [] ts
-      -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
-      -- name that gets tumbled into the hash.
-      commonTokens :: [Hashable.Token]
+  -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
+  -- individual names.
+  (hashes, env) <- doHashCycle [] ts
+  -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
+  -- name that gets tumbled into the hash.
+  let commonTokens :: [Hashable.Token]
       commonTokens = Hashable.Tag 1 : map Hashable.Hashed hashes
       -- Use a helper function that hashes a single term given its name, now that we have an environment in which we can
       -- look the name up, as well as the common tokens.
@@ -47,30 +91,33 @@ hashComponent byName =
           & sortOn fst
           & unzip
       overallHash = Hashable.accumulate (map Hashable.Hashed hashes')
-   in (overallHash, permutedTerms)
+  pure (overallHash, permutedTerms)
 
 -- Group the definitions into strongly connected components and hash
 -- each component. Substitute the hash of each component into subsequent
 -- components (using the `termFromHash` function). Requires that the
 -- overall component has no free variables.
 hashComponents ::
+  forall f v a.
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v) =>
   (Hash -> Word64 -> Term f v ()) ->
   Map.Map v (Term f v a) ->
-  [(Hash, [(v, Term f v a)])]
-hashComponents termFromHash termsByName =
+  Either HashingFailure [(Hash, [(v, Term f v a)])]
+hashComponents termFromHash termsByName = do
   let bound = Set.fromList (Map.keys termsByName)
       escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
       sccs = components (Map.toList termsByName)
-      go _ [] = []
-      go prevHashes (component : rest) =
+      go :: Map v (Term f v ()) -> [[(v, Term f v a)]] -> Either HashingFailure [(Hash, [(v, Term f v a)])]
+      go _ [] = pure $ []
+      go prevHashes (component : rest) = do
         let sub = substsInheritAnnotation (Map.toList prevHashes)
-            (h, sortedComponent) = hashComponent $ Map.fromList [(v, sub t) | (v, t) <- component]
-            curHashes = Map.fromList [(v, termFromHash h i) | ((v, _), i) <- sortedComponent `zip` [0 ..]]
+        (h, sortedComponent) <- hashComponent $ Map.fromList [(v, sub t) | (v, t) <- component]
+        let curHashes = Map.fromList [(v, termFromHash h i) | ((v, _), i) <- sortedComponent `zip` [0 ..]]
             newHashes = prevHashes `Map.union` curHashes
             newHashesL = Map.toList newHashes
             sortedComponent' = [(v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent]
-         in (h, sortedComponent') : go newHashes rest
+        sortedRest <- go newHashes rest
+        pure $ ((h, sortedComponent') : sortedRest)
    in if Set.null escapedVars
         then go Map.empty sccs
         else
@@ -109,14 +156,14 @@ hash' env = \case
             ++ show v
             ++ " environment = "
             ++ show env
-  Cycle' vs t -> hash1 (hashCycle vs env) undefined t
+  Cycle' vs t -> hash1 (crashOnHashingFailure . hashCycle vs env) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
-    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> ([Hash], Term f v a -> Hash)
-    hashCycle cycle env ts =
-      let (ts', env') = doHashCycle env (zip cycle ts)
-       in (ts', hash' env')
+    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either HashingFailure ([Hash], Term f v a -> Hash)
+    hashCycle cycle env ts = do
+      (ts', env') <- doHashCycle env (zip cycle ts)
+      pure (ts', hash' env')
 
 -- | @doHashCycle env terms@ hashes cycle @terms@ in environment @env@, and returns the canonical ordering of the hashes
 -- of those terms, as well as an updated environment with each of the terms' bindings in the canonical ordering.
@@ -125,16 +172,21 @@ doHashCycle ::
   (Eq v, Functor f, Hashable1 f, Show v) =>
   [Either [v] v] ->
   [(v, Term f v a)] ->
-  ([Hash], [Either [v] v])
-doHashCycle env namedTerms =
-  (map (hash' newEnv) permutedTerms, newEnv)
+  Either HashingFailure ([Hash], [Either [v] v])
+doHashCycle env namedTerms = do
+  -- Ensure that all of the hashes we use for ordering components are unique;
+  -- if not, we have an incomplete ordering of the elements in the cycle
+  when (List.nubOrd hashes /= hashes) $ Left $ IncompleteElementOrderingError (show <$> names)
+  pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where
     names = map fst namedTerms
     -- The environment in which we compute the canonical permutation of terms
     permutationEnv = Left names : env
+    hashes = (hash' permutationEnv . snd) <$> namedTerms
     (permutedNames, permutedTerms) =
-      namedTerms
-        & sortOn (hash' permutationEnv . snd)
+      zip namedTerms hashes
+        & sortOn snd
+        & fmap fst
         & unzip
     -- The new environment, which includes the names of all of the terms in the cycle, now that we have computed their
     -- canonical ordering

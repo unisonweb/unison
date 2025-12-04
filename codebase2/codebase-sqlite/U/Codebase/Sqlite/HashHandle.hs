@@ -1,10 +1,14 @@
 module U.Codebase.Sqlite.HashHandle
   ( HashHandle (..),
     HashMismatch (..),
+    HashValidationError (..),
     DeclHashingError (..),
+    HashingFailure (..),
+    crashOnHashingFailure,
   )
 where
 
+import Control.Exception
 import U.Codebase.Branch.Type (Branch)
 import U.Codebase.BranchV3 (BranchV3)
 import U.Codebase.HashTags
@@ -25,6 +29,42 @@ data HashMismatch = HashMismatch
   { expectedHash :: Hash,
     actualHash :: Hash
   }
+
+data HashingFailure
+  = -- | two or more component elements can not be completely ordered with respect to one another
+    -- https://github.com/unisonweb/unison/issues/2787
+    IncompleteElementOrderingError ComponentHash
+  deriving (Eq, Ord)
+  deriving anyclass (Exception)
+
+instance Show HashingFailure where
+  show hf = reportBug "E253299" (renderHashingFailure hf)
+    where
+      renderHashingFailure :: HashingFailure -> String
+      renderHashingFailure = \case
+        IncompleteElementOrderingError h ->
+          unlines
+            [ "Failed to hash the component: " <> show h,
+              "Hashing failed because cyclic definitions because the definitions could not be completely ordered.",
+              "This happens when multiple definitions in a mutually recursive cycle are identical except",
+              "for references to other elements in the same cycle.",
+              "If all elements are identical, consider simple recursion instead of mutual recursion,",
+              "If mutual recursion is required, you may disambiguate identical definitions by",
+              "adding a dummy comment like:",
+              "_ = \"this is the foo definition\""
+            ]
+
+-- | We don't expect to encounter these, but if we do we should print a nice message.
+--
+-- In the future we will hopefully prevent this error entirely.
+crashOnHashingFailure :: (HasCallStack) => Either HashingFailure a -> a
+crashOnHashingFailure = \case
+  Left hf -> throw hf
+  Right a -> a
+
+data HashValidationError
+  = HashValidationMismatch HashMismatch
+  | HashingFailure HashingFailure
 
 data DeclHashingError
   = DeclHashMismatch HashMismatch
@@ -58,7 +98,7 @@ data HashHandle = HashHandle
     verifyTermFormatHash ::
       ComponentHash ->
       TermFormat.HashTermFormat ->
-      Maybe (HashMismatch),
+      Maybe HashValidationError,
     verifyDeclFormatHash ::
       ComponentHash ->
       DeclFormat.HashDeclFormat ->

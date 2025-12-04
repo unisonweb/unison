@@ -1,6 +1,8 @@
 -- | Description: Converts V1 types to the V2 hashing types
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
+    Hashing.HashingFailure (..),
+    Hashing.crashOnHashingFailure,
     hashBranch0,
     hashCausal,
     hashDataDecls,
@@ -62,10 +64,12 @@ hashTermComponents ::
   forall v a extra.
   (Var v) =>
   Map v (Memory.Term.Term v a, Memory.Type.Type v a, extra) ->
-  Map v (Memory.Reference.TermReferenceId, Memory.Term.Term v a, Memory.Type.Type v a, extra)
+  Either Hashing.HashingFailure (Map v (Memory.Reference.TermReferenceId, Memory.Term.Term v a, Memory.Type.Type v a, extra))
 hashTermComponents mTerms =
   case h2mTermMap mTerms of
-    (hTerms, constructorTypes) -> h2mTermResult (constructorTypes Map.!) <$> Hashing.hashTermComponents hTerms
+    (hTerms, constructorTypes) -> do
+      hashedTermComponents <- Hashing.hashTermComponents hTerms
+      pure (h2mTermResult (constructorTypes Map.!) <$> hashedTermComponents)
   where
     h2mTermMap m =
       m

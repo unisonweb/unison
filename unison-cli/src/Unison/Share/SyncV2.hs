@@ -44,6 +44,7 @@ import Servant.Types.SourceT qualified as Servant
 import System.Console.Regions qualified as Console.Regions
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.DbId (CausalHashId)
+import U.Codebase.Sqlite.HashHandle qualified as HH
 import U.Codebase.Sqlite.Queries qualified as Q
 import U.Codebase.Sqlite.TempEntity (TempEntity)
 import U.Codebase.Sqlite.V2.HashHandle (v2HashHandle)
@@ -214,7 +215,9 @@ batchValidateEntities entities = do
   mismatches <- fmap Vector.catMaybes $ liftIO $ IO.pooledForConcurrently entities \(hash, entity) -> do
     IO.evaluate $ EV.validateTempEntity hash entity
   for_ mismatches \case
-    err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
+    Left err@(HH.IncompleteElementOrderingError _componentHash) ->
+      HH.crashOnHashingFailure (Left err)
+    Right err@(Share.EntityHashMismatch et (Share.HashMismatchForEntity {supplied, computed})) ->
       let expectedMismatches = case et of
             Share.TermComponentType -> expectedComponentHashMismatches
             Share.DeclComponentType -> expectedComponentHashMismatches
@@ -225,7 +228,7 @@ batchValidateEntities entities = do
               | expected == computed -> pure ()
             _ -> do
               throwError . SyncError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
-    err -> do
+    Right err -> do
       throwError . SyncError . SyncV2.PullError'DownloadEntities . SyncV2.DownloadEntitiesEntityValidationFailure $ err
 
 -- | Syncs a stream which could send entities in any order.

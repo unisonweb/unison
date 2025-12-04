@@ -359,7 +359,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                           Left _ -> resultState
                           Right inp -> resultState & #lastInput ?~ inp
                     pure (result, sNext)
-              UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
+              UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step >>= UnliftIO.evaluate)) >>= \case
                 -- SIGINT
                 Left () -> do
                   hPutStrLn stderr "\nAborted."
