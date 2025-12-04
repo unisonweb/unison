@@ -53,18 +53,31 @@ source-repository-package
 constraints:
   fuzzyfind ==3.0.2,
   lock-file ==0.7.0.0,
-  monad-validat ==1.3.0.0,
-  recover-rtti ==0.4.3,
+  monad-validate ==1.3.0.0,
   numerals ==0.4.1,
   network-udp ==0.0.0,
-  hashtables ==1.4.2,
+
+  hw-hspec-hedgehog ==0.1.1.1,
+
+  directory ==1.3.8.5,
+  process ==1.6.26.1,
+  unix ==2.8.7.0,
 
 package haskeline
   flags: -terminfo
+package directory
+  flags: +os-string
+package process
+  flags: +os-string
+package unix
+  flags: +os-string
 
 -- Use scoped wildcards to match the corresponding `allow-newer-deps` behavior from ../stack.yaml.
 allow-newer:
-  numerals:*
+  fuzzyfind:*,
+  haskeline:*,
+  lock-file:*,
+  numerals:*,
 
 program-options
   -- This should generally match the corresponding list in ../stack.yaml.

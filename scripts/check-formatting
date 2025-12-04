@@ -6,7 +6,7 @@ source "$SCRIPTDIR/check-version.bash"
 
 mode=${1:-check}
 
-if version-equals ormolu "0.7.7.0"; then
+if version-equals ormolu "0.8.0.2"; then
     ## We `cd` so Ormolu can find its .ormolu configuration.
     cd "$SCRIPTDIR/.."
     find . -name '*.hs' -not -path "*/dist-newstyle/*" -not -path "*/.stack-work/*" -print0 \

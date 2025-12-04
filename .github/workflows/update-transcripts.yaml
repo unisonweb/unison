@@ -23,7 +23,7 @@ jobs:
       - name: install stack
         uses: unisonweb/actions/stack/install@main
         with:
-          stack-version: 3.1.1
+          stack-version: 3.7.1
 
       # One of the transcripts fails if the user's git name hasn't been set.
       - name: set git user info
