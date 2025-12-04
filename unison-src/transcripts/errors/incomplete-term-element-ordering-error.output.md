@@ -1,4 +1,4 @@
-Exception when running incomplete-element-ordering-error.md: 🐞
+Exception when running incomplete-term-element-ordering-error.md: 🐞
 
 🐞
 
