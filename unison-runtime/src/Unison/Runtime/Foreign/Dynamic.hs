@@ -37,7 +37,8 @@ data CSpec = CSpec
     numArgs :: !Int
   }
 
-data CDynFunc = forall a.
+data CDynFunc
+  = forall a.
   CDynFunc
   { cName :: String,
     cResult :: !FFType,
