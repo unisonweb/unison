@@ -123,6 +123,69 @@ Stack doesn't work deterministically in Windows due to mismatched expectations a
 
 See the [readme](./nix/README.md).
 
+## Updating the Toolchain
+
+To ensure everything works together in every environment, a few things need to be done in concert.
+
+**NB**: Since we don’t have an upstream cache when we get new versions of tools, updating tools can have a heavy build time cost (but ideally just once, before we get it into _our_ cache). Because of this, it’s good to update everything at once in a large step rather than incrementally. I generally don’t recommend that approach, but it’s hard to avoid here.
+
+I recommend doing this on a beefy machine in order for all the rebuilding to be as quick as possible (although you’ll still need to do additional rebuilds on on platforms later).
+
+### update the Nix flake
+
+- Update `haskellNix.url` in [flake.nix](flake.nix) – it should use a recent [date tag](https://github.com/input-output-hk/haskell.nix/tags).
+- Run `nix flake update` to get the latest.
+
+### update Stack
+
+- Update the `resolver` in [stack.yaml](./stack.yaml) – it should be lts-XX.YY, where the number matches the entry from [Stackage](https://www.stackage.org/) for the GHC we want to use (**NB**: haskell.nix won’t always have the latest Stackage for the GHC, so it may be necessary to decrement a few versions)
+
+- Check if any `extra-deps` in [stack.yaml]() should be removed (search for their versions on Stackage). Make corresponding changes to [cabal.project]().
+
+- Run `nix develop --command stack --version` to get the new versions of Stack and hpack to update [settings.yaml]() and [versions.nix]() with, respectively (**NB**: The first run might error with something like “error: string '"3.7.1"' is not equal to string '"3.1.1"'”, which tells you the version of Stack you need to update settings.yaml with).
+   - This is going to stress-test things, and likely error a few times before it works, since you might need to tweak the resolver and packages, compile GHC, etc.
+   - This might also error with other packages that need to be updated (e.g., other tools in the versions file, or Haskell packages that are missing from Stackage)
+
+If you need to add additional `extra-deps`, first add a simple `- package-version` entry, then after running `stack`, look for the reference in [stack.yaml.lock]() and copy the full `sha256` entry to [stack.yaml]() (and remember to reflect these changes in [cabal.project.freeze]()).
+
+find-and-replace the old Ormolu & Stack versions with the new ones across the repo (they show up at least in some GitHub workflows).
+
+### update other tooling
+
+- Copy https://www.stackage.org/lts-XX.YY/cabal.config (for the correct XX.YY) to [cabal.project.freeze](./contrib/cabal.project.freeze) (search the dif for `-- ` to find any local changes we may have made to the file that need to be preserved). This keeps Cabal users in sync with Stack users.
+
+
+- Change either [.vscode/settings.json](./.vscode/settings.json) or [nix/versions.nix](./nix/versions.nix) to the versions you want to use.
+
+**NB**: If you updated hpack, `rm **/*.cabal` then restore yaks/easytest/easytest.cabal. Then `stack build` will regenerate all of the Cabal files using the new hpack version.
+
+**NB**: If you updated Ormolu, also update the version mentioned in [scripts/check-formatting](./scripts/check-formatting) then run that script to 1. make sure it works and 2. bring the code in sync with the new version.
+
+**NB**: If you updated Weeder, also update the version mentioned in [scripts/check-weeds](./scripts/check-weeds) then run that script to 1. make sure it works and 2. bring the weed list in sync with the new version ([§Weeding](#weeding)).
+
+### update the codebase
+
+At this point, you should have a working environment, but it’s likely there are various changes to the code & other files that need to be made before the update is complete.
+
+- Update your shell environment to make sure you have the new tooling (`direnv reload`, `nix develop`, or whatever you use)
+
+### try updating non-Stackage dependencies
+
+Since we’ve updated everything else, see if other dependencies can be updated.
+
+- for each entry in `extra-deps` in [stack.yaml](),
+
+### update the cache
+
+The cache needs to be updated for each supported platform
+
+[docs on updating the cache](./nix/README.md#updating-when-the-development-environment-changes)
+
+- aarch64-linux – does anyone have a build machine to populate the cache with this?
+- aarch64-darwin – build on a Mac
+- x86_64-darwin – build on a Mac with `--system x86_64-darwin`
+- x86_64-linux – buld on a Linux machine
+
 ## Weeding
 
 The Nix devShell includes Weeder, a tool for detecting dead code.
