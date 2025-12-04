@@ -74,7 +74,8 @@ hashComponent byName = do
   let ts = Map.toList byName
   -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
   -- individual names.
-  (hashes, env) <- doHashCycle [] ts
+  let isTop = True
+  (hashes, env) <- doHashCycle isTop [] ts
   -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
   -- name that gets tumbled into the hash.
   let commonTokens :: [Hashable.Token]
@@ -156,13 +157,14 @@ hash' env = \case
             ++ show v
             ++ " environment = "
             ++ show env
-  Cycle' vs t -> hash1 (crashOnHashingFailure . hashCycle vs env) undefined t
+  Cycle' vs t -> hash1 (\ts -> crashOnHashingFailure $ hashCycle vs env ts) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
     hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either HashingFailure ([Hash], Term f v a -> Hash)
     hashCycle cycle env ts = do
-      (ts', env') <- doHashCycle env (zip cycle ts)
+      let isTop = False
+      (ts', env') <- doHashCycle isTop env (zip cycle ts)
       pure (ts', hash' env')
 
 -- | @doHashCycle env terms@ hashes cycle @terms@ in environment @env@, and returns the canonical ordering of the hashes
@@ -170,13 +172,14 @@ hash' env = \case
 doHashCycle ::
   forall a f v.
   (Eq v, Functor f, Hashable1 f, Show v) =>
+  Bool ->
   [Either [v] v] ->
   [(v, Term f v a)] ->
   Either HashingFailure ([Hash], [Either [v] v])
-doHashCycle env namedTerms = do
+doHashCycle isTop env namedTerms = do
   -- Ensure that all of the hashes we use for ordering components are unique;
   -- if not, we have an incomplete ordering of the elements in the cycle
-  when (List.nubOrd hashes /= hashes) $ Left $ IncompleteElementOrderingError (show <$> names)
+  when (isTop && List.nubOrd hashes /= hashes) $ Left $ IncompleteElementOrderingError (show <$> names)
   pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where
     names = map fst namedTerms

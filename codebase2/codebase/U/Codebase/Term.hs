@@ -51,6 +51,8 @@ type F vt =
     TypeLink
     vt
 
+type IsTop = Bool
+
 -- | Generalized version.  We could generalize further to allow sharing within
 --  terms.
 data F' text termRef typeRef termLink typeLink vt a
