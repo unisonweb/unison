@@ -73623,8 +73623,8 @@ test.laws.associativity.doc =
   returned by `gen`, `f x (f y z)` is equal to `f (f x y) z`.
   
   For example, if `f` is {Nat.+}, then {{
-  docExample 4 do x + y z -> x + (y + z) }} is equal to
-  {{ docExample 4 do + x y z -> x + y + z }}.
+  docExample 4 do x (+) y z -> x + (y + z) }} is equal to
+  {{ docExample 4 do (+) x y z -> x + y + z }}.
   }}
 
 test.laws.commutativity :
