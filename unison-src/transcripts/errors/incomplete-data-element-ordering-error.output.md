@@ -5,8 +5,10 @@ Exception when running incomplete-data-element-ordering-error.md: 🐞
 Sorry, you've encountered a weird situation that we are aware of and are currently working on a fix for.
 I'll explain what happened and how you can work around it.
 
-The following cyclic definitions could not be completely ordered:
-  User "CycleA", User "CycleB"
+The following cyclic definition sets could not be completely ordered:
+  * User "CycleA", User "CycleB"
+
+
 This happens when multiple definitions in a mutually recursive cycle have a very similar structure.
 
 You can work around this by restructuring them to be less similar, e.g. by adding a pure expression to distinguish them, like:
