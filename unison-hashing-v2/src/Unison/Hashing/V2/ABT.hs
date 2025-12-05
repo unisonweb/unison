@@ -9,7 +9,7 @@
 
 module Unison.Hashing.V2.ABT
   ( Unison.ABT.Term,
-    HashingFailure (..),
+    HashingWarning (..),
     crashOnHashingFailure,
     hash,
     hashComponents,
@@ -30,17 +30,17 @@ import Unison.Hashing.V2.Tokenizable qualified as Hashable
 import Unison.Prelude
 import Prelude hiding (abs, cycle)
 
-data HashingFailure
+data HashingWarning
   = -- | two or more component elements can not be completely ordered with respect to one another
     -- https://github.com/unisonweb/unison/issues/2787
     IncompleteElementOrderingError (NonEmpty (NonEmpty String {- Each list is a set of structurally equivalent component elements -}))
   deriving stock (Eq, Ord)
   deriving anyclass (Exception)
 
-instance Show HashingFailure where
+instance Show HashingWarning where
   show hf = reportBug "E253299" (renderHashingFailure hf)
     where
-      renderHashingFailure :: HashingFailure -> String
+      renderHashingFailure :: HashingWarning -> String
       renderHashingFailure = \case
         IncompleteElementOrderingError equivalenceSets ->
           unlines
@@ -62,26 +62,25 @@ instance Show HashingFailure where
               "_ = \"this is the foo definition\""
             ]
 
--- | We don't expect to encounter these, but if we do we should print a nice message.
+-- | Crash if hashing produced any warnings.
 --
 -- In the future we will hopefully prevent this error entirely.
-crashOnHashingFailure :: (HasCallStack) => Either HashingFailure a -> a
+crashOnHashingFailure :: (HasCallStack) => ([HashingWarning], a) -> a
 crashOnHashingFailure = \case
-  Left hf -> throw hf
-  Right a -> a
+  ([], a) -> a
+  (hf : _, _) -> throw hf
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   forall a f v.
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Ord v) =>
   Map.Map v (Term f v a) ->
-  Either HashingFailure (Hash, [(v, Term f v a)])
+  ([HashingWarning], (Hash, [(v, Term f v a)]))
 hashComponent byName = do
   let ts = Map.toList byName
   -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
   -- individual names.
-  let isTop = True
-  (hashes, env) <- doHashCycle isTop [] ts
+  (hashes, env) <- doHashCycle [] ts
   -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
   -- name that gets tumbled into the hash.
   let commonTokens :: [Hashable.Token]
@@ -109,12 +108,12 @@ hashComponents ::
   (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v) =>
   (Hash -> Word64 -> Term f v ()) ->
   Map.Map v (Term f v a) ->
-  Either HashingFailure [(Hash, [(v, Term f v a)])]
+  ([HashingWarning], [(Hash, [(v, Term f v a)])])
 hashComponents termFromHash termsByName = do
   let bound = Set.fromList (Map.keys termsByName)
       escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
       sccs = components (Map.toList termsByName)
-      go :: Map v (Term f v ()) -> [[(v, Term f v a)]] -> Either HashingFailure [(Hash, [(v, Term f v a)])]
+      go :: Map v (Term f v ()) -> [[(v, Term f v a)]] -> ([HashingWarning], [(Hash, [(v, Term f v a)])])
       go _ [] = pure $ []
       go prevHashes (component : rest) = do
         let sub = substsInheritAnnotation (Map.toList prevHashes)
@@ -163,39 +162,34 @@ hash' env = \case
             ++ show v
             ++ " environment = "
             ++ show env
-  Cycle' vs t -> hash1 (\ts -> crashOnHashingFailure $ hashCycle vs env ts) undefined t
+  Cycle' vs t -> hash1 (hashCycle vs env) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
-    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either HashingFailure ([Hash], Term f v a -> Hash)
-    hashCycle cycle env ts = do
-      -- isTop is always false when called via `hash'`, we only set it to True
-      -- when calling from `hashComponent`
-      let isTop = False
-      (ts', env') <- doHashCycle isTop env (zip cycle ts)
-      pure (ts', hash' env')
+    hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> (([Hash], Term f v a -> Hash))
+    hashCycle cycle env ts =
+      -- We ignore incomplete element ordering warnings when calling in from hash';
+      -- we don't want to error on that when hashing internal let-bindings.
+      let (_warnings, (ts', env')) = doHashCycle env (zip cycle ts)
+       in (ts', hash' env')
 
 -- | @doHashCycle env terms@ hashes cycle @terms@ in environment @env@, and returns the canonical ordering of the hashes
 -- of those terms, as well as an updated environment with each of the terms' bindings in the canonical ordering.
 doHashCycle ::
   forall a f v.
   (Eq v, Functor f, Hashable1 f, Show v) =>
-  Bool ->
   [Either [v] v] ->
   [(v, Term f v a)] ->
-  Either HashingFailure ([Hash], [Either [v] v])
-doHashCycle isTop env namedTerms = do
+  -- Hashing always succeeds even if it generates warnings.
+  ([HashingWarning], ([Hash], [Either [v] v]))
+doHashCycle env namedTerms = do
   -- Ensure that all of the hashes we use for ordering components are unique;
-  -- if not, we have an incomplete ordering of the elements in the cycle
-  when isTop $ do
-    -- Error if there are any structurally equivalent elements
-    for_ structurallyEquivalentElements \vs -> do
-      -- Sort them so they're deterministic in transcripts
-      let sortedVars =
-            vs
-              <&> (NEL.sort . fmap show)
-              & NEL.sort
-      Left $ IncompleteElementOrderingError sortedVars
+  -- if not, we have an incomplete ordering of the elements in the cycle.
+  -- Report a warning if there are any structurally equivalent elements,
+  -- the caller can choose what to do with the warning.
+  for_ structurallyEquivalentElements \vs ->
+    -- Accumulate errors using the tuple monad.
+    ([IncompleteElementOrderingError (vs <&> (NEL.sort . fmap show) & NEL.sort)], ())
   pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where
     names = map fst namedTerms
