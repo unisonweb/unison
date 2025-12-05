@@ -345,13 +345,13 @@ displayDoc pped terms typeOf evaluated types = go
 termName :: PPE.PrettyPrintEnv -> Referent -> Pretty
 termName ppe r =
   P.syntaxToColor $
-    NP.styleHashQualified'' (NP.fmt $ S.TermReference r) name
+    NP.styleHashQualified'' (NP.fmt $ S.TermReference (PPE.termFQN ppe r) r) name
   where
     name = PPE.termName ppe r
 
 typeName :: PPE.PrettyPrintEnv -> Reference -> Pretty
 typeName ppe r =
   P.syntaxToColor $
-    NP.styleHashQualified'' (NP.fmt $ S.TypeReference r) name
+    NP.styleHashQualified'' (NP.fmt $ S.TypeReference (PPE.typeFQN ppe r) r) name
   where
     name = PPE.typeName ppe r

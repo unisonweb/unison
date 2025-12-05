@@ -38,6 +38,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -65,6 +66,7 @@ RESPONSE:
                       {
                           "annotation": {
                               "contents": "##Nat",
+                              "fqn": "lib.builtins.Nat",
                               "tag": "TypeReference"
                           },
                           "segment": "Nat"
@@ -135,6 +137,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -162,6 +165,7 @@ RESPONSE:
                       {
                           "annotation": {
                               "contents": "##Nat",
+                              "fqn": "lib.builtins.Nat",
                               "tag": "TypeReference"
                           },
                           "segment": "Nat"
@@ -249,6 +253,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Text",
+                          "fqn": "lib.builtins.Text",
                           "tag": "TypeReference"
                       },
                       "segment": "Text"
@@ -276,6 +281,7 @@ RESPONSE:
                       {
                           "annotation": {
                               "contents": "##Text",
+                              "fqn": "lib.builtins.Text",
                               "tag": "TypeReference"
                           },
                           "segment": "Text"
@@ -371,6 +377,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                          "fqn": "lib.builtins.Doc2",
                           "tag": "TypeReference"
                       },
                       "segment": "Doc2"
@@ -398,6 +405,7 @@ RESPONSE:
                       {
                           "annotation": {
                               "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                              "fqn": "lib.builtins.Doc2",
                               "tag": "TypeReference"
                           },
                           "segment": "Doc2"

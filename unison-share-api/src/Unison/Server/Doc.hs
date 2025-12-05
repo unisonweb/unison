@@ -193,9 +193,9 @@ renderDoc pped doc = renderSpecial <$> doc
       ELink ref ->
         let ppe = PPE.suffixifiedPPE pped
             tm :: Referent -> P.Pretty SSyntaxText
-            tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference r)) . PPE.termName ppe) r
+            tm r = (NP.styleHashQualified'' (NP.fmt (S.TermReference (PPE.termFQN ppe r) r)) . PPE.termName ppe) r
             ty :: Reference -> P.Pretty SSyntaxText
-            ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference r)) . PPE.typeName ppe) r
+            ty r = (NP.styleHashQualified'' (NP.fmt (S.TypeReference (PPE.typeFQN ppe r) r)) . PPE.typeName ppe) r
          in Link $ case ref of
               Left trm -> source trm
               Right ld -> case ld of
@@ -232,7 +232,7 @@ renderDoc pped doc = renderSpecial <$> doc
           BuiltinDecl r ->
             let name =
                   formatPretty
-                    . NP.styleHashQualified (NP.fmt (S.TypeReference r))
+                    . NP.styleHashQualified (NP.fmt (S.TypeReference (PPE.typeFQN suffixifiedPPE r) r))
                     . PPE.typeName suffixifiedPPE
                     $ r
              in [Type (Reference.toText r, DO.BuiltinObject name)]

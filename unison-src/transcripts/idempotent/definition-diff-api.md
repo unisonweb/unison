@@ -155,6 +155,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -287,6 +288,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.+",
+                                          "fqn": "lib.builtins.Nat.+",
                                           "tag": "TermReference"
                                       },
                                       "segment": "+"
@@ -338,6 +340,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -470,6 +473,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.+",
+                                          "fqn": "lib.builtins.Nat.+",
                                           "tag": "TermReference"
                                       },
                                       "segment": "+"
@@ -506,6 +510,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "lib.builtins.Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -533,6 +538,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -636,6 +642,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.+",
+                          "fqn": "lib.builtins.Nat.+",
                           "tag": "TermReference"
                       },
                       "segment": "+"
@@ -666,6 +673,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "lib.builtins.Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -693,6 +701,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -796,6 +805,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.+",
+                          "fqn": "lib.builtins.Nat.+",
                           "tag": "TermReference"
                       },
                       "segment": "+"
@@ -858,6 +868,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -943,6 +954,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                                          "fqn": "Stream",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Stream"
@@ -970,6 +982,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                                          "fqn": "lib.builtins.Optional",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Optional"
@@ -1153,6 +1166,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "fqn": "Stream.emit",
                                           "tag": "TermReference"
                                       },
                                       "segment": "emit"
@@ -1253,6 +1267,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.>",
+                                          "fqn": "lib.builtins.Nat.>",
                                           "tag": "TermReference"
                                       },
                                       "segment": ">"
@@ -1307,6 +1322,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "fqn": "Stream.emit",
                                           "tag": "TermReference"
                                       },
                                       "segment": "emit"
@@ -1422,6 +1438,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.drop",
+                                          "fqn": "lib.builtins.Nat.-",
                                           "tag": "TermReference"
                                       },
                                       "segment": "-"
@@ -1482,6 +1499,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                                          "fqn": "lib.builtins.Optional.None",
                                           "tag": "TermReference"
                                       },
                                       "segment": "None"
@@ -1547,6 +1565,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
+                                          "fqn": "lib.builtins.Optional.Some",
                                           "tag": "TermReference"
                                       },
                                       "segment": "Some"
@@ -1659,6 +1678,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -1744,6 +1764,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                                          "fqn": "Stream",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Stream"
@@ -1771,6 +1792,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                                          "fqn": "lib.builtins.Optional",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Optional"
@@ -1954,6 +1976,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "fqn": "Stream.emit",
                                           "tag": "TermReference"
                                       },
                                       "segment": "emit"
@@ -2033,6 +2056,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                                          "fqn": "Stream.emit",
                                           "tag": "TermReference"
                                       },
                                       "segment": "emit"
@@ -2097,6 +2121,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.>",
+                                          "fqn": "lib.builtins.Nat.>",
                                           "tag": "TermReference"
                                       },
                                       "segment": ">"
@@ -2191,6 +2216,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.drop",
+                                          "fqn": "lib.builtins.Nat.-",
                                           "tag": "TermReference"
                                       },
                                       "segment": "-"
@@ -2238,6 +2264,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                                          "fqn": "lib.builtins.Optional.None",
                                           "tag": "TermReference"
                                       },
                                       "segment": "None"
@@ -2309,6 +2336,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
+                                          "fqn": "lib.builtins.Optional.Some",
                                           "tag": "TermReference"
                                       },
                                       "segment": "Some"
@@ -2365,6 +2393,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.>",
+                                          "fqn": "lib.builtins.Nat.>",
                                           "tag": "TermReference"
                                       },
                                       "segment": ">"
@@ -2474,6 +2503,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat.drop",
+                                          "fqn": "lib.builtins.Nat.-",
                                           "tag": "TermReference"
                                       },
                                       "segment": "-"
@@ -2511,6 +2541,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                                          "fqn": "lib.builtins.Optional.None",
                                           "tag": "TermReference"
                                       },
                                       "segment": "None"
@@ -2532,6 +2563,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "lib.builtins.Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -2617,6 +2649,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                      "fqn": "Stream",
                       "tag": "TypeReference"
                   },
                   "segment": "Stream"
@@ -2644,6 +2677,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                      "fqn": "lib.builtins.Optional",
                       "tag": "TypeReference"
                   },
                   "segment": "Optional"
@@ -2681,6 +2715,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -2766,6 +2801,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                          "fqn": "Stream",
                           "tag": "TypeReference"
                       },
                       "segment": "Stream"
@@ -2793,6 +2829,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                          "fqn": "lib.builtins.Optional",
                           "tag": "TypeReference"
                       },
                       "segment": "Optional"
@@ -2952,6 +2989,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                          "fqn": "Stream.emit",
                           "tag": "TermReference"
                       },
                       "segment": "emit"
@@ -3025,6 +3063,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                          "fqn": "Stream.emit",
                           "tag": "TermReference"
                       },
                       "segment": "emit"
@@ -3078,6 +3117,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.>",
+                          "fqn": "lib.builtins.Nat.>",
                           "tag": "TermReference"
                       },
                       "segment": ">"
@@ -3167,6 +3207,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.drop",
+                          "fqn": "lib.builtins.Nat.-",
                           "tag": "TermReference"
                       },
                       "segment": "-"
@@ -3204,6 +3245,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                          "fqn": "lib.builtins.Optional.None",
                           "tag": "TermReference"
                       },
                       "segment": "None"
@@ -3263,6 +3305,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
+                          "fqn": "lib.builtins.Optional.Some",
                           "tag": "TermReference"
                       },
                       "segment": "Some"
@@ -3308,6 +3351,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.>",
+                          "fqn": "lib.builtins.Nat.>",
                           "tag": "TermReference"
                       },
                       "segment": ">"
@@ -3397,6 +3441,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.drop",
+                          "fqn": "lib.builtins.Nat.-",
                           "tag": "TermReference"
                       },
                       "segment": "-"
@@ -3434,6 +3479,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                          "fqn": "lib.builtins.Optional.None",
                           "tag": "TermReference"
                       },
                       "segment": "None"
@@ -3454,6 +3500,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "lib.builtins.Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -3539,6 +3586,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                      "fqn": "Stream",
                       "tag": "TypeReference"
                   },
                   "segment": "Stream"
@@ -3566,6 +3614,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                      "fqn": "lib.builtins.Optional",
                       "tag": "TypeReference"
                   },
                   "segment": "Optional"
@@ -3603,6 +3652,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -3688,6 +3738,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro",
+                          "fqn": "Stream",
                           "tag": "TypeReference"
                       },
                       "segment": "Stream"
@@ -3715,6 +3766,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                          "fqn": "lib.builtins.Optional",
                           "tag": "TypeReference"
                       },
                       "segment": "Optional"
@@ -3874,6 +3926,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                          "fqn": "Stream.emit",
                           "tag": "TermReference"
                       },
                       "segment": "emit"
@@ -3963,6 +4016,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.>",
+                          "fqn": "lib.builtins.Nat.>",
                           "tag": "TermReference"
                       },
                       "segment": ">"
@@ -4006,6 +4060,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#b035k0tpdv9jbs80ig29hujmv9kpkubda6or4320o5g7aj7edsudislnp2uovntgu5b0e6a18p0p7j8r2hcpr20blls7am8nll6t2ro#a0",
+                          "fqn": "Stream.emit",
                           "tag": "TermReference"
                       },
                       "segment": "emit"
@@ -4105,6 +4160,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat.drop",
+                          "fqn": "lib.builtins.Nat.-",
                           "tag": "TermReference"
                       },
                       "segment": "-"
@@ -4154,6 +4210,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d1",
+                          "fqn": "lib.builtins.Optional.None",
                           "tag": "TermReference"
                       },
                       "segment": "None"
@@ -4213,6 +4270,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg#d0",
+                          "fqn": "lib.builtins.Optional.Some",
                           "tag": "TermReference"
                       },
                       "segment": "Some"
@@ -4355,6 +4413,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -4389,6 +4448,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
+                                          "fqn": "id",
                                           "tag": "TermReference"
                                       },
                                       "segment": "id"
@@ -4500,6 +4560,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -4559,6 +4620,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
+                                          "fqn": "id",
                                           "tag": "TermReference"
                                       },
                                       "segment": "id"
@@ -4595,6 +4657,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "fqn": "lib.builtins.Tuple",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "("
@@ -4618,6 +4681,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "fqn": "lib.builtins.Tuple",
                                           "tag": "TypeReference"
                                       },
                                       "segment": ", "
@@ -4625,6 +4689,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "fqn": "lib.builtins.Tuple",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "("
@@ -4632,6 +4697,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "fqn": "lib.builtins.Tuple",
                                           "tag": "TypeReference"
                                       },
                                       "segment": ")"
@@ -4639,6 +4705,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                                          "fqn": "lib.builtins.Tuple",
                                           "tag": "TypeReference"
                                       },
                                       "segment": ")"
@@ -4690,6 +4757,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "lib.builtins.Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -4761,6 +4829,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -4809,6 +4878,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
+                          "fqn": "id",
                           "tag": "TermReference"
                       },
                       "segment": "id"
@@ -4840,6 +4910,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                          "fqn": "lib.builtins.Tuple",
                           "tag": "TypeReference"
                       },
                       "segment": "("
@@ -4853,6 +4924,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                          "fqn": "lib.builtins.Tuple",
                           "tag": "TypeReference"
                       },
                       "segment": ", "
@@ -4860,6 +4932,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                          "fqn": "lib.builtins.Tuple",
                           "tag": "TypeReference"
                       },
                       "segment": "("
@@ -4867,6 +4940,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                          "fqn": "lib.builtins.Tuple",
                           "tag": "TypeReference"
                       },
                       "segment": ")"
@@ -4874,6 +4948,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#2lg4ah6ir6t129m33d7gssnigacral39qdamo20mn6r2vefliubpeqnjhejai9ekjckv0qnu9mlu3k9nbpfhl2schec4dohn7rjhjt8",
+                          "fqn": "lib.builtins.Tuple",
                           "tag": "TypeReference"
                       },
                       "segment": ")"
@@ -4920,6 +4995,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "lib.builtins.Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -4967,6 +5043,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -4995,6 +5072,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#ttjui80dbufvf3vgaddmcr065dpgl0rtp68i5cdht6tq4t2vk3i2vg60hi77rug368qijgijf8oui27te7o5oq0t0osm6dg65c080i0",
+                          "fqn": "id",
                           "tag": "TermReference"
                       },
                       "segment": "id"
@@ -5092,11 +5170,13 @@ RESPONSE:
                               "diffTag": "annotationChange",
                               "fromAnnotation": {
                                   "contents": "#m5hlrmkn9a3kuqabta2e9qs934em1qmkotpsh9tjvta2u86nuesbjbk2k2sprbdiljq7uqibp49vku4gfpg2u60ceiv8net1f0bu2n8#d0",
+                                  "fqn": "Type.Type",
                                   "tag": "TermReference"
                               },
                               "segment": "Type",
                               "toAnnotation": {
                                   "contents": "#uik7pl3klg4u2obtf2fattdaeldui46ohmsi0knpp5hu8tn4d5o8vp570qgh7esgap0pmq9cfrh9dfg1r8qa7qh33g45a3tric24o20#d0",
+                                  "fqn": "Type.Type",
                                   "tag": "TermReference"
                               }
                           },
@@ -5115,6 +5195,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Nat",
+                                          "fqn": "lib.builtins.Nat",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Nat"
@@ -5180,11 +5261,13 @@ RESPONSE:
                               "diffTag": "annotationChange",
                               "fromAnnotation": {
                                   "contents": "#uik7pl3klg4u2obtf2fattdaeldui46ohmsi0knpp5hu8tn4d5o8vp570qgh7esgap0pmq9cfrh9dfg1r8qa7qh33g45a3tric24o20#d0",
+                                  "fqn": "Type.Type",
                                   "tag": "TermReference"
                               },
                               "segment": "Type",
                               "toAnnotation": {
                                   "contents": "#m5hlrmkn9a3kuqabta2e9qs934em1qmkotpsh9tjvta2u86nuesbjbk2k2sprbdiljq7uqibp49vku4gfpg2u60ceiv8net1f0bu2n8#d0",
+                                  "fqn": "Type.Type",
                                   "tag": "TermReference"
                               }
                           },
@@ -5213,6 +5296,7 @@ RESPONSE:
                                   {
                                       "annotation": {
                                           "contents": "##Text",
+                                          "fqn": "lib.builtins.Text",
                                           "tag": "TypeReference"
                                       },
                                       "segment": "Text"
@@ -5268,6 +5352,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#uik7pl3klg4u2obtf2fattdaeldui46ohmsi0knpp5hu8tn4d5o8vp570qgh7esgap0pmq9cfrh9dfg1r8qa7qh33g45a3tric24o20#d0",
+                          "fqn": "Type.Type",
                           "tag": "TermReference"
                       },
                       "segment": "Type"
@@ -5289,6 +5374,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Text",
+                          "fqn": "lib.builtins.Text",
                           "tag": "TypeReference"
                       },
                       "segment": "Text"
@@ -5333,6 +5419,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "#m5hlrmkn9a3kuqabta2e9qs934em1qmkotpsh9tjvta2u86nuesbjbk2k2sprbdiljq7uqibp49vku4gfpg2u60ceiv8net1f0bu2n8#d0",
+                          "fqn": "Type.Type",
                           "tag": "TermReference"
                       },
                       "segment": "Type"
@@ -5344,6 +5431,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "lib.builtins.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"

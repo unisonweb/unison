@@ -3,7 +3,9 @@ module Unison.PrettyPrintEnv
     patterns,
     patternName,
     terms,
+    termFQN,
     types,
+    typeFQN,
     allTermNames,
     allTypeNames,
     termName,
@@ -57,6 +59,12 @@ terms ppe = fmap snd . listToMaybe . termNames ppe
 
 types :: PrettyPrintEnv -> Reference -> Maybe (HQ'.HashQualified Name)
 types ppe = fmap snd . listToMaybe . typeNames ppe
+
+termFQN :: PrettyPrintEnv -> Referent -> Maybe Name
+termFQN ppe = fmap (HQ'.toName . fst) . listToMaybe . termNames ppe
+
+typeFQN :: PrettyPrintEnv -> Reference -> Maybe Name
+typeFQN ppe = fmap (HQ'.toName . fst) . listToMaybe . typeNames ppe
 
 termNameOrHashOnly :: PrettyPrintEnv -> Referent -> HQ.HashQualified Name
 termNameOrHashOnly ppe r = maybe (HQ.fromReferent r) HQ'.toHQ $ terms ppe r

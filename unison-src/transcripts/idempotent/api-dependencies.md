@@ -119,6 +119,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -140,6 +141,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -161,6 +163,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -184,6 +187,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -239,6 +243,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -260,6 +265,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -281,6 +287,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -304,6 +311,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
