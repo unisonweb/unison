@@ -695,8 +695,12 @@ printLetBindings ::
 printLetBindings context = \case
   LetBindings bindings -> traverse (printLetBinding context) bindings
   LetrecBindings bindings ->
-    let boundVars = map fst bindings
-     in traverse (printLetrecBinding context boundVars) bindings
+    -- We order let-rec bindings alphabetically rather than hash-ordered when printing
+    -- improve diffing alignment (and sanity). They'll be re-ordered back to hash order when
+    -- parsed.
+    let orderedBindings = sort bindings
+        boundVars = map fst orderedBindings
+     in traverse (printLetrecBinding context boundVars) orderedBindings
 
 printLetBinding :: (MonadPretty v m) => AmbientContext -> (v, Term3 v PrintAnnotation) -> m (Pretty SyntaxText)
 printLetBinding context (v, binding)
