@@ -10,6 +10,7 @@ module Unison.Syntax.DeclPrinter
 where
 
 import Control.Monad.Writer (Writer, runWriter, tell)
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -95,11 +96,22 @@ prettyGADT ::
   DataDeclaration v a ->
   Pretty SyntaxText
 prettyGADT env guid ctorType r name dd =
-  header <> P.newline <> P.indentN 2 constructors
+  header <> P.newline <> P.indentN 2 prettyConstructors
   where
-    constructors = P.lines (constructor <$> zip [0 ..] (DD.constructors' dd))
-    constructor (n, (_, _, t)) =
-      prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
+    -- Order Constructors alphabetically by name,
+    -- regardless of their original order in the declaration.
+    -- This is both nice for readability and ensures stable output in diffs, since otherwise
+    -- constructors will jump around in order based on their hash.
+    -- They'll be re-ordered by hash when parsed.
+    orderedConstructors =
+      zip [0 ..] (DD.constructors' dd)
+        & List.sortOn \case
+          (n, (_, _, _)) -> (PPE.termName unsuffixifiedPPE (Referent.Con (ConstructorReference r n) ctorType))
+
+    prettyConstructors = P.lines (printConstructor <$> orderedConstructors)
+    unsuffixifiedPPE = PPED.unsuffixifiedPPE env
+    printConstructor (n, (_, _, t)) =
+      prettyPattern unsuffixifiedPPE ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
           `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader guid name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
@@ -132,8 +144,18 @@ prettyDataDecl ::
   Writer (Set AccessorName) (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor `traverse` zip [0 ..] (DD.constructors' dd)
+    <$> constructor `traverse` orderedConstructors
   where
+    -- Order Constructors alphabetically by name,
+    -- regardless of their original order in the declaration.
+    -- This is both nice for readability and ensures stable output in diffs, since otherwise
+    -- constructors will jump around in order based on their hash.
+    -- They'll be re-ordered by hash when parsed.
+    orderedConstructors =
+      zip [0 ..] (DD.constructors' dd)
+        & List.sortOn \case
+          (n, (_, _, _)) -> (PPE.termName unsuffixifiedPPE (Referent.Con (ConstructorReference r n) CT.Data))
+
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
     constructor' n t = case Type.unArrows t of
