@@ -37,7 +37,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIn
       & Map.fromList
       & H2.hashTermComponents
       -- Convert HashingWarnings to HashValidationErrors
-      & first (\errs -> errs $> (HashingFailure ( IncompleteElementOrderingError ( ComponentHash hash))))
+      & first (\errs -> errs $> (HashingFailure (IncompleteElementOrderingError (ComponentHash hash))))
   r
     & traverse_ \(H2.ReferenceId hash' _, _trm, _typ, _extra) ->
       if hash == hash'
@@ -46,7 +46,7 @@ verifyTermFormatHash (ComponentHash hash) (TermFormat.Term (TermFormat.LocallyIn
   where
     toMaybe = \case
       ([], ()) -> Nothing
-      (e:_es, ()) -> Just e
+      (e : _es, ()) -> Just e
     mapTermV ::
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' S.Symbol) S.Symbol a ->
       ABT.Term (C.Term.F' text' termRef' typeRef' termLink' typeLink' Unison.Symbol) Unison.Symbol a
