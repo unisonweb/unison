@@ -99,7 +99,7 @@ prettyRaw im p tp = go im p tp
       -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
       Ref' r -> do
         env <- ask
-        pure $ styleHashQualified'' (fmt $ S.TypeReference r) $ elideFQN im (PrettyPrintEnv.typeName env.ppe r)
+        pure $ styleHashQualified'' (fmt $ S.TypeReference (PrettyPrintEnv.typeFQN env.ppe r) r) $ elideFQN im (PrettyPrintEnv.typeName env.ppe r)
       Cycle' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Cycle"
       Abs' _ -> pure $ fromString "bug: TypeParser does not currently emit Abs"
       Ann' _ _ -> pure $ fromString "bug: TypeParser does not currently emit Ann"
@@ -205,7 +205,7 @@ prettySignaturesST ppe ts =
   PP.align . runPretty ppe $ traverse (\(r, hq, typ) -> (name r hq,) <$> sig typ) ts
   where
     name r hq =
-      styleHashQualified'' (fmt $ S.TermReference r) hq
+      styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN ppe r) r) hq
     sig typ = do
       t <- pretty0 Map.empty (-1) typ
       let col = fmt S.TypeAscriptionColon ": "

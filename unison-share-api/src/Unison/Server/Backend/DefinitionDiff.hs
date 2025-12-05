@@ -176,10 +176,10 @@ semanticLinewiseDiff (AnnotatedText lhs) (AnnotatedText rhs) =
         where
           elementHash :: Syntax.Element -> Maybe Syntax.UnisonHash
           elementHash = \case
-            Syntax.TypeReference hash -> Just hash
-            Syntax.TermReference hash -> Just hash
-            Syntax.DataConstructorReference hash -> Just hash
-            Syntax.AbilityConstructorReference hash -> Just hash
+            Syntax.TypeReference _fqn hash -> Just hash
+            Syntax.TermReference _fqn hash -> Just hash
+            Syntax.DataConstructorReference _fqn hash -> Just hash
+            Syntax.AbilityConstructorReference _fqn hash -> Just hash
             _ -> Nothing
 
     -- Collapse subsequent chunks of the same kind of diff into one chunk.
