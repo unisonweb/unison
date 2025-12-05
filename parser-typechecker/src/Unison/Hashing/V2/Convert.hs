@@ -2,7 +2,7 @@
 module Unison.Hashing.V2.Convert
   ( ResolutionResult,
     Hashing.HashingWarning (..),
-    Hashing.crashOnHashingFailure,
+    Hashing.crashOnHashingWarning,
     hashBranch0,
     hashCausal,
     hashDataDecls,

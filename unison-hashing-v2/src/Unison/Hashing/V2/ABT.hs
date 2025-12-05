@@ -10,7 +10,7 @@
 module Unison.Hashing.V2.ABT
   ( Unison.ABT.Term,
     HashingWarning (..),
-    crashOnHashingFailure,
+    crashOnHashingWarning,
     hash,
     hashComponents,
   )
@@ -65,8 +65,8 @@ instance Show HashingWarning where
 -- | Crash if hashing produced any warnings.
 --
 -- In the future we will hopefully prevent this error entirely.
-crashOnHashingFailure :: (HasCallStack) => ([HashingWarning], a) -> a
-crashOnHashingFailure = \case
+crashOnHashingWarning :: (HasCallStack) => ([HashingWarning], a) -> a
+crashOnHashingWarning = \case
   ([], a) -> a
   (hf : _, _) -> throw hf
 

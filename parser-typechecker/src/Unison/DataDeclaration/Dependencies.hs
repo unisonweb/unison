@@ -100,7 +100,7 @@ hashFieldAccessors ppe declName vars declRef dd = do
   typecheckedAccessors
     & Map.fromList
     & Hashing.hashTermComponents
-    & Hashing.crashOnHashingFailure
+    & Hashing.crashOnHashingWarning
     & Map.map Tuple.drop4th
     & Just
   where
