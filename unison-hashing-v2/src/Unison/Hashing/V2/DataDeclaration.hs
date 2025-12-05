@@ -121,6 +121,7 @@ instance Hashable1 F where
               let (hashes, hash') = hashCycle bindings
                in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
             Constructors cs ->
+              -- Should constructors be considered top-level?
               let (hashes, _) = hashCycle cs
                in tag 2 : map hashed hashes
             Modified m t ->

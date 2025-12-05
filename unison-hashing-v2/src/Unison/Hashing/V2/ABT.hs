@@ -17,9 +17,10 @@ module Unison.Hashing.V2.ABT
 where
 
 import Control.Exception (throw)
-import Data.Containers.ListUtils qualified as List
 import Data.List hiding (cycle, find)
 import Data.List qualified as List (sort)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.ABT
@@ -32,7 +33,7 @@ import Prelude hiding (abs, cycle)
 data HashingFailure
   = -- | two or more component elements can not be completely ordered with respect to one another
     -- https://github.com/unisonweb/unison/issues/2787
-    IncompleteElementOrderingError ([String {- Variable names of component definitions -}])
+    IncompleteElementOrderingError (NonEmpty (NonEmpty String {- Each list is a set of structurally equivalent component elements -}))
   deriving stock (Eq, Ord)
   deriving anyclass (Exception)
 
@@ -41,15 +42,20 @@ instance Show HashingFailure where
     where
       renderHashingFailure :: HashingFailure -> String
       renderHashingFailure = \case
-        IncompleteElementOrderingError names ->
+        IncompleteElementOrderingError equivalenceSets ->
           unlines
             [ "🐞",
               "",
               "Sorry, you've encountered a weird situation that we are aware of and are currently working on a fix for.",
               "I'll explain what happened and how you can work around it.",
               "",
-              "The following cyclic definitions could not be completely ordered:",
-              "  " ++ intercalate ", " names,
+              "The following cyclic definition sets could not be completely ordered:",
+              toList equivalenceSets
+                <&> ( \vs ->
+                        "  * " <> intercalate ", " (toList vs)
+                    )
+                & unlines,
+              "",
               "This happens when multiple definitions in a mutually recursive cycle have a very similar structure.",
               "",
               "You can work around this by restructuring them to be less similar, e.g. by adding a pure expression to distinguish them, like:",
@@ -74,7 +80,8 @@ hashComponent byName = do
   let ts = Map.toList byName
   -- First, compute a canonical hash ordering of the component, as well as an environment in which we can hash
   -- individual names.
-  (hashes, env) <- doHashCycle [] ts
+  let isTop = True
+  (hashes, env) <- doHashCycle isTop [] ts
   -- Construct a list of tokens that is shared by all members of the component. They are disambiguated only by their
   -- name that gets tumbled into the hash.
   let commonTokens :: [Hashable.Token]
@@ -156,13 +163,16 @@ hash' env = \case
             ++ show v
             ++ " environment = "
             ++ show env
-  Cycle' vs t -> hash1 (crashOnHashingFailure . hashCycle vs env) undefined t
+  Cycle' vs t -> hash1 (\ts -> crashOnHashingFailure $ hashCycle vs env ts) undefined t
   Abs'' v t -> hash' (Right v : env) t
   Tm' t -> hash1 (\ts -> (List.sort (map (hash' env) ts), hash' env)) (hash' env) t
   where
     hashCycle :: [v] -> [Either [v] v] -> [Term f v a] -> Either HashingFailure ([Hash], Term f v a -> Hash)
     hashCycle cycle env ts = do
-      (ts', env') <- doHashCycle env (zip cycle ts)
+      -- isTop is always false when called via `hash'`, we only set it to True
+      -- when calling from `hashComponent`
+      let isTop = False
+      (ts', env') <- doHashCycle isTop env (zip cycle ts)
       pure (ts', hash' env')
 
 -- | @doHashCycle env terms@ hashes cycle @terms@ in environment @env@, and returns the canonical ordering of the hashes
@@ -170,19 +180,31 @@ hash' env = \case
 doHashCycle ::
   forall a f v.
   (Eq v, Functor f, Hashable1 f, Show v) =>
+  Bool ->
   [Either [v] v] ->
   [(v, Term f v a)] ->
   Either HashingFailure ([Hash], [Either [v] v])
-doHashCycle env namedTerms = do
+doHashCycle isTop env namedTerms = do
   -- Ensure that all of the hashes we use for ordering components are unique;
   -- if not, we have an incomplete ordering of the elements in the cycle
-  when (List.nubOrd hashes /= hashes) $ Left $ IncompleteElementOrderingError (show <$> names)
+  when isTop $ do
+    -- Error if there are any structurally equivalent elements
+    for_ structurallyEquivalentElements \vs -> do
+      -- Sort them so they're deterministic in transcripts
+      let sortedVars =
+            vs
+              <&> (NEL.sort . fmap show)
+              & NEL.sort
+      Left $ IncompleteElementOrderingError sortedVars
   pure $ (map (hash' newEnv) permutedTerms, newEnv)
   where
     names = map fst namedTerms
     -- The environment in which we compute the canonical permutation of terms
     permutationEnv = Left names : env
-    hashes = (hash' permutationEnv . snd) <$> namedTerms
+    namedHashes :: [(v, Hash)]
+    namedHashes = second (hash' permutationEnv) <$> namedTerms
+    hashes :: [Hash]
+    hashes = snd <$> namedHashes
     (permutedNames, permutedTerms) =
       zip namedTerms hashes
         & sortOn snd
@@ -191,3 +213,11 @@ doHashCycle env namedTerms = do
     -- The new environment, which includes the names of all of the terms in the cycle, now that we have computed their
     -- canonical ordering
     newEnv = map Right permutedNames ++ env
+    structurallyEquivalentElements :: Maybe (NonEmpty (NonEmpty v))
+    structurallyEquivalentElements =
+      namedHashes
+        <&> (\(v, h) -> (h, [v]))
+        & Map.fromListWith (<>)
+        & mapMaybe (\xs -> guard (length xs > 1) *> NEL.nonEmpty xs)
+        & Map.elems
+        & NEL.nonEmpty
