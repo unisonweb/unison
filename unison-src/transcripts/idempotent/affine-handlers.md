@@ -145,7 +145,7 @@ count'test = do
   + looped       : '{g} r -> Nat ->{g} ()
   + now          : '{IO, Exception} TimeSpec
   + provide      : e -> Request {Env e} r -> r
-  + repeated     : Request {Repeat, g} () ->{g} ()
+  + repeated     : Request {g, Repeat} () ->{g} ()
   + testPerf     : '() ->{IO, Exception} Result
 
   Run `update` to apply these changes to your codebase.

@@ -1209,7 +1209,7 @@ scratch/alice> merge /bob
 type Foo = Baz Nat Nat | Qux Text
 
 -- scratch/bob
-type Foo = BobQux Text | Baz Nat
+type Foo = Baz Nat | BobQux Text
 
 ```
 
@@ -1287,10 +1287,10 @@ scratch/alice> merge bob
 
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
-type Foo = Qux Text | Alice Nat
+type Foo = Alice Nat | Qux Text
 
 -- scratch/bob
-type Foo = Bob Text | Baz Nat
+type Foo = Baz Nat | Bob Text
 
 ```
 
@@ -1550,7 +1550,7 @@ scratch/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
 ``` ucm
 scratch/bob> view Foo.Bar
 
-  type Foo.Bar = Hello Nat Nat | Baz Nat
+  type Foo.Bar = Baz Nat | Hello Nat Nat
 ```
 
 At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in different ways, so that's a conflict. Therefore, Bob's entire type (`Foo.Bar` with constructors `Foo.Bar.Baz` and `Foo.Bar.Hello`) gets rendered into the scratch file.
@@ -1595,7 +1595,7 @@ Foo.Bar.Hello : Nat
 Foo.Bar.Hello = 18
 
 -- scratch/bob
-type Foo.Bar = Hello Nat Nat | Baz Nat
+type Foo.Bar = Baz Nat | Hello Nat Nat
 
 ```
 

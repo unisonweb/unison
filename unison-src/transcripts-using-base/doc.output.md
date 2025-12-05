@@ -59,7 +59,7 @@ You can preview what docs will look like when rendered to the console using the 
 
   The 7 days of the week, defined as:
 
-      type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
+      type DayOfWeek = Fri | Mon | Sat | Sun | Thu | Tue | Wed
 ```
 
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.
@@ -342,7 +342,7 @@ and the rendered output using `display`:
 
     Unison definitions can be included in docs. For instance:
 
-        structural type Optional a = Some a | None
+        structural type Optional a = None | Some a
         
         sqr : Nat -> Nat
         sqr x =
@@ -351,7 +351,7 @@ and the rendered output using `display`:
 
     Some rendering targets also support folded source:
 
-        structural type Optional a = Some a | None
+        structural type Optional a = None | Some a
         
         sqr : Nat -> Nat
         sqr x =
@@ -658,7 +658,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -667,7 +667,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =

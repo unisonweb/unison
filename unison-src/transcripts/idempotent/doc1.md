@@ -11,11 +11,11 @@ Unison documentation is written in Unison. Documentation is a value of the follo
 
   type lib.builtins.Doc
     = Blob Text
-    | Link Link
-    | Source Link
-    | Signature Link.Term
     | Evaluate Link.Term
     | Join [Doc]
+    | Link Link
+    | Signature Link.Term
+    | Source Link
 ```
 
 You can create these `Doc` values with ordinary code, or you can use the special syntax. A value of structural type `Doc` can be created via syntax like:
