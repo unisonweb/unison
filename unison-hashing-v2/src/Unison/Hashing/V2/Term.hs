@@ -93,7 +93,7 @@ hashTermComponents ::
   forall v a extra.
   (Var v) =>
   Map v (Term v a, Type v a, extra) ->
-  Either ABT.HashingFailure (Map v (ReferenceId, Term v a, Type v a, extra))
+  ([ABT.HashingWarning], (Map v (ReferenceId, Term v a, Type v a, extra)))
 hashTermComponents terms = do
   hashed <- ReferenceUtil.hashComponents (refId ()) terms'
   pure $ Zip.zipWith keepExtra terms hashed
@@ -117,10 +117,9 @@ hashTermComponents terms = do
 -- What if there's a top-level Annotation but it doesn't match
 -- the type that was provided?
 
-hashTermComponentsWithoutTypes :: (Var v) => Map v (Term v a) -> Map v (ReferenceId, Term v a)
+hashTermComponentsWithoutTypes :: (Var v) => Map v (Term v a) -> ([ABT.HashingWarning], Map v (ReferenceId, Term v a))
 hashTermComponentsWithoutTypes terms =
   ReferenceUtil.hashComponents (refId ()) terms
-    & ABT.crashOnHashingFailure
 
 hashClosedTerm :: (Var v) => Term v a -> ReferenceId
 hashClosedTerm tm = ReferenceId (ABT.hash tm) 0

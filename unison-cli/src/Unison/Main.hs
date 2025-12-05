@@ -112,7 +112,7 @@ main version = do
       | isExitSuccess exception -> pure ()
       -- This is a bit of a hack to make hashing failures more user-friendly.
       -- https://github.com/unisonweb/unison/pull/6007
-      | Just hf <- fromException @ABT.HashingFailure exception -> do
+      | Just hf <- fromException @ABT.HashingWarning exception -> do
           Text.hPutStrLn stderr ("\n" <> tShow hf <> "\n")
       | otherwise -> do
           let shown = tShow exception

@@ -62,7 +62,7 @@ createAuthorInfo a t = createAuthorInfo' . unpack <$> liftIO (getRandomBytes 32)
       Term v a ->
       (Reference.Id, Term v a)
     hashAndWrangle v typ tm =
-      case Foldable.toList . H.crashOnHashingFailure $ H.hashTermComponents (Map.singleton (Var.named v) (tm, typ, ())) of
+      case Foldable.toList . H.crashOnHashingWarning $ H.hashTermComponents (Map.singleton (Var.named v) (tm, typ, ())) of
         [(id, tm, _tp, ())] -> (id, tm)
         _ -> error "hashAndWrangle: Expected a single definition."
     (chType, chTypeRef) = (Type.ref a chTypeRef, IOSource.copyrightHolderRef)

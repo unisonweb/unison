@@ -600,7 +600,7 @@ migrateTermComponent getDeclType termBuffer declBuffer oldHash = fmap (either id
           & fmap (\(v, trm, typ) -> (v, (trm, typ, ())))
           & Map.fromList
           & Convert.hashTermComponents
-          & Convert.crashOnHashingFailure
+          & Convert.crashOnHashingWarning
           & fmap (\(ref, trm, typ, _) -> (ref, trm, typ))
 
   ifor newTermComponents $ \v (newReferenceId, trm, typ) -> do

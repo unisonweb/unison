@@ -38,7 +38,7 @@ v = Var.named
 builtinTermsRef :: Map Symbol Reference.Id
 builtinTermsRef =
   fmap (\(refId, _, _, _) -> refId)
-    . H.crashOnHashingFailure
+    . H.crashOnHashingWarning
     . H.hashTermComponents
     . Map.fromList
     . fmap (\(v, _a, tm, tp) -> (v, (tm, tp, ())))

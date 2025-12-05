@@ -278,7 +278,7 @@ typecheckedUnisonFile datas effects tlcs watches =
               [(v, Nothing) | (v, _a, _e, _t) <- join tlcs]
                 ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _a, _e, _t) <- wkTerms]
           hcs :: Map v (Reference.Id, Term v a, Type v a, a)
-          hcs = Hashing.crashOnHashingFailure $ Hashing.hashTermComponents $ Map.fromList $ (\(v, a, e, t) -> (v, (e, t, a))) <$> allTerms
+          hcs = Hashing.crashOnHashingWarning $ Hashing.hashTermComponents $ Map.fromList $ (\(v, a, e, t) -> (v, (e, t, a))) <$> allTerms
        in Map.fromList
             [ (v, (a, r, wk, e, t))
               | (v, (r, e, _typ, a)) <- Map.toList hcs,
