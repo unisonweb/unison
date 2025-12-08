@@ -286,6 +286,7 @@ jobs:
           echo "passing=true" >> "${{env.transcript_test_results}}"
 
       - name: dll-ffi-unix smoke tests
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         if: runner.os != 'Windows'
         run: |
           clang -c -o \
@@ -303,6 +304,7 @@ jobs:
             unison-src/transcripts-manual/dll-ffi-unix.output.md
 
       - name: dll-ffi-win smoke tests
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         if: runner.os == 'Windows'
         run: |
           clang -DWINDOWS_BUILD -c -o \
