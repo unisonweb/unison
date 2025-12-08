@@ -282,8 +282,7 @@ jobs:
             unison-src/transcripts-manual/docs.to-html
 
       - name: dll-ffi-unix smoke tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        if: runner.os != 'Windows'
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
         run: |
           clang -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
@@ -300,8 +299,7 @@ jobs:
             unison-src/transcripts-manual/dll-ffi-unix.output.md
 
       - name: dll-ffi-win smoke tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        if: runner.os == 'Windows'
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os == 'Windows'
         run: |
           clang -DWINDOWS_BUILD -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
