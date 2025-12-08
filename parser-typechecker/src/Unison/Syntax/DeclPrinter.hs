@@ -101,7 +101,7 @@ prettyGADT ::
 prettyGADT env guid ctorType r name dd =
   header <> P.newline <> P.indentN 2 prettyConstructors
   where
-    prettyConstructors = P.lines (printConstructor <$> orderConstructors unsuffixifiedPPE r dd)
+    prettyConstructors = P.lines (printConstructor <$> orderConstructors unsuffixifiedPPE r dd ctorType)
     unsuffixifiedPPE = PPED.unsuffixifiedPPE env
     printConstructor (n, (_, _, t)) =
       prettyPattern unsuffixifiedPPE ctorType name (ConstructorReference r n)
@@ -132,8 +132,8 @@ prettyPattern env ctorType namespace ref =
 -- This is both nice for readability and ensures stable output in diffs, since otherwise
 -- constructors will jump around in order based on their hash.
 -- They'll be re-ordered by hash when parsed.
-orderConstructors :: (Var v) => PrettyPrintEnv -> TypeReference -> DataDeclaration v a -> [(Word64, (a, v, Type.Type v a))]
-orderConstructors ppe r dd =
+orderConstructors :: (Var v) => PrettyPrintEnv -> TypeReference -> DataDeclaration v a -> CT.ConstructorType -> [(Word64, (a, v, Type.Type v a))]
+orderConstructors ppe r dd ctype =
   zip [0 ..] (DD.constructors' dd)
     -- First we sort by type to ensure that identical types are adjacent.
     & List.sortOn (\(_n, (_a, _v, typ)) -> typ)
@@ -147,7 +147,7 @@ orderConstructors ppe r dd =
             & NEL.sortOn fst
             & \case
               (n, (_, _, _)) :| _rest ->
-                PPE.termName ppe (Referent.Con (ConstructorReference r n) CT.Data)
+                PPE.termName ppe (Referent.Con (ConstructorReference r n) ctype)
       )
     -- Then we flatten back out to a list of constructors.
     & foldMap (toList . snd)
@@ -163,7 +163,7 @@ prettyDataDecl ::
   Writer (Set AccessorName) (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd)
+    <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t
