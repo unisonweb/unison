@@ -2,6 +2,8 @@ module Unison.Util.List where
 
 import Data.List qualified as List
 import Data.List.Extra qualified as List
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Unison.Prelude
@@ -22,14 +24,14 @@ groupBy f vs = reverse <$> foldl' step Map.empty vs
 -- e.g.
 -- >>> groupMap (\n -> (odd n, show n)) [1, 3, 4, 6, 7]
 -- [(True,["1","3"]),(False,["4","6"]),(True,["7"])]
-groupMap :: (Foldable f, Eq k) => (a -> (k, b)) -> f a -> [(k, [b])]
+groupMap :: (Foldable f, Eq k) => (a -> (k, b)) -> f a -> [(k, NonEmpty b)]
 groupMap f xs =
   xs
     & toList
     & fmap f
     & List.groupOn fst
     -- head is okay since groupOn only returns populated lists.
-    <&> \grp -> (fst . head $ grp, snd <$> grp)
+    <&> \grp -> (fst . head $ grp, NEL.fromList (snd <$> grp))
 
 -- returns the subset of `f a` which maps to unique `b`s.
 -- prefers earlier copies, if many `a` map to some `b`.
