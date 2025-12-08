@@ -170,7 +170,7 @@ scratch/main> edit MyType
 structural type MyType = B Nat | C | A
 ```
 
-Even if we change the other constructor and update, the Nat mapping should be preserved.
+Since the ordering within each group is preserved, even if we edit and update, the Nat mapping should be preserved.
 
 ``` unison :hide
 structural type MyType = B Text | C | A
