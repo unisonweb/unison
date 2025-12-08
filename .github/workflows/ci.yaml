@@ -280,10 +280,6 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/docs.to-html.output.md \
             unison-src/transcripts-manual/docs.to-html
-      - name: mark transcripts as passing
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: |
-          echo "passing=true" >> "${{env.transcript_test_results}}"
 
       - name: dll-ffi-unix smoke tests
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
@@ -320,6 +316,11 @@ jobs:
           # Fail if the output or generated docs differ.
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/dll-ffi-win.output.md
+
+      - name: mark transcripts as passing
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: |
+          echo "passing=true" >> "${{env.transcript_test_results}}"
 
   interpreter-tests:
     name: run interpreter tests
