@@ -133,8 +133,8 @@ explicit.doc =
 
 Thing.doc = {{ A doc before an ability }}
 ability Thing where
-  doThing : Nat ->{Thing} Int
   more : Nat -> Text ->{Thing} Nat
+  doThing : Nat ->{Thing} Int
 
 
 Ask.doc = {{ Ability with single constructor }}

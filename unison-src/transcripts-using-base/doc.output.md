@@ -59,7 +59,7 @@ You can preview what docs will look like when rendered to the console using the 
 
   The 7 days of the week, defined as:
 
-      type DayOfWeek = Fri | Mon | Sat | Sun | Thu | Tue | Wed
+      type DayOfWeek = Sun | Mon | Tue | Wed | Thu | Fri | Sat
 ```
 
 The `docs ImportantConstant` command will look for `ImportantConstant.doc` in the file or codebase. You can do this instead of explicitly linking docs to definitions.

@@ -43,9 +43,9 @@ ability abilities.Label where
   pushScope : Text ->{Label} ()
 
 ability abilities.Random where
-  bytes : Nat ->{Random} Bytes
-  nat! : {Random} Nat
   split! : {Random} (∀ g a. '{g, Random} a ->{g} a)
+  nat! : {Random} Nat
+  bytes : Nat ->{Random} Bytes
 
 structural type abilities.Random.RNG
   = RNG (∀ g a. '{g, Random} a ->{g} a)
@@ -53,8 +53,8 @@ structural type abilities.Random.RNG
 -- abilities.Request is built-in.
 
 structural ability abilities.Store a where
-  get : {Store a} a
   put : a ->{Store a} ()
+  get : {Store a} a
 
 structural ability abilities.Throw e where
   throw : e ->{Throw e} a
@@ -200,42 +200,42 @@ structural type data.Tuple a b
   = Cons a b
 
 type Doc
-  = Anchor Text Doc
-  | Aside Doc
-  | Blankline
-  | Blockquote Doc
-  | Bold Doc
-  | BulletedList [Doc]
+  = Blankline
+  | Linebreak
+  | SectionBreak
   | Callout (Optional Doc) Doc
   | Code Doc
-  | CodeBlock Text Doc
-  | Column [Doc]
-  | Folded Boolean Doc Doc
-  | Group Doc
-  | Image Doc Doc (Optional Doc)
+  | Bold Doc
   | Italic Doc
-  | Join [Doc]
-  | Linebreak
-  | NamedLink Doc Doc
+  | Strikethrough Doc
+  | Blockquote Doc
+  | Aside Doc
+  | Group Doc
+  | CodeBlock Text Doc
+  | Style Text Doc
+  | Anchor Text Doc
+  | Folded Boolean Doc Doc
+  | Image Doc Doc (Optional Doc)
   | NumberedList Nat [Doc]
   | Paragraph [Doc]
+  | BulletedList [Doc]
+  | Join [Doc]
+  | UntitledSection [Doc]
+  | Column [Doc]
   | Section Doc [Doc]
-  | SectionBreak
   | Special SpecialForm
-  | Strikethrough Doc
-  | Style Text Doc
   | Table [[Doc]]
   | Tooltip Doc Doc
-  | UntitledSection [Doc]
+  | NamedLink Doc Doc
   | Word Text
 
 type Doc.Deprecated
   = Blob Text
-  | Evaluate Link.Term
   | Join [Deprecated]
   | Link Link
-  | Signature Link.Term
   | Source Link
+  | Signature Link.Term
+  | Evaluate Link.Term
 
 type Doc.EmbedSvg
   = EmbedSvg Text
@@ -252,15 +252,15 @@ type Doc.MediaSource
 type Doc.SpecialForm
   = Embed Any
   | EmbedInline Any
-  | Eval Doc.Term
-  | EvalInline Doc.Term
   | Example Nat Doc.Term
   | ExampleBlock Nat Doc.Term
-  | FoldedSource [(Either Type Doc.Term, [Doc.Term])]
   | Link (Either Type Doc.Term)
   | Signature [Doc.Term]
   | SignatureInline Doc.Term
+  | Eval Doc.Term
+  | EvalInline Doc.Term
   | Source [(Either Type Doc.Term, [Doc.Term])]
+  | FoldedSource [(Either Type Doc.Term, [Doc.Term])]
 
 type Doc.Term
   = Term Any
@@ -330,17 +330,17 @@ type IO.FilePath
   = FilePath Text
 
 type IO.FilePath.FileMode
-  = Append
-  | Read
-  | ReadWrite
+  = Read
   | Write
+  | Append
+  | ReadWrite
 
 -- IO.Handle is built-in.
 
 type IO.Handle.BufferMode
-  = BlockBuffering
+  = NoBuffering
   | LineBuffering
-  | NoBuffering
+  | BlockBuffering
   | SizedBlockBuffering Nat
 
 type IO.Handle.SeekMode
@@ -349,18 +349,18 @@ type IO.Handle.SeekMode
   | SeekFromEnd
 
 type IO.Handle.Std
-  = StdErr
-  | StdIn
+  = StdIn
   | StdOut
+  | StdErr
 
 type IO.IOError
   = AlreadyExists
-  | EOF
-  | IllegalOperation
   | NoSuchThing
-  | PermissionDenied
   | ResourceBusy
   | ResourceExhausted
+  | EOF
+  | IllegalOperation
+  | PermissionDenied
   | UserError
 
 type IO.IOFailure
@@ -419,15 +419,15 @@ type IO.net.URI.Fragment
   = Fragment Text
 
 type IO.net.URI.Method
-  = CONNECT
-  | DELETE
-  | GET
+  = GET
   | HEAD
-  | OPTIONS
-  | PATCH
   | POST
   | PUT
+  | DELETE
+  | CONNECT
   | TRACE
+  | PATCH
+  | OPTIONS
 
 type IO.net.URI.ParseError
   = 
@@ -460,11 +460,11 @@ type IPattern.Capture
 
 type math.ArithmeticException
   = DividedByZero
-  | NegativeInfinityNotAllowed
-  | NotANumber
   | Overflow
-  | PositiveInfinityNotAllowed
   | Underflow
+  | NotANumber
+  | NegativeInfinityNotAllowed
+  | PositiveInfinityNotAllowed
 
 type math.Natural
   = internal.Natural (List.Nonempty Nat)
@@ -513,9 +513,9 @@ structural type Optional a
   | Some a
 
 type Ordering
-  = Equal
+  = Less
+  | Equal
   | Greater
-  | Less
 
 -- Pattern is built-in.
 
@@ -526,11 +526,11 @@ type Pretty.Annotated w txt
   = Append w [Annotated w txt]
   | Empty
   | Group w (Annotated w txt)
+  | Wrap w (Annotated w txt)
   | Indent w (Annotated w txt) (Annotated w txt) (Annotated w txt)
   | Lit w txt
   | OrElse w (Annotated w txt) (Annotated w txt)
   | Table w [[Annotated w txt]]
-  | Wrap w (Annotated w txt)
 
 -- reflection.Code is built-in.
 
@@ -558,29 +558,29 @@ type reflection.RewriteTerm a b
 
 type system.ANSI.Color
   = Black
-  | Blue
-  | BrightBlack
-  | BrightBlue
-  | BrightCyan
-  | BrightGreen
-  | BrightMagenta
-  | BrightRed
-  | BrightWhite
-  | BrightYellow
-  | Cyan
-  | Green
-  | Magenta
   | Red
-  | White
+  | Green
   | Yellow
+  | Blue
+  | Magenta
+  | Cyan
+  | White
+  | BrightBlack
+  | BrightRed
+  | BrightGreen
+  | BrightYellow
+  | BrightBlue
+  | BrightMagenta
+  | BrightCyan
+  | BrightWhite
 
 type system.ConsoleText
-  = Background Color ConsoleText
-  | Bold ConsoleText
-  | Foreground Color ConsoleText
-  | Invert ConsoleText
-  | Plain Text
+  = Bold ConsoleText
   | Underline ConsoleText
+  | Invert ConsoleText
+  | Foreground Color ConsoleText
+  | Background Color ConsoleText
+  | Plain Text
 
 structural type test.deprecated.Domain a
   = Large (Weighted a)
@@ -597,9 +597,9 @@ structural type test.deprecated.internals.v1.Test.Report
 
 structural type test.deprecated.internals.v1.Test.Status
   = Expected Success
+  | Unexpected Success
   | Failed
   | Pending
-  | Unexpected Success
 
 structural type test.deprecated.internals.v1.Test.Success
   = Passed Nat
@@ -620,13 +620,13 @@ type test.TestFailure
 -- time.Clock.internals.TimeSpec is built-in.
 
 type time.DayOfWeek
-  = Fri
-  | Mon
-  | Sat
+  = Sat
   | Sun
-  | Thu
+  | Mon
   | Tue
   | Wed
+  | Thu
+  | Fri
 
 type time.Duration
   = internal.Duration Int Nat
@@ -83185,8 +83185,8 @@ type HttpResponse.Status.UnexpectedResponseStatus
   = 
 
 type proxy.ProxyPresence
-  = NoProxy
-  | Proxy
+  = Proxy
+  | NoProxy
 
 type server.Config
   = { hostName : Optional HostName,
@@ -83225,8 +83225,8 @@ type websockets.errors.WebSocketClosed
 
 type websockets.Frame
   = Binary Boolean Bytes
-  | Close (Optional (Nat, Text))
   | Continuation Boolean Bytes
+  | Close (Optional (Nat, Text))
   | Ping Bytes
   | Pong Bytes
   | Text Boolean Text
