@@ -43,9 +43,9 @@ ability abilities.Label where
   pushScope : Text ->{Label} ()
 
 ability abilities.Random where
-  split! : {Random} (∀ g a. '{g, Random} a ->{g} a)
-  nat! : {Random} Nat
   bytes : Nat ->{Random} Bytes
+  nat! : {Random} Nat
+  split! : {Random} (∀ g a. '{g, Random} a ->{g} a)
 
 structural type abilities.Random.RNG
   = RNG (∀ g a. '{g, Random} a ->{g} a)
@@ -53,8 +53,8 @@ structural type abilities.Random.RNG
 -- abilities.Request is built-in.
 
 structural ability abilities.Store a where
-  put : a ->{Store a} ()
   get : {Store a} a
+  put : a ->{Store a} ()
 
 structural ability abilities.Throw e where
   throw : e ->{Throw e} a

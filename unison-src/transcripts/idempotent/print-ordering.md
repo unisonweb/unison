@@ -90,8 +90,8 @@ scratch/main> update
 scratch/main> view MyType MyAbility
 
   ability MyAbility where
-    def : Nat ->{MyAbility} Nat
     abc : Nat ->{MyAbility} Int
+    def : Nat ->{MyAbility} Nat
     ghi : Int ->{MyAbility} Int
 
   type MyType = X Int | Y Nat | Z
