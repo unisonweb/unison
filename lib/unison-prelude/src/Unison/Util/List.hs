@@ -15,10 +15,10 @@ multimap kvs =
   where
     step m (k, v) = Map.insertWith (++) k [v] m
 
-groupBy :: (Foldable f, Ord k) => (v -> k) -> f v -> Map k [v]
-groupBy f vs = reverse <$> foldl' step Map.empty vs
+groupBy :: (Foldable f, Ord k) => (v -> k) -> f v -> Map k (NonEmpty v)
+groupBy f vs = NEL.reverse <$> foldl' step Map.empty vs
   where
-    step m v = Map.insertWith (++) (f v) [v] m
+    step m v = Map.insertWith (<>) (f v) (NEL.singleton v) m
 
 -- | group _consecutive_ elements by a key.
 -- e.g.

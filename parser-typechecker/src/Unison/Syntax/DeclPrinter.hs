@@ -135,7 +135,9 @@ prettyPattern env ctorType namespace ref =
 orderConstructors :: (Var v) => PrettyPrintEnv -> TypeReference -> DataDeclaration v a -> [(Word64, (a, v, Type.Type v a))]
 orderConstructors ppe r dd =
   zip [0 ..] (DD.constructors' dd)
-    -- First group by type, we need to leave identical types in their constructor order to avoid things like
+    -- First we sort by type to ensure that identical types are adjacent.
+    & List.sortOn (\(_n, (_a, _v, typ)) -> typ)
+    -- Now we group by type, we need to leave identical types in their constructor order to avoid things like
     -- swapping identical constructors, e.g. False turning into True and vice versa.
     & List.groupMap (\con@(_, (_, _, typ)) -> (typ, con))
     -- Then we can sort those _groups_ by the name of the first constructor in the group.
