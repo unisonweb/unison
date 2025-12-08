@@ -90,8 +90,8 @@ scratch/main> update
 scratch/main> view MyType MyAbility
 
   ability MyAbility where
-    abc : Nat ->{MyAbility} Int
     def : Nat ->{MyAbility} Nat
+    abc : Nat ->{MyAbility} Int
     ghi : Int ->{MyAbility} Int
 
   type MyType = X Int | Y Nat | Z
@@ -122,4 +122,98 @@ scratch/main> view abilityTerm
     '{x, y, z, AnotherAbility, MyAbility} Nat
     -> '{x, y, z, AnotherAbility, MyAbility} Nat
   abilityTerm action = action
+```
+
+-----
+
+The following tests whether type constructors might be re-assigned to other constructors when updated.
+
+``` unison :hide
+-- Create a type with some identical constructors which are not in alphabetical order.
+structural type MyType = C | B Nat |  A
+
+toNat : MyType -> Nat
+toNat = cases
+  A -> 0
+  B _ -> 1
+  C -> 2
+
+fromNat : Nat -> MyType
+fromNat = cases
+    0 -> A
+    _ -> C
+```
+
+Add it to the codebase.
+
+``` ucm :hide
+scratch/main> update
+```
+
+Now when we edit it, the constructors would be printed in alphabetical order, BUT since 'A' and 'C' are identical
+constructors, they should maintain their original ordering relative to one another. That is, 'C' should precede 'A'.
+This behaviour ensures we don't accidentally swap meanings between identical constructors, e.g. swap True and False due
+to alphabetical re-ordering.
+
+``` ucm
+scratch/main> edit MyType
+
+  ☝️
+
+  I added 1 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
+```
+
+``` unison :added-by-ucm scratch.u
+structural type MyType = B Nat | C | A
+```
+
+Even if we change the other constructor and update, the Nat mapping should be preserved.
+
+``` unison :hide
+structural type MyType = B Text | C | A
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  That's done. Now I'm making sure everything typechecks...
+
+  Everything typechecks, so I'm saving the results...
+
+  Done.
+```
+
+``` unison
+> toNat A
+> toNat C
+> fromNat 0
+> fromNat 2
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > toNat A
+          ⧩
+          0
+
+    2 | > toNat C
+          ⧩
+          2
+
+    3 | > fromNat 0
+          ⧩
+          A
+
+    4 | > fromNat 2
+          ⧩
+          C
 ```
