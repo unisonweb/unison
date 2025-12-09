@@ -101,7 +101,7 @@ We can display the guide before and after adding it to the codebase:
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -110,7 +110,7 @@ We can display the guide before and after adding it to the codebase:
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -306,7 +306,7 @@ We can display the guide before and after adding it to the codebase:
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -315,7 +315,7 @@ We can display the guide before and after adding it to the codebase:
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -520,7 +520,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -529,7 +529,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -725,7 +725,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -734,7 +734,7 @@ rendered = Pretty.get (docFormatConsole doc.guide)
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =

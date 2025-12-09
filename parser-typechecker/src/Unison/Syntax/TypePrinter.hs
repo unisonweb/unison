@@ -18,6 +18,7 @@ module Unison.Syntax.TypePrinter
 where
 
 import Control.Monad.Reader (ask)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified (HashQualified)
@@ -137,10 +138,16 @@ prettyRaw im p tp = go im p tp
                 <$> ((<>) <$> go im 0 fst <*> arrows False False rest)
         _ -> pure . fromString $ "bug: unexpected Arrow form in prettyRaw: " <> show t
       _ -> pure . fromString $ "bug: unexpected form in prettyRaw: " <> show tp
+    -- Sort effects in effect lists by how they're printed rather than hash,
+    -- this helps with both readability and diff alignment.
+    orderEffects :: [Type v a] -> [Type v a]
+    orderEffects = List.sort
+
+    effects :: Maybe [Type v a] -> m (Pretty (S.SyntaxText' Reference))
     effects Nothing = pure mempty
     effects (Just es) =
       PP.group . (fmt S.AbilityBraces "{" <>) . (<> fmt S.AbilityBraces "}")
-        <$> (PP.commas <$> traverse (go im 0) es)
+        <$> (PP.commas <$> traverse (go im 0) (orderEffects es))
     -- `first`: is this the first argument?
     -- `mes`: list of effects
     arrow delay first mes = do

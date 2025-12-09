@@ -50,7 +50,7 @@ unique type Foo
 
 > view Foo
 
-  type Foo = Baz Nat Nat | Bar Nat
+  type Foo = Bar Nat | Baz Nat Nat
 
 > find.verbose
 

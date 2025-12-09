@@ -342,7 +342,7 @@ and the rendered output using `display`:
 
     Unison definitions can be included in docs. For instance:
 
-        structural type Optional a = Some a | None
+        structural type Optional a = None | Some a
         
         sqr : Nat -> Nat
         sqr x =
@@ -351,7 +351,7 @@ and the rendered output using `display`:
 
     Some rendering targets also support folded source:
 
-        structural type Optional a = Some a | None
+        structural type Optional a = None | Some a
         
         sqr : Nat -> Nat
         sqr x =
@@ -658,7 +658,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Unison definitions can be included in docs. For instance:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
@@ -667,7 +667,7 @@ Lastly, it's common to build longer documents including subdocuments via `{{ sub
     
       Some rendering targets also support folded source:
     
-          structural type Optional a = Some a | None
+          structural type Optional a = None | Some a
           
           sqr : Nat -> Nat
           sqr x =
