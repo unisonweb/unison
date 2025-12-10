@@ -100,7 +100,7 @@ import Network.Socket as SYS
     sendBuf,
     socketPort,
   )
-import Network.TLS as TLS
+import Network.TLS as TLS hiding (HashAlgorithm (HashAlgorithm), defaultHooks)
 import Network.TLS.Extra.Cipher as Cipher
 import Network.UDP (UDPSocket)
 import Network.UDP as UDP
@@ -210,11 +210,6 @@ import Unison.Util.Text qualified as Util.Text
 import Unison.Util.Text.Pattern qualified as TPat
 import UnliftIO qualified
 
-withMutableByteArrayContents :: (PA.PrimBase m) => PA.MutableByteArray (PA.PrimState m) -> (Ptr Word8 -> m a) -> m a
-{-# INLINE withMutableByteArrayContents #-}
-withMutableByteArrayContents mba f =
-  PA.keepAlive mba (f . PA.mutableByteArrayContents)
-
 -- foreignCall is explicitly NOINLINE'd because it's a _huge_ chunk of code and negatively affects code caching.
 -- Because we're not inlining it, we need a wrapper using an explicitly unboxed Stack so we don't block the
 -- worker-wrapper optimizations in the main eval loop.
@@ -295,17 +290,17 @@ foreignCallHelper = \case
     r <- checkBoundsPrim "IO.fillBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
+      Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
   IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
     r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
+      Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
   IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
     r <- checkBoundsPrim "IO.getBufSome.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-      Right _ -> withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
+      Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
   IO_systemTime_impl_v3 -> mkForeignIOF $
     \() -> getPOSIXTime
   IO_systemTimeMicroseconds_v1 -> mkForeign $
@@ -396,13 +391,13 @@ foreignCallHelper = \case
       r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
+        Right _ -> PA.withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
   IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
       r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
-        Right _ -> withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
+        Right _ -> PA.withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
   IO_kill_impl_v3 -> mkForeignIOF killThread
   IO_delay_impl_v3 -> mkForeignIOF customDelay
   IO_stdHandle -> mkForeign $
@@ -1947,12 +1942,26 @@ checkedIndex64 byteOrder name (arr, i) =
 
 -- JSON replacement implementations
 jsonNull, jsonTrue, jsonFalse :: Val
+jsonArr, jsonObj :: Seq Val -> Val
+-- Avro replacement implementations
+avroNull, avroTrue, avroFalse :: Val
+no'buf, line'buf, block'buf :: Closure
+read'mode, write'mode, append'mode, read'write'mode :: Closure
+absolute'seek, relative'seek, seek'from'end :: Closure
+std'in, std'out, std'err :: Closure
+-- Built at the same time to attempt to share references.
+functionReplacements, functionUnreplacements :: Map Reference Reference
+(functionReplacements, functionUnreplacements) =
+  (Map.fromList processed, Map.fromList $ swap <$> processed)
+  where
+    swap (x, y) = (y, x)
+    processed = process <$> functionReplacementList
 jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
 jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True
 jsonFalse = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal False
 
-jsonArr, jsonObj :: Seq Val -> Val
 jsonArr sq = BoxedVal . Data1 Ty.jsonRef TT.jsonArrTag $ encodeVal sq
+
 jsonObj sq = BoxedVal . Data1 Ty.jsonRef TT.jsonObjTag $ encodeVal sq
 
 jsonNum :: TL.Text -> Val
@@ -2232,10 +2241,10 @@ emitJson0 = \case
             | ord c <= 31 = TB.fromText "\\u00" <> hexCode c
             | otherwise = TB.fromChar c
 
--- Avro replacement implementations
-avroNull, avroTrue, avroFalse :: Val
 avroNull = BoxedVal $ Enum Ty.avroRef TT.avroNullTag
+
 avroTrue = BoxedVal $ Data1 Ty.avroRef TT.avroBooleanTag $ BoolVal True
+
 avroFalse = BoxedVal $ Data1 Ty.avroRef TT.avroBooleanTag $ BoolVal False
 
 avroDecodeReadSchema :: Closure -> IO Avro.ReadSchema
@@ -3125,9 +3134,10 @@ encodeBufferMode (BlockBuffering Nothing) = block'buf
 encodeBufferMode (BlockBuffering (Just n)) =
   Data1 Ty.bufferModeRef TT.sizedBlockBufTag . NatVal $ fromIntegral n
 
-no'buf, line'buf, block'buf :: Closure
 no'buf = Enum Ty.bufferModeRef TT.noBufTag
+
 line'buf = Enum Ty.bufferModeRef TT.lineBufTag
+
 block'buf = Enum Ty.bufferModeRef TT.blockBufTag
 
 instance ForeignConvention BufferMode where
@@ -3153,10 +3163,12 @@ encodeIOMode WriteMode = write'mode
 encodeIOMode AppendMode = append'mode
 encodeIOMode ReadWriteMode = read'write'mode
 
-read'mode, write'mode, append'mode, read'write'mode :: Closure
 read'mode = Enum Ty.bufferModeRef TT.readModeTag
+
 write'mode = Enum Ty.bufferModeRef TT.writeModeTag
+
 append'mode = Enum Ty.bufferModeRef TT.appendModeTag
+
 read'write'mode = Enum Ty.bufferModeRef TT.readWriteModeTag
 
 instance ForeignConvention IOMode where
@@ -3180,9 +3192,10 @@ encodeSeekMode AbsoluteSeek = absolute'seek
 encodeSeekMode RelativeSeek = relative'seek
 encodeSeekMode SeekFromEnd = seek'from'end
 
-absolute'seek, relative'seek, seek'from'end :: Closure
 absolute'seek = Enum Ty.seekModeRef TT.seekAbsoluteTag
+
 relative'seek = Enum Ty.seekModeRef TT.seekRelativeTag
+
 seek'from'end = Enum Ty.seekModeRef TT.seekEndTag
 
 instance ForeignConvention SeekMode where
@@ -3208,9 +3221,10 @@ encodeStdHnd StdIn = std'in
 encodeStdHnd StdOut = std'out
 encodeStdHnd StdErr = std'err
 
-std'in, std'out, std'err :: Closure
 std'in = Enum Ty.stdHandleRef TT.stdInTag
+
 std'out = Enum Ty.stdHandleRef TT.stdOutTag
+
 std'err = Enum Ty.stdHandleRef TT.stdErrTag
 
 instance ForeignConvention StdHnd where
@@ -3533,14 +3547,6 @@ functionReplacementList =
       Bytes_read64be
     )
   ]
-
--- Built at the same time to attempt to share references.
-functionReplacements, functionUnreplacements :: Map Reference Reference
-(functionReplacements, functionUnreplacements) =
-  (Map.fromList processed, Map.fromList $ swap <$> processed)
-  where
-    swap (x, y) = (y, x)
-    processed = process <$> functionReplacementList
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.

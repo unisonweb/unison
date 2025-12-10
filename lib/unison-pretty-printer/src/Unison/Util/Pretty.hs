@@ -159,7 +159,7 @@ import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.SyntaxText qualified as ST
-import Prelude hiding (lines, map)
+import Prelude hiding (lines, map, unzip)
 
 newtype Width = Width {widthToInt :: Int}
   deriving stock (Eq, Ord, Show, Generic)

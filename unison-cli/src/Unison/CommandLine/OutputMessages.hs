@@ -172,6 +172,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
+import Prelude hiding (unzip)
 
 reportBugURL :: Pretty
 reportBugURL = "https://github.com/unisonweb/unison/issues/new"
@@ -1039,7 +1040,6 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"

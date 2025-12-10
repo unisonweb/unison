@@ -17,7 +17,7 @@ where
 import Data.Aeson
 import Data.List qualified as List
 import Data.List.Extra qualified as List
-import Data.Text
+import Data.Text hiding (show)
 import Data.Text qualified as Text
 import Network.URI
 import Servant.Client qualified as Servant

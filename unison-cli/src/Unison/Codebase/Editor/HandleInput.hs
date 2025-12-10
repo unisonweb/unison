@@ -183,6 +183,7 @@ import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Unison.WatchKind qualified as WK
 import UnliftIO.Directory qualified as Directory
+import Prelude hiding (unzip)
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop

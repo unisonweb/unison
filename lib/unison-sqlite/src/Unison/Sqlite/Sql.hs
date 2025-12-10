@@ -21,11 +21,12 @@ import Database.SQLite.Simple.ToField qualified as Sqlite.Simple
 import Language.Haskell.TH qualified as TH
 import Language.Haskell.TH.Quote qualified as TH
 import Language.Haskell.TH.Syntax qualified as TH
-import Text.Builder qualified
-import Text.Builder qualified as Text (Builder)
 import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Char qualified as Megaparsec
+import TextBuilder (TextBuilder)
+import TextBuilder qualified
 import Unison.Prelude
+import Prelude hiding (unzip)
 
 -- | A SQL query.
 data Sql = Sql
@@ -195,18 +196,18 @@ sqlQQ input =
 
 inSql :: (Sqlite.Simple.ToField a) => [a] -> Text
 inSql scalars =
-  Text.Builder.run ("IN (" <> b_commaSep (map (\_ -> b_qmark) scalars) <> b_rparen)
+  TextBuilder.toText ("IN (" <> b_commaSep (map (\_ -> b_qmark) scalars) <> b_rparen)
 
 valuesSql :: (Sqlite.Simple.ToRow a) => List.NonEmpty a -> Text
 valuesSql values =
-  Text.Builder.run $
+  TextBuilder.toText $
     "VALUES " <> b_commaSep (replicate (length values) (valueSql columns))
   where
     columns :: Int
     columns =
       length (Sqlite.Simple.toRow (List.NonEmpty.head values))
 
-    valueSql :: Int -> Text.Builder
+    valueSql :: Int -> TextBuilder
     valueSql columns =
       b_lparen <> b_commaSep (replicate columns b_qmark) <> b_rparen
 
@@ -225,7 +226,7 @@ internalParseSql input =
     Right ((), lumps) -> Right (map unlump (reverse lumps))
   where
     unlump = \case
-      OuterLump sql params -> ParsedOuterLump (Text.Builder.run sql) (reverse params)
+      OuterLump sql params -> ParsedOuterLump (TextBuilder.toText sql) (reverse params)
       InnerLump query -> ParsedInnerLump query
       InLump param -> ParsedInLump param
       ValuesLump param -> ParsedValuesLump param
@@ -282,7 +283,7 @@ internalParseSql input =
 --        OuterLump " one " []
 --
 data Lump
-  = OuterLump !Text.Builder ![Param]
+  = OuterLump !TextBuilder ![Param]
   | InnerLump !Text -- "$foo" ==> InnerLump "foo"
   | InLump !Text -- "IN :foo" ==> InLump "foo"
   | ValuesLump !Text -- "VALUES :foo" ==> ValuesLump "foo"
@@ -311,7 +312,7 @@ parser = do
         -- Either we parsed a bare "@", in which case we want to bump the int count of the latest field we walked over
         -- (which must be a RowField, otherwise the query is invalid as it begins some string of @-params with a bare
         -- @), or we parsed a new "@foo@ row param
-        let param1 = Text.Builder.run param
+        let param1 = TextBuilder.toText param
          in if Text.null param1
               then \case
                 RowParam name count : params -> do
@@ -319,20 +320,20 @@ parser = do
                   pure (RowParam name count' : params)
                 _ -> fail ("Invalid query: encountered unnamed-@ without a preceding named-@, like `@foo`")
               else \params -> pure (RowParam param1 1 : params)
-    ColonParam param -> outer b_qmark \params -> pure (FieldParam (Text.Builder.run param) : params)
+    ColonParam param -> outer b_qmark \params -> pure (FieldParam (TextBuilder.toText param) : params)
     DollarParam param -> do
-      State.modify' (InnerLump (Text.Builder.run param) :)
+      State.modify' (InnerLump (TextBuilder.toText param) :)
       parser
     InParam param -> do
-      State.modify' (InLump (Text.Builder.run param) :)
+      State.modify' (InLump (TextBuilder.toText param) :)
       parser
     ValuesParam param -> do
-      State.modify' (ValuesLump (Text.Builder.run param) :)
+      State.modify' (ValuesLump (TextBuilder.toText param) :)
       parser
-    Whitespace -> outer (Text.Builder.char ' ') pure
+    Whitespace -> outer (TextBuilder.char ' ') pure
     EndOfInput -> pure ()
   where
-    outer :: Text.Builder -> ([Param] -> P [Param]) -> P ()
+    outer :: TextBuilder -> ([Param] -> P [Param]) -> P ()
     outer s g = do
       State.get >>= \case
         OuterLump sql params : lumps -> do
@@ -389,12 +390,12 @@ parser = do
 -- prepended to each Param fragment.
 data Fragment
   = Comment -- we toss these, so we don't bother remembering the contents
-  | NonParam !Text.Builder
-  | AtParam !Text.Builder -- "@foo" ==> "foo"; "@" ==> ""
-  | ColonParam !Text.Builder -- ":foo" ==> "foo"
-  | DollarParam !Text.Builder -- "$foo" ==> "foo"
-  | InParam !Text.Builder -- "IN :foo" ==> "foo"
-  | ValuesParam !Text.Builder -- "VALUES :foo" ==> "foo"
+  | NonParam !TextBuilder
+  | AtParam !TextBuilder -- "@foo" ==> "foo"; "@" ==> ""
+  | ColonParam !TextBuilder -- ":foo" ==> "foo"
+  | DollarParam !TextBuilder -- "$foo" ==> "foo"
+  | InParam !TextBuilder -- "IN :foo" ==> "foo"
+  | ValuesParam !TextBuilder -- "VALUES :foo" ==> "foo"
   | Whitespace
   | EndOfInput
 
@@ -422,12 +423,12 @@ fragmentParser =
     -- sqlite3 repl didn't reveal any.
     --
     -- So this parser is simple: left bracket, stuff, right bracket.
-    bracketedIdentifierP :: P Text.Builder
+    bracketedIdentifierP :: P TextBuilder
     bracketedIdentifierP = do
       x <- char '['
       ys <- Megaparsec.takeWhile1P (Just "identifier") (/= ']')
       z <- char ']'
-      pure (x <> Text.Builder.text ys <> z)
+      pure (x <> TextBuilder.text ys <> z)
 
     lineCommentP :: P ()
     lineCommentP = do
@@ -447,7 +448,7 @@ fragmentParser =
       -- See whitespace-eating comment above
       whitespaceP
 
-    unstructuredP :: P Text.Builder
+    unstructuredP :: P TextBuilder
     unstructuredP = do
       x <- Megaparsec.anySingle
       xs <-
@@ -466,25 +467,25 @@ fragmentParser =
               && c /= '/' -- /* comment */ (maybe)
               && c /= 'I' -- IN :param (maybe)
               && c /= 'V' -- VALUES :param (maybe)
-      pure (Text.Builder.char x <> Text.Builder.text xs)
+      pure (TextBuilder.char x <> TextBuilder.text xs)
 
     -- Parse either "@foobar" or just "@"
-    atParamP :: P Text.Builder
+    atParamP :: P TextBuilder
     atParamP = do
       _ <- Megaparsec.char '@'
       haskellVariableP <|> pure mempty
 
-    colonParamP :: P Text.Builder
+    colonParamP :: P TextBuilder
     colonParamP = do
       _ <- Megaparsec.char ':'
       haskellVariableP
 
-    dollarParamP :: P Text.Builder
+    dollarParamP :: P TextBuilder
     dollarParamP = do
       _ <- Megaparsec.char '$'
       haskellVariableP
 
-    inParamP :: P Text.Builder
+    inParamP :: P TextBuilder
     inParamP = do
       -- Use try (backtracking), so we can parse both:
       --
@@ -496,7 +497,7 @@ fragmentParser =
         whitespaceP
         colonParamP
 
-    valuesParamP :: P Text.Builder
+    valuesParamP :: P TextBuilder
     valuesParamP = do
       -- Use try (backtracking), so we can parse both:
       --
@@ -508,11 +509,11 @@ fragmentParser =
         whitespaceP
         colonParamP
 
-    haskellVariableP :: P Text.Builder
+    haskellVariableP :: P TextBuilder
     haskellVariableP = do
       x <- Megaparsec.satisfy (\c -> Char.isAlpha c || c == '_')
       xs <- Megaparsec.takeWhileP (Just "parameter") \c -> Char.isAlphaNum c || c == '_' || c == '\''
-      pure (Text.Builder.char x <> Text.Builder.text xs)
+      pure (TextBuilder.char x <> TextBuilder.text xs)
 
     whitespaceP :: P ()
     whitespaceP = do
@@ -534,7 +535,7 @@ fragmentParser =
 -- within. For example, @betwixt "" '`'@ applied to the string "`foo``bar`" will return the full string "`foo``bar`".
 --
 -- This implementation is stolen from our own Travis Staton's @hasql-interpolate@ package, but tweaked a bit.
-betwixt :: String -> Char -> P Text.Builder
+betwixt :: String -> Char -> P TextBuilder
 betwixt name quote = do
   startQuote <- quoteP
   let loop sofar = do
@@ -542,31 +543,31 @@ betwixt name quote = do
         Megaparsec.notFollowedBy Megaparsec.eof
         let escapedQuoteAndMore = do
               escapedQuote <- Megaparsec.try ((<>) <$> quoteP <*> quoteP)
-              loop (sofar <> Text.Builder.text content <> escapedQuote)
+              loop (sofar <> TextBuilder.text content <> escapedQuote)
         let allDone = do
               endQuote <- quoteP
-              pure (sofar <> Text.Builder.text content <> endQuote)
+              pure (sofar <> TextBuilder.text content <> endQuote)
         escapedQuoteAndMore <|> allDone
   loop startQuote
   where
     quoteP =
       char quote
 
-char :: Char -> P Text.Builder
+char :: Char -> P TextBuilder
 char c =
-  Megaparsec.char c $> Text.Builder.char c
+  Megaparsec.char c $> TextBuilder.char c
 
 -- Few common text builders
 
-b_qmark :: Text.Builder
-b_qmark = Text.Builder.char '?'
+b_qmark :: TextBuilder
+b_qmark = TextBuilder.char '?'
 
-b_lparen :: Text.Builder
-b_lparen = Text.Builder.char '('
+b_lparen :: TextBuilder
+b_lparen = TextBuilder.char '('
 
-b_rparen :: Text.Builder
-b_rparen = Text.Builder.char ')'
+b_rparen :: TextBuilder
+b_rparen = TextBuilder.char ')'
 
-b_commaSep :: [Text.Builder] -> Text.Builder
+b_commaSep :: [TextBuilder] -> TextBuilder
 b_commaSep =
-  Text.Builder.intercalate (Text.Builder.text ", ")
+  TextBuilder.intercalate (TextBuilder.text ", ")

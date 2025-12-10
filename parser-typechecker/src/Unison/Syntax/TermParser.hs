@@ -70,7 +70,7 @@ import Unison.Util.Map qualified as Map
 import Unison.Util.Recursion
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-import Prelude hiding (and, or, seq)
+import Prelude hiding (and, or, seq, unzip)
 
 {-
 Precedence of language constructs is identical to Haskell, except that all

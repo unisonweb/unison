@@ -103,7 +103,7 @@ import Control.Monad.State (MonadState (..), State, gets, modify, runState)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.Functor.Compose (Compose (..))
-import Data.List hiding (and, or)
+import Data.List hiding (and, or, unsnoc, unzip)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as Set
@@ -139,7 +139,7 @@ import Unison.Util.Pretty qualified as Pretty
 import Unison.Util.Text qualified as Util.Text
 import Unison.Var (Var, typed)
 import Unison.Var qualified as Var
-import Prelude hiding (abs, and, or, seq)
+import Prelude hiding (abs, and, or, seq, unsnoc, unzip)
 
 closure :: (Var v) => Map v (Set v, Set v) -> Map v (Set v)
 closure m0 = trace (snd <$> m0)
