@@ -102,6 +102,7 @@ import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
+import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
 import Unison.NamesWithHistory qualified as Names
@@ -684,6 +685,30 @@ notifyUser dir issueFn = \case
     pure . P.warnCallout $ "I don't know about that type."
   MoveNothingFound p ->
     pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath p <> "."
+  MoveToConflicts movedItems conflicts _dest ->
+    pure . P.lines $
+      ( if null movedItems
+          then []
+          else
+            [ P.bold "Done.",
+              ""
+            ]
+      )
+        <> [ P.warnCallout . P.lines $
+               [ P.wrap $ "Some items could not be moved because multiple sources have the same final name segment:",
+                 "",
+                 P.indentN 2 . P.lines $
+                   [ P.lines $
+                       [ P.text (NameSegment.toEscapedText seg) <> " would be used by: " <> P.sep " , " (map prettyPath srcs)
+                       ]
+                   | (seg, srcs) <- conflicts
+                   ],
+                 "",
+                 P.wrap $ "To resolve this, use `rename` to give each conflicting source a unique final name before retrying `moveTo`.",
+                 "",
+                 "For example: " <> P.backticked "rename <source> <newName>"
+               ]
+           ]
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->

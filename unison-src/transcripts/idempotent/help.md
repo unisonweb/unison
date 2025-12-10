@@ -626,7 +626,7 @@
   merge
   `merge /branch` merges `branch` into the current branch
 
-  move (or rename, mv)
+  move (or mv)
   `move foo bar` renames the term, type, and namespace foo to bar.
 
   move.namespace (or rename.namespace, mv.namespace)
@@ -637,6 +637,20 @@
 
   move.type (or rename.type, mv.type)
   `move.type foo bar` renames `foo` to `bar`.
+
+  moveTo
+  `moveTo foo.bar dest` moves `foo.bar` into the namespace
+  `dest`, producing `dest.bar`.
+
+  `moveTo foo bar baz dest` moves `foo`, `bar`, and `baz` into
+  the namespace `dest`.
+
+  If multiple sources have the same final name segment,
+  non-conflicting items are moved and a message explains the
+  conflict.
+
+  The final segment of each source is preserved in the
+  destination.
 
   names
   Search names or hashes in the current branch.
@@ -792,6 +806,15 @@
 
   release.draft (or draft.release)
   Draft a release.
+
+  rename
+  `rename foo.bar.baz Qux` changes the name `baz` to `Qux`,
+  producing `foo.bar.Qux`.
+
+  This only changes the final segment of the name. To move a
+  definition to a different namespace, use `moveTo`.
+
+  Works on terms, types, and namespaces.
 
   reset
   `reset #pvfd222s8n`         reset the current namespace to the
