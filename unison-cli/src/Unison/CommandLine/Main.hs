@@ -33,7 +33,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
-import Unison.Codebase.Editor.Output (NumberedArgs, Output)
+import Unison.Codebase.Editor.Output (NumberedArgs, Output, outputShouldUsePager)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Watch qualified as Watch
@@ -240,13 +240,12 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               pp
               getProjectRoot
               (loopState ^. #numberedArgs)
-      let notifier :: Bool -> Output -> IO ()
-          notifier pageOutput =
-            notifyUser (pure dir) fetchIssueFromGitHub
-              >=> ( if pageOutput
-                      then putPrettyNonempty
-                      else putPrettyLnUnpaged
-                  )
+      let notify :: Output -> IO ()
+          notify o = do
+            rendered <- notifyUser (pure dir) fetchIssueFromGitHub o
+            if outputShouldUsePager o
+              then putPrettyNonempty rendered
+              else putPrettyLnUnpaged rendered
 
       let awaitInput :: Cli.LoopState -> IO (Either Event Input)
           awaitInput loopState = do
@@ -280,7 +279,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 lspCheckForChanges,
                 writeSource = defaultWriteSourceFile,
                 generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
-                notify = notifier True,
+                notify,
                 notifyNumbered = \o ->
                   let (p, args) = notifyNumbered o
                    in putPrettyNonempty p $> args,
@@ -298,10 +297,8 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
         let loop0 :: Cli.LoopState -> IO ()
             loop0 s0 = do
               let stepInput :: Either Event Input -> IO (Cli.ReturnType (), Cli.LoopState)
-                  stepInput input = do
-                    -- Don't use a pager on File events, since they're not a response to user input.
-                    let usePager = isRight input
-                    Cli.runCli env {Cli.notify = notifier usePager} s0 (HandleInput.loop input)
+                  stepInput input =
+                    Cli.runCli env s0 (HandleInput.loop input)
 
               -- We want to handle file-change events in a way that allow interruption by other file-change events for
               -- the same file. The idea here is that, if we're (say) typechecking a big file any edits made in the

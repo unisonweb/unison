@@ -15,6 +15,7 @@ module Unison.Codebase.Editor.Output
     ShareError (..),
     isFailure,
     isNumberedFailure,
+    outputShouldUsePager,
   )
 where
 
@@ -533,6 +534,15 @@ type ShowFailures = Bool -- whether to list results or just summarize
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
 
 type SourceFileContents = Text
+
+outputShouldUsePager :: Output -> Bool
+outputShouldUsePager o = case o of
+  -- These are typically non-interactive outputs, so we don't page them.
+  LoadingFile {} -> False
+  Typechecked {} -> False
+  Evaluated {} -> False
+  EvaluationFailure {} -> False
+  _ -> True
 
 isFailure :: Output -> Bool
 isFailure o = case o of
