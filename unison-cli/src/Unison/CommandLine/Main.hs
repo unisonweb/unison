@@ -271,7 +271,9 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                             pure (Left event),
                         do
                           input <- Ki.await userInputThread
-                          pure (pure (Right input))
+                          pure do
+                            writeIORef pageOutput True
+                            pure (Right input)
                       ]
                 action
 
