@@ -74,6 +74,8 @@ flags:
 
 allow-newer: true
 allow-newer-deps:
+  - fuzzyfind
+  - lock-file
   - numerals
 
 ghc-options:
