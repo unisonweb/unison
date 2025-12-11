@@ -24,7 +24,6 @@ import Unison.Prelude
     Map,
     Set,
     Text,
-    foldl',
     join,
     sortOn,
     ($>),

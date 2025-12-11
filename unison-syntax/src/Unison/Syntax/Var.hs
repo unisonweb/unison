@@ -7,7 +7,6 @@ where
 import Data.List.NonEmpty (pattern (:|))
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Unison.Name qualified as Name
-import Unison.Prelude
 import Unison.Syntax.Name qualified as Name
 import Unison.Var (Var)
 

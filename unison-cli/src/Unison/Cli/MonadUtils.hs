@@ -80,7 +80,6 @@ import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State
 import Data.Bitraversable (bitraverse)
-import Data.Foldable
 import Data.Set qualified as Set
 import U.Codebase.Branch qualified as V2 (Branch)
 import U.Codebase.Branch qualified as V2Branch
