@@ -30,7 +30,7 @@ instance Aeson.ToJSON ProjectContextResponse where
 -- This returns the current project's name and branch.
 projectContextHandler ::
   Msg.TRequestMessage ('Msg.Method_CustomMethod "unison/projectContext") ->
-  (Either Msg.ResponseError Aeson.Value -> Lsp ()) ->
+  (Either (Msg.TResponseError ('Msg.Method_CustomMethod "unison/projectContext")) Aeson.Value -> Lsp ()) ->
   Lsp ()
 projectContextHandler _m respond = do
   pp <- getCurrentProjectPath
