@@ -61,4 +61,5 @@ in
       pkgs.ormolu
       pkgs.stack-wrapped
     ];
+    devShellArgsModifier = args: args // {withHoogle = true;};
   }
