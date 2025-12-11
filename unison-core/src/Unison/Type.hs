@@ -855,8 +855,8 @@ cleanupVarsMap ts =
       changedVars =
         Map.fromList
           [ (v, Var.freshenId i v)
-            | (_, vs) <- Map.toList varsByName,
-              (v, i) <- nubOrd vs `zip` [0 ..]
+          | (_, vs) <- Map.toList varsByName,
+            (v, i) <- nubOrd vs `zip` [0 ..]
           ]
    in changedVars
 

@@ -50,7 +50,8 @@ instance HasInputSchema () where
         ("required", Aeson.Array mempty)
       ]
 
-data Tool m = forall arg.
+data Tool m
+  = forall arg.
   (FromJSON arg, HasInputSchema arg) =>
   Tool
   { toolName :: Text,

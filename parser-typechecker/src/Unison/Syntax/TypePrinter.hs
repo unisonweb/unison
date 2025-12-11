@@ -109,8 +109,7 @@ prettyRaw im p tp = go im p tp
         pure $ PP.group $ fmt S.DelimiterChar "[" <> x' <> fmt S.DelimiterChar "]"
       Apps' f xs ->
         PP.parenthesizeIf (p >= 10)
-          <$> ( PP.hang <$> go im 9 f <*> (PP.spaced <$> traverse (go im 10) xs)
-              )
+          <$> (PP.hang <$> go im 9 f <*> (PP.spaced <$> traverse (go im 10) xs))
       Effect1' e t ->
         PP.parenthesizeIf (p >= 10) <$> ((\x y -> x <> " " <> y) <$> go im 9 e <*> go im 10 t)
       Effects' es -> effects (Just es)

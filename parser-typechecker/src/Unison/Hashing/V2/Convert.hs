@@ -380,13 +380,13 @@ m2hBranch0 b =
     doTerms s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
-            let m2 =
-                  Map.fromList
-                    [ (fst (Writer.runWriter (m2hReferent r)), md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
-                        let md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
-                    ]
+        | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
+          let m2 =
+                Map.fromList
+                  [ (fst (Writer.runWriter (m2hReferent r)), md)
+                  | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
+                    let md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
+                  ]
         ]
 
     doTypes ::
@@ -395,14 +395,14 @@ m2hBranch0 b =
     doTypes s =
       Map.fromList
         [ (m2hNameSegment ns, m2)
-          | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
-            let m2 =
-                  Map.fromList
-                    [ (m2hReference r, md)
-                      | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
-                        let md :: Hashing.MdValues
-                            md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
-                    ]
+        | ns <- toList . Relation.ran $ Memory.Star2.d1 s,
+          let m2 =
+                Map.fromList
+                  [ (m2hReference r, md)
+                  | r <- toList . Relation.lookupRan ns $ Memory.Star2.d1 s,
+                    let md :: Hashing.MdValues
+                        md = Hashing.MdValues . Set.map m2hReference . Relation.lookupDom r $ Memory.Star2.d2 s
+                  ]
         ]
 
     doPatches ::

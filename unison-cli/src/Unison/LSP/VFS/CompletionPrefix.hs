@@ -22,18 +22,18 @@ import Language.LSP.VFS
 
 -- | Describes the line at the current cursor position
 data PosPrefixInfo = PosPrefixInfo
-  { fullLine :: !T.Text
-  -- ^ The full contents of the line the cursor is at
-  , prefixModule :: !T.Text
-  -- ^ If any, the module name that was typed right before the cursor position.
-  --  For example, if the user has typed "Data.Maybe.from", then this property
-  --  will be "Data.Maybe"
-  , prefixText :: !T.Text
-  -- ^ The word right before the cursor position, after removing the module part.
-  -- For example if the user has typed "Data.Maybe.from",
-  -- then this property will be "from"
-  , cursorPos :: !J.Position
-  -- ^ The cursor position
+  { -- | The full contents of the line the cursor is at
+    fullLine :: !T.Text,
+    -- | If any, the module name that was typed right before the cursor position.
+    --  For example, if the user has typed "Data.Maybe.from", then this property
+    --  will be "Data.Maybe"
+    prefixModule :: !T.Text,
+    -- | The word right before the cursor position, after removing the module part.
+    -- For example if the user has typed "Data.Maybe.from",
+    -- then this property will be "from"
+    prefixText :: !T.Text,
+    -- | The cursor position
+    cursorPos :: !J.Position
   }
   deriving (Show, Eq)
 
@@ -48,9 +48,9 @@ getCompletionPrefix pos@(J.Position l c) (VirtualFile _ _ ropetext) =
     let beforePos = Rope.toText . fst $ Rope.charSplitAt (fromIntegral c) curRope
     curWord <-
       if
-          | T.null beforePos -> Just ""
-          | T.last beforePos == ' ' -> Just "" -- don't count abc as the curword in 'abc '
-          | otherwise -> lastMaybe (T.words beforePos)
+        | T.null beforePos -> Just ""
+        | T.last beforePos == ' ' -> Just "" -- don't count abc as the curword in 'abc '
+        | otherwise -> lastMaybe (T.words beforePos)
 
     let parts =
           T.split (== '.') $

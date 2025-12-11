@@ -157,8 +157,7 @@ toMarkdown_ doc =
         (ico :: Text) =
           case icon of
             Just emoji ->
-              ( toRawText $ emoji
-              )
+              (toRawText $ emoji)
             Nothing -> ("")
     Table rows -> do
       renderedRows <- traverse (traverse toMarkdown_) rows

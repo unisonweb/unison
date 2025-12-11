@@ -87,10 +87,10 @@ builtinDataSpec = Map.fromList decls
   where
     decls =
       [ (DerivedId x, declFields $ Right y)
-        | (_, x, y) <- builtinDataDecls
+      | (_, x, y) <- builtinDataDecls
       ]
         ++ [ (DerivedId x, declFields $ Left y)
-             | (_, x, y) <- builtinEffectDecls
+           | (_, x, y) <- builtinEffectDecls
            ]
 
 findPattern :: (Eq v) => v -> PatternRow v -> Maybe (Pattern v)
@@ -641,12 +641,12 @@ compile spec ctx m@(PM (r : rs))
   | PReq rfs <- ty =
       match () (var () v) $
         [ buildCasePure spec ctx tup
-          | tup <- splitMatrix v Nothing [(-1, 1)] m
+        | tup <- splitMatrix v Nothing [(-1, 1)] m
         ]
           ++ [ buildCase spec rf True cons ctx tup
-               | rf <- Set.toList rfs,
-                 Right cons <- [lookupAbil rf spec],
-                 tup <- splitMatrix v (Just rf) (numberCons cons) m
+             | rf <- Set.toList rfs,
+               Right cons <- [lookupAbil rf spec],
+               tup <- splitMatrix v (Just rf) (numberCons cons) m
              ]
   | Unknown <- ty =
       internalBug [] "unknown pattern compilation type"

@@ -719,8 +719,7 @@ segFromList :: SegList -> Seg
 segFromList xs =
   xs
     & foldMap
-      ( \(Val unboxed boxed) -> ([unboxed], [boxed])
-      )
+      (\(Val unboxed boxed) -> ([unboxed], [boxed]))
     & \(us, bs) -> (useg us, bseg bs)
 
 traverseListToSeg :: (a -> IO Val) -> [a] -> IO Seg
@@ -1013,7 +1012,7 @@ alloc = do
 {-# INLINE alloc #-}
 
 {- ORMOLU_DISABLE -}
-{- because ormolu-0.7.2.0 can’t handle CPP used within declarations. -}
+{- because ormolu-0.8.0.2 can’t handle CPP used within declarations. -}
 
 peek :: (DebugCallStack) => Stack -> IO Val
 peek stk@(Stack _ _ sp ustk _) = do
