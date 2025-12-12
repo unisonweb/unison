@@ -3,7 +3,6 @@
 ### For applications, there is only `main`, but there are packages that are treated as independent libraries (often
 ### under `Unison.Util`) and there is an API used by Share.
 
-
 ## NB: The strings are triple-single-quoted to allow them to contain single quotes. It’s easier to be consistent than to
 ##     special case each one.
 root-instances = [
@@ -36,25 +35,24 @@ root-instances = [
     { class = '''^GHC\.Show\.Show$''' },
     { class = '''^GHC\Base\.Semigroup$''' },
 ]
+root-modules = [
+    ## Modules that have “independent” APIs (but should probably get tests and/or extracted to independent repos).
+    '''^EasyTest$''',
+    '''^System\.Path$''',
+    '''^Unison\.Util\.BiMultimap$''',
+    '''^Unison\.Util\.Logger$''',
+    '''^Unison\.Util\.Relation$''',
+    '''^Unison\.Util\.Relation3$''',
+    '''^Unison\.Util\.Relation4$''',
+    '''^Unison\.Util\.Rope''',
+
+    ## Debugging tools – not used in production, but often enabled during development.
+    '''^Unison\.Debug''',
+    '''^Unison\.Runtime\.Debug''',
+]
 roots = [
     '''^Main\.main$''',
     '''^Paths_.*$''',
-    ## NB: Once we use Weeder 1.9.0, blessed modules (patterns ending in `\.[^\.]+$`) can be moved to the `root-modules`
-    ##     key.
-
-    ## Modules that have “independent” APIs (but should probably get tests and/or extracted to independent repos).
-    '''^EasyTest\.[^\.]+$''',
-    '''^System\.Path\.[^\.]+$''',
-    '''^Unison\.Util\.BiMultimap\.[^\.]+$''',
-    '''^Unison\.Util\.Logger\.[^\.]+$''',
-    '''^Unison\.Util\.Relation\.[^\.]+$''',
-    '''^Unison\.Util\.Relation3\.[^\.]+$''',
-    '''^Unison\.Util\.Relation4\.[^\.]+$''',
-    '''^Unison\.Util\.Rope\.[^\.]+$''',
-
-    ## Debugging tools – not used in production, but often enabled during development\.
-    '''^Unison\.Debug\.[^\.]+$''',
-    '''^Unison\.Runtime\.Debug\.[^\.]+$''',
 
     ## Share API – used by the Share server and CLI.
     '''^Unison\.Auth\.CredentialFile\.atomicallyModifyCredentialsFile$''',
