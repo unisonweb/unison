@@ -22,6 +22,7 @@ import Data.List (find, intersperse, sortBy)
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
+import Data.Monoid (Dual (..))
 import Data.Ord (comparing)
 import Data.Proxy
 import Data.Sequence (Seq (..))
@@ -1363,7 +1364,7 @@ renderContext ::
   (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
 renderContext env ctx@(C.Context es) =
   "  Γ\n    "
-    <> intercalateMap "\n    " (showElem ctx . fst) (reverse es)
+    <> getDual (intercalateMap (Dual "\n    ") (Dual . showElem ctx) es)
   where
     shortName :: (Var v, IsString loc) => v -> loc
     shortName = fromString . Text.unpack . Var.name
