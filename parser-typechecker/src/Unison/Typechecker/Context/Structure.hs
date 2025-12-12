@@ -112,15 +112,22 @@ instance (Var v) => Eq (Element v loc) where
 --
 -- A context segment is a well formed context if `free*Vars` and
 -- `shadowedVars` are both empty.
+--
+-- Note: the fields here are intentionally lazy. In situations where
+-- there is heavy context manipulation, this seems to actually be faster,
+-- probably because the info is not actually used all of the time, and
+-- any fields that are strict are actually demanded by use of every other
+-- field in the info, regardless of whether the strict field ends up
+-- needed.
 data Info v loc = Info
-  { boundExistentialVars :: !(Set v),
-    solvedExistentials :: !(Map v (Monotype v loc)),
-    boundUniversalVars :: !(Set v),
-    termVarAnnotations :: !(Map v (loc, Type v loc)),
-    allBoundVars :: !(Set v),
-    freeUniversalVars :: !(Set v),
-    freeExistentialVars :: !(Set v),
-    shadowedVars :: !(Set v),
+  { boundExistentialVars :: Set v,
+    solvedExistentials :: Map v (Monotype v loc),
+    boundUniversalVars :: Set v,
+    termVarAnnotations :: Map v (loc, Type v loc),
+    allBoundVars :: Set v,
+    freeUniversalVars :: Set v,
+    freeExistentialVars :: Set v,
+    shadowedVars :: Set v,
     recorded :: Map v (B.Recorded loc, Type v loc)
   }
 
