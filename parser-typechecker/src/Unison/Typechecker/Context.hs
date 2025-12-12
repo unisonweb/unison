@@ -104,8 +104,11 @@ import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Typechecker.Components (minimize')
-import Unison.Typechecker.Context.Structure
-  hiding (filter, mapMaybe, partition)
+import Unison.Typechecker.Context.Structure hiding
+  ( filter,
+    mapMaybe,
+    partition,
+  )
 import Unison.Typechecker.Context.Structure qualified as Ctx
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
@@ -651,13 +654,14 @@ modifyContextChecked ::
 modifyContextChecked act seg =
   allReserved seg >>= \case
     Nothing -> modifyContext (act seg)
-    Just e -> getContext >>= \ctx ->
-      compilerCrash $
-        IllegalContextExtension ctx e $
-          "Extending context with a variable that is not reserved "
-            <> "by the typechecking environment. That means "
-            <> "`freshenVar` is allowed to return it as a fresh "
-            <> "variable, which would be wrong."
+    Just e ->
+      getContext >>= \ctx ->
+        compilerCrash $
+          IllegalContextExtension ctx e $
+            "Extending context with a variable that is not reserved "
+              <> "by the typechecking environment. That means "
+              <> "`freshenVar` is allowed to return it as a fresh "
+              <> "variable, which would be wrong."
 
 markRetained :: (Var v, Ord loc) => Set v -> M v loc ()
 markRetained keep = setContext . marks =<< getContext
@@ -695,13 +699,13 @@ allReserved seg = do
   env <- get
   let p = all (`isReservedIn` env) . allBoundVars
   if p (info seg)
-  then pure Nothing
-  else case focusProblem (not . p) seg of
-    Position _ e _ -> pure $ Just e
-    _ ->
-      compilerCrash . OtherBug $
-        "I found an unreserved context extension, but couldn't "
-          <> "narrow it down to a specific example"
+    then pure Nothing
+    else case focusProblem (not . p) seg of
+      Position _ e _ -> pure $ Just e
+      _ ->
+        compilerCrash . OtherBug $
+          "I found an unreserved context extension, but couldn't "
+            <> "narrow it down to a specific example"
   where
 
 universals :: (Ord v) => Context v loc -> Set v
@@ -1475,8 +1479,8 @@ synthesizeBinding top binding = do
                   | retain b = Set.insert v s
                 k s (Solved b _ (Type.getPolytype -> sa))
                   | retain b = Set.union vs s
-                    where
-                      vs = freeExistentials (apply ctx sa)
+                  where
+                    vs = freeExistentials (apply ctx sa)
                 k s _ = s
 
                 freeExistentials =

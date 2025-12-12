@@ -1,54 +1,55 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Unison.Typechecker.Context.Structure
-  ( Element (..)
-  , variable
-  , Info (..)
-  , unsolvedExistentials
-  , Context (..)
-  , context0
-  , CtxSegment
-  , (|>)
-  , (<|)
-  , fmap'
-  , BadContext (..)
-  , validateSegment
-  , SearchResult (..)
-  , focusProblem
-  , culprit
-  , info
-  , filter
-  , partition
-  , apply
-  , FT.fromList
-  , mapMaybe
-  , single
-  , split
-  , splitSeg
-  , surround
-  ) where
+  ( Element (..),
+    variable,
+    Info (..),
+    unsolvedExistentials,
+    Context (..),
+    context0,
+    CtxSegment,
+    (|>),
+    (<|),
+    fmap',
+    BadContext (..),
+    validateSegment,
+    SearchResult (..),
+    focusProblem,
+    culprit,
+    info,
+    filter,
+    partition,
+    apply,
+    FT.fromList,
+    mapMaybe,
+    single,
+    split,
+    splitSeg,
+    surround,
+  )
+where
 
 import Data.FingerTree as FT hiding (split)
 import Data.Foldable qualified as FO
 import Data.Function (on)
 import Data.List qualified as List
-import Data.Set as Set hiding (split, filter, partition)
+import Data.Map.Strict as Map hiding (filter, mapMaybe, partition, split)
+import Data.Set as Set hiding (filter, partition, split)
 import Data.Text qualified as Text
-import Data.Map.Strict as Map hiding (split, filter, mapMaybe, partition)
-import Prelude hiding (filter)
-
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
+import Unison.PrettyPrintEnv qualified as PPE
+import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Type qualified as Type
 import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Var (Var)
 import Unison.Var qualified as Var
-
-import Unison.PrettyPrintEnv qualified as PPE
-import Unison.Syntax.TypePrinter qualified as TP
+import Prelude hiding (filter)
 
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
+
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
+
 type Type v loc = Type.Type (TypeVar v loc) loc
 
 -- | Elements of an ordered algorithmic context. A context is a sequence
@@ -136,10 +137,10 @@ type CtxSegment v loc = FingerTree (Info v loc) (Element v loc)
 newtype Context v loc = Context (CtxSegment v loc)
 
 -- | The empty context
-context0 :: Ord v => Context v loc
+context0 :: (Ord v) => Context v loc
 context0 = Context FT.empty
 
-instance Ord v => Semigroup (Info v loc) where
+instance (Ord v) => Semigroup (Info v loc) where
   segl <> segr =
     Info
       { boundExistentialVars =
@@ -156,20 +157,22 @@ instance Ord v => Semigroup (Info v loc) where
         freeExistentialVars =
           Set.union
             (freeExistentialVars segl)
-            (Set.difference
-              (freeExistentialVars segr)
-              (boundExistentialVars segl)),
+            ( Set.difference
+                (freeExistentialVars segr)
+                (boundExistentialVars segl)
+            ),
         freeUniversalVars =
           Set.union
             (freeUniversalVars segl)
-            (Set.difference
-              (freeUniversalVars segr)
-              (boundUniversalVars segl)),
+            ( Set.difference
+                (freeUniversalVars segr)
+                (boundUniversalVars segl)
+            ),
         shadowedVars =
           Set.unions
-            [ shadowedVars segl
-            , shadowedVars segr
-            , Set.intersection
+            [ shadowedVars segl,
+              shadowedVars segr,
+              Set.intersection
                 (allBoundVars segl)
                 (allBoundVars segr)
             ],
@@ -178,76 +181,73 @@ instance Ord v => Semigroup (Info v loc) where
 
 emptyInfo :: Info v loc
 emptyInfo =
-  Info {
-    boundExistentialVars = Set.empty,
-    solvedExistentials = Map.empty,
-    boundUniversalVars = Set.empty,
-    termVarAnnotations = Map.empty,
-    allBoundVars = Set.empty,
-    freeExistentialVars = Set.empty,
-    freeUniversalVars = Set.empty,
-    shadowedVars = Set.empty,
-    recorded = Map.empty
-  }
+  Info
+    { boundExistentialVars = Set.empty,
+      solvedExistentials = Map.empty,
+      boundUniversalVars = Set.empty,
+      termVarAnnotations = Map.empty,
+      allBoundVars = Set.empty,
+      freeExistentialVars = Set.empty,
+      freeUniversalVars = Set.empty,
+      shadowedVars = Set.empty,
+      recorded = Map.empty
+    }
 
 -- | Gets the _unsolved_ existential variables of a context info.
 unsolvedExistentials :: (Ord v) => Info v loc -> Set v
 unsolvedExistentials (Info {..}) =
   boundExistentialVars `Set.difference` Map.keysSet solvedExistentials
 
-instance Ord v => Monoid (Info v loc) where
+instance (Ord v) => Monoid (Info v loc) where
   mempty = emptyInfo
 
 part :: Set (TypeVar v loc) -> ([v], [v])
 part = List.foldl' classify ([], []) . Set.toDescList
   where
-    classify (es, us) (TypeVar.Existential _ e) = (e:es, us)
-    classify (es, us) (TypeVar.Universal u) = (es, u:us)
+    classify (es, us) (TypeVar.Existential _ e) = (e : es, us)
+    classify (es, us) (TypeVar.Universal u) = (es, u : us)
 
-instance Ord v => Measured (Info v loc) (Element v loc) where
+instance (Ord v) => Measured (Info v loc) (Element v loc) where
   measure (Var tv)
     | TypeVar.Universal v <- tv =
         emptyInfo
-          { boundUniversalVars = Set.singleton v
-          , allBoundVars = Set.singleton v
+          { boundUniversalVars = Set.singleton v,
+            allBoundVars = Set.singleton v
           }
     | TypeVar.Existential b v <- tv =
         emptyInfo
-          { boundExistentialVars = Set.singleton v
-          , allBoundVars = Set.singleton v
-          , recorded = case b of
+          { boundExistentialVars = Set.singleton v,
+            allBoundVars = Set.singleton v,
+            recorded = case b of
               B.Recorded b' ->
                 Map.singleton v (b', ty)
                 where
                   ty = ABT.annotatedVar (B.loc b') tv
               _ -> Map.empty
           }
-
   measure (Solved b v ty)
     | pty <- Type.getPolytype ty,
       (evs, uvs) <- part $ Type.freeVars pty =
         emptyInfo
-          { boundExistentialVars = Set.singleton v
-          , solvedExistentials = Map.singleton v ty
-          , allBoundVars = Set.singleton v
-          , freeExistentialVars = Set.fromList evs
-          , freeUniversalVars = Set.fromList uvs
-          , recorded = case b of
+          { boundExistentialVars = Set.singleton v,
+            solvedExistentials = Map.singleton v ty,
+            allBoundVars = Set.singleton v,
+            freeExistentialVars = Set.fromList evs,
+            freeUniversalVars = Set.fromList uvs,
+            recorded = case b of
               B.Recorded b' ->
                 Map.singleton v (b', pty)
               _ -> Map.empty
           }
-
   measure (Ann v loc ty)
     | (evs, uvs) <- part $ Type.freeVars ty =
         emptyInfo
-          { allBoundVars = Set.singleton v
-          , termVarAnnotations = Map.singleton v (loc, ty)
-          , freeExistentialVars = Set.fromList evs
-          , freeUniversalVars = Set.fromList uvs
+          { allBoundVars = Set.singleton v,
+            termVarAnnotations = Map.singleton v (loc, ty),
+            freeExistentialVars = Set.fromList evs,
+            freeUniversalVars = Set.fromList uvs
           }
-
-  measure (Marker v) = emptyInfo { allBoundVars = Set.singleton v }
+  measure (Marker v) = emptyInfo {allBoundVars = Set.singleton v}
 
 instance (Ord v) => Measured (Info v loc) (Context v loc) where
   measure (Context c) = measure c
@@ -261,7 +261,7 @@ data BadContext
 -- proper context is yielded. Otherwise an indication of what is wrong
 -- with the segment is returned.
 validateSegment ::
-  Ord v => CtxSegment v loc -> Either BadContext (Context v loc)
+  (Ord v) => CtxSegment v loc -> Either BadContext (Context v loc)
 validateSegment seg
   | not $ Set.null shadowedVars = Left Shadowing
   | not $ Set.null freeExistentialVars = Left UnboundEx
@@ -273,9 +273,10 @@ validateSegment seg
 -- Given a predicate on measures that is monotone, searches for a point
 -- in the sequence at which the predicate first becomes true.
 focusProblem ::
-  Measured v e =>
+  (Measured v e) =>
   (v -> Bool) ->
-  FingerTree v e -> SearchResult v e
+  FingerTree v e ->
+  SearchResult v e
 focusProblem p = search q
   where
     q l _ = p l
@@ -283,9 +284,10 @@ focusProblem p = search q
 -- Searches for the first point at which an extracted set becomes
 -- non-null.
 findFirst ::
-  Measured v e =>
+  (Measured v e) =>
   (v -> Set a) ->
-  FingerTree v e -> SearchResult v e
+  FingerTree v e ->
+  SearchResult v e
 findFirst ex = focusProblem (not . Set.null . ex)
 
 -- Given a malformed context and a validation error, finds an element
@@ -303,7 +305,6 @@ culprit whole err
       Shadowing -> findFirst shadowedVars
       UnboundEx -> findFirst freeExistentialVars
       UnboundUn -> findFirst freeUniversalVars
-
 
 -- | Return the aggregate `Info` associated to the context.
 info :: (Ord v, Measured (Info v loc) c) => c -> Info v loc
@@ -346,7 +347,7 @@ apply' solved t = go t
 -- Technically the context can contain both type and term variable
 -- bindings, and these are not distinguished, so take care.
 splitSeg ::
-  Ord v =>
+  (Ord v) =>
   v ->
   CtxSegment v loc ->
   Maybe (CtxSegment v loc, Element v loc, CtxSegment v loc)
@@ -358,14 +359,14 @@ splitSeg tgt seg = case search p seg of
     -- `tgt` is bound in `i` and not in `j`. This means | i | ends with
     -- the last binding of `tgt`.
     p i j =
-      (tgt `Set.notMember` allBoundVars j) &&
-      (tgt `Set.member` allBoundVars i)
+      (tgt `Set.notMember` allBoundVars j)
+        && (tgt `Set.member` allBoundVars i)
 
 -- Splits a context at an `Element` binding the given variable. Since in
 -- a valid context, a variable only occurs once, this is completely
 -- unambiguous.
 split ::
-  Ord v =>
+  (Ord v) =>
   v ->
   Context v loc ->
   Maybe (Context v loc, Element v loc, CtxSegment v loc)
@@ -375,7 +376,7 @@ split tgt (Context seg) = g <$> splitSeg tgt seg
     g (l, e, r) = (Context l, e, r)
 
 surround ::
-  Ord v =>
+  (Ord v) =>
   CtxSegment v loc ->
   Element v loc ->
   CtxSegment v loc ->
@@ -385,7 +386,8 @@ surround l e r = l >< e <| r
 filter ::
   (Var v) =>
   (Element v loc -> Bool) ->
-  CtxSegment v loc -> CtxSegment v loc
+  CtxSegment v loc ->
+  CtxSegment v loc
 filter p = FO.foldl' c mempty
   where
     c seg e
@@ -437,16 +439,16 @@ renderElement ctx = \case
     | otherwise -> show v
   Solved _ v (Type.Monotype t) ->
     mconcat
-      [ "'"
-      , Text.unpack $ Var.name v
-      , " = "
-      , renderType ctx t
+      [ "'",
+        Text.unpack $ Var.name v,
+        " = ",
+        renderType ctx t
       ]
   Ann v _loc t ->
     mconcat
-      [ Text.unpack $ Var.name v
-      , " : "
-      , renderType ctx t
+      [ Text.unpack $ Var.name v,
+        " : ",
+        renderType ctx t
       ]
   Marker v -> "|" <> Text.unpack (Var.name v) <> "|"
 
