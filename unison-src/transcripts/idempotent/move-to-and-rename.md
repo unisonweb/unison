@@ -50,7 +50,9 @@ The `rename` command changes only the final segment of a name.
 ``` ucm
 scratch/main> rename mylib.foo myFoo
 
-  Done.
+  Renamed:
+
+    mylib.foo -> mylib.myFoo
 
 scratch/main> ls mylib
 
@@ -66,7 +68,9 @@ scratch/main> ls mylib
 ``` ucm
 scratch/main> rename mylib.MyType RenamedType
 
-  Done.
+  Renamed:
+
+    mylib.MyType -> mylib.RenamedType
 
 scratch/main> ls mylib
 
@@ -82,7 +86,9 @@ scratch/main> ls mylib
 ``` ucm
 scratch/main> rename mylib.baz stuff
 
-  Done.
+  Renamed:
+
+    mylib.baz -> mylib.stuff
 
 scratch/main> ls mylib
 
@@ -152,7 +158,7 @@ scratch/other> moveTo alpha.one dest
 
   Moved:
 
-    alpha.one  -> dest.one
+    alpha.one ->dest.one
 
 scratch/other> ls dest
 
@@ -172,8 +178,8 @@ scratch/other> moveTo alpha.two beta.three newplace
 
   Moved:
 
-    beta.three  -> newplace.three
-    alpha.two   -> newplace.two
+    beta.three ->newplace.three
+    alpha.two  ->newplace.two
 
 scratch/other> ls newplace
 
@@ -188,7 +194,7 @@ scratch/other> moveTo gamma.T types
 
   Moved:
 
-    gamma.T  -> types.T
+    gamma.T ->types.T
 
 scratch/other> ls types
 
@@ -224,7 +230,7 @@ scratch/other> moveTo stuff.inner organized
 
   Moved:
 
-    stuff.inner  -> organized.inner
+    stuff.inner ->organized.inner
 
 scratch/other> ls organized
 
@@ -289,13 +295,13 @@ scratch/conflict> moveTo a.item b.item c.other target
 
   Moved:
 
-    c.other  -> target.other
+    c.other ->target.other
 
   ⚠️
 
   I couldn't move some of the items, because they have the same
-  final segment as some of the others, meaning they would have
-  ended up with duplicate names at the destination:
+  final segment as some of the others, meaning that they would
+  have duplicate names at the destination:
 
     1. b.item
     2. a.item
@@ -320,18 +326,22 @@ After using `rename` to resolve the conflict:
 ``` ucm
 scratch/conflict> rename a.item itemA
 
-  Done.
+  Renamed:
+
+    a.item -> a.itemA
 
 scratch/conflict> rename b.item itemB
 
-  Done.
+  Renamed:
+
+    b.item -> b.itemB
 
 scratch/conflict> moveTo a.itemA b.itemB target
 
   Moved:
 
-    a.itemA  -> target.itemA
-    b.itemB  -> target.itemB
+    a.itemA ->target.itemA
+    b.itemB ->target.itemB
 
 scratch/conflict> ls target
 

@@ -34,4 +34,4 @@ handleRename src' newNameSeg description = do
         (mupdates, steps) -> do
           pp <- Cli.getCurrentProjectPath
           Cli.updateAndStepAt description (pp ^. #branch) (maybeToList mupdates) steps
-          Cli.respond Output.Success
+          Cli.respond (Output.RenameResult src' dest')

@@ -690,6 +690,12 @@ notifyUser dir issueFn = \case
         "",
         P.indentN 2 $ prettyMovedItems movedItems
       ]
+  RenameResult src dest ->
+    pure . P.lines $
+      [ "Renamed:",
+        "",
+        P.indentN 2 $ prettyPath src <> " -> " <> prettyPath dest
+      ]
   MoveToConflicts movedItems conflicts dest ->
     pure . P.lines $
       ( if null movedItems
@@ -702,7 +708,7 @@ notifyUser dir issueFn = \case
             ]
       )
         <> [ P.warnCallout . P.lines $
-               ( [ P.wrap $ "I couldn't move some of the items, because they have the same final segment as some of the others, meaning that they would have ended up with duplicate names at the destination:",
+               ( [ P.wrap $ "I couldn't move some of the items, because they have the same final segment as some of the others, meaning that they would have duplicate names at the destination:",
                    ""
                  ]
                    <> prettyNumberedConflictGroups conflicts
@@ -4355,7 +4361,7 @@ prettyEmptyBranchDiff =
 -- | Pretty print a list of moved items with aligned arrows
 prettyMovedItems :: [(Path.Path', Path.Path')] -> Pretty
 prettyMovedItems items =
-  P.column2 [(prettyPath src <> " ", "-> " <> prettyPath dest) | (src, dest) <- items]
+  P.column2 [(prettyPath src, "->" <> prettyPath dest) | (src, dest) <- items]
 
 -- | Pretty print conflict groups as numbered lists, with a blank line between groups
 prettyNumberedConflictGroups :: [(NameSegment, [Path.Path'])] -> [Pretty]
