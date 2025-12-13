@@ -898,13 +898,14 @@ handleFindI isVerbose fscope ws input = do
     FindLocal p -> do
       searchRoot <- Cli.resolvePath' p
       branch0 <- Cli.getBranch0FromProjectPath searchRoot
-      let names = Branch.toNames (Branch.withoutLib branch0)
+      let filteredBranch = Branch.withoutLib branch0
+      let names = Branch.toNames filteredBranch
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       currentNames <- Cli.currentNames
       let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (PPE.suffixifyByHash currentNames)
       let suffixifiedPPE = PPED.suffixifiedPPE pped
-      results <- searchBranch0 codebase branch0 names
+      results <- searchBranch0 codebase filteredBranch names
       if (null results)
         then do
           Cli.respond FindNoLocalMatches
@@ -914,20 +915,24 @@ handleFindI isVerbose fscope ws input = do
           case mayOnlyLibBranch of
             Nothing -> respondResults codebase suffixifiedPPE (Just p) []
             Just onlyLibBranch -> do
-              let onlyLibNames = Branch.toNames onlyLibBranch
-              results <- searchBranch0 codebase branch0 onlyLibNames
+              -- Apply withoutTransitiveLibs to filter out transitive dependencies
+              -- (lib.*.lib.*) while keeping direct dependencies (lib.*)
+              let filteredLibBranch = Branch.withoutTransitiveLibs onlyLibBranch
+              let onlyLibNames = Branch.toNames filteredLibBranch
+              results <- searchBranch0 codebase filteredLibBranch onlyLibNames
               respondResults codebase suffixifiedPPE (Just p) results
         else respondResults codebase suffixifiedPPE (Just p) results
     FindLocalAndDeps p -> do
       searchRoot <- Cli.resolvePath' p
       branch0 <- Cli.getBranch0FromProjectPath searchRoot
-      let names = Branch.toNames (Branch.withoutTransitiveLibs branch0)
+      let filteredBranch = Branch.withoutTransitiveLibs branch0
+      let names = Branch.toNames filteredBranch
       -- Don't exclude anything from the pretty printer, since the type signatures we print for
       -- results may contain things in lib.
       currentNames <- Cli.currentNames
       let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (PPE.suffixifyByHash currentNames)
       let suffixifiedPPE = PPED.suffixifiedPPE pped
-      results <- searchBranch0 codebase branch0 names
+      results <- searchBranch0 codebase filteredBranch names
       respondResults codebase suffixifiedPPE (Just p) results
     FindGlobal -> do
       Global.forAllProjectBranches \(projAndBranchNames, _ids) branch -> do
@@ -941,13 +946,13 @@ handleFindI isVerbose fscope ws input = do
           Cli.respond $ GlobalFindBranchResults projAndBranchNames (PPED.suffixifiedPPE pped) isVerbose results'
   where
     searchBranch0 :: Codebase.Codebase m Symbol Ann -> Branch0 IO -> Names -> Cli [SearchResult]
-    searchBranch0 codebase branch0 names =
+    searchBranch0 codebase searchBranch names =
       case ws of
         [] -> pure (List.sortBy SR.compareByName (SR.fromNames names))
         -- type query
         ":" : ws -> do
           typ <- parseSearchType (show input) (unwords ws)
-          let keepNamed = Set.intersection (Branch.deepReferents branch0)
+          let keepNamed = Set.intersection (Branch.deepReferents searchBranch)
           (noExactTypeMatches, matches) <- do
             Cli.runTransaction do
               matches <- keepNamed <$> Codebase.termsOfType codebase typ
