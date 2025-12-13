@@ -24,6 +24,7 @@ library:
     - extra
     - filelock
     - filepath
+    - fingertree
     - free
     - generic-lens
     - hashable
