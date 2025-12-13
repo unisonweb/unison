@@ -188,10 +188,12 @@ data Input
   | MoveAllI Path.Path' Path.Path'
   | MoveBranchI Path.Path' Path.Path'
   | MoveTermI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
-  | MoveToI (NonEmpty Path.Path') Path.Path' -- ^ Move sources into destination namespace
+  | -- | Move sources into destination namespace
+    MoveToI (NonEmpty Path.Path') Path.Path'
   | MoveTypeI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
   | NamesI IsGlobal [(RawQuery, ErrorMessageOrName)]
-  | RenameI Path.Path' NameSegment -- ^ Rename (change final segment) of term, type, or namespace
+  | -- | Rename (change final segment) of term, type, or namespace
+    RenameI Path.Path' NameSegment
   | NamespaceDependenciesI (Maybe Path')
   | PopBranchI
   | ProjectCreateI Bool {- try downloading base? -} (Maybe ProjectName)

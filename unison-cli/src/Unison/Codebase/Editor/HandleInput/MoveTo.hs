@@ -37,15 +37,18 @@ handleMoveTo sources dest' description = do
 
       -- Group valid sources by their final segment
       byFinalSegment :: Map.Map NameSegment [(Path.Path', Path.Path')]
-      byFinalSegment = Map.fromListWith (++)
-        [(seg, [(src, parent)]) | (src, parent, seg) <- validSources]
+      byFinalSegment =
+        Map.fromListWith
+          (++)
+          [(seg, [(src, parent)]) | (src, parent, seg) <- validSources]
 
       -- Separate conflicting and non-conflicting sources
       (conflicting, nonConflicting) = Map.partition (\srcs -> length srcs > 1) byFinalSegment
 
   -- Report invalid sources (paths that can't be split, like the root)
   when (not (null invalidSources)) $
-    Cli.respond $ Output.MoveNothingFound (head invalidSources)
+    Cli.respond $
+      Output.MoveNothingFound (head invalidSources)
 
   -- Process non-conflicting sources
   let nonConflictingSources :: [(Path.Path', NameSegment)]

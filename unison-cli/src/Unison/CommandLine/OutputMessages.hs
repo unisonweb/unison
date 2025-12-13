@@ -4366,19 +4366,17 @@ prettyMovedItems items =
 -- | Pretty print conflict groups as numbered lists, with a blank line between groups
 prettyNumberedConflictGroups :: [(NameSegment, [Path.Path'])] -> [Pretty]
 prettyNumberedConflictGroups conflicts =
-  let
-    -- Group by segment, keeping track of starting index for each group
-    groups = go (1 :: Int) conflicts
-      where
-        go _ [] = []
-        go startIdx ((_, srcs) : rest) =
-          let indexed = zip [startIdx ..] srcs
-              nextIdx = startIdx + length srcs
-           in indexed : go nextIdx rest
-    -- Format each group as a numbered list
-    formatGroup indexed = P.indentN 2 . P.lines $ [P.shown i <> ". " <> prettyPath p | (i, p) <- indexed]
-  in
-    intercalate [""] (map (\g -> [formatGroup g]) groups)
+  let -- Group by segment, keeping track of starting index for each group
+      groups = go (1 :: Int) conflicts
+        where
+          go _ [] = []
+          go startIdx ((_, srcs) : rest) =
+            let indexed = zip [startIdx ..] srcs
+                nextIdx = startIdx + length srcs
+             in indexed : go nextIdx rest
+      -- Format each group as a numbered list
+      formatGroup indexed = P.indentN 2 . P.lines $ [P.shown i <> ". " <> prettyPath p | (i, p) <- indexed]
+   in intercalate [""] (map (\g -> [formatGroup g]) groups)
 
 -- | Generate example commands for resolving the first conflict group
 prettyConflictExample :: [(NameSegment, [Path.Path'])] -> Path.Path' -> [Pretty]
@@ -4388,16 +4386,16 @@ prettyConflictExample ((_seg, srcs) : _) dest =
     [] -> []
     [_] -> [] -- Only one item, no conflict (shouldn't happen)
     (_ : rest) ->
-      let
-        -- Get the parent path of the second item (the one to rename)
-        secondPath = head rest
-        parentPath = case Path.split secondPath of
-          Just (parent, _) -> parent
-          Nothing -> secondPath
-        -- Example: rename 2 <newName>
-        renameExample = P.indentN 2 $ P.backticked $ "rename 2 <newName>"
-        -- Example: moveTo 1 parent.<newName> dest
-        moveToExample = P.indentN 2 $ P.backticked $
-          "moveTo 1 " <> prettyPath parentPath <> ".<newName> " <> prettyPath dest
-      in
-        [renameExample, "", moveToExample]
+      let -- Get the parent path of the second item (the one to rename)
+          secondPath = head rest
+          parentPath = case Path.split secondPath of
+            Just (parent, _) -> parent
+            Nothing -> secondPath
+          -- Example: rename 2 <newName>
+          renameExample = P.indentN 2 $ P.backticked $ "rename 2 <newName>"
+          -- Example: moveTo 1 parent.<newName> dest
+          moveToExample =
+            P.indentN 2 $
+              P.backticked $
+                "moveTo 1 " <> prettyPath parentPath <> ".<newName> " <> prettyPath dest
+       in [renameExample, "", moveToExample]
