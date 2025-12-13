@@ -4361,7 +4361,7 @@ prettyEmptyBranchDiff =
 -- | Pretty print a list of moved items with aligned arrows
 prettyMovedItems :: [(Path.Path', Path.Path')] -> Pretty
 prettyMovedItems items =
-  P.column2 [(prettyPath src, "->" <> prettyPath dest) | (src, dest) <- items]
+  P.column2 [(prettyPath src, "-> " <> prettyPath dest) | (src, dest) <- items]
 
 -- | Pretty print conflict groups as numbered lists, with a blank line between groups
 prettyNumberedConflictGroups :: [(NameSegment, [Path.Path'])] -> [Pretty]

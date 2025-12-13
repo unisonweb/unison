@@ -158,7 +158,7 @@ scratch/other> moveTo alpha.one dest
 
   Moved:
 
-    alpha.one ->dest.one
+    alpha.one -> dest.one
 
 scratch/other> ls dest
 
@@ -178,8 +178,8 @@ scratch/other> moveTo alpha.two beta.three newplace
 
   Moved:
 
-    beta.three ->newplace.three
-    alpha.two  ->newplace.two
+    beta.three -> newplace.three
+    alpha.two  -> newplace.two
 
 scratch/other> ls newplace
 
@@ -194,7 +194,7 @@ scratch/other> moveTo gamma.T types
 
   Moved:
 
-    gamma.T ->types.T
+    gamma.T -> types.T
 
 scratch/other> ls types
 
@@ -230,7 +230,7 @@ scratch/other> moveTo stuff.inner organized
 
   Moved:
 
-    stuff.inner ->organized.inner
+    stuff.inner -> organized.inner
 
 scratch/other> ls organized
 
@@ -295,7 +295,7 @@ scratch/conflict> moveTo a.item b.item c.other target
 
   Moved:
 
-    c.other ->target.other
+    c.other -> target.other
 
   ⚠️
 
@@ -340,8 +340,8 @@ scratch/conflict> moveTo a.itemA b.itemB target
 
   Moved:
 
-    a.itemA ->target.itemA
-    b.itemB ->target.itemB
+    a.itemA -> target.itemA
+    b.itemB -> target.itemB
 
 scratch/conflict> ls target
 
