@@ -150,7 +150,9 @@ scratch/other> add
 ``` ucm
 scratch/other> moveTo alpha.one dest
 
-  Done.
+  Moved:
+
+    alpha.one  -> dest.one
 
 scratch/other> ls dest
 
@@ -168,7 +170,10 @@ scratch/other> ls alpha
 ``` ucm
 scratch/other> moveTo alpha.two beta.three newplace
 
-  Done.
+  Moved:
+
+    beta.three  -> newplace.three
+    alpha.two   -> newplace.two
 
 scratch/other> ls newplace
 
@@ -181,7 +186,9 @@ scratch/other> ls newplace
 ``` ucm
 scratch/other> moveTo gamma.T types
 
-  Done.
+  Moved:
+
+    gamma.T  -> types.T
 
 scratch/other> ls types
 
@@ -215,7 +222,9 @@ scratch/other> add
 
 scratch/other> moveTo stuff.inner organized
 
-  Done.
+  Moved:
+
+    stuff.inner  -> organized.inner
 
 scratch/other> ls organized
 
@@ -278,19 +287,24 @@ Moving `a.item`, `b.item`, and `c.other` to `target` - `item` conflicts:
 ``` ucm :error
 scratch/conflict> moveTo a.item b.item c.other target
 
-  Done.
+  Moved:
+
+    c.other  -> target.other
 
   ⚠️
 
-  Some items could not be moved because multiple sources have
-  the same final name segment:
+  I couldn't move some of the items, because they have the same
+  final segment as some of the others, meaning they would have
+  ended up with duplicate names at the destination:
 
-    item would be used by: b.item , a.item
+    1. b.item
+    2. a.item
 
-  To resolve this, use `rename` to give each conflicting source
-  a unique final name before retrying `moveTo`.
+  You can rename them and then use `moveTo` again, for example:
 
-  For example: `rename <source> <newName>`
+    `rename 2 <newName>`
+
+    `moveTo 1 a.<newName> target`
 ```
 
 The non-conflicting item (`c.other`) should have been moved:
@@ -314,7 +328,10 @@ scratch/conflict> rename b.item itemB
 
 scratch/conflict> moveTo a.itemA b.itemB target
 
-  Done.
+  Moved:
+
+    a.itemA  -> target.itemA
+    b.itemB  -> target.itemB
 
 scratch/conflict> ls target
 

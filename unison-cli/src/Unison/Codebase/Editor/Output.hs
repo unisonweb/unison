@@ -222,6 +222,8 @@ data Output
   | TypeNotFound (HQ'.HashQualified (Path.Split Path'))
   | TermNotFound (HQ'.HashQualified (Path.Split Path'))
   | MoveNothingFound Path'
+  | MoveToResult
+      [(Path', Path')] -- moved items: (source, destination)
   | MoveToConflicts
       [(Path', Path')] -- moved items: (source, destination)
       [(NameSegment, [Path'])] -- conflicts: name segment and the conflicting source paths
@@ -581,6 +583,7 @@ isFailure o = case o of
   TypeNotFound' {} -> True
   TermNotFound {} -> True
   MoveNothingFound {} -> True
+  MoveToResult {} -> False
   MoveToConflicts {} -> True
   TermNotFound' {} -> True
   SearchTermsNotFound ts -> not (null ts)

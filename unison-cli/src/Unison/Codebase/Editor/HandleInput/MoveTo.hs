@@ -80,7 +80,7 @@ handleMoveTo sources dest' description = do
     then
       if null movedItems
         then Cli.respond (Output.MoveNothingFound (NE.head sources))
-        else Cli.respond Output.Success
+        else Cli.respond (Output.MoveToResult movedItems)
     else do
       -- Report the conflicts (and any items that were moved)
       Cli.respond $ Output.MoveToConflicts movedItems conflictInfo dest'
