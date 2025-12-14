@@ -7,19 +7,10 @@ in
     inherit baseHaskellPkgSet;
     stackYaml = ../stack.yaml;
     additionalHaskellPkgSetOverrides = hfinal: hprev: {
-      ##  This check has a test that tries to write to $HOME, so we give it a fake one.
       unison-cli = hprev.unison-cli.overrideAttrs (old: {
         ## Don’t run unison-cli checks on macOS, because the test-suite requires access to `security` (because of TLS).
         ## NixOS/nixpkgs#297775 is maybe a good entry to the discussions.
         doCheck = !pkgs.stdenv.isDarwin;
-
-        ## This derivation doesn’t `runHook preCheck`, so we just prepend onto `checkPhase`.
-        checkPhase =
-          ''
-            export HOME="$TMP/fake-home"
-            mkdir -p "$HOME"
-          ''
-          + old.checkPhase;
       });
 
       ## Tests fail (or require network access) in some packages.

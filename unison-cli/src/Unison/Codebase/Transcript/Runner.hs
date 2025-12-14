@@ -3,6 +3,9 @@
 -- | Execute transcripts.
 module Unison.Codebase.Transcript.Runner
   ( Error (..),
+    Config (..),
+    defaultConfig,
+    testConfig,
     Runner,
     withRunner,
   )
@@ -24,6 +27,7 @@ import Data.Text.Encoding qualified as Text
 import Data.These (These (..))
 import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Client qualified as HTTP
+import System.FilePath ((</>))
 import System.IO qualified as IO
 import Text.Megaparsec qualified as P
 import U.Codebase.Sqlite.DbId qualified as Db
@@ -73,9 +77,38 @@ import UnliftIO.Environment (setEnv)
 import UnliftIO.STM
 import Prelude hiding (readFile, writeFile)
 
--- | Render transcript errors at a width of 65 chars.
-terminalWidth :: Pretty.Width
-terminalWidth = 65
+data Config = Config
+  { terminalWidth :: Pretty.Width,
+    -- | `Nothing` uses the default, a value overrides @$FZF_PATH@. It may be set to `"NONE"` to disable the use of FZF.
+    fzfPath :: Maybe FilePath,
+    credentialsFile :: Maybe FilePath,
+    -- | Control additional test-related values.
+    --
+    --  __TODO__: This should be broken down with the individual pieces included here.
+    isTest :: Bool
+  }
+
+-- | A reasonable set of defaults to use.
+--
+-- - render transcript errors at a width of 65 chars
+-- - use @$FZF_PATH@
+-- - use the default credentials path
+defaultConfig :: Config
+defaultConfig =
+  Config
+    { terminalWidth = 65,
+      fzfPath = Nothing,
+      credentialsFile = Nothing,
+      isTest = False
+    }
+
+testConfig :: FilePath -> Config
+testConfig tempDir =
+  defaultConfig
+    { fzfPath = pure "NONE",
+      credentialsFile = pure $ tempDir </> "credentials.json",
+      isTest = True
+    }
 
 type Runner =
   -- | The name of the transcript to run.
@@ -89,26 +122,25 @@ withRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
-  Bool ->
+  Config ->
   Verbosity ->
   UCMVersion ->
   (Runner -> m r) ->
   m r
-withRunner isTest verbosity ucmVersion action = do
-  let credMan = AuthN.globalCredentialManager
+withRunner config verbosity ucmVersion action = do
+  credMan <- liftIO . AuthN.newCredentialManager $ credentialsFile config
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
   -- so that errors are consistent.
   -- This also prevents automated transcript tests from mistakenly opening fzf and waiting for user input.
-  when isTest $ do
-    liftIO $ setEnv Fuzzy.fzfPathEnvVar "NONE"
+  maybe (pure ()) (liftIO . setEnv Fuzzy.fzfPathEnvVar) $ fzfPath config
   withRuntimes \runtime sbRuntime ->
     action \transcriptName transcriptSrc codebase -> do
       let workDir = Nothing
       mcpServerConfig <- MCP.initServer codebase runtime sbRuntime workDir ucmVersion authenticatedHTTPClient
       Server.startServer
-        isTest
+        (isTest config)
         Backend.BackendEnv
         Server.defaultCodebaseServerOpts
         runtime
@@ -122,7 +154,7 @@ withRunner isTest verbosity ucmVersion action = do
               Left parseError -> pure $ Left (ParseError parseError)
               Right stanzas ->
                 run
-                  isTest
+                  config
                   verbosity
                   codebase
                   runtime
@@ -155,7 +187,7 @@ isGeneratedBlock = generated . getCommonInfoTags
 
 run ::
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
-  Bool ->
+  Config ->
   Verbosity ->
   Codebase IO Symbol Ann ->
   RTI.Runtime Symbol ->
@@ -166,7 +198,7 @@ run ::
   AuthN.CredentialManager ->
   Transcript ->
   IO (Either Error Transcript)
-run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
+run config verbosity codebase runtime sbRuntime ucmVersion baseURL authenticatedHTTPClient credMan transcript = UnliftIO.try do
   let behaviors = extractBehaviors $ settings transcript
   let stanzas' = stanzas transcript
   httpManager <- HTTP.newManager HTTP.defaultManagerSettings
@@ -228,13 +260,13 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
         hide <- hideOutput False
         unless hide . outputUcmLine . UcmOutputLine $
           -- We shorten the terminal width, because "Transcript" manages a 2-space indent for output lines.
-          Pretty.toPlain (terminalWidth - 2) line
+          Pretty.toPlain (terminalWidth config - 2) line
 
       maybeDieWithMsg :: Pretty.Pretty Pretty.ColorText -> IO ()
       maybeDieWithMsg msg = do
         liftIO $ writeIORef hasErrors True
         liftIO (liftA2 (,) (readIORef allowErrors) (readIORef expectFailure)) >>= \case
-          (False, False) -> liftIO . dieWithMsg $ Pretty.toPlain terminalWidth msg
+          (False, False) -> liftIO . dieWithMsg $ Pretty.toPlain (terminalWidth config) msg
           (True, True) -> do
             appendFailingStanza
             fixedBug (frontmatter transcript) out $
@@ -242,7 +274,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                 [ "The stanza above marked with `:error :bug` is now failing with",
                   "",
                   "```",
-                  Pretty.toPlain terminalWidth msg,
+                  Pretty.toPlain (terminalWidth config) msg,
                   "```",
                   "",
                   "so you can remove `:bug` and close any appropriate Github issues. If the error message is different \
@@ -536,7 +568,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             sandboxedRuntime = sbRuntime,
             serverBaseUrl = Nothing,
             ucmVersion,
-            isTranscriptTest = isTest,
+            isTranscriptTest = isTest config,
             -- Transcripts don't support file watching
             watchState = Nothing
           }
