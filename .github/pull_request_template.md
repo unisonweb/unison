@@ -34,3 +34,4 @@ Link to related issues that address things you didn't get to. Stuff you encounte
 - [ ] **Choose your PR title well:** Your pull request title is what's used to create release notes, so please make it descriptive of the change itself, which may be different from the initial motivation to make the change.
 - [ ] **Update your PR description** if the specifics of the PR have changed over time.
 - [ ] **Include transcripts or screenshots** that demonstrate the changed behavior.
+- [ ] **If you changed `.cabal` files**, make sure the `package.yaml` files are up-to-date instead.
