@@ -55,8 +55,8 @@ import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified as TS
 import Data.Text.IO qualified as Text.IO
-import Data.Text.Lazy qualified as TL
 import Data.Text.Internal.StrictBuilder qualified as TB
+import Data.Text.Lazy qualified as TL
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
@@ -1987,9 +1987,9 @@ emitJson0 = \case
     special c = ord c <= 31 || c == '"' || c == '\\'
 
     literalForm tx =
-      TB.fromChar '"' <>
-      Util.Text.foldMapChunks escape tx <>
       TB.fromChar '"'
+        <> Util.Text.foldMapChunks escape tx
+        <> TB.fromChar '"'
 
     escape tx
       | (pre, rest) <- TS.break special tx =

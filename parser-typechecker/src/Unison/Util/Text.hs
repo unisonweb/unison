@@ -197,7 +197,7 @@ hash64AddText (Text tx) h = foldl' addChunk h tx
   where
     addChunk h (Chunk _ tx) = T.foldl' (flip hash64Add) h tx
 
-foldMapChunks :: Monoid r => (T.Text -> r) -> Text -> r
+foldMapChunks :: (Monoid r) => (T.Text -> r) -> Text -> r
 foldMapChunks f (Text tx) = foldMap (f . chunkToText) tx
 
 instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
