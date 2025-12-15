@@ -113,6 +113,9 @@ fromText s = Text (go (chunk <$> T.chunksOf threshold s))
   where
     go = foldl' R.snoc mempty
 
+fromTextUnchunked :: T.Text -> Text
+fromTextUnchunked t = Text . R.one $ chunk t
+
 pack :: String -> Text
 pack = fromText . T.pack
 {-# INLINE pack #-}
@@ -193,6 +196,9 @@ hash64AddText :: Text -> Hash64 -> Hash64
 hash64AddText (Text tx) h = foldl' addChunk h tx
   where
     addChunk h (Chunk _ tx) = T.foldl' (flip hash64Add) h tx
+
+foldMapChunks :: Monoid r => (T.Text -> r) -> Text -> r
+foldMapChunks f (Text tx) = foldMap (f . chunkToText) tx
 
 instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
 

@@ -939,6 +939,10 @@ instance Eq Val where
 instance Ord Val where
   compare = universalCompare compare
 
+instance BuiltinForeign (Seq Val) where
+  foreignName = Tagged "Seq"
+  foreignRef = Tagged Ty.listRef
+
 instance BuiltinForeign (Map Val Val) where
   foreignName = Tagged "Map"
   foreignRef = Tagged Ty.hmapRef

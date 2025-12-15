@@ -53,9 +53,10 @@ import Data.Map.Strict.Internal qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
 import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
-import Data.Text qualified
+import Data.Text qualified as TS
 import Data.Text.IO qualified as Text.IO
 import Data.Text.Lazy qualified as TL
+import Data.Text.Internal.StrictBuilder qualified as TB
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
@@ -176,7 +177,7 @@ import Unison.Runtime.ANF.Serialize qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
-import Unison.Runtime.Exception (die)
+import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign hiding (Failure)
 import Unison.Runtime.Foreign qualified as F
@@ -1082,8 +1083,8 @@ foreignCallHelper = \case
       (s :: Map Val Val) <- decodeVal vs
       evaluate . forceListSpine $ Map.keys s
     _ -> die [] "Set.toList: bad closure"
-  Json_toText -> mkForeign $ \(clo :: Closure) -> do
-    evaluate =<< emitJson clo
+  Json_toText -> mkForeign $ \(clo :: Closure) ->
+    emitJson clo
   Json_unconsText -> mkForeignExn $ \(txt :: Text) ->
     pure . bimap mkErr (second encodeVal) $ parseJson txt
     where
@@ -1171,7 +1172,7 @@ foreignCallHelper = \case
         n = length $ ffArgs spec
      in catchLoad name do
           df <- loadForeign dll spec sym
-          let dummyRef = Builtin . Data.Text.pack $ cName df
+          let dummyRef = Builtin . TS.pack $ cName df
               dummyCix = CIx dummyRef maxBound 0
               comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
           evaluate $ PApV dummyCix comb [encodeVal df]
@@ -1226,7 +1227,7 @@ foreignCallHelper = \case
             <> "`: unknown internal failure"
 
 {-# INLINE mkHashAlgorithm #-}
-mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => Data.Text.Text -> alg -> Args -> Stack -> IO (Bool, Stack)
+mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => TS.Text -> alg -> Args -> Stack -> IO (Bool, Stack)
 mkHashAlgorithm txt alg =
   let algoRef = Builtin ("crypto.HashAlgorithm." <> txt)
    in mkForeign $ \() -> pure (HashAlgorithm algoRef alg)
@@ -1937,66 +1938,82 @@ parseJson initial =
             _ -> err "expected text literal" txt0
 
 emitJson :: Closure -> IO Text
-emitJson = \case
+emitJson =
+  evaluate . Util.Text.fromTextUnchunked . TB.toText . emitJson0
+
+emitJson0 :: Closure -> TB.StrictBuilder
+emitJson0 = \case
   Enum _ t
-    | TT.jsonNullTag == t -> pure "null"
+    | TT.jsonNullTag == t -> TB.fromText "null"
   Data1 _ t v
     | TT.jsonBoolTag == t,
       BoolVal b <- v ->
-        pure $ if b then "true" else "false"
-    | TT.jsonNumTag == t ->
-        decodeVal @Text v
-    | TT.jsonObjTag == t ->
-        fmap renderObject . traverse emitPair =<< decodeVal @(Seq Val) v
-    | TT.jsonTextTag == t ->
-        literalForm <$> decodeVal @Text v
-    | TT.jsonArrTag == t ->
-        fmap renderArray . traverse emitJsonVal =<< decodeVal @(Seq Val) v
-  c -> die [] $ "Json.toText: unrecognized Json value: " ++ show c
+        TB.fromText $ if b then "true" else "false"
+    | TT.jsonNumTag == t,
+      BoxedVal (Foreign f) <- v,
+      Just tx <- maybeUnwrapBuiltin @Text f ->
+        Util.Text.foldMapChunks TB.fromText tx
+    | TT.jsonObjTag == t,
+      BoxedVal (Foreign f) <- v,
+      Just sq <- maybeUnwrapBuiltin @(Seq Val) f ->
+        renderObject $ fmap emitPair sq
+    | TT.jsonTextTag == t,
+      BoxedVal (Foreign f) <- v,
+      Just tx <- maybeUnwrapBuiltin @Text f ->
+        literalForm tx
+    | TT.jsonArrTag == t,
+      BoxedVal (Foreign f) <- v,
+      Just sq <- maybeUnwrapBuiltin @(Seq Val) f ->
+        renderArray $ fmap emitJsonVal sq
+  c -> exn [] $ "Json.toText: unrecognized Json value: " ++ show c
   where
-    emitJsonVal (BoxedVal c) = emitJson c
+    emitJsonVal (BoxedVal c) = emitJson0 c
     emitJsonVal v =
-      die [] $ "Json.toText: unrecognized Json value: " ++ show v
+      exn [] $ "Json.toText: unrecognized Json value: " ++ show v
 
-    commaSep = fold . Sq.intersperse ","
-    renderArray s = "[" <> commaSep s <> "]"
-    renderObject s = "{" <> commaSep s <> "}"
+    commaSep = fold . Sq.intersperse (TB.fromChar ',')
+    renderArray s = TB.fromChar '[' <> commaSep s <> TB.fromChar ']'
+    renderObject s = TB.fromChar '{' <> commaSep s <> TB.fromChar '}'
 
-    emitPair (Tup2V x y) =
-      mapping <$> decodeVal @Text x <*> emitJsonVal y
+    emitPair (Tup2V x y)
+      | BoxedVal (Foreign f) <- x,
+        Just tx <- maybeUnwrapBuiltin @Text f =
+          mapping tx (emitJsonVal y)
     emitPair v =
-      die [] $ "Json.toText: unrecognized Json object pair: " ++ show v
+      exn [] $ "Json.toText: unrecognized Json object pair: " ++ show v
 
-    mapping key val = literalForm key <> ":" <> val
+    mapping key val = literalForm key <> TB.fromChar ':' <> val
 
-    special c = TL.any (== c) "\"\\/\b\f\n\r\t" || ord c <= 31
+    special c = ord c <= 31 || c == '"' || c == '\\'
 
     literalForm tx =
-      "\"" <> fromLazyText (escape [] (toLazyText tx)) <> "\""
+      TB.fromChar '"' <>
+      Util.Text.foldMapChunks escape tx <>
+      TB.fromChar '"'
 
-    escape acc tx
-      | TL.null tx = TL.concat (reverse acc)
-      | (pre, rest) <- TL.break special tx =
-          escape1 (pre : acc) rest
+    escape tx
+      | (pre, rest) <- TS.break special tx =
+          TB.fromText pre <> escape1 rest
 
-    hexCode c = TL.pack $ replicate (2 - length s) '0' ++ s
+    hexCode c =
+      TB.fromText . TS.pack $ replicate (2 - length s) '0' ++ s
       where
         s = showHex (ord c) ""
 
-    escape1 acc tx = case TL.uncons tx of
-      Nothing -> TL.concat (reverse acc)
-      Just (c, rest) -> escape (chs : acc) rest
+    escape1 tx = case TS.uncons tx of
+      Nothing -> mempty
+      Just (c, rest) -> chs <> escape rest
         where
           chs
-            | '"' <- c = "\\\""
-            | '\\' <- c = "\\\\"
-            | '\b' <- c = "\\b"
-            | '\f' <- c = "\\f"
-            | '\n' <- c = "\\n"
-            | '\r' <- c = "\\r"
-            | '\t' <- c = "\\t"
-            | ord c <= 31 = "\\u00" <> hexCode c
-            | otherwise = TL.singleton c
+            | '"' <- c = TB.fromText "\\\""
+            | '\\' <- c = TB.fromText "\\\\"
+            | '\b' <- c = TB.fromText "\\b"
+            | '\f' <- c = TB.fromText "\\f"
+            | '\n' <- c = TB.fromText "\\n"
+            | '\r' <- c = TB.fromText "\\r"
+            | '\t' <- c = TB.fromText "\\t"
+            | ord c <= 31 = TB.fromText "\\u00" <> hexCode c
+            | otherwise = TB.fromChar c
 
 -- Avro replacement implementations
 avroNull, avroTrue, avroFalse :: Val
@@ -2096,7 +2113,7 @@ avroDecodeField = \case
   DataC _ _ [name, doc, BoxedVal typ, aliases, BoxedVal order, BoxedVal def] -> (AvroSchema.Field . Util.Text.toText <$> decodeVal name) <*> (map Util.Text.toText <$> decodeVal aliases) <*> (fmap Util.Text.toText <$> decodeVal doc) <*> decodeMaybe avroDecodeOrder order <*> avroDecodeSchema typ <*> decodeMaybe avroDecodeDefaultValue def
   d -> die [] $ "avroDecodeField: type error: " ++ show d
 
-avroDecodeEnum :: Closure -> IO (AvroSchema.TypeName, [AvroSchema.TypeName], Maybe Data.Text.Text, Vector.Vector Data.Text.Text)
+avroDecodeEnum :: Closure -> IO (AvroSchema.TypeName, [AvroSchema.TypeName], Maybe TS.Text, Vector.Vector TS.Text)
 avroDecodeEnum = \case
   DataC _ _ [BoxedVal name, doc, aliases, symbols, _] -> do
     name' <- avroDecodeTypeName name
@@ -2992,17 +3009,6 @@ instance ForeignConvention Foreign where
       c -> foreignConventionError "Foreign" (BoxedVal c)
   writeBack stk f = bpoke stk (Foreign f)
 
-instance ForeignConvention (Seq Val) where
-  decodeVal (BoxedVal (Foreign f)) =
-    pure $ unwrapForeign @(Seq Val) f
-  decodeVal v = foreignConventionError "Seq" v
-
-  encodeVal = BoxedVal . Foreign . Wrap listRef
-
-  readAtIndex = peekOffS
-
-  writeBack = pokeS
-
 instance (ForeignConvention a) => ForeignConvention [a] where
   decodeVal (BoxedVal (Foreign f))
     | (sq :: Sq.Seq Val) <- unwrapForeign f = traverse decodeVal (toList sq)
@@ -3126,7 +3132,7 @@ pseudoConstructors =
         (fromIntegral Ty.mapBin, Map_bin)
       ]
 
-functionReplacementList :: [(Data.Text.Text, Pos, ForeignFunc)]
+functionReplacementList :: [(TS.Text, Pos, ForeignFunc)]
 functionReplacementList =
   [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e",
       0,
@@ -3212,10 +3218,10 @@ functionReplacements, functionUnreplacements :: Map Reference Reference
 
 -- Note: using index 0 right now. Generalize if ever replacing
 -- part of a mutually recursive group.
-process :: (Data.Text.Text, Pos, ForeignFunc) -> (Reference, Reference)
+process :: (TS.Text, Pos, ForeignFunc) -> (Reference, Reference)
 process (str, pos, ff) = case derivedBase32Hex str pos of
   Nothing -> error $ "Could not create reference for " ++ sname
   Just r -> (r, Builtin name)
   where
     name = foreignFuncBuiltinName ff
-    sname = Data.Text.unpack name
+    sname = TS.unpack name
