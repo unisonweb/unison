@@ -55,9 +55,8 @@ import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified as TS
 import Data.Text.IO qualified as Text.IO
-import Data.Text.Lazy qualified as TL
-import Data.Text.Internal qualified as TS (Text(..))
-import Data.Text.Internal.Lazy qualified as TL (Text(..))
+import Data.Text.Internal qualified as TS (Text (..))
+import Data.Text.Internal.Lazy qualified as TL (Text (..))
 import Data.Text.Internal.StrictBuilder qualified as TB
 import Data.Text.Lazy qualified as TL
 import Data.Time.Clock.POSIX (POSIXTime)
@@ -1796,9 +1795,9 @@ tlSplitAt = loop . fromIntegral
     loop n (TL.Chunk t@(TS.Text arr off len) ts)
       | m > 0, m >= len = (TL.Chunk t TL.empty, ts)
       | m > 0 =
-        ( TL.Chunk (TS.Text arr off m) TL.empty
-        , TL.Chunk (TS.Text arr (off+m) (len-m)) ts
-        )
+          ( TL.Chunk (TS.Text arr off m) TL.empty,
+            TL.Chunk (TS.Text arr (off + m) (len - m)) ts
+          )
       | (pre, post) <- loop (n + m) ts =
           (TL.Chunk t pre, post)
       where
