@@ -21,6 +21,7 @@ import Ki.Unlifted qualified as Ki
 import Network.Socket
 import Network.WebSockets
 import Network.WebSockets qualified as WS
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Share.Types
 import UnliftIO
@@ -120,22 +121,33 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
 withCodeserverWebsocket :: forall m i o r e. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException r)
 withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath action = do
   let host = codeserverRegName codeserver
-  let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
+  let connectionOptions = WS.defaultConnectionOptions -- {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
   headers <-
     (liftIO (tokenProvider (codeserverIdFromCodeserverURI codeserver))) <&> \case
       Left {} -> []
       Right token -> [("Authorization", "Bearer " <> Text.encodeUtf8 token)]
-  let wsRunner = case codeserverScheme codeserver of
+
+  let wsRunner path opts headers action = case codeserverScheme codeserver of
         Https ->
           let tlsPort = 443
               port = maybe tlsPort fromIntegral $ (codeserverPort) codeserver
-           in Wuss.runSecureClientWith host port
+           in do
+                print $ "Connecting to codeserver via WSS: " <> show (host, port, codeserverPath, headers)
+                Wuss.runSecureClientWith host port path opts headers action
         Http ->
-          let tlsPort = 443 :: Int
-              port = maybe tlsPort id $ (codeserverPort) codeserver
-           in WS.runClientWith host port
+          let defaultPort = 80 :: Int
+              port = maybe defaultPort id $ codeserverPort codeserver
+              fixedHost = case host of
+                -- The haskell ws client has issues with "localhost"
+                "localhost" -> "127.0.0.1"
+                _ -> host
+           in do
+                print $ "Connecting to codeserver via WS: " <> show (fixedHost, port, codeserverPath, headers)
+                WS.runClientWith fixedHost port path opts headers action
   toIO <- askRunInIO
+  Debug.debugM Debug.Temp "withCodeserverWebsocket:" (host, codeserverPath)
   liftIO $ withSocketsDo $ (wsRunner codeserverPath connectionOptions headers) \conn -> do
+    Debug.debugM Debug.Temp "CONNECTED to websocket" (host, codeserverPath)
     withQueues msgBufferSize msgBufferSize conn $ \queues -> do
       toIO $ action queues
 
