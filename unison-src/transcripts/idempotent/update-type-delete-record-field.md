@@ -103,7 +103,7 @@ and not in the temporary branch:
 ``` ucm
 scratch/update-main> ls
 
-  1. lib. (676 terms, 107 types)
+  1. lib. (681 terms, 107 types)
 ```
 
 so we can remove the unwanted definitions from the scratch file and `update` again to delete them:
