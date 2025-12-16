@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -59,6 +59,7 @@ library
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
       Unison.Runtime.Foreign
+      Unison.Runtime.Foreign.Dynamic
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
       Unison.Runtime.Interface
@@ -80,8 +81,6 @@ library
       Unison.Runtime.Vector
   hs-source-dirs:
       src
-  c-sources:
-      cbits/i2d.c
   default-extensions:
       ApplicativeDo
       BangPatterns
@@ -113,6 +112,8 @@ library
       TypeFamilies
       ViewPatterns
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2
+  c-sources:
+      cbits/i2d.c
   build-depends:
       asn1-encoding
     , asn1-types
@@ -139,6 +140,7 @@ library
     , inspection-testing
     , iproute
     , lens
+    , libffi
     , memory
     , mmorph
     , mtl
@@ -161,6 +163,7 @@ library
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
+    , unison-dynlib
     , unison-hash
     , unison-parser-typechecker
     , unison-prelude

@@ -42,6 +42,11 @@ import Data.Set qualified as Set
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
+import Foreign.LibFFI.Internal
+import Foreign.Marshal (alloca)
+import Foreign.Marshal.Array (allocaArray)
+import Foreign.Ptr
+import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
@@ -75,6 +80,7 @@ import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
 import Unison.Runtime.Foreign
+import Unison.Runtime.Foreign.Dynamic qualified as DLL
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
     encodeVal,
@@ -475,9 +481,45 @@ exec env henv !activeThreads !stk !k _ (TryForce i)
       ev <- Control.Exception.try $ nestEval env activeThreads (poke stk) v
       stk <- encodeExn stk ev
       pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ DLLCall = do
+  cf <- peekBi stk
+  let n = DLL.numArgs $ DLL.cSpec cf
+  -- Note: pre-bump, because you can't pass stk out of these blocks
+  -- without boxing (or customizing allocaArray).
+  stk <- bump stk
+  allocaArray n \storage ->
+    allocaArray n \cArgs ->
+      alloca \(cRet :: Ptr Int) -> do
+        copyArgs stk n storage cArgs
+        DLL.callForeign cf cArgs cRet
+        case DLL.cResult cf of
+          DLL.I64 -> Store.peek cRet >>= pokeI stk
+          DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
+          DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
+          DLL.Void -> poke stk unitValue
+  pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
+
+-- Copies unison stack values into temporary space appropriate for
+-- calling libffi. The latter takes all arguments as pointers, so we
+-- need to copy the arguments to pinned memory to have a stable
+-- location. All our FFI arguments are 64-bit, though, so we can just
+-- use a contiguous array.
+copyArgs :: Stack -> Int -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
+copyArgs !stk n = go 2
+  where
+    go i !p !h
+      | i <= n + 1 = do
+          k <- upeekOff stk i
+          Store.poke p k
+          Store.poke h (castPtr p)
+          go (i + 1) (plusPtr p szp) (plusPtr h szh)
+      | otherwise = pure ()
+    szp = Store.sizeOf (0 :: Int)
+    szh = Store.sizeOf (undefined :: Ptr CValue)
+{-# INLINE copyArgs #-}
 
 encodeExn ::
   Stack ->

@@ -94,3 +94,4 @@ The format for this list: name, GitHub handle
 * Erik Schnetter (@eschnett)
 * Régis Kuckaertz (@regiskuckaertz)
 * Emil Petersen (@leetemil)
+* Lars Wilhelmsen (@larsw)

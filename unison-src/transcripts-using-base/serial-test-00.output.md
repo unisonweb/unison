@@ -81,7 +81,7 @@ mkTestCase = do
                  -> (r ->{g2} r ->{g1} r)
                  -> (a ->{g} r)
                  -> Tree a
-                 ->{g2, g1, g} r
+                 ->{g, g1, g2} r
   + mkTestCase : '{IO, Exception} ()
   + tree0      : Tree Nat
   + tree1      : Tree Nat

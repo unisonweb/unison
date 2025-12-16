@@ -18,8 +18,8 @@ data Element r
   | BooleanLiteral
   | Blank
   | Var
-  | TypeReference r
-  | TermReference (Referent' r)
+  | TypeReference (Maybe Name {- fqn, if it has one -}) r
+  | TermReference (Maybe Name {- fqn, if it has one -}) (Referent' r)
   | Op SeqOp
   | AbilityBraces
   | -- let|handle|in|where|match|with|cases|->|if|then|else|and|or

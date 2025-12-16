@@ -300,3 +300,77 @@ scratch/topic> branch.diff /topic /main
 ``` ucm :hide
 scratch/main> project.delete scratch
 ```
+
+Libdep names are canonicalized, so differences in libdeps often register as propagated changes, not actual changes.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` unison
+lib.dep_1_0_0.thing = 17
+foo = thing + thing
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + foo                 : Nat
+  + lib.dep_1_0_0.thing : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+```
+
+``` unison
+lib.dep_2_0_0.thing = 18
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + lib.dep_2_0_0.thing : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/topic> upgrade dep_1_0_0 dep_2_0_0
+
+  I upgraded dep_1_0_0 to dep_2_0_0.
+
+scratch/topic> diff.branch /main /topic
+
+  Changes on /topic:
+
+  + lib.dep_2_0_0
+  - lib.dep_1_0_0
+
+  + (added), - (deleted)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```

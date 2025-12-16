@@ -677,6 +677,7 @@ normalizeTerm ctx tm =
     orig
       | Tm.LetRecNamed' bs _ <- tm =
           fmap (RF.DerivedId . fst)
+            . snd {- We can ignore the hashing warnings in the runtime, they're not relevant. -}
             . Hashing.hashTermComponentsWithoutTypes
             $ Map.fromList bs
       | otherwise = mempty

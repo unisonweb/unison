@@ -4,14 +4,18 @@ module Unison.Merge.Diffblob
     makeFastForwardDiffblob,
     DiffblobLog (..),
     emptyDiffblobLog,
+    canonicalizeNamesForSynhashing,
   )
 where
 
 import Control.Lens.Fold (folded)
+import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.Lens (setOf)
+import Data.Text qualified as Text
+import GHC.Base qualified as List.NonEmpty
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration.Dependencies qualified as Decl
 import Unison.DeclNameLookup (DeclNameLookup)
@@ -34,8 +38,11 @@ import Unison.Merge.Unconflicts (Unconflicts)
 import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Merge.Updated qualified as Updated
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
-import Unison.Names (Names)
+import Unison.NameSegment qualified as NameSegment
+import Unison.NameSegment.Internal qualified as NameSegment
+import Unison.Names (Names (..))
 import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.PartialDeclNameLookup (PartialDeclNameLookup)
@@ -58,6 +65,8 @@ import Unison.Type qualified as Type
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, DefnsF3, zipDefnsWith)
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation qualified as Relation
 
 data Diffblob libdep = Diffblob
   { conflicts :: TwoWay (DefnsF (Map Name) TermReference TypeReference),
@@ -402,7 +411,9 @@ makeSynhashedNarrowedDefns toTerm allNames declNameLookups defns hydratedDefns =
 
     ppeds :: ThreeWay PrettyPrintEnvDecl
     ppeds =
-      allNames <&> \names -> PPED.makePPED (PPE.namer names) (PPE.suffixifyByHash names)
+      allNames <&> \names ->
+        let names1 = canonicalizeNamesForSynhashing names
+         in PPED.makePPED (PPE.namer names1) (PPE.suffixifyByHash names1)
 
     ppe :: PrettyPrintEnv
     ppe =
@@ -422,7 +433,12 @@ makeSynhashedNarrowedDefnsForFastForward toTerm allNames declNameLookups defns h
   where
     ppeds :: Updated PrettyPrintEnvDecl
     ppeds =
-      Updated.map (\names -> PPED.makePPED (PPE.namer names) (PPE.suffixifyByHash names)) allNames
+      Updated.map
+        ( \names ->
+            let names1 = canonicalizeNamesForSynhashing names
+             in PPED.makePPED (PPE.namer names1) (PPE.suffixifyByHash names1)
+        )
+        allNames
 
     ppe :: PrettyPrintEnv
     ppe =
@@ -443,3 +459,57 @@ toLabeledDependencies defns =
     ( defns.types & foldMap \(ref, decl) ->
         Decl.labeledDeclDependenciesIncludingSelfAndFieldAccessors (Reference.DerivedId ref) decl
     )
+
+canonicalizeNamesForSynhashing :: Names -> Names
+canonicalizeNamesForSynhashing names =
+  Names (canonicalizeNames1 names.terms) (canonicalizeNames1 names.types)
+
+canonicalizeNames1 :: forall ref. (Ord ref) => Relation Name ref -> Relation Name ref
+canonicalizeNames1 =
+  Relation.fromMultimap . Map.foldlWithKey' f Map.empty . Relation.domain
+  where
+    f :: Map Name (Set ref) -> Name -> Set ref -> Map Name (Set ref)
+    f acc name refs =
+      Map.insertWith Set.union (canonicalizeName name) refs acc
+
+canonicalizeName :: Name -> Name
+canonicalizeName name =
+  case Name.segments name of
+    NameSegment.LibSegment List.NonEmpty.:| (asCanonicalizedLibname -> Just libname) : segments ->
+      Name.fromSegments (NameSegment.libSegment List.NonEmpty.:| libname : segments)
+    _ -> name
+
+-- Canonicalize a libname for the purpose of syntactic hashing.
+--
+-- Currently, we only perform one canonicalization - stripping a suffix that looks like a mangled semver, e.g. "_1_2_3".
+-- We could additionally (first) try to strip a suffix like "__2" (two underscores), which we add sometimes when a
+-- preferred name isn't available. This is just a hack that we perform to make it more likely that we classify things
+-- that are *probably* true propagated updates as such.
+asCanonicalizedLibname :: NameSegment -> Maybe NameSegment
+asCanonicalizedLibname =
+  fmap NameSegment.NameSegment . asCanonicalizedLibname1 . NameSegment.toUnescapedText
+
+-- >>> asCanonicalizedLibname1 "unison_base_1_0_0"
+-- Just "unison_base"
+--
+-- >>> asCanonicalizedLibname1 "foo"
+-- Nothing
+asCanonicalizedLibname1 :: Text -> Maybe Text
+asCanonicalizedLibname1 =
+  removeNumberFromEnd
+    >=> removeUnderscoreFromEnd
+    >=> removeNumberFromEnd
+    >=> removeUnderscoreFromEnd
+    >=> removeNumberFromEnd
+    >=> removeUnderscoreFromEnd
+  where
+    removeNumberFromEnd :: Text -> Maybe Text
+    removeNumberFromEnd s =
+      case runIdentity (Text.spanEndM (Identity . Char.isDigit) s) of
+        (s1, n) | not (Text.null n) -> Just s1
+        _ -> Nothing
+
+    removeUnderscoreFromEnd :: Text -> Maybe Text
+    removeUnderscoreFromEnd s
+      | Text.takeEnd 1 s == "_" = Just (Text.dropEnd 1 s)
+      | otherwise = Nothing

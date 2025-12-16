@@ -1404,6 +1404,15 @@ declareForeigns = do
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
   declareForeign Untracked 3 Avro_decodeBinary
+  declareForeign Tracked 1 FFI_openDLL
+  declareForeignWrap Untracked direct FFI_int64
+  declareForeignWrap Untracked direct FFI_uint64
+  declareForeignWrap Untracked direct FFI_double
+  declareForeignWrap Untracked direct FFI_void
+  declareForeign Untracked 2 FFI_base
+  declareForeign Untracked 2 FFI_baseIO
+  declareForeign Untracked 2 FFI_arr
+  declareForeign Tracked 3 FFI_getDLLSym
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))

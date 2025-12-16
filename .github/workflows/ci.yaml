@@ -280,6 +280,41 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/docs.to-html.output.md \
             unison-src/transcripts-manual/docs.to-html
+
+      - name: dll-ffi-unix smoke tests
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: |
+          clang -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.so \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-unix.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-unix.output.md
+
+      - name: dll-ffi-win smoke tests
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        run: |
+          clang -DWINDOWS_BUILD -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -DWINDOWS_BUILD -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.dll \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-win.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-win.output.md
+
       - name: mark transcripts as passing
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |

@@ -54,7 +54,7 @@ typecheckedToNames uf = Names (terms <> ctors) types
       Relation.fromList
         [ (Name.unsafeParseVar v, Referent.Ref r)
           | (v, (_a, r, wk, _, _)) <- Map.toList $ UF.hashTerms uf,
-            wk == Nothing || wk == Just WK.TestWatch
+            WK.watchKindShouldBeStoredInDatabase wk
         ]
     types =
       Relation.fromList

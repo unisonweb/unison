@@ -130,7 +130,6 @@ import Control.Monad.Except (ExceptT)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.These (These (..))
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash)
@@ -159,6 +158,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
@@ -535,30 +535,13 @@ dependentsWithinBranchScope ::
   DefnsF Set Referent TypeReference ->
   Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
 dependentsWithinBranchScope branch0 refs = do
-  Operations.directDependentsWithinScope (Branch.deepDefnsIds branch0) (defnsToRefs refs)
+  Operations.directDependentsWithinScope (Branch.deepDefnsIds branch0) (NamesUtils.referentsToRefs refs)
 
 directDependencies ::
   DefnsF Set Referent TypeReference ->
   Sqlite.Transaction (DefnsF Set TermReference TypeReference)
 directDependencies refs = do
   Operations.directDependenciesOfScope Builtin.isBuiltinType (defnsToRefsIds refs)
-
-defnsToRefs :: DefnsF Set Referent TypeReference -> DefnsF Set TermReference TypeReference
-defnsToRefs defns =
-  Defns
-    { terms = termRefs,
-      types = Set.union constructorRefs defns.types
-    }
-  where
-    termRefs :: Set TermReference
-    constructorRefs :: Set TypeReference
-    (termRefs, constructorRefs) =
-      Set.unalignWith
-        ( \case
-            Referent.Con (ConstructorReference ref _) _ -> That ref
-            Referent.Ref ref -> This ref
-        )
-        defns.terms
 
 defnsToRefsIds :: DefnsF Set Referent TypeReference -> DefnsF Set TermReferenceId TypeReferenceId
 defnsToRefsIds defns =

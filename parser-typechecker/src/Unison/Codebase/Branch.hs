@@ -99,6 +99,7 @@ module Unison.Codebase.Branch
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
+import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Monoid (Any (..))
 import Data.Semialign qualified as Align
@@ -508,7 +509,10 @@ batchUpdatesM ::
 batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (groupActionsByLocation actions)
   where
     groupActionsByLocation :: [(Path, b)] -> [(ActionLocation, [(Path, b)])]
-    groupActionsByLocation = List.groupMap \(p, act) -> (pathLocation p, (p, act))
+    groupActionsByLocation xs =
+      xs
+        & List.groupMap (\(p, act) -> (pathLocation p, (p, act)))
+        <&> second Foldable.toList
 
     execActions ::
       ( Branch0 m ->

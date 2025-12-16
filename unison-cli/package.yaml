@@ -86,6 +86,7 @@ library:
     - unison-core1
     - unison-credentials
     - unison-hash
+    - unison-hashing-v2
     - unison-merge
     - unison-parser-typechecker
     - unison-prelude

@@ -335,7 +335,8 @@ generalMismatch = do
       case (mayNeedArgs, delayMismatch) of
         (_, Just (Left {})) -> pure $ Mismatch ft et fl el mismatchSite n (Just MissingDelay)
         (_, Just (Right {})) -> pure $ Mismatch ft et fl el mismatchSite n (Just SuperfluousDelay)
-        (Just needArgs, _) -> pure $ FunctionUnderApplied ft et fl el mismatchSite n (lowerType <$> needArgs)
+        (Just needArgs, _)
+          | not (null needArgs) -> pure $ FunctionUnderApplied ft et fl el mismatchSite n (lowerType <$> needArgs)
         _ -> do
           pure $ Mismatch ft et fl el mismatchSite n Nothing
     _ -> error "generalMismatch: Mismatched type binding"

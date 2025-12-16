@@ -35,29 +35,29 @@ import Unison.Sync.Types qualified as Share
 
 -- | Note: We currently only validate Namespace hashes.
 -- We should add more validation as more entities are shared.
-validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe Share.EntityValidationError
+validateEntity :: Hash32 -> Share.Entity Text Hash32 Hash32 -> Maybe (Either HH.HashingFailure Share.EntityValidationError)
 validateEntity expectedHash32 entity = do
   validateTempEntity expectedHash32 $ Share.entityToTempEntity id entity
 
 -- | Note: We currently only validate Namespace hashes.
 -- We should add more validation as more entities are shared.
-validateTempEntity :: Hash32 -> TempEntity -> Maybe Share.EntityValidationError
+validateTempEntity :: Hash32 -> TempEntity -> Maybe (Either HH.HashingFailure Share.EntityValidationError)
 validateTempEntity expectedHash32 tempEntity = do
   case tempEntity of
     Entity.TC (TermFormat.SyncTerm localComp) -> do
       validateTerm expectedHash localComp
     Entity.DC (DeclFormat.SyncDecl localComp) -> do
-      validateDecl expectedHash localComp
+      Right <$> validateDecl expectedHash localComp
     Entity.N (BranchFormat.SyncDiff {}) -> do
-      Just $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType
+      Just . Right $ Share.UnsupportedEntityType expectedHash32 Share.NamespaceDiffType
     Entity.N (BranchFormat.SyncFull localIds (BranchFormat.LocalBranchBytes bytes)) -> do
-      validateBranchFull expectedHash localIds bytes
+      Right <$> validateBranchFull expectedHash localIds bytes
     Entity.C CausalFormat.SyncCausalFormat {valueHash, parents} -> do
-      validateCausal expectedHash32 valueHash (toList parents)
+      Right <$> validateCausal expectedHash32 valueHash (toList parents)
     Entity.P (PatchFormat.SyncDiff {}) -> do
-      Just $ Share.UnsupportedEntityType expectedHash32 Share.PatchDiffType
+      Just . Right $ Share.UnsupportedEntityType expectedHash32 Share.PatchDiffType
     Entity.P (PatchFormat.SyncFull localIds bytes) -> do
-      validatePatchFull expectedHash32 localIds bytes
+      Right <$> validatePatchFull expectedHash32 localIds bytes
   where
     expectedHash :: Hash
     expectedHash = Hash32.toHash expectedHash32
@@ -103,14 +103,15 @@ validateBranchFull expectedHash localIds bytes = do
         then Nothing
         else Just $ Share.EntityHashMismatch Share.NamespaceType (mismatch expectedHash (unBranchHash actualHash))
 
-validateTerm :: Hash -> (TermFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe Share.EntityValidationError)
+validateTerm :: Hash -> (TermFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe (Either HH.HashingFailure Share.EntityValidationError))
 validateTerm expectedHash syncLocalComp = do
   case Decode.unsyncTermComponent syncLocalComp of
-    Left decodeErr -> Just (Share.InvalidByteEncoding (Hash32.fromHash expectedHash) Share.TermComponentType (tShow decodeErr))
+    Left decodeErr -> Just . Right $ (Share.InvalidByteEncoding (Hash32.fromHash expectedHash) Share.TermComponentType (tShow decodeErr))
     Right localComp -> do
       case HH.verifyTermFormatHash v2HashHandle (ComponentHash expectedHash) (TermFormat.Term localComp) of
         Nothing -> Nothing
-        Just (HH.HashMismatch {expectedHash, actualHash}) -> Just . Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
+        Just (HH.HashingFailure incompleteOrdering) -> Just . Left $ incompleteOrdering
+        Just (HH.HashValidationMismatch (HH.HashMismatch {expectedHash, actualHash})) -> Just . Right $ Share.EntityHashMismatch Share.TermComponentType $ mismatch expectedHash actualHash
 
 validateDecl :: Hash -> (DeclFormat.SyncLocallyIndexedComponent' Text Hash32) -> (Maybe Share.EntityValidationError)
 validateDecl expectedHash syncLocalComp = do

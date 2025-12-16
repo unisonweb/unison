@@ -3,6 +3,7 @@ module Unison.NamesUtils
   ( byName,
     forgetNames,
     referentsToIds,
+    referentsToRefs,
     restrictNames,
   )
 where
@@ -14,6 +15,8 @@ import Unison.Reference (Reference' (..), TermReferenceId, TypeReference, TypeRe
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
+import Unison.ReferentPrime (Referent')
+import Unison.ReferentPrime qualified as Referent'
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, zipDefnsWith)
@@ -39,7 +42,7 @@ restrictNames =
 
 referentsToIds :: DefnsF Set Referent TypeReference -> DefnsF Set TermReferenceId TypeReferenceId
 referentsToIds defns =
-  fromTerms <> Defns.fromTypes (Set.mapMaybe Reference.toId defns.types)
+  fromTerms <> fromTypes
   where
     fromTerms =
       Set.foldl'
@@ -52,3 +55,23 @@ referentsToIds defns =
         )
         (Defns Set.empty Set.empty)
         defns.terms
+
+    fromTypes =
+      Defns.fromTypes (Set.mapMaybe Reference.toId defns.types)
+
+referentsToRefs :: (Ord r) => DefnsF Set (Referent' r) r -> DefnsF Set r r
+referentsToRefs defns =
+  fromTerms <> fromTypes
+  where
+    fromTerms =
+      Set.foldl'
+        ( \acc -> \case
+            Referent'.Ref' ref -> let !terms = Set.insert ref acc.terms in Defns terms acc.types
+            Referent'.Con' (ConstructorReference ref _) _ ->
+              let !types = Set.insert ref acc.types in Defns acc.terms types
+        )
+        (Defns Set.empty Set.empty)
+        defns.terms
+
+    fromTypes =
+      Defns.fromTypes defns.types

@@ -22,7 +22,7 @@ import Unison.Reference (Reference)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Syntax.HashQualified qualified as HashQualified (toText)
-import Unison.Syntax.Name qualified as Name (unsafeParseText)
+import Unison.Syntax.Name qualified as Name
 import Unison.Syntax.NameSegment qualified as NameSegment (toEscapedText)
 import Unison.Util.AnnotatedText
   ( AnnotatedText (..),
@@ -78,8 +78,8 @@ convertElement = \case
   SyntaxText.BooleanLiteral -> BooleanLiteral
   SyntaxText.Blank -> Blank
   SyntaxText.Var -> Var
-  SyntaxText.TermReference r -> TermReference $ Referent.toText r
-  SyntaxText.TypeReference r -> TypeReference $ Reference.toText r
+  SyntaxText.TermReference fqn r -> TermReference (Name.toText <$> fqn) (Referent.toText r)
+  SyntaxText.TypeReference fqn r -> TypeReference (Name.toText <$> fqn) (Reference.toText r)
   SyntaxText.Op s -> Op s
   SyntaxText.AbilityBraces -> AbilityBraces
   SyntaxText.ControlKeyword -> ControlKeyword
@@ -105,6 +105,9 @@ type UnisonHash = Text
 
 type HashQualifiedName = Text
 
+-- Fully qualified name, without a hash.
+type FQN = Text
+
 -- | The elements of the Unison grammar, for syntax highlighting purposes
 data Element
   = NumericLiteral
@@ -114,10 +117,10 @@ data Element
   | BooleanLiteral
   | Blank
   | Var
-  | TypeReference UnisonHash
-  | DataConstructorReference UnisonHash
-  | AbilityConstructorReference UnisonHash
-  | TermReference UnisonHash
+  | TypeReference (Maybe FQN) UnisonHash
+  | DataConstructorReference (Maybe FQN) UnisonHash
+  | AbilityConstructorReference (Maybe FQN) UnisonHash
+  | TermReference (Maybe FQN) UnisonHash
   | Op SeqOp
   | -- | Constructor Are these even used?
     -- | Request
@@ -162,11 +165,11 @@ instance ToJSON Element where
     BooleanLiteral -> object ["tag" .= String "BooleanLiteral"]
     Blank -> object ["tag" .= String "Blank"]
     Var -> object ["tag" .= String "Var"]
-    TypeReference r -> object ["tag" .= String "TypeReference", "contents" .= r]
-    DataConstructorReference r ->
-      object ["tag" .= String "DataConstructorReference", "contents" .= r]
-    AbilityConstructorReference r -> object ["tag" .= String "AbilityConstructorReference", "contents" .= r]
-    TermReference r -> object ["tag" .= String "TermReference", "contents" .= r]
+    TypeReference fqn r -> object ["tag" .= String "TypeReference", "contents" .= r, "fqn" .= fqn]
+    DataConstructorReference fqn r ->
+      object ["tag" .= String "DataConstructorReference", "contents" .= r, "fqn" .= fqn]
+    AbilityConstructorReference fqn r -> object ["tag" .= String "AbilityConstructorReference", "contents" .= r, "fqn" .= fqn]
+    TermReference fqn r -> object ["tag" .= String "TermReference", "contents" .= r, "fqn" .= fqn]
     Op s -> object ["tag" .= String "Op", "contents" .= s]
     AbilityBraces -> object ["tag" .= String "AbilityBraces"]
     ControlKeyword -> object ["tag" .= String "ControlKeyword"]
@@ -199,10 +202,10 @@ instance FromJSON Element where
       "BooleanLiteral" -> pure BooleanLiteral
       "Blank" -> pure Blank
       "Var" -> pure Var
-      "TypeReference" -> TypeReference <$> obj .: "contents"
-      "DataConstructorReference" -> DataConstructorReference <$> obj .: "contents"
-      "AbilityConstructorReference" -> AbilityConstructorReference <$> obj .: "contents"
-      "TermReference" -> TermReference <$> obj .: "contents"
+      "TypeReference" -> TypeReference <$> obj .:? "fqn" <*> obj .: "contents"
+      "DataConstructorReference" -> DataConstructorReference <$> obj .:? "fqn" <*> obj .: "contents"
+      "AbilityConstructorReference" -> AbilityConstructorReference <$> obj .:? "fqn" <*> obj .: "contents"
+      "TermReference" -> TermReference <$> obj .:? "fqn" <*> obj .: "contents"
       "Op" -> Op <$> obj .: "contents"
       "AbilityBraces" -> pure AbilityBraces
       "ControlKeyword" -> pure ControlKeyword
@@ -238,8 +241,8 @@ reference :: SyntaxSegment -> Maybe UnisonHash
 reference (Segment _ el) =
   let reference' el' =
         case el' of
-          TermReference r -> Just r
-          TypeReference r -> Just r
+          TermReference _fqn r -> Just r
+          TypeReference _fqn r -> Just r
           HashQualifier r -> Just r
           _ -> Nothing
    in el >>= reference'
@@ -278,13 +281,13 @@ segmentToHtml (Segment sText element) =
 
       ref =
         case el of
-          TypeReference h ->
+          TypeReference _fqn h ->
             Just (h, "type")
-          TermReference h ->
+          TermReference _fqn h ->
             Just (h, "term")
-          AbilityConstructorReference h ->
+          AbilityConstructorReference _fqn h ->
             Just (h, "ability-constructor")
-          DataConstructorReference h ->
+          DataConstructorReference _fqn h ->
             Just (h, "data-constructor")
           _ ->
             Nothing

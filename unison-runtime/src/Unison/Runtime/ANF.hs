@@ -610,6 +610,7 @@ postFloat orig (FS {floatNames, floated, decomp}) =
   where
     m =
       fmap (fmap deannotate)
+        . snd {- we ignore the hashing warnings in the runtime; they're not relevant -}
         . hashTermComponentsWithoutTypes
         . Map.fromList
         $ floated

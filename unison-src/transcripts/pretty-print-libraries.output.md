@@ -43,18 +43,18 @@ ability abilities.Label where
   pushScope : Text ->{Label} ()
 
 ability abilities.Random where
-  split! : {Random} (∀ g a. '{g, Random} a ->{g} a)
-  nat! : {Random} Nat
   bytes : Nat ->{Random} Bytes
+  nat! : {Random} Nat
+  split! : {Random} (∀ g a. '{g, Random} a ->{g} a)
 
 structural type abilities.Random.RNG
-  = RNG (∀ g a. '{Random, g} a ->{g} a)
+  = RNG (∀ g a. '{g, Random} a ->{g} a)
 
 -- abilities.Request is built-in.
 
 structural ability abilities.Store a where
-  put : a ->{Store a} ()
   get : {Store a} a
+  put : a ->{Store a} ()
 
 structural ability abilities.Throw e where
   throw : e ->{Throw e} a
@@ -69,8 +69,8 @@ ability abilities.Wait where
 -- Bytes is built-in.
 
 structural type Bytes.base32Hex.Hex32Piece
-  = Single Nat Nat Bytes
-  | Double Nat Nat Nat Bytes
+  = Double Nat Nat Nat Bytes
+  | Single Nat Nat Bytes
 
 -- Char is built-in.
 
@@ -119,8 +119,8 @@ structural type data.deprecated.Heap k v
   = Heap Nat k v [Heap k v]
 
 structural type data.deprecated.Weighted a
-  = Weight Nat ('Weighted a)
-  | Fail
+  = Fail
+  | Weight Nat ('Weighted a)
   | Yield a (Weighted a)
 
 type data.Graph v
@@ -161,15 +161,15 @@ type data.NatMap a
   = NatMap (Optional (NatMap.Nonempty a))
 
 type data.NatMap.Nonempty a
-  = NatMap.Nonempty.Tip Nat a
-  | NatMap.Nonempty.Bin Nat Nat Nat (NatMap.Nonempty a) (NatMap.Nonempty a)
+  = NatMap.Nonempty.Bin Nat Nat Nat (NatMap.Nonempty a) (NatMap.Nonempty a)
+  | NatMap.Nonempty.Tip Nat a
 
 type data.NatSet
   = NatSet (Optional NatSet.Nonempty)
 
 type data.NatSet.Nonempty
-  = Tip Nat Nat
-  | Bin Nat Nat Nat NatSet.Nonempty NatSet.Nonempty
+  = Bin Nat Nat Nat NatSet.Nonempty NatSet.Nonempty
+  | Tip Nat Nat
 
 structural type data.OneOrBoth a b
   = Both a b
@@ -200,12 +200,10 @@ structural type data.Tuple a b
   = Cons a b
 
 type Doc
-  = Folded Boolean Doc Doc
-  | Tooltip Doc Doc
-  | NamedLink Doc Doc
+  = Blankline
+  | Linebreak
+  | SectionBreak
   | Callout (Optional Doc) Doc
-  | NumberedList Nat [Doc]
-  | Special SpecialForm
   | Code Doc
   | Bold Doc
   | Italic Doc
@@ -213,29 +211,31 @@ type Doc
   | Blockquote Doc
   | Aside Doc
   | Group Doc
-  | Section Doc [Doc]
+  | CodeBlock Text Doc
+  | Style Text Doc
+  | Anchor Text Doc
+  | Folded Boolean Doc Doc
   | Image Doc Doc (Optional Doc)
-  | Blankline
-  | Linebreak
-  | SectionBreak
-  | Table [[Doc]]
-  | Word Text
+  | NumberedList Nat [Doc]
   | Paragraph [Doc]
   | BulletedList [Doc]
   | Join [Doc]
   | UntitledSection [Doc]
   | Column [Doc]
-  | CodeBlock Text Doc
-  | Style Text Doc
-  | Anchor Text Doc
+  | Section Doc [Doc]
+  | Special SpecialForm
+  | Table [[Doc]]
+  | Tooltip Doc Doc
+  | NamedLink Doc Doc
+  | Word Text
 
 type Doc.Deprecated
   = Blob Text
+  | Join [Deprecated]
   | Link Link
   | Source Link
   | Signature Link.Term
   | Evaluate Link.Term
-  | Join [Deprecated]
 
 type Doc.EmbedSvg
   = EmbedSvg Text
@@ -250,17 +250,17 @@ type Doc.MediaSource
   = { sourceUrl : Text, mimeType : Optional Text }
 
 type Doc.SpecialForm
-  = Example Nat Doc.Term
-  | ExampleBlock Nat Doc.Term
-  | Signature [Doc.Term]
-  | Link (Either Type Doc.Term)
-  | Embed Any
+  = Embed Any
   | EmbedInline Any
-  | Source [(Either Type Doc.Term, [Doc.Term])]
-  | FoldedSource [(Either Type Doc.Term, [Doc.Term])]
+  | Example Nat Doc.Term
+  | ExampleBlock Nat Doc.Term
+  | Link (Either Type Doc.Term)
+  | Signature [Doc.Term]
   | SignatureInline Doc.Term
   | Eval Doc.Term
   | EvalInline Doc.Term
+  | Source [(Either Type Doc.Term, [Doc.Term])]
+  | FoldedSource [(Either Type Doc.Term, [Doc.Term])]
 
 type Doc.Term
   = Term Any
@@ -269,8 +269,8 @@ type Doc.Video
   = { sources : [MediaSource], config : [(Text, Text)] }
 
 structural type Either a b
-  = Right b
-  | Left a
+  = Left a
+  | Right b
 
 -- Float is built-in.
 
@@ -294,9 +294,9 @@ type IO.concurrent.STM.TMap a
   = TMap (TVar (Optional a)) [TVar (F a)]
 
 type IO.concurrent.STM.TMap.impl.F a
-  = One Bytes a
+  = Empty
   | Many (TMap a)
-  | Empty
+  | One Bytes a
 
 type IO.concurrent.STM.TQueue a
   = TQueue (TVar [a]) (TVar Nat)
@@ -509,8 +509,8 @@ structural type mutable.ByteArray g
 -- Nat is built-in.
 
 structural type Optional a
-  = Some a
-  | None
+  = None
+  | Some a
 
 type Ordering
   = Less
@@ -523,14 +523,14 @@ structural type Pretty txt
   = Pretty (Annotated () txt)
 
 type Pretty.Annotated w txt
-  = Table w [[Annotated w txt]]
-  | Append w [Annotated w txt]
-  | OrElse w (Annotated w txt) (Annotated w txt)
-  | Indent w (Annotated w txt) (Annotated w txt) (Annotated w txt)
+  = Append w [Annotated w txt]
+  | Empty
   | Group w (Annotated w txt)
   | Wrap w (Annotated w txt)
-  | Empty
+  | Indent w (Annotated w txt) (Annotated w txt) (Annotated w txt)
   | Lit w txt
+  | OrElse w (Annotated w txt) (Annotated w txt)
+  | Table w [[Annotated w txt]]
 
 -- reflection.Code is built-in.
 
@@ -578,9 +578,9 @@ type system.ConsoleText
   = Bold ConsoleText
   | Underline ConsoleText
   | Invert ConsoleText
-  | Plain Text
   | Foreground Color ConsoleText
   | Background Color ConsoleText
+  | Plain Text
 
 structural type test.deprecated.Domain a
   = Large (Weighted a)
@@ -2422,7 +2422,7 @@ abilities.Each.split : '{g, Each} a ->{g} Optional (a, '{g, Each} a)
 abilities.Each.split c =
   use Stream uncons
   h :
-    '{Stream ('{Each, g} a)} ()
+    '{Stream ('{g, Each} a)} ()
     -> Request {Each} a
     ->{g} Optional (a, '{g, Each} a)
   h jq = cases
@@ -20755,7 +20755,7 @@ data.List.Nonempty.zipWith :
   (a ->{g1} b ->{g} c)
   -> List.Nonempty a
   -> List.Nonempty b
-  ->{g1, g} List.Nonempty c
+  ->{g, g1} List.Nonempty c
 data.List.Nonempty.zipWith f = cases
   Nonempty.Nonempty x xs, Nonempty.Nonempty y ys ->
     f x y +| List.zipWith f xs ys
@@ -22394,7 +22394,7 @@ data.List.uncons.doc =
   }}
 
 data.List.uncons.tests.applyOrEmpty :
-  (i1 ->{g1} i ->{g} [elem]) -> Optional (i1, i) ->{g1, g} [elem]
+  (i1 ->{g1} i ->{g} [elem]) -> Optional (i1, i) ->{g, g1} [elem]
 data.List.uncons.tests.applyOrEmpty f = cases
   Some (x, y) -> f x y
   None        -> []
@@ -24107,6 +24107,16 @@ data.Map.internal.balance k x l r =
   use Nat * +
   use Universal gt lt
   use internal Bin
+  doubleL : a -> b -> Map a b -> Map a b -> Map a b
+  doubleL k1 x1 t1 = cases
+    Bin _ k2 x2 (Bin _ k3 x3 t2 t3) t4 ->
+      bin k3 x3 (bin k1 x1 t1 t2) (bin k2 x2 t3 t4)
+    _ -> bug "doubleL: Tip"
+  doubleR : a -> b -> Map a b -> Map a b -> Map a b
+  doubleR k1 x1 = cases
+    Bin _ k2 x2 t1 (Bin _ k3 x3 t2 t3), t4 ->
+      bin k3 x3 (bin k2 x2 t1 t2) (bin k1 x1 t3 t4)
+    _, _ -> bug "doubleR: Tip"
   rotateL : a -> b -> Map a b -> Map a b -> Map a b
   rotateL k x l = cases
     r@(Bin _ _ _ ly ry) | lt (size ly) (ratio * size ry) -> singleL k x l r
@@ -24123,16 +24133,6 @@ data.Map.internal.balance k x l r =
   singleR k1 x1 = cases
     Bin _ k2 x2 t1 t2, t3 -> bin k2 x2 t1 (bin k1 x1 t2 t3)
     _, _                  -> bug "singleR: Tip"
-  doubleL : a -> b -> Map a b -> Map a b -> Map a b
-  doubleL k1 x1 t1 = cases
-    Bin _ k2 x2 (Bin _ k3 x3 t2 t3) t4 ->
-      bin k3 x3 (bin k1 x1 t1 t2) (bin k2 x2 t3 t4)
-    _ -> bug "doubleL: Tip"
-  doubleR : a -> b -> Map a b -> Map a b -> Map a b
-  doubleR k1 x1 = cases
-    Bin _ k2 x2 t1 (Bin _ k3 x3 t2 t3), t4 ->
-      bin k3 x3 (bin k2 x2 t1 t2) (bin k1 x1 t3 t4)
-    _, _ -> bug "doubleR: Tip"
   sizeL = size l
   sizeR = size r
   sizeX = sizeL + sizeR + 1
@@ -42510,7 +42510,7 @@ data.OneOrBoth.isThis.doc =
   }}
 
 data.OneOrBoth.joinThat :
-  (b ->{g1} b ->{g} b) -> OneOrBoth (OneOrBoth a b) b ->{g1, g} OneOrBoth a b
+  (b ->{g1} b ->{g} b) -> OneOrBoth (OneOrBoth a b) b ->{g, g1} OneOrBoth a b
 data.OneOrBoth.joinThat f = cases
   This x            -> x
   That y            -> That y
@@ -42556,7 +42556,7 @@ data.OneOrBoth.joinThat.doc =
   }}
 
 data.OneOrBoth.joinThis :
-  (a ->{g1} a ->{g} a) -> OneOrBoth a (OneOrBoth a b) ->{g1, g} OneOrBoth a b
+  (a ->{g1} a ->{g} a) -> OneOrBoth a (OneOrBoth a b) ->{g, g1} OneOrBoth a b
 data.OneOrBoth.joinThis f = cases
   This x            -> This x
   That y            -> y
@@ -46544,12 +46544,12 @@ data.Stream.splitAt : Nat -> '{g, Stream a} r ->{g} ([a], '{g, Stream a} r)
 data.Stream.splitAt n s =
   use List :+
   use Nat - ==
+  go : [a] -> Nat -> '{g, Stream a} r ->{g} ([a], '{g, Stream a} r)
+  go acc n s = if n == 0 then (acc, s) else handle s() with h acc n
   h : [a] -> Nat -> Request (Stream a) r ->{g} ([a], '{g, Stream a} r)
   h acc n = cases
     { emit a -> k } -> go (acc :+ a) (n - 1) k
     { r }           -> (acc, do r)
-  go : [a] -> Nat -> '{g, Stream a} r ->{g} ([a], '{g, Stream a} r)
-  go acc n s = if n == 0 then (acc, s) else handle s() with h acc n
   go [] n s
 
 data.Stream.splitAt.doc : Doc
@@ -46574,7 +46574,7 @@ data.Stream.splitAt.doc =
     ```
   }}
 
-data.Stream.tails : '{g, Stream a} r -> '{g, Stream ('{Stream a, g} r)} r
+data.Stream.tails : '{g, Stream a} r -> '{g, Stream ('{g, Stream a} r)} r
 data.Stream.tails s = do tails! s
 
 data.Stream.tails.doc : Doc
@@ -46592,7 +46592,7 @@ data.Stream.tails.doc =
     ```
   }}
 
-data.Stream.tails! : '{g, Stream a} r ->{g, Stream ('{Stream a, g} r)} r
+data.Stream.tails! : '{g, Stream a} r ->{g, Stream ('{g, Stream a} r)} r
 data.Stream.tails! s = match Stream.uncons s with
   Left r       -> r
   Right (x, s) -> (Stream.+:) (x Stream.+: s) (do data.Stream.tails! s) ()
@@ -47061,15 +47061,15 @@ data.Stream.zipWith.doc =
 data.Stream.zipWith! :
   (a ->{g} b ->{g} c) -> '{g, Stream a} r -> '{g, Stream b} r ->{g, Stream c} r
 data.Stream.zipWith! f sa sb =
+  readA : '{g, Stream b} r -> Request (Stream a) r ->{g, Stream c} r
+  readA sb = cases
+    { emit a -> sa } -> handle sb() with readB a sa
+    { r }            -> r
   readB : a -> '{g, Stream a} r -> Request (Stream b) r ->{g, Stream c} r
   readB a sa = cases
     { emit b -> sb } ->
       emit (f a b)
       handle sa() with readA sb
-    { r }            -> r
-  readA : '{g, Stream b} r -> Request (Stream a) r ->{g, Stream c} r
-  readA sb = cases
-    { emit a -> sa } -> handle sb() with readB a sa
     { r }            -> r
   handle sa() with readA sb
 
@@ -61895,7 +61895,6 @@ u math.Natural.* v =
   vs = toList (digits v)
   m = size us
   n = size vs
-  m6 j ws = if j < n then m2 j ws else dropRightWhile (x -> x == 0) ws
   m2 j ws =
     use List :+
     vj = if n > j then unsafeAt j vs else 0
@@ -61921,6 +61920,7 @@ u math.Natural.* v =
           (if size ws' > m + j then ws'
           else ws' ++ fill (size ws' - (m + j)) 0)
       m6 (j + 1) ws''
+  m6 j ws = if j < n then m2 j ws else dropRightWhile (x -> x == 0) ws
   mkNatural (dropRightWhile (x -> x == 0) (m2 0 (fill m 0)))
 
 (math.Natural.+) : Natural -> Natural -> Natural
@@ -62473,11 +62473,6 @@ math.Natural.internal.normalize =
   hmask = Nat.complement lmask
   cases
     Natural ns ->
-      rec rem done carry = match rem with
-        []      ->
-          done' = List.dropRightWhile (x -> x == 0) done
-          if carry == 0 then mkNatural done' else mkNatural (done' :+ carry)
-        x +: xs -> go xs x done carry
       go rem next done carry =
         use Nat + <= and
         newNext = next + carry
@@ -62486,6 +62481,11 @@ math.Natural.internal.normalize =
           newNewNext = and lmask newNext
           newCarry = Nat.shiftRight (and hmask newNext) bitWidth
           rec rem (done :+ newNewNext) newCarry
+      rec rem done carry = match rem with
+        []      ->
+          done' = List.dropRightWhile (x -> x == 0) done
+          if carry == 0 then mkNatural done' else mkNatural (done' :+ carry)
+        x +: xs -> go xs x done carry
       go (Nonempty.tail ns) (Nonempty.head ns) [] 0
 
 math.Natural.internal.radix : Nat
@@ -68120,7 +68120,7 @@ Optional.<*>.doc =
   }}
 
 Optional.compareBy :
-  (a ->{g2} a ->{g1} Ordering) -> Optional a -> Optional a ->{g2, g1} Ordering
+  (a ->{g2} a ->{g1} Ordering) -> Optional a -> Optional a ->{g1, g2} Ordering
 Optional.compareBy f = cases
   None, None      -> Equal
   None, _         -> Less
@@ -68916,7 +68916,7 @@ Ordering.Equal.doc =
     ```
   }}
 
-Ordering.gtBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g2, g1} Boolean
+Ordering.gtBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g1, g2} Boolean
 Ordering.gtBy o a a2 = match o a a2 with
   Greater -> true
   _       -> false
@@ -68947,7 +68947,7 @@ Ordering.gtBy.doc =
     ```
   }}
 
-Ordering.gteqBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g2, g1} Boolean
+Ordering.gteqBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g1, g2} Boolean
 Ordering.gteqBy o a a2 = match o a a2 with
   Less -> false
   _    -> true
@@ -69046,7 +69046,7 @@ test> Ordering.list.orderingBy.tests = test.verify do
   p2 = replicate (natIn 0 10) do natIn 0 5
   list.orderingBy ordering p1 p2 |> ensureEqual (ordering p1 p2)
 
-Ordering.ltBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g2, g1} Boolean
+Ordering.ltBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g1, g2} Boolean
 Ordering.ltBy o a a2 = match o a a2 with
   Less -> true
   _    -> false
@@ -69077,7 +69077,7 @@ Ordering.ltBy.doc =
     ```
   }}
 
-Ordering.lteqBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g2, g1} Boolean
+Ordering.lteqBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g1, g2} Boolean
 Ordering.lteqBy o a a2 = match o a a2 with
   Greater -> false
   _       -> true
@@ -69100,7 +69100,7 @@ Ordering.lteqBy.doc =
     ```
   }}
 
-Ordering.maxBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g2, g1} a
+Ordering.maxBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g1, g2} a
 Ordering.maxBy o a a2 = match o a a2 with
   Less -> a2
   _    -> a
@@ -69127,7 +69127,7 @@ Ordering.maxBy.doc =
     ```
   }}
 
-Ordering.medianOf3By : (a ->{g2} a ->{g1} Ordering) -> a -> a -> a ->{g2, g1} a
+Ordering.medianOf3By : (a ->{g2} a ->{g1} Ordering) -> a -> a -> a ->{g1, g2} a
 Ordering.medianOf3By o a a2 a3 =
   go a a2 a3 = if gtBy o a a2 then go2 a2 a a3 else go2 a a2 a3
   go2 a a2 a3 = if gtBy o a2 a3 then go3 a a3 a2 else go3 a a2 a3
@@ -69160,7 +69160,7 @@ test> Ordering.medianOf3By.test =
       && medianOf3By ordering 3 2 1 == 2
       && medianOf3By ordering 3 1 2 == 2)
 
-Ordering.minBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g2, g1} a
+Ordering.minBy : (a ->{g2} a ->{g1} Ordering) -> a -> a ->{g1, g2} a
 Ordering.minBy o a a2 = match o a a2 with
   Greater -> a2
   _       -> a
@@ -72617,8 +72617,6 @@ test.deprecated.internals.v1.Test.Report.toCLIResult r =
   use Nat toText
   use Result Fail
   use Text != ++
-  descend scope = cases
-    (k, t) -> go ((if scope != "" then scope ++ "." else "") ++ k) t
   convert : Text -> Status -> Result
   convert scope = cases
     Failed -> Fail scope
@@ -72628,6 +72626,8 @@ test.deprecated.internals.v1.Test.Report.toCLIResult r =
       Fail (scope ++ " : Passed " ++ toText n ++ " tests.")
     Unexpected Proved -> Fail (scope ++ " : Proved.")
     Pending -> Ok (scope ++ " : Pending.")
+  descend scope = cases
+    (k, t) -> go ((if scope != "" then scope ++ "." else "") ++ k) t
   go : Text -> Trie Text Status -> [Result]
   go scope t =
     use List +:
@@ -73554,7 +73554,7 @@ test.laws.abelianGroup :
   -> (t ->{e} t ->{e1} t)
   -> t
   -> (t ->{e2} t)
-  ->{e2, e1, e, Exception, Each, Random, Label} ()
+  ->{e, e1, e2, Exception, Each, Random, Label} ()
 test.laws.abelianGroup gen op z inv =
   laws.group gen op z inv
   commutativity gen op
@@ -73623,8 +73623,8 @@ test.laws.associativity.doc =
   returned by `gen`, `f x (f y z)` is equal to `f (f x y) z`.
   
   For example, if `f` is {Nat.+}, then {{
-  docExample 4 do x + y z -> x + (y + z) }} is equal to
-  {{ docExample 4 do + x y z -> x + y + z }}.
+  docExample 4 do x (+) y z -> x + (y + z) }} is equal to
+  {{ docExample 4 do (+) x y z -> x + y + z }}.
   }}
 
 test.laws.commutativity :
@@ -73681,7 +73681,7 @@ test.laws.group :
   -> (t ->{e} t ->{e1} t)
   -> t
   -> (t ->{e2} t)
-  ->{e2, e1, e, Exception, Each, Random, Label} ()
+  ->{e, e1, e2, Exception, Each, Random, Label} ()
 test.laws.group gen op z inv =
   monoid gen op z
   involutive gen inv
@@ -73821,7 +73821,7 @@ test.laws.monoid :
   '{Each, Random} t
   -> (t ->{e} t ->{e1} t)
   -> t
-  ->{e1, e, Exception, Each, Random, Label} ()
+  ->{e, e1, Exception, Each, Random, Label} ()
 test.laws.monoid gen op z =
   associativity gen op
   laws.identity gen op z
@@ -73867,7 +73867,7 @@ test.laws.ring :
   -> (t ->{e2} t)
   -> (t ->{e1} t ->{e} t)
   -> t
-  ->{e4, e3, e2, e1, e, Exception, Each, Random, Label} ()
+  ->{e, e1, e2, e3, e4, Exception, Each, Random, Label} ()
 test.laws.ring gen add zero neg mul one =
   abelianGroup gen add zero neg
   monoid gen mul one
@@ -83195,8 +83195,8 @@ type server.Config
       tlsConfig : Optional ServerConfig }
 
 type server.Handler g
-  = HandlerWebSocket (HttpRequest ->{g, Exception, Abort} WebSocketHandler)
-  | Handler (HttpRequest ->{g, Exception, Abort} HttpResponse)
+  = Handler (HttpRequest ->{g, Exception, Abort} HttpResponse)
+  | HandlerWebSocket (HttpRequest ->{g, Exception, Abort} WebSocketHandler)
 
 type server.Routes g
   = Routes
@@ -83224,16 +83224,16 @@ type websockets.errors.WebSocketClosed
   = 
 
 type websockets.Frame
-  = Text Boolean Text
-  | Close (Optional (Nat, Text))
-  | Binary Boolean Bytes
+  = Binary Boolean Bytes
   | Continuation Boolean Bytes
+  | Close (Optional (Nat, Text))
   | Ping Bytes
   | Pong Bytes
+  | Text Boolean Text
 
 type websockets.Message
-  = TextMessage Text
-  | BinaryMessage Bytes
+  = BinaryMessage Bytes
+  | TextMessage Text
 
 type websockets.WebSocket
   = WebSocket
@@ -87231,13 +87231,6 @@ websockets.protocol.receive :
 websockets.protocol.receive =
   do
     use Decode failWith
-    continueMaybe :
-      Boolean
-      -> Message
-      ->{Abort, Decode, DecodeBits, Throw DecodeError, Stream Bytes} Message
-    continueMaybe isFin msg = if isFin then msg else continue msg
-    sendPong : Bytes -> ()
-    sendPong payload = emit (encoder None (Pong payload))
     continue :
       Message
       ->{Abort, Decode, DecodeBits, Throw DecodeError, Stream Bytes} Message
@@ -87261,6 +87254,13 @@ websockets.protocol.receive =
               TextMessage (init ++ payloadText)
             BinaryMessage init -> BinaryMessage (init Bytes.++ payload)
           continueMaybe isFin msg
+    continueMaybe :
+      Boolean
+      -> Message
+      ->{Abort, Decode, DecodeBits, Throw DecodeError, Stream Bytes} Message
+    continueMaybe isFin msg = if isFin then msg else continue msg
+    sendPong : Bytes -> ()
+    sendPong payload = emit (encoder None (Pong payload))
     go : '{Abort, Decode, DecodeBits, Throw DecodeError, Stream Bytes} Message
     go =
       do
