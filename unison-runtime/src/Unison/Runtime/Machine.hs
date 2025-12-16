@@ -548,7 +548,7 @@ copyArgs ::
   Stack -> [DLL.FFType] -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
 copyArgs !stk = go 2
   where
-    go !i (a:as) !p !h = do
+    go !i (a : as) !p !h = do
       store a i p
       Store.poke h (castPtr p)
       go (i + 1) as (plusPtr p szp) (plusPtr h szh)

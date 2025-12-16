@@ -23,7 +23,7 @@ instance BuiltinForeign FFType where
   foreignRef = Tagged ffiTypeRef
 
 -- arguments and return type
-data FFSpec = FFSpec { ffArgs :: ![FFType], ffResult :: !FFType }
+data FFSpec = FFSpec {ffArgs :: ![FFType], ffResult :: !FFType}
   deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFSpec where
