@@ -51,6 +51,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   let send msg = do
         writeTBMQueue sendQ msg
         isClosedTBMQueue sendQ
+  let queues = Queues {receive, send}
 
   let triggerClose :: forall n. (MonadIO n) => (Maybe ConnectionException) -> n ()
       triggerClose mayErr = do
@@ -66,10 +67,14 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
           -- If we closed due to a connection error, we don't need to send a close.
           -- If we're shutting down normally, we send a close message.
           case mayErr of
-            Nothing -> liftIO $ sendClose conn ("Server is shutting down" :: Text)
+            Nothing -> do
+              Debug.debugM Debug.Temp "Sending close message" ()
+              liftIO $ sendClose conn ("Server is shutting down" :: Text)
+              Debug.debugM Debug.Temp "Waiting for server to shut down" ()
+              -- TODO: maybe wait for the close to complete?
+              _ <- liftIO $ atomically receive
+              pure ()
             _ -> pure ()
-
-  let queues = Queues {receive, send}
   _ <- Ki.fork scope $ recvWorker triggerClose receiveQ
   _ <- Ki.fork scope $ sendWorker triggerClose sendQ
   let waitConnectionError = atomically do
@@ -121,7 +126,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
 withCodeserverWebsocket :: forall m i o r e. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException r)
 withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath action = do
   let host = codeserverRegName codeserver
-  let connectionOptions = WS.defaultConnectionOptions -- {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
+  let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
   headers <-
     (liftIO (tokenProvider (codeserverIdFromCodeserverURI codeserver))) <&> \case
       Left {} -> []
