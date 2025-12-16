@@ -20,7 +20,7 @@ type UploadCommentsStream =
     :> WebSocket
 
 data Routes mode = Routes
-  { uploadHistoryComments :: mode :- "history-comments" :> "upload" :> UploadCommentsStream,
-    downloadHistoryComments :: mode :- "history-comments" :> "download" :> DownloadCommentsStream
+  { uploadHistoryComments :: mode :- "upload" :> UploadCommentsStream,
+    downloadHistoryComments :: mode :- "download" :> DownloadCommentsStream
   }
   deriving stock (Generic)
