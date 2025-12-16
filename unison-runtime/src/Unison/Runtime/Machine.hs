@@ -48,6 +48,7 @@ import Foreign.Marshal.Array (allocaArray)
 import Foreign.Ptr
 import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
+import GHC.Float (double2Float, float2Double)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
@@ -490,11 +491,16 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
   allocaArray n \storage ->
     allocaArray n \cArgs ->
       alloca \(cRet :: Ptr Int) -> do
-        copyArgs stk n storage cArgs
+        copyArgs stk (DLL.cffArgs cf) storage cArgs
         DLL.callForeign cf cArgs cRet
-        case DLL.cResult cf of
+        case DLL.cffResult cf of
+          DLL.I16 -> Store.peek (castPtr cRet) >>= pokeI stk . fi16
+          DLL.I32 -> Store.peek (castPtr cRet) >>= pokeI stk . fi32
           DLL.I64 -> Store.peek cRet >>= pokeI stk
+          DLL.U16 -> Store.peek (castPtr cRet) >>= pokeN stk . fu16
+          DLL.U32 -> Store.peek (castPtr cRet) >>= pokeN stk . fu32
           DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
+          DLL.F32 -> Store.peek (castPtr cRet) >>= pokeD stk . ff32
           DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
           DLL.Void -> poke stk unitValue
   pure (False, henv, stk, k)
@@ -502,21 +508,62 @@ exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
 
+fi16 :: Int16 -> Int
+fi16 = fromIntegral
+
+ti16 :: Int -> Int16
+ti16 = fromIntegral
+
+fi32 :: Int32 -> Int
+fi32 = fromIntegral
+
+ti32 :: Int -> Int32
+ti32 = fromIntegral
+
+fu32 :: Word32 -> Word64
+fu32 = fromIntegral
+
+tu32 :: Word64 -> Word32
+tu32 = fromIntegral
+
+fu16 :: Word16 -> Word64
+fu16 = fromIntegral
+
+tu16 :: Word64 -> Word16
+tu16 = fromIntegral
+
+tf32 :: Double -> Float
+tf32 = double2Float
+
+ff32 :: Float -> Double
+ff32 = float2Double
+
 -- Copies unison stack values into temporary space appropriate for
 -- calling libffi. The latter takes all arguments as pointers, so we
 -- need to copy the arguments to pinned memory to have a stable
--- location. All our FFI arguments are 64-bit, though, so we can just
--- use a contiguous array.
-copyArgs :: Stack -> Int -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
-copyArgs !stk n = go 2
+-- location. All our FFI arguments are 64-bit or smaller, though, so
+-- we can just use a contiguous array with as many 8 byte slots as
+-- there are arguments, possibly using only portions of some slots.
+copyArgs ::
+  Stack -> [DLL.FFType] -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
+copyArgs !stk = go 2
   where
-    go i !p !h
-      | i <= n + 1 = do
-          k <- upeekOff stk i
-          Store.poke p k
-          Store.poke h (castPtr p)
-          go (i + 1) (plusPtr p szp) (plusPtr h szh)
-      | otherwise = pure ()
+    go !i (a:as) !p !h = do
+      store a i p
+      Store.poke h (castPtr p)
+      go (i + 1) as (plusPtr p szp) (plusPtr h szh)
+    go _ _ _ _ = pure ()
+
+    -- special case non-64-bit values for conversions, otherwise just
+    -- copy bytes.
+    store DLL.I32 i p = upeekOff stk i >>= Store.poke (castPtr p) . ti32
+    store DLL.U32 i p = peekOffN stk i >>= Store.poke (castPtr p) . tu32
+    store DLL.I16 i p = upeekOff stk i >>= Store.poke (castPtr p) . ti16
+    store DLL.U16 i p = peekOffN stk i >>= Store.poke (castPtr p) . tu16
+    store DLL.F32 i p = peekOffD stk i >>= Store.poke (castPtr p) . tf32
+    store _ i p = upeekOff stk i >>= Store.poke p
+    {-# INLINE store #-}
+
     szp = Store.sizeOf (0 :: Int)
     szh = Store.sizeOf (undefined :: Ptr CValue)
 {-# INLINE copyArgs #-}
