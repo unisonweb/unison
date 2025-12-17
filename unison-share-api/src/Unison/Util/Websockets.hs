@@ -21,6 +21,7 @@ import Ki.Unlifted qualified as Ki
 import Network.Socket
 import Network.WebSockets
 import Network.WebSockets qualified as WS
+import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Share.Types
 import UnliftIO
@@ -50,6 +51,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   let send msg = do
         writeTBMQueue sendQ msg
         isClosedTBMQueue sendQ
+  let queues = Queues {receive, send}
 
   let triggerClose :: forall n. (MonadIO n) => (Maybe ConnectionException) -> n ()
       triggerClose mayErr = do
@@ -65,10 +67,14 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
           -- If we closed due to a connection error, we don't need to send a close.
           -- If we're shutting down normally, we send a close message.
           case mayErr of
-            Nothing -> liftIO $ sendClose conn ("Server is shutting down" :: Text)
+            Nothing -> do
+              Debug.debugM Debug.Temp "Sending close message" ()
+              liftIO $ sendClose conn ("Server is shutting down" :: Text)
+              Debug.debugM Debug.Temp "Waiting for server to shut down" ()
+              -- TODO: maybe wait for the close to complete?
+              _ <- liftIO $ atomically receive
+              pure ()
             _ -> pure ()
-
-  let queues = Queues {receive, send}
   _ <- Ki.fork scope $ recvWorker triggerClose receiveQ
   _ <- Ki.fork scope $ sendWorker triggerClose sendQ
   let waitConnectionError = atomically do
@@ -125,17 +131,28 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
     (liftIO (tokenProvider (codeserverIdFromCodeserverURI codeserver))) <&> \case
       Left {} -> []
       Right token -> [("Authorization", "Bearer " <> Text.encodeUtf8 token)]
-  let wsRunner = case codeserverScheme codeserver of
+
+  let wsRunner path opts headers action = case codeserverScheme codeserver of
         Https ->
           let tlsPort = 443
               port = maybe tlsPort fromIntegral $ (codeserverPort) codeserver
-           in Wuss.runSecureClientWith host port
+           in do
+                print $ "Connecting to codeserver via WSS: " <> show (host, port, codeserverPath, headers)
+                Wuss.runSecureClientWith host port path opts headers action
         Http ->
-          let tlsPort = 443 :: Int
-              port = maybe tlsPort id $ (codeserverPort) codeserver
-           in WS.runClientWith host port
+          let defaultPort = 80 :: Int
+              port = maybe defaultPort id $ codeserverPort codeserver
+              fixedHost = case host of
+                -- The haskell ws client has issues with "localhost"
+                "localhost" -> "127.0.0.1"
+                _ -> host
+           in do
+                print $ "Connecting to codeserver via WS: " <> show (fixedHost, port, codeserverPath, headers)
+                WS.runClientWith fixedHost port path opts headers action
   toIO <- askRunInIO
+  Debug.debugM Debug.Temp "withCodeserverWebsocket:" (host, codeserverPath)
   liftIO $ withSocketsDo $ (wsRunner codeserverPath connectionOptions headers) \conn -> do
+    Debug.debugM Debug.Temp "CONNECTED to websocket" (host, codeserverPath)
     withQueues msgBufferSize msgBufferSize conn $ \queues -> do
       toIO $ action queues
 
