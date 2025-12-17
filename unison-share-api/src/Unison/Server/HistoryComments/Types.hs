@@ -24,11 +24,13 @@ data DownloadCommentsRequest = DownloadCommentsRequest
     branchRef :: BranchRef,
     since :: UTCTime
   }
+  deriving (Show, Eq)
 
 data UploadCommentsResponse
   = UploadCommentsProjectBranchNotFound BranchRef
   | UploadCommentsNotAuthorized BranchRef
   | UploadCommentsGenericFailure Text
+  deriving (Show, Eq)
 
 instance Serialise UploadCommentsResponse where
   encode = \case
@@ -53,6 +55,7 @@ data HistoryComment = HistoryComment
     causalHash :: Hash32,
     commentHash :: Hash32
   }
+  deriving (Show, Eq)
 
 instance Serialise HistoryComment where
   encode (HistoryComment {author, createdAt, authorThumbprint, causalHash, commentHash}) =
@@ -78,6 +81,7 @@ data HistoryCommentRevision = HistoryCommentRevision
     revisionHash :: Hash32,
     commentHash :: Hash32
   }
+  deriving (Show, Eq)
 
 instance Serialise HistoryCommentRevision where
   encode (HistoryCommentRevision {subject, content, createdAt, isHidden, authorSignature, revisionHash, commentHash}) =
@@ -104,6 +108,7 @@ data HistoryCommentChunk
   | HistoryCommentRevisionChunk HistoryCommentRevision
   | -- Generic error chunk
     HistoryCommentErrorChunk Text
+  deriving (Show, Eq)
 
 instance Serialise HistoryCommentChunk where
   encode = \case
@@ -127,6 +132,7 @@ data HistoryCommentChunkTag
   = HistoryCommentTag
   | HistoryCommentRevisionTag
   | HistoryCommentErrorTag
+  deriving (Show, Eq)
 
 instance Serialise HistoryCommentChunkTag where
   encode = \case
