@@ -67,11 +67,10 @@ uploadHistoryComments rootCausalHash32 codeserver branchRef = do
                 Just () -> loop
                 Nothing -> pure ()
         loop
-    void . liftIO . atomically . send $ Msg HistoryCommentSyncDone
 
   case result of
     Left err -> error $ "uploadCommentsClient:" <> show err
-    Right () -> pure ()
+    Right ((), _leftovers {- Messages sent by server after we finished. -}) -> pure ()
   where
     intoChunk = \case
       Left

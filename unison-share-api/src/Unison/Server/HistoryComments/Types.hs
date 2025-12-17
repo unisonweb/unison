@@ -104,7 +104,6 @@ data HistoryCommentChunk
   | HistoryCommentRevisionChunk HistoryCommentRevision
   | -- Generic error chunk
     HistoryCommentErrorChunk Text
-  | HistoryCommentSyncDone
 
 instance Serialise HistoryCommentChunk where
   encode = \case
@@ -117,32 +116,27 @@ instance Serialise HistoryCommentChunk where
     HistoryCommentErrorChunk errMsg ->
       encode HistoryCommentErrorTag
         <> encode errMsg
-    HistoryCommentSyncDone -> encode HistoryCommentSyncDoneTag
   decode = do
     tag <- decode :: Decoder s HistoryCommentChunkTag
     case tag of
       HistoryCommentTag -> HistoryCommentChunk <$> decode
       HistoryCommentRevisionTag -> HistoryCommentRevisionChunk <$> decode
       HistoryCommentErrorTag -> HistoryCommentErrorChunk <$> decode
-      HistoryCommentSyncDoneTag -> pure HistoryCommentSyncDone
 
 data HistoryCommentChunkTag
   = HistoryCommentTag
   | HistoryCommentRevisionTag
   | HistoryCommentErrorTag
-  | HistoryCommentSyncDoneTag
 
 instance Serialise HistoryCommentChunkTag where
   encode = \case
     HistoryCommentTag -> encode (0 :: Word8)
     HistoryCommentRevisionTag -> encode (1 :: Word8)
     HistoryCommentErrorTag -> encode (2 :: Word8)
-    HistoryCommentSyncDoneTag -> encode (3 :: Word8)
   decode = do
     tag <- decode :: Decoder s Word8
     case tag of
       0 -> pure HistoryCommentTag
       1 -> pure HistoryCommentRevisionTag
       2 -> pure HistoryCommentErrorTag
-      3 -> pure HistoryCommentSyncDoneTag
       _ -> fail "Invalid HistoryCommentChunkTag"
