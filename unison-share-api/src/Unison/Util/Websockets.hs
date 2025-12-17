@@ -91,13 +91,14 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
 
     recvWorker :: (TMVar ConnectionException) -> TBMQueue o -> m ()
     recvWorker errMVar q = do
-      UnliftIO.handle handler $ do
+      closed <- UnliftIO.handle handler $ do
         msg <- liftIO $ receiveData conn
         Debug.debugM Debug.Temp "Received message from websocket" ()
         atomically $ writeTBMQueue q msg
-      recvWorker errMVar q
+        pure False
+      when (not closed) $ recvWorker errMVar q
       where
-        handler :: ConnectionException -> m ()
+        handler :: ConnectionException -> m Bool
         handler = \case
           CloseRequest {} -> do
             -- The other side requested a close, we close the recv channel to indicate
@@ -105,13 +106,14 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
             Debug.debugM Debug.Temp "Other side requested close" ()
             atomically $ do
               closeTBMQueue q
+            pure True
 
           -- Other cases are exceptional, set the error var
           err -> do
             Debug.debugM Debug.Temp "ConnectionException in recvWorker" (show err)
             atomically $ do
               void $ tryPutTMVar errMVar err
-            pure ()
+            pure True
 
     sendWorker :: TBMQueue i -> m ()
     sendWorker q = do
