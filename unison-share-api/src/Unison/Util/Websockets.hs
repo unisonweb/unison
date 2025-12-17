@@ -54,7 +54,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   let queues = Queues {receive, send}
 
   _ <- Ki.fork scope $ recvWorker connectionClosedMVar receiveQ
-  _ <- Ki.fork scope $ sendWorker sendQ
+  sendWorkerThread <- Ki.fork scope $ sendWorker sendQ
   let waitConnectionError = atomically do
         mayErr <- readTMVar connectionClosedMVar
         case mayErr of
@@ -67,6 +67,11 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
     Right result -> do
       -- The action completed, we need to close the connection gracefully
       -- and drain any remaining messages.
+      atomically $ do
+        -- Close the send queue, then wait for all messages to be sent before we close.
+        closeTBMQueue sendQ
+      atomically $ Ki.await sendWorkerThread
+      -- Now we can close and drain any remaining messages.
       msgs <- selfClose receiveQ
       pure $ Right (result, msgs)
   where
@@ -74,7 +79,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
     selfClose :: (TBMQueue o) -> m [o]
     selfClose receiveQ = do
       -- We've requested to close the connection.
-      Debug.debugLogM Debug.Temp "Client requested close, sending close message"
+      Debug.debugLogM Debug.Temp "We've requested close, sending close message"
       liftIO $ sendClose conn ("Done" :: Text)
       let drainMessages :: m [o]
           drainMessages = do
@@ -97,7 +102,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
           CloseRequest {} -> do
             -- The other side requested a close, we close the recv channel to indicate
             -- we won't receive any more messages.
-            Debug.debugM Debug.Temp "Server requested close" ()
+            Debug.debugM Debug.Temp "Other side requested close" ()
             atomically $ do
               closeTBMQueue q
 
