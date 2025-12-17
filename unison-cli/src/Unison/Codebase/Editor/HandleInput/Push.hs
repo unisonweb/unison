@@ -411,9 +411,9 @@ executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
     (Cli.returnEarly . Output.ShareError) case err0 of
       Share.SyncError err -> ShareErrorUploadEntities err
       Share.TransportError err -> ShareErrorTransport err
+  afterUploadAction
   -- TODO: Unify RepoInfo and BranchRef?
   HC.uploadHistoryComments causalHash codeserverURI (BranchRef remoteTarget)
-  afterUploadAction
   let ProjectAndBranch projectName branchName = remoteBranch
   Cli.respond (ViewOnShare (Share.hardCodedUri, projectName, branchName))
 

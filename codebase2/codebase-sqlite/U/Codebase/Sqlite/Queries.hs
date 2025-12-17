@@ -4355,7 +4355,7 @@ streamHistoryCommentsForCausal rootCHID action = do
       UNION ALL
       SELECT cp.causal_id
         FROM causal_parent cp
-        JOIN branch_history bh ON cp.parent_causal_id = bh.causal_hash_id
+        JOIN branch_history bh ON cp.parent_id = bh.causal_hash_id
     ) SELECT hc.id
         FROM branch_history bh
         JOIN history_comments hc ON hc.causal_hash_id = bh.causal_hash_id
