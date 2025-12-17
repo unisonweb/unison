@@ -56,12 +56,10 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   _ <- Ki.fork scope $ recvWorker connectionClosedMVar receiveQ
   sendWorkerThread <- Ki.fork scope $ sendWorker sendQ
   let waitConnectionError = atomically do
-        mayErr <- readTMVar connectionClosedMVar
-        case mayErr of
-          Nothing -> empty
-          Just err -> pure err
+        readTMVar connectionClosedMVar
   race waitConnectionError (action queues) >>= \case
     Left err -> do
+      Debug.debugM Debug.Temp "Connection error occurred, shutting down websocket" (show err)
       -- An error occurred, return it.
       pure (Left err)
     Right result -> do
@@ -91,10 +89,12 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
                 pure (msg : rest)
       drainMessages
 
-    recvWorker :: (TMVar (Maybe ConnectionException)) -> TBMQueue o -> m ()
-    recvWorker errMVar q = UnliftIO.handle handler $ do
-      msg <- liftIO $ receiveData conn
-      atomically $ writeTBMQueue q msg
+    recvWorker :: (TMVar ConnectionException) -> TBMQueue o -> m ()
+    recvWorker errMVar q = do
+      UnliftIO.handle handler $ do
+        msg <- liftIO $ receiveData conn
+        Debug.debugM Debug.Temp "Received message from websocket" ()
+        atomically $ writeTBMQueue q msg
       recvWorker errMVar q
       where
         handler :: ConnectionException -> m ()
@@ -110,7 +110,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
           err -> do
             Debug.debugM Debug.Temp "ConnectionException in recvWorker" (show err)
             atomically $ do
-              void $ tryPutTMVar errMVar (Just err)
+              void $ tryPutTMVar errMVar err
             pure ()
 
     sendWorker :: TBMQueue i -> m ()
