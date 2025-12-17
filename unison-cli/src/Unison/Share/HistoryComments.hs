@@ -10,6 +10,7 @@ import Unison.Auth.Tokens (newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.HistoryComment qualified as HC
@@ -56,6 +57,7 @@ uploadHistoryComments rootCausalHash32 codeserver branchRef = do
         let loop = do
               result <- runMaybeT $ do
                 commentId <- MaybeT $ getCommentId
+                Debug.debugM Debug.Temp "Uploading comment" (show commentId)
                 (comment, revisions) <- lift $ Q.expectHistoryCommentById commentId
                 success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
                 guard success
