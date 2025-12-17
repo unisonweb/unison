@@ -29,9 +29,9 @@ import Wuss qualified
 
 -- | Allows interfacing with a websocket as a pair of bounded queues.
 data Queues i o = Queues
-  { -- Receive from the client. Returns Nothing if the connection is closed.
+  { -- Receive from the other side. Returns Nothing if the connection is closed.
     receive :: STM (Maybe o),
-    -- Send to the client. Returns False if the connection is closed.
+    -- Send to the other side. Returns False if the connection is closed.
     send :: i -> STM Bool
   }
 
@@ -42,7 +42,7 @@ instance Profunctor Queues where
         send = send . f
       }
 
-withQueues :: forall i o m a. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> Int -> Connection -> (Queues i o -> m a) -> m (Either ConnectionException a)
+withQueues :: forall i o m a. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> Int -> Connection -> (Queues i o -> m a) -> m (Either ConnectionException (a, [o {- Any leftover messages received from the other side after we've indicated we want to shut down. -}]))
 withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   receiveQ <- liftIO $ newTBMQueueIO inputBuffer
   sendQ <- liftIO $ newTBMQueueIO outputBuffer
@@ -53,77 +53,81 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
         isClosedTBMQueue sendQ
   let queues = Queues {receive, send}
 
-  let triggerClose :: forall n. (MonadIO n) => (Maybe ConnectionException) -> n ()
-      triggerClose mayErr = do
-        newlyClosed <- atomically $ do
-          newlyClosed <- tryPutTMVar connectionClosedMVar mayErr
-          when newlyClosed $ do
-            -- Close the queues to signal to workers to stop.
-            closeTBMQueue receiveQ
-            closeTBMQueue sendQ
-          pure newlyClosed
-
-        when newlyClosed $ do
-          -- If we closed due to a connection error, we don't need to send a close.
-          -- If we're shutting down normally, we send a close message.
-          case mayErr of
-            Nothing -> do
-              Debug.debugM Debug.Temp "Sending close message" ()
-              liftIO $ sendClose conn ("Server is shutting down" :: Text)
-              Debug.debugM Debug.Temp "Waiting for server to shut down" ()
-              -- TODO: maybe wait for the close to complete?
-              _ <- liftIO $ atomically receive
-              pure ()
-            _ -> pure ()
-  _ <- Ki.fork scope $ recvWorker triggerClose receiveQ
-  _ <- Ki.fork scope $ sendWorker triggerClose sendQ
+  _ <- Ki.fork scope $ recvWorker connectionClosedMVar receiveQ
+  _ <- Ki.fork scope $ sendWorker sendQ
   let waitConnectionError = atomically do
         mayErr <- readTMVar connectionClosedMVar
         case mayErr of
           Nothing -> empty
           Just err -> pure err
-  result <- race waitConnectionError (action queues)
-  -- Ensure the connection is closed when done.
-  liftIO $ triggerClose Nothing
-  pure result
+  race waitConnectionError (action queues) >>= \case
+    Left err -> do
+      -- An error occurred, return it.
+      pure (Left err)
+    Right result -> do
+      -- The action completed, we need to close the connection gracefully
+      -- and drain any remaining messages.
+      msgs <- selfClose receiveQ
+      pure $ Right (result, msgs)
   where
-    recvWorker :: (Maybe ConnectionException -> m ()) -> TBMQueue o -> m ()
-    recvWorker triggerClose q = UnliftIO.handle (handler triggerClose) $ do
+    -- Shut down the connection gracefully, returning any remaining messages.
+    selfClose :: (TBMQueue o) -> m [o]
+    selfClose receiveQ = do
+      -- We've requested to close the connection.
+      Debug.debugLogM Debug.Temp "Client requested close, sending close message"
+      liftIO $ sendClose conn ("Done" :: Text)
+      let drainMessages :: m [o]
+          drainMessages = do
+            -- Read messages until the queue is closed, which indicates the other side has also closed their connection.
+            atomically (readTBMQueue receiveQ) >>= \case
+              Nothing -> pure []
+              Just msg -> do
+                rest <- drainMessages
+                pure (msg : rest)
+      drainMessages
+
+    recvWorker :: (TMVar (Maybe ConnectionException)) -> TBMQueue o -> m ()
+    recvWorker errMVar q = UnliftIO.handle handler $ do
       msg <- liftIO $ receiveData conn
       atomically $ writeTBMQueue q msg
-      recvWorker triggerClose q
+      recvWorker errMVar q
+      where
+        handler :: ConnectionException -> m ()
+        handler = \case
+          CloseRequest {} -> do
+            -- The other side requested a close, we close the recv channel to indicate
+            -- we won't receive any more messages.
+            Debug.debugM Debug.Temp "Server requested close" ()
+            atomically $ do
+              closeTBMQueue q
 
-    handler :: (Maybe ConnectionException -> m ()) -> ConnectionException -> m ()
-    handler triggerClose = \case
-      CloseRequest {} -> do
-        -- The client requested a close, we can just close normally.
-        triggerClose Nothing
-      -- Other cases are exceptional
-      err -> triggerClose (Just err)
+          -- Other cases are exceptional, set the error var
+          err -> do
+            Debug.debugM Debug.Temp "ConnectionException in recvWorker" (show err)
+            atomically $ do
+              void $ tryPutTMVar errMVar (Just err)
+            pure ()
 
-    sendWorker :: (Maybe ConnectionException -> m ()) -> TBMQueue i -> m ()
-    sendWorker triggerClose q = UnliftIO.handle (handler triggerClose) $ do
-      let flushQ = do
-            xs <- many $ do
-              readTBMQueue q >>= \case
-                Nothing -> empty
-                Just outMsg -> pure outMsg
-            isClosedTBMQueue q >>= \case
-              True -> pure (Left xs)
-              False -> do
-                pure (Right xs)
-      outMsgs <- atomically $ flushQ
-      case outMsgs of
-        Left msgs ->
-          liftIO $ sendBinaryDatas conn msgs
-        Right msgs -> do
-          liftIO $ sendBinaryDatas conn msgs
-          sendWorker triggerClose q
+    sendWorker :: TBMQueue i -> m ()
+    sendWorker q = do
+      let flushQ :: STM ([i], Bool)
+          flushQ = do
+            optional (readTBMQueue q) >>= \case
+              -- No messages, but queue is still open
+              Nothing -> empty
+              -- Queue is closed
+              Just Nothing -> pure ([], True)
+              -- Got a message, keep flushing
+              Just (Just outMsg) -> do
+                first (outMsg :) <$> flushQ
+      (outMsgs, isClosed) <- atomically $ flushQ
+      liftIO $ sendBinaryDatas conn outMsgs
+      when (not isClosed) $ sendWorker q
 
 -- | Connect a websocket to the codeserver at the given URI.
 -- The action will be called with a 'Queues' to send and receive messages,
 -- when the action completes, the websocket connection will be closed.
-withCodeserverWebsocket :: forall m i o r e. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException r)
+withCodeserverWebsocket :: forall m i o r e. (MonadUnliftIO m, WebSocketsData i, WebSocketsData o) => Int -> CodeserverURI -> (CodeserverId -> IO (Either e Text)) -> String -> (Queues i o -> m r) -> m (Either ConnectionException (r, [o {- Any leftover messages received from the server after we've indicated we want to shut down. -}]))
 withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath action = do
   let host = codeserverRegName codeserver
   let connectionOptions = WS.defaultConnectionOptions {WS.connectionCompressionOptions = WS.PermessageDeflateCompression WS.defaultPermessageDeflate}
