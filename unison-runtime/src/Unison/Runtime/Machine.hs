@@ -1255,17 +1255,25 @@ dataBranchClosureError (Just rftgt) (DataC rf _ _)
   | rftgt /= rf =
       die [] $
         "dataBranch: type mismatch detected\n"
-          <> "    expected: " <> prettyRef rftgt <> "\n"
-          <> "    received: " <> prettyRef rf
+          <> "    expected: "
+          <> prettyRef rftgt
+          <> "\n"
+          <> "    received: "
+          <> prettyRef rf
 dataBranchClosureError _ (DataC rf t _) =
   die [] $
     "dataBranch: unexpected tag for data type\n"
-      <> "    type: " <> prettyRef rf <> "\n"
-      <> "    data tag: " <> show (maskTags t)
+      <> "    type: "
+      <> prettyRef rf
+      <> "\n"
+      <> "    data tag: "
+      <> show (maskTags t)
 dataBranchClosureError mrf clo =
   die [] $
     "dataBranch: unexpected closure type\n"
-      <> expected <> "but instead I received " <> description
+      <> expected
+      <> "but instead I received "
+      <> description
   where
     expected = case mrf of
       Just rftgt ->
