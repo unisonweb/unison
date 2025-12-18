@@ -73,6 +73,7 @@ import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Servant (FromHttpApiData, ToHttpApiData)
 import U.Codebase.Sqlite.Branch.Format (LocalBranchBytes (..))
 import Unison.Hash32 (Hash32)
 import Unison.Hash32.Orphans.Aeson ()
@@ -95,7 +96,7 @@ instance FromJSON Base64Bytes where
     either fail (pure . Base64Bytes) $ convertFromBase Base64 (Text.encodeUtf8 txt)
 
 newtype RepoInfo = RepoInfo {unRepoInfo :: Text}
-  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
+  deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToHttpApiData, FromHttpApiData)
   deriving (Serialise) via Text
 
 data Path = Path

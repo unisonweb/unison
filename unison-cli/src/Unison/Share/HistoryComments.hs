@@ -18,9 +18,9 @@ import Unison.KeyThumbprint (KeyThumbprint (KeyThumbprint))
 import Unison.Prelude
 import Unison.Server.HistoryComments.Types
 import Unison.Server.HistoryComments.Types qualified as Share
-import Unison.Server.Types
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.Sqlite qualified as Sqlite
+import Unison.Sync.Types (RepoInfo)
 import Unison.Util.Websockets
 import UnliftIO.STM
 
@@ -43,11 +43,11 @@ uploadHistoryComments ::
   -- | The Unison Share URL.
   Codeserver.CodeserverURI ->
   -- | The remote branch to upload for.
-  BranchRef ->
+  RepoInfo ->
   Cli ()
-uploadHistoryComments rootCausalHash32 codeserver branchRef = do
+uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
   Cli.Env {codebase, credentialManager} <- ask
-  let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam branchRef)
+  let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam repoInfo)
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
   result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentChunk) @Text msgBufferSize codeserver tokenProvider path \Queues {send} -> do
