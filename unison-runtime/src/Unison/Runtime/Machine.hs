@@ -55,6 +55,7 @@ import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
+    showShort,
   )
 import Unison.Referent (Referent, pattern Ref)
 import Unison.ReferentPrime (Referent' (..))
@@ -1246,16 +1247,45 @@ dumpBin sz k e l r stk = do
   pure stk
 {-# INLINE dumpBin #-}
 
+prettyRef :: Reference -> String
+prettyRef = Text.unpack . showShort 10
+
 dataBranchClosureError :: Maybe Reference -> Closure -> IO a
+dataBranchClosureError (Just rftgt) (DataC rf _ _)
+  | rftgt /= rf =
+      die [] $
+        "dataBranch: type mismatch detected\n"
+          <> "    expected: " <> prettyRef rftgt <> "\n"
+          <> "    received: " <> prettyRef rf
+dataBranchClosureError _ (DataC rf t _) =
+  die [] $
+    "dataBranch: unexpected tag for data type\n"
+      <> "    type: " <> prettyRef rf <> "\n"
+      <> "    data tag: " <> show (maskTags t)
 dataBranchClosureError mrf clo =
   die [] $
-    "dataBranch: bad closure: "
-      ++ show clo
-      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mrf
+    "dataBranch: unexpected closure type\n"
+      <> expected <> "but instead I received " <> description
+  where
+    expected = case mrf of
+      Just rftgt ->
+        "    expected type: " <> prettyRef rftgt <> "\n  "
+      Nothing -> "I expected a data type, "
+    description = case clo of
+      PAp {} -> "a partially applied function"
+      Captured {} -> "a continuation"
+      Affine {} -> "an affine handler info"
+      BlackHole -> "a black hole"
+      UnboxedTypeTag CharTag -> "a character"
+      UnboxedTypeTag FloatTag -> "a floating point number"
+      UnboxedTypeTag IntTag -> "an integer"
+      UnboxedTypeTag NatTag -> "a natural number"
+      Foreign (Wrap rf _) ->
+        "a builtin value of type `" <> prettyRef rf <> "`"
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
-  die [] $ "dataBranch: unexpected branch: " ++ show br
+  die [] $ "dataBranch: unexpected branch: " <> show br
 
 -- Splits off a portion of the continuation up to a given prompt.
 --
