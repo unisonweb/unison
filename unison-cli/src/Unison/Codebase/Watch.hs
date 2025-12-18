@@ -4,7 +4,6 @@ module Unison.Codebase.Watch
     newWatchState,
     awaitEvent,
     unwatchPath,
-    unwatchAllPaths,
     getWatchedPaths,
   )
 where
@@ -179,15 +178,6 @@ unwatchPath ws path = do
     Just stopAction -> do
       stopAction
       pure True
-
--- | Stop watching all paths.
-unwatchAllPaths :: WatchState -> IO ()
-unwatchAllPaths ws = do
-  stopActions <- atomically $ do
-    paths <- STM.readTVar ws.watchedPathsVar
-    STM.writeTVar ws.watchedPathsVar Map.empty
-    pure (Map.elems paths)
-  sequence_ stopActions
 
 -- | Get the list of currently watched paths.
 getWatchedPaths :: WatchState -> IO (Set FilePath)
