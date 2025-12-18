@@ -16,7 +16,16 @@ import Unison.Runtime.Foreign
 import Unison.Type (ffiFuncRef, ffiSpecRef, ffiTypeRef)
 
 data FFType
-  = I16 | I32 | I64 | U16 | U32 | U64 | F32 | D64 | Void | MBArr
+  = I16
+  | I32
+  | I64
+  | U16
+  | U32
+  | U64
+  | F32
+  | D64
+  | Void
+  | MBArr
   deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFType where
@@ -24,7 +33,7 @@ instance BuiltinForeign FFType where
   foreignRef = Tagged ffiTypeRef
 
 -- arguments and return type
-data FFSpec = FFSpec { ffArgs :: ![FFType], ffResult :: !FFType }
+data FFSpec = FFSpec {ffArgs :: ![FFType], ffResult :: !FFType}
   deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFSpec where

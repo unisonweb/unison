@@ -550,7 +550,7 @@ copyArgs ::
   Stack -> [DLL.FFType] -> Ptr Int -> Ptr (Ptr CValue) -> IO () -> IO ()
 copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
   where
-    go !i (a:as) !p !h = store a i p do
+    go !i (a : as) !p !h = store a i p do
       Store.poke h (castPtr p)
       go (i + 1) as (plusPtr p szp) (plusPtr h szh)
     go _ _ _ _ = next

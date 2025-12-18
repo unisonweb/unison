@@ -1,8 +1,8 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- This module wraps the operations in the primitive package so that
 -- bounds checks can be toggled on during the build for debugging
@@ -63,11 +63,14 @@ import Data.Primitive.PrimArray as EPA hiding
 import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
 import Data.Word (Word8)
-import GHC.IsList (toList)
-
 -- For `withMutableByteArrayContents`
 import GHC.Exts
-  (UnliftedType, keepAlive#, State#, unsafeCoerce#)
+  ( State#,
+    UnliftedType,
+    keepAlive#,
+    unsafeCoerce#,
+  )
+import GHC.IsList (toList)
 
 #ifdef ARRAY_CHECK
 import GHC.Stack
@@ -458,7 +461,7 @@ byteArrayToShortByteString (ByteArray ba) = SBS ba
 -- Port from newer version of `primitive` than we rely on currently.
 -- Replace with the upstream when dependencies are bumped.
 withMutableByteArrayContents ::
-  PrimBase m =>
+  (PrimBase m) =>
   MutableByteArray (PrimState m) ->
   (Ptr Word8 -> m r) ->
   m r
@@ -467,10 +470,14 @@ withMutableByteArrayContents arr@(MutableByteArray arr#) k =
 {-# INLINE withMutableByteArrayContents #-}
 
 keepAliveUnlifted ::
-  forall (m :: Type -> Type)
-         (a :: UnliftedType)
-         (r :: Type).
-  PrimBase m => a -> m r -> m r
+  forall
+    (m :: Type -> Type)
+    (a :: UnliftedType)
+    (r :: Type).
+  (PrimBase m) =>
+  a ->
+  m r ->
+  m r
 keepAliveUnlifted x k =
   primitive \s -> keepAliveWrap x s (internal k)
 {-# INLINE keepAliveUnlifted #-}
