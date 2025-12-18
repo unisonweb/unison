@@ -12,7 +12,6 @@ testi16Spec = arr int16 (base int16 int16)
 testdSpec = arr double (base double double)
 testfSpec = arr float (base float float)
 
-
 libtest = do openDLL "unison-src/transcripts-manual/dll-ffi/libtest.so"
 
 doTest = do
@@ -29,8 +28,18 @@ doTest = do
   , ti64 +1 +2, ti32 +1 +2, ti16 +1 +2
   , td 1.0 2.0, tf 1.0 2.0
   )
+
+testmbaSpec = arr uint64 (baseIO pinnedByteArray void)
+
+doArrTest = do
+  dll = libtest()
+  ta = getDLLSym dll "testptr" testmbaSpec
+  pa = IO.pinnedByteArray 32
+  ta 32 pa
+  freeze! (PinnedByteArray.cast pa)
 ```
 
 ``` ucm
 scratch/dll-ffi> run doTest
+scratch/dll-ffi> run doArrTest
 ```

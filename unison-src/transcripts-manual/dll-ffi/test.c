@@ -55,3 +55,16 @@ __declspec(dllexport)
 double testd(double m, double n) {
   return 1 + m + n;
 }
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+void testptr(uint64_t sz, uint8_t *arr) {
+  uint64_t i = 0;
+  uint8_t j = 1;
+  while (i < sz) {
+    arr[i] = j;
+    i++;
+    j++;
+  }
+}
