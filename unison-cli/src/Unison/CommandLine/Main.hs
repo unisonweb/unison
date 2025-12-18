@@ -182,7 +182,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
       watchState <- case shouldWatchFiles of
         ShouldNotWatchFiles -> pure Nothing
         ShouldWatchFiles -> do
-          ws <- Watch.newWatchState scope mgr allow
+          ws <- Watch.newWatchState mgr allow
           -- Add the working directory as the first watched path
           _ <- Watch.watchPath ws dir
           pure (Just ws)

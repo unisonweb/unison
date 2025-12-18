@@ -14,7 +14,6 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map qualified as Map
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import GHC.Conc (registerDelay)
-import Ki qualified
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (splitFileName)
 import System.FSNotify (Event (Added, Modified))
@@ -25,9 +24,7 @@ import UnliftIO.STM (atomically)
 
 -- | State for managing multiple watched paths.
 data WatchState = WatchState
-  { -- | The Ki scope for managing watcher threads
-    scope :: Ki.Scope,
-    -- | The FSNotify watch manager
+  { -- | The FSNotify watch manager
     watchManager :: FSNotify.WatchManager,
     -- | TVar containing the latest event from any watcher
     latestEventVar :: TVar (Maybe (FilePath, UTCTime)),
@@ -41,15 +38,14 @@ data WatchState = WatchState
 
 -- | Create a new watch state. The Ki scope is used for structured concurrency -
 -- when the scope exits, all watcher threads are automatically cleaned up.
-newWatchState :: Ki.Scope -> FSNotify.WatchManager -> (FilePath -> Bool) -> IO WatchState
-newWatchState scope mgr allow = do
+newWatchState :: FSNotify.WatchManager -> (FilePath -> Bool) -> IO WatchState
+newWatchState mgr allow = do
   latestEventVar <- STM.newTVarIO Nothing
   watchedPathsVar <- STM.newTVarIO Map.empty
   previousFilesRef <- newIORef Map.empty
   pure
     WatchState
-      { scope = scope,
-        watchManager = mgr,
+      { watchManager = mgr,
         latestEventVar = latestEventVar,
         watchedPathsVar = watchedPathsVar,
         allowPredicate = allow,
