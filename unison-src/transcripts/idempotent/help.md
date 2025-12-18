@@ -973,6 +973,13 @@
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.
 
+  unwatch
+  `unwatch <file or directory>`  Stop watching one or more
+                                 external files or directories
+                                 for changes.
+  `unwatch`                      With no arguments, list
+                                 currently watched paths.
+
   update (or add)
   Adds everything in the most recently typechecked file to the
   namespace, replacing existing definitions having the same
@@ -998,6 +1005,15 @@
   view.global
   `view.global foo` prints definitions of `foo` within your codebase.
   `view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.
+
+  watch
+  `watch <file or directory>`  Watch an external file or
+                               directory for changes. Changes to
+                               `.u` files in watched locations
+                               will be automatically loaded.
+
+  watches
+  List all external paths currently being watched for changes.
 
 > help-topics
 
