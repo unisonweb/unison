@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 
@@ -28,13 +30,14 @@ module Unison.Runtime.Array
     writePrimArray,
     indexPrimArray,
     byteArrayToShortByteString,
+    withMutableByteArrayContents,
   )
 where
 
 import Control.Exception (evaluate)
 import Control.Monad.Primitive
 import Data.ByteString.Short
-import Data.Kind (Constraint)
+import Data.Kind (Constraint, Type)
 import Data.Primitive.Array as EPA hiding
   ( cloneMutableArray,
     copyArray,
@@ -61,6 +64,10 @@ import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
 import Data.Word (Word8)
 import GHC.IsList (toList)
+
+-- For `withMutableByteArrayContents`
+import GHC.Exts
+  (UnliftedType, keepAlive#, State#, unsafeCoerce#)
 
 #ifdef ARRAY_CHECK
 import GHC.Stack
@@ -447,3 +454,43 @@ traverseArrayIO f src = do
 
 byteArrayToShortByteString :: ByteArray -> ShortByteString
 byteArrayToShortByteString (ByteArray ba) = SBS ba
+
+-- Port from newer version of `primitive` than we rely on currently.
+-- Replace with the upstream when dependencies are bumped.
+withMutableByteArrayContents ::
+  PrimBase m =>
+  MutableByteArray (PrimState m) ->
+  (Ptr Word8 -> m r) ->
+  m r
+withMutableByteArrayContents arr@(MutableByteArray arr#) k =
+  keepAliveUnlifted arr# (k (mutableByteArrayContents arr))
+{-# INLINE withMutableByteArrayContents #-}
+
+keepAliveUnlifted ::
+  forall (m :: Type -> Type)
+         (a :: UnliftedType)
+         (r :: Type).
+  PrimBase m => a -> m r -> m r
+keepAliveUnlifted x k =
+  primitive \s -> keepAliveWrap x s (internal k)
+{-# INLINE keepAliveUnlifted #-}
+
+keepAliveWrap ::
+  forall (a :: UnliftedType) (s :: Type) (b :: Type).
+  a ->
+  State# s ->
+  (State# s -> (# State# s, b #)) ->
+  (# State# s, b #)
+keepAliveWrap x s k = case keepAlive# x (s2rw s) k# of
+  (# s, b #) -> (# rw2s s, b #)
+  where
+    rw2s :: State# RealWorld -> State# s
+    rw2s = unsafeCoerce#
+
+    s2rw :: State# s -> State# RealWorld
+    s2rw = unsafeCoerce#
+
+    k# :: State# RealWorld -> (# State# RealWorld, b #)
+    k# s = case k (rw2s s) of
+      (# s, b #) -> (# s2rw s, b #)
+{-# INLINE keepAliveWrap #-}

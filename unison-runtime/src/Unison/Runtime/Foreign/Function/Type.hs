@@ -376,6 +376,7 @@ data ForeignFunc
   | FFI_double
   | FFI_float
   | FFI_void
+  | FFI_pinnedByteArray
   | FFI_base
   | FFI_baseIO
   | FFI_arr
@@ -752,6 +753,7 @@ foreignFuncBuiltinName = \case
   FFI_double -> "FFI.double"
   FFI_float -> "FFI.float"
   FFI_void -> "FFI.void"
+  FFI_pinnedByteArray -> "FFI.pinnedByteArray"
   FFI_base -> "FFI.base"
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"

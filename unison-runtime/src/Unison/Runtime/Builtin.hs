@@ -1414,6 +1414,7 @@ declareForeigns = do
   declareForeignWrap Untracked direct FFI_double
   declareForeignWrap Untracked direct FFI_float
   declareForeignWrap Untracked direct FFI_void
+  declareForeignWrap Untracked direct FFI_pinnedByteArray
   declareForeign Untracked 2 FFI_base
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr
