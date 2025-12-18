@@ -537,8 +537,49 @@ notifyNumbered = \case
             <> undoTip,
           map SA.Name (typesList ++ termsList)
         )
+  WatchList watchedPaths ->
+    ( if null watchedPaths
+        then "I'm not watching any paths."
+        else
+          P.lines
+            [ "I'm watching these paths for changes:",
+              "",
+              P.indentN 2 $ P.numberedList [P.blue (P.string path) | path <- watchedPaths],
+              "",
+              tip "Use `watch` or `unwatch` to add or remove paths."
+            ],
+      map SA.FilePath watchedPaths
+    )
+  WatchRemoved removedPaths failedPaths remainingPaths ->
+    ( P.lines $
+        (if null removedPaths
+           then []
+           else [P.wrap 
+                  $ "I'm no longer watching " <> oxfordOr [P.blue (P.string p) | p <- removedPaths] 
+                  <> (if null remainingPaths then " (or any other paths)" else "") <> " for changes."])
+          <> (if null failedPaths
+                then []
+                else ["", P.warnCallout $ "I already wasn't watching these paths: " <> oxfordOr [P.blue (P.string p) | p <- failedPaths]])
+          <> if null remainingPaths
+               then ["", tip "Use `watch <path>` to watch a file or directory."]
+               else
+                 [ "",
+                   "I'm still watching:",
+                   "",
+                   P.indentN 2 $ P.numberedList [P.blue (P.string path) | path <- remainingPaths]
+                 ],
+      map SA.FilePath remainingPaths
+    )
   where
     absPathToBranchId = BranchAtPath
+    -- Like oxfordCommas but uses "or" instead of "and", without extra spaces.
+    -- Groups each element with its trailing comma to prevent line breaks between them.
+    oxfordOr :: [P.Pretty P.ColorText] -> P.Pretty P.ColorText
+    oxfordOr = \case
+      [] -> ""
+      [x] -> x
+      [x, y] -> x <> " or " <> y
+      xs -> P.spaced (P.group . (<> ",") <$> init xs) <> P.softbreak <> "or " <> last xs
 
 undoTip :: P.Pretty P.ColorText
 undoTip =
@@ -924,7 +965,6 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -2655,6 +2695,24 @@ notifyUser dir issueFn = \case
             P.text (Config.keyToText key)
               <> " = "
               <> P.text ("\"" <> value <> "\"")
+  WatchDisabled ->
+    pure . P.warnCallout $
+      P.wrap "I can only watch for changes in interactive sessions, which this isn't."
+  WatchAddResult (Just canonPath) _originalPath ->
+    pure . P.lines $
+      [ P.wrap $
+          "I'm now watching"
+            <> P.blue (P.string canonPath)
+            <> "for changes.",
+        "",
+        tip "Use `watches` to see all locations being watched."
+      ]
+  WatchAddResult Nothing originalPath ->
+    pure . P.warnCallout $
+      P.wrap $
+        "When I tried to watch"
+          <> P.group (P.blue (P.string originalPath) <> ",")
+          <> "it seemed to not exist."
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $

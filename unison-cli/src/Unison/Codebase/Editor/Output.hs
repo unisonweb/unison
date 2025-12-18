@@ -152,6 +152,11 @@ data NumberedOutput
       MoreEntriesThanShown
       [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
   | DeletedDefinitions (DefnsF Set Name Name)
+  | -- | List of currently watched paths (working dir is included)
+    WatchList ![FilePath]
+  | -- | Successfully removed paths from the watch list
+    -- (removed paths, failed paths, remaining paths)
+    WatchRemoved ![FilePath] ![FilePath] ![FilePath]
 
 data TodoOutput = TodoOutput
   { defnsInLib :: !Bool,
@@ -481,6 +486,11 @@ data Output
   | CommentAborted
   | AuthorNameRequired
   | ConfigValueGet ConfigKey (Maybe Text)
+  | WatchDisabled
+  | -- | Result of attempting to add a path to the watch list.
+    -- First FilePath is the canonical path on success (Nothing on failure),
+    -- second is the original path requested.
+    WatchAddResult !(Maybe FilePath) !FilePath
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -731,6 +741,9 @@ isFailure o = case o of
   CommentAborted {} -> True
   AuthorNameRequired {} -> True
   ConfigValueGet {} -> False
+  WatchDisabled -> True
+  WatchAddResult Nothing _ -> True
+  WatchAddResult (Just _) _ -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
@@ -752,3 +765,5 @@ isNumberedFailure = \case
   Output'Todo {} -> False
   ShowProjectBranchReflog {} -> False
   DeletedDefinitions {} -> False
+  WatchList {} -> False
+  WatchRemoved _ failedPaths _ -> not (null failedPaths)

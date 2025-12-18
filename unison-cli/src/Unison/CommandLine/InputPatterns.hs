@@ -121,6 +121,9 @@ module Unison.CommandLine.InputPatterns
     upgrade,
     view,
     viewGlobal,
+    watchInputPattern,
+    watchesInputPattern,
+    unwatchInputPattern,
     deprecatedViewRootReflog,
     branchReflog,
     projectReflog,
@@ -257,6 +260,7 @@ formatStructuredArgument schLength = \case
   SA.HashQualifiedWithBranchPrefix absBranchId hq'Name -> HQ'.toTextWith (prefixBranchId absBranchId) hq'Name
   SA.ShallowListEntry path entry -> entryToHQText path entry
   SA.SearchResult searchRoot searchResult -> HQ.toText $ searchResultToHQ searchRoot searchResult
+  SA.FilePath fp -> Text.pack fp
   where
     -- E.g.
     -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef:.base.List.map"
@@ -369,6 +373,7 @@ wrongStructuredArgument expected actual =
       SA.HashQualifiedWithBranchPrefix _ _ -> "a hash-qualified name"
       SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
+      SA.FilePath _ -> "a file path"
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
@@ -3720,6 +3725,67 @@ debugSynhashTermInputPattern =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+watchInputPattern :: InputPattern
+watchInputPattern =
+  InputPattern
+    { patternName = "watch",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("file or directory", filePathArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ( makeExample watchInputPattern ["<file or directory>"],
+              "Watch an external file or directory for changes. Changes to `.u` files in watched locations will be automatically loaded."
+            )
+          ],
+      parse = \case
+        [file] -> Input.WatchI <$> unsupportedStructuredArgument watchInputPattern "a file or directory path" file
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
+watchesInputPattern :: InputPattern
+watchesInputPattern =
+  InputPattern
+    { patternName = "watches",
+      aliases = [],
+      visibility = I.Visible,
+      params = noParams,
+      help = P.wrap "List all external paths currently being watched for changes.",
+      parse = \case
+        [] -> pure Input.WatchListI
+        args -> wrongArgsLength "no arguments" args
+    }
+
+unwatchInputPattern :: InputPattern
+unwatchInputPattern =
+  InputPattern
+    { patternName = "unwatch",
+      aliases = [],
+      visibility = I.Visible,
+      -- Uses watchedPathArg which accepts SA.FilePath from numbered args.
+      -- Users can run `watches` to see the list of watched paths and use numbered args like `unwatch 1 2 3`.
+      params = Parameters [] $ Optional [] (Just ("file or directory", watchedPathArg)),
+      help =
+        P.wrapColumn2
+          [ ( makeExample unwatchInputPattern ["<file or directory>"],
+              "Stop watching one or more external files or directories for changes."
+            ),
+            ( makeExample' unwatchInputPattern,
+              "With no arguments, list currently watched paths."
+            )
+          ],
+      parse = \case
+        [] -> pure Input.WatchListI
+        args -> Input.UnwatchI <$> traverse handleWatchedPathArg args
+    }
+
+handleWatchedPathArg :: I.Argument -> Either (P.Pretty CT.ColorText) FilePath
+handleWatchedPathArg = \case
+  I.RawArg raw -> pure raw
+  I.StructuredArg sa -> case sa of
+    SA.FilePath fp -> pure fp
+    _ -> Left $ wrongStructuredArgument "a file path" sa
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -3853,6 +3919,9 @@ validInputs =
       upgradeCommitInputPattern,
       view,
       viewGlobal,
+      watchInputPattern,
+      watchesInputPattern,
+      unwatchInputPattern,
       deprecatedViewRootReflog,
       branchReflog,
       projectReflog,
@@ -3995,6 +4064,16 @@ filePathArg =
       suggestions = \prefix _ _ _ -> filenameCompletion prefix,
       fzfResolver = Just I.DefaultFZFFileSearch,
       isStructured = False
+    }
+
+-- | Accepts file paths from numbered args (SA.FilePath). No completions since we don't have access to WatchState.
+watchedPathArg :: ParameterType
+watchedPathArg =
+  ParameterType
+    { typeName = "watched-path",
+      suggestions = noCompletions,
+      fzfResolver = Nothing,
+      isStructured = True
     }
 
 directoryPathArg :: ParameterType

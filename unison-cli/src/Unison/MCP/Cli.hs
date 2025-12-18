@@ -157,7 +157,9 @@ cliToMCP projCtx onError cli = do
             sandboxedRuntime = error "Sandboxed runtime not implemented in MCP Server",
             serverBaseUrl = Nothing,
             ucmVersion,
-            isTranscriptTest = False
+            isTranscriptTest = False,
+            -- MCP doesn't support file watching
+            watchState = Nothing
           }
 
   let startState = (Cli.loopState0 (PP.toIds initialPP))

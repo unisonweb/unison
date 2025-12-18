@@ -26,4 +26,5 @@ data StructuredArgument
   | HashQualifiedWithBranchPrefix AbsBranchId (HQ'.HashQualified Name)
   | ShallowListEntry Path' (ShallowListEntry Symbol Ann)
   | SearchResult (Maybe Path') SearchResult
+  | FilePath FilePath
   deriving (Eq, Generic, Show)

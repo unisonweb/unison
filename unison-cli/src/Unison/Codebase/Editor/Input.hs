@@ -225,6 +225,12 @@ data Input
   | UpgradeCommitI
   | UpgradeI ![NameSegment]
   | VersionI
+  | -- | Watch an external file or directory for changes
+    WatchI !FilePath
+  | -- | Stop watching one or more external files or directories
+    UnwatchI ![FilePath]
+  | -- | List currently watched external paths
+    WatchListI
   deriving (Eq, Show)
 
 -- | The source of a `branch` command: what to make the new branch from.

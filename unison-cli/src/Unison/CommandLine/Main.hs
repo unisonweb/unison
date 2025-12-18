@@ -4,6 +4,7 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
+import Control.Concurrent (threadDelay)
 import Control.Exception (displayException, mask)
 import Control.Lens ((?~))
 import Control.Lens.Lens
@@ -175,20 +176,25 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
       _ <- Ki.fork scope (Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch)
       -- IOSource takes a while to compile, we should start compiling it on startup
       _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
-      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event.
-      awaitFileEvent <- do
-        (fmap . fmap)
-          (\(file, contents) -> UnisonFileChanged (Text.pack file) contents)
-          ( Watch.watchDirectory
-              scope
-              mgr
-              dir
-              -- We could elect to not spawn a file-watching thread at all if --no-file-watch is passed to ucm, but that
-              -- is an extremely uncommon option, this isn't super inefficient, and this makes the types simpler.
-              case shouldWatchFiles of
-                ShouldNotWatchFiles -> const False
-                ShouldWatchFiles -> allow
-          )
+
+      -- Create the watch state for managing all watched paths (including working directory).
+      -- When --no-file-watch is passed, watchState is Nothing.
+      watchState <- case shouldWatchFiles of
+        ShouldNotWatchFiles -> pure Nothing
+        ShouldWatchFiles -> do
+          ws <- Watch.newWatchState scope mgr allow
+          -- Add the working directory as the first watched path
+          _ <- Watch.watchPath ws dir
+          pure (Just ws)
+
+      -- Await function that gets events from any watched path.
+      -- When --no-file-watch is passed, this blocks forever.
+      let awaitFileEvent :: IO Event
+          awaitFileEvent = case watchState of
+            Nothing -> forever (threadDelay maxBound)
+            Just ws -> do
+              (file, contents) <- Watch.awaitEvent ws
+              pure (UnisonFileChanged (Text.pack file) contents)
 
       -- On startup, we tell the user about any existing project names that don't pass the new project name regex,
       -- which isn't enforced yet.
@@ -292,7 +298,8 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 sandboxedRuntime = sbRuntime,
                 serverBaseUrl,
                 ucmVersion,
-                isTranscriptTest = False
+                isTranscriptTest = False,
+                watchState = watchState
               }
 
       (onInterrupt, waitForInterrupt) <- buildInterruptHandler
