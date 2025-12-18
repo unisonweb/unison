@@ -8,7 +8,7 @@ else
   ucm="$1"
 fi
 
-runtime_tests_version="@unison/runtime-tests/releases/0.0.3"
+runtime_tests_version="@unison/runtime-tests/releases/0.0.6"
 
 codebase=${XDG_CACHE_HOME:-"$HOME/.cache"}/unisonlanguage/runtime-tests.unison
 
