@@ -126,7 +126,8 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
               Just Nothing -> pure ([], True)
               -- Got a message, keep flushing
               Just (Just outMsg) -> do
-                first (outMsg :) <$> flushQ
+                (outMsgs, isClosed) <- flushQ <|> pure ([], False)
+                pure (outMsg : outMsgs, isClosed)
       (outMsgs, isClosed) <- atomically $ flushQ
       liftIO $ sendBinaryDatas conn outMsgs
       when (not isClosed) $ sendWorker q
@@ -169,9 +170,9 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
 
 -- | Type used for websocket messages that can either be a message or an error.
 data MsgOrError err a
-  = Msg a
-  | UserErr err
-  | DeserialiseFailure Text
+  = Msg !a
+  | UserErr !err
+  | DeserialiseFailure !Text
   deriving (Show, Eq, Ord)
 
 -- | Roundtrip test:

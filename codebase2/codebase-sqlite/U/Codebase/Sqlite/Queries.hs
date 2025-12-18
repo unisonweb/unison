@@ -242,6 +242,7 @@ module U.Codebase.Sqlite.Queries
     getLatestCausalComment,
     streamHistoryCommentsForCausal,
     expectHistoryCommentById,
+    expectHistoryCommentIdByHash32,
 
     -- * migrations
     runCreateSql,
@@ -4213,6 +4214,20 @@ getLatestCausalComment causalHashId =
               }
         }
 
+expectHistoryCommentIdByHash32 ::
+  Hash32 -> Transaction HistoryCommentId
+expectHistoryCommentIdByHash32 commentHash = do
+  queryOneCol @HistoryCommentId
+    [sql|
+      SELECT id
+      FROM history_comments
+      WHERE comment_hash_id = (
+        SELECT id
+        FROM hash
+        WHERE base32 = :commentHash
+      )
+    |]
+
 expectHistoryCommentById ::
   HistoryCommentId ->
   Transaction (HistoryComment Time.UTCTime KeyThumbprint Hash32 Hash32, [HistoryCommentRevision Hash32 Time.UTCTime Hash32])
@@ -4346,9 +4361,9 @@ ensurePersonalKeyThumbprintId thumbprint = do
         |]
 
 -- | Stream all the history comments in the history of a branch.
-streamHistoryCommentsForCausal :: CausalHashId -> (Transaction (Maybe HistoryCommentId) -> Transaction r) -> Transaction r
+streamHistoryCommentsForCausal :: CausalHashId -> (Transaction (Maybe (HistoryCommentId, Hash32)) -> Transaction r) -> Transaction r
 streamHistoryCommentsForCausal rootCHID action = do
-  queryStreamCol
+  queryStreamRow
     [sql|
     WITH RECURSIVE branch_history(causal_hash_id) AS(
       SELECT :rootCHID
@@ -4356,8 +4371,9 @@ streamHistoryCommentsForCausal rootCHID action = do
       SELECT cp.causal_id
         FROM causal_parent cp
         JOIN branch_history bh ON cp.parent_id = bh.causal_hash_id
-    ) SELECT hc.id
+    ) SELECT hc.id, comment_hash.base32
         FROM branch_history bh
         JOIN history_comments hc ON hc.causal_hash_id = bh.causal_hash_id
+        JOIN hash AS comment_hash ON comment_hash.id = hc.comment_hash_id
     |]
     action
