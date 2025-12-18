@@ -1165,7 +1165,7 @@ dataBranch mrf stk (Test1 u cu df) = \case
         M.Tip
           | u == Rf.mapTip -> pure (cu, stk)
         _ -> pure (df, stk)
-  clo -> dataBranchClosureError mrf clo
+  clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch mrf stk (Test2 u cu v cv df) = \case
   Enum _ t
     | maskTags t == u -> pure (cu, stk)
@@ -1202,7 +1202,7 @@ dataBranch mrf stk (Test2 u cu v cv df) = \case
           | u == Rf.mapTip -> pure (cu, stk)
           | v == Rf.mapTip -> pure (cv, stk)
         _ -> pure (df, stk)
-  clo -> dataBranchClosureError mrf clo
+  clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch mrf stk (TestW df bs) = \case
   Enum _ t
     | Just ca <- EC.lookup (maskTags t) bs -> pure (ca, stk)
@@ -1231,7 +1231,7 @@ dataBranch mrf stk (TestW df bs) = \case
           | Just ca <- EC.lookup Rf.mapTip bs ->
               pure (ca, stk)
         _ -> pure (df, stk)
-  clo -> dataBranchClosureError mrf clo
+  clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch _ _ br = \_ ->
   dataBranchBranchError br
 {-# INLINE dataBranch #-}
@@ -1250,7 +1250,8 @@ dumpBin sz k e l r stk = do
 prettyRef :: Reference -> String
 prettyRef = Text.unpack . showShort 10
 
-dataBranchClosureError :: Maybe Reference -> Closure -> IO a
+dataBranchClosureError ::
+  Maybe Reference -> Closure -> IO ()
 dataBranchClosureError (Just rftgt) (DataC rf _ _)
   | rftgt /= rf =
       die [] $
