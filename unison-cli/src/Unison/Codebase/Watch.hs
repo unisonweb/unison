@@ -15,9 +15,9 @@ import Data.Map qualified as Map
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import GHC.Conc (registerDelay)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
-import System.FilePath (splitFileName)
 import System.FSNotify (Event (Added, Modified))
 import System.FSNotify qualified as FSNotify
+import System.FilePath (splitFileName)
 import Unison.Prelude
 import UnliftIO.Exception (tryAny)
 import UnliftIO.STM (atomically)

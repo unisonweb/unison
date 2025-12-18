@@ -19,8 +19,8 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
-import System.Directory (makeAbsolute)
 import Data.Tuple.Extra (uncurry3)
+import System.Directory (makeAbsolute)
 import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
@@ -106,7 +106,6 @@ import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Editor.Output.DumpNamespace qualified as Output.DN
-import Unison.Codebase.Watch qualified as Watch
 import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Editor.StructuredArgument qualified as SA
 import Unison.Codebase.Execute qualified as Codebase
@@ -117,6 +116,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues

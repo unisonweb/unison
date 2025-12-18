@@ -552,22 +552,28 @@ notifyNumbered = \case
     )
   WatchRemoved removedPaths failedPaths remainingPaths ->
     ( P.lines $
-        (if null removedPaths
-           then []
-           else [P.wrap 
-                  $ "I'm no longer watching " <> oxfordOr [P.blue (P.string p) | p <- removedPaths] 
-                  <> (if null remainingPaths then " (or any other paths)" else "") <> " for changes."])
-          <> (if null failedPaths
-                then []
-                else ["", P.warnCallout $ "I already wasn't watching these paths: " <> oxfordOr [P.blue (P.string p) | p <- failedPaths]])
+        ( if null removedPaths
+            then []
+            else
+              [ P.wrap $
+                  "I'm no longer watching "
+                    <> oxfordOr [P.blue (P.string p) | p <- removedPaths]
+                    <> (if null remainingPaths then " (or any other paths)" else "")
+                    <> " for changes."
+              ]
+        )
+          <> ( if null failedPaths
+                 then []
+                 else ["", P.warnCallout $ "I already wasn't watching these paths: " <> oxfordOr [P.blue (P.string p) | p <- failedPaths]]
+             )
           <> if null remainingPaths
-               then ["", tip "Use `watch <path>` to watch a file or directory."]
-               else
-                 [ "",
-                   "I'm still watching:",
-                   "",
-                   P.indentN 2 $ P.numberedList [P.blue (P.string path) | path <- remainingPaths]
-                 ],
+            then ["", tip "Use `watch <path>` to watch a file or directory."]
+            else
+              [ "",
+                "I'm still watching:",
+                "",
+                P.indentN 2 $ P.numberedList [P.blue (P.string path) | path <- remainingPaths]
+              ],
       map SA.FilePath remainingPaths
     )
   where
@@ -1000,6 +1006,7 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
+
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
