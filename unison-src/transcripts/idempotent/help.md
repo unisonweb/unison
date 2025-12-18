@@ -997,11 +997,11 @@
   Like `push`, but forcibly overwrites the remote namespace.
 
   unwatch
-  `unwatch <file or directory>`  Stop watching one or more
-                                 external files or directories
-                                 for changes.
-  `unwatch`                      With no arguments, list
-                                 currently watched paths.
+  `unwatch <files or directories...>`  Stop watching one or more
+                                       external files or
+                                       directories for changes.
+  `unwatch`                            With no arguments, list
+                                       currently watched paths.
 
   update (or add)
   Adds everything in the most recently typechecked file to the

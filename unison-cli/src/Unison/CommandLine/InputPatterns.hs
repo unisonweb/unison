@@ -3821,7 +3821,7 @@ unwatchInputPattern =
       params = Parameters [] $ Optional [] (Just ("file or directory", watchedPathArg)),
       help =
         P.wrapColumn2
-          [ ( makeExample unwatchInputPattern ["<file or directory>"],
+          [ ( makeExample unwatchInputPattern ["<files or directories...>"],
               "Stop watching one or more external files or directories for changes."
             ),
             ( makeExample' unwatchInputPattern,
