@@ -83,6 +83,7 @@ module Unison.CommandLine.InputPatterns
     mergeIOBuiltins,
     mergeInputPattern,
     moveAll,
+    moveTo,
     names,
     namespaceDependencies,
     printVersion,
@@ -102,6 +103,7 @@ module Unison.CommandLine.InputPatterns
     syncFromCodebase,
     quit,
     releaseDraft,
+    rename,
     renameBranch,
     renameTerm,
     renameType,
@@ -1275,13 +1277,65 @@ moveAll :: InputPattern
 moveAll =
   InputPattern
     "move"
-    ["rename", "mv"]
+    ["mv"]
     I.Visible
     (Parameters [("definition to move", namespaceOrDefinitionArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move foo bar` renames the term, type, and namespace foo to bar."
     \case
       oldName : newName : _ -> Input.MoveAllI <$> handlePath'Arg oldName <*> handleNewPath newName
       _ -> Left $ P.wrap "`move` takes two arguments, like `move oldname newname`."
+
+moveTo :: InputPattern
+moveTo =
+  InputPattern
+    "moveTo"
+    []
+    I.Visible
+    (Parameters [("definition to move", namespaceOrDefinitionArg)] $ OnePlus ("destination namespace or additional definition", namespaceOrDefinitionArg))
+    ( P.lines
+        [ P.wrap $
+            "`moveTo foo.bar dest` moves `foo.bar` into the namespace `dest`, producing `dest.bar`.",
+          "",
+          P.wrap $
+            "`moveTo foo bar baz dest` moves `foo`, `bar`, and `baz` into the namespace `dest`.",
+          "",
+          P.wrap $
+            "If multiple sources have the same final name segment, non-conflicting items are moved and a message explains the conflict.",
+          "",
+          P.wrap $
+            "The final segment of each source is preserved in the destination."
+        ]
+    )
+    \case
+      srcs@(_ : _) Cons.:> dest -> do
+        sources <- traverse handlePath'Arg srcs
+        destination <- handlePath'Arg dest
+        case NE.nonEmpty sources of
+          Nothing -> Left $ P.wrap "`moveTo` requires at least one source and a destination."
+          Just nonEmptySources -> pure $ Input.MoveToI nonEmptySources destination
+      _ -> Left $ P.wrap "`moveTo` requires at least one source and a destination, like `moveTo foo.bar dest.namespace`."
+
+rename :: InputPattern
+rename =
+  InputPattern
+    "rename"
+    []
+    I.Visible
+    (Parameters [("definition to rename", namespaceOrDefinitionArg), ("new name", noCompletionsArg)] $ Optional [] Nothing)
+    ( P.lines
+        [ P.wrap $
+            "`rename foo.bar.baz Qux` changes the name `baz` to `Qux`, producing `foo.bar.Qux`.",
+          "",
+          P.wrap $
+            "This only changes the final segment of the name. To move a definition to a different namespace, use `moveTo`.",
+          "",
+          P.wrap $
+            "Works on terms, types, and namespaces."
+        ]
+    )
+    \case
+      src : newSeg : _ -> Input.RenameI <$> handlePath'Arg src <*> handleNameSegmentArg newSeg
+      _ -> Left $ P.wrap "`rename` takes two arguments: the definition to rename and the new name segment."
 
 renameType :: InputPattern
 renameType =
@@ -3901,10 +3955,12 @@ validInputs =
       syncFromCodebase,
       quit,
       releaseDraft,
+      rename,
       renameBranch,
       renameTerm,
       renameType,
       moveAll,
+      moveTo,
       reset,
       saveExecuteResult,
       test,

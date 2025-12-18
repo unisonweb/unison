@@ -15,6 +15,7 @@ module Unison.Codebase.Editor.Output
     ShareError (..),
     isFailure,
     isNumberedFailure,
+    outputShouldUsePager,
   )
 where
 
@@ -227,6 +228,15 @@ data Output
   | TypeNotFound (HQ'.HashQualified (Path.Split Path'))
   | TermNotFound (HQ'.HashQualified (Path.Split Path'))
   | MoveNothingFound Path'
+  | MoveToResult
+      [(Path', Path')] -- moved items: (source, destination)
+  | MoveToConflicts
+      [(Path', Path')] -- moved items: (source, destination)
+      [(NameSegment, [Path'])] -- conflicts: name segment and the conflicting source paths
+      Path' -- destination namespace
+  | RenameResult
+      Path' -- source
+      Path' -- destination
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | NoLastRunResult
@@ -544,6 +554,15 @@ data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
 
 type SourceFileContents = Text
 
+outputShouldUsePager :: Output -> Bool
+outputShouldUsePager o = case o of
+  -- These are typically non-interactive outputs, so we don't page them.
+  LoadingFile {} -> False
+  Typechecked {} -> False
+  Evaluated {} -> False
+  EvaluationFailure {} -> False
+  _ -> True
+
 isFailure :: Output -> Bool
 isFailure o = case o of
   DeleteFailure {} -> True
@@ -587,6 +606,9 @@ isFailure o = case o of
   TypeNotFound' {} -> True
   TermNotFound {} -> True
   MoveNothingFound {} -> True
+  MoveToResult {} -> False
+  MoveToConflicts {} -> True
+  RenameResult {} -> False
   TermNotFound' {} -> True
   SearchTermsNotFound ts -> not (null ts)
   SearchTermsNotFoundDetailed _ misses otherHits -> not (null misses && null otherHits)

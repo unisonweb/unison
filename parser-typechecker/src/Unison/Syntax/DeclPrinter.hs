@@ -10,7 +10,9 @@ module Unison.Syntax.DeclPrinter
 where
 
 import Control.Monad.Writer (Writer, runWriter, tell)
+import Data.List qualified as List
 import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty.Extra qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -38,6 +40,7 @@ import Unison.Syntax.TypePrinter (runPretty)
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Syntax.Var qualified as Var (namespaced)
 import Unison.Type qualified as Type
+import Unison.Util.List qualified as List
 import Unison.Util.Pretty (Pretty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.SyntaxText qualified as S
@@ -86,6 +89,7 @@ prettyEffectDecl ::
 prettyEffectDecl ppe guid r name = prettyGADT ppe guid CT.Effect r name . toDataDecl
 
 prettyGADT ::
+  forall v a.
   (Var v) =>
   PrettyPrintEnvDecl ->
   RenderUniqueTypeGuids ->
@@ -95,11 +99,12 @@ prettyGADT ::
   DataDeclaration v a ->
   Pretty SyntaxText
 prettyGADT env guid ctorType r name dd =
-  header <> P.newline <> P.indentN 2 constructors
+  header <> P.newline <> P.indentN 2 prettyConstructors
   where
-    constructors = P.lines (constructor <$> zip [0 ..] (DD.constructors' dd))
-    constructor (n, (_, _, t)) =
-      prettyPattern (PPED.unsuffixifiedPPE env) ctorType name (ConstructorReference r n)
+    prettyConstructors = P.lines (printConstructor <$> orderConstructors unsuffixifiedPPE r dd ctorType)
+    unsuffixifiedPPE = PPED.unsuffixifiedPPE env
+    printConstructor (n, (_, _, t)) =
+      prettyPattern unsuffixifiedPPE ctorType name (ConstructorReference r n)
         <> fmt S.TypeAscriptionColon " :"
           `P.hang` TypePrinter.prettySyntax (PPED.suffixifiedPPE env) t
     header = prettyEffectHeader guid name (DD.EffectDeclaration dd) <> fmt S.ControlKeyword " where"
@@ -122,7 +127,33 @@ prettyPattern env ctorType namespace ref =
   where
     conRef = Referent.Con ref ctorType
 
+-- Order Constructors alphabetically by name,
+-- regardless of their original order in the declaration.
+-- This is both nice for readability and ensures stable output in diffs, since otherwise
+-- constructors will jump around in order based on their hash.
+-- They'll be re-ordered by hash when parsed.
+orderConstructors :: (Var v) => PrettyPrintEnv -> TypeReference -> DataDeclaration v a -> CT.ConstructorType -> [(Word64, (a, v, Type.Type v a))]
+orderConstructors ppe r dd ctype =
+  zip [0 ..] (DD.constructors' dd)
+    -- First we sort by type to ensure that identical types are adjacent.
+    & List.sortOn (\(_n, (_a, _v, typ)) -> typ)
+    -- Now we group by type, we need to leave identical types in their constructor order to avoid things like
+    -- swapping identical constructors, e.g. False turning into True and vice versa.
+    & List.groupMap (\con@(_, (_, _, typ)) -> (typ, con))
+    -- Then we can sort those _groups_ by the name of the first constructor in the group.
+    & List.sortOn
+      ( \(_typ, group) ->
+          group
+            & NEL.sortOn fst
+            & \case
+              (n, (_, _, _)) :| _rest ->
+                PPE.termName ppe (Referent.Con (ConstructorReference r n) ctype)
+      )
+    -- Then we flatten back out to a list of constructors.
+    & foldMap (toList . snd)
+
 prettyDataDecl ::
+  forall v a.
   (Var v) =>
   PrettyPrintEnvDecl ->
   RenderUniqueTypeGuids ->
@@ -132,7 +163,7 @@ prettyDataDecl ::
   Writer (Set AccessorName) (Pretty SyntaxText)
 prettyDataDecl (PrettyPrintEnvDecl unsuffixifiedPPE suffixifiedPPE) guid r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | "))
-    <$> constructor `traverse` zip [0 ..] (DD.constructors' dd)
+    <$> constructor `traverse` (orderConstructors unsuffixifiedPPE r dd CT.Data)
   where
     constructor (n, (_, _, Type.ForallsNamed' _ t)) = constructor' n t
     constructor (n, (_, _, t)) = constructor' n t

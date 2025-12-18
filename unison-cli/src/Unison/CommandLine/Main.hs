@@ -34,7 +34,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
-import Unison.Codebase.Editor.Output (NumberedArgs, Output)
+import Unison.Codebase.Editor.Output (NumberedArgs, Output, outputShouldUsePager)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Watch qualified as Watch
@@ -231,8 +231,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
 
       let initialState = Cli.loopState0 ppIds
       initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs ++ invalidProjectNamesInputs
-      pageOutput <- newIORef True
-
       initialEcho <- hGetEcho stdin
       let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
       let getInput :: Cli.LoopState -> IO Input
@@ -249,14 +247,11 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               getProjectRoot
               (loopState ^. #numberedArgs)
       let notify :: Output -> IO ()
-          notify =
-            notifyUser (pure dir) fetchIssueFromGitHub
-              >=> ( \o ->
-                      ifM
-                        (readIORef pageOutput)
-                        (putPrettyNonempty o)
-                        (putPrettyLnUnpaged o)
-                  )
+          notify o = do
+            rendered <- notifyUser (pure dir) fetchIssueFromGitHub o
+            if outputShouldUsePager o
+              then putPrettyNonempty rendered
+              else putPrettyLnUnpaged rendered
 
       let awaitInput :: Cli.LoopState -> IO (Either Event Input)
           awaitInput loopState = do
@@ -273,11 +268,11 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                       [ do
                           event <- Ki.await fileEventThread
                           pure do
-                            writeIORef pageOutput False
                             pure (Left event),
                         do
                           input <- Ki.await userInputThread
-                          pure (pure (Right input))
+                          pure do
+                            pure (Right input)
                       ]
                 action
 

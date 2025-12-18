@@ -78,6 +78,7 @@ import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
 import Unison.Codebase.Editor.HandleInput.MoveBranch (doMoveBranch)
 import Unison.Codebase.Editor.HandleInput.MoveTerm (doMoveTerm)
+import Unison.Codebase.Editor.HandleInput.MoveTo (handleMoveTo)
 import Unison.Codebase.Editor.HandleInput.MoveType (doMoveType)
 import Unison.Codebase.Editor.HandleInput.Names (handleNames)
 import Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils (diffHelper)
@@ -90,6 +91,7 @@ import Unison.Codebase.Editor.HandleInput.Pull (handlePull)
 import Unison.Codebase.Editor.HandleInput.Push (handlePushRemoteBranch)
 import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
+import Unison.Codebase.Editor.HandleInput.Rename (handleRename)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (handleShowDefinition)
@@ -613,8 +615,10 @@ loop e = do
           description <- inputDescription input
           doMoveBranch description hasConfirmed src' dest'
         MoveTermI src' dest' -> doMoveTerm src' dest' =<< inputDescription input
+        MoveToI sources dest -> handleMoveTo sources dest =<< inputDescription input
         MoveTypeI src' dest' -> doMoveType src' dest' =<< inputDescription input
         NamesI global queries -> mapM_ (handleNames global) queries
+        RenameI src newNameSeg -> handleRename src newNameSeg =<< inputDescription input
         NamespaceDependenciesI _ ->
           Cli.respond $
             Output.Literal $
@@ -788,10 +792,17 @@ inputDescription input =
       src <- hqs' src0
       dest <- ps' dest0
       pure ("move.term " <> src <> " " <> dest)
+    MoveToI srcs0 dest0 -> do
+      srcs <- traverse p' (toList srcs0)
+      dest <- p' dest0
+      pure ("moveTo " <> Text.intercalate " " srcs <> " " <> dest)
     MoveTypeI src0 dest0 -> do
       src <- hqs' src0
       dest <- ps' dest0
       pure ("move.type " <> src <> " " <> dest)
+    RenameI src0 newSeg -> do
+      src <- p' src0
+      pure ("rename " <> src <> " " <> NameSegment.toEscapedText newSeg)
     ResetI newRoot tgt -> do
       hashTxt <- bid2 newRoot
       tgt <- case tgt of

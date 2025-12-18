@@ -9,7 +9,7 @@ import Control.Lens hiding (at)
 import Control.Monad.State.Strict qualified as State
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
-import Data.List (stripPrefix)
+import Data.List (intercalate, stripPrefix)
 import Data.List qualified as List
 import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.List.NonEmpty qualified as NEList
@@ -725,6 +725,41 @@ notifyUser dir issueFn = \case
     pure . P.warnCallout $ "I don't know about that type."
   MoveNothingFound p ->
     pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath p <> "."
+  MoveToResult movedItems ->
+    pure . P.lines $
+      [ "Moved:",
+        "",
+        P.indentN 2 $ prettyMovedItems movedItems
+      ]
+  RenameResult src dest ->
+    pure . P.lines $
+      [ "Renamed:",
+        "",
+        P.indentN 2 $ prettyPath src <> " -> " <> prettyPath dest
+      ]
+  MoveToConflicts movedItems conflicts dest ->
+    pure . P.lines $
+      ( if null movedItems
+          then []
+          else
+            [ "Moved:",
+              "",
+              P.indentN 2 $ prettyMovedItems movedItems,
+              ""
+            ]
+      )
+        <> [ P.warnCallout . P.lines $
+               ( [ P.wrap $ "I couldn't move some of the items, because they have the same final segment as some of the others, meaning that they would have duplicate names at the destination:",
+                   ""
+                 ]
+                   <> prettyNumberedConflictGroups conflicts
+                   <> [ "",
+                        P.wrap $ "You can rename them and then use `moveTo` again, for example:",
+                        ""
+                      ]
+                   <> prettyConflictExample conflicts dest
+               )
+           ]
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
@@ -4380,3 +4415,45 @@ strayConstructorError verb theConstructor name =
 prettyEmptyBranchDiff :: Pretty
 prettyEmptyBranchDiff =
   "Those branches are the same."
+
+-- | Pretty print a list of moved items with aligned arrows
+prettyMovedItems :: [(Path.Path', Path.Path')] -> Pretty
+prettyMovedItems items =
+  P.column2 [(prettyPath src, "-> " <> prettyPath dest) | (src, dest) <- items]
+
+-- | Pretty print conflict groups as numbered lists, with a blank line between groups
+prettyNumberedConflictGroups :: [(NameSegment, [Path.Path'])] -> [Pretty]
+prettyNumberedConflictGroups conflicts =
+  let -- Group by segment, keeping track of starting index for each group
+      groups = go (1 :: Int) conflicts
+        where
+          go _ [] = []
+          go startIdx ((_, srcs) : rest) =
+            let indexed = zip [startIdx ..] srcs
+                nextIdx = startIdx + length srcs
+             in indexed : go nextIdx rest
+      -- Format each group as a numbered list
+      formatGroup indexed = P.indentN 2 . P.lines $ [P.shown i <> ". " <> prettyPath p | (i, p) <- indexed]
+   in intercalate [""] (map (\g -> [formatGroup g]) groups)
+
+-- | Generate example commands for resolving the first conflict group
+prettyConflictExample :: [(NameSegment, [Path.Path'])] -> Path.Path' -> [Pretty]
+prettyConflictExample [] _ = []
+prettyConflictExample ((_seg, srcs) : _) dest =
+  case srcs of
+    [] -> []
+    [_] -> [] -- Only one item, no conflict (shouldn't happen)
+    (_ : rest) ->
+      let -- Get the parent path of the second item (the one to rename)
+          secondPath = head rest
+          parentPath = case Path.split secondPath of
+            Just (parent, _) -> parent
+            Nothing -> secondPath
+          -- Example: rename 2 <newName>
+          renameExample = P.indentN 2 $ P.backticked $ "rename 2 <newName>"
+          -- Example: moveTo 1 parent.<newName> dest
+          moveToExample =
+            P.indentN 2 $
+              P.backticked $
+                "moveTo 1 " <> prettyPath parentPath <> ".<newName> " <> prettyPath dest
+       in [renameExample, "", moveToExample]

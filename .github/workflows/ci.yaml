@@ -13,7 +13,7 @@ on:
 
 env:
   ## Some version numbers that are used during CI
-  runtime_tests_version: "@unison/runtime-tests/releases/0.0.3"
+  runtime_tests_version: "@unison/runtime-tests/releases/0.0.6"
 
   ## Some cached directories
   # a temp path for caching a built `ucm`
@@ -280,13 +280,9 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/docs.to-html.output.md \
             unison-src/transcripts-manual/docs.to-html
-      - name: mark transcripts as passing
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
-        run: |
-          echo "passing=true" >> "${{env.transcript_test_results}}"
 
       - name: dll-ffi-unix smoke tests
-        if: runner.os != 'Windows'
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
         run: |
           clang -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
@@ -303,7 +299,7 @@ jobs:
             unison-src/transcripts-manual/dll-ffi-unix.output.md
 
       - name: dll-ffi-win smoke tests
-        if: runner.os == 'Windows'
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os == 'Windows'
         run: |
           clang -DWINDOWS_BUILD -c -o \
             unison-src/transcripts-manual/dll-ffi/test.o \
@@ -318,6 +314,11 @@ jobs:
           # Fail if the output or generated docs differ.
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/dll-ffi-win.output.md
+
+      - name: mark transcripts as passing
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        run: |
+          echo "passing=true" >> "${{env.transcript_test_results}}"
 
   interpreter-tests:
     name: run interpreter tests
