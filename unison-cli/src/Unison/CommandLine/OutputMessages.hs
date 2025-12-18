@@ -2747,7 +2747,7 @@ notifyUser dir issueFn = \case
       P.wrap $
         "When I tried to watch"
           <> P.group (P.blue (P.string originalPath) <> ",")
-          <> "it seemed to not exist."
+          <> "it didn't seem to exist."
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $
