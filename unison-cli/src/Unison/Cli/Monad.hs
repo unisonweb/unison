@@ -75,10 +75,10 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
-import Unison.Codebase.Watch qualified as Watch
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
+import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.OutputMessages qualified as OutputMessages
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Debug qualified as Debug
