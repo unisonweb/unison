@@ -242,6 +242,27 @@ scratch/other> ls organized.inner
   2. y (Nat)
 ```
 
+### Move items to the top level
+
+`moveTo` can move items to the root namespace using `.` as the destination:
+
+``` ucm
+scratch/other> moveTo dest.one organized.inner .
+
+  Moved:
+
+    organized.inner -> .inner
+    dest.one        -> .one
+
+scratch/other> ls
+
+  1. builtin.  (676 terms, 107 types)
+  2. inner.    (2 terms)
+  3. newplace. (2 terms)
+  4. one       (Nat)
+  5. types.    (1 term, 1 type)
+```
+
 ### Error case - source doesn't exist
 
 ``` ucm :error
