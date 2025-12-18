@@ -1,7 +1,8 @@
 module Unison.Server.HistoryComments.Types
   ( DownloadCommentsRequest (..),
     UploadCommentsResponse (..),
-    HistoryCommentChunk (..),
+    HistoryCommentUploaderChunk (..),
+    HistoryCommentDownloaderChunk (..),
     HistoryComment (..),
     HistoryCommentRevision (..),
   )
@@ -11,6 +12,8 @@ import Codec.CBOR.Decoding
 import Codec.Serialise (Serialise)
 import Codec.Serialise.Class (Serialise (..))
 import Data.ByteString (ByteString)
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Word (Word8)
@@ -103,46 +106,98 @@ instance Serialise HistoryCommentRevision where
     commentHash <- decode
     pure HistoryCommentRevision {subject, content, createdAt, isHidden, authorSignature, revisionHash, commentHash}
 
-data HistoryCommentChunk
-  = HistoryCommentChunk HistoryComment
-  | HistoryCommentRevisionChunk HistoryCommentRevision
-  | -- Generic error chunk
-    HistoryCommentErrorChunk Text
+data HistoryCommentDownloaderChunkTag
+  = RequestCommentsTag
+  | DoneCheckingHashesTag
+  deriving (Show, Eq, Enum, Bounded)
+
+instance Serialise HistoryCommentDownloaderChunkTag where
+  encode = \case
+    RequestCommentsTag -> encode (0 :: Word8)
+    DoneCheckingHashesTag -> encode (1 :: Word8)
+
+  decode = do
+    tag <- decodeWord8
+    case tag of
+      0 -> pure RequestCommentsTag
+      1 -> pure DoneCheckingHashesTag
+      _ -> fail $ "Unknown HistoryCommentDownloaderChunkTag: " ++ show tag
+
+data HistoryCommentDownloaderChunk
+  = -- Request the comments we're missing.
+    RequestCommentsChunk (NESet Hash32)
+  | -- We've checked all provided hashes (and received DoneSendingHashesChunk from the uploader), and have issued all the Requests we need.
+    DoneCheckingHashesChunk
   deriving (Show, Eq)
 
-instance Serialise HistoryCommentChunk where
+instance Serialise HistoryCommentDownloaderChunk where
   encode = \case
+    RequestCommentsChunk hashSet ->
+      encode RequestCommentsTag
+        <> encode (NESet.toSet hashSet)
+    DoneCheckingHashesChunk ->
+      encode DoneCheckingHashesTag
+  decode = do
+    tag <- decode :: Decoder s HistoryCommentDownloaderChunkTag
+    case tag of
+      RequestCommentsTag -> do
+        mayHashSet <- NESet.nonEmptySet <$> decode
+        case mayHashSet of
+          Just hashSet -> pure $ RequestCommentsChunk hashSet
+          Nothing -> fail "HistoryCommentRequestComments: unexpected empty set"
+      DoneCheckingHashesTag -> pure DoneCheckingHashesChunk
+
+data HistoryCommentUploaderChunk
+  = -- Tell the other side about some comment hashes that it may wish to request.
+    PossiblyNewHashesChunk (NESet Hash32)
+  | DoneSendingHashesChunk
+  | HistoryCommentChunk HistoryComment
+  | HistoryCommentRevisionChunk HistoryCommentRevision
+  deriving (Show, Eq)
+
+instance Serialise HistoryCommentUploaderChunk where
+  encode = \case
+    PossiblyNewHashesChunk hashSet ->
+      encode PossiblyNewHashesTag
+        <> encode (NESet.toSet hashSet)
+    DoneSendingHashesChunk ->
+      encode DoneSendingHashesTag
     HistoryCommentChunk comment ->
       encode HistoryCommentTag
         <> encode comment
     HistoryCommentRevisionChunk revision ->
       encode HistoryCommentRevisionTag
         <> encode revision
-    HistoryCommentErrorChunk errMsg ->
-      encode HistoryCommentErrorTag
-        <> encode errMsg
   decode = do
     tag <- decode :: Decoder s HistoryCommentChunkTag
     case tag of
+      PossiblyNewHashesTag -> do
+        mayHashSet <- NESet.nonEmptySet <$> decode
+        case mayHashSet of
+          Just hashSet -> pure $ PossiblyNewHashesChunk hashSet
+          Nothing -> fail "HistoryCommentPossiblyNewHashes: unexpected empty set"
+      DoneSendingHashesTag -> pure DoneSendingHashesChunk
       HistoryCommentTag -> HistoryCommentChunk <$> decode
       HistoryCommentRevisionTag -> HistoryCommentRevisionChunk <$> decode
-      HistoryCommentErrorTag -> HistoryCommentErrorChunk <$> decode
 
 data HistoryCommentChunkTag
-  = HistoryCommentTag
+  = PossiblyNewHashesTag
+  | DoneSendingHashesTag
+  | HistoryCommentTag
   | HistoryCommentRevisionTag
-  | HistoryCommentErrorTag
   deriving (Show, Eq)
 
 instance Serialise HistoryCommentChunkTag where
   encode = \case
-    HistoryCommentTag -> encode (0 :: Word8)
-    HistoryCommentRevisionTag -> encode (1 :: Word8)
-    HistoryCommentErrorTag -> encode (2 :: Word8)
+    PossiblyNewHashesTag -> encode (0 :: Word8)
+    DoneSendingHashesTag -> encode (1 :: Word8)
+    HistoryCommentTag -> encode (2 :: Word8)
+    HistoryCommentRevisionTag -> encode (3 :: Word8)
   decode = do
     tag <- decode :: Decoder s Word8
     case tag of
-      0 -> pure HistoryCommentTag
-      1 -> pure HistoryCommentRevisionTag
-      2 -> pure HistoryCommentErrorTag
+      0 -> pure PossiblyNewHashesTag
+      1 -> pure DoneSendingHashesTag
+      2 -> pure HistoryCommentTag
+      3 -> pure HistoryCommentRevisionTag
       _ -> fail "Invalid HistoryCommentChunkTag"
