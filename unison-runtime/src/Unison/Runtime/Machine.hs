@@ -491,18 +491,20 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
   allocaArray n \storage ->
     allocaArray n \cArgs ->
       alloca \(cRet :: Ptr Int) -> do
-        copyArgs stk (DLL.cffArgs cf) storage cArgs
-        DLL.callForeign cf cArgs cRet
-        case DLL.cffResult cf of
-          DLL.I16 -> Store.peek (castPtr cRet) >>= pokeI stk . fi16
-          DLL.I32 -> Store.peek (castPtr cRet) >>= pokeI stk . fi32
-          DLL.I64 -> Store.peek cRet >>= pokeI stk
-          DLL.U16 -> Store.peek (castPtr cRet) >>= pokeN stk . fu16
-          DLL.U32 -> Store.peek (castPtr cRet) >>= pokeN stk . fu32
-          DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
-          DLL.F32 -> Store.peek (castPtr cRet) >>= pokeD stk . ff32
-          DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
-          DLL.Void -> poke stk unitValue
+        copyArgs stk (DLL.cffArgs cf) storage cArgs do
+          DLL.callForeign cf cArgs cRet
+          case DLL.cffResult cf of
+            DLL.I16 -> Store.peek (castPtr cRet) >>= pokeI stk . fi16
+            DLL.I32 -> Store.peek (castPtr cRet) >>= pokeI stk . fi32
+            DLL.I64 -> Store.peek cRet >>= pokeI stk
+            DLL.U16 -> Store.peek (castPtr cRet) >>= pokeN stk . fu16
+            DLL.U32 -> Store.peek (castPtr cRet) >>= pokeN stk . fu32
+            DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
+            DLL.F32 -> Store.peek (castPtr cRet) >>= pokeD stk . ff32
+            DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
+            DLL.Void -> poke stk unitValue
+            DLL.MBArr ->
+              die [] $ "unexpected array result from DLL function"
   pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
@@ -545,23 +547,32 @@ ff32 = float2Double
 -- we can just use a contiguous array with as many 8 byte slots as
 -- there are arguments, possibly using only portions of some slots.
 copyArgs ::
-  Stack -> [DLL.FFType] -> Ptr Int -> Ptr (Ptr CValue) -> IO ()
-copyArgs !stk = go 2
+  Stack -> [DLL.FFType] -> Ptr Int -> Ptr (Ptr CValue) -> IO () -> IO ()
+copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
   where
-    go !i (a : as) !p !h = do
-      store a i p
+    go !i (a : as) !p !h = store a i p do
       Store.poke h (castPtr p)
       go (i + 1) as (plusPtr p szp) (plusPtr h szh)
-    go _ _ _ _ = pure ()
+    go _ _ _ _ = next
 
     -- special case non-64-bit values for conversions, otherwise just
     -- copy bytes.
-    store DLL.I32 i p = upeekOff stk i >>= Store.poke (castPtr p) . ti32
-    store DLL.U32 i p = peekOffN stk i >>= Store.poke (castPtr p) . tu32
-    store DLL.I16 i p = upeekOff stk i >>= Store.poke (castPtr p) . ti16
-    store DLL.U16 i p = peekOffN stk i >>= Store.poke (castPtr p) . tu16
-    store DLL.F32 i p = peekOffD stk i >>= Store.poke (castPtr p) . tf32
-    store _ i p = upeekOff stk i >>= Store.poke p
+    store DLL.I32 i p nx =
+      upeekOff stk i >>= Store.poke (castPtr p) . ti32 >> nx
+    store DLL.U32 i p nx =
+      peekOffN stk i >>= Store.poke (castPtr p) . tu32 >> nx
+    store DLL.I16 i p nx =
+      upeekOff stk i >>= Store.poke (castPtr p) . ti16 >> nx
+    store DLL.U16 i p nx =
+      peekOffN stk i >>= Store.poke (castPtr p) . tu16 >> nx
+    store DLL.F32 i p nx =
+      peekOffD stk i >>= Store.poke (castPtr p) . tf32 >> nx
+    store DLL.MBArr i p nx = do
+      mb <- peekOffBi stk i
+      withMutableByteArrayContents mb \ptr ->
+        Store.poke (castPtr p) ptr >> nx
+    store _ i p nx =
+      upeekOff stk i >>= Store.poke p >> nx
     {-# INLINE store #-}
 
     szp = Store.sizeOf (0 :: Int)

@@ -3,7 +3,7 @@
 module Unison.Runtime.Foreign.Dynamic where
 
 import Control.Exception
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.Tagged (Tagged (..))
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
@@ -15,7 +15,17 @@ import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign
 import Unison.Type (ffiFuncRef, ffiSpecRef, ffiTypeRef)
 
-data FFType = I16 | I32 | I64 | U16 | U32 | U64 | F32 | D64 | Void
+data FFType
+  = I16
+  | I32
+  | I64
+  | U16
+  | U32
+  | U64
+  | F32
+  | D64
+  | Void
+  | MBArr
   deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFType where
@@ -66,6 +76,7 @@ encodeType U64 = ffi_type_uint64
 encodeType D64 = ffi_type_double
 encodeType F32 = ffi_type_float
 encodeType Void = ffi_type_void
+encodeType MBArr = ffi_type_pointer
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes [] !_ = pure ()
@@ -75,7 +86,7 @@ encodeTypes (t : ts) !p = do
   where
     sz = Store.sizeOf (undefined :: Ptr CType)
 
-data PrepException = BadVoid | BadInit deriving (Show)
+data PrepException = BadVoid | BadResult | BadInit deriving (Show)
 
 instance Exception PrepException
 
@@ -88,6 +99,10 @@ adjustSpec sp@(FFSpec as r)
 prepareSpec :: FFSpec -> IO CSpec
 prepareSpec spec = do
   ffSpec@(FFSpec args ret) <- adjustSpec spec
+
+  when (ret == MBArr) $
+    throwIO BadResult
+
   let numArgs = length args
       n = fromIntegral numArgs
 

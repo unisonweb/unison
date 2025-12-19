@@ -824,6 +824,7 @@ builtinsSrc =
     B "FFI.double" $ ffiType float,
     B "FFI.float" $ ffiType float,
     B "FFI.void" $ ffiType unit,
+    B "FFI.pinnedByteArray" $ ffiType (pinnedByteArrayt iot),
     B "FFI.base" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.baseIO" . forall2 "a" "b" $ \a b ->
