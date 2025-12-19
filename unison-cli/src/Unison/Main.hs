@@ -515,7 +515,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
   and
     <$> getCodebaseOrExit
       (Just (DontCreateCodebaseWhenMissing transcriptDir))
-      SC.DoLock
+      SC.BlockUntilLock
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
         let isTest = False

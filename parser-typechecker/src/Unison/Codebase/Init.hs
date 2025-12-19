@@ -49,6 +49,8 @@ data SpecifiedCodebase
 data CodebaseLockOption
   = DoLock
   | DontLock
+  | BlockUntilLock
+  deriving stock (Show)
 
 data BackupStrategy
   = -- Create a backup of the codebase in the same directory as the codebase,
