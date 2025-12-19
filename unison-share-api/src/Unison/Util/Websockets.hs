@@ -93,7 +93,6 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
     recvWorker errMVar q = do
       closed <- UnliftIO.handle handler $ do
         msg <- liftIO $ receiveData conn
-        Debug.debugM Debug.Temp "Received message from websocket" ()
         atomically $ writeTBMQueue q msg
         pure False
       when (not closed) $ recvWorker errMVar q

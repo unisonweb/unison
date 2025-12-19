@@ -72,7 +72,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
         let loop = do
               result <- runMaybeT $ do
                 (_commentId, commentHash32) <- MaybeT $ getCommentIds
-                lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToUploadQ commentHash32
+                lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ commentHash32
               -- Loop till a send fails or we run out of comments
               case result of
                 Just () -> loop
@@ -152,11 +152,13 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
             isClosed <- atomically $ do
               (newHashes, isClosed) <- flushTBMQueue q
               Any serverClosed <-
-                (NESet.nonEmptySet $ Set.fromList newHashes) & foldMapM \newHashesSet ->
+                (NESet.nonEmptySet $ Set.fromList newHashes) & foldMapM \newHashesSet -> do
+                  Debug.debugM Debug.Temp "Notifying server of comment hashes" newHashesSet
                   Any <$> (send $ Msg $ PossiblyNewHashesChunk newHashesSet)
               pure (isClosed || serverClosed)
             if isClosed
               then do
+                Debug.debugM Debug.Temp "sending DoneSendingHashesChunk" ()
                 -- If the queue is closed, send a DoneCheckingHashesChunk to notify the server we're done.
                 void . atomically $ send (Msg DoneSendingHashesChunk)
               else loop
