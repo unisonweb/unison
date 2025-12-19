@@ -1160,8 +1160,13 @@ foreignCallHelper = \case
   FFI_openDLL -> mkForeignIOExn $ \(fname :: Text) ->
     evaluate =<< openDLL (unpack fname)
   FFI_int64 -> mkForeign \() -> pure $ I64
+  FFI_int32 -> mkForeign \() -> pure $ I32
+  FFI_int16 -> mkForeign \() -> pure $ I16
   FFI_uint64 -> mkForeign \() -> pure $ U64
+  FFI_uint32 -> mkForeign \() -> pure $ U32
+  FFI_uint16 -> mkForeign \() -> pure $ U16
   FFI_double -> mkForeign \() -> pure $ D64
+  FFI_float -> mkForeign \() -> pure $ F32
   FFI_void -> mkForeign \() -> pure $ Void
   FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
   FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
