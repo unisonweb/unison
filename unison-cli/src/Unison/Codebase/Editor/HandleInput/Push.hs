@@ -423,7 +423,7 @@ executeUploadPlan UploadPlan {remoteBranch, remoteHead, causalHash, afterUploadA
           Share.SyncError err -> ShareErrorUploadEntities err
           Share.TransportError err -> ShareErrorTransport err
   afterUploadAction
-  HC.uploadHistoryComments causalHash codeserverURI (Share.RepoInfo remoteTarget)
+  Cli.time "Uploading History Comments" $ HC.uploadHistoryComments causalHash codeserverURI (Share.RepoInfo remoteTarget)
   let ProjectAndBranch projectName branchName = remoteBranch
   Cli.respond (ViewOnShare (Share.hardCodedUri, projectName, branchName))
 
