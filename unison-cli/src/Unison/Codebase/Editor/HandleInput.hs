@@ -20,6 +20,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Data.Tuple.Extra (uncurry3)
+import System.Directory (makeAbsolute)
 import Text.Megaparsec qualified as Megaparsec
 import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
@@ -115,6 +116,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash qualified as SCH
+import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.CommandLine.Completion qualified as Completion
 import Unison.CommandLine.DisplayValues qualified as DisplayValues
@@ -721,6 +723,29 @@ loop e = do
         UpgradeCommitI -> Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
         UpgradeI libs -> handleUpgrade libs
         VersionI -> Cli.respond $ PrintVersion env.ucmVersion
+        WatchI path -> case env.watchState of
+          Nothing -> Cli.respond Output.WatchDisabled
+          Just ws -> do
+            result <- liftIO $ Watch.watchPath ws path
+            Cli.respond $ Output.WatchAddResult result path
+        UnwatchI paths -> case env.watchState of
+          Nothing -> Cli.respond Output.WatchDisabled
+          Just ws -> do
+            -- Process each path and collect results
+            results <- for paths \path -> do
+              canonPath <- liftIO $ makeAbsolute path
+              success <- liftIO $ Watch.unwatchPath ws canonPath
+              pure (path, canonPath, success)
+            let (removed, failed) = List.partition (\(_, _, success) -> success) results
+            let removedPaths = [canonPath | (_, canonPath, _) <- removed]
+            let failedPaths = [path | (path, _, _) <- failed]
+            remainingPaths <- liftIO $ Set.toList <$> Watch.getWatchedPaths ws
+            Cli.respondNumbered $ Output.WatchRemoved removedPaths failedPaths remainingPaths
+        WatchListI -> case env.watchState of
+          Nothing -> Cli.respond Output.WatchDisabled
+          Just ws -> do
+            watchedPaths <- liftIO $ Set.toList <$> Watch.getWatchedPaths ws
+            Cli.respondNumbered $ Output.WatchList watchedPaths
 
 inputDescription :: Input -> Cli Text
 inputDescription input =
@@ -868,6 +893,9 @@ inputDescription input =
     UpgradeCommitI {} -> wat
     UpgradeI {} -> wat
     VersionI -> wat
+    WatchI {} -> wat
+    UnwatchI {} -> wat
+    WatchListI -> wat
     CancelI -> wat
   where
     p' :: Path' -> Cli Text

@@ -1,38 +1,122 @@
 module Unison.Codebase.Watch
-  ( watchDirectory,
+  ( watchPath,
+    WatchState (..),
+    newWatchState,
+    awaitEvent,
+    unwatchPath,
+    getWatchedPaths,
   )
 where
 
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.STM (STM)
+import Control.Concurrent.STM (STM, TVar)
 import Control.Concurrent.STM qualified as STM
-import Control.Exception (MaskingState (..))
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map qualified as Map
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import GHC.Conc (registerDelay)
-import GHC.IO (unsafeUnmask)
-import Ki qualified
+import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FSNotify (Event (Added, Modified))
 import System.FSNotify qualified as FSNotify
+import System.FilePath (splitFileName)
 import Unison.Prelude
-import UnliftIO.Exception (finally, tryAny)
+import UnliftIO.Exception (tryAny)
 import UnliftIO.STM (atomically)
 
-watchDirectory :: Ki.Scope -> FSNotify.WatchManager -> FilePath -> (FilePath -> Bool) -> IO (IO (FilePath, Text))
-watchDirectory scope mgr dir allow = do
-  readLatestEvent <- forkDirWatcherThread scope mgr dir allow
+-- | State for managing multiple watched paths.
+data WatchState = WatchState
+  { -- | The FSNotify watch manager
+    watchManager :: FSNotify.WatchManager,
+    -- | TVar containing the latest event from any watcher
+    latestEventVar :: TVar (Maybe (FilePath, UTCTime)),
+    -- | Map from watched paths to their stop-watching actions
+    watchedPathsVar :: TVar (Map FilePath (IO ())),
+    -- | Predicate for filtering files (e.g., .u files only)
+    allowPredicate :: FilePath -> Bool,
+    -- | Cache for debouncing file contents
+    previousFilesRef :: IORef (Map FilePath (Text, UTCTime))
+  }
 
-  -- Await an event from the event queue with the following simple debounce logic, which is intended to work around the
-  -- tendency for modern editors to create a flurry of rapid filesystem events when a file is saved:
-  --
-  -- 1. Block until an event arrives that occurred within the last second (which allows us to ignore old filesystem
-  --    events that may have buffered during a long-running IO action).
-  -- 2. Keep consuming events until 50ms elapse without an event.
-  -- 3. Return only the last event.
-  --
-  -- Note we don't have any smarts here for a flurry of events that are related to more than one file; we just throw
-  -- everything away except the last event. In practice, this has seemed to work fine.
+-- | Create a new watch state. The Ki scope is used for structured concurrency -
+-- when the scope exits, all watcher threads are automatically cleaned up.
+newWatchState :: FSNotify.WatchManager -> (FilePath -> Bool) -> IO WatchState
+newWatchState mgr allow = do
+  latestEventVar <- STM.newTVarIO Nothing
+  watchedPathsVar <- STM.newTVarIO Map.empty
+  previousFilesRef <- newIORef Map.empty
+  pure
+    WatchState
+      { watchManager = mgr,
+        latestEventVar = latestEventVar,
+        watchedPathsVar = watchedPathsVar,
+        allowPredicate = allow,
+        previousFilesRef = previousFilesRef
+      }
+
+-- | Add a file or directory to be watched. Returns the canonical path if successful, Nothing otherwise.
+--
+-- Each watched path spawns a background thread via Ki that manages the FSNotify watcher.
+-- When the Ki scope exits, all watcher threads are automatically cleaned up.
+watchPath :: WatchState -> FilePath -> IO (Maybe FilePath)
+watchPath ws path = do
+  canonPath <- canonicalizePath path
+  isDir <- doesDirectoryExist canonPath
+  isFile <- doesFileExist canonPath
+  if not (isDir || isFile)
+    then pure Nothing
+    else do
+      alreadyWatched <- atomically $ Map.member canonPath <$> STM.readTVar ws.watchedPathsVar
+      if alreadyWatched
+        then pure (Just canonPath) -- Already watching, consider it a success
+        else do
+          -- Create the handler that writes to our shared TVar
+          let handler :: Event -> IO ()
+              handler = \case
+                Added fp t FSNotify.IsFile | ws.allowPredicate fp -> atomically (STM.writeTVar ws.latestEventVar (Just (fp, t)))
+                Modified fp t FSNotify.IsFile | ws.allowPredicate fp -> atomically (STM.writeTVar ws.latestEventVar (Just (fp, t)))
+                _ -> pure ()
+
+          -- Determine what to watch
+          let watchAction =
+                if isDir
+                  then FSNotify.watchDir ws.watchManager canonPath (const True) handler
+                  else do
+                    -- For a single file, we watch the parent directory and filter for our file
+                    let (parentDir, _) = splitFileName canonPath
+                    FSNotify.watchDir ws.watchManager parentDir (\e -> eventPath e == canonPath) handler
+
+          -- Start watching with FSNotify
+          stopListening <- watchAction
+
+          -- Record that we're watching this path, with the actual stop action
+          atomically $ STM.modifyTVar ws.watchedPathsVar (Map.insert canonPath stopListening)
+          pure (Just canonPath)
+  where
+    eventPath :: Event -> FilePath
+    eventPath = \case
+      Added p _time _isDir -> p
+      Modified p _time _isDir -> p
+      FSNotify.Removed p _time _isDir -> p
+      FSNotify.ModifiedAttributes p _time _isDir -> p
+      FSNotify.WatchedDirectoryRemoved p _time _isDir -> p
+      FSNotify.CloseWrite p _time _isDir -> p
+      FSNotify.Unknown p _time _isDir _eventString -> p
+
+-- | Await an event from any watched source.
+--
+-- This function implements debouncing with the following logic, intended to work around the tendency
+-- for modern editors to create a flurry of rapid filesystem events when a file is saved:
+--
+-- 1. Block until an event arrives.
+-- 2. Keep consuming events until 50ms elapse without an event.
+-- 3. Return only the last event.
+--
+-- Note we don't have any smarts here for a flurry of events that are related to more than one file;
+-- we just throw everything away except the last event. In practice, this has seemed to work fine.
+--
+-- Additionally, we keep in memory the file contents of previously-saved files, so that we can avoid
+-- emitting events for files that last changed less than 500ms ago, and whose contents haven't changed.
+awaitEvent :: WatchState -> IO (FilePath, Text)
+awaitEvent ws = do
   let awaitEvent0 :: IO (FilePath, UTCTime)
       awaitEvent0 = do
         let go :: (FilePath, UTCTime) -> IO (FilePath, UTCTime)
@@ -49,10 +133,15 @@ watchDirectory scope mgr dir allow = do
         event <- atomically readLatestEvent
         go event
 
-  -- Enhance the previous "await event" action with a small file cache that serves as a second debounce implementation.
-  -- We keep in memory the file contents of previously-saved files, so that we can avoid emitting events for files that
-  -- last changed less than 500ms ago, and whose contents haven't changed.
-  previousFilesRef <- newIORef Map.empty
+      readLatestEvent :: STM (FilePath, UTCTime)
+      readLatestEvent =
+        STM.readTVar ws.latestEventVar >>= \case
+          Nothing -> STM.retry
+          Just event -> do
+            STM.writeTVar ws.latestEventVar Nothing
+            pure event
+
+  -- Apply debouncing based on file contents cache
   let awaitEvent1 :: IO (FilePath, Text)
       awaitEvent1 = do
         (file, t) <- awaitEvent0
@@ -60,51 +149,32 @@ watchDirectory scope mgr dir allow = do
           -- Somewhat-expected read error from a file that was just written. Just ignore the event and try again.
           Left _ -> awaitEvent1
           Right contents -> do
-            previousFiles <- readIORef previousFilesRef
+            previousFiles <- readIORef ws.previousFilesRef
             case Map.lookup file previousFiles of
               Just (contents0, t0) | contents == contents0 && (t `diffUTCTime` t0) < 0.5 -> awaitEvent1
               _ -> do
-                writeIORef previousFilesRef $! Map.insert file (contents, t) previousFiles
+                writeIORef ws.previousFilesRef $! Map.insert file (contents, t) previousFiles
                 pure (file, contents)
 
-  pure awaitEvent1
+  awaitEvent1
 
--- | `forkDirWatcherThread scope mgr dir allow` forks a background thread into `scope` that, using "file watcher
--- manager" `mgr` (just a boilerplate argument the caller is responsible for creating), watches directory `dir` for
--- all "added" and "modified" filesystem events that occur on files that pass the `allow` predicate. It returns an STM
--- action that reads (and clears) the latest event, blocking if one isn't available.
-forkDirWatcherThread ::
-  Ki.Scope ->
-  FSNotify.WatchManager ->
-  FilePath ->
-  (FilePath -> Bool) ->
-  IO (STM (FilePath, UTCTime))
-forkDirWatcherThread scope mgr dir allow = do
-  latestEventVar <- STM.newTVarIO Nothing
+-- | Stop watching a path. Returns True if the path was being watched.
+unwatchPath :: WatchState -> FilePath -> IO Bool
+unwatchPath ws path = do
+  canonPath <- canonicalizePath path
+  maybeStop <- atomically $ do
+    paths <- STM.readTVar ws.watchedPathsVar
+    case Map.lookup canonPath paths of
+      Nothing -> pure Nothing
+      Just stopAction -> do
+        STM.writeTVar ws.watchedPathsVar (Map.delete canonPath paths)
+        pure (Just stopAction)
+  case maybeStop of
+    Nothing -> pure False
+    Just stopAction -> do
+      stopAction
+      pure True
 
-  let handler :: Event -> IO ()
-      handler = \case
-        Added fp t FSNotify.IsFile | allow fp -> atomically (STM.writeTVar latestEventVar (Just (fp, t)))
-        Modified fp t FSNotify.IsFile | allow fp -> atomically (STM.writeTVar latestEventVar (Just (fp, t)))
-        _ -> pure ()
-
-  -- A bit of a "one too many threads" situation but there's not much we can easily do about it. The `fsnotify` API
-  -- doesn't expose any synchronous API; the only option is to fork a background thread with a callback. So, we spawn
-  -- a thread that spawns *that* thread, then waits forever. The purpose here is to simply leverage `ki` exception
-  -- propagation machinery to ensure that the `fsnotify` thread is properly cleaned up.
-  Ki.forkWith_ scope Ki.defaultThreadOptions {Ki.maskingState = MaskedUninterruptible} do
-    -- The goal here is to prevent spawning this background watching thread before installing an exception handler that
-    -- guarantees it's killed. Unfortunately the fsnotify API doesn't seem to make that possible (hence the first
-    -- `unsafeUnmask` here), since we do need the thread *it* spawns to be killable, and (at least as of version
-    -- 0.4.2.0) they don't take care to guarantee that; it just inherits the masking state.
-    stopListening <- unsafeUnmask (FSNotify.watchDir mgr dir (const True) handler) <|> pure (pure ())
-    unsafeUnmask (forever (threadDelay maxBound)) `finally` stopListening
-
-  let readLatestEvent =
-        STM.readTVar latestEventVar >>= \case
-          Nothing -> STM.retry
-          Just event -> do
-            STM.writeTVar latestEventVar Nothing
-            pure event
-
-  pure readLatestEvent
+-- | Get the list of currently watched paths.
+getWatchedPaths :: WatchState -> IO (Set FilePath)
+getWatchedPaths ws = atomically $ Map.keysSet <$> STM.readTVar ws.watchedPathsVar
