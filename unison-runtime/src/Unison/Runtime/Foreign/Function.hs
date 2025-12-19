@@ -1160,9 +1160,15 @@ foreignCallHelper = \case
   FFI_openDLL -> mkForeignIOExn $ \(fname :: Text) ->
     evaluate =<< openDLL (unpack fname)
   FFI_int64 -> mkForeign \() -> pure $ I64
+  FFI_int32 -> mkForeign \() -> pure $ I32
+  FFI_int16 -> mkForeign \() -> pure $ I16
   FFI_uint64 -> mkForeign \() -> pure $ U64
+  FFI_uint32 -> mkForeign \() -> pure $ U32
+  FFI_uint16 -> mkForeign \() -> pure $ U16
   FFI_double -> mkForeign \() -> pure $ D64
+  FFI_float -> mkForeign \() -> pure $ F32
   FFI_void -> mkForeign \() -> pure $ Void
+  FFI_pinnedByteArray -> mkForeign \() -> pure $ MBArr
   FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
   FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
   FFI_arr -> mkForeign $ \(t, FFSpec ts r) -> evaluate $ FFSpec (t : ts) r
@@ -1214,6 +1220,8 @@ foreignCallHelper = \case
           pure . Left $ F.Failure Ty.miscFailureRef vmsg unitValue
         prep BadInit =
           pure . Left $ F.Failure Ty.miscFailureRef imsg unitValue
+        prep BadResult =
+          pure . Left $ F.Failure Ty.miscFailureRef rmsg unitValue
 
         vmsg =
           "bad FFI signature for `"
@@ -1224,6 +1232,11 @@ foreignCallHelper = \case
           "FFI interface initialization failed for `"
             <> pack name
             <> "`: unknown internal failure"
+
+        rmsg =
+          "FFI interface initialization failed for `"
+            <> pack name
+            <> "`: array results are currently unsupported"
 
 {-# INLINE mkHashAlgorithm #-}
 mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => Data.Text.Text -> alg -> Args -> Stack -> IO (Bool, Stack)

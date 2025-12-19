@@ -815,10 +815,16 @@ builtinsSrc =
     B "Natural.isEven" $ natural --> boolean,
     B "Natural.isOdd" $ natural --> boolean,
     B "FFI.openDLL" $ text --> ioexn dll,
+    B "FFI.int16" $ ffiType int,
+    B "FFI.int32" $ ffiType int,
     B "FFI.int64" $ ffiType int,
     B "FFI.uint64" $ ffiType nat,
+    B "FFI.uint32" $ ffiType nat,
+    B "FFI.uint16" $ ffiType nat,
     B "FFI.double" $ ffiType float,
+    B "FFI.float" $ ffiType float,
     B "FFI.void" $ ffiType unit,
+    B "FFI.pinnedByteArray" $ ffiType (pinnedByteArrayt iot),
     B "FFI.base" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.baseIO" . forall2 "a" "b" $ \a b ->

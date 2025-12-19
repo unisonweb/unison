@@ -50,31 +50,31 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #bngq90liom
+  ⊙ 1. #3fhetii4r1
 
     + Adds / updates:
     
       x
 
-  ⊙ 2. #ibj9ucfel7
+  ⊙ 2. #k9tpqec6l4
 
     + Adds / updates:
     
       x
 
-  ⊙ 3. #a4a7kv27iq
+  ⊙ 3. #kk8foejrsc
 
     + Adds / updates:
     
       x
 
-  ⊙ 4. #7908j4baqi
+  ⊙ 4. #r2agp6v66h
 
     + Adds / updates:
     
       x
 
-  □ 5. #llkks335gk (start of history)
+  □ 5. #amjnc7l29n (start of history)
 
 scratch/squashed> history
 
@@ -83,5 +83,5 @@ scratch/squashed> history
 
 
 
-  □ 1. #lg2ckd5shf (start of history)
+  □ 1. #n6bh8al7s0 (start of history)
 ```

@@ -34,7 +34,7 @@ Quoted numbers are not expanded.
 ``` ucm
 scratch/main> ls
 
-  1. builtin. (849 terms, 125 types)
+  1. builtin. (855 terms, 125 types)
   2. main     ('{IO} Either Failure [Text])
 
 scratch/main> run main "1" "2-" "3-4"

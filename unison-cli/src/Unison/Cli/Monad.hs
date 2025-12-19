@@ -78,6 +78,7 @@ import Unison.Codebase.Editor.Output (NumberedArgs, NumberedOutput, Output)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
+import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.OutputMessages qualified as OutputMessages
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Debug qualified as Debug
@@ -178,7 +179,10 @@ data Env = Env
     ucmVersion :: UCMVersion,
     -- | Whether we're running in a transcript test or not.
     -- Avoid using this except when absolutely necessary.
-    isTranscriptTest :: Bool
+    isTranscriptTest :: Bool,
+    -- | The file watch state, if file watching is enabled.
+    -- `Nothing` in contexts like transcripts or MCP where file watching is not supported.
+    watchState :: Maybe Watch.WatchState
   }
   deriving stock (Generic)
 

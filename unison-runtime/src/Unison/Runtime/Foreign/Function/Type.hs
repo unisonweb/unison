@@ -368,9 +368,15 @@ data ForeignFunc
   | Universal_murmurHashUntyped
   | FFI_openDLL
   | FFI_int64
+  | FFI_int32
+  | FFI_int16
   | FFI_uint64
+  | FFI_uint32
+  | FFI_uint16
   | FFI_double
+  | FFI_float
   | FFI_void
+  | FFI_pinnedByteArray
   | FFI_base
   | FFI_baseIO
   | FFI_arr
@@ -739,9 +745,15 @@ foreignFuncBuiltinName = \case
   Universal_murmurHashUntyped -> "Universal.murmurHashUntyped"
   FFI_openDLL -> "FFI.openDLL"
   FFI_int64 -> "FFI.int64"
+  FFI_int32 -> "FFI.int32"
+  FFI_int16 -> "FFI.int16"
   FFI_uint64 -> "FFI.uint64"
+  FFI_uint32 -> "FFI.uint32"
+  FFI_uint16 -> "FFI.uint16"
   FFI_double -> "FFI.double"
+  FFI_float -> "FFI.float"
   FFI_void -> "FFI.void"
+  FFI_pinnedByteArray -> "FFI.pinnedByteArray"
   FFI_base -> "FFI.base"
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"

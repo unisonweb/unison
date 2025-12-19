@@ -1406,9 +1406,15 @@ declareForeigns = do
   declareForeign Untracked 3 Avro_decodeBinary
   declareForeign Tracked 1 FFI_openDLL
   declareForeignWrap Untracked direct FFI_int64
+  declareForeignWrap Untracked direct FFI_int32
+  declareForeignWrap Untracked direct FFI_int16
   declareForeignWrap Untracked direct FFI_uint64
+  declareForeignWrap Untracked direct FFI_uint32
+  declareForeignWrap Untracked direct FFI_uint16
   declareForeignWrap Untracked direct FFI_double
+  declareForeignWrap Untracked direct FFI_float
   declareForeignWrap Untracked direct FFI_void
+  declareForeignWrap Untracked direct FFI_pinnedByteArray
   declareForeign Untracked 2 FFI_base
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr

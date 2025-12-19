@@ -3,7 +3,7 @@
 module Unison.Runtime.Foreign.Dynamic where
 
 import Control.Exception
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.Tagged (Tagged (..))
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
@@ -15,7 +15,17 @@ import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign
 import Unison.Type (ffiFuncRef, ffiSpecRef, ffiTypeRef)
 
-data FFType = I64 | U64 | D64 | Void
+data FFType
+  = I16
+  | I32
+  | I64
+  | U16
+  | U32
+  | U64
+  | F32
+  | D64
+  | Void
+  | MBArr
   deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFType where
@@ -23,10 +33,8 @@ instance BuiltinForeign FFType where
   foreignRef = Tagged ffiTypeRef
 
 -- arguments and return type
-data FFSpec = FFSpec [FFType] !FFType deriving (Eq, Ord, Show)
-
-ffArgs :: FFSpec -> [FFType]
-ffArgs (FFSpec as _) = as
+data FFSpec = FFSpec {ffArgs :: ![FFType], ffResult :: !FFType}
+  deriving (Eq, Ord, Show)
 
 instance BuiltinForeign FFSpec where
   foreignName = Tagged "FFI.Spec"
@@ -34,16 +42,22 @@ instance BuiltinForeign FFSpec where
 
 data CSpec = CSpec
   { cInterface :: !(ForeignPtr CIF),
-    numArgs :: !Int
+    numArgs :: !Int,
+    ffSpec :: !FFSpec
   }
 
 data CDynFunc = forall a.
   CDynFunc
   { cName :: String,
-    cResult :: !FFType,
     cSpec :: {-# UNPACK #-} !CSpec,
     cFun :: !(FunPtr a)
   }
+
+cffArgs :: CDynFunc -> [FFType]
+cffArgs = ffArgs . ffSpec . cSpec
+
+cffResult :: CDynFunc -> FFType
+cffResult = ffResult . ffSpec . cSpec
 
 instance Show CDynFunc where
   show f = "<" ++ cName f ++ ">"
@@ -53,10 +67,16 @@ instance BuiltinForeign CDynFunc where
   foreignRef = Tagged ffiFuncRef
 
 encodeType :: FFType -> Ptr CType
+encodeType I16 = ffi_type_sint16
+encodeType I32 = ffi_type_sint32
 encodeType I64 = ffi_type_sint64
+encodeType U16 = ffi_type_uint16
+encodeType U32 = ffi_type_uint32
 encodeType U64 = ffi_type_uint64
 encodeType D64 = ffi_type_double
+encodeType F32 = ffi_type_float
 encodeType Void = ffi_type_void
+encodeType MBArr = ffi_type_pointer
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes [] !_ = pure ()
@@ -66,7 +86,7 @@ encodeTypes (t : ts) !p = do
   where
     sz = Store.sizeOf (undefined :: Ptr CType)
 
-data PrepException = BadVoid | BadInit deriving (Show)
+data PrepException = BadVoid | BadResult | BadInit deriving (Show)
 
 instance Exception PrepException
 
@@ -78,7 +98,11 @@ adjustSpec sp@(FFSpec as r)
 
 prepareSpec :: FFSpec -> IO CSpec
 prepareSpec spec = do
-  FFSpec args ret <- adjustSpec spec
+  ffSpec@(FFSpec args ret) <- adjustSpec spec
+
+  when (ret == MBArr) $
+    throwIO BadResult
+
   let numArgs = length args
       n = fromIntegral numArgs
 
@@ -91,11 +115,11 @@ prepareSpec spec = do
       unless (status == ffi_ok) $
         throwIO BadInit
 
-  pure $ CSpec {cInterface, numArgs}
+  pure $ CSpec {cInterface, numArgs, ffSpec}
 
 loadForeign :: DLL -> FFSpec -> String -> IO CDynFunc
-loadForeign dll fspec@(FFSpec _ r) sym =
-  CDynFunc name r <$> prepareSpec fspec <*> getDLLSym dll sym
+loadForeign dll fspec sym =
+  CDynFunc name <$> prepareSpec fspec <*> getDLLSym dll sym
   where
     name = getDLLPath dll ++ "$" ++ sym
 
@@ -112,6 +136,6 @@ loadForeign dll fspec@(FFSpec _ r) sym =
 --
 --     Store.poke (castPtr (plusPtr p i)) <smaller-value>
 callForeign :: CDynFunc -> Ptr (Ptr a) -> Ptr r -> IO ()
-callForeign (CDynFunc _ _ (CSpec cInterface _) fun) cArgs cRet =
+callForeign (CDynFunc _ (CSpec cInterface _ _) fun) cArgs cRet =
   withForeignPtr cInterface \cif ->
     ffi_call cif fun (castPtr cRet) (castPtr cArgs)
