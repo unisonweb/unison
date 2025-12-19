@@ -18,11 +18,12 @@ scratch/main> update
 Quoting allows spaces in arguments.
 
 ``` ucm
-scratch/main> run main "all one arg" "contains escaped \" quote" second third
+scratch/main> run main "all one arg" "contains escaped \" quote" 'single quoted' second third
 
   Right
     [ "all one arg"
     , "contains escaped \" quote"
+    , "single quoted"
     , "second"
     , "third"
     ]

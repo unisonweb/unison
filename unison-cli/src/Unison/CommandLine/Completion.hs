@@ -96,10 +96,10 @@ haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRe
 
     let finalize completion =
           let newReplacement = case lastArg of
-                QuotedArg _ _
-                  | completion.isFinished -> "\"" <> completion.replacement <> "\""
-                QuotedArg _ False -> "\"" <> completion.replacement <> "\""
-                QuotedArg _ True -> "\"" <> completion.replacement
+                QuotedArg _ _ quoteChar
+                  | completion.isFinished -> [quoteChar] <> completion.replacement <> [quoteChar]
+                QuotedArg _ False quoteChar -> [quoteChar] <> completion.replacement <> [quoteChar]
+                QuotedArg _ True quoteChar -> [quoteChar] <> completion.replacement
                 UnquotedArg _ -> completion.replacement
                 NumberedArg _ -> completion.replacement
            in completion {Line.replacement = newReplacement}

@@ -104,7 +104,7 @@ expandArguments numberedArgs params args = do
         ( \acc (_, param) arg ->
             case arg of
               -- Don't expand numbers in quoted args
-              Left (InputPattern.QuotedArg quoted _) -> Right (RawArg quoted : acc, [])
+              Left (InputPattern.QuotedArg quoted _ _) -> Right (RawArg quoted : acc, [])
               Left (InputPattern.UnquotedArg raw) -> Right $ (RawArg raw : acc, [])
               Left (InputPattern.NumberedArg n) ->
                 case expandNumber numberedArgs n of
@@ -212,7 +212,7 @@ parseInput codebase projPath currentProjectRoot numberedArgs patterns cliArgs = 
     [] -> throwE NoCommand
     (NumberedArg {} : _) -> throwE NoCommand
     (UnquotedArg cmd : args) -> pure (cmd, args)
-    (QuotedArg cmd _ : args) -> pure (cmd, args)
+    (QuotedArg cmd _ _ : args) -> pure (cmd, args)
   pat@(InputPattern {params, parse}) <- case Map.lookup cmd patterns of
     Just pat -> pure pat
     Nothing -> throwE $ UnknownCommand cmd
