@@ -259,6 +259,7 @@ data CliArg
   | QuotedArg
       String
       Bool -- whether the quote was terminated
+      Char -- the quote character used
   | UnquotedArg String
   deriving (Eq, Show)
 
@@ -271,8 +272,8 @@ renderCliArg =
       NumberedRange s e -> show s <> "-" <> show e
       NumberedAfterStart s -> show s <> "-"
       NumberedBeforeEnd e -> "-" <> show e
-    QuotedArg s False -> "\"" <> s <> "\""
-    QuotedArg s True -> "\"" <> s
+    QuotedArg s False quoteChar -> [quoteChar] <> s <> [quoteChar]
+    QuotedArg s True quoteChar -> [quoteChar] <> s
     UnquotedArg s -> s
 
 -- | Like `renderCliArg`, but does not include quotes regardless of whether the argument was quoted.
@@ -284,8 +285,8 @@ renderCliArgUnquoted =
       NumberedRange s e -> show s <> "-" <> show e
       NumberedAfterStart s -> show s <> "-"
       NumberedBeforeEnd e -> "-" <> show e
-    QuotedArg s False -> s
-    QuotedArg s True -> s
+    QuotedArg s False _quoteChar -> s
+    QuotedArg s True _quoteChar -> s
     UnquotedArg s -> s
 
 -- | Like `parseArgs`, but indicates whether each argument was quoted, and also whether the quote was terminated..
@@ -308,7 +309,7 @@ argP = do
     escapedQuote :: Parser Char
     escapedQuote = do
       _ <- MP.char '\\'
-      MP.char '"'
+      MP.char '"' <|> MP.char '\''
 
     numberedArgP :: Parser CliArg
     numberedArgP = do
@@ -334,13 +335,13 @@ argP = do
 
     quotedArgP :: Parser CliArg
     quotedArgP = do
-      _ <- MP.char '"'
+      quoteChar <- MP.char '"' <|> MP.char '\''
       (content, hasUnterminatedQuote) <-
         MP.manyTill_
           (escapedQuote <|> MP.anySingle)
           -- Treat EOF as closing quote so completion still functions on unterminated quotes
-          (((MP.char '"') $> False) <|> (MP.eof $> True))
-      pure $ QuotedArg content hasUnterminatedQuote
+          (((MP.char quoteChar) $> False) <|> (MP.eof $> True))
+      pure $ QuotedArg content hasUnterminatedQuote quoteChar
     unquotedArgP :: Parser CliArg
     unquotedArgP = do
       UnquotedArg <$> MP.some (MP.satisfy (not . Char.isSpace))
@@ -349,14 +350,14 @@ argP = do
 -- Just [UnquotedArg "one",UnquotedArg "two",UnquotedArg "three"]
 --
 -- >>> MP.parseMaybe argsP "\"one two\" three"
--- Just [QuotedArg "one two" False,UnquotedArg "three"]
+-- Just [QuotedArg "one two" False '"',UnquotedArg "three"]
 --
 -- >>> MP.parseMaybe argsP "one    two    three"
 -- Just [UnquotedArg "one",UnquotedArg "two",UnquotedArg "three"]
 --
 -- Unfinished quote should auto-close quote at end of input, but indicate that it was unterminated
 -- >>> MP.parseMaybe argsP "one two \"three four"
--- Just [UnquotedArg "one",UnquotedArg "two",QuotedArg "three four" True]
+-- Just [UnquotedArg "one",UnquotedArg "two",QuotedArg "three four" True '"']
 --
 -- Should require args to take up a whole segment, and should fall back to raw args.
 -- >>> MP.parseMaybe argsP "1.2.3 abc-def"
