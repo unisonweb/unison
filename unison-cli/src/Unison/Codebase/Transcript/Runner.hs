@@ -539,7 +539,9 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             sandboxedRuntime = sbRuntime,
             serverBaseUrl = Nothing,
             ucmVersion,
-            isTranscriptTest = isTest
+            isTranscriptTest = isTest,
+            -- Transcripts don't support file watching
+            watchState = Nothing
           }
 
   let loop :: Cli.LoopState -> IO (Seq Stanza)

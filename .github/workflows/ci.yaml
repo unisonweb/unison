@@ -13,7 +13,7 @@ on:
 
 env:
   ## Some version numbers that are used during CI
-  runtime_tests_version: "@unison/runtime-tests/releases/0.0.3"
+  runtime_tests_version: "@unison/runtime-tests/releases/0.0.6"
 
   ## Some cached directories
   # a temp path for caching a built `ucm`
