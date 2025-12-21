@@ -14,7 +14,7 @@ import Data.Either.Extra ()
 import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import System.FileLock (SharedExclusive (Exclusive), withTryFileLock)
+import System.FileLock (SharedExclusive (Exclusive), withFileLock, withTryFileLock)
 import U.Codebase.HashTags (BranchHash, CausalHash)
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Codebase (Codebase, CodebasePath)
@@ -322,6 +322,12 @@ sqliteCodebase debugName root localOrRemote lockOption migrationStrategy action 
         withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) <&> \case
           Nothing -> Left OpenCodebaseFileLockFailed
           Just x -> x
+      BlockUntilLock -> withRunInIO \runInIO ->
+        withTryFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma) >>= \case
+          Nothing -> do
+            liftIO (putStrLn "Waiting for codebase lock...")
+            withFileLock (lockfilePath root) Exclusive (\_flock -> runInIO ma)
+          Just x -> pure x
 
 ensureMigrated ::
   (MonadUnliftIO m) =>
