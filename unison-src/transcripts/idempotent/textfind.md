@@ -228,6 +228,8 @@ Searching for numeric literals should find them both in expression position (rva
   These definitions from the current namespace (excluding `lib`) have matches:
 
     1. magicNumber
+    2. openSesame
 
-  Tip: Try `edit 1` to bring this into your scratch file.
+  Tip: Try `edit 1` or `edit 1-2` to bring these into your
+       scratch file.
 ```

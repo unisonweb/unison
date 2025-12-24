@@ -132,6 +132,10 @@ handleTextFindI allowLib tokens = do
             r = join $ Pattern.foldMap' txtPattern . Term.matchPattern <$> cases
         txts _ = ABT.Continue
         txtPattern (Pattern.Text _ txt) = [txt]
+        txtPattern (Pattern.Nat _ n) = [Text.pack (show n)]
+        txtPattern (Pattern.Int _ n) = [Text.pack (show n)]
+        txtPattern (Pattern.Float _ n) = [Text.pack (show n)]
+        txtPattern (Pattern.Char _ c) = [Text.pack [c]]
         txtPattern _ = []
 
 lookupRewrite ::
