@@ -101,6 +101,7 @@ import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
+import Unison.Codebase.Editor.HandleInput.DiffUpdate qualified as DiffUpdate
 import Unison.Codebase.Editor.HandleInput.Upgrade (handleUpgrade)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -719,6 +720,7 @@ loop e = do
           path0 <- Cli.getCurrentPath
           whenJust (Path.ascend path0) Cli.cd
         Update2I -> handleUpdate2
+        DiffUpdateI -> DiffUpdate.handleDiffUpdate
         UpdateBuiltinsI -> Cli.respond NotImplemented
         UpgradeCommitI -> Cli.returnEarly (Output.Literal "The `upgrade.commit` command has been removed in favor of `update`.")
         UpgradeI libs -> handleUpgrade libs
@@ -889,6 +891,7 @@ inputDescription input =
     UiI {} -> wat
     UpI {} -> wat
     Update2I -> wat
+    DiffUpdateI -> wat
     UpdateBuiltinsI -> wat
     UpgradeCommitI {} -> wat
     UpgradeI {} -> wat

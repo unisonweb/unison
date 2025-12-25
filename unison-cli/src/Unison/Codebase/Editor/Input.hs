@@ -225,6 +225,7 @@ data Input
   | UndoI
   | UpI
   | Update2I
+  | DiffUpdateI
   | UpdateBuiltinsI
   | UpgradeCommitI
   | UpgradeI ![NameSegment]

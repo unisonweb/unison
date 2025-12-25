@@ -119,6 +119,7 @@ module Unison.CommandLine.InputPatterns
     undo,
     up,
     update,
+    diffUpdate,
     updateBuiltins,
     upgrade,
     view,
@@ -884,6 +885,20 @@ update =
             <> "can't be completed automatically, the dependents will be added back to the scratch file"
             <> "for your review.",
       parse = const $ pure Input.Update2I
+    }
+
+diffUpdate :: InputPattern
+diffUpdate =
+  InputPattern
+    { patternName = "diff.update",
+      aliases = ["update.diff"],
+      visibility = I.Visible,
+      params = noParams,
+      help =
+        P.wrap $
+          "Shows a preview of what changes would be made if `update` were run. "
+            <> "This is a read-only operation that doesn't modify the codebase.",
+      parse = const $ pure Input.DiffUpdateI
     }
 
 view :: InputPattern
@@ -3970,6 +3985,7 @@ validInputs =
       undo,
       up,
       update,
+      diffUpdate,
       updateBuiltins,
       upgrade,
       upgradeCommitInputPattern,

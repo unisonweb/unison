@@ -40,6 +40,7 @@ import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Project (Project (..))
@@ -160,7 +161,7 @@ import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF2)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -2647,6 +2648,86 @@ notifyUser dir issueFn = \case
                in case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
                     Just legend -> legend
                     Nothing -> mempty
+            ]
+  ShowUpdateDiff ppe newDefns updatedDefns dependents -> do
+    let colorAdd = P.green . ("+ " <>)
+        colorUpdate = P.yellow . ("~ " <>)
+
+    let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
+        renderTypes colored types =
+          types
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, decl) ->
+                  colored $
+                    P.syntaxToColor $
+                      DeclPrinter.prettyDeclOrBuiltinHeader
+                        DeclPrinter.RenderUniqueTypeGuids'No
+                        (HQ.fromName name)
+                        decl
+              )
+            & P.lines
+
+    let renderTerms :: (Pretty -> Pretty) -> Map Name (Type Symbol Ann) -> Pretty
+        renderTerms colored terms =
+          terms
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ty) ->
+                  ( colored (prettyNameParens name),
+                    ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty)
+                  )
+              )
+            & P.align
+            & map P.group
+            & P.lines
+
+    let renderDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> Pretty
+        renderDependents deps =
+          let names = Map.keys deps.terms ++ Map.keys deps.types
+           in if null names
+                then mempty
+                else
+                  P.wrap "The following dependents would be retypechecked:"
+                    <> P.newline
+                    <> P.indentN 2 (P.lines (map prettyName (sortAlphabeticallyOn id names)))
+
+    let hasNewDefns = not (Map.null newDefns.terms && Map.null newDefns.types)
+        hasUpdatedDefns = not (Map.null updatedDefns.terms && Map.null updatedDefns.types)
+        hasDependents = not (Map.null dependents.terms && Map.null dependents.types)
+
+    pure $
+      if not hasNewDefns && not hasUpdatedDefns
+        then P.wrap "No changes to preview. The scratch file doesn't contain any new or updated definitions."
+        else
+          P.sepNonEmpty
+            "\n\n"
+            [ P.wrap "Preview of changes that would be made by `update`:",
+              if hasNewDefns
+                then
+                  P.linesNonEmpty
+                    [ P.wrap "New definitions:",
+                      P.indentN 2 $ renderTypes colorAdd newDefns.types,
+                      P.indentN 2 $ renderTerms colorAdd newDefns.terms
+                    ]
+                else mempty,
+              if hasUpdatedDefns
+                then
+                  P.linesNonEmpty
+                    [ P.wrap "Updated definitions:",
+                      P.indentN 2 $ renderTypes colorUpdate updatedDefns.types,
+                      P.indentN 2 $ renderTerms colorUpdate updatedDefns.terms
+                    ]
+                else mempty,
+              if hasDependents
+                then renderDependents dependents
+                else mempty,
+              case prettyAddUpdateDeleteLegend hasNewDefns hasUpdatedDefns False of
+                Just legend -> legend
+                Nothing -> mempty,
+              P.wrap $ "Run " <> IP.makeExample' IP.update <> " to apply these changes."
             ]
   StaleRun ppe main (endOfPath NEList.:| reversePath) inFile ->
     let path = reverse ((True, endOfPath) : map (False,) reversePath)

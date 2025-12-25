@@ -78,7 +78,7 @@ import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Runtime (Error)
@@ -490,6 +490,14 @@ data Output
            )
        )
       !(Maybe (Text, ExitCode))
+  | ShowUpdateDiff
+      !PPE.PrettyPrintEnv
+      -- New definitions (terms, types)
+      !(Defns (Map Name (Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
+      -- Updated definitions (terms, types)
+      !(Defns (Map Name (Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
+      -- Dependents that would be retypechecked (terms, types)
+      !(DefnsF (Map Name) TermReferenceId TypeReferenceId)
   | StaleRun !PrettyPrintEnv !Name !(List.NonEmpty (Defn TermReference TypeReference)) !Bool {- True = found in file, False = found in codebase -}
   | InvalidCommentTarget Text
   | CommentedSuccessfully
@@ -757,6 +765,7 @@ isFailure o = case o of
   CantDoThatDuring {} -> True
   ShowEmptyBranchDiff {} -> False
   ShowBranchDiff {} -> False
+  ShowUpdateDiff {} -> False
   StaleRun {} -> True
   InvalidCommentTarget {} -> True
   CommentedSuccessfully {} -> False
