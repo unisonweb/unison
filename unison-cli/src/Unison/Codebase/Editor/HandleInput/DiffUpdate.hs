@@ -133,10 +133,10 @@ handleDiffUpdate = do
       updatedTerms =
         Map.mapMaybe id $
           Map.intersectionWith
-            (\refId newTerm ->
-              case Map.lookup refId oldTerms of
-                Just oldTerm -> Just (oldTerm, newTerm)
-                Nothing -> Nothing
+            ( \refId newTerm ->
+                case Map.lookup refId oldTerms of
+                  Just oldTerm -> Just (oldTerm, newTerm)
+                  Nothing -> Nothing
             )
             updatedTermRefIds
             updatedFileTerms
