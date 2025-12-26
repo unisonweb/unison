@@ -2670,18 +2670,19 @@ notifyUser dir issueFn = \case
               )
             & P.lines
 
-    let renderTerms :: (Pretty -> Pretty) -> Map Name (Term Symbol Ann, Type Symbol Ann) -> Pretty
-        renderTerms colored terms =
+    -- Render new terms with "+ " prefix on each line
+    let renderTerms :: Map Name (Term Symbol Ann, Type Symbol Ann) -> Pretty
+        renderTerms terms =
           terms
             & Map.toList
             & sortAlphabeticallyOn (view _1)
             & map
               ( \(name, (term, _typ)) ->
-                  colored $
-                    P.syntaxToColor $
-                      TermPrinter.prettyBinding ppe (HQ.fromName name) term
+                  let termText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromName name) term
+                      termLines = Text.lines termText
+                   in P.lines $ map (\line -> P.green $ P.text $ "+ " <> line) termLines
               )
-            & P.lines
+            & P.sepNonEmpty "\n"
 
     -- Render updated terms with inline diff (removed lines in red, added lines in green)
     let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
@@ -2729,22 +2730,24 @@ notifyUser dir issueFn = \case
                 then
                   P.linesNonEmpty
                     [ P.wrap "New definitions:",
-                      P.indentN 2 $ renderTypes colorAdd newDefns.types,
-                      P.indentN 2 $ renderTerms colorAdd newDefns.terms
+                      if Map.null newDefns.types then mempty else P.indentN 2 $ renderTypes colorAdd newDefns.types,
+                      if Map.null newDefns.terms then mempty else P.indentN 2 $ renderTerms newDefns.terms
                     ]
                 else mempty,
               if hasUpdatedDefns
                 then
                   P.linesNonEmpty
                     [ P.wrap "Updated definitions:",
-                      P.indentN 2 $ renderTypes colorUpdate updatedDefns.types,
-                      P.indentN 2 $ renderUpdatedTerms updatedDefns.terms
+                      if Map.null updatedDefns.types then mempty else P.indentN 2 $ renderTypes colorUpdate updatedDefns.types,
+                      if Map.null updatedDefns.terms then mempty else P.indentN 2 $ renderUpdatedTerms updatedDefns.terms
                     ]
                 else mempty,
               if hasDependents
                 then renderDependents dependents
                 else mempty,
-              case prettyAddUpdateDeleteLegend hasNewDefns hasUpdatedDefns False of
+              -- For diff.update, show + (added) and - (deleted) instead of ~ (modified)
+              -- since updated definitions show inline diffs with +/- lines
+              case prettyAddUpdateDeleteLegend (hasNewDefns || hasUpdatedDefns) False hasUpdatedDefns of
                 Just legend -> legend
                 Nothing -> mempty,
               P.wrap $ "Run " <> IP.makeExample' IP.update <> " to apply these changes."
