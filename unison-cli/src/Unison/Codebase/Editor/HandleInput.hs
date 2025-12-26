@@ -63,6 +63,7 @@ import Unison.Codebase.Editor.HandleInput.DeleteProject (handleDeleteProject)
 import Unison.Codebase.Editor.HandleInput.Dependencies (handleDependencies)
 import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
 import Unison.Codebase.Editor.HandleInput.DiffBranch (handleDiffBranch)
+import Unison.Codebase.Editor.HandleInput.DiffUpdate qualified as DiffUpdate
 import Unison.Codebase.Editor.HandleInput.EditDependents (handleEditDependents)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
@@ -101,7 +102,6 @@ import Unison.Codebase.Editor.HandleInput.Tests qualified as Tests
 import Unison.Codebase.Editor.HandleInput.Todo (handleTodo)
 import Unison.Codebase.Editor.HandleInput.UI (openUI)
 import Unison.Codebase.Editor.HandleInput.Update2 (handleUpdate2)
-import Unison.Codebase.Editor.HandleInput.DiffUpdate qualified as DiffUpdate
 import Unison.Codebase.Editor.HandleInput.Upgrade (handleUpgrade)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
