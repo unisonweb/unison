@@ -82,7 +82,7 @@ scratch/main> diff.update
 
 ## Test diff.update with a new term
 
-Let's also add a completely new term:
+Let's also add a completely new term that depends on `foo`:
 
 ``` unison
 foo : Nat
@@ -93,7 +93,9 @@ foo =
   x + y
 
 bar : Nat
-bar = 42
+bar =
+  use Nat +
+  foo + 1
 ```
 
 ``` ucm :added-by-ucm
@@ -116,7 +118,9 @@ scratch/main> diff.update
 
   New definitions:
     + bar : Nat
-    + bar = 42
+    + bar =
+    +   use Nat +
+    +   foo + 1
 
   Updated definitions:
       foo : Nat

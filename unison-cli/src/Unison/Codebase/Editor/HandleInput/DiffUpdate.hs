@@ -33,6 +33,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
+import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Relation qualified as Relation
@@ -83,7 +84,8 @@ handleDiffUpdate = do
                 }
           )
 
-      -- Throw away the dependents that are shadowed by the file itself
+      -- Remove dependents that are also being updated directly by the file,
+      -- since they'll already appear in the "updated definitions" section
       let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
           dependents1 =
             bimap
@@ -105,8 +107,9 @@ handleDiffUpdate = do
   let newTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
       newTerms = Map.restrictKeys fileTerms newTermNames
 
-  let newFileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
-      newFileTerms = Map.restrictKeys fileTerms updatedTermNames
+  -- Terms from the file that are updates to existing codebase definitions
+  let updatedFileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
+      updatedFileTerms = Map.restrictKeys fileTerms updatedTermNames
 
   -- Get the old terms from the codebase for updated definitions
   -- First, get the term reference IDs for the updated names
@@ -125,7 +128,7 @@ handleDiffUpdate = do
     hydratedTerms <- hydrateRefs env.codebase (Defns refIdSet Set.empty)
     pure hydratedTerms.terms
 
-  -- Combine old and new terms for the updated definitions
+  -- Intersect old and new terms to find updated definitions
   let updatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann))
       updatedTerms =
         Map.mapMaybe id $
@@ -136,7 +139,7 @@ handleDiffUpdate = do
                 Nothing -> Nothing
             )
             updatedTermRefIds
-            newFileTerms
+            updatedFileTerms
 
   -- Get type declarations from the file
   let fileDataDecls :: Map Name (DeclOrBuiltin Symbol Ann)
@@ -162,11 +165,13 @@ handleDiffUpdate = do
   let updatedTypes :: Map Name (DeclOrBuiltin Symbol Ann)
       updatedTypes = Map.restrictKeys fileTypeDecls updatedTypeNames
 
-  -- Build the PPE using namespace names
+  -- Build the PPE using file names (for new references) shadowing namespace names
+  let fileNames = UF.typecheckedToNames tuf
+  let allNames = fileNames `Names.shadowing` namesIncludingLibdeps
   let pped =
         PPED.makePPED
-          (PPE.hqNamer 10 namesIncludingLibdeps)
-          (PPE.suffixifyByHash namesIncludingLibdeps)
+          (PPE.hqNamer 10 allNames)
+          (PPE.suffixifyByHash allNames)
   let ppe = PPED.suffixifiedPPE pped
 
   -- Respond with the diff
