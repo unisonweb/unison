@@ -2669,20 +2669,37 @@ notifyUser dir issueFn = \case
               )
             & P.lines
 
-    let renderTerms :: (Pretty -> Pretty) -> Map Name (Type Symbol Ann) -> Pretty
+    let renderTerms :: (Pretty -> Pretty) -> Map Name (Term Symbol Ann, Type Symbol Ann) -> Pretty
         renderTerms colored terms =
           terms
             & Map.toList
             & sortAlphabeticallyOn (view _1)
             & map
-              ( \(name, ty) ->
-                  ( colored (prettyNameParens name),
-                    ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty)
-                  )
+              ( \(name, (term, _typ)) ->
+                  colored $
+                    P.syntaxToColor $
+                      TermPrinter.prettyBinding ppe (HQ.fromName name) term
               )
-            & P.align
-            & map P.group
             & P.lines
+
+    -- Render updated terms showing both old (red) and new (green) definitions
+    let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
+        renderUpdatedTerms terms =
+          terms
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ((oldTerm, _oldTyp), (newTerm, _newTyp))) ->
+                  P.lines
+                    [ P.red $
+                        P.syntaxToColor $
+                          TermPrinter.prettyBinding ppe (HQ.fromName name) oldTerm,
+                      P.green $
+                        P.syntaxToColor $
+                          TermPrinter.prettyBinding ppe (HQ.fromName name) newTerm
+                    ]
+              )
+            & P.sepNonEmpty "\n"
 
     let renderDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> Pretty
         renderDependents deps =
@@ -2718,7 +2735,7 @@ notifyUser dir issueFn = \case
                   P.linesNonEmpty
                     [ P.wrap "Updated definitions:",
                       P.indentN 2 $ renderTypes colorUpdate updatedDefns.types,
-                      P.indentN 2 $ renderTerms colorUpdate updatedDefns.terms
+                      P.indentN 2 $ renderUpdatedTerms updatedDefns.terms
                     ]
                 else mempty,
               if hasDependents

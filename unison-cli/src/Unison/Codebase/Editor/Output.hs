@@ -492,10 +492,10 @@ data Output
       !(Maybe (Text, ExitCode))
   | ShowUpdateDiff
       !PPE.PrettyPrintEnv
-      -- New definitions (terms, types)
-      !(Defns (Map Name (Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
-      -- Updated definitions (terms, types)
-      !(Defns (Map Name (Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
+      -- New definitions (terms with body and type, types with decl)
+      !(Defns (Map Name (Term Symbol Ann, Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
+      -- Updated definitions: ((old term, old type), (new term, new type)) for terms, just new for types
+      !(Defns (Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann))) (Map Name (DeclOrBuiltin Symbol Ann)))
       -- Dependents that would be retypechecked (terms, types)
       !(DefnsF (Map Name) TermReferenceId TypeReferenceId)
   | StaleRun !PrettyPrintEnv !Name !(List.NonEmpty (Defn TermReference TypeReference)) !Bool {- True = found in file, False = found in codebase -}

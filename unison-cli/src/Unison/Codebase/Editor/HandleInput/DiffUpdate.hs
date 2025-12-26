@@ -33,6 +33,7 @@ import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
@@ -98,20 +99,50 @@ handleDiffUpdate = do
 
       pure dependents1
 
-  -- Get the types for new and updated terms from the typechecked file
+  -- Get the terms (body + type) for new and updated terms from the typechecked file
   -- hashTermsId returns: (ann, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
-  let fileTermTypes :: Map Name (Type Symbol Ann)
-      fileTermTypes =
+  let fileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
+      fileTerms =
         Map.fromList
-          [ (Name.unsafeParseVar var, typ)
-            | (var, (_, _, _, _, typ)) <- Map.toList (UF.hashTermsId tuf)
+          [ (Name.unsafeParseVar var, (term, typ))
+            | (var, (_, _, _, term, typ)) <- Map.toList (UF.hashTermsId tuf)
           ]
 
-  let newTerms :: Map Name (Type Symbol Ann)
-      newTerms = Map.restrictKeys fileTermTypes newTermNames
+  let newTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
+      newTerms = Map.restrictKeys fileTerms newTermNames
 
-  let updatedTerms :: Map Name (Type Symbol Ann)
-      updatedTerms = Map.restrictKeys fileTermTypes updatedTermNames
+  let newFileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
+      newFileTerms = Map.restrictKeys fileTerms updatedTermNames
+
+  -- Get the old terms from the codebase for updated definitions
+  -- First, get the term reference IDs for the updated names
+  let updatedTermRefIds :: Map Name TermReferenceId
+      updatedTermRefIds =
+        Map.fromList
+          [ (name, refId)
+            | name <- Set.toList updatedTermNames,
+              Just referent <- [Map.lookup name (BiMultimap.range unconflictedView.defns.terms)],
+              Just refId <- [Referent.toTermReferenceId referent]
+          ]
+
+  -- Fetch the old terms from the codebase
+  oldTerms <- Cli.runTransaction do
+    let refIdSet = Set.fromList (Map.elems updatedTermRefIds)
+    hydratedTerms <- hydrateRefs env.codebase (Defns refIdSet Set.empty)
+    pure hydratedTerms.terms
+
+  -- Combine old and new terms for the updated definitions
+  let updatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann))
+      updatedTerms =
+        Map.mapMaybe id $
+          Map.intersectionWith
+            (\refId newTerm ->
+              case Map.lookup refId oldTerms of
+                Just oldTerm -> Just (oldTerm, newTerm)
+                Nothing -> Nothing
+            )
+            updatedTermRefIds
+            newFileTerms
 
   -- Get type declarations from the file
   let fileDataDecls :: Map Name (DeclOrBuiltin Symbol Ann)
