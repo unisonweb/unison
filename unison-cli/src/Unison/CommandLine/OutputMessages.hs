@@ -7,6 +7,7 @@ module Unison.CommandLine.OutputMessages where
 import Control.Arrow ((***))
 import Control.Lens hiding (at)
 import Control.Monad.State.Strict qualified as State
+import Data.Algorithm.Diff qualified as Diff
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (intercalate, stripPrefix)
@@ -2682,7 +2683,7 @@ notifyUser dir issueFn = \case
               )
             & P.lines
 
-    -- Render updated terms showing both old (red) and new (green) definitions
+    -- Render updated terms with inline diff (removed lines in red, added lines in green)
     let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
         renderUpdatedTerms terms =
           terms
@@ -2690,14 +2691,16 @@ notifyUser dir issueFn = \case
             & sortAlphabeticallyOn (view _1)
             & map
               ( \(name, ((oldTerm, _oldTyp), (newTerm, _newTyp))) ->
-                  P.lines
-                    [ P.red $
-                        P.syntaxToColor $
-                          TermPrinter.prettyBinding ppe (HQ.fromName name) oldTerm,
-                      P.green $
-                        P.syntaxToColor $
-                          TermPrinter.prettyBinding ppe (HQ.fromName name) newTerm
-                    ]
+                  let oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromName name) oldTerm
+                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromName name) newTerm
+                      oldLines = Text.lines oldText
+                      newLines = Text.lines newText
+                      diffLines = Diff.getDiff oldLines newLines
+                      renderDiffLine = \case
+                        Diff.First line -> P.red $ P.text $ "- " <> line
+                        Diff.Second line -> P.green $ P.text $ "+ " <> line
+                        Diff.Both line _ -> P.text $ "  " <> line
+                   in P.lines (map renderDiffLine diffLines)
               )
             & P.sepNonEmpty "\n"
 
