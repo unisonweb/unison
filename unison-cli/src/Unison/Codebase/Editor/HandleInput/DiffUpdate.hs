@@ -8,7 +8,6 @@ import Control.Monad.Reader.Class (ask)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
-import Unison.Builtin qualified as Builtin
 import Unison.Cli.Monad (Cli, Env (..))
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -16,7 +15,6 @@ import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.BuiltinAnnotation (builtinAnnotation)
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
@@ -28,8 +26,6 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
-import Unison.Reference (TermReference, TypeReference)
-import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
@@ -37,11 +33,9 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
-import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF)
 import Unison.Util.Relation qualified as Relation
-import Unison.Util.Set qualified as Set
 
 handleDiffUpdate :: Cli ()
 handleDiffUpdate = do
