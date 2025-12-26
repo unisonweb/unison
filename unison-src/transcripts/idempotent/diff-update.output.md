@@ -135,3 +135,129 @@ scratch/main> diff.update
 
   Run `update` to apply these changes.
 ```
+
+Let's apply the update so we can test more scenarios:
+
+``` ucm
+scratch/main> update
+
+  Done.
+```
+
+## Test diff.update with a modified type
+
+Let's add a type to the codebase:
+
+``` unison
+structural type Color = Red | Green | Blue
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Color
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+Now modify the type by adding a constructor:
+
+``` unison
+structural type Color = Red | Green | Blue | Yellow
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ structural type Color
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+Running `diff.update` should show the type change:
+
+``` ucm
+scratch/main> diff.update
+
+  Preview of changes that would be made by `update`:
+
+  Updated definitions:
+    - structural type Color = Red | Green | Blue
+    + structural type Color = Red | Green | Blue | Yellow
+
+  + (added), - (deleted)
+
+  Run `update` to apply these changes.
+```
+
+``` ucm
+scratch/main> update
+
+  Done.
+```
+
+## Test diff.update with a modified ability
+
+Let's add an ability to the codebase:
+
+``` unison
+structural ability Log where
+  log : Text -> ()
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Log
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> add
+
+  Done.
+```
+
+Now modify the ability by adding a new operation:
+
+``` unison
+structural ability Log where
+  log : Text -> ()
+  logLevel : Nat -> Text -> ()
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  ~ structural ability Log
+
+  ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+Running `diff.update` should show the ability change:
+
+``` ucm
+scratch/main> diff.update
+
+  Preview of changes that would be made by `update`:
+
+  Updated definitions:
+      structural ability Log where
+        log : Text ->{Log} ()
+    +   logLevel : Nat -> Text ->{Log} ()
+
+  + (added), - (deleted)
+
+  Run `update` to apply these changes.
+```

@@ -1008,7 +1008,6 @@ notifyUser dir issueFn = \case
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-
         let prettyBindings =
               P.bracket . P.lines $
                 P.wrap "The watch expression(s) reference these definitions:"
@@ -2650,7 +2649,8 @@ notifyUser dir issueFn = \case
                     Just legend -> legend
                     Nothing -> mempty
             ]
-  ShowUpdateDiff ppe newDefns updatedDefns dependents -> do
+  ShowUpdateDiff ppedNew ppedOld newDefns updatedDefns dependents -> do
+    let ppe = PPED.suffixifiedPPE ppedNew
     let colorAdd = P.green . ("+ " <>)
         colorUpdate = P.yellow . ("~ " <>)
 
@@ -2685,6 +2685,8 @@ notifyUser dir issueFn = \case
             & P.sepNonEmpty "\n"
 
     -- Render updated terms with inline diff (removed lines in red, added lines in green)
+    -- Use ppedOld for old terms (so old refs resolve to names)
+    -- Use ppedNew for new terms (so new refs resolve to names)
     let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
         renderUpdatedTerms terms =
           terms
@@ -2692,8 +2694,41 @@ notifyUser dir issueFn = \case
             & sortAlphabeticallyOn (view _1)
             & map
               ( \(name, ((oldTerm, _oldTyp), (newTerm, _newTyp))) ->
-                  let oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromName name) oldTerm
-                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromName name) newTerm
+                  let ppeOld = PPED.suffixifiedPPE ppedOld
+                      ppeNew = PPED.suffixifiedPPE ppedNew
+                      oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppeOld (HQ.fromName name) oldTerm
+                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppeNew (HQ.fromName name) newTerm
+                      oldLines = Text.lines oldText
+                      newLines = Text.lines newText
+                      diffLines = Diff.getDiff oldLines newLines
+                      renderDiffLine = \case
+                        Diff.First line -> P.red $ P.text $ "- " <> line
+                        Diff.Second line -> P.green $ P.text $ "+ " <> line
+                        Diff.Both line _ -> P.text $ "  " <> line
+                   in P.lines (map renderDiffLine diffLines)
+              )
+            & P.sepNonEmpty "\n"
+
+    -- Render updated types with inline diff (removed lines in red, added lines in green)
+    -- Use ppedOld for old types (so old refs resolve to names)
+    -- Use ppedNew for new types (so new refs resolve to names)
+    let renderUpdatedTypes :: Map Name ((TypeReferenceId, DD.Decl Symbol Ann), (TypeReferenceId, DD.Decl Symbol Ann)) -> Pretty
+        renderUpdatedTypes types =
+          types
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ((oldRefId, oldDecl), (newRefId, newDecl))) ->
+                  let oldRef = Reference.fromId oldRefId
+                      newRef = Reference.fromId newRefId
+                      oldText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedOld DeclPrinter.RenderUniqueTypeGuids'No oldRef (HQ.fromName name) oldDecl
+                      newText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedNew DeclPrinter.RenderUniqueTypeGuids'No newRef (HQ.fromName name) newDecl
                       oldLines = Text.lines oldText
                       newLines = Text.lines newText
                       diffLines = Diff.getDiff oldLines newLines
@@ -2738,7 +2773,7 @@ notifyUser dir issueFn = \case
                 then
                   P.linesNonEmpty
                     [ P.wrap "Updated definitions:",
-                      if Map.null updatedDefns.types then mempty else P.indentN 2 $ renderTypes colorUpdate updatedDefns.types,
+                      if Map.null updatedDefns.types then mempty else P.indentN 2 $ renderUpdatedTypes updatedDefns.types,
                       if Map.null updatedDefns.terms then mempty else P.indentN 2 $ renderUpdatedTerms updatedDefns.terms
                     ]
                 else mempty,

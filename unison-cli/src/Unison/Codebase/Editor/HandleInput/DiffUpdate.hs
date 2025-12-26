@@ -16,7 +16,7 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.DataDeclaration (DeclOrBuiltin)
+import Unison.DataDeclaration (Decl, DeclOrBuiltin)
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
@@ -26,6 +26,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl qualified as PPED
+import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
@@ -141,7 +142,7 @@ handleDiffUpdate = do
             updatedTermRefIds
             updatedFileTerms
 
-  -- Get type declarations from the file
+  -- Get type declarations from the file (including reference IDs)
   let fileDataDecls :: Map Name (DeclOrBuiltin Symbol Ann)
       fileDataDecls =
         Map.fromList
@@ -159,25 +160,74 @@ handleDiffUpdate = do
   let fileTypeDecls :: Map Name (DeclOrBuiltin Symbol Ann)
       fileTypeDecls = Map.union fileDataDecls fileEffectDecls
 
+  -- File types with their reference IDs (for updated types rendering)
+  let fileTypeDeclsWithRefIds :: Map Name (TypeReferenceId, Decl Symbol Ann)
+      fileTypeDeclsWithRefIds =
+        Map.fromList $
+          [ (Name.unsafeParseVar var, (refId, Right decl))
+            | (var, (refId, decl)) <- Map.toList (UF.dataDeclarationsId' tuf)
+          ]
+            ++ [ (Name.unsafeParseVar var, (refId, Left decl))
+                 | (var, (refId, decl)) <- Map.toList (UF.effectDeclarationsId' tuf)
+               ]
+
   let newTypes :: Map Name (DeclOrBuiltin Symbol Ann)
       newTypes = Map.restrictKeys fileTypeDecls newTypeNames
 
-  let updatedTypes :: Map Name (DeclOrBuiltin Symbol Ann)
-      updatedTypes = Map.restrictKeys fileTypeDecls updatedTypeNames
+  -- Types from the file that are updates to existing codebase definitions
+  let updatedFileTypes :: Map Name (TypeReferenceId, Decl Symbol Ann)
+      updatedFileTypes = Map.restrictKeys fileTypeDeclsWithRefIds updatedTypeNames
 
-  -- Build the PPE using file names (for new references) shadowing namespace names
+  -- Get the old types from the codebase for updated definitions
+  -- First, get the type reference IDs for the updated names
+  let updatedTypeRefIds :: Map Name TypeReferenceId
+      updatedTypeRefIds =
+        Map.fromList
+          [ (name, refId)
+            | name <- Set.toList updatedTypeNames,
+              Just typeRef <- [Map.lookup name (BiMultimap.range unconflictedView.defns.types)],
+              Just refId <- [Reference.toId typeRef]
+          ]
+
+  -- Fetch the old types from the codebase
+  oldTypes <- Cli.runTransaction do
+    let refIdSet = Set.fromList (Map.elems updatedTypeRefIds)
+    hydratedTypes <- hydrateRefs env.codebase (Defns Set.empty refIdSet)
+    pure hydratedTypes.types
+
+  -- Intersect old and new types to find updated definitions
+  -- Result: Map Name ((old refId, old decl), (new refId, new decl))
+  let updatedTypes :: Map Name ((TypeReferenceId, Decl Symbol Ann), (TypeReferenceId, Decl Symbol Ann))
+      updatedTypes =
+        Map.mapMaybe id $
+          Map.intersectionWith
+            ( \oldRefId (newRefId, newDecl) ->
+                case Map.lookup oldRefId oldTypes of
+                  Just oldDecl -> Just ((oldRefId, oldDecl), (newRefId, newDecl))
+                  Nothing -> Nothing
+            )
+            updatedTypeRefIds
+            updatedFileTypes
+
+  -- Build the PPEs:
+  -- - ppedNew: for new definitions (file names shadowing namespace names)
+  -- - ppedOld: for old definitions (just namespace names, so old refs resolve properly)
   let fileNames = UF.typecheckedToNames tuf
   let allNames = fileNames `Names.shadowing` namesIncludingLibdeps
-  let pped =
+  let ppedNew =
         PPED.makePPED
           (PPE.hqNamer 10 allNames)
           (PPE.suffixifyByHash allNames)
-  let ppe = PPED.suffixifiedPPE pped
+  let ppedOld =
+        PPED.makePPED
+          (PPE.hqNamer 10 namesIncludingLibdeps)
+          (PPE.suffixifyByHash namesIncludingLibdeps)
 
   -- Respond with the diff
   Cli.respond $
     Output.ShowUpdateDiff
-      ppe
+      ppedNew
+      ppedOld
       Defns {terms = newTerms, types = newTypes}
       Defns {terms = updatedTerms, types = updatedTypes}
       dependents
