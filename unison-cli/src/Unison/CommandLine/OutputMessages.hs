@@ -2652,7 +2652,6 @@ notifyUser dir issueFn = \case
   ShowUpdateDiff ppedNew ppedOld newDefns updatedDefns dependents -> do
     let ppe = PPED.suffixifiedPPE ppedNew
     let colorAdd = P.green . ("+ " <>)
-        colorUpdate = P.yellow . ("~ " <>)
 
     let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
         renderTypes colored types =
