@@ -96,21 +96,24 @@ handleDiffUpdate = do
 
       pure dependents1
 
-  -- Get the terms (body + type) for new and updated terms from the typechecked file
+  -- Get the terms (body + type + refId) for new and updated terms from the typechecked file
   -- hashTermsId returns: (ann, TermReferenceId, Maybe WatchKind, Term v a, Type v a)
-  let fileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
-      fileTerms =
+  let fileTermsWithRefIds :: Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+      fileTermsWithRefIds =
         Map.fromList
-          [ (Name.unsafeParseVar var, (term, typ))
-            | (var, (_, _, _, term, typ)) <- Map.toList (UF.hashTermsId tuf)
+          [ (Name.unsafeParseVar var, (refId, term, typ))
+            | (var, (_, refId, _, term, typ)) <- Map.toList (UF.hashTermsId tuf)
           ]
+
+  let fileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
+      fileTerms = Map.map (\(_, term, typ) -> (term, typ)) fileTermsWithRefIds
 
   let newTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
       newTerms = Map.restrictKeys fileTerms newTermNames
 
-  -- Terms from the file that are updates to existing codebase definitions
-  let updatedFileTerms :: Map Name (Term Symbol Ann, Type Symbol Ann)
-      updatedFileTerms = Map.restrictKeys fileTerms updatedTermNames
+  -- Terms from the file that are updates to existing codebase definitions (with new ref IDs)
+  let updatedFileTerms :: Map Name (TermReferenceId, Term Symbol Ann, Type Symbol Ann)
+      updatedFileTerms = Map.restrictKeys fileTermsWithRefIds updatedTermNames
 
   -- Get the old terms from the codebase for updated definitions
   -- First, get the term reference IDs for the updated names
@@ -130,14 +133,18 @@ handleDiffUpdate = do
     pure hydratedTerms.terms
 
   -- Intersect old and new terms to find updated definitions
+  -- Only include terms where the reference ID actually changed
   let updatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann))
       updatedTerms =
         Map.mapMaybe id $
           Map.intersectionWith
-            ( \refId newTerm ->
-                case Map.lookup refId oldTerms of
-                  Just oldTerm -> Just (oldTerm, newTerm)
-                  Nothing -> Nothing
+            ( \oldRefId (newRefId, newTerm, newTyp) ->
+                -- Skip terms where the hash hasn't changed (they're not actually updated)
+                if oldRefId == newRefId
+                  then Nothing
+                  else case Map.lookup oldRefId oldTerms of
+                    Just oldTerm -> Just (oldTerm, (newTerm, newTyp))
+                    Nothing -> Nothing
             )
             updatedTermRefIds
             updatedFileTerms
@@ -196,15 +203,19 @@ handleDiffUpdate = do
     pure hydratedTypes.types
 
   -- Intersect old and new types to find updated definitions
+  -- Only include types where the reference ID actually changed
   -- Result: Map Name ((old refId, old decl), (new refId, new decl))
   let updatedTypes :: Map Name ((TypeReferenceId, Decl Symbol Ann), (TypeReferenceId, Decl Symbol Ann))
       updatedTypes =
         Map.mapMaybe id $
           Map.intersectionWith
             ( \oldRefId (newRefId, newDecl) ->
-                case Map.lookup oldRefId oldTypes of
-                  Just oldDecl -> Just ((oldRefId, oldDecl), (newRefId, newDecl))
-                  Nothing -> Nothing
+                -- Skip types where the hash hasn't changed (they're not actually updated)
+                if oldRefId == newRefId
+                  then Nothing
+                  else case Map.lookup oldRefId oldTypes of
+                    Just oldDecl -> Just ((oldRefId, oldDecl), (newRefId, newDecl))
+                    Nothing -> Nothing
             )
             updatedTypeRefIds
             updatedFileTypes
