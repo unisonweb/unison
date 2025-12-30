@@ -514,3 +514,250 @@ RESPONSE:
   }
 
 ```
+
+## rename-definition
+
+``` ucm
+scratch/foo> builtins.merge lib.builtins
+
+  Done.
+```
+
+``` unison :hide
+termToRename = 42
+```
+
+``` ucm
+scratch/rename-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Now rename it (only changes the final segment):
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "rename-definition",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "rename-test"
+        },
+        "oldName": "termToRename",
+        "newNameSegment": "renamedTerm"
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Renamed:\\n\\n  termToRename -> renamedTerm\",\"Renamed:\\n\\n  termToRename -> renamedTerm\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+## move-definition
+
+First, set up a branch with a term to move:
+
+``` ucm
+scratch/move-test> builtins.merge lib.builtins
+
+  Done.
+```
+
+``` unison :hide
+original.termToMove = 99
+```
+
+``` ucm
+scratch/move-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Now move it to a different namespace:
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "move-definition",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "move-test"
+        },
+        "oldName": "original.termToMove",
+        "newName": "destination.movedTerm"
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done.\",\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+## delete-definitions
+
+First, set up a branch with a term to delete:
+
+``` ucm
+scratch/delete-test> builtins.merge lib.builtins
+
+  Done.
+```
+
+``` unison :hide
+termToDelete = 42
+```
+
+``` ucm
+scratch/delete-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Now delete it:
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "delete-definitions",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "delete-test"
+        },
+        "names": ["termToDelete"],
+        "force": false
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"I deleted these terms:\\n\\n  1. termToDelete\\n\\nTip: You can use `undo` or use a hash from `reflog` to undo this change.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+## delete-namespace
+
+First, set up a branch with a namespace containing definitions:
+
+``` ucm
+scratch/delete-ns-test> builtins.merge lib.builtins
+
+  Done.
+```
+
+``` unison :hide
+MyNamespace.foo = 1
+MyNamespace.bar = 2
+```
+
+``` ucm
+scratch/delete-ns-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Now delete the namespace:
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "delete-namespace",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "delete-ns-test"
+        },
+        "namespaceName": "MyNamespace",
+        "force": false
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done.\",\"Done.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
