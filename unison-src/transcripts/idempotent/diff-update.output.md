@@ -33,9 +33,6 @@ foo =
 ``` ucm
 scratch/main> add
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -144,9 +141,6 @@ Let's apply the update so we can test more scenarios:
 ``` ucm
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -168,9 +162,6 @@ structural type Color = Red | Green | Blue
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```
@@ -210,9 +201,6 @@ scratch/main> diff.update
 ``` ucm
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
   Done.
 ```
 
@@ -235,9 +223,6 @@ structural ability Log where
 
 ``` ucm
 scratch/main> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
 
   Done.
 ```

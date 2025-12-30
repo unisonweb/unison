@@ -2671,6 +2671,8 @@ notifyUser dir issueFn = \case
             & P.lines
 
     -- Render new terms with "+ " prefix on each line
+    -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
+    -- for better readability
     let renderTerms :: Map Name (Term Symbol Ann, Type Symbol Ann) -> Pretty
         renderTerms terms =
           terms
@@ -2678,7 +2680,7 @@ notifyUser dir issueFn = \case
             & sortAlphabeticallyOn (view _1)
             & map
               ( \(name, (term, _typ)) ->
-                  let termText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromName name) term
+                  let termText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppe (HQ.fromName name) term
                       termLines = Text.lines termText
                    in P.lines $ map (\line -> P.green $ P.text $ "+ " <> line) termLines
               )
@@ -2687,6 +2689,8 @@ notifyUser dir issueFn = \case
     -- Render updated terms with inline diff (removed lines in red, added lines in green)
     -- Use ppedOld for old terms (so old refs resolve to names)
     -- Use ppedNew for new terms (so new refs resolve to names)
+    -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
+    -- for better line-by-line diffing
     let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
         renderUpdatedTerms terms =
           terms
@@ -2696,8 +2700,8 @@ notifyUser dir issueFn = \case
               ( \(name, ((oldTerm, _oldTyp), (newTerm, _newTyp))) ->
                   let ppeOld = PPED.suffixifiedPPE ppedOld
                       ppeNew = PPED.suffixifiedPPE ppedNew
-                      oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppeOld (HQ.fromName name) oldTerm
-                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBinding ppeNew (HQ.fromName name) newTerm
+                      oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppeOld (HQ.fromName name) oldTerm
+                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppeNew (HQ.fromName name) newTerm
                       oldLines = Text.lines oldText
                       newLines = Text.lines newText
                       diffLines = Diff.getDiff oldLines newLines
