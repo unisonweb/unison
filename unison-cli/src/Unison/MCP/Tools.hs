@@ -65,6 +65,7 @@ tools =
     deleteDefinitionsTool,
     renameDefinitionTool,
     moveDefinitionTool,
+    moveToTool,
     deleteNamespaceTool
   ]
 
@@ -609,6 +610,30 @@ moveDefinitionTool =
         output <- handleInputMCP projectContext [Right $ Input.MoveAllI src dest]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
+    }
+
+moveToTool :: Tool MCP
+moveToTool =
+  Tool
+    { toolName = toToolName MoveToTool,
+      toolDescription = "Move one or more definitions or namespaces into a destination namespace. The final segment of each source is preserved in the destination.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Move To",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(MoveToToolArguments {projectContext, sources, destination}) -> handleToolError $ do
+        case NEL.nonEmpty sources of
+          Nothing ->
+            pure $ errorToolResult "No sources provided to move"
+          Just nonEmptySources -> do
+            output <- handleInputMCP projectContext [Right $ Input.MoveToI nonEmptySources destination]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
     }
 
 deleteNamespaceTool :: Tool MCP

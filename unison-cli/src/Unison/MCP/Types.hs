@@ -25,6 +25,7 @@ module Unison.MCP.Types
     DeleteDefinitionsToolArguments (..),
     RenameDefinitionToolArguments (..),
     MoveDefinitionToolArguments (..),
+    MoveToToolArguments (..),
     DeleteNamespaceToolArguments (..),
     toToolName,
     fromToolName,
@@ -93,6 +94,7 @@ data ToolKind
   | DeleteDefinitionsTool
   | RenameDefinitionTool
   | MoveDefinitionTool
+  | MoveToTool
   | DeleteNamespaceTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
@@ -122,6 +124,7 @@ kindNameMapping =
       (DeleteDefinitionsTool, "delete-definitions"),
       (RenameDefinitionTool, "rename-definition"),
       (MoveDefinitionTool, "move-definition"),
+      (MoveToTool, "move-to"),
       (DeleteNamespaceTool, "delete-namespace")
     ]
 
@@ -780,6 +783,47 @@ instance FromJSON MoveDefinitionToolArguments where
     oldName <- Name.unsafeParseText <$> o .: "oldName"
     newName <- Name.unsafeParseText <$> o .: "newName"
     pure $ MoveDefinitionToolArguments {projectContext, oldName, newName}
+
+data MoveToToolArguments = MoveToToolArguments
+  { projectContext :: ProjectContext,
+    sources :: [Path.Path'],
+    destination :: Path.Path'
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema MoveToToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "sources"
+                .= object
+                  [ "type" .= ("array" :: Text),
+                    "items"
+                      .= object
+                        [ "type" .= ("string" :: Text),
+                          "description" .= ("A path to move, e.g. `mynamespace.foo` or `MyType`." :: Text)
+                        ],
+                    "description" .= ("The paths of the definitions or namespaces to move. The final segment of each source is preserved in the destination." :: Text),
+                    "minItems" .= (1 :: Int)
+                  ],
+              "destination"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The destination namespace to move the sources into, e.g. `othernamespace` or `foo.bar`. Each source's final segment is preserved." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "sources", "destination" :: Text]
+      ]
+
+instance FromJSON MoveToToolArguments where
+  parseJSON = withObject "MoveToToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    sources <- fmap Path.unsafeParseText' <$> o .: "sources"
+    destination <- Path.unsafeParseText' <$> o .: "destination"
+    pure $ MoveToToolArguments {projectContext, sources, destination}
 
 data DeleteNamespaceToolArguments = DeleteNamespaceToolArguments
   { projectContext :: ProjectContext,

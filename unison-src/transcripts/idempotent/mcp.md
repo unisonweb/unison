@@ -637,6 +637,69 @@ RESPONSE:
 
 ```
 
+## move-to
+
+First, set up a branch with terms to move:
+
+``` ucm
+scratch/move-to-test> builtins.merge lib.builtins
+
+  Done.
+```
+
+``` unison :hide
+source.termA = 1
+source.termB = 2
+```
+
+``` ucm
+scratch/move-to-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Now move multiple terms into a destination namespace (preserving final segments):
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "move-to",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "move-to-test"
+        },
+        "sources": ["source.termA", "source.termB"],
+        "destination": "dest"
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Moved:\\n\\n  source.termA -> dest.termA\\n  source.termB -> dest.termB\",\"Moved:\\n\\n  source.termA -> dest.termA\\n  source.termB -> dest.termB\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
 ## delete-definitions
 
 First, set up a branch with a term to delete:
