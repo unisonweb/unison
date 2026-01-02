@@ -75,7 +75,9 @@ import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
+import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 import Unison.WatchKind qualified as WK
 import Witch (unsafeFrom)
 
@@ -110,23 +112,29 @@ handleUpdate2 = do
   -- anything in lib.*.
   let addedOrUpdatedNamespaceBindings0 :: Defns (Set Name, Map Name ()) (Set Name, Map Name ())
       addedOrUpdatedNamespaceBindings0 =
-        let f :: Name -> ref -> (Set Name, ())
-            f name _fileRef
-              | Name.beginsWithSegment name NameSegment.libSegment = (Set.singleton name, ())
+        let f :: (Eq ref1) => Relation Name ref1 -> (ref2 -> ref1) -> Name -> ref2 -> (Set Name, ())
+            f libdeps toRef name fileRef
+              | Name.beginsWithSegment name NameSegment.libSegment,
+                maybe True (/= toRef fileRef) (Set.asSingleton (Relation.lookupDom name libdeps)) =
+                  (Set.singleton name, ())
               | otherwise = (Set.empty, ())
             g :: (Eq ref1) => (ref2 -> ref1) -> name -> ref1 -> ref2 -> Maybe ()
             g toRef _ codebaseRef fileRef
               | codebaseRef == toRef fileRef = Nothing
               | otherwise = Just ()
-            h :: (Eq ref1) => (ref2 -> ref1) -> BiMultimap ref1 Name -> Map Symbol ref2 -> (Set Name, Map Name ())
-            h toRef codebaseDefns fileDefns =
+            h :: (Eq ref1) => Relation Name ref1 -> (ref2 -> ref1) -> BiMultimap ref1 Name -> Map Symbol ref2 -> (Set Name, Map Name ())
+            h libdeps toRef codebaseDefns fileDefns =
               Map.mergeA
                 Map.dropMissing
-                (Map.traverseMissing f)
+                (Map.traverseMissing (f libdeps toRef))
                 (Map.zipWithMaybeMatched (g toRef))
                 (BiMultimap.range codebaseDefns)
                 (Map.mapKeys Name.unsafeParseVar fileDefns)
-         in zipDefnsWith (h Referent.fromId) (h Reference.fromId) unconflictedView.defns (UF.namespaceBindingsMap tuf)
+         in zipDefnsWith
+              (h namesIncludingLibdeps.terms Referent.fromId)
+              (h namesIncludingLibdeps.types Reference.fromId)
+              unconflictedView.defns
+              (UF.namespaceBindingsMap tuf)
 
   let thingsInLibBeingAddedOrUpdated :: Set Name
       thingsInLibBeingAddedOrUpdated =
