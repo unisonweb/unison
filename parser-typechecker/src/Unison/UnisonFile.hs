@@ -37,6 +37,7 @@ module Unison.UnisonFile
     Unison.UnisonFile.rewrite,
     prepareRewrite,
     namespaceBindings,
+    namespaceBindingsMap,
     toDefnsIdsByName,
   )
 where
@@ -477,6 +478,10 @@ namespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> DefnsF Set v v
 namespaceBindings uf =
   Defns {terms = termNamespaceBindings uf, types = typeNamespaceBindings uf}
 
+namespaceBindingsMap :: (Ord v) => TypecheckedUnisonFile v a -> DefnsF (Map v) Referent.Id TypeReferenceId
+namespaceBindingsMap uf =
+  Defns {terms = termNamespaceBindingsMap uf, types = typeNamespaceBindingsMap uf}
+
 -- | All bindings in the term namespace: terms, test watches (since those are the only watches that are actually stored
 -- in the codebase), data constructors, and effect constructors.
 termNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
@@ -495,6 +500,34 @@ termNamespaceBindings uf =
         (Set.fromList . DataDeclaration.constructorVars . DataDeclaration.toDataDecl . view _2)
         uf.effectDeclarationsId'
 
+-- | Like 'termNamespaceBindings', but returns a map from variable name to referent.
+termNamespaceBindingsMap :: (Ord v) => TypecheckedUnisonFile v a -> Map v Referent.Id
+termNamespaceBindingsMap uf =
+  terms <> datacons <> effcons
+  where
+    terms =
+      hashTermsId uf
+        & Map.foldMapWithKey \var (_, ref, wk, _, _) ->
+          if WatchKind.watchKindShouldBeStoredInDatabase wk
+            then Map.singleton var (Referent.RefId ref)
+            else Map.empty
+    datacons =
+      foldMap
+        (\(ref, decl) -> cons ref decl CT.Data)
+        uf.dataDeclarationsId'
+    effcons =
+      foldMap
+        (\(ref, decl) -> cons ref (DataDeclaration.toDataDecl decl) CT.Effect)
+        uf.effectDeclarationsId'
+
+    cons :: (Ord v) => TypeReferenceId -> DataDeclaration v a -> CT.ConstructorType -> Map v Referent.Id
+    cons ref decl ct =
+      decl
+        & DataDeclaration.constructorVars
+        & zip [(0 :: ConstructorId) ..]
+        & map (\(cid, var) -> (var, Referent.ConId (ConstructorReference ref cid) ct))
+        & Map.fromList
+
 -- | All bindings in the term namespace: data declarations and effect declarations.
 typeNamespaceBindings :: (Ord v) => TypecheckedUnisonFile v a -> Set v
 typeNamespaceBindings uf =
@@ -502,6 +535,11 @@ typeNamespaceBindings uf =
   where
     datas = Map.keysSet uf.dataDeclarationsId'
     effs = Map.keysSet uf.effectDeclarationsId'
+
+-- | Like 'typeNamespaceBindings', but returns a map from variable name to reference.
+typeNamespaceBindingsMap :: (Ord v) => TypecheckedUnisonFile v a -> Map v TypeReferenceId
+typeNamespaceBindingsMap uf =
+  Map.union (Map.map fst uf.dataDeclarationsId') (Map.map fst uf.effectDeclarationsId')
 
 -- | View the top-level definitions of a typechecked unison file as a map from name to ref id (throwing away
 -- constructors, as well as term and type bodies).

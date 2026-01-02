@@ -9,8 +9,11 @@ where
 
 import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
+import Data.Bifoldable (bifoldMap)
 import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
@@ -44,6 +47,7 @@ import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
@@ -65,8 +69,9 @@ import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
 import Unison.Util.Alphabetical (sortAlphabeticallyOn)
+import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
-import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
+import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pretty
@@ -100,6 +105,40 @@ handleUpdate2 = do
       Codebase.getBranchDeclNameLookup env.codebase (Branch.namespaceHash currentBranch) unconflictedView
         & onLeftM (rollback . Output.IncoherentDeclDuringUpdate . DeclCoherencyCheck.asOneRandomIncoherentDeclReason)
 
+  -- Of all the namespace bindings in the latest typechecked Unison file, keep the ones that don't correspond to "no
+  -- change" (i.e. the thing was just `edit`-ed and untouched). We also reject the update entirely if it touches
+  -- anything in lib.*.
+  let addedOrUpdatedNamespaceBindings0 :: Defns (Set Name, Map Name ()) (Set Name, Map Name ())
+      addedOrUpdatedNamespaceBindings0 =
+        let f :: Name -> ref -> (Set Name, ())
+            f name _fileRef
+              | Name.beginsWithSegment name NameSegment.libSegment = (Set.singleton name, ())
+              | otherwise = (Set.empty, ())
+            g :: (Eq ref1) => (ref2 -> ref1) -> name -> ref1 -> ref2 -> Maybe ()
+            g toRef _ codebaseRef fileRef
+              | codebaseRef == toRef fileRef = Nothing
+              | otherwise = Just ()
+            h :: (Eq ref1) => (ref2 -> ref1) -> BiMultimap ref1 Name -> Map Symbol ref2 -> (Set Name, Map Name ())
+            h toRef codebaseDefns fileDefns =
+              Map.mergeA
+                Map.dropMissing
+                (Map.traverseMissing f)
+                (Map.zipWithMaybeMatched (g toRef))
+                (BiMultimap.range codebaseDefns)
+                (Map.mapKeys Name.unsafeParseVar fileDefns)
+         in zipDefnsWith (h Referent.fromId) (h Reference.fromId) unconflictedView.defns (UF.namespaceBindingsMap tuf)
+
+  let thingsInLibBeingAddedOrUpdated :: Set Name
+      thingsInLibBeingAddedOrUpdated =
+        bifoldMap fst fst addedOrUpdatedNamespaceBindings0
+
+  whenJust (Set.NonEmpty.nonEmptySet thingsInLibBeingAddedOrUpdated) \things ->
+    Cli.returnEarly (Output.CantUpdateLib things)
+
+  let addedOrUpdatedNamespaceBindings :: DefnsF Set Name Name
+      addedOrUpdatedNamespaceBindings =
+        bimap (Map.keysSet . snd) (Map.keysSet . snd) addedOrUpdatedNamespaceBindings0
+
   let namespaceBindings :: DefnsF Set Name Name
       namespaceBindings =
         bimap (Set.map Name.unsafeParseVar) (Set.map Name.unsafeParseVar) (UF.namespaceBindings tuf)
@@ -118,8 +157,8 @@ handleUpdate2 = do
                 unconflictedView.defns
                 ( Names.references
                     Names
-                      { terms = Relation.restrictDom namespaceBindings.terms unconflictedView.names.terms,
-                        types = Relation.restrictDom namespaceBindings.types unconflictedView.names.types
+                      { terms = Relation.restrictDom addedOrUpdatedNamespaceBindings.terms unconflictedView.names.terms,
+                        types = Relation.restrictDom addedOrUpdatedNamespaceBindings.types unconflictedView.names.types
                       }
                 )
 

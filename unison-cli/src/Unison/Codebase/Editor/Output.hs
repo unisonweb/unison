@@ -501,6 +501,8 @@ data Output
     -- First FilePath is the canonical path on success (Nothing on failure),
     -- second is the original path requested.
     WatchAddResult !(Maybe FilePath) !FilePath
+  | -- `update` was attempted, but it would have either added or edited something in lib.*
+    CantUpdateLib !(NESet Name)
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -766,6 +768,7 @@ isFailure o = case o of
   WatchDisabled -> True
   WatchAddResult Nothing _ -> True
   WatchAddResult (Just _) _ -> False
+  CantUpdateLib _ -> True
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case

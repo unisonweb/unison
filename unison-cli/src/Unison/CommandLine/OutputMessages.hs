@@ -2755,6 +2755,23 @@ notifyUser dir issueFn = \case
         "When I tried to watch"
           <> P.group (P.blue (P.string originalPath) <> ",")
           <> "it didn't seem to exist."
+  CantUpdateLib names ->
+    pure . P.fatalCallout $
+      P.wrap "Your scratch file has edits to the following definitions:"
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( names
+              & Set.NonEmpty.toList
+              & NEList.toList
+              & List.sortBy Name.compareAlphabetical
+              & map prettyName
+              & P.lines
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap "Modifying definitions in `lib` is not allowed."
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $
