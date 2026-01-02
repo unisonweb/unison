@@ -573,7 +573,7 @@ renameDefinitionTool :: Tool MCP
 renameDefinitionTool =
   Tool
     { toolName = toToolName RenameDefinitionTool,
-      toolDescription = "Rename a definition (term, type, or namespace) by changing only its final name segment. The parent path is preserved.",
+      toolDescription = "Rename a definition (term, type, or namespace) by changing only its final name segment. The parent path is preserved. For example, `rename foo.bar.baz Qux` changes the name `baz` to `Qux`, producing `foo.bar.Qux`. To move a definition to a different namespace, use `move-to` instead.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Rename Definition",
@@ -594,7 +594,7 @@ moveDefinitionTool :: Tool MCP
 moveDefinitionTool =
   Tool
     { toolName = toToolName MoveDefinitionTool,
-      toolDescription = "Move a definition (term, type, or namespace) to a new path. Can change the full path including parent namespace.",
+      toolDescription = "Move a definition (term, type, or namespace) to a completely new path. For example, `move foo.bar baz.qux` renames `foo.bar` to `baz.qux`. This changes the full path, not just the final segment.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Move Definition",
@@ -616,7 +616,7 @@ moveToTool :: Tool MCP
 moveToTool =
   Tool
     { toolName = toToolName MoveToTool,
-      toolDescription = "Move one or more definitions or namespaces into a destination namespace. The final segment of each source is preserved in the destination.",
+      toolDescription = "Move one or more definitions or namespaces into a destination namespace. The final segment of each source is preserved. For example, `moveTo foo.bar dest` moves `foo.bar` into namespace `dest`, producing `dest.bar`. Multiple sources can be moved at once: `moveTo foo bar baz dest` moves all three into `dest`.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Move To",
