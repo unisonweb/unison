@@ -22,6 +22,7 @@ import Unison.Codebase.ProjectPath
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
+import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.MCP.Cli (cliToMCP, handleInputMCP, virtualSourceName)
 import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
@@ -60,7 +61,12 @@ tools =
     searchByTypeTool,
     dependenciesTool,
     dependentsTool,
-    runTestsTool
+    runTestsTool,
+    deleteDefinitionsTool,
+    renameDefinitionTool,
+    moveDefinitionTool,
+    moveToTool,
+    deleteNamespaceTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -537,3 +543,119 @@ handleToolError action = do
   case result of
     Left err -> pure $ errorToolResult err
     Right res -> pure res
+
+deleteDefinitionsTool :: Tool MCP
+deleteDefinitionsTool =
+  Tool
+    { toolName = toToolName DeleteDefinitionsTool,
+      toolDescription = "Delete one or more definitions (terms or types) from the codebase.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Delete Definitions",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(DeleteDefinitionsToolArguments {projectContext, names, force}) -> handleToolError $ do
+        case NEL.nonEmpty names of
+          Nothing ->
+            pure $ errorToolResult "No names provided to delete"
+          Just nonEmptyNames -> do
+            let names' = HQ'.NameOnly <$> NEL.toList nonEmptyNames
+            output <- handleInputMCP projectContext [Right $ Input.DeleteI force Input.DeleteTarget'TermOrType names']
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
+    }
+
+renameDefinitionTool :: Tool MCP
+renameDefinitionTool =
+  Tool
+    { toolName = toToolName RenameDefinitionTool,
+      toolDescription = "Rename a definition (term, type, or namespace) by changing only its final name segment. The parent path is preserved. For example, `rename foo.bar.baz Qux` changes the name `baz` to `Qux`, producing `foo.bar.Qux`. To move a definition to a different namespace, use `move-to` instead.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Rename Definition",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(RenameDefinitionToolArguments {projectContext, oldName, newNameSegment}) -> handleToolError $ do
+        let src = Path.fromName' oldName
+        output <- handleInputMCP projectContext [Right $ Input.RenameI src newNameSegment]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+moveDefinitionTool :: Tool MCP
+moveDefinitionTool =
+  Tool
+    { toolName = toToolName MoveDefinitionTool,
+      toolDescription = "Move a definition (term, type, or namespace) to a completely new path. For example, `move foo.bar baz.qux` renames `foo.bar` to `baz.qux`. This changes the full path, not just the final segment.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Move Definition",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(MoveDefinitionToolArguments {projectContext, oldName, newName}) -> handleToolError $ do
+        let src = Path.fromName' oldName
+            dest = Path.fromName' newName
+        output <- handleInputMCP projectContext [Right $ Input.MoveAllI src dest]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+moveToTool :: Tool MCP
+moveToTool =
+  Tool
+    { toolName = toToolName MoveToTool,
+      toolDescription = "Move one or more definitions or namespaces into a destination namespace. The final segment of each source is preserved. For example, `moveTo foo.bar dest` moves `foo.bar` into namespace `dest`, producing `dest.bar`. Multiple sources can be moved at once: `moveTo foo bar baz dest` moves all three into `dest`.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Move To",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(MoveToToolArguments {projectContext, sources, destination}) -> handleToolError $ do
+        case NEL.nonEmpty sources of
+          Nothing ->
+            pure $ errorToolResult "No sources provided to move"
+          Just nonEmptySources -> do
+            output <- handleInputMCP projectContext [Right $ Input.MoveToI nonEmptySources destination]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
+    }
+
+deleteNamespaceTool :: Tool MCP
+deleteNamespaceTool =
+  Tool
+    { toolName = toToolName DeleteNamespaceTool,
+      toolDescription = "Delete a namespace and all definitions within it from the codebase.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Delete Namespace",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(DeleteNamespaceToolArguments {projectContext, namespaceName, force}) -> handleToolError $ do
+        let (path, finalSegment) = Path.splitFromName namespaceName
+            split = (Path.Relative path, finalSegment)
+            insistence = if force then Input.Force else Input.Try
+        output <- handleInputMCP projectContext [Right $ Input.DeleteNamespaceI insistence (Just split)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
