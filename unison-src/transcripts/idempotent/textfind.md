@@ -49,17 +49,26 @@ qux =
 
 lib.foo = [Any 46, Any "hi", Any "zoink"]
 lib.bar = 3
+
+magicNumber = 230971246918247
+
+openSesame : Nat -> Text
+openSesame = cases
+  230971246918247 -> "You guessed the password!"
+  _ -> "Try again."
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + bar     : Nat
-  + baz     : [Text]
-  + foo     : Nat
-  + lib.bar : Nat
-  + lib.foo : [Any]
-  + qux     : Nat
+  + bar         : Nat
+  + baz         : [Text]
+  + foo         : Nat
+  + lib.bar     : Nat
+  + lib.foo     : [Any]
+  + magicNumber : Nat
+  + openSesame  : Nat -> Text
+  + qux         : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -207,4 +216,20 @@ Notice it gives the tip about `text.find.all`. But not here:
 > grep.all lsdkfjlskdjfsd
 
   😶 I couldn't find any matches.
+```
+
+Searching for numeric literals should find them both in expression position (rval) and in pattern position:
+
+``` ucm
+> grep "230971246918247"
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. magicNumber
+    2. openSesame
+
+  Tip: Try `edit 1` or `edit 1-2` to bring these into your
+       scratch file.
 ```
