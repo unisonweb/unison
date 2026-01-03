@@ -658,4 +658,3 @@ deleteNamespaceTool =
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
-
