@@ -214,11 +214,11 @@ token'' tok p = do
                 -- `{layout = [], opening = Nothing, inLayout = True}`
                   fail "internal error: token''"
 
-    -- don't emit virtual semis in (, {, or [ blocks
+    -- don't emit virtual semis in (, {, [, or match blocks
     topContainsVirtualSemis :: Layout -> Bool
     topContainsVirtualSemis = \case
       [] -> False
-      ((name, _) : _) -> name /= "(" && name /= "{" && name /= "["
+      ((name, _) : _) -> name `notElem` ["(", "{", "[", "match"]
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
