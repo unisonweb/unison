@@ -31,6 +31,9 @@ main = do
 ``` ucm
 scratch/main> update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -527,6 +530,9 @@ termToRename = 42
 ``` ucm
 scratch/rename-test> update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -585,6 +591,9 @@ original.termToMove = 99
 
 ``` ucm
 scratch/move-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -646,6 +655,9 @@ source.termB = 2
 ``` ucm
 scratch/move-to-test> update
 
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
   Done.
 ```
 
@@ -704,6 +716,9 @@ termToDelete = 42
 
 ``` ucm
 scratch/delete-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
@@ -764,6 +779,9 @@ MyNamespace.bar = 2
 
 ``` ucm
 scratch/delete-ns-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
 
   Done.
 ```
