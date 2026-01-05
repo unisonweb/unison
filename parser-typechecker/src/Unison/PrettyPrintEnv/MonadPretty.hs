@@ -2,6 +2,7 @@ module Unison.PrettyPrintEnv.MonadPretty
   ( MonadPretty,
     Env (..),
     runPretty,
+    runPrettyForDiff,
     addTypeVars,
     willCaptureType,
     withBoundTerm,
@@ -25,7 +26,11 @@ data Env v = Env
   { boundTerms :: !(Set v),
     boundTypes :: !(Set v),
     freeTerms :: !(Set v),
-    ppe :: !PrettyPrintEnv
+    ppe :: !PrettyPrintEnv,
+    -- | When True, always use raw strings (triple-quoted) for multiline text,
+    -- even when nested inside other expressions. This is useful for diff output
+    -- where we want actual newlines for better line-by-line diffing.
+    forceRawStrings :: !Bool
   }
   deriving stock (Generic)
 
@@ -57,7 +62,22 @@ runPretty ppe m =
       { boundTerms = Set.empty,
         boundTypes = Set.empty,
         freeTerms = Set.empty,
-        ppe
+        ppe,
+        forceRawStrings = False
+      }
+
+-- | Like 'runPretty', but enables raw string rendering for multiline text.
+-- This is useful for diff output where we want actual newlines for better diffing.
+runPrettyForDiff :: (Var v) => PrettyPrintEnv -> Reader (Env v) a -> a
+runPrettyForDiff ppe m =
+  runReader
+    m
+    Env
+      { boundTerms = Set.empty,
+        boundTypes = Set.empty,
+        freeTerms = Set.empty,
+        ppe,
+        forceRawStrings = True
       }
 
 -- Note [Bound and free term variables]

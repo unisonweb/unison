@@ -54,6 +54,7 @@ tools =
     listLibraryDefinitionsTool,
     viewDefinitionsTool,
     updateTool,
+    diffUpdateTool,
     listLocalProjectsTool,
     listProjectBranchesTool,
     getCurrentProjectContextTool,
@@ -364,6 +365,24 @@ updateTool =
       toolArgType = Proxy,
       toolHandler = \(UpdateDefinitionsToolArguments {projectContext, code}) -> handleToolError $ do
         withCode code [Input.Update2I] projectContext
+    }
+
+diffUpdateTool :: Tool MCP
+diffUpdateTool =
+  Tool
+    { toolName = toToolName DiffUpdateTool,
+      toolDescription = "Show a diff of what changes would be made if `update` were run with the provided code. This is a read-only preview that doesn't modify the codebase.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Diff Update",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(DiffUpdateToolArguments {projectContext, code}) -> handleToolError $ do
+        withCode code [Input.DiffUpdateI] projectContext
     }
 
 listLocalProjectsTool :: Tool MCP

@@ -154,6 +154,7 @@ data Input
   | DeleteProjectI ProjectName
   | DiffBranchI !DiffBranchArg !DiffBranchArg
   | DiffNamespaceI BranchId2 BranchId2 -- old new
+  | DiffUpdateI
   | DisplayI OutputLocation (NonEmpty (HQ.HashQualified Name))
   | DocToMarkdownI Name
   | DocsI (NonEmpty Name)
