@@ -1225,6 +1225,10 @@ declareForeigns = do
 
   declareForeign Untracked 3 Crypto_Rsa_verify_impl
 
+  declareForeign Untracked 6 Crypto_Argon2_HashWith
+  declareForeign Tracked 5 Crypto_Argon2_HashAutoWith
+  declareForeign Untracked 2 Crypto_Argon2_Verify
+
   declareForeignWrap Untracked murmur'hash Universal_murmurHash
   declareForeignWrap Untracked murmur'hash Universal_murmurHashUntyped
 

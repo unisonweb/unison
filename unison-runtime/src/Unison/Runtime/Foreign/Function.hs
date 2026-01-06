@@ -32,6 +32,7 @@ import Crypto.Hash qualified as Hash
 import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
+import Crypto.Argon2 qualified as Argon2
 import Crypto.Random (getRandomBytes)
 import Data.Avro qualified as Avro
 import Data.Avro.Encoding.FromAvro qualified as FromAvro
@@ -59,6 +60,7 @@ import Data.Text.Internal qualified as TS (Text (..))
 import Data.Text.Internal.Lazy qualified as TL (Text (..))
 import Data.Text.Internal.StrictBuilder qualified as TB
 import Data.Text.Lazy qualified as TL
+import Data.Text.Short qualified as ShortText
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
@@ -657,6 +659,14 @@ foreignCallHelper = \case
   Crypto_Rsa_verify_impl ->
     mkForeign $
       pure . verifyRsaWrapper
+  Crypto_Argon2_HashWith ->
+    mkForeign $
+      pure . argon2HashWithWrapper
+  Crypto_Argon2_HashAutoWith ->
+    mkForeign argon2HashAutoWithWrapper
+  Crypto_Argon2_Verify ->
+    mkForeign $
+      pure . argon2VerifyWrapper
   Universal_murmurHash ->
     mkForeign $
       pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
@@ -1461,6 +1471,106 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
     msg = Bytes.toArray msg0 :: ByteString
     sig = Bytes.toArray sig0 :: ByteString
     validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
+
+-- | Hash a password with Argon2id using the provided options and salt.
+-- Takes: (memory KiB, iterations, parallelism, outputLen, password, salt)
+-- Returns: PHC-encoded hash string or failure
+argon2HashWithWrapper ::
+  (Word64, Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes) -> Either Failure Util.Text.Text
+argon2HashWithWrapper (memory, iterations, parallelism, outputLen, password0, salt0) =
+  case Argon2.hashEncoded opts password salt of
+    Left status ->
+      Left $ F.Failure Ty.cryptoFailureRef (argon2ErrMsg status) unitValue
+    Right encoded ->
+      Right . Util.Text.fromText . ShortText.toText $ encoded
+  where
+    password = Bytes.toArray password0 :: ByteString
+    salt = Bytes.toArray salt0 :: ByteString
+    opts =
+      Argon2.HashOptions
+        { Argon2.hashIterations = fromIntegral iterations,
+          Argon2.hashMemory = fromIntegral memory,
+          Argon2.hashParallelism = fromIntegral parallelism,
+          Argon2.hashVariant = Argon2.Argon2id,
+          Argon2.hashVersion = Argon2.Argon2Version13,
+          Argon2.hashLength = fromIntegral outputLen
+        }
+
+-- | Hash a password with Argon2id, auto-generating a 16-byte random salt.
+-- Takes: (memory KiB, iterations, parallelism, outputLen, password)
+-- Returns: PHC-encoded hash string or failure
+argon2HashAutoWithWrapper ::
+  (Word64, Word64, Word64, Word64, Bytes.Bytes) -> IO (Either Failure Util.Text.Text)
+argon2HashAutoWithWrapper (memory, iterations, parallelism, outputLen, password0) = do
+  salt <- getRandomBytes @IO @ByteString 16
+  let password = Bytes.toArray password0 :: ByteString
+      opts =
+        Argon2.HashOptions
+          { Argon2.hashIterations = fromIntegral iterations,
+            Argon2.hashMemory = fromIntegral memory,
+            Argon2.hashParallelism = fromIntegral parallelism,
+            Argon2.hashVariant = Argon2.Argon2id,
+            Argon2.hashVersion = Argon2.Argon2Version13,
+            Argon2.hashLength = fromIntegral outputLen
+          }
+  pure $ case Argon2.hashEncoded opts password salt of
+    Left status ->
+      Left $ F.Failure Ty.cryptoFailureRef (argon2ErrMsg status) unitValue
+    Right encoded ->
+      Right . Util.Text.fromText . ShortText.toText $ encoded
+
+-- | Verify a password against a PHC-encoded Argon2 hash.
+-- Takes: (encoded hash, password)
+-- Returns: True if password matches
+argon2VerifyWrapper ::
+  (Util.Text.Text, Bytes.Bytes) -> Bool
+argon2VerifyWrapper (encoded0, password0) =
+  case Argon2.verifyEncoded (ShortText.fromText $ Util.Text.toText encoded0) password of
+    Argon2.Argon2Ok -> True
+    _ -> False
+  where
+    password = Bytes.toArray password0 :: ByteString
+
+-- | Convert Argon2Status to human-readable error message
+argon2ErrMsg :: Argon2.Argon2Status -> Util.Text.Text
+argon2ErrMsg status = Util.Text.pack $ "argon2: " ++ case status of
+  Argon2.Argon2Ok -> "ok"
+  Argon2.Argon2OutputPtrNull -> "output pointer null"
+  Argon2.Argon2OutputTooShort -> "output too short"
+  Argon2.Argon2OutputTooLong -> "output too long"
+  Argon2.Argon2PwdTooShort -> "password too short"
+  Argon2.Argon2PwdTooLong -> "password too long"
+  Argon2.Argon2SaltTooShort -> "salt too short (minimum 8 bytes)"
+  Argon2.Argon2SaltTooLong -> "salt too long"
+  Argon2.Argon2AdTooShort -> "associated data too short"
+  Argon2.Argon2AdTooLong -> "associated data too long"
+  Argon2.Argon2SecretTooShort -> "secret too short"
+  Argon2.Argon2SecretTooLong -> "secret too long"
+  Argon2.Argon2TimeTooSmall -> "iterations too small"
+  Argon2.Argon2TimeTooLarge -> "iterations too large"
+  Argon2.Argon2MemoryTooLittle -> "memory too little"
+  Argon2.Argon2MemoryTooMuch -> "memory too much"
+  Argon2.Argon2LanesTooFew -> "lanes too few"
+  Argon2.Argon2LanesTooMany -> "lanes too many"
+  Argon2.Argon2PwdPtrMismatch -> "password pointer mismatch"
+  Argon2.Argon2SaltPtrMismatch -> "salt pointer mismatch"
+  Argon2.Argon2SecretPtrMismatch -> "secret pointer mismatch"
+  Argon2.Argon2AdPtrMismatch -> "associated data pointer mismatch"
+  Argon2.Argon2MemoryAllocationError -> "memory allocation error"
+  Argon2.Argon2FreeMemoryCbkNull -> "free memory callback null"
+  Argon2.Argon2AllocateMemoryCbkNull -> "allocate memory callback null"
+  Argon2.Argon2IncorrectParameter -> "incorrect parameter"
+  Argon2.Argon2IncorrectType -> "incorrect type"
+  Argon2.Argon2OutPtrMismatch -> "output pointer mismatch"
+  Argon2.Argon2ThreadsTooFew -> "threads too few"
+  Argon2.Argon2ThreadsTooMany -> "threads too many"
+  Argon2.Argon2MissingArgs -> "missing arguments"
+  Argon2.Argon2EncodingFail -> "encoding failed"
+  Argon2.Argon2DecodingFail -> "decoding failed"
+  Argon2.Argon2ThreadFail -> "thread failed"
+  Argon2.Argon2DecodingLengthFail -> "decoding length failed"
+  Argon2.Argon2VerifyMismatch -> "password does not match"
+  Argon2.Argon2InternalError -> "internal error"
 
 type Failure = F.Failure Val
 
@@ -2781,6 +2891,47 @@ instance
 
   readAtIndex stk i = bpeekOff stk i >>= decodeTup5
   writeBack stk p = bpoke stk $ encodeTup5 p
+
+pattern Tup5V v w x y z = BoxedVal (Tup5C v w x y z)
+
+pattern Tup6C u v w x y z = ConsC u (Tup5V v w x y z)
+
+decodeTup6 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d, ForeignConvention e, ForeignConvention f) => Closure -> IO (a, b, c, d, e, f)
+decodeTup6 (Tup6C u v w x y z) =
+  (,,,,,) <$> decodeVal u <*> decodeVal v <*> decodeVal w <*> decodeVal x <*> decodeVal y <*> decodeVal z
+decodeTup6 c = foreignConventionError "Sextuple" (BoxedVal c)
+
+encodeTup6 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d, ForeignConvention e, ForeignConvention f) => (a, b, c, d, e, f) -> Closure
+encodeTup6 (u, v, w, x, y, z) =
+  Tup6C (encodeVal u) (encodeVal v) (encodeVal w) (encodeVal x) (encodeVal y) (encodeVal z)
+
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
+    ForeignConvention d,
+    ForeignConvention e,
+    ForeignConvention f
+  ) =>
+  ForeignConvention (a, b, c, d, e, f)
+  where
+  decodeVal (BoxedVal c) = decodeTup6 c
+  decodeVal v = foreignConventionError "Sextuple" v
+
+  encodeVal = BoxedVal . encodeTup6
+
+  readsAt stk (VArgN v) =
+    (,,,,,)
+      <$> readAtIndex stk (PA.indexPrimArray v 0)
+      <*> readAtIndex stk (PA.indexPrimArray v 1)
+      <*> readAtIndex stk (PA.indexPrimArray v 2)
+      <*> readAtIndex stk (PA.indexPrimArray v 3)
+      <*> readAtIndex stk (PA.indexPrimArray v 4)
+      <*> readAtIndex stk (PA.indexPrimArray v 5)
+  readsAt _ as = readsAtError "six arguments" as
+
+  readAtIndex stk i = bpeekOff stk i >>= decodeTup6
+  writeBack stk p = bpoke stk $ encodeTup6 p
 
 decodeFailure :: (ForeignConvention a) => Closure -> IO (F.Failure a)
 decodeFailure (DataG _ _ (_, args)) =

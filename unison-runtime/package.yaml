@@ -53,6 +53,7 @@ library:
     - cbits/i2d.c
 
   dependencies:
+    - argon2
     - asn1-encoding
     - asn1-types
     - atomic-primops
@@ -90,6 +91,7 @@ library:
     - tagged
     - temporary
     - text
+    - text-short
     - template-haskell
     - inspection-testing
     - time
