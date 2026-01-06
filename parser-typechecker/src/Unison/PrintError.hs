@@ -2134,7 +2134,7 @@ renderParseErrors s = \case
                 "",
                 Pr.wrap "A variable can only be bound once in a pattern."
               ]
-      in (msg, mapMaybe rangeForAnnotated [ann1, ann2])
+       in (msg, mapMaybe rangeForAnnotated [ann1, ann2])
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText
