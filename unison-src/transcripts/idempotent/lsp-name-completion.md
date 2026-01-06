@@ -5,18 +5,24 @@
 ``` unison :hide
 foldMap = "top-level"
 nested.deeply.foldMap = "nested"
-lib.base.foldMap = "lib"
-lib.dep.lib.transitive.foldMap = "transitive-lib"
+base.foldMap = "lib"
+dep.lib.transitive.foldMap = "transitive-lib"
 -- A deeply nested definition with the same hash as the top level one.
 -- This should not be included in the completion results if a better name with the same hash IS included.
-lib.dep.lib.transitive_same_hash.foldMap = "top-level"
+dep.lib.transitive_same_hash.foldMap = "top-level"
 foldMapWith = "partial match"
 
 other = "other"
 ```
 
 ``` ucm :hide
-> add
+> update
+
+> move base.foldMap lib.base.foldMap
+
+> move dep.lib.transitive.foldMap lib.dep.lib.transitive.foldMap
+
+> move dep.lib.transitive_same_hash.foldMap lib.dep.lib.transitive_same_hash.foldMap
 ```
 
 Completion should find all the `foldMap` definitions in the codebase,

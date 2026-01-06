@@ -64,20 +64,29 @@ Tests should be cached if unchanged.
 `test` won't descend into the `lib` namespace, but `test.all` will.
 
 ``` unison
-lib.dep.testInLib : [Result]
-lib.dep.testInLib = [Ok "testInLib"]
+dep.testInLib : [Result]
+dep.testInLib = [Ok "testInLib"]
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.dep.testInLib : [Result]
+  + dep.testInLib : [Result]
 
   Run `update` to apply these changes to your codebase.
 ```
 
-``` ucm :hide
-> add
+``` ucm
+> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> move dep.testInLib lib.dep.testInLib
+
+  Done.
 ```
 
 ``` ucm
