@@ -221,6 +221,11 @@ enclose keep rec (Let1NamedTop' top v b@(unAnn -> LamsNamed' vs bd) e) =
       | Ann' _ ty <- b = ann a tm ty
       | otherwise = tm
     lamb = lamWithoutBindingAnns a evs (annotate $ lamWithoutBindingAnns a vs lbody)
+-- No lambda. Won't be floated, might shadow variable in `keep`.
+enclose keep rec (Let1NamedTop' top v bn bd) =
+  Just $
+    let1' top [(v, rec keep bn)]
+      (rec (Set.delete v keep) bd)
 enclose keep rec t@(LamsAnnot vs0 mty vs1 body) =
   Just $ if null evs then lamb else apps' lamb $ map (var a) evs
   where
