@@ -759,7 +759,7 @@ inputDescription input =
     AliasTypeI force src0 dest0 -> do
       src <- hhqs' src0
       dest <- ps' dest0
-      pure ((if force then "debug.alias.type.force " else "alias.term ") <> src <> " " <> dest)
+      pure ((if force then "debug.alias.type.force " else "alias.type ") <> src <> " " <> dest)
     AliasManyI srcs0 dest0 -> do
       srcs <- traverse hqs srcs0
       dest <- p' dest0
