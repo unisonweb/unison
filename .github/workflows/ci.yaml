@@ -24,8 +24,6 @@ env:
   transcript_test_results: transcript-test-results
   interpreter_test_results: interpreter-test-results
 
-  # work around https://github.com/actions/cache/issues/1547 which may continue causing failures until March 1, 2025
-  ACTIONS_CACHE_SERVICE_V2: true
 
 jobs:
   build-ucm:
@@ -71,9 +69,10 @@ jobs:
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         id: restore-stack-caches
-        uses: unisonweb/actions/stack/cache/restore@main
+        uses: unisonweb/actions/stack/cache/restore@topic/discontinue-buildjet
         with:
-          cache-prefix: ci
+          cache-prefix: ucm
+          work-cache-prefix: ci
 
       - name: install stack
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -188,9 +187,10 @@ jobs:
           !cancelled()
             && steps.restore-stack-caches.outputs.cache-hit != 'true'
             && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
-        uses: unisonweb/actions/stack/cache/save@main
+        uses: unisonweb/actions/stack/cache/save@topic/discontinue-buildjet
         with:
-          cache-prefix: ci
+          cache-prefix: ucm
+          work-cache-prefix: ci
 
       # placing this after the cache is saved, to avoid unnecessary invalidation
       - name: optimization checks

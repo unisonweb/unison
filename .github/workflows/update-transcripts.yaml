@@ -15,10 +15,11 @@ jobs:
           - macos-15-intel
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: unisonweb/actions/stack/cache/restore@main
+      - uses: unisonweb/actions/stack/cache/restore@topic/discontinue-buildjet
         with:
           # take cache from the ci job, read-only
-          cache-prefix: ci
+          cache-prefix: ucm
+          work-cache-prefix: ci
 
       - name: install stack
         uses: unisonweb/actions/stack/install@main
