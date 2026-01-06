@@ -24,6 +24,7 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -65,6 +66,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.Components qualified as Components
 import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.Map qualified as Map
 import Unison.Util.Recursion
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -204,11 +206,27 @@ matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c 
 --
 --   42, x -> ...
 --   (42, x) -> ...
-matchCase :: (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
+matchCase :: forall m v. (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
   pats <- sepBy1 (label "\",\"" $ reserved ",") (parsePattern >>= bindConstructorsInPattern)
-  let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
-      pat = case fst <$> pats of
+  let boundVars0 = concatMap snd pats
+  -- Disallow binding the same variable twice.
+  let checkForDuplicateBinders :: Map v Ann -> [(Ann, v)] -> P v m ()
+      checkForDuplicateBinders seen = \case
+        [] -> pure ()
+        (ann, v) : vs -> do
+          seen1 <-
+            Map.upsertF
+              ( \case
+                  Nothing -> pure ann
+                  Just ann0 -> P.customFailure (DuplicateBinders ann0 ann v)
+              )
+              v
+              seen
+          checkForDuplicateBinders seen1 vs
+  checkForDuplicateBinders Map.empty boundVars0
+  let boundVars' = map snd boundVars0
+  let pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
