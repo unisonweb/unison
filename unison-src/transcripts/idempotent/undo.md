@@ -20,7 +20,7 @@ scratch/main> add
 
 scratch/main> ls .
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
   2. x    (Nat)
 
 scratch/main> alias.term x y
@@ -29,7 +29,7 @@ scratch/main> alias.term x y
 
 scratch/main> ls .
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
   2. x    (Nat)
   3. y    (Nat)
 
@@ -38,7 +38,7 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #3guh775vf7
+  ⊙ 1. #bpdofic1lg
 
     + Adds / updates:
     
@@ -49,13 +49,13 @@ scratch/main> history
       Original name New name(s)
       x             y
 
-  ⊙ 2. #7o1u1kgf9o
+  ⊙ 2. #i2p77k1ci0
 
     + Adds / updates:
     
       x
 
-  □ 3. #99vt579ref (start of history)
+  □ 3. #btddbo4t1j (start of history)
 
 scratch/main> undo
 
@@ -68,7 +68,7 @@ scratch/main> undo
 
 scratch/main> ls .
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
   2. x    (Nat)
 
 scratch/main> history
@@ -76,13 +76,13 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #7o1u1kgf9o
+  ⊙ 1. #i2p77k1ci0
 
     + Adds / updates:
     
       x
 
-  □ 2. #99vt579ref (start of history)
+  □ 2. #btddbo4t1j (start of history)
 ```
 
 -----
@@ -107,7 +107,7 @@ scratch/branch1> add
 
 scratch/branch1> ls .
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
   2. x    (Nat)
 
 scratch/branch1> alias.term x y
@@ -116,7 +116,7 @@ scratch/branch1> alias.term x y
 
 scratch/branch1> ls .
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
   2. x    (Nat)
   3. y    (Nat)
 
@@ -125,7 +125,7 @@ scratch/branch1> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #3guh775vf7
+  ⊙ 1. #bpdofic1lg
 
     + Adds / updates:
     
@@ -136,13 +136,13 @@ scratch/branch1> history
       Original name New name(s)
       x             y
 
-  ⊙ 2. #7o1u1kgf9o
+  ⊙ 2. #i2p77k1ci0
 
     + Adds / updates:
     
       x
 
-  □ 3. #99vt579ref (start of history)
+  □ 3. #btddbo4t1j (start of history)
 
 -- Make some changes on an unrelated branch
 
@@ -165,7 +165,7 @@ scratch/branch1> undo
 
 scratch/branch1> ls .
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
   2. x    (Nat)
 
 scratch/branch1> history
@@ -173,13 +173,13 @@ scratch/branch1> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #7o1u1kgf9o
+  ⊙ 1. #i2p77k1ci0
 
     + Adds / updates:
     
       x
 
-  □ 2. #99vt579ref (start of history)
+  □ 2. #btddbo4t1j (start of history)
 ```
 
 -----

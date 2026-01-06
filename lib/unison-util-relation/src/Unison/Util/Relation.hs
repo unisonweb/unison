@@ -4,6 +4,7 @@ module Unison.Util.Relation
     -- * Initialization
     empty,
     singleton,
+    singletonSet,
     fromList,
     fromManyDom,
     fromManyRan,
@@ -50,6 +51,7 @@ module Unison.Util.Relation
     collectRan,
 
     -- ** Folds
+    Unison.Util.Relation.foldl,
     foldlStrict,
 
     -- * General traversals
@@ -118,6 +120,8 @@ import Data.Map.Internal qualified as Map
 import Data.Ord (comparing)
 import Data.Set qualified as S
 import Data.Set qualified as Set
+import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as NESet
 import Unison.Prelude hiding (bimap, empty, toList)
 import Unison.Util.Map qualified as Map
 import Unison.Util.Set qualified as Set
@@ -224,6 +228,13 @@ singleton x y =
       range = M.singleton y (S.singleton x)
     }
 
+singletonSet :: a -> NESet b -> Relation a b
+singletonSet x ys1 =
+  unsafeFromMultimaps (Map.singleton x ys) (Map.fromSet (\_ -> xs) ys)
+  where
+    xs = Set.singleton x
+    ys = NESet.toSet ys1
+
 -- | The 'Relation' that results from the union of two relations: @r@ and @s@.
 union :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
 union r s =
@@ -302,6 +313,10 @@ joinRan a b =
         a <- S.toList $ lookupRan c a,
         b <- S.toList $ lookupRan c b
     ]
+
+foldl :: (c -> a -> b -> c) -> c -> Relation a b -> c
+foldl f z Relation {domain} =
+  Map.foldlWithKey' (\acc x -> Set.foldl (`f` x) acc) z domain
 
 ---------------------------------------------------------------
 
@@ -602,27 +617,13 @@ searchDom :: (Ord a, Ord b) => (a -> Ordering) -> Relation a b -> Set b
 searchDom = searchDomG (\_ set -> set)
 
 searchDomG :: (Ord a, Monoid c) => (a -> Set b -> c) -> (a -> Ordering) -> Relation a b -> c
-searchDomG g f r = go (domain r)
-  where
-    go Map.Tip = mempty
-    go (Map.Bin _ amid bs l r) = case f amid of
-      EQ -> goL l <> g amid bs <> goR r
-      LT -> go r
-      GT -> go l
-    goL Map.Tip = mempty
-    goL (Map.Bin _ amid bs l r) = case f amid of
-      EQ -> goL l <> g amid bs <> Map.foldrWithKey (\k v acc -> g k v <> acc) mempty r
-      LT -> goL r
-      GT -> error "predicate not monotone with respect to ordering"
-    goR Map.Tip = mempty
-    goR (Map.Bin _ amid bs l r) = case f amid of
-      EQ -> Map.foldrWithKey (\k v acc -> g k v <> acc) mempty l <> g amid bs <> goR r
-      GT -> goR l
-      LT -> error "predicate not monotone with respect to ordering"
+searchDomG g f =
+  Map.search g f . domain
 
 -- Like `searchDom`, but searches the `b` of this `Relation`.
 searchRan :: (Ord a, Ord b) => (b -> Ordering) -> Relation a b -> Set a
-searchRan f r = searchDom f (swap r)
+searchRan f =
+  searchDom f . swap
 
 -- | @replaceDom x y r@ replaces all @(x, _)@ with @(y, _)@ in @r@.
 replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
@@ -714,9 +715,17 @@ mapRanMonotonic f Relation {domain, range} =
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList
 
-fromMultimap :: (Ord a, Ord b) => Map a (Set b) -> Relation a b
-fromMultimap m =
-  foldl' (\r (a, bs) -> insertManyRan a bs r) empty $ Map.toList m
+fromMultimap :: forall a b. (Ord a, Ord b) => Map a (Set b) -> Relation a b
+fromMultimap domain =
+  Relation {domain, range}
+  where
+    range :: Map b (Set a)
+    range =
+      Map.foldlWithKey' step Map.empty domain
+
+    step :: Map b (Set a) -> a -> Set b -> Map b (Set a)
+    step acc a bs =
+      Map.unionWith Set.union (Map.fromSet (const (Set.singleton a)) bs) acc
 
 toMultimap :: Relation a b -> Map a (Set b)
 toMultimap = domain

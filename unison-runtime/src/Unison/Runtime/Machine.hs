@@ -34,7 +34,6 @@ import Control.Monad.State.Strict
 import Data.Atomics qualified as Atomic
 import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.List qualified as List
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Sq
@@ -43,7 +42,13 @@ import Data.Set qualified as Set
 import Data.Text qualified as DTx
 import Data.Text.IO qualified as Tx
 import Data.Traversable
+import Foreign.LibFFI.Internal
+import Foreign.Marshal (alloca)
+import Foreign.Marshal.Array (allocaArray)
+import Foreign.Ptr
+import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
+import GHC.Float (double2Float, float2Double)
 import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
@@ -51,6 +56,7 @@ import Unison.Prelude hiding (Text)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
+    showShort,
   )
 import Unison.Referent (Referent, pattern Ref)
 import Unison.ReferentPrime (Referent' (..))
@@ -60,21 +66,23 @@ import Unison.Runtime.ANF as ANF
     PackedTag (..),
     SuperGroup,
     codeGroup,
+    collectValueLinks,
     foldGroup,
     foldGroupLinks,
     maskTags,
     packTags,
-    valueLinks,
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
+import Data.Text qualified as Text
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
 import Unison.Runtime.Foreign
+import Unison.Runtime.Foreign.Dynamic qualified as DLL
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
     encodeVal,
@@ -475,9 +483,102 @@ exec env henv !activeThreads !stk !k _ (TryForce i)
       ev <- Control.Exception.try $ nestEval env activeThreads (poke stk) v
       stk <- encodeExn stk ev
       pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ DLLCall = do
+  cf <- peekBi stk
+  let n = DLL.numArgs $ DLL.cSpec cf
+  -- Note: pre-bump, because you can't pass stk out of these blocks
+  -- without boxing (or customizing allocaArray).
+  stk <- bump stk
+  allocaArray n \storage ->
+    allocaArray n \cArgs ->
+      alloca \(cRet :: Ptr Int) -> do
+        copyArgs stk (DLL.cffArgs cf) storage cArgs do
+          DLL.callForeign cf cArgs cRet
+          case DLL.cffResult cf of
+            DLL.I16 -> Store.peek (castPtr cRet) >>= pokeI stk . fi16
+            DLL.I32 -> Store.peek (castPtr cRet) >>= pokeI stk . fi32
+            DLL.I64 -> Store.peek cRet >>= pokeI stk
+            DLL.U16 -> Store.peek (castPtr cRet) >>= pokeN stk . fu16
+            DLL.U32 -> Store.peek (castPtr cRet) >>= pokeN stk . fu32
+            DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
+            DLL.F32 -> Store.peek (castPtr cRet) >>= pokeD stk . ff32
+            DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
+            DLL.Void -> poke stk unitValue
+            DLL.MBArr ->
+              die [] $ "unexpected array result from DLL function"
+  pure (False, henv, stk, k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
+
+fi16 :: Int16 -> Int
+fi16 = fromIntegral
+
+ti16 :: Int -> Int16
+ti16 = fromIntegral
+
+fi32 :: Int32 -> Int
+fi32 = fromIntegral
+
+ti32 :: Int -> Int32
+ti32 = fromIntegral
+
+fu32 :: Word32 -> Word64
+fu32 = fromIntegral
+
+tu32 :: Word64 -> Word32
+tu32 = fromIntegral
+
+fu16 :: Word16 -> Word64
+fu16 = fromIntegral
+
+tu16 :: Word64 -> Word16
+tu16 = fromIntegral
+
+tf32 :: Double -> Float
+tf32 = double2Float
+
+ff32 :: Float -> Double
+ff32 = float2Double
+
+-- Copies unison stack values into temporary space appropriate for
+-- calling libffi. The latter takes all arguments as pointers, so we
+-- need to copy the arguments to pinned memory to have a stable
+-- location. All our FFI arguments are 64-bit or smaller, though, so
+-- we can just use a contiguous array with as many 8 byte slots as
+-- there are arguments, possibly using only portions of some slots.
+copyArgs ::
+  Stack -> [DLL.FFType] -> Ptr Int -> Ptr (Ptr CValue) -> IO () -> IO ()
+copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
+  where
+    go !i (a : as) !p !h = store a i p do
+      Store.poke h (castPtr p)
+      go (i + 1) as (plusPtr p szp) (plusPtr h szh)
+    go _ _ _ _ = next
+
+    -- special case non-64-bit values for conversions, otherwise just
+    -- copy bytes.
+    store DLL.I32 i p nx =
+      upeekOff stk i >>= Store.poke (castPtr p) . ti32 >> nx
+    store DLL.U32 i p nx =
+      peekOffN stk i >>= Store.poke (castPtr p) . tu32 >> nx
+    store DLL.I16 i p nx =
+      upeekOff stk i >>= Store.poke (castPtr p) . ti16 >> nx
+    store DLL.U16 i p nx =
+      peekOffN stk i >>= Store.poke (castPtr p) . tu16 >> nx
+    store DLL.F32 i p nx =
+      peekOffD stk i >>= Store.poke (castPtr p) . tf32 >> nx
+    store DLL.MBArr i p nx = do
+      mb <- peekOffBi stk i
+      withMutableByteArrayContents mb \ptr ->
+        Store.poke (castPtr p) ptr >> nx
+    store _ i p nx =
+      upeekOff stk i >>= Store.poke p >> nx
+    {-# INLINE store #-}
+
+    szp = Store.sizeOf (0 :: Int)
+    szh = Store.sizeOf (undefined :: Ptr CValue)
+{-# INLINE copyArgs #-}
 
 encodeExn ::
   Stack ->
@@ -506,7 +607,7 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp ioe, unitValue)
           | Just re <- fromException exn = case re of
               PE _stk _issues msg ->
-                (Rf.runtimeFailureRef, Util.Text.pack $ P.toPlain 0 msg, unitValue)
+                (Rf.runtimeFailureRef, Util.Text.fromText $ P.toPlain 0 msg, unitValue)
               BU _ tx val -> (Rf.runtimeFailureRef, Util.Text.fromText tx, val)
           | Just (ae :: ArithException) <- fromException exn =
               (Rf.arithmeticFailureRef, disp ae, unitValue)
@@ -518,6 +619,8 @@ encodeExn stk exc = do
               (Rf.ioFailureRef, disp be, unitValue)
           | Just (ie :: AsyncException) <- fromException exn =
               (Rf.threadKilledFailureRef, disp ie, unitValue)
+          | Just (ie :: UnliftIO.AsyncCancelled) <- fromException exn =
+              (Rf.asyncCancelledFailureRef, disp ie, unitValue)
           | Just (Panic msg v) <- fromException exn,
             msg <- Util.Text.pack $ "panic: " ++ msg =
               (Rf.miscFailureRef, msg, fromMaybe unitValue v)
@@ -877,7 +980,15 @@ repush ::
   IO ()
 repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
   where
-    go !denv KE !k = yield yld env (HEnv aenv denv) activeThreads stk k
+    go !denv KE !k
+      -- Pending arguments. The continuation argument must be a function
+      -- to be applied to them.
+      | asize stk > 0 =
+          peek stk
+            >>= apply yld env henv activeThreads stk k False ZArgs
+      | otherwise = yield yld env henv activeThreads stk k
+      where
+        henv = HEnv aenv denv
     go !denv (Mark a ps cs sk) !k = go denv' sk $ Mark a ps cs' k
       where
         denv' = cs <> EC.withoutKeys denv ps
@@ -1112,7 +1223,7 @@ dataBranch mrf stk (Test1 u cu df) = \case
         M.Tip
           | u == Rf.mapTip -> pure (cu, stk)
         _ -> pure (df, stk)
-  clo -> dataBranchClosureError mrf clo
+  clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch mrf stk (Test2 u cu v cv df) = \case
   Enum _ t
     | maskTags t == u -> pure (cu, stk)
@@ -1149,7 +1260,7 @@ dataBranch mrf stk (Test2 u cu v cv df) = \case
           | u == Rf.mapTip -> pure (cu, stk)
           | v == Rf.mapTip -> pure (cv, stk)
         _ -> pure (df, stk)
-  clo -> dataBranchClosureError mrf clo
+  clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch mrf stk (TestW df bs) = \case
   Enum _ t
     | Just ca <- EC.lookup (maskTags t) bs -> pure (ca, stk)
@@ -1178,7 +1289,7 @@ dataBranch mrf stk (TestW df bs) = \case
           | Just ca <- EC.lookup Rf.mapTip bs ->
               pure (ca, stk)
         _ -> pure (df, stk)
-  clo -> dataBranchClosureError mrf clo
+  clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch _ _ br = \_ ->
   dataBranchBranchError br
 {-# INLINE dataBranch #-}
@@ -1194,16 +1305,54 @@ dumpBin sz k e l r stk = do
   pure stk
 {-# INLINE dumpBin #-}
 
-dataBranchClosureError :: Maybe Reference -> Closure -> IO a
+prettyRef :: Reference -> String
+prettyRef = Text.unpack . showShort 10
+
+dataBranchClosureError ::
+  Maybe Reference -> Closure -> IO ()
+dataBranchClosureError (Just rftgt) (DataC rf _ _)
+  | rftgt /= rf =
+      die [] $
+        "dataBranch: type mismatch detected\n"
+          <> "    expected: "
+          <> prettyRef rftgt
+          <> "\n"
+          <> "    received: "
+          <> prettyRef rf
+dataBranchClosureError _ (DataC rf t _) =
+  die [] $
+    "dataBranch: unexpected tag for data type\n"
+      <> "    type: "
+      <> prettyRef rf
+      <> "\n"
+      <> "    data tag: "
+      <> show (maskTags t)
 dataBranchClosureError mrf clo =
   die [] $
-    "dataBranch: bad closure: "
-      ++ show clo
-      ++ maybe "" (\r -> "\nexpected type: " ++ show r) mrf
+    "dataBranch: unexpected closure type\n"
+      <> expected
+      <> "but instead I received "
+      <> description
+  where
+    expected = case mrf of
+      Just rftgt ->
+        "    expected type: " <> prettyRef rftgt <> "\n  "
+      Nothing -> "I expected a data type, "
+    description = case clo of
+      PAp {} -> "a partially applied function"
+      Captured {} -> "a continuation"
+      Affine {} -> "an affine handler info"
+      BlackHole -> "a black hole"
+      UnboxedTypeTag CharTag -> "a character"
+      UnboxedTypeTag FloatTag -> "a floating point number"
+      UnboxedTypeTag IntTag -> "an integer"
+      UnboxedTypeTag NatTag -> "a natural number"
+      Foreign (Wrap rf _) ->
+        "a builtin value of type `" <> prettyRef rf <> "`"
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
-  die [] $ "dataBranch: unexpected branch: " ++ show br
+  die [] $ "dataBranch: unexpected branch: " <> show br
 
 -- Splits off a portion of the continuation up to a given prompt.
 --
@@ -1475,7 +1624,7 @@ preEvalTopLevelConstants cacheableCombs newCombs cc = do
 -- case the docs don't actually evaluate them.
 isSandboxingException :: RuntimeExn -> Bool
 isSandboxingException (PE _ _ (P.toPlain 0 -> msg)) =
-  List.isPrefixOf sdbx1 msg || List.isPrefixOf sdbx2 msg
+  Text.isPrefixOf sdbx1 msg || Text.isPrefixOf sdbx2 msg
   where
     sdbx1 = "attempted to use sandboxed operation"
     sdbx2 = "Attempted to use disallowed builtin in sandboxed"
@@ -1642,6 +1791,9 @@ reflectValue0 rty rtm = goV0
     goV0 :: Val -> IO (Referenced ANF.Value)
     goV0 v = finish <$> runStateT (goV v) emptyRS
 
+    goVs :: Seg -> Reflect [ANF.Value RefNum]
+    goVs sg = traverseAccumSegToList goV sg
+
     goV :: Val -> Reflect (ANF.Value RefNum)
     goV = \case
       -- For back-compatibility we reflect all Unboxed values into boxed literals, we could change this in the future,
@@ -1655,13 +1807,25 @@ reflectValue0 rty rtm = goV0
       CharVal c -> pure . ANF.BLit $ ANF.Char c
       Val _ clos ->
         case clos of
-          PApV cix _rComb args ->
-            ANF.Partial <$> goIx cix <*> traverse goV args
-          DataC _ t segs -> do
+          PAp cix _rComb args ->
+            ANF.Partial <$> goIx cix <*> goVs args
+          Enum _ t -> do
             r <- resolveTy rty $ TT.typeTag t
-            ANF.Data r (maskTags t) <$> traverse goV segs
-          CapV k _ segs ->
-            ANF.Cont <$> traverse goV segs <*> goK k
+            pure $ ANF.Data r (maskTags t) []
+          Data1 _ t u -> do
+            r <- resolveTy rty $ TT.typeTag t
+            u <- goV u
+            pure $ ANF.Data r (maskTags t) [u]
+          Data2 _ t u v -> do
+            r <- resolveTy rty $ TT.typeTag t
+            u <- goV u
+            v <- goV v
+            pure $ ANF.Data r (maskTags t) [u, v]
+          DataG _ t seg -> do
+            r <- resolveTy rty $ TT.typeTag t
+            ANF.Data r (maskTags t) <$> goVs seg
+          Captured k _ segs ->
+            ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
@@ -1711,9 +1875,25 @@ data ReflectExn = ReflectExn String deriving (Show)
 
 instance Exception ReflectExn
 
+ixArr :: String -> Array a -> RefNum -> IO a
+ixArr pfx arr (RefNum i)
+  | 0 <= i, i < sizeofArray arr = indexArrayM arr i
+  | otherwise = die [] . (pfx ++) $ " index out of bounds: " ++ show i
+{-# INLINE ixArr #-}
+
 reifyValue ::
   CCache p -> Referenced ANF.Value -> IO (Either [Reference] Val)
 reifyValue cc val = do
+  (tyLinks, tmLinks) <- case val of
+    Plain v -> pure $ collectValueLinks v
+    WithRefs tys tms v -> do
+      let tya = arrayFromList tys
+          tma = arrayFromList tms
+          (tyns, tmns) = collectValueLinks v
+          travSet f = fmap S.fromList . traverse f . S.toList
+      (,)
+        <$> travSet (ixArr "reifyValue: type" tya) tyns
+        <*> travSet (ixArr "reifyValue: term" tma) tmns
   erc <-
     atomically $ do
       combs <- readTVar (combs cc)
@@ -1724,11 +1904,6 @@ reifyValue cc val = do
           pure . Right $ (combs, newTy, rtm)
         l -> pure (Left l)
   traverse (\rfs -> reifyValue1 rfs val) erc
-  where
-    f False r = (mempty, S.singleton r)
-    f True r = (S.singleton r, mempty)
-
-    (tyLinks, tmLinks) = valueLinks f (dereference val)
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
@@ -1787,10 +1962,20 @@ reifyValue0Canon combs tys tms rty rtm = goV
       let cix = (CIx rf n i)
       pure (cix, rCombSection combs cix)
 
+    goVs :: [ANF.Value RefNum] -> IO Seg
+    goVs vs = traverseListToSeg goV vs
+
+    goVArr :: Array (ANF.Value RefNum) -> IO (Array Val)
+    goVArr vs = traverseArrayIO goV vs
+
+    goVSeq :: Seq (ANF.Value RefNum) -> IO (Seq Val)
+    goVSeq vs = traverse goV vs
+
     goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
+        (cix, RComb (Comb rcomb)) ->
+          boxedVal . PAp cix rcomb <$> goVs vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -1799,13 +1984,13 @@ reifyValue0Canon combs tys tms rty rtm = goV
     goV (ANF.Data rn t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
-      boxedVal . formDataReplaced rf t <$> traverse goV vs
+      boxedVal . formDataReplaced rf t <$> goVs vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- traverse goV vs
+      vs' <- goVs vs
       pure . boxedVal $ cv k' vs'
       where
-        cv k s = CapV k a s
+        cv k s = Captured k a s
           where
             ksz = frameDataSize k
             a = fromIntegral $ length s - ksz
@@ -1837,7 +2022,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
 
     goL :: ANF.BLit RefNum -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
-    goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
+    goL (ANF.List l) = encodeVal <$> goVSeq l
     goL (ANF.TmLink r) = encodeVal <$> traverseRefs numToRef r
     goL (ANF.TyLink r) = encodeVal <$> ixTy r
     goL (ANF.Bytes b) = pure $ encodeVal b
@@ -1850,7 +2035,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = boxedVal . Foreign . Wrap Rf.iarrayRef <$> traverse goV a
+    goL (ANF.Arr a) = encodeVal <$> goVArr a
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
@@ -1876,10 +2061,17 @@ reifyValue0 (combs, rty, rtm) = goV
       where
         r = M.findWithDefault r0 r0 functionReplacements
 
+    goVs :: [ANF.Value Reference] -> IO Seg
+    goVs vs = traverseListToSeg goV vs
+
+    goVArr :: Array (ANF.Value Reference) -> IO (Array Val)
+    goVArr vs = traverseArrayIO goV vs
+
     goV :: ANF.Value Reference -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) -> boxedVal . PApV cix rcomb <$> traverse goV vs
+        (cix, RComb (Comb rcomb)) ->
+          boxedVal . PAp cix rcomb <$> goVs vs
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -1887,13 +2079,13 @@ reifyValue0 (combs, rty, rtm) = goV
             msg = "reifyValue0: non-trivial partial application to cached value"
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
-      boxedVal . formDataReplaced r t <$> traverse goV vs
+      boxedVal . formDataReplaced r t <$> goVs vs
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- traverse goV vs
+      vs' <- goVs vs
       pure . boxedVal $ cv k' vs'
       where
-        cv k s = CapV k a s
+        cv k s = Captured k a s
           where
             ksz = frameDataSize k
             a = fromIntegral $ length s - ksz
@@ -1938,7 +2130,7 @@ reifyValue0 (combs, rty, rtm) = goV
       pure $ NatVal w
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
-    goL (ANF.Arr a) = encodeVal <$> traverse goV a
+    goL (ANF.Arr a) = encodeVal <$> goVArr a
     goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y

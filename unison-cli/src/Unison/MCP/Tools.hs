@@ -19,9 +19,11 @@ import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath
+import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
-import Unison.MCP.Cli (cliToMCP, handleInputMCP)
+import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.MCP.Cli (cliToMCP, handleInputMCP, virtualSourceName)
 import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.Types
@@ -45,18 +47,27 @@ tools =
     shareProjectSearchTool,
     typecheckCodeTool,
     docsTool,
+    runTool,
     shareProjectReadmeTool,
     listProjectDefinitionsTool,
     listProjectLibrariesTool,
     listLibraryDefinitionsTool,
     viewDefinitionsTool,
+    updateTool,
+    diffUpdateTool,
     listLocalProjectsTool,
     listProjectBranchesTool,
     getCurrentProjectContextTool,
     searchDefinitionsTool,
     searchByTypeTool,
     dependenciesTool,
-    dependentsTool
+    dependentsTool,
+    runTestsTool,
+    deleteDefinitionsTool,
+    renameDefinitionTool,
+    moveDefinitionTool,
+    moveToTool,
+    deleteNamespaceTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -84,7 +95,7 @@ installLibTool =
           },
       toolArgType = Proxy,
       toolHandler = \(LibInstallToolArguments {projectContext, libProjectName, libBranchName}) -> handleToolError $ do
-        (_r, output) <- cliToMCP projectContext $ do
+        (_r, output) <- cliToMCP projectContext (const $ pure ()) $ do
           handleInstallLib False (ProjectAndBranch (UnsafeProjectName libProjectName) (ProjectBranchNameOrLatestRelease'Name . UnsafeProjectBranchName <$> libBranchName))
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
@@ -115,6 +126,16 @@ shareProjectSearchTool =
             let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
             pure $ errorToolResult errorMsg
     }
+
+-- | Load and typecheck the provided code, THEN run the provided inputs within that scratchfile context.
+withCode :: Either FilePath Text -> [Input] -> ProjectContext -> EMCP CallToolResult
+withCode code inputs projectContext = do
+  (filePath, source) <- case code of
+    Left filePath -> (Text.pack filePath,) <$> liftIO (readUtf8 filePath)
+    Right codeSnippet -> pure (virtualSourceName, codeSnippet)
+  output <- handleInputMCP projectContext ([Left $ UnisonFileChanged filePath source] <> (Right <$> inputs))
+  let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+  pure $ textToolResult outputJSON
 
 typecheckCodeTool :: Tool MCP
 typecheckCodeTool =
@@ -150,6 +171,8 @@ typecheckCodeTool =
             m = Random.natIn 0 1000
             ensureEqual (n + m) (m + n)
           ```
+
+          If you intend to update code, you may call the Update Definitions tool directly instead, it will typecheck and update in one step.
         |],
       toolAnnotations =
         ToolAnnotations
@@ -161,12 +184,8 @@ typecheckCodeTool =
           },
       toolArgType = Proxy,
       toolHandler = \(TypecheckCodeToolArguments {code, projectContext}) -> handleToolError do
-        source <- case code of
-          Left filePath -> liftIO $ readUtf8 filePath
-          Right codeSnippet -> pure codeSnippet
-        output <- handleInputMCP projectContext [Left $ UnisonFileChanged "scratch.u" source]
-        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
-        pure $ textToolResult outputJSON
+        -- Just load the code, nothing more
+        withCode code [] projectContext
     }
 
 docsTool :: Tool MCP
@@ -185,6 +204,27 @@ docsTool =
       toolArgType = Proxy,
       toolHandler = \(DocsToolArguments {name, projectContext}) -> handleToolError $ do
         output <- handleInputMCP projectContext [Right $ DocToMarkdownI name]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+runTool :: Tool MCP
+runTool =
+  Tool
+    { toolName = toToolName RunTool,
+      toolDescription = "Execute/Run a given definition.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Run",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(RunToolArguments {mainFunctionName, projectContext, args}) -> handleToolError $ do
+        let input = ExecuteI NoProf (HQ.NameOnly mainFunctionName) (Text.unpack <$> args)
+        output <- handleInputMCP projectContext [Right input]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }
@@ -229,8 +269,9 @@ listProjectDefinitionsTool =
           },
       toolArgType = Proxy,
       toolHandler = \(ProjectContextArgument projectContext) -> handleToolError $ do
+        let noop _ = pure ()
         output <-
-          cliToMCP projectContext Cli.getCurrentBranch0 >>= \case
+          cliToMCP projectContext noop Cli.getCurrentBranch0 >>= \case
             (Just b, _output) -> do
               let noLibBranch = Branch.deleteLibdeps b
               if (R.null $ Branch.deepTerms noLibBranch) && (R.null $ Branch.deepTypes noLibBranch)
@@ -308,6 +349,42 @@ viewDefinitionsTool =
             pure $ textToolResult outputJSON
     }
 
+updateTool :: Tool MCP
+updateTool =
+  Tool
+    { toolName = toToolName UpdateDefinitionsTool,
+      toolDescription = "Typecheck, then update definitions in the codebase to the provided code.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Update Definitions",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(UpdateDefinitionsToolArguments {projectContext, code}) -> handleToolError $ do
+        withCode code [Input.Update2I] projectContext
+    }
+
+diffUpdateTool :: Tool MCP
+diffUpdateTool =
+  Tool
+    { toolName = toToolName DiffUpdateTool,
+      toolDescription = "Show a diff of what changes would be made if `update` were run with the provided code. This is a read-only preview that doesn't modify the codebase.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Diff Update",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(DiffUpdateToolArguments {projectContext, code}) -> handleToolError $ do
+        withCode code [Input.DiffUpdateI] projectContext
+    }
+
 listLocalProjectsTool :: Tool MCP
 listLocalProjectsTool =
   Tool
@@ -354,7 +431,7 @@ getCurrentProjectContextTool :: Tool MCP
 getCurrentProjectContextTool =
   Tool
     { toolName = toToolName GetCurrentProjectContextTool,
-      toolDescription = "Get the current project context.",
+      toolDescription = "Get the current project context. This is useful for determining the user's working branch, but all commands take an explicit project context, so it's unnecessary if you already know which context is desired.",
       toolAnnotations =
         ToolAnnotations
           { title = Just "Get Current Project Context",
@@ -450,9 +527,153 @@ dependentsTool =
         pure $ textToolResult outputJSON
     }
 
+runTestsTool :: Tool MCP
+runTestsTool =
+  Tool
+    { toolName = toToolName TestsTool,
+      toolDescription = "Run the pure tests within a project.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Run Pure Tests",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(TestToolArguments {projectContext, subnamespace}) -> handleToolError $ do
+        let testInput =
+              Input.TestInput
+                { includeLibNamespace = False,
+                  path = case subnamespace of
+                    Nothing -> mempty
+                    Just ns -> ns,
+                  showFailures = True,
+                  showSuccesses = False
+                }
+        output <- handleInputMCP projectContext [Right $ Input.TestI testInput]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
 handleToolError :: EMCP CallToolResult -> MCP CallToolResult
 handleToolError action = do
   result <- runExceptT action
   case result of
     Left err -> pure $ errorToolResult err
     Right res -> pure res
+
+deleteDefinitionsTool :: Tool MCP
+deleteDefinitionsTool =
+  Tool
+    { toolName = toToolName DeleteDefinitionsTool,
+      toolDescription = "Delete one or more definitions (terms or types) from the codebase.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Delete Definitions",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(DeleteDefinitionsToolArguments {projectContext, names, force}) -> handleToolError $ do
+        case NEL.nonEmpty names of
+          Nothing ->
+            pure $ errorToolResult "No names provided to delete"
+          Just nonEmptyNames -> do
+            let names' = HQ'.NameOnly <$> NEL.toList nonEmptyNames
+            output <- handleInputMCP projectContext [Right $ Input.DeleteI force Input.DeleteTarget'TermOrType names']
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
+    }
+
+renameDefinitionTool :: Tool MCP
+renameDefinitionTool =
+  Tool
+    { toolName = toToolName RenameDefinitionTool,
+      toolDescription = "Rename a definition (term, type, or namespace) by changing only its final name segment. The parent path is preserved. For example, `rename foo.bar.baz Qux` changes the name `baz` to `Qux`, producing `foo.bar.Qux`. To move a definition to a different namespace, use `move-to` instead.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Rename Definition",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(RenameDefinitionToolArguments {projectContext, oldName, newNameSegment}) -> handleToolError $ do
+        let src = Path.fromName' oldName
+        output <- handleInputMCP projectContext [Right $ Input.RenameI src newNameSegment]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+moveDefinitionTool :: Tool MCP
+moveDefinitionTool =
+  Tool
+    { toolName = toToolName MoveDefinitionTool,
+      toolDescription = "Move a definition (term, type, or namespace) to a completely new path. For example, `move foo.bar baz.qux` renames `foo.bar` to `baz.qux`. This changes the full path, not just the final segment.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Move Definition",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(MoveDefinitionToolArguments {projectContext, oldName, newName}) -> handleToolError $ do
+        let src = Path.fromName' oldName
+            dest = Path.fromName' newName
+        output <- handleInputMCP projectContext [Right $ Input.MoveAllI src dest]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+moveToTool :: Tool MCP
+moveToTool =
+  Tool
+    { toolName = toToolName MoveToTool,
+      toolDescription = "Move one or more definitions or namespaces into a destination namespace. The final segment of each source is preserved. For example, `moveTo foo.bar dest` moves `foo.bar` into namespace `dest`, producing `dest.bar`. Multiple sources can be moved at once: `moveTo foo bar baz dest` moves all three into `dest`.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Move To",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(MoveToToolArguments {projectContext, sources, destination}) -> handleToolError $ do
+        case NEL.nonEmpty sources of
+          Nothing ->
+            pure $ errorToolResult "No sources provided to move"
+          Just nonEmptySources -> do
+            output <- handleInputMCP projectContext [Right $ Input.MoveToI nonEmptySources destination]
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+            pure $ textToolResult outputJSON
+    }
+
+deleteNamespaceTool :: Tool MCP
+deleteNamespaceTool =
+  Tool
+    { toolName = toToolName DeleteNamespaceTool,
+      toolDescription = "Delete a namespace and all definitions within it from the codebase.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Delete Namespace",
+            readOnlyHint = Just False,
+            destructiveHint = Just True,
+            idempotentHint = Just False,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(DeleteNamespaceToolArguments {projectContext, namespaceName, force}) -> handleToolError $ do
+        let (path, finalSegment) = Path.splitFromName namespaceName
+            split = (Path.Relative path, finalSegment)
+            insistence = if force then Input.Force else Input.Try
+        output <- handleInputMCP projectContext [Right $ Input.DeleteNamespaceI insistence (Just split)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }

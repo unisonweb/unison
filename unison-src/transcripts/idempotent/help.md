@@ -51,6 +51,9 @@
   `branches`      lists all branches in the current project
   `branches foo`  lists all branches in the project `foo`
 
+  cancel
+  `cancel`  cancels the in-progress merge, update, or upgrade.
+
   clear
   `clear`  Clears the screen.
 
@@ -90,6 +93,21 @@
                        directly loaded and executed by unison.
                        Said execution will have the effect of
                        running `!main`.
+
+  config.get
+  Gets the value of the provided configuration key. E.g.
+
+  `config.get author.name`
+
+  Configuration options include: author.name
+
+  config.set
+  The `config.set` command sets the configuration key to the
+  provided value. E.g.
+
+  `config.set author.name "Author Name"`
+
+  Configuration options include: author.name
 
   create.author
   `create.author alicecoder "Alice McGee"` creates `alicecoder`
@@ -173,6 +191,10 @@
   `delete.branch /bar`     deletes the branch `bar` in the
                            current project
 
+  delete.force (or rm.force)
+  `delete.force foo` removes the term or type name `foo` from the namespace.                
+  `delete.force foo bar` removes the term or type name `foo` and `bar` from the namespace.  
+
   delete.namespace (or rm.namespace)
   `delete.namespace <foo>` deletes the namespace `foo`
 
@@ -186,21 +208,17 @@
   `delete.term foo` removes the term name `foo` from the namespace.                
   `delete.term foo bar` removes the term name `foo` and `bar` from the namespace.  
 
-  delete.term.verbose (or rm.term.verbose)
-  `delete.term.verbose foo` removes the term name `foo` from the namespace.                
-  `delete.term.verbose foo bar` removes the term name `foo` and `bar` from the namespace.  
+  delete.term.force (or rm.term.force)
+  `delete.term.force foo` removes the term name `foo` from the namespace.                
+  `delete.term.force foo bar` removes the term name `foo` and `bar` from the namespace.  
 
   delete.type (or rm.type)
   `delete.type foo` removes the type name `foo` from the namespace.                
   `delete.type foo bar` removes the type name `foo` and `bar` from the namespace.  
 
-  delete.type.verbose (or rm.type.verbose)
-  `delete.type.verbose foo` removes the type name `foo` from the namespace.                
-  `delete.type.verbose foo bar` removes the type name `foo` and `bar` from the namespace.  
-
-  delete.verbose (or rm.verbose)
-  `delete.verbose foo` removes the term or type name `foo` from the namespace.                
-  `delete.verbose foo bar` removes the term or type name `foo` and `bar` from the namespace.  
+  delete.type.force (or rm.type.force)
+  `delete.type.force foo` removes the type name `foo` from the namespace.                
+  `delete.type.force foo bar` removes the type name `foo` and `bar` from the namespace.  
 
   dependencies
   List the dependencies of the specified definition.
@@ -226,6 +244,10 @@
   deprecated.root-reflog
   `deprecated.root-reflog` lists the changes that have affected the root namespace. This has been deprecated in favor of `reflog` which shows the reflog for the current project.
 
+  diff.branch (or branch.diff)
+  `diff.branch one two` shows a diff between branches `one` and
+                        `two`
+
   diff.namespace
   `diff.namespace before after` shows how the namespace `after`
                                 differs from the namespace
@@ -233,6 +255,11 @@
   `diff.namespace before`       shows how the current namespace
                                 differs from the namespace
                                 `before`
+
+  diff.update (or update.diff)
+  Shows a preview of what changes would be made if `update` were
+  run. This is a read-only operation that doesn't modify the
+  codebase.
 
   display
   `display foo` prints a rendered version of the term `foo`.
@@ -494,6 +521,12 @@
                                 namespace with the given hash.
                                 The full hash must be provided.
 
+  history.comment (or comment, comment.history)
+  `history.comment`        Creates a comment after the head of
+                           the current branch.
+  `history.comment /main`  Creates a comment after the head of
+                           the `main` branch.
+
   io.test (or test.io)
   `io.test mytest`  Runs `!mytest`, where `mytest` is a delayed
                     test that can use the `IO` and `Exception`
@@ -574,8 +607,8 @@
                                                            `lib.myproject_dev`
 
   lib.upgrade (or upgrade.lib, upgrade)
-  `upgrade old new` upgrades library dependency `lib.old` to
-  `lib.new`, and, if successful, deletes `lib.old`.
+  `upgrade old new [old2 new2...]` upgrades library dependency
+  `lib.old` to `lib.new` (and `lib.old2` to `lib.new2`...).
 
   list (or ls, dir)
   `list`       lists definitions and namespaces in the current
@@ -598,19 +631,7 @@
   merge
   `merge /branch` merges `branch` into the current branch
 
-  merge.commit (or commit.merge)
-  `merge.commit` merges a temporary branch created by the
-  `merge` command back into its parent branch, and removes the
-  temporary branch.
-
-  For example, if you've done `merge topic` from main, then
-  `merge.commit` is equivalent to doing
-
-    * switch /main
-    * merge /merge-topic-into-main
-    * delete.branch /merge-topic-into-main
-
-  move (or rename, mv)
+  move (or mv)
   `move foo bar` renames the term, type, and namespace foo to bar.
 
   move.namespace (or rename.namespace, mv.namespace)
@@ -621,6 +642,20 @@
 
   move.type (or rename.type, mv.type)
   `move.type foo bar` renames `foo` to `bar`.
+
+  moveTo
+  `moveTo foo.bar dest` moves `foo.bar` into the namespace
+  `dest`, producing `dest.bar`.
+
+  `moveTo foo bar baz dest` moves `foo`, `bar`, and `baz` into
+  the namespace `dest`.
+
+  If multiple sources have the same final name segment,
+  non-conflicting items are moved and a message explains the
+  conflict.
+
+  The final segment of each source is preserved in the
+  destination.
 
   names
   Search names or hashes in the current branch.
@@ -776,6 +811,15 @@
 
   release.draft (or draft.release)
   Draft a release.
+
+  rename
+  `rename foo.bar.baz Qux` changes the name `baz` to `Qux`,
+  producing `foo.bar.Qux`.
+
+  This only changes the final segment of the name. To move a
+  definition to a different namespace, use `moveTo`.
+
+  Works on terms, types, and namespaces.
 
   reset
   `reset #pvfd222s8n`         reset the current namespace to the
@@ -957,6 +1001,13 @@
   unsafe.force-push (or push.unsafe-force)
   Like `push`, but forcibly overwrites the remote namespace.
 
+  unwatch
+  `unwatch <files or directories...>`  Stop watching one or more
+                                       external files or
+                                       directories for changes.
+  `unwatch`                            With no arguments, list
+                                       currently watched paths.
+
   update (or add)
   Adds everything in the most recently typechecked file to the
   namespace, replacing existing definitions having the same
@@ -982,6 +1033,15 @@
   view.global
   `view.global foo` prints definitions of `foo` within your codebase.
   `view.global` without arguments invokes a search to select definitions to view, which requires that `fzf` can be found within your PATH.
+
+  watch
+  `watch <file or directory>`  Watch an external file or
+                               directory for changes. Changes to
+                               `.u` files in watched locations
+                               will be automatically loaded.
+
+  watches
+  List all external paths currently being watched for changes.
 
 > help-topics
 

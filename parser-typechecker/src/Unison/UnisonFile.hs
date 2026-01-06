@@ -37,12 +37,14 @@ module Unison.UnisonFile
     Unison.UnisonFile.rewrite,
     prepareRewrite,
     namespaceBindings,
+    toDefnsIdsByName,
   )
 where
 
 import Control.Lens
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Vector qualified as Vector
 import Unison.ABT qualified as ABT
@@ -57,10 +59,12 @@ import Unison.Hash qualified as Hash
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
+import Unison.Name (Name)
 import Unison.Prelude
-import Unison.Reference (Reference, TermReference, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent qualified as Referent
+import Unison.Syntax.Name qualified as Name
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
@@ -157,13 +161,13 @@ termBindings uf =
   Map.foldrWithKey (\k (a, t) b -> (k, a, t) : b) [] uf.terms
 
 -- backwards compatibility with the old data type
-dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, DataDeclaration v a)
+dataDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, DataDeclaration v a)
 dataDeclarations' = fmap (first Reference.DerivedId) . dataDeclarationsId'
 
-effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (Reference, EffectDeclaration v a)
+effectDeclarations' :: TypecheckedUnisonFile v a -> Map v (TypeReference, EffectDeclaration v a)
 effectDeclarations' = fmap (first Reference.DerivedId) . effectDeclarationsId'
 
-hashTerms :: TypecheckedUnisonFile v a -> Map v (a, Reference, Maybe WatchKind, Term v a, Type v a)
+hashTerms :: TypecheckedUnisonFile v a -> Map v (a, TermReference, Maybe WatchKind, Term v a, Type v a)
 hashTerms = fmap (over _2 Reference.DerivedId) . hashTermsId
 
 mapTerms :: (Term v a -> Term v a) -> UnisonFile v a -> UnisonFile v a
@@ -252,7 +256,7 @@ rewrite leaveAlone rewriteFn uf@(UnisonFileId datas effects _terms watches) =
 
 typecheckedUnisonFile ::
   forall v a.
-  (Var v) =>
+  (Var v, HasCallStack) =>
   Map v (Reference.Id, DataDeclaration v a) ->
   Map v (Reference.Id, EffectDeclaration v a) ->
   [[(v, a, Term v a, Type v a)]] ->
@@ -274,7 +278,7 @@ typecheckedUnisonFile datas effects tlcs watches =
               [(v, Nothing) | (v, _a, _e, _t) <- join tlcs]
                 ++ [(v, Just wk) | (wk, wkTerms) <- watches, (v, _a, _e, _t) <- wkTerms]
           hcs :: Map v (Reference.Id, Term v a, Type v a, a)
-          hcs = Hashing.hashTermComponents $ Map.fromList $ (\(v, a, e, t) -> (v, (e, t, a))) <$> allTerms
+          hcs = Hashing.crashOnHashingWarning $ Hashing.hashTermComponents $ Map.fromList $ (\(v, a, e, t) -> (v, (e, t, a))) <$> allTerms
        in Map.fromList
             [ (v, (a, r, wk, e, t))
               | (v, (r, e, _typ, a)) <- Map.toList hcs,
@@ -404,18 +408,23 @@ nonEmpty uf =
     || any (not . null) (topLevelComponents' uf)
     || any (not . null) (watchComponents uf)
 
-hashConstructors ::
-  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v Referent.Id
+hashConstructors :: forall v a. (Ord v, Show v) => TypecheckedUnisonFile v a -> Map v Referent.Id
 hashConstructors file =
-  Map.union
-    (Map.map (\(ref, _) -> Referent.ConId ref CT.Data) (hashDataConstructors file))
-    (Map.map (\(ref, _) -> Referent.ConId ref CT.Effect) (hashEffectConstructors file))
+  Map.merge
+    (Map.mapMissing \_ (ref, _) -> Referent.ConId ref CT.Data)
+    (Map.mapMissing \_ (ref, _) -> Referent.ConId ref CT.Effect)
+    (Map.zipWithMatched \v _ _ -> error (show v ++ " is a decl and an effect?"))
+    (hashDataConstructors file)
+    (hashEffectConstructors file)
 
-constructorsId :: (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, Decl v a)
+constructorsId :: (Ord v, Show v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, Decl v a)
 constructorsId file =
-  Map.union
-    (Map.map (\(ref, decl) -> (ref, Right decl)) (hashDataConstructors file))
-    (Map.map (\(ref, decl) -> (ref, Right decl)) (hashEffectConstructors file))
+  Map.merge
+    (Map.mapMissing \_ (ref, dataDecl) -> (ref, Right dataDecl))
+    (Map.mapMissing \_ (ref, effectDecl) -> (ref, Left effectDecl))
+    (Map.zipWithMatched \v _ _ -> error (show v ++ " is a decl and an effect?"))
+    (hashDataConstructors file)
+    (hashEffectConstructors file)
 
 hashDataConstructors ::
   forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, DataDeclaration v a)
@@ -423,9 +432,13 @@ hashDataConstructors =
   Map.foldl' stepHashConstructors Map.empty . dataDeclarationsId'
 
 hashEffectConstructors ::
-  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, DataDeclaration v a)
+  forall v a. (Ord v) => TypecheckedUnisonFile v a -> Map v (ConstructorReferenceId, EffectDeclaration v a)
 hashEffectConstructors =
-  List.foldl' stepHashConstructors Map.empty . over (mapped . _2) DD.toDataDecl . Map.elems . effectDeclarationsId'
+  coerce @(Map v (ConstructorReferenceId, DataDeclaration v a)) @(Map v (ConstructorReferenceId, EffectDeclaration v a))
+    . List.foldl' stepHashConstructors Map.empty
+    . coerce @[(TypeReferenceId, EffectDeclaration v a)] @[(TypeReferenceId, DataDeclaration v a)]
+    . Map.elems
+    . effectDeclarationsId'
 
 stepHashConstructors ::
   forall a v.
@@ -489,3 +502,26 @@ typeNamespaceBindings uf =
   where
     datas = Map.keysSet uf.dataDeclarationsId'
     effs = Map.keysSet uf.effectDeclarationsId'
+
+-- | View the top-level definitions of a typechecked unison file as a map from name to ref id (throwing away
+-- constructors, as well as term and type bodies).
+toDefnsIdsByName :: forall a v. (Var v) => TypecheckedUnisonFile v a -> DefnsF (Map Name) TermReferenceId TypeReferenceId
+toDefnsIdsByName file =
+  Defns
+    { terms = Map.foldlWithKey' f Map.empty file.hashTermsId,
+      types = Map.union (g file.dataDeclarationsId') (g file.effectDeclarationsId')
+    }
+  where
+    f ::
+      Map Name TermReferenceId ->
+      v ->
+      (a, TermReferenceId, Maybe WatchKind, Term v a, Type v a) ->
+      Map Name TermReferenceId
+    f acc var (_, ref, wk, _, _) =
+      if WatchKind.watchKindShouldBeStoredInDatabase wk
+        then Map.insert (Name.unsafeParseVar var) ref acc
+        else acc
+
+    g :: Map v (TypeReferenceId, decl) -> Map Name TypeReferenceId
+    g =
+      Map.foldlWithKey' (\acc var (ref, _) -> Map.insert (Name.unsafeParseVar var) ref acc) Map.empty

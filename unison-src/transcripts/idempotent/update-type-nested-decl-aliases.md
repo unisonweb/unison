@@ -45,8 +45,7 @@ unique type Foo = Bar Nat Nat
 ``` ucm :error
 > update
 
-  The type A.B is an alias of A. I'm not able to perform an
-  update when a type exists nested under an alias of itself.
-  Please separate them or delete one copy, and then try updating
-  again.
+  The type A.B is an alias of A. I'm not able to `update` when a
+  type exists nested under an alias of itself. Please separate
+  them or `delete.force` one copy, and then try `update` again.
 ```

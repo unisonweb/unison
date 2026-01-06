@@ -167,6 +167,7 @@ RESPONSE:
                   {
                       "annotation": {
                           "contents": "##Nat",
+                          "fqn": "builtin.Nat",
                           "tag": "TypeReference"
                       },
                       "segment": "Nat"
@@ -194,6 +195,7 @@ RESPONSE:
                       {
                           "annotation": {
                               "contents": "##Nat",
+                              "fqn": "builtin.Nat",
                               "tag": "TypeReference"
                           },
                           "segment": "Nat"
@@ -276,6 +278,7 @@ RESPONSE:
                                                                   {
                                                                       "annotation": {
                                                                           "contents": "#k5gpql9cbdfau6lf1aja24joc3sfctvjor8esu8bemn0in3l148otb0t3vebgqrt6qml302h62bbfeftg65gec1v8ouin5m6v2969d8",
+                                                                          "fqn": "otherTerm",
                                                                           "tag": "TermReference"
                                                                       },
                                                                       "segment": "otherTerm"
@@ -304,6 +307,7 @@ RESPONSE:
                                                                   {
                                                                       "annotation": {
                                                                           "contents": "#nirp5os0q69o4e1u9p3t6mmq6l6otluefi3ksm7dhm0diidjvkkgl8o9bvnflbj0sanuvdusf34f1qrins3ktcaglpcqv9oums2slsg",
+                                                                          "fqn": "Maybe",
                                                                           "tag": "TypeReference"
                                                                       },
                                                                       "segment": "Maybe"
@@ -343,6 +347,7 @@ RESPONSE:
                                                                                       {
                                                                                           "annotation": {
                                                                                               "contents": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+                                                                                              "fqn": "term",
                                                                                               "tag": "TermReference"
                                                                                           },
                                                                                           "segment": "term"
@@ -360,6 +365,7 @@ RESPONSE:
                                                                                       {
                                                                                           "annotation": {
                                                                                               "contents": "##Nat",
+                                                                                              "fqn": "builtin.Nat",
                                                                                               "tag": "TypeReference"
                                                                                           },
                                                                                           "segment": "Nat"
@@ -386,6 +392,7 @@ RESPONSE:
                                                                                       {
                                                                                           "annotation": {
                                                                                               "contents": "##Nat",
+                                                                                              "fqn": "builtin.Nat",
                                                                                               "tag": "TypeReference"
                                                                                           },
                                                                                           "segment": "Nat"
@@ -454,6 +461,7 @@ RESPONSE:
                                                                       {
                                                                           "annotation": {
                                                                               "contents": "#qkhkl0n238s1eqibd1ecb8605sqj1m4hpoaag177cu572otqlaf1u28c8suuuqgljdtthsjtr07rv04np05o6oa27ml9105k7uas0t8",
+                                                                              "fqn": "term",
                                                                               "tag": "TermReference"
                                                                           },
                                                                           "segment": "term"
@@ -471,6 +479,7 @@ RESPONSE:
                                                                       {
                                                                           "annotation": {
                                                                               "contents": "##Nat",
+                                                                              "fqn": "builtin.Nat",
                                                                               "tag": "TypeReference"
                                                                           },
                                                                           "segment": "Nat"
@@ -588,6 +597,7 @@ RESPONSE:
                                                                   {
                                                                       "annotation": {
                                                                           "contents": "##Nat.+",
+                                                                          "fqn": "builtin.Nat.+",
                                                                           "tag": "TermReference"
                                                                       },
                                                                       "segment": "Nat.+"

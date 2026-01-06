@@ -17,6 +17,7 @@ module Unison.CommandLine.Completion
     completeShareProject,
     completeShareBranchOrRelease,
     filenameCompletion,
+    configKeyCompletion,
     -- Unused for now, but may be useful later
     prettyCompletion,
   )
@@ -38,9 +39,10 @@ import Network.URI qualified as URI
 import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.Completion (Completion)
 import System.Console.Haskeline.Completion qualified as Haskeline
-import Text.Megaparsec qualified as P
+import Text.Megaparsec qualified as MP
 import U.Codebase.Branch qualified as V2Branch
 import U.Codebase.Causal qualified as V2Causal
+import U.Codebase.Config qualified as Config
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Referent qualified as Referent
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient (..))
@@ -50,6 +52,7 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse qualified as Path
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.SqliteCodebase.Conversions qualified as Cv
+import Unison.CommandLine.InputPattern (CliArg (..))
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.NameSegment.Internal (NameSegment (NameSegment))
@@ -71,17 +74,51 @@ haskelineTabComplete ::
   AuthenticatedHttpClient ->
   PP.ProjectPath ->
   Line.CompletionFunc m
-haskelineTabComplete patterns codebase authedHTTPClient ppCtx = Line.completeWordWithPrev Nothing " " $ \prev word ->
-  -- User hasn't finished a command name, complete from command names
-  if null prev
-    then pure . exactComplete word $ Map.keys patterns
-    else -- User has finished a command name; use completions for that command
-    case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p <- Map.lookup h patterns
-        paramType <- IP.paramType (IP.params p) (length t)
-        pure $ IP.suggestions paramType word codebase authedHTTPClient ppCtx
-      _ -> pure []
+haskelineTabComplete patterns codebase authedHTTPClient ppCtx = \(beforeCursorRev, _afterCursor) ->
+  fmap (fromMaybe (beforeCursorRev, [])) $ runMaybeT $ do
+    args <- hoistMaybe $ IP.parseArgs (reverse beforeCursorRev)
+    let trailingSpace = take 1 beforeCursorRev == " "
+    (prefixArgs, lastArg) <-
+      (hoistMaybe $ unsnoc args)
+        <&> \(prefixArgs', lastArg') ->
+          -- If there's a trailing space, we want to complete against an argument _after_ the last actual one.
+          if trailingSpace
+            then (prefixArgs' <> [lastArg'], UnquotedArg "")
+            else (prefixArgs', lastArg')
+    let prefix
+          | null prefixArgs = ""
+          | otherwise =
+              prefixArgs
+                <&> IP.renderCliArg
+                & unwords
+                & reverse
+                & (" " <>)
+
+    let finalize completion =
+          let newReplacement = case lastArg of
+                QuotedArg _ _ quoteChar
+                  | completion.isFinished -> [quoteChar] <> completion.replacement <> [quoteChar]
+                QuotedArg _ False quoteChar -> [quoteChar] <> completion.replacement <> [quoteChar]
+                QuotedArg _ True quoteChar -> [quoteChar] <> completion.replacement
+                UnquotedArg _ -> completion.replacement
+                NumberedArg _ -> completion.replacement
+           in completion {Line.replacement = newReplacement}
+    case (prefixArgs, lastArg) of
+      -- No completions for numbered args
+      (_, NumberedArg {}) -> pure (beforeCursorRev, [])
+      ([], cmdPrefix) -> do
+        let completions =
+              (exactComplete (IP.renderCliArgUnquoted cmdPrefix) $ Map.keys patterns)
+                <&> finalize
+        pure (prefix, completions)
+      ((cmd : midArgs), lastArg) -> do
+        p <- hoistMaybe $ Map.lookup (IP.renderCliArgUnquoted cmd) patterns
+        paramType <- hoistMaybe $ IP.paramType (IP.params p) (length midArgs)
+        completions <-
+          lift $
+            IP.suggestions paramType (IP.renderCliArgUnquoted lastArg) codebase authedHTTPClient ppCtx
+              <&> fmap finalize
+        pure (prefix, completions)
 
 -- | Things which we may want to complete for.
 data CompletionType
@@ -256,7 +293,7 @@ completeWithinNamespace compTypes query ppCtx = do
 -- (base,"List")
 parseLaxPath'Query :: Text -> (Path.Path', Text)
 parseLaxPath'Query txt =
-  case P.runParser ((,) <$> Path.splitP' <*> P.takeRest) "" (Text.unpack txt) of
+  case MP.runParser ((,) <$> Path.splitP' <*> MP.takeRest) "" (Text.unpack txt) of
     Left _err -> (Path.Current', txt)
     Right (name, rest) ->
       if take 1 rest == "."
@@ -301,13 +338,13 @@ prettyCompletionWithQueryPrefix ::
   Line.Completion
 prettyCompletionWithQueryPrefix endWithSpace query s =
   let coloredMatch = P.hiBlack (P.string query) <> P.string (drop (length query) s)
-   in Line.Completion s (P.toANSI 0 coloredMatch) endWithSpace
+   in Line.Completion s (Text.unpack $ P.toANSI 0 coloredMatch) endWithSpace
 
 -- discards formatting in favor of better alignment
 -- prettyCompletion (s, p) = Line.Completion s (P.toPlain 0 p) True
 -- preserves formatting, but Haskeline doesn't know how to align
 prettyCompletion :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
-prettyCompletion endWithSpace (s, p) = Line.Completion s (P.toANSI 0 p) endWithSpace
+prettyCompletion endWithSpace (s, p) = Line.Completion s (Text.unpack $ P.toANSI 0 p) endWithSpace
 
 -- | Constructs a list of 'Completion's from a query and completion options by
 -- filtering them for prefix matches. A completion will be selected if it's an exact match for
@@ -617,3 +654,11 @@ filenameCompletion query = do
   let prefix = reverse query
   (_leftovers, results) <- Line.completeFilename (prefix, "")
   pure results
+
+configKeyCompletion ::
+  (MonadIO m) =>
+  String ->
+  m [Completion]
+configKeyCompletion query = do
+  let options = Text.unpack <$> Config.allKeysText
+  pure $ exactComplete query options

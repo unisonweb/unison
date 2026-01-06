@@ -14,7 +14,7 @@ import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser.Ann
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference)
 import Unison.Referent qualified as Referent
 import Unison.Term (Term)
 import Unison.Term qualified as Term
@@ -27,7 +27,7 @@ import Unison.Var qualified as Var
 data MainTerm v
   = NotFound (HQ.HashQualified Name)
   | BadType (HQ.HashQualified Name) (Maybe (Type v Ann))
-  | Success (HQ.HashQualified Name) (Term v Ann) (Type v Ann)
+  | Success (HQ.HashQualified Name) TermReference (Term v Ann) (Type v Ann)
 
 getMainTerm ::
   (Monad m, Var v) =>
@@ -48,7 +48,7 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType = do
           if Typechecker.fitsScheme typ mainType
             then do
               let tm = DD.forceTerm a a (Term.ref a ref)
-              return (Success mainName tm typ)
+              return (Success mainName ref tm typ)
             else pure (BadType mainName $ Just typ)
         _ -> pure (BadType mainName Nothing)
     _ -> pure (error "multiple matching refs") -- TODO: make a real exception

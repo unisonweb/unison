@@ -22,6 +22,7 @@ import Data.List (find, intersperse, sortBy)
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty qualified as Nel
 import Data.Map qualified as Map
+import Data.Monoid (Dual (..))
 import Data.Ord (comparing)
 import Data.Proxy
 import Data.Sequence (Seq (..))
@@ -75,6 +76,7 @@ import Unison.Util.AnnotatedText qualified as AT
 import Unison.Util.ColorText (Color)
 import Unison.Util.ColorText qualified as Color
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Pretty (ColorText, Pretty)
 import Unison.Util.Pretty qualified as Pr
 import Unison.Util.Range (Range (..), startingLine)
@@ -332,14 +334,6 @@ renderTypeError e env src = case e of
               " expression ",
               "need to have the same type."
             ]
-  NotFunctionApplication {..} ->
-    mconcat
-      [ "This looks like a function call, but with a ",
-        style Type1 (renderType' env ft),
-        " where the function should be.  Are you missing an operator?\n\n",
-        annotatedAsStyle Type1 src f,
-        debugSummary note
-      ]
   ActionRestrictionFailure {..} ->
     mconcat
       [ Pr.lines
@@ -361,6 +355,87 @@ renderTypeError e env src = case e of
           ],
         debugSummary note
       ]
+  FunctionUnderApplied {..} ->
+    let expectedTypeStr = style Type2 (renderType' env expectedLeaf)
+        actualTypeStr = style ErrorSite (renderType' env foundLeaf)
+     in mconcat
+          [ "This call-site has type " <> actualTypeStr <> ":\n",
+            showSourceMaybes src [styleAnnotated ErrorSite foundLeaf],
+            "\n\n",
+            "But I expected the type " <> expectedTypeStr <> " because of:\n",
+            showSourceMaybes
+              src
+              [ (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+                (,Type2) <$> rangeForAnnotated expectedLeaf
+              ],
+            "\n\n",
+            Pr.lines
+              [ "It looks like the function application is missing these arguments:\n",
+                Pr.indentN 2 $ Monoid.intercalateMap ", " (style Type2 . renderType' env) needArgs
+              ],
+            unitHint,
+            intLiteralSyntaxTip mismatchSite expectedType,
+            debugNoteLoc
+              . mconcat
+              $ [ "\nloc debug:",
+                  "\n  mismatchSite: ",
+                  annotatedToEnglish mismatchSite,
+                  "\n     foundType: ",
+                  annotatedToEnglish foundType,
+                  "\n     foundLeaf: ",
+                  annotatedToEnglish foundLeaf,
+                  "\n  expectedType: ",
+                  annotatedToEnglish expectedType,
+                  "\n  expectedLeaf: ",
+                  annotatedToEnglish expectedLeaf,
+                  "\n"
+                ],
+            debugSummary note
+          ]
+    where
+      unitHintMsg =
+        "\nHint: Actions within a block must have type "
+          <> style Type2 (renderType' env expectedLeaf)
+          <> ".\n"
+          <> "      Use "
+          <> style Type1 "_ = <expr>"
+          <> " to ignore a result."
+      unitHint = if giveUnitHint then unitHintMsg else ""
+      giveUnitHint = case expectedType of
+        Type.Ref' u | u == unitRef -> case mismatchSite of
+          Term.Let1Named' v _ _ -> Var.isAction v
+          _ -> False
+        _ -> False
+  NotFunctionApplication {..} ->
+    case Type.arityIgnoringEffects ft of
+      0 ->
+        mconcat
+          [ "It looks like" <> style ErrorSite " this " <> "expression is being called like a function:\n\n",
+            annotatedAsStyle ErrorSite src f,
+            "\n\nbut the thing being applied has the type:\n\n",
+            style Type2 (renderType' env ft),
+            "\n\nWhich doesn't expect any arguments.",
+            "\n\n",
+            debugSummary note
+          ]
+      arity ->
+        mconcat
+          [ "It looks like" <> style ErrorSite " this " <> "function call:\n\n",
+            annotatedAsStyle ErrorSite src f,
+            "\n\nis being applied to ",
+            Pr.blue $ Pr.shown (length args),
+            " arguments, but it has the type\n\n",
+            Pr.indentN 2 $ style Type2 (renderType' env ft),
+            "\n\nwhich only accepts ",
+            Pr.blue $ Pr.shown arity,
+            maybePlural " argument" arity <> ".\n\n",
+            "Maybe you applied the function to too many arguments?\n\n",
+            debugSummary note
+          ]
+    where
+      maybePlural word n
+        | n == 1 = word
+        | otherwise = word <> "s"
   FunctionApplication {..} ->
     let fte = Type.removePureEffects False ft
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
@@ -454,18 +529,14 @@ renderTypeError e env src = case e of
         "\n\n",
         showSourceMaybes
           src
-          [ -- these are overwriting the colored ranges for some reason?
-            --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-            -- , (,Color.ForceShow) <$> rangeForType foundType
-            -- , (,Color.ForceShow) <$> rangeForType expectedType
-            -- ,
-            (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
+          [ (,Type1) . startingLine <$> (rangeForAnnotated mismatchSite),
             (,Type2) <$> rangeForAnnotated expectedLeaf
           ],
         fromOverHere'
           src
           [styleAnnotated Type1 foundLeaf]
           [styleAnnotated Type2 expectedLeaf],
+        missingDelayHint,
         unitHint,
         intLiteralSyntaxTip mismatchSite expectedType,
         debugNoteLoc
@@ -486,6 +557,20 @@ renderTypeError e env src = case e of
         debugSummary note
       ]
     where
+      missingDelayHint = case additionalInfo of
+        Nothing -> ""
+        Just MissingDelay ->
+          Pr.lines
+            [ "I expected the expression to be delayed, but it was not.",
+              "Are you missing a `do`?"
+            ]
+        Just SuperfluousDelay ->
+          Pr.lines
+            [ "",
+              "I didn't expect this expression to be delayed, but it was.",
+              "Are you using a `do` where you don't need one,",
+              "or are you missing a `()` to force an expression?"
+            ]
       unitHintMsg =
         "\nHint: Actions within a block must have type "
           <> style Type2 (renderType' env expectedLeaf)
@@ -573,44 +658,81 @@ renderTypeError e env src = case e of
         annotatedAsErrorSite src abilityCheckFailureSite,
         debugSummary note
       ]
+  AbilitySubtypeFailure {..} ->
+    mconcat
+      [ "I found an ability mismatch when checking the expression ",
+        describeStyle ErrorSite,
+        "\n",
+        showSourceMaybes
+          src
+          [ (,Type1) <$> rangeForAnnotated tsup,
+            (,Type2) <$> rangeForAnnotated tsub,
+            (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
+          ],
+        "\n",
+        Pr.lines $
+          [ "The check that",
+            "",
+            Pr.indentN 4 . style Type1 $ renderType' env tsub,
+            "",
+            "is a subtype of",
+            "",
+            Pr.indentN 4 . style Type2 $ renderType' env tsup,
+            "",
+            "failed because",
+            "",
+            Pr.indentN 4 . style Type1 $
+              "{" <> commas (renderType' env) sub <> "}",
+            "",
+            "is not a subtype of",
+            "",
+            Pr.indentN 4 . style Type2 $
+              "{" <> commas (renderType' env) sup <> "}"
+          ],
+        "\n\n",
+        debugSummary note
+      ]
   AbilityEqFailure {..} ->
     mconcat
       [ "I found an ability mismatch when checking the expression ",
         describeStyle ErrorSite,
-        "\n\n",
+        "\n",
         showSourceMaybes
           src
           [ (,Type1) <$> rangeForAnnotated tlhs,
             (,Type2) <$> rangeForAnnotated trhs,
             (,ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
           ],
-        "\n\n",
-        Pr.wrap $
-          mconcat
-            [ "When trying to match ",
-              style Type1 $ renderType' env tlhs,
-              " with ",
-              style Type2 $ renderType' env trhs,
-              case (lhs, rhs) of
-                ([], _) ->
-                  mconcat
-                    [ "the right hand side contained extra abilities: ",
-                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
-                    ]
-                (_, []) ->
-                  mconcat
-                    [ "the left hand side contained extra abilities: ",
-                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
-                    ]
-                _ ->
-                  mconcat
-                    [ " I could not make ",
-                      style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
-                      " on the left compatible with ",
-                      style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
-                      " on the right."
-                    ]
-            ],
+        "\n",
+        Pr.lines $
+          [ "When trying to match",
+            "",
+            Pr.indentN 4 . style Type1 $ renderType' env tlhs,
+            "",
+            "with",
+            "",
+            Pr.indentN 4 . style Type2 $ renderType' env trhs,
+            "",
+            case (lhs, rhs) of
+              ([], _) ->
+                mconcat
+                  [ "the right hand side contained extra abilities: ",
+                    style Type2 $ "{" <> commas (renderType' env) rhs <> "}"
+                  ]
+              (_, []) ->
+                mconcat
+                  [ "the left hand side contained extra abilities: ",
+                    style Type1 $ "{" <> commas (renderType' env) lhs <> "}"
+                  ]
+              _ ->
+                Pr.wrap . mconcat $
+                  [ " I could not make ",
+                    style Type1 $ "{" <> commas (renderType' env) lhs <> "}",
+                    " on the left compatible with ",
+                    style Type2 $ "{" <> commas (renderType' env) rhs <> "}",
+                    " on the right."
+                  ]
+          ],
         "\n\n",
         debugSummary note
       ]
@@ -1242,7 +1364,7 @@ renderContext ::
   (Var v, Ord loc) => Env -> C.Context v loc -> Pretty (AnnotatedText a)
 renderContext env ctx@(C.Context es) =
   "  Γ\n    "
-    <> intercalateMap "\n    " (showElem ctx . fst) (reverse es)
+    <> getDual (intercalateMap (Dual "\n    ") (Dual . showElem ctx) es)
   where
     shortName :: (Var v, IsString loc) => v -> loc
     shortName = fromString . Text.unpack . Var.name
@@ -1262,7 +1384,7 @@ renderContext env ctx@(C.Context es) =
 
 renderTerm :: (IsString s, Var v) => Env -> Term.Term' (TypeVar.TypeVar loc0 v) v loc1 -> s
 renderTerm env e =
-  fromString (Color.toPlain $ TermPrinter.pretty' 80 env (TypeVar.lowerTerm e))
+  fromString (Text.unpack $ Color.toPlain $ TermPrinter.pretty' 80 env (TypeVar.lowerTerm e))
 
 renderPattern :: Env -> Pattern ann -> ColorText
 renderPattern env =
@@ -1273,7 +1395,7 @@ renderPattern env =
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
-renderType' env = fromString . Pr.toPlain defaultWidth . renderType env (const id)
+renderType' env = fromString . Text.unpack . Pr.toPlain defaultWidth . renderType env (const id)
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
@@ -1415,10 +1537,10 @@ renderNoteAsANSI ::
   Env ->
   String ->
   Note v a ->
-  String
+  Text
 renderNoteAsANSI w e s = Pr.toANSI w . printNoteWithSource e s
 
-renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> String
+renderParseErrorAsANSI :: (Var v) => Pr.Width -> String -> Parser.Err v -> Text
 renderParseErrorAsANSI w src = Pr.toANSI w . prettyParseError src
 
 printNoteWithSource ::

@@ -10,6 +10,7 @@ module Unison.Typechecker
     isEqual,
     isSubtype,
     fitsScheme,
+    isMismatchMissingDelay,
     Env (..),
     Notes (..),
     Resolution (..),
@@ -32,19 +33,23 @@ import Data.Text qualified as Text
 import Data.Tuple qualified as Tuple
 import Unison.ABT qualified as ABT
 import Unison.Blank qualified as B
+import Unison.Builtin.Decls qualified as BuiltinDecls
 import Unison.Codebase.BuiltinAnnotation (BuiltinAnnotation)
 import Unison.Name qualified as Name
 import Unison.Prelude
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.Reference (Reference)
 import Unison.Result (Result, ResultT, runResultT, pattern Result)
 import Unison.Result qualified as Result
 import Unison.Syntax.Name qualified as Name (unsafeParseText, unsafeParseVar)
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Typechecker.Context qualified as Context
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
+import Unison.Typechecker.Variance (Variance (..))
 import Unison.Util.List (uniqueBy)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -97,7 +102,8 @@ data Env v loc = Env
     --
     -- For each free name, a separate mapping with the same type as termsByShortname is provided.
     freeNameToFuzzyTermsByShortName :: Map Name.Name (Map Name.Name [Either Name.Name (NamedReference v loc)]),
-    topLevelComponents :: Map Name.Name (NamedReference v loc)
+    topLevelComponents :: Map Name.Name (NamedReference v loc),
+    variances :: Map Reference [Variance]
   }
   deriving stock (Generic)
 
@@ -117,11 +123,39 @@ synthesize ppe pmccSwitch env t =
           Context.synthesizeClosed
             ppe
             pmccSwitch
+            env.variances
             (TypeVar.liftType <$> env.ambientAbilities)
             env.typeLookup
             (TypeVar.liftTerm t)
    in Result.hoist (pure . runIdentity) $ fmap TypeVar.lowerType result
 
+-- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
+-- @x : a@ and @f : b -> t@. That is, if a value of type `a`
+-- can be passed to a function expecting a `b`, then `subtype a b`
+-- returns `Right b`. This function returns @Left note@ with information
+-- about the reason for subtyping failure otherwise.
+--
+-- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
+-- subtype :: Var v => Type v -> Type v -> Either Note (Type v)
+-- subtype t1 t2 = error "todo"
+-- let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
+-- in case Context.runM (Context.subtype t1' t2')
+--                      (Context.MEnv Context.env0 [] Map.empty True) of
+--   Left e -> Left e
+--   Right _ -> Right t2
+
+-- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
+-- isSubtype :: Var v => Type v -> Type v -> Bool
+-- isSubtype t1 t2 = case subtype t1 t2 of
+--   Left _ -> False
+--   Right _ -> True
+
+-- | Returns true if the two type are equal, up to alpha equivalence and
+-- order of quantifier introduction. Note that alpha equivalence considers:
+-- `forall b a . a -> b -> a` and
+-- `forall a b . a -> b -> a` to be different types
+-- equals :: Var v => Type v -> Type v -> Bool
+-- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
 isSubtype :: (Var v) => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
   handleCompilerBug (Context.isSubtype (tvar $ void t1) (tvar $ void t2))
@@ -171,7 +205,15 @@ data Resolution v loc = Resolution
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve ::
-  (Monad f, Var v, Monoid loc, BuiltinAnnotation loc, Ord loc, Show loc) => PrettyPrintEnv -> Env v loc -> TDNR f v loc (Type v loc)
+  (Monad f) =>
+  (Var v) =>
+  (Monoid loc) =>
+  (BuiltinAnnotation loc) =>
+  (Ord loc) =>
+  (Show loc) =>
+  PrettyPrintEnv ->
+  Env v loc ->
+  TDNR f v loc (Type v loc)
 synthesizeAndResolve ppe env = do
   tm <- get
   (tp, notes) <-
@@ -378,7 +420,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
           Result (Notes v loc) (Maybe (Context.Suggestion v loc))
         resolve fuzzyNameMatch inferredType (NamedReference fqn foundType replace) =
           -- We found a name that matches or is similar. Check the type matches too.
-          case Context.isSubtype (TypeVar.liftType foundType) (Context.relax inferredType) of
+          case Context.isSubtype (TypeVar.liftType foundType) (Context.relax (variances env) inferredType) of
             Left bug -> Nothing <$ compilerBug bug
             -- Create a suggestion based on name and type similarity.
             Right typeMatches ->
@@ -419,35 +461,31 @@ check ppe env term typ =
 --     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Show loc, Semigroup loc) => PrettyPrintEnv -> Env v loc -> Term v loc -> f Bool
-wellTyped ppe env term = go <$> runResultT (synthesize ppe Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled env term)
+wellTyped ::
+  (Monad f) =>
+  (Var v) =>
+  (BuiltinAnnotation loc) =>
+  (Ord loc) =>
+  (Show loc) =>
+  (Semigroup loc) =>
+  PrettyPrintEnv ->
+  Env v loc ->
+  Term v loc ->
+  f Bool
+wellTyped ppe env term =
+  go
+    <$> runResultT (synthesize ppe enable env term)
   where
     go (may, _) = isJust may
+    enable =
+      Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
 
--- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
--- @x : a@ and @f : b -> t@. That is, if a value of type `a`
--- can be passed to a function expecting a `b`, then `subtype a b`
--- returns `Right b`. This function returns @Left note@ with information
--- about the reason for subtyping failure otherwise.
---
--- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
--- subtype :: Var v => Type v -> Type v -> Either Note (Type v)
--- subtype t1 t2 = error "todo"
--- let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
--- in case Context.runM (Context.subtype t1' t2')
---                      (Context.MEnv Context.env0 [] Map.empty True) of
---   Left e -> Left e
---   Right _ -> Right t2
-
--- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
--- isSubtype :: Var v => Type v -> Type v -> Bool
--- isSubtype t1 t2 = case subtype t1 t2 of
---   Left _ -> False
---   Right _ -> True
-
--- | Returns true if the two type are equal, up to alpha equivalence and
--- order of quantifier introduction. Note that alpha equivalence considers:
--- `forall b a . a -> b -> a` and
--- `forall a b . a -> b -> a` to be different types
--- equals :: Var v => Type v -> Type v -> Bool
--- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
+-- | Checks if the mismatch between two types is due to a missing delay, if so returns a tag for which type is
+-- missing the delay
+isMismatchMissingDelay :: (Var v) => Type v loc -> Type v loc -> Maybe (Either (Type v loc) (Type v loc))
+isMismatchMissingDelay typeA typeB
+  | isSubtype (Type.arrow () (Type.ref () BuiltinDecls.unitRef) (typeA $> ())) (typeB $> ()) =
+      Just (Left typeA)
+  | isSubtype (ABT.tm (ABT.tm (Type.Ref BuiltinDecls.unitRef) `Type.Arrow` (typeB $> ()))) (typeA $> ()) =
+      Just (Right typeB)
+  | otherwise = Nothing

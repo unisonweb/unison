@@ -38,12 +38,10 @@ import Control.Concurrent.STM as STM
 import Control.Exception (fromException, tryJust)
 import Control.Monad
 import Control.Monad.State
-import Data.Binary.Get (runGetOrFail)
 import Data.Bitraversable (bitraverse)
-import Data.ByteString.Lazy qualified as BL
-import Data.Bytes.Get (MonadGet)
-import Data.Bytes.Put (MonadPut, runPutL)
-import Data.Bytes.Serial
+import Data.ByteString qualified as B
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as BU
 import Data.Foldable
 import Data.IORef
 import Data.List qualified as L
@@ -119,6 +117,7 @@ import Unison.Runtime.Machine
 import Unison.Runtime.Pattern
 import Unison.Runtime.Profiling
 import Unison.Runtime.Serialize as SER
+import Unison.Runtime.Serialize.Get
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
@@ -546,13 +545,13 @@ profileEval actThr cleanThr ctxVar cl ppe mout tm = do
           Just loc
             | ticky $ takeExtension loc -> do
                 let (comp, wake) = foldedProfile ppe fnames pout
-                writeFile loc comp
-                writeFile (loc <.> "wakeup") wake
+                writeUtf8 loc comp
+                writeUtf8 (loc <.> "wakeup") wake
                 pure $ Right (errs, tmr)
             | otherwise -> do
                 let (comp, wake) = fullProfile ppe fnames pout
-                writeFile loc $ toPlain 0 comp
-                writeFile (loc <.> "wakeup") $ toPlain 0 wake
+                writeUtf8 loc $ toPlain 0 comp
+                writeUtf8 (loc <.> "wakeup") $ toPlain 0 wake
                 pure $ Right (errs, tmr)
           Nothing ->
             pure $ Right (errs <> Profile (miniProfile ppe fnames pout), tmr)
@@ -581,6 +580,23 @@ interpEval actThr cleanThr ctxVar cl ppe = \case
   MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
   FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
 
+-- Slightly inefficient method of encoding text. Matches the old way of
+-- encoding e.g. the compiled version below. Compiled code is not
+-- cross compatible with other versions, but keeping this format
+-- allows older versions to fail more gracefully, rather than
+-- encountering serialization errors.
+putTextBig :: Text -> Builder
+putTextBig text =
+  BU.word32BE (fromIntegral $ B.length bs) <> BU.byteString bs
+  where
+    bs = encodeUtf8 text
+
+getTextBig :: (PrimBase m) => Get m Text
+getTextBig = do
+  len <- getWord32be
+  bs <- B.copy <$> getByteString (fromIntegral len)
+  pure $ decodeUtf8 bs
+
 interpCompile ::
   Text ->
   IORef EvalCtx ->
@@ -599,11 +615,11 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   Just w <- lk <$> readTVarIO (refTm cc)
   let combIx = CIx rf w 0
   sto <- standalone cc w
-  BL.writeFile path . runPutL $ do
-    serialize $ version
-    serialize $ RF.showShort 8 rf
-    putCombIx combIx
-    putStoredCache sto
+  BU.writeFile path $
+    putTextBig version
+      <> putTextBig (RF.showShort 8 rf)
+      <> putCombIx combIx
+      <> putStoredCache sto
 
 backrefLifted ::
   Reference ->
@@ -661,6 +677,7 @@ normalizeTerm ctx tm =
     orig
       | Tm.LetRecNamed' bs _ <- tm =
           fmap (RF.DerivedId . fst)
+            . snd {- We can ignore the hashing warnings in the runtime, they're not relevant. -}
             . Hashing.hashTermComponentsWithoutTypes
             $ Map.fromList bs
       | otherwise = mempty
@@ -834,15 +851,14 @@ catchErrors sub =
   sub `UnliftIO.catch` (pure . Left . CompileExn) `UnliftIO.catch` (pure . Left . RuntimeExn Nothing)
 
 decodeStandalone ::
-  BL.ByteString ->
-  Either String (Text, Text, CombIx, StoredCache)
-decodeStandalone b = bimap thd thd $ runGetOrFail g b
+  B.ByteString ->
+  IO (Either String (Text, Text, CombIx, StoredCache))
+decodeStandalone b = runGetCatchIO g b
   where
-    thd (_, _, x) = x
     g =
       (,,,)
-        <$> deserialize
-        <*> deserialize
+        <$> getTextBig
+        <*> getTextBig
         <*> getCombIx
         <*> getStoredCache
 
@@ -907,21 +923,21 @@ data StoredCache
       (Map Reference (Set Reference))
   deriving (Show, Eq)
 
-putStoredCache :: (MonadPut m) => StoredCache -> m ()
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) = do
+putStoredCache :: StoredCache -> Builder
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
-  putEnumMap putNat putReference crs
-  putEnumSet putNat cacheableCombs
-  putOptInfos oinfo
-  putEnumMap putNat putReference trs
-  putNat ftm
-  putNat fty
-  putMap putReference (putGroup mempty False) int
-  putMap putReference putNat rtm
-  putMap putReference putNat rty
-  putMap putReference (putFoldable putReference) sbs
+    <> putEnumMap putNat putReference crs
+    <> putEnumSet putNat cacheableCombs
+    <> putOptInfos oinfo
+    <> putEnumMap putNat putReference trs
+    <> putNat ftm
+    <> putNat fty
+    <> putMap putReference (putGroup mempty False) int
+    <> putMap putReference putNat rtm
+    <> putMap putReference putNat rty
+    <> putMap putReference (putFoldable putReference) sbs
 
-getStoredCache :: (MonadGet m) => m StoredCache
+getStoredCache :: (PrimBase m) => Get m StoredCache
 getStoredCache =
   SCache
     <$> getEnumMap getNat (getEnumMap getNat getComb)
@@ -938,7 +954,7 @@ getStoredCache =
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
-  render 50
+  Text.unpack . render 50
   where
     render = if fancy then toANSI else toPlain
 

@@ -13,7 +13,7 @@ on:
 
 env:
   ## Some version numbers that are used during CI
-  runtime_tests_version: "@unison/runtime-tests/releases/0.0.3"
+  runtime_tests_version: "@unison/runtime-tests/releases/0.0.6"
 
   ## Some cached directories
   # a temp path for caching a built `ucm`
@@ -39,8 +39,8 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - macos-13
-          - macos-14
+          - macos-15-intel
+          - macos-latest
           - windows-2025
           # - windows-11-arm
     steps:
@@ -159,6 +159,12 @@ jobs:
           # Fail if any transcripts cause git diffs.
           git diff --ignore-cr-at-eol --exit-code unison-cli-integration/integration-tests
 
+      - name: check for dead code
+        if: runner.arch == 'x64' && runner.os == 'Linux' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        uses: freckle/weeder-action@8a97af19a69ef455f26d1fa8b0c19f9a2a90209a # v3
+        with:
+          ghc-version: "9.6.5" # This needs to match the resolver in stack.yaml
+
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: echo | stack ghci
@@ -204,8 +210,8 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - macos-13
-          - macos-14
+          - macos-15-intel
+          - macos-latest
           - windows-2025
           # - windows-11-arm
     steps:
@@ -274,6 +280,41 @@ jobs:
           git diff --ignore-cr-at-eol --exit-code \
             unison-src/transcripts-manual/docs.to-html.output.md \
             unison-src/transcripts-manual/docs.to-html
+
+      - name: dll-ffi-unix smoke tests
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        run: |
+          clang -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.so \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-unix.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-unix.output.md
+
+      - name: dll-ffi-win smoke tests
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        run: |
+          clang -DWINDOWS_BUILD -c -o \
+            unison-src/transcripts-manual/dll-ffi/test.o \
+            unison-src/transcripts-manual/dll-ffi/test.c
+
+          clang -DWINDOWS_BUILD -shared -o \
+            unison-src/transcripts-manual/dll-ffi/libtest.dll \
+            unison-src/transcripts-manual/dll-ffi/test.o
+
+          ${{env.ucm}} transcript unison-src/transcripts-manual/dll-ffi-win.md
+
+          # Fail if the output or generated docs differ.
+          git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/dll-ffi-win.output.md
+
       - name: mark transcripts as passing
         if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
         run: |
@@ -291,8 +332,8 @@ jobs:
           # While iterating on this file, you can disable one or more of these to speed things up
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - macos-13
-          - macos-14
+          - macos-15-intel
+          - macos-latest
           # - windows-2025 fails! :-\ https://github.com/unisonweb/unison/actions/runs/15706568824/job/44253742036?pr=5765
           # - windows-11-arm
     steps:

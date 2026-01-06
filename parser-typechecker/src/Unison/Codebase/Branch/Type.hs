@@ -13,6 +13,8 @@ module Unison.Codebase.Branch.Type
     history_,
     edits_,
     isEmpty0,
+    deepDefns,
+    deepDefnsRefs,
     deepTerms,
     deepTypes,
     deepPaths,
@@ -46,8 +48,9 @@ import Unison.Name qualified as Name
 import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Prelude
-import Unison.Reference (TypeReference)
+import Unison.Reference (TermReference, TypeReference)
 import Unison.Referent (Referent)
+import Unison.Referent qualified as Referent
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
 import Unison.UnconflictedLocalDefnsView qualified as UnconflictedLocalDefnsView
 import Unison.Util.Conflicted (Conflicted (..))
@@ -57,6 +60,7 @@ import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
+import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
 import Prelude hiding (head, read, subtract)
 
@@ -156,6 +160,22 @@ types_ =
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = _isEmpty0
+
+shallowDefns :: Branch0 m -> Defns (Metadata.Star Referent NameSegment) (Metadata.Star TypeReference NameSegment)
+shallowDefns branch =
+  Defns {terms = _terms branch, types = _types branch}
+
+deepDefns :: Branch0 m -> Defns (Relation Referent Name) (Relation TypeReference Name)
+deepDefns branch =
+  Defns {terms = _deepTerms branch, types = _deepTypes branch}
+
+shallowDefnsRefs :: Branch0 m -> DefnsF Set TermReference TypeReference
+shallowDefnsRefs =
+  bimap (Set.mapMaybe Referent.toTermReference . Star2.fact) Star2.fact . shallowDefns
+
+deepDefnsRefs :: Branch0 m -> DefnsF Set TermReference TypeReference
+deepDefnsRefs branch =
+  shallowDefnsRefs branch <> foldMap (deepDefnsRefs . head) (_children branch)
 
 deepTerms :: Branch0 m -> Relation Referent Name
 deepTerms = _deepTerms

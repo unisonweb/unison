@@ -57,7 +57,7 @@ testBuilder ::
   [FilePath] ->
   FilePath ->
   Test ()
-testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time transcript $ do
+testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelude transcript = time (Text.pack transcript) $ do
   scope transcript do
     outputs <-
       io $ withTemporaryUcmCodebase SC.init Verbosity.Silent "transcript" SC.DoLock \codebase ->
@@ -92,6 +92,12 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
               io $ Text.putStrLn errText
               io $ recordFailure (inputDir </> filePath, errText)
               crash $ "Failure in " <> filePath
+          Transcript.Exception someException -> do
+            let errMsg = Text.pack $ "Exception when running " <> filePath <> ": " <> (show someException)
+            io . writeUtf8 outputFile $ errMsg
+            when (not expectFailure) $ do
+              io $ recordFailure (inputDir </> filePath, errMsg)
+              crash (Text.unpack errMsg)
       (filePath, Right out) -> do
         let outputFile = outputDir </> if replaceOriginal then filePath else outputFileForTranscript filePath
         io . createDirectoryIfMissing True $ takeDirectory outputFile
@@ -181,10 +187,7 @@ test config = do
   buildTests config (testBuilder False True recordFailure) ("unison-src" </> "transcripts" </> "idempotent") Nothing
   buildTests config (testBuilder False False recordFailure) ("unison-src" </> "transcripts-using-base") Nothing
   buildTests config (testBuilder True False recordFailure) ("unison-src" </> "transcripts" </> "errors") Nothing
-  enumerateTests config (testBuilder False False recordFailure) $
-    [ ".github/ISSUE_TEMPLATE/bug_report.md",
-      ".github/pull_request_template.md"
-    ]
+  enumerateTests config (testBuilder False False recordFailure) $ [] -- add any explicitly named transcript files here
   failures <- io $ STM.readTVarIO failuresVar
   -- Print all aggregated failures
   when (not $ null failures) . io $ Text.putStrLn $ "Failures:"

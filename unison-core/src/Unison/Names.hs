@@ -13,6 +13,7 @@ module Unison.Names
     filter,
     filterBySHs,
     filterTypes,
+    fromRelations,
     fromUnconflicted,
     fromUnconflictedReferenceIds,
     fromUnconflictedRelation,
@@ -36,6 +37,7 @@ module Unison.Names
     restrictReferences,
     refTermsNamed,
     refTermsHQNamed,
+    references,
     referenceIds,
     unconflictedReferenceIds,
     termReferences,
@@ -134,6 +136,13 @@ fromUnconflictedReferenceIds defns =
   Names
     { terms = Relation.fromMap (Map.map Referent.fromTermReferenceId defns.terms),
       types = Relation.fromMap (Map.map Reference.fromId defns.types)
+    }
+
+fromRelations :: Defns (Relation Referent Name) (Relation TypeReference Name) -> Names
+fromRelations defns =
+  Names
+    { terms = Relation.swap defns.terms,
+      types = Relation.swap defns.types
     }
 
 fromUnconflictedRelation :: Defns (BiMultimap Referent Name) (BiMultimap TypeReference Name) -> Names
@@ -242,6 +251,19 @@ queryEditDistances' nameToText query names = do
 editDistance :: String -> String -> Int
 editDistance = restrictedDamerauLevenshteinDistance defaultEditCosts
 
+-- | Get all term/type references in a @Names@.
+references :: Names -> DefnsF Set TermReference TypeReference
+references names =
+  f names.terms <> g names.types
+  where
+    f :: Relation Name Referent -> DefnsF Set TermReference TypeReference
+    f =
+      foldMap (foldMap referentToDefns) . Relation.domain
+
+    g :: (Ord terms) => Relation Name TypeReference -> DefnsF Set terms TypeReference
+    g =
+      Defns.fromTypes . Relation.ran
+
 -- | Get all term/type references ids in a @Names@.
 referenceIds :: Names -> DefnsF Set TermReferenceId TypeReferenceId
 referenceIds names =
@@ -271,6 +293,18 @@ unconflictedReferenceIds =
       Defns.fromTypes
         . Map.foldl' (\acc -> maybe acc (`Set.insert` acc) . Reference.toId) Set.empty
         . BiMultimap.range
+
+referentToDefns :: Referent -> DefnsF Set TermReference TypeReference
+referentToDefns = \case
+  Referent.Con ref _ ->
+    ref
+      & view ConstructorReference.reference_
+      & Set.singleton
+      & Defns.fromTypes
+  Referent.Ref ref ->
+    ref
+      & Set.singleton
+      & Defns.fromTerms
 
 referentToDefnsIds :: Referent -> DefnsF Set TermReferenceId TypeReferenceId
 referentToDefnsIds = \case

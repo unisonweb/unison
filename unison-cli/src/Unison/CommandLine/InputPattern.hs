@@ -9,13 +9,20 @@ module Unison.CommandLine.InputPattern
     Parameter,
     TrailingParameters (..),
     Parameters (..),
-    Argument,
+    Argument (..),
     Arguments,
     noParams,
     foldParamsWithM,
     paramType,
     FZFResolver (..),
     Visibility (..),
+
+    -- * Parse Arguments
+    parseArgs,
+    CliArg (..),
+    NumberedArg (..),
+    renderCliArg,
+    renderCliArgUnquoted,
 
     -- * Currently Unused
     minArgs,
@@ -26,9 +33,13 @@ module Unison.CommandLine.InputPattern
 where
 
 import Control.Lens
+import Data.Char qualified as Char
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Text qualified as Text
 import System.Console.Haskeline qualified as Line
+import Text.Megaparsec qualified as MP
+import Text.Megaparsec.Char qualified as MP
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input (..))
@@ -47,7 +58,9 @@ data Visibility = Hidden | Visible
 -- needs to be parsed or a numbered argument that doesn’t need to be parsed, as
 -- we’ve preserved its representation (although the numbered argument could
 -- still be of the wrong type, which should result in an error).
-type Argument = Either String StructuredArgument
+data Argument
+  = RawArg String
+  | StructuredArg StructuredArgument
 
 type Arguments = [Argument]
 
@@ -133,14 +146,14 @@ foldParamsWithM fn z Parameters {requiredParams, trailingParams} = foldRequiredA
         Optional optParams zeroPlus -> foldOptionalArgs res zeroPlus optParams as
         OnePlus param -> case as of
           [] -> pure $ pure (res, Parameters [] $ OnePlus param)
-          a : args -> foldCatchallArg res param $ a :| args
+          a : args -> foldCatchallArg1 res param $ a :| args
       (ps, []) -> pure $ pure (res, Parameters ps trailingParams)
       (p : ps, a : as) -> do
         (res', extraArgs) <- fn res p a
         foldRequiredArgs res' ps $ extraArgs <> as
     foldOptionalArgs res zp = curry \case
       (ps, []) -> pure $ pure (res, Parameters [] $ Optional ps zp)
-      ([], a : as) -> maybe (pure . Left) (foldCatchallArg res) zp $ a :| as
+      ([], a : as) -> maybe (pure . Left) (foldCatchallArg1 res) zp $ a :| as
       (p : ps, a : as) -> do
         (res', extraArgs) <- fn res p a
         foldOptionalArgs res' zp ps $ extraArgs <> as
@@ -150,7 +163,9 @@ foldParamsWithM fn z Parameters {requiredParams, trailingParams} = foldRequiredA
             a : args -> do
               (res', extraArgs) <- fn prevRes p a
               collectRemainingArgs res' $ extraArgs <> args
-       in collectRemainingArgs res . toList
+       in collectRemainingArgs res
+    foldCatchallArg1 res p =
+      foldCatchallArg res p . toList
 
 paramInfo :: Parameters -> Int -> Maybe (ParameterDescription, ParameterType)
 paramInfo Parameters {requiredParams, trailingParams} i =
@@ -229,3 +244,127 @@ suggestionFallbacks suggesters inp codebase httpClient path = go suggesters
         then go rest
         else pure suggestions
     go [] = pure []
+
+type Parser = MP.Parsec Void String
+
+data NumberedArg
+  = NumberedSingle Int
+  | NumberedRange Int Int -- e.g. "3-5", inclusive on both sides.
+  | NumberedAfterStart Int -- e.g. "3-", inclusive
+  | NumberedBeforeEnd Int -- e.g. "-5", inclusive
+  deriving (Eq, Show)
+
+data CliArg
+  = NumberedArg NumberedArg
+  | QuotedArg
+      String
+      Bool -- whether the quote was terminated
+      Char -- the quote character used
+  | UnquotedArg String
+  deriving (Eq, Show)
+
+-- | Get the text representing a given 'CliArg'.
+renderCliArg :: CliArg -> String
+renderCliArg =
+  \case
+    NumberedArg n -> case n of
+      NumberedSingle i -> show i
+      NumberedRange s e -> show s <> "-" <> show e
+      NumberedAfterStart s -> show s <> "-"
+      NumberedBeforeEnd e -> "-" <> show e
+    QuotedArg s False quoteChar -> [quoteChar] <> s <> [quoteChar]
+    QuotedArg s True quoteChar -> [quoteChar] <> s
+    UnquotedArg s -> s
+
+-- | Like `renderCliArg`, but does not include quotes regardless of whether the argument was quoted.
+renderCliArgUnquoted :: CliArg -> String
+renderCliArgUnquoted =
+  \case
+    NumberedArg n -> case n of
+      NumberedSingle i -> show i
+      NumberedRange s e -> show s <> "-" <> show e
+      NumberedAfterStart s -> show s <> "-"
+      NumberedBeforeEnd e -> "-" <> show e
+    QuotedArg s False _quoteChar -> s
+    QuotedArg s True _quoteChar -> s
+    UnquotedArg s -> s
+
+-- | Like `parseArgs`, but indicates whether each argument was quoted, and also whether the quote was terminated..
+-- This is for things like tab-completion where the original string is important.
+parseArgs :: String -> Maybe [CliArg]
+parseArgs input = MP.parseMaybe argsP (strip input)
+  where
+    strip = Text.unpack . Text.strip . Text.pack
+
+-- | Parser for a single CLI argument, which may be a single word, or a quoted string.
+--
+-- Also handles backslash-escaped quotes within quoted strings.
+argP :: Parser CliArg
+argP = do
+  MP.try (numberedArgP <* wordBoundary)
+    MP.<|> (quotedArgP <* wordBoundary)
+    MP.<|> (unquotedArgP <* wordBoundary)
+  where
+    wordBoundary = MP.lookAhead (MP.space1 <|> MP.eof)
+    escapedQuote :: Parser Char
+    escapedQuote = do
+      _ <- MP.char '\\'
+      MP.char '"' <|> MP.char '\''
+
+    numberedArgP :: Parser CliArg
+    numberedArgP = do
+      NumberedArg <$> (MP.try rangeP MP.<|> singleP)
+      where
+        singleP :: Parser NumberedArg
+        singleP = do
+          digits <- some MP.digitChar
+          case readMay digits of
+            Just n -> pure $ NumberedSingle n
+            Nothing -> empty
+        rangeP :: Parser NumberedArg
+        rangeP = do
+          start <- optional $ some MP.digitChar
+          _dash <- MP.char '-'
+          end <- optional $ some MP.digitChar
+          case (start >>= readMay, end >>= readMay) of
+            (Just s, Just e) -> pure $ NumberedRange s e
+            (Just s, Nothing) -> pure $ NumberedAfterStart s
+            (Nothing, Just e) -> pure $ NumberedBeforeEnd e
+            -- Fail, the parser will fallback to other arg types
+            (Nothing, Nothing) -> empty
+
+    quotedArgP :: Parser CliArg
+    quotedArgP = do
+      quoteChar <- MP.char '"' <|> MP.char '\''
+      (content, hasUnterminatedQuote) <-
+        MP.manyTill_
+          (escapedQuote <|> MP.anySingle)
+          -- Treat EOF as closing quote so completion still functions on unterminated quotes
+          (((MP.char quoteChar) $> False) <|> (MP.eof $> True))
+      pure $ QuotedArg content hasUnterminatedQuote quoteChar
+    unquotedArgP :: Parser CliArg
+    unquotedArgP = do
+      UnquotedArg <$> MP.some (MP.satisfy (not . Char.isSpace))
+
+-- >>> MP.parseMaybe argsP "one two three"
+-- Just [UnquotedArg "one",UnquotedArg "two",UnquotedArg "three"]
+--
+-- >>> MP.parseMaybe argsP "\"one two\" three"
+-- Just [QuotedArg "one two" False '"',UnquotedArg "three"]
+--
+-- >>> MP.parseMaybe argsP "one    two    three"
+-- Just [UnquotedArg "one",UnquotedArg "two",UnquotedArg "three"]
+--
+-- Unfinished quote should auto-close quote at end of input, but indicate that it was unterminated
+-- >>> MP.parseMaybe argsP "one two \"three four"
+-- Just [UnquotedArg "one",UnquotedArg "two",QuotedArg "three four" True '"']
+--
+-- Should require args to take up a whole segment, and should fall back to raw args.
+-- >>> MP.parseMaybe argsP "1.2.3 abc-def"
+-- Just [NumberedArg (NumberedSingle 1),UnquotedArg ".2.3",UnquotedArg "abc-def"]
+--
+-- >>> MP.parseMaybe argsP "release.draft 1.2.3"
+-- Just [UnquotedArg "release.draft",NumberedArg (NumberedSingle 1),UnquotedArg ".2.3"]
+argsP :: Parser [CliArg]
+argsP = do
+  MP.sepBy argP MP.space

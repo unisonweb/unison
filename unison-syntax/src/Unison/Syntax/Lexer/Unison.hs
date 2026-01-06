@@ -214,11 +214,11 @@ token'' tok p = do
                 -- `{layout = [], opening = Nothing, inLayout = True}`
                   fail "internal error: token''"
 
-    -- don't emit virtual semis in (, {, or [ blocks
+    -- don't emit virtual semis in (, {, [, or match blocks
     topContainsVirtualSemis :: Layout -> Bool
     topContainsVirtualSemis = \case
       [] -> False
-      ((name, _) : _) -> name /= "(" && name /= "{" && name /= "["
+      ((name, _) : _) -> name `notElem` ["(", "{", "[", "match"]
 
     topHasClosePair :: Layout -> Bool
     topHasClosePair [] = False
@@ -891,15 +891,18 @@ reorder = foldr fixup [] . sortWith f
       Reserved "namespace" -> 1
       Reserved "use" -> 2
       _ -> 4 :: Int
-    -- after reordering can end up with trailing semicolon at the end of
-    -- a block, which we remove with this pass
-    fixup stanza [] = case Lens.unsnoc stanza of
-      Nothing -> []
-      -- remove any trailing `Semi` from the last non-empty stanza
-      Just (init, Leaf (Token (Semi _) _ _)) -> [init]
-      -- don’t touch other stanzas
-      Just (_, _) -> [stanza]
-    fixup stanza tail = stanza : tail
+    -- after reordering can end up with semicolons in the wrong place, which we correct with this pass
+    fixup stanza tail = case Lens.unsnoc stanza of
+      -- drop empty stanzas
+      Nothing -> tail
+      Just (init, last) -> (: tail) case (last, tail) of
+        -- remove any trailing `Semi` from the last stanza
+        (Leaf (Token (Semi _) _ _), []) -> init
+        -- leave other stanzas alone
+        (Leaf (Token (Semi _) _ _), _) -> stanza
+        (_, []) -> stanza
+        -- add a trailing `Semi` to non-final stanzas without one
+        (_, _) -> Lens.snoc stanza . Leaf . pure $ Semi True
 
 -- | This turns the lexeme stream into a tree, reordering some lexeme subsequences.
 preParse :: [Token Lexeme] -> BlockTree (Token Lexeme)

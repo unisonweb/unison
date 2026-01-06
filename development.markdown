@@ -130,3 +130,13 @@ Stack doesn't work deterministically in Windows due to mismatched expectations a
 ## Nix support
 
 See the [readme](./nix/README.md).
+
+## Weeding
+
+The Nix devShell includes Weeder, a tool for detecting dead code.
+
+Before running it, make sure your build is up-to-date (`stack build --bench --no-run-benchmarks --test --no-run-tests --haddock`).
+
+Not building tests will result in false reports of dead code, because Weeder won’t see call sites of things used only by tests. However, if Weeder runs clean on the entire codebase, you can `stack clean && stack build && weeder` and the complaints Weeder emits will then be things that are defined in production code, but are only used in benchmarks, tests, or Haddock. This indicates either dead code that we’re testing, or test utilities that live in the wrong place. The former should be removed, and the later should be moved.
+
+__NB__: Sometimes weeder complains about HIE files being built with the wrong GHC version. To fix this, I’ve had success with deleting my .direnv cache. You can specify multiple directories for Weeder to search with `--hie-directory`, but can’t specify a directory to exclude.

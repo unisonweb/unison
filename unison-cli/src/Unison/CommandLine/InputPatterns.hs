@@ -11,11 +11,15 @@ module Unison.CommandLine.InputPatterns
     branchInputPattern,
     branchRenameInputPattern,
     branchesInputPattern,
+    cancelInputPattern,
     cd,
     clear,
     clone,
+    configSet,
+    configGet,
     createAuthor,
     debugClearWatchCache,
+    debugDependentsGraph,
     debugDoctor,
     debugDumpNamespace,
     debugDumpNamespaceSimple,
@@ -32,16 +36,17 @@ module Unison.CommandLine.InputPatterns
     debugType,
     delete,
     deleteBranch,
+    deleteForce,
     deleteNamespace,
     deleteNamespaceForce,
     deleteProject,
     deleteTerm,
-    deleteTermVerbose,
+    deleteTermForce,
     deleteType,
-    deleteTypeVerbose,
-    deleteVerbose,
+    deleteTypeForce,
     dependencies,
     dependents,
+    diffBranch,
     diffNamespace,
     display,
     displayTo,
@@ -66,6 +71,7 @@ module Unison.CommandLine.InputPatterns
     help,
     helpTopics,
     history,
+    historyComment,
     ioTest,
     ioTestAll,
     libInstallInputPattern,
@@ -77,6 +83,7 @@ module Unison.CommandLine.InputPatterns
     mergeIOBuiltins,
     mergeInputPattern,
     moveAll,
+    moveTo,
     names,
     namespaceDependencies,
     printVersion,
@@ -96,6 +103,7 @@ module Unison.CommandLine.InputPatterns
     syncFromCodebase,
     quit,
     releaseDraft,
+    rename,
     renameBranch,
     renameTerm,
     renameType,
@@ -111,10 +119,14 @@ module Unison.CommandLine.InputPatterns
     undo,
     up,
     update,
+    diffUpdate,
     updateBuiltins,
     upgrade,
     view,
     viewGlobal,
+    watchInputPattern,
+    watchesInputPattern,
+    unwatchInputPattern,
     deprecatedViewRootReflog,
     branchReflog,
     projectReflog,
@@ -153,6 +165,7 @@ import System.Console.Haskeline.Completion qualified as Line
 import Text.Megaparsec qualified as Megaparsec
 import Text.Numeral (defaultInflection)
 import Text.Numeral.Language.ENG qualified as Numeral
+import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (ProjectBranchId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
@@ -169,7 +182,7 @@ import Unison.Cli.Pretty
   )
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteOutput (..), DeleteTarget (..), Input)
+import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Editor.Output.PushPull (PushPull (Pull, Push))
 import Unison.Codebase.Editor.RemoteRepo (ReadRemoteNamespace)
@@ -227,6 +240,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResult (SearchResult)
 import Unison.Server.SearchResult qualified as SR
 import Unison.Syntax.HashQualified qualified as HQ (parseText, toText)
+import Unison.Syntax.HashQualifiedPrime qualified as HQ' (parseText)
 import Unison.Syntax.Name qualified as Name (parseTextEither, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.ColorText qualified as CT
@@ -249,6 +263,7 @@ formatStructuredArgument schLength = \case
   SA.HashQualifiedWithBranchPrefix absBranchId hq'Name -> HQ'.toTextWith (prefixBranchId absBranchId) hq'Name
   SA.ShallowListEntry path entry -> entryToHQText path entry
   SA.SearchResult searchRoot searchResult -> HQ.toText $ searchResultToHQ searchRoot searchResult
+  SA.FilePath fp -> Text.pack fp
   where
     -- E.g.
     -- prefixBranchId "#abcdef" "base.List.map" -> "#abcdef:.base.List.map"
@@ -279,7 +294,7 @@ formatStructuredArgument schLength = \case
               else "." <> s
         pathArgStr = Path.toText pathArg
 
--- | Converts an arbitrary argument to a `String`.
+-- | Converts an arbitrary argument to a `Text`.
 --
 -- This is for cases where the
 -- command /should/ accept a structured argument of some type, but currently
@@ -287,7 +302,9 @@ formatStructuredArgument schLength = \case
 --
 -- This can also be used where the input argument needs to be included in the output.
 unifyArgument :: I.Argument -> String
-unifyArgument = either id (Text.unpack . formatStructuredArgument Nothing)
+unifyArgument = \case
+  I.RawArg raw -> raw
+  I.StructuredArg sa -> Text.unpack $ formatStructuredArgument Nothing sa
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i =
@@ -319,12 +336,14 @@ searchResultToHQ oprefix = \case
     addPrefix = maybe id Path.prefixNameIfRel oprefix
 
 unsupportedStructuredArgument :: InputPattern -> Text -> I.Argument -> Either (P.Pretty CT.ColorText) String
-unsupportedStructuredArgument command expected =
-  either pure . const . Left . P.wrap $
-    makeExample' command
-      <> "can’t accept a numbered argument for"
-      <> P.text expected
-      <> "and it’s not yet possible to provide un-expanded numbers as arguments."
+unsupportedStructuredArgument command expected = \case
+  I.RawArg raw -> pure raw
+  I.StructuredArg _sa ->
+    Left . P.wrap $
+      makeExample' command
+        <> "can’t accept a numbered argument for"
+        <> P.text expected
+        <> "and it’s not yet possible to provide un-expanded numbers as arguments."
 
 expectedButActually' :: Text -> String -> P.Pretty CT.ColorText
 expectedButActually' expected actualValue =
@@ -357,6 +376,7 @@ wrongStructuredArgument expected actual =
       SA.HashQualifiedWithBranchPrefix _ _ -> "a hash-qualified name"
       SA.ShallowListEntry _ _ -> "a name"
       SA.SearchResult _ _ -> "a search result"
+      SA.FilePath _ -> "a file path"
 
 wrongArgsLength :: Text -> [a] -> Either (P.Pretty CT.ColorText) b
 wrongArgsLength expected args =
@@ -387,45 +407,41 @@ helpFor :: InputPattern -> P.Pretty CT.ColorText
 helpFor = I.help
 
 handleProjectArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectName
-handleProjectArg =
-  either
-    (\name -> first (const $ expectedButActually' "a project" name) . tryInto @ProjectName $ Text.pack name)
-    \case
-      SA.Project project -> pure project
-      otherArgType -> Left $ wrongStructuredArgument "a project" otherArgType
+handleProjectArg = \case
+  I.RawArg name -> first (const $ expectedButActually' "a project" name) . tryInto @ProjectName $ Text.pack name
+  I.StructuredArg sa -> case sa of
+    SA.Project project -> pure project
+    otherArgType -> Left $ wrongStructuredArgument "a project" otherArgType
 
 handleMaybeProjectBranchArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-handleMaybeProjectBranchArg =
-  either
-    (megaparse branchWithOptionalProjectParser . Text.pack)
-    \case
-      SA.ProjectBranch pb -> pure pb
-      otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
+handleMaybeProjectBranchArg = \case
+  I.RawArg raw -> megaparse branchWithOptionalProjectParser . Text.pack $ raw
+  I.StructuredArg sa -> case sa of
+    SA.ProjectBranch pb -> pure pb
+    otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
 
 handleProjectMaybeBranchArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch ProjectName (Maybe ProjectBranchNameOrLatestRelease))
-handleProjectMaybeBranchArg =
-  either
-    (\str -> first (const $ expectedButActually' "a project or branch" str) . tryInto $ Text.pack str)
-    \case
-      SA.Project proj -> pure $ ProjectAndBranch proj Nothing
-      SA.ProjectBranch (ProjectAndBranch (Just proj) branch) ->
-        pure . ProjectAndBranch proj . pure $ ProjectBranchNameOrLatestRelease'Name branch
-      otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
+handleProjectMaybeBranchArg = \case
+  I.RawArg raw -> first (const $ expectedButActually' "a project or branch" raw) . tryInto $ Text.pack raw
+  I.StructuredArg sa -> case sa of
+    SA.Project proj -> pure $ ProjectAndBranch proj Nothing
+    SA.ProjectBranch (ProjectAndBranch (Just proj) branch) ->
+      pure . ProjectAndBranch proj . pure $ ProjectBranchNameOrLatestRelease'Name branch
+    otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
 
 handleProjectBranchArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch ProjectName ProjectBranchName)
-handleProjectBranchArg arg =
-  case arg of
-    Left str ->
-      parseProjBranchName str <|> parseJustProjName str
-        & maybeToEither (P.string $ "Invalid project/branch name: " <> str)
-    Right structured -> case structured of
-      SA.Project proj -> pure $ ProjectAndBranch proj defaultBranchName
-      SA.ProjectBranch (ProjectAndBranch (Just proj) branch) ->
-        pure $ ProjectAndBranch proj branch
-      otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
+handleProjectBranchArg = \case
+  I.RawArg str ->
+    parseProjBranchName str <|> parseJustProjName str
+      & maybeToEither (P.string $ "Invalid project/branch name: " <> str)
+  I.StructuredArg structured -> case structured of
+    SA.Project proj -> pure $ ProjectAndBranch proj defaultBranchName
+    SA.ProjectBranch (ProjectAndBranch (Just proj) branch) ->
+      pure $ ProjectAndBranch proj branch
+    otherArgType -> Left $ wrongStructuredArgument "a project or branch" otherArgType
   where
     parseProjBranchName str = eitherToMaybe (tryInto @(ProjectAndBranch ProjectName ProjectBranchName) $ Text.pack str)
     parseJustProjName str = do
@@ -433,119 +449,113 @@ handleProjectBranchArg arg =
       pure $ projMayBranch & field @"branch" %~ fromMaybe defaultBranchName
 
 handleHashQualifiedNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ.HashQualified Name)
-handleHashQualifiedNameArg =
-  either
-    parseHashQualifiedName
-    \case
-      SA.Name name -> pure $ HQ.NameOnly name
-      SA.NameWithBranchPrefix mprefix name ->
-        pure . HQ.NameOnly $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
-      SA.HashQualified hqname -> pure hqname
-      SA.HashQualifiedWithBranchPrefix mprefix hqname ->
-        pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Path.prefixNameIfRel (Path.AbsolutePath' prefix)) hqname mprefix
-      SA.ShallowListEntry prefix entry ->
-        pure . HQ'.toHQ . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
-      SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
-      otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
+handleHashQualifiedNameArg = \case
+  I.RawArg raw -> parseHashQualifiedName raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> pure $ HQ.NameOnly name
+    SA.NameWithBranchPrefix mprefix name ->
+      pure . HQ.NameOnly $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
+    SA.HashQualified hqname -> pure hqname
+    SA.HashQualifiedWithBranchPrefix mprefix hqname ->
+      pure . HQ'.toHQ $ foldr (\prefix -> fmap $ Path.prefixNameIfRel (Path.AbsolutePath' prefix)) hqname mprefix
+    SA.ShallowListEntry prefix entry ->
+      pure . HQ'.toHQ . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
+    SA.SearchResult mpath result -> pure $ searchResultToHQ mpath result
+    otherArgType -> Left $ wrongStructuredArgument "a hash-qualified name" otherArgType
 
 handlePathArg :: I.Argument -> Either (P.Pretty CT.ColorText) Path
-handlePathArg =
-  either
-    (first P.text . Path.parsePath)
-    \case
-      SA.Name name -> pure $ Path.fromName name
-      SA.NameWithBranchPrefix _ name -> pure $ Path.fromName name
-      otherArgType ->
-        either
-          (const . Left $ wrongStructuredArgument "a relative path" otherArgType)
-          ( \name ->
-              if Name.isRelative name
-                then pure $ Path.fromName name
-                else Left $ wrongStructuredArgument "a relative path" otherArgType
-          )
-          . handleNameArg
-          $ pure otherArgType
+handlePathArg = \case
+  I.RawArg raw -> first P.text . Path.parsePath $ raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> pure $ Path.fromName name
+    SA.NameWithBranchPrefix _ name -> pure $ Path.fromName name
+    otherArgType ->
+      case handleNameArg (I.StructuredArg otherArgType) of
+        Left _ -> Left $ wrongStructuredArgument "a relative path" otherArgType
+        Right name ->
+          if Name.isRelative name
+            then pure $ Path.fromName name
+            else Left $ wrongStructuredArgument "a relative path" otherArgType
 
 handlePath'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
-handlePath'Arg =
-  either
-    (first P.text . Path.parsePath')
-    \case
+handlePath'Arg = \case
+  I.RawArg raw -> first P.text . Path.parsePath' $ raw
+  I.StructuredArg sa ->
+    case sa of
       SA.AbsolutePath path -> pure $ Path.absoluteToPath' path
       SA.Name name -> pure $ Path.fromName' name
       SA.NameWithBranchPrefix mprefix name ->
         pure . Path.fromName' $ foldr (Path.prefixNameIfRel . Path.AbsolutePath') name mprefix
       otherArgType ->
-        bimap (const $ wrongStructuredArgument "a path" otherArgType) Path.fromName' . handleNameArg $ pure otherArgType
+        bimap (const $ wrongStructuredArgument "a path" otherArgType) Path.fromName' . handleNameArg $ I.StructuredArg otherArgType
 
 handleNewName :: I.Argument -> Either (P.Pretty CT.ColorText) (Path.Split Path')
-handleNewName =
-  either
-    (first P.text . Path.parseSplit')
-    (const . Left $ "can’t use a numbered argument for a new name")
+handleNewName = \case
+  I.RawArg raw -> first P.text . Path.parseSplit' $ raw
+  I.StructuredArg _sa -> Left $ "can’t use a numbered argument for a new name"
 
 handleNewPath :: I.Argument -> Either (P.Pretty CT.ColorText) Path'
-handleNewPath =
-  either
-    (first P.text . Path.parsePath')
-    (const . Left $ "can’t use a numbered argument for a new namespace")
+handleNewPath = \case
+  I.RawArg raw -> first P.text . Path.parsePath' $ raw
+  I.StructuredArg _sa -> Left $ "can’t use a numbered argument for a new namespace"
 
 -- | When only a relative name is allowed.
 handleSplitArg :: I.Argument -> Either (P.Pretty CT.ColorText) (Path.Split Path.Relative)
-handleSplitArg =
-  fmap (first Path.Relative) . either
-    (first P.text . Path.parseSplit)
-    \case
-      SA.Name name | Name.isRelative name -> pure $ Path.splitFromName name
-      SA.NameWithBranchPrefix _ name | Name.isRelative name -> pure $ Path.splitFromName name
-      otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
+handleSplitArg arg =
+  fmap (first Path.Relative) $
+    case arg of
+      I.RawArg raw -> first P.text . Path.parseSplit $ raw
+      I.StructuredArg sa ->
+        case sa of
+          SA.Name name | Name.isRelative name -> pure $ Path.splitFromName name
+          SA.NameWithBranchPrefix _ name | Name.isRelative name -> pure $ Path.splitFromName name
+          otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
 handleSplit'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) (Path.Split Path')
 handleSplit'Arg = fmap Path.parentOfName . handleNameArg
 
 handleProjectBranchNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectBranchName
-handleProjectBranchNameArg =
-  either
-    (first (const $ P.text "Wanted a branch name, but it wasn’t") . tryInto . Text.pack)
-    \case
+handleProjectBranchNameArg = \case
+  I.RawArg raw ->
+    first (const $ P.text "Wanted a branch name, but it wasn’t") . tryInto . Text.pack $ raw
+  I.StructuredArg sa ->
+    case sa of
       SA.ProjectBranch (ProjectAndBranch _ branch) -> pure branch
       otherNumArg -> Left $ wrongStructuredArgument "a branch name" otherNumArg
 
 handleBranchIdArg :: I.Argument -> Either (P.Pretty CT.ColorText) Input.BranchId
-handleBranchIdArg =
-  either
-    (first P.text . Input.parseBranchId)
-    \case
-      SA.AbsolutePath path -> pure . BranchAtPath $ Path.absoluteToPath' path
-      SA.Name name -> pure . BranchAtPath $ Path.fromName' name
-      SA.NameWithBranchPrefix mprefix name ->
-        pure $ case mprefix of
-          BranchAtSCH _sch -> BranchAtPath . Path.fromName' $ name
-          BranchAtPath prefix -> BranchAtPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-          BranchAtProjectPath pp ->
-            pp
-              & PP.absPath_
-                %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
-              & BranchAtProjectPath
-      SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
-      otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
+handleBranchIdArg = \case
+  I.RawArg raw -> first P.text . Input.parseBranchId $ raw
+  I.StructuredArg sa -> case sa of
+    SA.AbsolutePath path -> pure . BranchAtPath $ Path.absoluteToPath' path
+    SA.Name name -> pure . BranchAtPath $ Path.fromName' name
+    SA.NameWithBranchPrefix mprefix name ->
+      pure $ case mprefix of
+        BranchAtSCH _sch -> BranchAtPath . Path.fromName' $ name
+        BranchAtPath prefix -> BranchAtPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
+        BranchAtProjectPath pp ->
+          pp
+            & PP.absPath_
+              %~ (\pathPrefix -> Path.resolve pathPrefix (Path.fromName name))
+            & BranchAtProjectPath
+    SA.Namespace hash -> pure . BranchAtSCH $ SCH.fromFullHash hash
+    otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 -- | TODO: Maybe remove?
 _handleBranchIdOrProjectArg ::
   I.Argument ->
   Either (P.Pretty CT.ColorText) (These Input.BranchId (ProjectAndBranch (Maybe ProjectName) ProjectBranchName))
-_handleBranchIdOrProjectArg =
-  either
-    (\str -> maybe (Left $ expectedButActually' "a branch" str) pure $ branchIdOrProject str)
-    \case
-      SA.Namespace hash -> pure . This . BranchAtSCH $ SCH.fromFullHash hash
-      SA.AbsolutePath path -> pure . This . BranchAtPath $ Path.absoluteToPath' path
-      SA.Name name -> pure . This . BranchAtPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . This . BranchAtPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
-        pure . This . BranchAtPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-      SA.ProjectBranch pb -> pure $ That pb
-      otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
+_handleBranchIdOrProjectArg = \case
+  I.RawArg raw -> maybe (Left $ expectedButActually' "a branch" raw) pure $ branchIdOrProject raw
+  I.StructuredArg sa -> case sa of
+    SA.Namespace hash -> pure . This . BranchAtSCH $ SCH.fromFullHash hash
+    SA.AbsolutePath path -> pure . This . BranchAtPath $ Path.absoluteToPath' path
+    SA.Name name -> pure . This . BranchAtPath $ Path.fromName' name
+    SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . This . BranchAtPath $ Path.fromName' name
+    SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
+      pure . This . BranchAtPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
+    SA.ProjectBranch pb -> pure $ That pb
+    otherArgType -> Left $ wrongStructuredArgument "a branch" otherArgType
   where
     branchIdOrProject ::
       String ->
@@ -566,103 +576,97 @@ _handleBranchIdOrProjectArg =
             (Right bid, Right pr) -> Just (These bid pr)
 
 handleBranchId2Arg :: I.Argument -> Either (P.Pretty P.ColorText) Input.BranchId2
-handleBranchId2Arg =
-  either
-    Input.parseBranchId2
-    \case
-      SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
-      SA.AbsolutePath path -> pure . pure . UnqualifiedPath $ Path.absoluteToPath' path
-      SA.Name name -> pure . pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
-        pure . pure . UnqualifiedPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-      SA.ProjectBranch (ProjectAndBranch mproject branch) ->
-        case mproject of
-          Just proj -> pure . pure $ QualifiedBranchPath proj branch Path.Root
-          Nothing -> pure . pure $ BranchPathInCurrentProject branch Path.Root
-      otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
+handleBranchId2Arg = \case
+  I.RawArg raw -> Input.parseBranchId2 raw
+  I.StructuredArg sa -> case sa of
+    SA.Namespace hash -> pure . Left $ SCH.fromFullHash hash
+    SA.AbsolutePath path -> pure . pure . UnqualifiedPath $ Path.absoluteToPath' path
+    SA.Name name -> pure . pure . UnqualifiedPath $ Path.fromName' name
+    SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . pure . UnqualifiedPath $ Path.fromName' name
+    SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
+      pure . pure . UnqualifiedPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
+    SA.ProjectBranch (ProjectAndBranch mproject branch) ->
+      case mproject of
+        Just proj -> pure . pure $ QualifiedBranchPath proj branch Path.Root
+        Nothing -> pure . pure $ BranchPathInCurrentProject branch Path.Root
+    otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 handleBranchRelativePathArg :: I.Argument -> Either (P.Pretty P.ColorText) BranchRelativePath
-handleBranchRelativePathArg =
-  either
-    parseBranchRelativePath
-    \case
-      SA.AbsolutePath path -> pure . UnqualifiedPath $ Path.absoluteToPath' path
-      SA.Name name -> pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . UnqualifiedPath $ Path.fromName' name
-      SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
-        pure . UnqualifiedPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-      SA.ProjectBranch (ProjectAndBranch mproject branch) ->
-        case mproject of
-          Just proj -> pure $ QualifiedBranchPath proj branch Path.Root
-          Nothing -> pure $ BranchPathInCurrentProject branch Path.Root
-      otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
+handleBranchRelativePathArg = \case
+  I.RawArg raw -> parseBranchRelativePath raw
+  I.StructuredArg sa -> case sa of
+    SA.AbsolutePath path -> pure . UnqualifiedPath $ Path.absoluteToPath' path
+    SA.Name name -> pure . UnqualifiedPath $ Path.fromName' name
+    SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure . UnqualifiedPath $ Path.fromName' name
+    SA.NameWithBranchPrefix (BranchAtPath prefix) name ->
+      pure . UnqualifiedPath . Path.fromName' $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
+    SA.ProjectBranch (ProjectAndBranch mproject branch) ->
+      case mproject of
+        Just proj -> pure $ QualifiedBranchPath proj branch Path.Root
+        Nothing -> pure $ BranchPathInCurrentProject branch Path.Root
+    otherNumArg -> Left $ wrongStructuredArgument "a branch id" otherNumArg
 
 handleHashQualifiedSplit'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified (Path.Split Path'))
-handleHashQualifiedSplit'Arg =
-  either
-    (first P.text . Path.parseHQSplit')
-    \case
-      SA.Name name -> pure $ HQ'.fromName $ Path.parentOfName name
-      hq@(SA.HashQualified name) ->
-        bimap (const $ expectedButActually "a name" hq "a hash") (Path.parentOfName <$>) $ HQ'.fromHQ name
-      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ Path.parentOfName <$> hqname
-      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
-        pure $ Path.parentOfName . Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
-      SA.ShallowListEntry prefix entry ->
-        pure $ Path.parentOfName . Path.prefixNameIfRel prefix <$> shallowListEntryToHQ' entry
-      sr@(SA.SearchResult mpath result) ->
-        bimap (const $ expectedButActually "a name" sr "a hash") (Path.parentOfName <$>) . HQ'.fromHQ $
-          searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
+handleHashQualifiedSplit'Arg = \case
+  I.RawArg raw -> first P.text . Path.parseHQSplit' $ raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> pure $ HQ'.fromName $ Path.parentOfName name
+    hq@(SA.HashQualified name) ->
+      bimap (const $ expectedButActually "a name" hq "a hash") (Path.parentOfName <$>) $ HQ'.fromHQ name
+    SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ Path.parentOfName <$> hqname
+    SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
+      pure $ Path.parentOfName . Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
+    SA.ShallowListEntry prefix entry ->
+      pure $ Path.parentOfName . Path.prefixNameIfRel prefix <$> shallowListEntryToHQ' entry
+    sr@(SA.SearchResult mpath result) ->
+      bimap (const $ expectedButActually "a name" sr "a hash") (Path.parentOfName <$>) . HQ'.fromHQ $
+        searchResultToHQ mpath result
+    otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
 
 handleHashQualifiedSplitArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified (Path.Split Path))
-handleHashQualifiedSplitArg =
-  either
-    (first P.text . Path.parseHQSplit)
-    \case
-      n@(SA.Name name) ->
-        fmap HQ'.fromName
-          . bitraverse
-            ( \case
-                Path.AbsolutePath' _ -> Left $ expectedButActually "a relative name" n "an absolute name"
-                Path.RelativePath' p -> pure $ Path.unrelative p
-            )
-            pure
-          $ Path.parentOfName name
-      hq@(SA.HashQualified name) ->
-        first (const $ expectedButActually "a name" hq "a hash") . HQ'.fromHQ $ Path.splitFromName <$> name
-      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ Path.splitFromName <$> hqname
-      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
-        pure $ Path.splitFromName . Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
-      SA.ShallowListEntry _ entry -> pure $ Path.splitFromName <$> shallowListEntryToHQ' entry
-      sr@(SA.SearchResult mpath result) ->
-        first (const $ expectedButActually "a name" sr "a hash") . HQ'.fromHQ $
-          Path.splitFromName <$> searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
+handleHashQualifiedSplitArg = \case
+  I.RawArg raw -> first P.text . Path.parseHQSplit $ raw
+  I.StructuredArg sa -> case sa of
+    n@(SA.Name name) ->
+      fmap HQ'.fromName
+        . bitraverse
+          ( \case
+              Path.AbsolutePath' _ -> Left $ expectedButActually "a relative name" n "an absolute name"
+              Path.RelativePath' p -> pure $ Path.unrelative p
+          )
+          pure
+        $ Path.parentOfName name
+    hq@(SA.HashQualified name) ->
+      first (const $ expectedButActually "a name" hq "a hash") . HQ'.fromHQ $ Path.splitFromName <$> name
+    SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ Path.splitFromName <$> hqname
+    SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
+      pure $ Path.splitFromName . Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
+    SA.ShallowListEntry _ entry -> pure $ Path.splitFromName <$> shallowListEntryToHQ' entry
+    sr@(SA.SearchResult mpath result) ->
+      first (const $ expectedButActually "a name" sr "a hash") . HQ'.fromHQ $
+        Path.splitFromName <$> searchResultToHQ mpath result
+    otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
 handleShortCausalHashArg :: I.Argument -> Either (P.Pretty CT.ColorText) ShortCausalHash
-handleShortCausalHashArg =
-  either
-    (first (P.text . Text.pack) . Input.parseShortCausalHash)
-    \case
-      SA.Namespace hash -> pure $ SCH.fromFullHash hash
-      otherNumArg -> Left $ wrongStructuredArgument "a causal hash" otherNumArg
+handleShortCausalHashArg = \case
+  I.RawArg raw -> first (P.text . Text.pack) . Input.parseShortCausalHash $ raw
+  I.StructuredArg sa -> case sa of
+    SA.Namespace hash -> pure $ SCH.fromFullHash hash
+    otherNumArg -> Left $ wrongStructuredArgument "a causal hash" otherNumArg
 
 handleHashOrHQSplit'Arg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashOrHQ (Path.Split Path'))
-handleHashOrHQSplit'Arg =
-  either
-    (first P.text . Path.parseHashOrHQSplit')
-    \case
-      SA.HashQualified name -> pure . HQ'.fromHQ $ Path.parentOfName <$> name
-      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure . pure $ Path.parentOfName <$> hqname
-      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
-        pure . pure $ Path.parentOfName . Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
-      SA.ShallowListEntry prefix entry ->
-        pure . pure $ Path.parentOfName . Path.prefixNameIfRel prefix <$> shallowListEntryToHQ' entry
-      SA.SearchResult mpath result -> pure . HQ'.fromHQ $ Path.parentOfName <$> searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
+handleHashOrHQSplit'Arg = \case
+  I.RawArg raw -> first P.text . Path.parseHashOrHQSplit' $ raw
+  I.StructuredArg sa -> case sa of
+    SA.HashQualified name -> pure . HQ'.fromHQ $ Path.parentOfName <$> name
+    SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure . pure $ Path.parentOfName <$> hqname
+    SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
+      pure . pure $ Path.parentOfName . Path.prefixNameIfRel (Path.AbsolutePath' prefix) <$> hqname
+    SA.ShallowListEntry prefix entry ->
+      pure . pure $ Path.parentOfName . Path.prefixNameIfRel prefix <$> shallowListEntryToHQ' entry
+    SA.SearchResult mpath result -> pure . HQ'.fromHQ $ Path.parentOfName <$> searchResultToHQ mpath result
+    otherNumArg -> Left $ wrongStructuredArgument "a hash or name" otherNumArg
 
 handleRelativeNameSegmentArg :: I.Argument -> Either (P.Pretty CT.ColorText) NameSegment
 handleRelativeNameSegmentArg arg = do
@@ -676,80 +680,74 @@ handleRelativeNameSegmentArg arg = do
 handleNameSegmentArg :: I.Argument -> Either (P.Pretty CT.ColorText) NameSegment
 handleNameSegmentArg arg = do
   case arg of
-    Left txt -> mapLeft P.text $ NameSegment.parseText (Text.pack txt)
+    I.RawArg txt -> mapLeft P.text $ NameSegment.parseText (Text.pack txt)
     -- There are no valid structured args for a single name segment identifier, and there are no commands that
     -- output them as numbered output.
-    Right _ -> Left "Expected a name segment"
+    I.StructuredArg _ -> Left "Expected a name segment"
 
 handleNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) Name
-handleNameArg =
-  either
-    (first P.text . Name.parseTextEither . Text.pack)
-    \case
-      SA.Name name -> pure name
-      SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure name
-      SA.NameWithBranchPrefix (BranchAtPath prefix) name -> pure $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
-      SA.HashQualified hqname -> maybe (Left "can’t find a name from the numbered arg") pure $ HQ.toName hqname
-      SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ HQ'.toName hqname
-      SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
-        pure . Path.prefixNameIfRel (Path.AbsolutePath' prefix) $ HQ'.toName hqname
-      SA.ShallowListEntry prefix entry ->
-        pure . HQ'.toName . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
-      SA.SearchResult mpath result ->
-        maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
-      otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
+handleNameArg = \case
+  I.RawArg raw -> first P.text . Name.parseTextEither . Text.pack $ raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> pure name
+    SA.NameWithBranchPrefix (BranchAtSCH _) name -> pure name
+    SA.NameWithBranchPrefix (BranchAtPath prefix) name -> pure $ Path.prefixNameIfRel (Path.AbsolutePath' prefix) name
+    SA.HashQualified hqname -> maybe (Left "can’t find a name from the numbered arg") pure $ HQ.toName hqname
+    SA.HashQualifiedWithBranchPrefix (BranchAtSCH _) hqname -> pure $ HQ'.toName hqname
+    SA.HashQualifiedWithBranchPrefix (BranchAtPath prefix) hqname ->
+      pure . Path.prefixNameIfRel (Path.AbsolutePath' prefix) $ HQ'.toName hqname
+    SA.ShallowListEntry prefix entry ->
+      pure . HQ'.toName . fmap (Path.prefixNameIfRel prefix) $ shallowListEntryToHQ' entry
+    SA.SearchResult mpath result ->
+      maybe (Left "can’t find a name from the numbered arg") pure . HQ.toName $ searchResultToHQ mpath result
+    otherNumArg -> Left $ wrongStructuredArgument "a name" otherNumArg
 
 handlePullSourceArg ::
   I.Argument ->
   Either
     (P.Pretty CT.ColorText)
     (ReadRemoteNamespace (These ProjectName ProjectBranchNameOrLatestRelease))
-handlePullSourceArg =
-  either
-    (megaparse (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease) . Text.pack)
-    \case
-      SA.Project project -> pure . RemoteRepo.ReadShare'ProjectBranch $ This project
-      SA.ProjectBranch (ProjectAndBranch project branch) ->
-        pure . RemoteRepo.ReadShare'ProjectBranch . maybe That These project $
-          ProjectBranchNameOrLatestRelease'Name branch
-      otherNumArg -> Left $ wrongStructuredArgument "a source to pull from" otherNumArg
+handlePullSourceArg = \case
+  I.RawArg raw -> megaparse (readRemoteNamespaceParser ProjectBranchSpecifier'NameOrLatestRelease) . Text.pack $ raw
+  I.StructuredArg sa -> case sa of
+    SA.Project project -> pure . RemoteRepo.ReadShare'ProjectBranch $ This project
+    SA.ProjectBranch (ProjectAndBranch project branch) ->
+      pure . RemoteRepo.ReadShare'ProjectBranch . maybe That These project $
+        ProjectBranchNameOrLatestRelease'Name branch
+    otherNumArg -> Left $ wrongStructuredArgument "a source to pull from" otherNumArg
 
 handlePushTargetArg ::
   I.Argument -> Either (P.Pretty CT.ColorText) (These ProjectName ProjectBranchName)
-handlePushTargetArg =
-  either
-    (\str -> maybe (Left $ expectedButActually' "a target to push to" str) pure $ parsePushTarget str)
-    $ \case
-      SA.Project project -> pure $ This project
-      SA.ProjectBranch (ProjectAndBranch project branch) -> pure $ maybe That These project branch
-      otherNumArg -> Left $ wrongStructuredArgument "a target to push to" otherNumArg
+handlePushTargetArg = \case
+  I.RawArg raw -> maybe (Left $ expectedButActually' "a target to push to" raw) pure $ parsePushTarget raw
+  I.StructuredArg sa -> case sa of
+    SA.Project project -> pure $ This project
+    SA.ProjectBranch (ProjectAndBranch project branch) -> pure $ maybe That These project branch
+    otherNumArg -> Left $ wrongStructuredArgument "a target to push to" otherNumArg
 
 handlePushSourceArg :: I.Argument -> Either (P.Pretty CT.ColorText) Input.PushSource
-handlePushSourceArg =
-  either
-    (\str -> maybe (Left $ expectedButActually' "a source to push from" str) pure $ parsePushSource str)
-    \case
-      SA.Project project -> pure . Input.ProjySource $ This project
-      SA.ProjectBranch (ProjectAndBranch project branch) -> pure . Input.ProjySource $ maybe That These project branch
-      otherNumArg -> Left $ wrongStructuredArgument "a source to push from" otherNumArg
+handlePushSourceArg = \case
+  I.RawArg raw -> maybe (Left $ expectedButActually' "a source to push from" raw) pure $ parsePushSource raw
+  I.StructuredArg sa -> case sa of
+    SA.Project project -> pure . Input.ProjySource $ This project
+    SA.ProjectBranch (ProjectAndBranch project branch) -> pure . Input.ProjySource $ maybe That These project branch
+    otherNumArg -> Left $ wrongStructuredArgument "a source to push from" otherNumArg
 
 handleProjectAndBranchNamesArg :: I.Argument -> Either (P.Pretty CT.ColorText) ProjectAndBranchNames
-handleProjectAndBranchNamesArg =
-  either
-    (\str -> first (const $ expectedButActually' "a project or branch" str) . tryInto @ProjectAndBranchNames $ Text.pack str)
-    $ fmap ProjectAndBranchNames'Unambiguous . \case
-      SA.Project project -> pure $ This project
-      SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ maybe That These mproj branch
-      otherNumArg -> Left $ wrongStructuredArgument "a project or branch" otherNumArg
+handleProjectAndBranchNamesArg = \case
+  I.RawArg raw -> first (const $ expectedButActually' "a project or branch" raw) . tryInto @ProjectAndBranchNames $ Text.pack raw
+  I.StructuredArg sa -> fmap ProjectAndBranchNames'Unambiguous $ case sa of
+    SA.Project project -> pure $ This project
+    SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ maybe That These mproj branch
+    otherNumArg -> Left $ wrongStructuredArgument "a project or branch" otherNumArg
 
 handleOptionalProjectAndBranch :: I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName))
-handleOptionalProjectAndBranch =
-  either
-    (\str -> fmap intoProjectAndBranch . first (const $ expectedButActually' "a project or branch" str) . tryInto @(These ProjectName ProjectBranchName) $ Text.pack str)
-    $ \case
-      SA.Project project -> pure $ ProjectAndBranch (Just project) Nothing
-      SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ ProjectAndBranch mproj (Just branch)
-      otherNumArg -> Left $ wrongStructuredArgument "a project or branch" otherNumArg
+handleOptionalProjectAndBranch = \case
+  I.RawArg raw -> fmap intoProjectAndBranch . first (const $ expectedButActually' "a project or branch" raw) . tryInto @(These ProjectName ProjectBranchName) $ Text.pack raw
+  I.StructuredArg sa -> case sa of
+    SA.Project project -> pure $ ProjectAndBranch (Just project) Nothing
+    SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ ProjectAndBranch mproj (Just branch)
+    otherNumArg -> Left $ wrongStructuredArgument "a project or branch" otherNumArg
   where
     intoProjectAndBranch :: These ProjectName ProjectBranchName -> ProjectAndBranch (Maybe ProjectName) (Maybe ProjectBranchName)
     intoProjectAndBranch = \case
@@ -758,38 +756,32 @@ handleOptionalProjectAndBranch =
       These project branch -> ProjectAndBranch (Just project) (Just branch)
 
 handleBranchWithOptionalProject :: I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-handleBranchWithOptionalProject =
-  either
-    ( \str ->
-        Text.pack str
-          & tryInto @(These ProjectName ProjectBranchName)
-          & first (const $ expectedButActually' "a project branch" str)
-          >>= \case
-            These project branch -> pure $ ProjectAndBranch (Just project) branch
-            That branch -> pure $ ProjectAndBranch Nothing branch
-            This _project -> Left $ expectedButActually' "a  project branch" str
-    )
-    ( \case
-        SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ ProjectAndBranch mproj branch
-        otherNumArg -> Left $ wrongStructuredArgument "a project branch" otherNumArg
-    )
+handleBranchWithOptionalProject = \case
+  I.RawArg raw ->
+    Text.pack raw
+      & tryInto @(These ProjectName ProjectBranchName)
+      & first (const $ expectedButActually' "a project branch" raw)
+      >>= \case
+        These project branch -> pure $ ProjectAndBranch (Just project) branch
+        That branch -> pure $ ProjectAndBranch Nothing branch
+        This _project -> Left $ expectedButActually' "a  project branch" raw
+  I.StructuredArg sa -> case sa of
+    SA.ProjectBranch (ProjectAndBranch mproj branch) -> pure $ ProjectAndBranch mproj branch
+    otherNumArg -> Left $ wrongStructuredArgument "a project branch" otherNumArg
 
 handleBranchWithProject :: I.Argument -> Either (P.Pretty CT.ColorText) (ProjectAndBranch ProjectName ProjectBranchName)
-handleBranchWithProject =
-  either
-    ( \str ->
-        Text.pack str
-          & tryInto @(These ProjectName ProjectBranchName)
-          & first (const $ expectedButActually' "a project branch" str)
-          >>= \case
-            These project branch -> pure $ ProjectAndBranch project branch
-            That _branch -> Left $ expectedButActually' "a project branch" str
-            This _project -> Left $ expectedButActually' "a project branch" str
-    )
-    ( \case
-        SA.ProjectBranch (ProjectAndBranch (Just proj) branch) -> pure $ ProjectAndBranch proj branch
-        otherNumArg -> Left $ wrongStructuredArgument "a project branch" otherNumArg
-    )
+handleBranchWithProject = \case
+  I.RawArg raw ->
+    Text.pack raw
+      & tryInto @(These ProjectName ProjectBranchName)
+      & first (const $ expectedButActually' "a project branch" raw)
+      >>= \case
+        These project branch -> pure $ ProjectAndBranch project branch
+        That _branch -> Left $ expectedButActually' "a project branch" raw
+        This _project -> Left $ expectedButActually' "a project branch" raw
+  I.StructuredArg sa -> case sa of
+    SA.ProjectBranch (ProjectAndBranch (Just proj) branch) -> pure $ ProjectAndBranch proj branch
+    otherNumArg -> Left $ wrongStructuredArgument "a project branch" otherNumArg
 
 mergeBuiltins :: InputPattern
 mergeBuiltins =
@@ -893,6 +885,20 @@ update =
             <> "can't be completed automatically, the dependents will be added back to the scratch file"
             <> "for your review.",
       parse = const $ pure Input.Update2I
+    }
+
+diffUpdate :: InputPattern
+diffUpdate =
+  InputPattern
+    { patternName = "diff.update",
+      aliases = ["update.diff"],
+      visibility = I.Visible,
+      params = noParams,
+      help =
+        P.wrap $
+          "Shows a preview of what changes would be made if `update` were run. "
+            <> "This is a read-only operation that doesn't modify the codebase.",
+      parse = const $ pure Input.DiffUpdateI
     }
 
 view :: InputPattern
@@ -1034,7 +1040,7 @@ textfind allowLib =
         then ("text.find.all", ["grep.all"], "Use `text.find` to exclude `lib` from search.")
         else ("text.find", ["grep"], "Use `text.find.all` to include search of `lib`.")
     parse = \case
-      words -> pure $ Input.TextFindI allowLib (untokenize $ [e | Left e <- words])
+      words -> pure $ Input.TextFindI allowLib (untokenize $ [e | I.RawArg e <- words])
     msg =
       P.lines
         [ P.wrap $
@@ -1286,13 +1292,65 @@ moveAll :: InputPattern
 moveAll =
   InputPattern
     "move"
-    ["rename", "mv"]
+    ["mv"]
     I.Visible
     (Parameters [("definition to move", namespaceOrDefinitionArg), ("new location", newNameArg)] $ Optional [] Nothing)
     "`move foo bar` renames the term, type, and namespace foo to bar."
     \case
       oldName : newName : _ -> Input.MoveAllI <$> handlePath'Arg oldName <*> handleNewPath newName
       _ -> Left $ P.wrap "`move` takes two arguments, like `move oldname newname`."
+
+moveTo :: InputPattern
+moveTo =
+  InputPattern
+    "moveTo"
+    []
+    I.Visible
+    (Parameters [("definition to move", namespaceOrDefinitionArg)] $ OnePlus ("destination namespace or additional definition", namespaceOrDefinitionArg))
+    ( P.lines
+        [ P.wrap $
+            "`moveTo foo.bar dest` moves `foo.bar` into the namespace `dest`, producing `dest.bar`.",
+          "",
+          P.wrap $
+            "`moveTo foo bar baz dest` moves `foo`, `bar`, and `baz` into the namespace `dest`.",
+          "",
+          P.wrap $
+            "If multiple sources have the same final name segment, non-conflicting items are moved and a message explains the conflict.",
+          "",
+          P.wrap $
+            "The final segment of each source is preserved in the destination."
+        ]
+    )
+    \case
+      srcs@(_ : _) Cons.:> dest -> do
+        sources <- traverse handlePath'Arg srcs
+        destination <- handlePath'Arg dest
+        case NE.nonEmpty sources of
+          Nothing -> Left $ P.wrap "`moveTo` requires at least one source and a destination."
+          Just nonEmptySources -> pure $ Input.MoveToI nonEmptySources destination
+      _ -> Left $ P.wrap "`moveTo` requires at least one source and a destination, like `moveTo foo.bar dest.namespace`."
+
+rename :: InputPattern
+rename =
+  InputPattern
+    "rename"
+    []
+    I.Visible
+    (Parameters [("definition to rename", namespaceOrDefinitionArg), ("new name", noCompletionsArg)] $ Optional [] Nothing)
+    ( P.lines
+        [ P.wrap $
+            "`rename foo.bar.baz Qux` changes the name `baz` to `Qux`, producing `foo.bar.Qux`.",
+          "",
+          P.wrap $
+            "This only changes the final segment of the name. To move a definition to a different namespace, use `moveTo`.",
+          "",
+          P.wrap $
+            "Works on terms, types, and namespaces."
+        ]
+    )
+    \case
+      src : newSeg : _ -> Input.RenameI <$> handlePath'Arg src <*> handleNameSegmentArg newSeg
+      _ -> Left $ P.wrap "`rename` takes two arguments: the definition to rename and the new name segment."
 
 renameType :: InputPattern
 renameType =
@@ -1308,8 +1366,14 @@ renameType =
         Left $ P.wrap "`rename.type` takes two arguments, like `rename.type oldname newname`."
 
 deleteGen ::
-  Maybe String -> ParameterType -> String -> ([HQ'.HashQualified (Path.Split Path')] -> DeleteTarget) -> InputPattern
-deleteGen suffix queryCompletionArg target mkTarget =
+  Maybe String ->
+  ParameterType ->
+  (I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)) ->
+  String ->
+  Bool ->
+  DeleteTarget ->
+  InputPattern
+deleteGen suffix queryCompletionArg parseArg target force which =
   let cmd = maybe "delete" ("delete." <>) suffix
       alias = maybe "rm" ("rm." <>) suffix
       info =
@@ -1339,25 +1403,107 @@ deleteGen suffix queryCompletionArg target mkTarget =
         I.Visible
         (Parameters [] $ OnePlus ("definition to delete", queryCompletionArg))
         info
-        $ fmap (Input.DeleteI . mkTarget) . traverse handleHashQualifiedSplit'Arg
+        $ fmap (Input.DeleteI force which) . traverse parseArg
+
+handleDeleteArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteArg = \case
+  I.RawArg raw -> parseHashQualifiedName' raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTermEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.termEntryHQName entry)
+    SA.ShallowListEntry prefix (ShallowTypeEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.typeEntryHQName entry)
+    SA.SearchResult mpath (SR.Tm' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) ref)
+    SA.SearchResult mpath (SR.Tp' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) (Referent.Ref ref))
+    otherArgType -> Left (wrongStructuredArgument "a term or type name" otherArgType)
+
+handleDeleteTermArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteTermArg = \case
+  I.RawArg raw -> parseHashQualifiedName' raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTermEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.termEntryHQName entry)
+    SA.SearchResult mpath (SR.Tm' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) ref)
+    otherArgType -> Left (wrongStructuredArgument "a term name" otherArgType)
+
+handleDeleteTypeArg :: I.Argument -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+handleDeleteTypeArg = \case
+  I.RawArg raw -> parseHashQualifiedName' raw
+  I.StructuredArg sa -> case sa of
+    SA.Name name -> Right (HQ'.NameOnly name)
+    SA.HashQualified (HQ'.fromHQ -> Right name) -> Right name
+    SA.ShallowListEntry prefix (ShallowTypeEntry entry) ->
+      Right (Path.prefixNameIfRel prefix <$> Backend.typeEntryHQName entry)
+    SA.SearchResult mpath (SR.Tp' (HQ'.fromHQ -> Right name) ref _) ->
+      Right (HQ'.requalify (maybe id Path.prefixNameIfRel mpath <$> name) (Referent.Ref ref))
+    otherArgType -> Left (wrongStructuredArgument "a type name" otherArgType)
 
 delete :: InputPattern
-delete = deleteGen Nothing exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'NoDiff)
+delete =
+  deleteGen
+    Nothing
+    exactDefinitionTypeOrTermQueryArg
+    handleDeleteArg
+    "term or type"
+    False
+    DeleteTarget'TermOrType
 
-deleteVerbose :: InputPattern
-deleteVerbose = deleteGen (Just "verbose") exactDefinitionTypeOrTermQueryArg "term or type" (DeleteTarget'TermOrType DeleteOutput'Diff)
+deleteForce :: InputPattern
+deleteForce =
+  deleteGen
+    (Just "force")
+    exactDefinitionTypeOrTermQueryArg
+    handleDeleteArg
+    "term or type"
+    True
+    DeleteTarget'TermOrType
 
 deleteTerm :: InputPattern
-deleteTerm = deleteGen (Just "term") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'NoDiff)
+deleteTerm =
+  deleteGen
+    (Just "term")
+    exactDefinitionTermQueryArg
+    handleDeleteTermArg
+    "term"
+    False
+    DeleteTarget'Term
 
-deleteTermVerbose :: InputPattern
-deleteTermVerbose = deleteGen (Just "term.verbose") exactDefinitionTermQueryArg "term" (DeleteTarget'Term DeleteOutput'Diff)
+deleteTermForce :: InputPattern
+deleteTermForce =
+  deleteGen
+    (Just "term.force")
+    exactDefinitionTermQueryArg
+    handleDeleteTermArg
+    "term"
+    True
+    DeleteTarget'Term
 
 deleteType :: InputPattern
-deleteType = deleteGen (Just "type") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'NoDiff)
+deleteType =
+  deleteGen
+    (Just "type")
+    exactDefinitionTypeQueryArg
+    handleDeleteTypeArg
+    "type"
+    False
+    DeleteTarget'Type
 
-deleteTypeVerbose :: InputPattern
-deleteTypeVerbose = deleteGen (Just "type.verbose") exactDefinitionTypeQueryArg "type" (DeleteTarget'Type DeleteOutput'Diff)
+deleteTypeForce :: InputPattern
+deleteTypeForce =
+  deleteGen
+    (Just "type.force")
+    exactDefinitionTypeQueryArg
+    handleDeleteTypeArg
+    "type"
+    True
+    DeleteTarget'Type
 
 deleteProject :: InputPattern
 deleteProject =
@@ -1371,7 +1517,7 @@ deleteProject =
           [ ("`delete.project foo`", "deletes the local project `foo`")
           ],
       parse = \case
-        name : _ -> Input.DeleteI . DeleteTarget'Project <$> handleProjectArg name
+        name : _ -> Input.DeleteProjectI <$> handleProjectArg name
         args -> wrongArgsLength "exactly one argument" args
     }
 
@@ -1388,7 +1534,7 @@ deleteBranch =
             ("`delete.branch /bar`", "deletes the branch `bar` in the current project")
           ],
       parse = \case
-        name : _ -> Input.DeleteI . DeleteTarget'ProjectBranch <$> handleMaybeProjectBranchArg name
+        name : _ -> Input.DeleteBranchI <$> handleMaybeProjectBranchArg name
         args -> wrongArgsLength "exactly one argument" args
     }
   where
@@ -1516,9 +1662,20 @@ cd =
         ]
     )
     \case
-      [Left ".."] -> Right Input.UpI
+      [I.RawArg ".."] -> Right Input.UpI
       [p] -> Input.SwitchBranchI <$> handlePath'Arg p
       args -> wrongArgsLength "exactly one argument" args
+
+cancelInputPattern :: InputPattern
+cancelInputPattern =
+  InputPattern
+    { patternName = "cancel",
+      aliases = [],
+      visibility = I.Visible,
+      params = noParams,
+      help = P.wrapColumn2 [(makeExample' cancelInputPattern, "cancels the in-progress merge, update, or upgrade.")],
+      parse = \_ -> pure Input.CancelI
+    }
 
 back :: InputPattern
 back =
@@ -1560,8 +1717,8 @@ deleteNamespaceForce =
 
 deleteNamespaceParser :: Input.Insistence -> I.Arguments -> Either (P.Pretty CT.ColorText) Input
 deleteNamespaceParser insistence = \case
-  [Left "."] -> first fromString . pure $ Input.DeleteI (DeleteTarget'Namespace insistence Nothing)
-  [p] -> Input.DeleteI . DeleteTarget'Namespace insistence . pure <$> handleSplitArg p
+  [I.RawArg "."] -> first fromString . pure $ Input.DeleteNamespaceI insistence Nothing
+  [p] -> Input.DeleteNamespaceI insistence . pure <$> handleSplitArg p
   args -> wrongArgsLength "exactly one argument" args
 
 renameBranch :: InputPattern
@@ -1595,6 +1752,36 @@ history =
     \case
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (BranchAtPath Path.Current')
       src : _ -> Input.HistoryI (Just 10) (Just 10) <$> handleBranchIdArg src
+
+historyComment :: InputPattern
+historyComment =
+  InputPattern
+    "history.comment"
+    ["comment", "comment.history"]
+    I.Visible
+    (Parameters [] $ Optional [("hash or branch to create a comment after", namespaceOrProjectBranchArg config)] Nothing)
+    ( P.wrapColumn2
+        [ ( makeExample historyComment [],
+            "Creates a comment after the head of the current branch."
+          ),
+          ( makeExample historyComment ["/main"],
+            "Creates a comment after the head of the `main` branch."
+          )
+        ]
+    )
+    \case
+      [] -> pure $ Input.HistoryCommentI Nothing
+      [src] -> do
+        target <- handleBranchId2Arg src
+        pure $ Input.HistoryCommentI (Just target)
+      _ -> wrongArgsLength "at most one argument" []
+  where
+    config =
+      ProjectBranchSuggestionsConfig
+        { showProjectCompletions = False,
+          projectInclusion = AllProjects,
+          branchInclusion = AllBranches
+        }
 
 forkLocal :: InputPattern
 forkLocal =
@@ -2213,7 +2400,7 @@ mergeCommitInputPattern =
   InputPattern
     { patternName = "merge.commit",
       aliases = ["commit.merge"],
-      visibility = I.Visible,
+      visibility = I.Hidden,
       params = noParams,
       help =
         let mainBranch = defaultBranchName
@@ -2247,6 +2434,47 @@ mergeCommitInputPattern =
                 ),
       parse = const $ pure Input.MergeCommitI
     }
+
+diffBranch :: InputPattern
+diffBranch =
+  InputPattern
+    { patternName = "diff.branch",
+      aliases = ["branch.diff"],
+      visibility = I.Visible,
+      params =
+        Parameters
+          { requiredParams =
+              let completion =
+                    projectBranchNameArg
+                      ProjectBranchSuggestionsConfig
+                        { showProjectCompletions = False,
+                          projectInclusion = OnlyWithinCurrentProject,
+                          branchInclusion = ExcludeCurrentBranch
+                        }
+               in [ ("first branch", completion),
+                    ("second branch", completion)
+                  ],
+            trailingParams = Optional [] Nothing
+          },
+      help =
+        ( P.column2
+            [ ( "`diff.branch one two`",
+                P.wrap "shows a diff between branches `one` and `two`"
+              )
+            ]
+        ),
+      parse = \case
+        [branch1, branch2] ->
+          Input.DiffBranchI
+            <$> handleDiffBranchTargetArg branch1
+            <*> handleDiffBranchTargetArg branch2
+        args -> wrongArgsLength "two arguments" args
+    }
+  where
+    -- TODO handle causal hash
+    handleDiffBranchTargetArg :: I.Argument -> Either (P.Pretty P.ColorText) Input.DiffBranchArg
+    handleDiffBranchTargetArg arg =
+      Input.DiffBranchArg'Branch <$> handleMaybeProjectBranchArg arg
 
 diffNamespace :: InputPattern
 diffNamespace =
@@ -2337,6 +2565,63 @@ globalReflog =
     )
     . const
     $ pure Input.ShowGlobalReflogI
+
+configSet :: InputPattern
+configSet =
+  InputPattern
+    { patternName = "config.set",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "The"
+                <> makeExample' configSet
+                <> "command sets the configuration key to the provided value. E.g.",
+            "",
+            (makeExample configSet [P.text $ Config.keyToText Config.AuthorNameKey, "\"Author Name\""]),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+          ],
+      parse = \case
+        (key : value : []) -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          value' <- unsupportedStructuredArgument configSet "a config value" value
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
+            Just pkey -> Right $ Input.ConfigSetI pkey (Text.pack value')
+        args -> wrongArgsLength "exactly two arguments" args
+    }
+
+configGet :: InputPattern
+configGet =
+  InputPattern
+    { patternName = "config.get",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("key", configKeyArg), ("value", noCompletionsArg)] $ Optional [] Nothing,
+      help =
+        P.lines
+          [ P.wrap $
+              "Gets the value of the provided configuration key. E.g.",
+            "",
+            (makeExample configGet [P.text $ Config.keyToText Config.AuthorNameKey]),
+            "",
+            P.hang
+              "Configuration options include:"
+              (P.wrap . P.text $ Text.intercalate ", " $ Config.allKeysText)
+          ],
+      parse = \case
+        [key] -> do
+          key' <- unsupportedStructuredArgument configSet "a config key" key
+          case Config.keyFromText (Text.pack key') of
+            Nothing -> Left . P.text $ "I don't recognize that config key. Available keys are: " <> Text.intercalate ", " Config.allKeysText
+            Just pkey -> Right $ Input.ConfigGetI pkey
+        args -> wrongArgsLength "exactly one argument" args
+    }
 
 edit :: InputPattern
 edit =
@@ -2821,6 +3106,17 @@ debugClearWatchCache =
     "Clear the watch expression cache"
     . const
     $ pure Input.DebugClearWatchI
+
+debugDependentsGraph :: InputPattern
+debugDependentsGraph =
+  InputPattern
+    { patternName = "debug.dependents-graph",
+      aliases = [],
+      visibility = I.Hidden,
+      params = noParams,
+      help = "Show dependents graph for the current project",
+      parse = \_ -> pure Input.DebugDependentsGraph
+    }
 
 debugDoctor :: InputPattern
 debugDoctor =
@@ -3436,15 +3732,13 @@ upgrade =
       aliases = ["upgrade.lib", "upgrade"],
       visibility = I.Visible,
       params =
-        Parameters [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)] $
-          Optional [] Nothing,
+        Parameters
+          [("dependency to upgrade", dependencyArg), ("dependency to upgrade to", dependencyArg)]
+          (Optional [] (Just ("dependency", dependencyArg))),
       help =
         P.wrap $
-          "`upgrade old new` upgrades library dependency `lib.old` to `lib.new`, and, if successful, deletes `lib.old`.",
-      parse = \case
-        [oldString, newString] ->
-          Input.UpgradeI <$> handleRelativeNameSegmentArg oldString <*> handleRelativeNameSegmentArg newString
-        args -> wrongArgsLength "exactly two arguments" args
+          "`upgrade old new [old2 new2...]` upgrades library dependency `lib.old` to `lib.new` (and `lib.old2` to `lib.new2`...).",
+      parse = \args -> Input.UpgradeI <$> traverse handleRelativeNameSegmentArg args
     }
 
 upgradeCommitInputPattern :: InputPattern
@@ -3500,6 +3794,67 @@ debugSynhashTermInputPattern =
         args -> wrongArgsLength "exactly one argument" args
     }
 
+watchInputPattern :: InputPattern
+watchInputPattern =
+  InputPattern
+    { patternName = "watch",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [("file or directory", filePathArg)] $ Optional [] Nothing,
+      help =
+        P.wrapColumn2
+          [ ( makeExample watchInputPattern ["<file or directory>"],
+              "Watch an external file or directory for changes. Changes to `.u` files in watched locations will be automatically loaded."
+            )
+          ],
+      parse = \case
+        [file] -> Input.WatchI <$> unsupportedStructuredArgument watchInputPattern "a file or directory path" file
+        args -> wrongArgsLength "exactly one argument" args
+    }
+
+watchesInputPattern :: InputPattern
+watchesInputPattern =
+  InputPattern
+    { patternName = "watches",
+      aliases = [],
+      visibility = I.Visible,
+      params = noParams,
+      help = P.wrap "List all external paths currently being watched for changes.",
+      parse = \case
+        [] -> pure Input.WatchListI
+        args -> wrongArgsLength "no arguments" args
+    }
+
+unwatchInputPattern :: InputPattern
+unwatchInputPattern =
+  InputPattern
+    { patternName = "unwatch",
+      aliases = [],
+      visibility = I.Visible,
+      -- Uses watchedPathArg which accepts SA.FilePath from numbered args.
+      -- Users can run `watches` to see the list of watched paths and use numbered args like `unwatch 1 2 3`.
+      params = Parameters [] $ Optional [] (Just ("file or directory", watchedPathArg)),
+      help =
+        P.wrapColumn2
+          [ ( makeExample unwatchInputPattern ["<files or directories...>"],
+              "Stop watching one or more external files or directories for changes."
+            ),
+            ( makeExample' unwatchInputPattern,
+              "With no arguments, list currently watched paths."
+            )
+          ],
+      parse = \case
+        [] -> pure Input.WatchListI
+        args -> Input.UnwatchI <$> traverse handleWatchedPathArg args
+    }
+
+handleWatchedPathArg :: I.Argument -> Either (P.Pretty CT.ColorText) FilePath
+handleWatchedPathArg = \case
+  I.RawArg raw -> pure raw
+  I.StructuredArg sa -> case sa of
+    SA.FilePath fp -> pure fp
+    _ -> Left $ wrongStructuredArgument "a file path" sa
+
 validInputs :: [InputPattern]
 validInputs =
   sortOn
@@ -3514,13 +3869,17 @@ validInputs =
       branchInputPattern,
       branchRenameInputPattern,
       branchesInputPattern,
+      cancelInputPattern,
       cd,
       clear,
       clone,
+      configGet,
+      configSet,
       createAuthor,
       debugAliasTermForce,
       debugAliasTypeForce,
       debugClearWatchCache,
+      debugDependentsGraph,
       debugDoctor,
       debugDumpNamespace,
       debugDumpNamespaceSimple,
@@ -3534,20 +3893,21 @@ validInputs =
       debugNumberedArgs,
       debugTabCompletion,
       debugLspNameCompletion,
-      debugFuzzyOptions,
       debugFormat,
+      debugFuzzyOptions,
       delete,
       deleteBranch,
-      deleteProject,
+      deleteForce,
       deleteNamespace,
       deleteNamespaceForce,
+      deleteProject,
       deleteTerm,
-      deleteTermVerbose,
+      deleteTermForce,
       deleteType,
-      deleteTypeVerbose,
-      deleteVerbose,
+      deleteTypeForce,
       dependencies,
       dependents,
+      diffBranch,
       diffNamespace,
       display,
       displayTo,
@@ -3578,6 +3938,7 @@ validInputs =
       help,
       helpTopics,
       history,
+      historyComment,
       ioTest,
       ioTestAll,
       libInstallInputPattern,
@@ -3609,10 +3970,12 @@ validInputs =
       syncFromCodebase,
       quit,
       releaseDraft,
+      rename,
       renameBranch,
       renameTerm,
       renameType,
       moveAll,
+      moveTo,
       reset,
       saveExecuteResult,
       test,
@@ -3622,11 +3985,15 @@ validInputs =
       undo,
       up,
       update,
+      diffUpdate,
       updateBuiltins,
       upgrade,
       upgradeCommitInputPattern,
       view,
       viewGlobal,
+      watchInputPattern,
+      watchesInputPattern,
+      unwatchInputPattern,
       deprecatedViewRootReflog,
       branchReflog,
       projectReflog,
@@ -3771,11 +4138,30 @@ filePathArg =
       isStructured = False
     }
 
+-- | Accepts file paths from numbered args (SA.FilePath). No completions since we don't have access to WatchState.
+watchedPathArg :: ParameterType
+watchedPathArg =
+  ParameterType
+    { typeName = "watched-path",
+      suggestions = noCompletions,
+      fzfResolver = Nothing,
+      isStructured = True
+    }
+
 directoryPathArg :: ParameterType
 directoryPathArg =
   ParameterType
     { typeName = "directory-path",
       suggestions = \prefix _ _ _ -> filenameCompletion prefix,
+      fzfResolver = Nothing,
+      isStructured = False
+    }
+
+configKeyArg :: ParameterType
+configKeyArg =
+  ParameterType
+    { typeName = "config-key",
+      suggestions = \input _cb _http _p -> configKeyCompletion input,
       fzfResolver = Nothing,
       isStructured = False
     }
@@ -3979,7 +4365,7 @@ projectToCompletion :: Sqlite.Project -> Completion
 projectToCompletion project =
   Completion
     { replacement = stringProjectName,
-      display = P.toANSI 0 (prettyProjectNameSlash (project ^. #name)),
+      display = Text.unpack $ P.toANSI 0 (prettyProjectNameSlash (project ^. #name)),
       isFinished = False
     }
   where
@@ -3989,7 +4375,7 @@ projectBranchToCompletion :: ProjectName -> (ProjectBranchId, ProjectBranchName)
 projectBranchToCompletion projectName (_, branchName) =
   Completion
     { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName)),
-      display = P.toANSI 0 (prettySlashProjectBranchName branchName),
+      display = Text.unpack $ P.toANSI 0 (prettySlashProjectBranchName branchName),
       isFinished = False
     }
 
@@ -4019,7 +4405,7 @@ currentProjectBranchToCompletion :: (ProjectBranchId, ProjectBranchName) -> Comp
 currentProjectBranchToCompletion (_, branchName) =
   Completion
     { replacement = '/' : Text.unpack (into @Text branchName),
-      display = P.toANSI 0 (prettySlashProjectBranchName branchName),
+      display = Text.unpack $ P.toANSI 0 (prettySlashProjectBranchName branchName),
       isFinished = False
     }
 
@@ -4065,7 +4451,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
     projectBranchToCompletionWithSep projectName (_, branchName) =
       Completion
         { replacement = Text.unpack (into @Text (ProjectAndBranch projectName branchName) <> branchPathSep),
-          display = P.toANSI 0 (prettySlashProjectBranchName branchName <> branchPathSepPretty),
+          display = Text.unpack $ P.toANSI 0 (prettySlashProjectBranchName branchName <> branchPathSepPretty),
           isFinished = False
         }
 
@@ -4073,14 +4459,14 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
     prefixPathSep c =
       c
         { Line.replacement = branchPathSep <> Line.replacement c,
-          Line.display = P.toANSI 0 branchPathSepPretty <> Line.display c
+          Line.display = Text.unpack (P.toANSI 0 branchPathSepPretty) <> Line.display c
         }
 
     suffixPathSep :: Completion -> Completion
     suffixPathSep c =
       c
         { Line.replacement = Line.replacement c <> branchPathSep,
-          Line.display = Line.display c <> P.toANSI 0 branchPathSepPretty
+          Line.display = Line.display c <> Text.unpack (P.toANSI 0 branchPathSepPretty)
         }
 
     addBranchPrefix ::
@@ -4100,7 +4486,7 @@ branchRelativePathSuggestions config inputStr codebase _httpClient pp = do
        in \c ->
             c
               { Line.replacement = Text.unpack prefixText <> branchPathSep <> Line.replacement c,
-                Line.display = P.toANSI 0 (prefixPretty <> branchPathSepPretty) <> Line.display c
+                Line.display = Text.unpack (P.toANSI 0 (prefixPretty <> branchPathSepPretty)) <> Line.display c
               }
 
     branchPathSepPretty = P.hiBlack branchPathSep
@@ -4181,7 +4567,7 @@ projectNameSuggestions slash (Text.strip . Text.pack -> input) codebase = do
        in \project ->
             Completion
               { replacement = Text.unpack (toText project),
-                display = P.toANSI 0 (toPretty (project ^. #name)),
+                display = Text.unpack $ P.toANSI 0 (toPretty (project ^. #name)),
                 isFinished = False
               }
 
@@ -4208,6 +4594,18 @@ parseHashQualifiedName s =
     )
     Right
     $ HQ.parseText (Text.pack s)
+
+parseHashQualifiedName' :: String -> Either (P.Pretty CT.ColorText) (HQ'.HashQualified Name)
+parseHashQualifiedName' s =
+  maybe
+    ( Left
+        . P.wrap
+        $ P.string s
+          <> " is not a well-formed name, hash, or hash-qualified name. "
+          <> "I expected something like `foo`, `#abc123`, or `foo#abc123`."
+    )
+    Right
+    $ HQ'.parseText (Text.pack s)
 
 explainRemote :: PushPull -> P.Pretty CT.ColorText
 explainRemote pushPull =

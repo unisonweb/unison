@@ -1,16 +1,16 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Unison.CommandLine.OutputMessages where
 
 import Control.Arrow ((***))
 import Control.Lens hiding (at)
 import Control.Monad.State.Strict qualified as State
+import Data.Algorithm.Diff qualified as Diff
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
-import Data.List (stripPrefix)
+import Data.List (intercalate, stripPrefix)
 import Data.List qualified as List
 import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.List.NonEmpty qualified as NEList
@@ -19,6 +19,7 @@ import Data.Ord (comparing)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Set.NonEmpty qualified as Set.Nonempty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -38,8 +39,11 @@ import System.Exit (ExitCode (..))
 import Text.Pretty.Simple (pShowNoColor, pStringNoColor)
 import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
+import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -91,9 +95,14 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
-import Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
+import Unison.LabeledDependency qualified as LD
+import Unison.Merge (GUpdated (..), TwoWay (..))
+import Unison.Merge qualified as Merge
+import Unison.Merge.DiffOp qualified as Merge.DiffOp
 import Unison.Name (Name)
 import Unison.Name qualified as Name
+import Unison.NameSegment (NameSegment)
 import Unison.NameSegment qualified as NameSegment
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
@@ -113,7 +122,7 @@ import Unison.PrintError
     renderTypeWarnings,
   )
 import Unison.Project (ProjectAndBranch (..), defaultBranchName)
-import Unison.Reference (Reference)
+import Unison.Reference (Reference, TermReference, TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -125,6 +134,7 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Server.SearchResultPrime qualified as SR'
 import Unison.Share.Sync.Types qualified as Share (CodeserverTransportError (..), GetCausalHashByPathError (..), PullError (..))
 import Unison.Share.Sync.Types qualified as Sync
+import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
@@ -143,16 +153,16 @@ import Unison.Syntax.NamePrinter
     prettyReferent,
     prettyShortHash,
   )
-import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..))
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -182,16 +192,6 @@ notifyNumbered :: NumberedOutput -> (Pretty, NumberedArgs)
 notifyNumbered = \case
   ShowDiffNamespace oldPrefix newPrefix ppe diffOutput ->
     showDiffNamespace ShowNumbers ppe (either BranchAtSCH BranchAtProjectPath oldPrefix) (either BranchAtSCH BranchAtProjectPath newPrefix) diffOutput
-  ShowDiffAfterDeleteDefinitions ppe diff ->
-    first
-      ( \p ->
-          P.lines
-            [ p,
-              "",
-              undoTip
-            ]
-      )
-      (showDiffNamespace ShowNumbers ppe (absPathToBranchId Path.Root) (absPathToBranchId Path.Root) diff)
   ShowDiffAfterDeleteBranch bAbs ppe diff ->
     first
       ( \p ->
@@ -279,15 +279,6 @@ notifyNumbered = \case
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
   Output'Todo todoOutput -> runNumbered (handleTodoOutput todoOutput)
-  CantDeleteDefinitions ppeDecl endangerments ->
-    ( P.warnCallout $
-        P.lines
-          [ P.wrap "I didn't delete the following definitions because they are still in use:",
-            "",
-            endangeredDependentsTable ppeDecl endangerments
-          ],
-      numberedArgsForEndangerments ppeDecl endangerments
-    )
   CantDeleteNamespace ppeDecl endangerments ->
     ( P.warnCallout $
         P.lines
@@ -306,12 +297,12 @@ notifyNumbered = \case
           P.lines
             [ note $ "The most recent namespace hash is immediately below this message.",
               "",
-              P.sep "\n\n" [go i (toSCH h) diff | (i, (h, diff)) <- zip [1 ..] reversedHistory],
+              P.sep "\n\n" [displayCausal i (toSCH h) mayComment diff | (i, (h, mayComment, diff)) <- zip [1 ..] reversedHistory],
               "",
               tailMsg
             ]
         branchHashes :: [CausalHash]
-        branchHashes = (fst <$> reversedHistory) <> tailHashes
+        branchHashes = (view _1 <$> reversedHistory) <> tailHashes
      in (msg, SA.Namespace <$> branchHashes)
     where
       toSCH :: CausalHash -> ShortCausalHash
@@ -319,42 +310,62 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
+      displayComment :: Bool -> Maybe (HistoryComment () ()) -> [Pretty]
+      displayComment prefixSpacer mayComment = case mayComment of
+        Nothing -> []
+        Just (HistoryComment {author, subject, content}) ->
+          Monoid.whenM prefixSpacer [""]
+            <> [(P.text "⊙ " <> P.bold (P.text author))]
+            <> [ P.indent (P.blue "  ┃ ") (P.text subject)
+               ]
+            <> Monoid.whenM
+              (not (Text.null content))
+              [ (P.blue "  ┃ "),
+                P.indent (P.blue "  ┃ ") (P.text content)
+              ]
+            <> [ ""
+               ]
       handleTail :: Int -> (Pretty, [CausalHash])
       handleTail n = case tail of
-        E.EndOfLog h ->
-          ( P.lines
-              [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
-              ],
+        (mayComment, E.EndOfLog h) ->
+          ( P.lines $
+              displayComment True mayComment
+                <> [ "□ " <> showNum n <> prettySCH (toSCH h) <> " (start of history)"
+                   ],
             [h]
           )
-        E.MergeTail h hs ->
-          ( P.lines
-              [ P.wrap $ "This segment of history starts with a merge." <> ex,
-                "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                "⑃",
-                P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
-              ],
+        (mayComment, E.MergeTail h hs) ->
+          ( P.lines $
+              displayComment True mayComment
+                <> [ P.wrap $ "This segment of history starts with a merge." <> ex,
+                     "",
+                     "⊙ " <> showNum n <> prettySCH (toSCH h)
+                   ]
+                <> [ "⑃",
+                     P.lines (hs & imap \i h -> showNum (n + 1 + i) <> prettySCH (toSCH h))
+                   ],
             h : hs
           )
-        E.PageEnd h _n ->
-          ( P.lines
-              [ P.wrap $ "There's more history before the versions shown here." <> ex,
-                "",
-                dots,
-                "",
-                "⊙ " <> showNum n <> prettySCH (toSCH h),
-                ""
-              ],
+        (mayComment, E.PageEnd h _n) ->
+          ( P.lines $
+              displayComment True mayComment
+                <> [ P.wrap $ "There's more history before the versions shown here." <> ex,
+                     "",
+                     dots,
+                     "",
+                     "⊙ " <> showNum n <> prettySCH (toSCH h)
+                   ],
             [h]
           )
       dots = "⠇"
-      go i sch diff =
-        P.lines
-          [ "⊙ " <> showNum i <> prettySCH sch,
-            "",
-            P.indentN 2 $ prettyDiff diff
-          ]
+      displayCausal i sch mayComment diff =
+        P.lines $
+          displayComment False mayComment
+            <> [ "⊙ " <> showNum i <> prettySCH sch,
+                 ""
+               ]
+            <> [ P.indentN 2 $ prettyDiff diff
+               ]
       ex =
         "Use"
           <> IP.makeExample IP.history ["#som3n4m3space"]
@@ -505,8 +516,78 @@ notifyNumbered = \case
           & fmap (\name -> formatNum (getNameNumber name) <> prettyName name)
           & P.lines
   ShowProjectBranchReflog now moreToShow entries -> displayProjectBranchReflogEntries now moreToShow entries
+  DeletedDefinitions defns ->
+    let typesList = sortAlphabetically (Set.toList defns.types)
+        termsList = sortAlphabetically (Set.toList defns.terms)
+        deletedTheseTypes =
+          P.wrap "I deleted these types:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedList (map prettyName typesList))
+        deletedTheseTerms =
+          P.wrap "I deleted these terms:"
+            <> P.newline
+            <> P.newline
+            <> P.indentN 2 (P.numberedListFrom (Set.size defns.types) (map prettyName termsList))
+     in ( ( case (Set.null defns.types, Set.null defns.terms) of
+              (True, _) -> deletedTheseTerms
+              (_, True) -> deletedTheseTypes
+              _ -> deletedTheseTypes <> P.newline <> P.newline <> deletedTheseTerms
+          )
+            <> P.newline
+            <> P.newline
+            <> undoTip,
+          map SA.Name (typesList ++ termsList)
+        )
+  WatchList watchedPaths ->
+    ( if null watchedPaths
+        then "I'm not watching any paths."
+        else
+          P.lines
+            [ "I'm watching these paths for changes:",
+              "",
+              P.indentN 2 $ P.numberedList [P.blue (P.string path) | path <- watchedPaths],
+              "",
+              tip "Use `watch` or `unwatch` to add or remove paths."
+            ],
+      map SA.FilePath watchedPaths
+    )
+  WatchRemoved removedPaths failedPaths remainingPaths ->
+    ( P.lines $
+        ( if null removedPaths
+            then []
+            else
+              [ P.wrap $
+                  "I'm no longer watching "
+                    <> oxfordOr [P.blue (P.string p) | p <- removedPaths]
+                    <> (if null remainingPaths then " (or any other paths)" else "")
+                    <> " for changes."
+              ]
+        )
+          <> ( if null failedPaths
+                 then []
+                 else ["", P.warnCallout $ "I already wasn't watching these paths: " <> oxfordOr [P.blue (P.string p) | p <- failedPaths]]
+             )
+          <> if null remainingPaths
+            then ["", tip "Use `watch <path>` to watch a file or directory."]
+            else
+              [ "",
+                "I'm still watching:",
+                "",
+                P.indentN 2 $ P.numberedList [P.blue (P.string path) | path <- remainingPaths]
+              ],
+      map SA.FilePath remainingPaths
+    )
   where
     absPathToBranchId = BranchAtPath
+    -- Like oxfordCommas but uses "or" instead of "and", without extra spaces.
+    -- Groups each element with its trailing comma to prevent line breaks between them.
+    oxfordOr :: [P.Pretty P.ColorText] -> P.Pretty P.ColorText
+    oxfordOr = \case
+      [] -> ""
+      [x] -> x
+      [x, y] -> x <> " or " <> y
+      xs -> P.spaced (P.group . (<> ",") <$> init xs) <> P.softbreak <> "or " <> last xs
 
 undoTip :: P.Pretty P.ColorText
 undoTip =
@@ -635,19 +716,58 @@ notifyUser dir issueFn = \case
           P.warnCallout typeOrTermMsg
             <> P.newline
             <> P.syntaxToColor (P.indent "  " (P.lines (prettyHashQualified <$> otherHits)))
-  NameNotFound _ ->
-    pure . P.warnCallout $ "I don't know about that name."
-  NamesNotFound hqs ->
+  TermAndOrTypeNameNotFound which name ->
     pure $
-      P.warnCallout "The following names were not found in the codebase. Check your spelling."
-        <> P.newline
-        <> (P.syntaxToColor $ P.indent "  " (P.lines (fmap prettyName hqs)))
+      P.warnCallout $
+        P.wrap $
+          "I couldn't find any"
+            <> case which of
+              Nothing -> "terms or types"
+              Just (TermDefn ()) -> "terms"
+              Just (TypeDefn ()) -> "types"
+            <> "that match the name"
+            <> P.group (P.syntaxToColor (prettyHashQualified' name) <> ".")
   TermNotFound _ ->
     pure . P.warnCallout $ "I don't know about that term."
   TypeNotFound _ ->
     pure . P.warnCallout $ "I don't know about that type."
   MoveNothingFound p ->
     pure . P.warnCallout $ "There is no term, type, or namespace at " <> prettyPath p <> "."
+  MoveToResult movedItems ->
+    pure . P.lines $
+      [ "Moved:",
+        "",
+        P.indentN 2 $ prettyMovedItems movedItems
+      ]
+  RenameResult src dest ->
+    pure . P.lines $
+      [ "Renamed:",
+        "",
+        P.indentN 2 $ prettyPath src <> " -> " <> prettyPath dest
+      ]
+  MoveToConflicts movedItems conflicts dest ->
+    pure . P.lines $
+      ( if null movedItems
+          then []
+          else
+            [ "Moved:",
+              "",
+              P.indentN 2 $ prettyMovedItems movedItems,
+              ""
+            ]
+      )
+        <> [ P.warnCallout . P.lines $
+               ( [ P.wrap $ "I couldn't move some of the items, because they have the same final segment as some of the others, meaning that they would have duplicate names at the destination:",
+                   ""
+                 ]
+                   <> prettyNumberedConflictGroups conflicts
+                   <> [ "",
+                        P.wrap $ "You can rename them and then use `moveTo` again, for example:",
+                        ""
+                      ]
+                   <> prettyConflictExample conflicts dest
+               )
+           ]
   TermAlreadyExists _ _ ->
     pure . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists _ _ ->
@@ -940,10 +1060,10 @@ notifyUser dir issueFn = \case
         (newTypes0, updatedTypes0, deletedTypes0, numUnchangedTypes) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.SlurpEntry'Add decl -> over _1 ((name, decl) :) acc
-                SlurpResult.SlurpEntry'Update oldDecl newDecl -> over _2 ((name, oldDecl, newDecl) :) acc
-                SlurpResult.SlurpEntry'Delete decl -> over _3 ((name, decl) :) acc
-                SlurpResult.SlurpEntry'Unchanged -> over _4 (+ 1) acc
+                SlurpResult.TypeSlurp'Add decl -> over _1 ((name, decl) :) acc
+                SlurpResult.TypeSlurp'Update decl -> over _2 ((name, decl.old, decl.new) :) acc
+                SlurpResult.TypeSlurp'Delete decl -> over _3 ((name, decl) :) acc
+                SlurpResult.TypeSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
             slurpEntries.types
@@ -966,10 +1086,10 @@ notifyUser dir issueFn = \case
         (newTerms0, updatedTerms0, deletedTerms0, numUnchangedTerms) =
           Map.foldlWithKey'
             ( \acc name -> \case
-                SlurpResult.TermSlurp'Add ref ty -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
-                SlurpResult.TermSlurp'Update oldRef oldTy newRef newTy ->
+                SlurpResult.TermSlurp'Add (Typed ref ty) -> over _1 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Update (Updated (Typed oldRef oldTy) (Typed newRef newTy)) ->
                   over _2 ((name, oldTy, toAliases oldRef, newTy, toAliases newRef) :) acc
-                SlurpResult.TermSlurp'Delete ref ty -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
+                SlurpResult.TermSlurp'Delete (Typed ref ty) -> over _3 ((name, ty, toAliases (Referent.Ref ref)) :) acc
                 SlurpResult.TermSlurp'Unchanged -> over _4 (+ 1) acc
             )
             ([], [], [], 0)
@@ -1100,30 +1220,15 @@ notifyUser dir issueFn = \case
                     <> P.num numUnchangedTerms
                     <> " unchanged term"
                     <> (if numUnchangedTerms == 1 then ")" else "s)"),
-              let legendAdded = P.green "+" <> " (added)"
-                  legendModified = P.yellow "~" <> " (modified)"
-                  legendDeleted = P.red "-" <> " (deleted)"
-               in ( if not existUpdates && not existDeletes
-                      then mempty
-                      else
-                        mconcat
-                          ( List.intersperse
-                              ", "
-                              ( catMaybes
-                                  [ if existAdds then Just legendAdded else Nothing,
-                                    if existUpdates then Just legendModified else Nothing,
-                                    if existDeletes then Just legendDeleted else Nothing
-                                  ]
-                              )
-                          )
-                          <> P.newline
-                          <> P.newline
+              ( case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
+                  Just legend -> legend <> P.newline <> P.newline
+                  Nothing -> mempty
+              )
+                <> P.wrap
+                  ( "Run"
+                      <> makeExample' IP.update
+                      <> "to apply these changes to your codebase."
                   )
-                    <> P.wrap
-                      ( "Run"
-                          <> makeExample' IP.update
-                          <> "to apply these changes to your codebase."
-                      )
             ]
         else "No changes found."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
@@ -1262,7 +1367,7 @@ notifyUser dir issueFn = \case
             <> "is ambiguous."
             <> "Did you mean one of these hashes?",
         "",
-        P.indentN 2 $ P.lines (P.shown <$> Set.toList rs),
+        P.indentN 2 $ P.lines (P.text . SH.toText . Referent.toShortHash <$> Set.toList rs),
         "",
         P.wrap "Try again with a few more hash characters to disambiguate."
       ]
@@ -1481,24 +1586,22 @@ notifyUser dir issueFn = \case
               "",
               "Paste that output into http://bit-booster.com/graph.html"
             ]
-  ListDependents ppe lds defns ->
+  ListDependents dependencies dependents -> do
     pure $
       listDependentsOrDependencies
-        ppe
         "Dependents"
         "dependents"
-        lds
-        (map (HQ'.toHQ *** HQ'.toHQ) defns.types)
-        (map (HQ'.toHQ *** HQ'.toHQ) defns.terms)
-  ListDependencies ppe lds defns ->
+        dependencies
+        (map (HQ'.toHQ *** HQ'.toHQ) dependents.types)
+        (map (HQ'.toHQ *** HQ'.toHQ) dependents.terms)
+  ListDependencies dependents dependencies ->
     pure $
       listDependentsOrDependencies
-        ppe
         "Dependencies"
         "dependencies"
-        lds
-        defns.types
-        defns.terms
+        (let f = Map.fromSet (\_ -> Nothing) in bimap f f dependents)
+        dependencies.types
+        dependencies.terms
   ListStructuredFind terms ->
     pure $ listFind False Nothing terms
   ListTextFind True terms ->
@@ -1992,6 +2095,16 @@ notifyUser dir issueFn = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
+  DeleteFailure scratchFile0 baseBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap "I couldn't complete the delete, because some definitions are still in use."
+        <> P.newline
+        <> P.newline
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
   UpdateTypecheckingFailure ->
     pure . P.wrap $
       "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
@@ -2000,73 +2113,56 @@ notifyUser dir issueFn = \case
         <> "Once the file is compiling, try"
         <> makeExample' IP.update
         <> "again."
-  UpdateTypecheckingFailure2 scratchFile0 baseBranch updateBranch -> do
+  UpdateTypecheckingFailure2 scratchFile0 baseBranch -> do
+    scratchFile <- renderFileName scratchFile0
+    pure $
+      P.wrap "I couldn't complete the update, because some existing definitions would no longer typecheck."
+        <> P.newline
+        <> P.newline
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
+  UpgradeFailure baseBranch scratchFile0 names -> do
     scratchFile <- renderFileName scratchFile0
     pure $
       P.wrap
-        ( "Some definitions don't typecheck with your changes. I've update the file"
-            <> scratchFile
-            <> "with the definitions that need fixing. Once the file is compiling, try"
-            <> makeExample' IP.update
-            <> "again."
+        ( "I couldn't automatically upgrade"
+            <> ( names
+                   & fmap
+                     ( \(old, new) ->
+                         P.wrap $
+                           prettyLibdepName old
+                             <> "to"
+                             <> prettyLibdepName new
+                     )
+                   & P.oxfordCommasWith "."
+               )
         )
         <> P.newline
         <> P.newline
-        <> P.wrap
-          ( "I've also switched you to a new branch"
-              <> prettyProjectBranchName updateBranch
-              <> "for this work. On"
-              <> P.group (makeExample' IP.update <> ",")
-              <> "it will be merged back into"
-              <> P.group (prettyProjectBranchName baseBranch <> ".")
-          )
-  UpgradeFailure main temp path old new ->
+        <> iveCreatedATemporaryBranch scratchFile
+        <> P.newline
+        <> P.newline
+        <> onceYoureHappy baseBranch
+  UpgradeSuccess names unmanglings ->
     pure $
-      P.lines
-        [ P.wrap $
-            "I couldn't automatically upgrade"
-              <> P.text (NameSegment.toEscapedText old)
-              <> "to"
-              <> P.group (P.text (NameSegment.toEscapedText new) <> ".")
-              <> "However, I've added the definitions that need attention to the top of"
-              <> P.group (prettyFilePath path <> "."),
-          "",
-          P.wrap "When you're done, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
-          "",
-          P.wrap $
-            "to merge your changes back into"
-              <> prettyProjectBranchName main
-              <> "and delete the temporary branch. Or, if you decide to cancel the upgrade instead, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
-          "",
-          P.wrap $
-            "to delete the temporary branch and switch back to"
-              <> P.group (prettyProjectBranchName main <> ".")
-        ]
-  UpgradeSuccess old new maybeFinal ->
-    let prettyLib = P.blue . P.text . NameSegment.toEscapedText
-        prettyOld = prettyLib old
-        prettyNew = prettyLib new
-     in pure . P.wrap $
-          "I upgraded"
-            <> prettyOld
-            <> "to"
-            <> P.group (prettyNew <> ",")
-            <> case maybeFinal of
-              Nothing ->
-                "and removed"
-                  <> P.group (prettyOld <> ".")
-              Just final ->
-                "removed"
-                  <> P.group (prettyOld <> ",")
-                  <> "and renamed"
-                  <> prettyNew
-                  <> "to"
-                  <> P.group (prettyLib final <> ".")
-  MergeFailure path aliceAndBob temp ->
+      P.wrap $
+        "I upgraded"
+          <> ( names
+                 & fmap
+                   ( \(old, new) ->
+                       let oldToNew =
+                             prettyLibdepName old
+                               <> "to"
+                               <> prettyLibdepName new
+                        in P.wrap case Map.lookup new unmanglings of
+                             Nothing -> oldToNew
+                             Just new1 -> oldToNew <> "(renamed to" <> P.group (prettyLibdepName new1 <> ")")
+                   )
+                 & P.oxfordCommasWith "."
+             )
+  MergeFailure path aliceAndBob ->
     pure $
       P.lines $
         [ P.wrap $
@@ -2079,20 +2175,20 @@ notifyUser dir issueFn = \case
           "",
           P.wrap "When you're done, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
           "",
           P.wrap $
             "to merge your changes back into"
               <> prettyProjectBranchName aliceAndBob.alice.branch
               <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
           "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
           "",
           P.wrap $
             "to delete the temporary branch and switch back to"
               <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
         ]
-  MergeFailureWithMergetool aliceAndBob temp mergetool exitCode ->
+  MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
         pure $
@@ -2108,14 +2204,14 @@ notifyUser dir issueFn = \case
               "",
               P.wrap "When you're done, you can run",
               "",
-              P.indentN 2 (IP.makeExampleNoBackticks IP.mergeCommitInputPattern []),
+              P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
               "",
               P.wrap $
                 "to merge your changes back into"
                   <> prettyProjectBranchName aliceAndBob.alice.branch
                   <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
               "",
-              P.indentN 2 (IP.makeExampleNoBackticks IP.deleteBranch [prettySlashProjectBranchName temp]),
+              P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
               "",
               P.wrap $
                 "to delete the temporary branch and switch back to"
@@ -2188,71 +2284,125 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> "Synhash tokens: "
         <> P.text filename
-  ConflictedDefn operation defn ->
+  ConflictedDefn defn ->
     pure . P.wrap $
-      ( "This branch has more than one" <> case defn of
+      ( "Sorry, I can't do that right now, because there's more than one" <> case defn of
           TermDefn (Conflicted name _refs) -> "term with the name" <> P.group (P.backticked (prettyName name) <> ".")
           TypeDefn (Conflicted name _refs) -> "type with the name" <> P.group (P.backticked (prettyName name) <> ".")
       )
         <> P.newline
-        <> "Please delete or rename all but one of them, then try the"
-        <> P.text operation
-        <> "again."
+        <> "Please"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.renameTerm
+               TypeDefn _ -> IP.renameType
+           )
+        <> "or"
+        <> ( IP.makeExample' case defn of
+               TermDefn _ -> IP.deleteTermForce
+               TypeDefn _ -> IP.deleteTypeForce
+           )
+        <> "all but one of them, then try again."
+  IncoherentDeclDuringDelete target reason ->
+    let command =
+          case target of
+            Input.DeleteTarget'TermOrType -> IP.makeExample' IP.delete
+            Input.DeleteTarget'Term -> IP.makeExample' IP.deleteTerm
+            Input.DeleteTarget'Type -> IP.makeExample' IP.deleteType
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
+  IncoherentDeclDuringDiffBranch diffBranchArg reason ->
+    let command = IP.makeExample' IP.diffBranch
+        which =
+          case diffBranchArg of
+            Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
+            Input.DiffBranchArg'Hash hash -> prettySCH hash
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $
+              constructorAliasError
+                command
+                ("On" <> P.group (which <> ",") <> "the type")
+                typeName
+                conName1
+                conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $
+              missingConstructorNameError
+                command
+                ("On" <> P.group (which <> ",") <> "the type")
+                name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $
+              nestedDeclAliasError
+                ("On" <> P.group (which <> ",") <> "the type")
+                command
+                shorterName
+                longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $
+              strayConstructorError
+                command
+                ("On" <> P.group (which <> ",") <> "the constructor")
+                name
   IncoherentDeclDuringMerge aliceOrBob reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $
-          constructorAliasError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            typeName
-            conName1
-            conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $
-          missingConstructorNameError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $
-          nestedDeclAliasError
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
-            "a merge"
-            "merging"
-            shorterName
-            longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $
-          strayConstructorError
-            "merge"
-            ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
-            "merging"
-            name
+    let command = IP.makeExample' IP.mergeInputPattern
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $
+              constructorAliasError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                typeName
+                conName1
+                conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $
+              missingConstructorNameError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $
+              nestedDeclAliasError
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the type")
+                command
+                shorterName
+                longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $
+              strayConstructorError
+                command
+                ("On" <> P.group (prettyMergeSourceOrTarget aliceOrBob <> ",") <> "the constructor")
+                name
   IncoherentDeclDuringUpdate reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "update" "The type" "an update" "updating" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "update" "The type" "an update" "updating" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "an update" "updating" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "update" "The constructor" "updating" name
+    let command = IP.makeExample' IP.update
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
   IncoherentDeclDuringUpgrade reason ->
-    case reason of
-      IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
-        pure $ constructorAliasError "upgrade" "The type" "an upgrade" "upgrading" typeName conName1 conName2
-      IncoherentDeclReason'MissingConstructorName name ->
-        pure $ missingConstructorNameError "upgrade" "The type" "an upgrade" "upgrading" name
-      IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
-        pure $ nestedDeclAliasError "The type" "an upgrade" "upgrading" shorterName longerName
-      IncoherentDeclReason'StrayConstructor _typeRef name ->
-        pure $ strayConstructorError "upgrade" "The constructor" "upgrading" name
+    let command = IP.makeExample' IP.upgrade
+     in case reason of
+          IncoherentDeclReason'ConstructorAlias typeName conName1 conName2 ->
+            pure $ constructorAliasError command "The type" typeName conName1 conName2
+          IncoherentDeclReason'MissingConstructorName name ->
+            pure $ missingConstructorNameError command "The type" name
+          IncoherentDeclReason'NestedDeclAlias shorterName longerName ->
+            pure $ nestedDeclAliasError "The type" command shorterName longerName
+          IncoherentDeclReason'StrayConstructor _typeRef name ->
+            pure $ strayConstructorError command "The constructor" name
   Literal message -> pure message
   SyncPullError syncErr ->
     case syncErr of
@@ -2301,6 +2451,489 @@ notifyUser dir issueFn = \case
           <> P.green (prettySCH $ SCH.fromHash 10 fromCausalHash)
           <> "to"
           <> P.group (P.green $ prettySCH $ SCH.fromHash 10 toCausalHash)
+  CantDeleteConstructor names ->
+    pure $
+      P.warnCallout $
+        ( case NEList.toList (Set.NonEmpty.toList names) of
+            [name] -> P.wrap ("I can't delete the constructor" <> P.group (prettyName name <> "."))
+            names ->
+              P.wrap ("I can't delete the constructors" <> P.group (P.commas (map prettyName names) <> "."))
+        )
+          <> P.newline
+          <> P.newline
+          <> P.wrap
+            ( "You may only delete terms and types with"
+                <> P.group (IP.makeExample' IP.delete <> ".")
+                <> "Use"
+                <> IP.makeExample' IP.deleteForce
+                <> "instead."
+            )
+  CantDoThatDuring aVerb verb ->
+    pure $
+      P.wrap $
+        "Sorry, I can't do that during"
+          <> (P.group (P.text aVerb) <> ".")
+          <> "Please complete the"
+          <> (P.group (P.text verb) <> ",")
+          <> "then try again."
+  ShowEmptyBranchDiff -> pure prettyEmptyBranchDiff
+  ShowBranchDiff branchArgs ppes libdepsDiffs diffs _maybeDifftoolResult -> do
+    let isEmpty
+          libdepsDiff
+          Defns
+            { terms = (newTerms, updatedTerms, deletedTerms),
+              types = (newTypes, updatedTypes, deletedTypes)
+            } =
+            Map.null libdepsDiff
+              && Map.null newTerms
+              && Map.null updatedTerms
+              && Map.null deletedTerms
+              && Map.null newTypes
+              && Map.null updatedTypes
+              && Map.null deletedTypes
+
+    let showBranchDiff ::
+          PPE.PrettyPrintEnv ->
+          Input.DiffBranchArg ->
+          Map NameSegment (Merge.DiffOp CausalHash) ->
+          ( Defns
+              ( Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann),
+                Map Name (Type Symbol Ann)
+              )
+              ( Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann),
+                Map Name (DeclOrBuiltin Symbol Ann)
+              )
+          ) ->
+          Pretty
+        showBranchDiff _ _ libdepsDiff diff | isEmpty libdepsDiff diff = mempty
+        showBranchDiff ppe branchArg libdepsDiff diff = do
+          let colorAdd = P.green . ("+ " <>)
+              colorUpdate = P.yellow . ("~ " <>)
+              colorDelete = P.red . ("- " <>)
+
+          let renderLibdep :: NameSegment -> CausalHash -> Pretty
+              renderLibdep name _hash =
+                prettyName (Name.fromReverseSegments (name NEList.:| [NameSegment.libSegment]))
+
+          let renderLibdeps :: (Pretty -> Pretty) -> [(NameSegment, CausalHash)] -> Pretty
+              renderLibdeps colored libdeps =
+                libdeps
+                  & sortAlphabeticallyOn (view _1)
+                  & map (\(name, hash) -> colored (renderLibdep name hash))
+                  & P.lines
+
+          let renderedNewLibdeps :: Pretty
+              renderedNewLibdeps =
+                libdepsDiff
+                  & Map.toList
+                  & mapMaybe
+                    ( \case
+                        (name, Merge.DiffOp'Add hash) -> Just (name, hash)
+                        _ -> Nothing
+                    )
+                  & renderLibdeps colorAdd
+
+          let renderedUpdatedLibdeps :: Pretty
+              renderedUpdatedLibdeps =
+                libdepsDiff
+                  & Map.toList
+                  & mapMaybe
+                    ( \case
+                        (name, Merge.DiffOp'Update hashes) -> Just (name, hashes.new)
+                        _ -> Nothing
+                    )
+                  & renderLibdeps colorUpdate
+
+          let renderedDeletedLibdeps :: Pretty
+              renderedDeletedLibdeps =
+                libdepsDiff
+                  & Map.toList
+                  & mapMaybe
+                    ( \case
+                        (name, Merge.DiffOp'Delete hash) -> Just (name, hash)
+                        _ -> Nothing
+                    )
+                  & renderLibdeps colorDelete
+
+          let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
+              renderTypes colored types =
+                types
+                  & Map.toList
+                  & sortAlphabeticallyOn (view _1)
+                  & map
+                    ( \(name, decl) ->
+                        colored $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDeclOrBuiltinHeader
+                              DeclPrinter.RenderUniqueTypeGuids'No
+                              (HQ.fromName name)
+                              decl
+                    )
+                  & P.lines
+
+          let renderTerms :: (Pretty -> Pretty) -> Map Name (Type Symbol Ann) -> Pretty
+              renderTerms colored terms =
+                terms
+                  & Map.toList
+                  & sortAlphabeticallyOn (view _1)
+                  & map
+                    ( \(name, ty) ->
+                        ( colored (prettyNameParens name),
+                          ": " <> P.indentNAfterNewline 2 (TypePrinter.pretty ppe ty)
+                        )
+                    )
+                  & P.align
+                  & map P.group
+                  & P.lines
+           in P.sepNonEmpty
+                "\n\n"
+                [ let prettyBranchArg =
+                        case branchArg of
+                          Input.DiffBranchArg'Branch branch -> prettyMaybeProjectAndBranchName branch
+                          Input.DiffBranchArg'Hash hash -> prettySCH hash
+                   in P.wrap ("Changes on " <> P.group (prettyBranchArg <> ":")),
+                  P.linesNonEmpty
+                    [ renderedNewLibdeps,
+                      renderedUpdatedLibdeps,
+                      renderedDeletedLibdeps
+                    ],
+                  P.linesNonEmpty
+                    [ renderTypes colorAdd (view _1 diff.types),
+                      renderTypes colorUpdate (view _2 diff.types),
+                      renderTypes colorDelete (view _3 diff.types)
+                    ],
+                  P.linesNonEmpty
+                    [ renderTerms colorAdd (view _1 diff.terms),
+                      renderTerms colorUpdate (view _2 diff.terms),
+                      renderTerms colorDelete (view _3 diff.terms)
+                    ]
+                ]
+
+    pure $
+      if isEmpty libdepsDiffs.alice diffs.alice && isEmpty libdepsDiffs.bob diffs.bob
+        then prettyEmptyBranchDiff
+        else
+          P.sepNonEmpty
+            "\n\n"
+            [ showBranchDiff ppes.alice branchArgs.alice libdepsDiffs.alice diffs.alice,
+              showBranchDiff ppes.bob branchArgs.bob libdepsDiffs.bob diffs.bob,
+              let existAdds =
+                    or
+                      [ not (Map.null (view _1 diffs.alice.terms)),
+                        not (Map.null (view _1 diffs.alice.types)),
+                        not (Map.null (view _1 diffs.bob.terms)),
+                        not (Map.null (view _1 diffs.bob.types)),
+                        any Merge.DiffOp.isAdd libdepsDiffs.alice,
+                        any Merge.DiffOp.isAdd libdepsDiffs.bob
+                      ]
+                  existUpdates =
+                    or
+                      [ not (Map.null (view _2 diffs.alice.terms)),
+                        not (Map.null (view _2 diffs.alice.types)),
+                        not (Map.null (view _2 diffs.bob.terms)),
+                        not (Map.null (view _2 diffs.bob.types)),
+                        any Merge.DiffOp.isUpdate libdepsDiffs.alice,
+                        any Merge.DiffOp.isUpdate libdepsDiffs.bob
+                      ]
+                  existDeletes =
+                    or
+                      [ not (Map.null (view _3 diffs.alice.terms)),
+                        not (Map.null (view _3 diffs.alice.types)),
+                        not (Map.null (view _3 diffs.bob.terms)),
+                        not (Map.null (view _3 diffs.bob.types)),
+                        any Merge.DiffOp.isDelete libdepsDiffs.alice,
+                        any Merge.DiffOp.isDelete libdepsDiffs.bob
+                      ]
+               in case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
+                    Just legend -> legend
+                    Nothing -> mempty
+            ]
+  ShowUpdateDiff ppedNew ppedOld newDefns updatedDefns dependents -> do
+    let ppe = PPED.suffixifiedPPE ppedNew
+    let colorAdd = P.green . ("+ " <>)
+
+    let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
+        renderTypes colored types =
+          types
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, decl) ->
+                  colored $
+                    P.syntaxToColor $
+                      DeclPrinter.prettyDeclOrBuiltinHeader
+                        DeclPrinter.RenderUniqueTypeGuids'No
+                        (HQ.fromName name)
+                        decl
+              )
+            & P.lines
+
+    -- Render new terms with "+ " prefix on each line
+    -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
+    -- for better readability
+    let renderTerms :: Map Name (Term Symbol Ann, Type Symbol Ann) -> Pretty
+        renderTerms terms =
+          terms
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, (term, _typ)) ->
+                  let termText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppe (HQ.fromName name) term
+                      termLines = Text.lines termText
+                   in P.lines $ map (\line -> P.green $ P.text $ "+ " <> line) termLines
+              )
+            & P.sepNonEmpty "\n"
+
+    -- Render updated terms with inline diff (removed lines in red, added lines in green)
+    -- Use ppedOld for old terms (so old refs resolve to names)
+    -- Use ppedNew for new terms (so new refs resolve to names)
+    -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
+    -- for better line-by-line diffing
+    let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
+        renderUpdatedTerms terms =
+          terms
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ((oldTerm, _oldTyp), (newTerm, _newTyp))) ->
+                  let ppeOld = PPED.suffixifiedPPE ppedOld
+                      ppeNew = PPED.suffixifiedPPE ppedNew
+                      oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppeOld (HQ.fromName name) oldTerm
+                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppeNew (HQ.fromName name) newTerm
+                      oldLines = Text.lines oldText
+                      newLines = Text.lines newText
+                      diffLines = Diff.getDiff oldLines newLines
+                      renderDiffLine = \case
+                        Diff.First line -> P.red $ P.text $ "- " <> line
+                        Diff.Second line -> P.green $ P.text $ "+ " <> line
+                        Diff.Both line _ -> P.text $ "  " <> line
+                   in P.lines (map renderDiffLine diffLines)
+              )
+            & P.sepNonEmpty "\n"
+
+    -- Render updated types with inline diff (removed lines in red, added lines in green)
+    -- Use ppedOld for old types (so old refs resolve to names)
+    -- Use ppedNew for new types (so new refs resolve to names)
+    let renderUpdatedTypes :: Map Name ((TypeReferenceId, DD.Decl Symbol Ann), (TypeReferenceId, DD.Decl Symbol Ann)) -> Pretty
+        renderUpdatedTypes types =
+          types
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ((oldRefId, oldDecl), (newRefId, newDecl))) ->
+                  let oldRef = Reference.fromId oldRefId
+                      newRef = Reference.fromId newRefId
+                      oldText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedOld DeclPrinter.RenderUniqueTypeGuids'No oldRef (HQ.fromName name) oldDecl
+                      newText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedNew DeclPrinter.RenderUniqueTypeGuids'No newRef (HQ.fromName name) newDecl
+                      oldLines = Text.lines oldText
+                      newLines = Text.lines newText
+                      diffLines = Diff.getDiff oldLines newLines
+                      renderDiffLine = \case
+                        Diff.First line -> P.red $ P.text $ "- " <> line
+                        Diff.Second line -> P.green $ P.text $ "+ " <> line
+                        Diff.Both line _ -> P.text $ "  " <> line
+                   in P.lines (map renderDiffLine diffLines)
+              )
+            & P.sepNonEmpty "\n"
+
+    let renderDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> Pretty
+        renderDependents deps =
+          let names = Map.keys deps.terms ++ Map.keys deps.types
+           in if null names
+                then mempty
+                else
+                  P.wrap "The following dependents would be retypechecked:"
+                    <> P.newline
+                    <> P.indentN 2 (P.lines (map prettyName (sortAlphabeticallyOn id names)))
+
+    let hasNewDefns = not (Map.null newDefns.terms && Map.null newDefns.types)
+        hasUpdatedDefns = not (Map.null updatedDefns.terms && Map.null updatedDefns.types)
+        hasDependents = not (Map.null dependents.terms && Map.null dependents.types)
+
+    pure $
+      if not hasNewDefns && not hasUpdatedDefns
+        then P.wrap "No changes to preview. The scratch file doesn't contain any new or updated definitions."
+        else
+          P.sepNonEmpty
+            "\n\n"
+            [ P.wrap "Preview of changes that would be made by `update`:",
+              if hasNewDefns
+                then
+                  P.linesNonEmpty
+                    [ P.wrap "New definitions:",
+                      if Map.null newDefns.types then mempty else P.indentN 2 $ renderTypes colorAdd newDefns.types,
+                      if Map.null newDefns.terms then mempty else P.indentN 2 $ renderTerms newDefns.terms
+                    ]
+                else mempty,
+              if hasUpdatedDefns
+                then
+                  P.linesNonEmpty
+                    [ P.wrap "Updated definitions:",
+                      if Map.null updatedDefns.types then mempty else P.indentN 2 $ renderUpdatedTypes updatedDefns.types,
+                      if Map.null updatedDefns.terms then mempty else P.indentN 2 $ renderUpdatedTerms updatedDefns.terms
+                    ]
+                else mempty,
+              if hasDependents
+                then renderDependents dependents
+                else mempty,
+              -- For diff.update, show + (added) and - (deleted) instead of ~ (modified)
+              -- since updated definitions show inline diffs with +/- lines
+              case prettyAddUpdateDeleteLegend (hasNewDefns || hasUpdatedDefns) False hasUpdatedDefns of
+                Just legend -> legend
+                Nothing -> mempty,
+              P.wrap $ "Run " <> IP.makeExample' IP.update <> " to apply these changes."
+            ]
+  StaleRun ppe main (endOfPath NEList.:| reversePath) inFile ->
+    let path = reverse ((True, endOfPath) : map (False,) reversePath)
+     in pure $
+          P.wrap
+            ( "Sorry, I don't want to run"
+                <> prettyMain
+                <> "because it depends on something that hasn't been committed to the codebase yet:"
+            )
+            <> P.newline
+            <> ( path
+                   & map (\(end, defn) -> prettyDefn defn <> prettyWhere end)
+                   & (if inFile then ((prettyMain <> prettyWhere True) :) else id)
+                   & List.foldl'
+                     ( \(n, acc) defn ->
+                         (n + 2, acc <> P.newline <> if n > 2 then P.indentN (n - 2) ("└ " <> defn) else P.indentN n defn)
+                     )
+                     (2, mempty)
+                   & snd
+               )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "You can"
+                  <> IP.makeExample' IP.update
+                  <> "to save and propagate these changes into your branch."
+              )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "If you don't want that, you can run"
+                  <> ( if inFile
+                         then
+                           let dependency = prettyDefn endOfPath
+                            in IP.makeExample IP.editDependents [dependency]
+                                 <> "to add all callers of"
+                                 <> dependency
+                         else
+                           IP.makeExample IP.edit [prettyMain]
+                             <> "to add"
+                             <> prettyMain
+                     )
+                  <> "to the scratch file without performing an"
+                  <> P.group (IP.makeExample' IP.update <> ".")
+              )
+            <> P.newline
+            <> P.newline
+            <> P.wrap
+              ( "Then, you can try"
+                  <> IP.makeExample IP.execute [prettyMain]
+                  <> "again for an up-to-date result."
+              )
+    where
+      prettyWhere :: Bool -> Pretty
+      prettyWhere = \case
+        True -> " (in file)"
+        False -> " (in codebase)"
+
+      prettyDefn :: Defn TermReference TypeReference -> Pretty
+      prettyDefn =
+        P.syntaxToColor . prettyHashQualified . \case
+          TermDefn ref -> PPE.termName ppe (Referent.fromTermReference ref)
+          TypeDefn ref -> PPE.typeName ppe ref
+
+      prettyMain :: Pretty
+      prettyMain =
+        prettyName main
+  InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  CommentedSuccessfully -> pure $ P.bold "Done."
+  CommentAborted -> pure (P.wrap "Annotation aborted.")
+  AuthorNameRequired ->
+    pure $
+      P.hang "Please configure your a display name for your user." $
+        P.lines
+          [ "You can do so with: ",
+            IP.makeExampleNoBackticks IP.configSet ["author.name", "<your name>"]
+          ]
+  ConfigValueGet key value ->
+    case value of
+      Nothing ->
+        pure $
+          P.wrap $
+            P.text (Config.keyToText key)
+              <> " is unset"
+      Just value ->
+        pure $
+          P.wrap $
+            P.text (Config.keyToText key)
+              <> " = "
+              <> P.text ("\"" <> value <> "\"")
+  WatchDisabled ->
+    pure . P.warnCallout $
+      P.wrap "I can only watch for changes in interactive sessions, which this isn't."
+  WatchAddResult (Just canonPath) _originalPath ->
+    pure . P.lines $
+      [ P.wrap $
+          "I'm now watching"
+            <> P.blue (P.string canonPath)
+            <> "for changes.",
+        "",
+        tip "Use `watches` to see all locations being watched."
+      ]
+  WatchAddResult Nothing originalPath ->
+    pure . P.warnCallout $
+      P.wrap $
+        "When I tried to watch"
+          <> P.group (P.blue (P.string originalPath) <> ",")
+          <> "it didn't seem to exist."
+  where
+    iveCreatedATemporaryBranch scratchFile =
+      P.wrap $
+        "I've created a temporary branch and added the affected definitions to"
+          <> P.group (scratchFile <> ",")
+          <> "where you can fix them up or remove any that are obsolete."
+
+    onceYoureHappy baseBranch =
+      P.wrap $
+        "Once you're happy with the results, use"
+          <> makeExample' IP.update
+          <> "to merge them back into"
+          <> P.group (prettyProjectBranchName baseBranch <> ",")
+          <> "or"
+          <> makeExample' IP.cancelInputPattern
+          <> "if you change your mind."
+
+prettyAddUpdateDeleteLegend :: Bool -> Bool -> Bool -> Maybe Pretty
+prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes
+  | not existUpdates && not existDeletes = Nothing
+  | otherwise =
+      Just $
+        mconcat
+          ( List.intersperse
+              ", "
+              ( catMaybes
+                  [ if existAdds then Just legendAdded else Nothing,
+                    if existUpdates then Just legendModified else Nothing,
+                    if existDeletes then Just legendDeleted else Nothing
+                  ]
+              )
+          )
+  where
+    legendAdded = P.green "+" <> " (added)"
+    legendModified = P.yellow "~" <> " (modified)"
+    legendDeleted = P.red "-" <> " (deleted)"
 
 prettyShareError :: ShareError -> Pretty
 prettyShareError =
@@ -2763,8 +3396,8 @@ renderNameConflicts hashLen conflictedNames = do
               <> " or "
               <> makeExample'
                 ( if (not . null) conflictedTypeNames
-                    then IP.deleteType
-                    else IP.deleteTerm
+                    then IP.deleteTypeForce
+                    else IP.deleteTermForce
                 )
               <> "to resolve the conflicts."
         ]
@@ -3416,7 +4049,7 @@ showDiffNamespace sn ppe oldPath newPath OBD.BranchDiffOutput {..} =
       maybe
         (P.red "type not found")
         (P.syntaxToColor . DeclPrinter.prettyDeclOrBuiltinHeader DeclPrinter.RenderUniqueTypeGuids'No (HQ'.toHQ hq))
-    phq' :: _ -> Pretty = P.syntaxToColor . prettyHashQualified'
+    phq' :: HQ'.HashQualified Name -> Pretty = P.syntaxToColor . prettyHashQualified'
 
     numHQ' :: Input.AbsBranchId -> HQ'.HashQualified Name -> Referent -> Numbered Pretty
     numHQ' prefix hq r =
@@ -3740,21 +4373,56 @@ listFind allowLib _ tms =
         <> " to bring these into your scratch file."
 
 listDependentsOrDependencies ::
-  PPE.PrettyPrintEnv ->
   Text ->
   Text ->
-  Set LabeledDependency ->
+  DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   [(HQ.HashQualified Name, HQ.HashQualified Name)] ->
   Pretty
-listDependentsOrDependencies ppe labelStart label lds types terms =
+listDependentsOrDependencies labelStart label targets types terms =
   if null types && null terms
-    then prettyLabeledDependencies ppe lds <> " has no " <> P.text label <> "."
-    else P.sepNonEmpty "\n\n" [hdr, typesOut, termsOut, tip msg]
+    then
+      P.wrap $
+        prettyTargets
+          <> ( if Map.size targets.terms + Map.size targets.types == 1
+                 then "has"
+                 else "have"
+             )
+          <> "no"
+          <> P.group (P.text label <> ".")
+    else
+      P.sepNonEmpty
+        "\n\n"
+        [ hdr,
+          typesOut,
+          termsOut,
+          -- Since `view foo` doesn't currently work on `foo` defined in the scratch file, as a precaution, we just omit
+          -- this tip any time we're listing dependencies or dependents of anything in the scratch file.
+          if any (== Just True) targets.terms || any (== Just True) targets.types
+            then mempty
+            else tip msg
+        ]
   where
+    prettyTargets =
+      P.syntaxToColor $
+        P.sep ", " $
+          fold
+            [ targets.types
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> "type " <> prettyHashQualified name
+                  (name, Just False) -> "type " <> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> "type " <> prettyHashQualified name <> " (in file)",
+              targets.terms
+                & Map.toList
+                & map \case
+                  (name, Nothing) -> prettyHashQualified name
+                  (name, Just False) -> prettyHashQualified name <> " (in codebase)"
+                  (name, Just True) -> prettyHashQualified name <> " (in file)"
+            ]
     msg = "Try " <> IP.makeExample IP.view args <> " to see the source of any numbered item in the above list."
     args = [P.shown (length types + length terms)]
-    hdr = P.text labelStart <> " of: " <> prettyLabeledDependencies ppe lds
+    hdr = P.text labelStart <> " of: " <> prettyTargets
     typesOut =
       if null types
         then mempty
@@ -3815,36 +4483,38 @@ displayProjectBranchReflogEntries mayNow _ entries =
       (short, "") -> short
       (short, _) -> short <> "..."
 
-constructorAliasError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Name -> Name -> Pretty
-constructorAliasError verb theType aVerb verbing typeName conName1 conName2 =
+constructorAliasError :: Pretty -> Pretty -> Name -> Name -> Name -> Pretty
+constructorAliasError verb theType typeName conName1 conName2 =
   P.lines $
     [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
       "",
       P.wrap $
         theType
           <> prettyName typeName
-          <> "has a constructor with multiple names, and I can't perform"
-          <> aVerb
+          <> "has a constructor with multiple names, and I can't"
+          <> verb
           <> "in this situation:",
       "",
       P.indentN 2 (P.bulleted [prettyName conName1, prettyName conName2]),
       "",
       P.wrap $
-        "Please delete all but one name for each constructor, and then try"
-          <> verbing
+        "Please"
+          <> IP.makeExample' IP.deleteForce
+          <> "all but one name for each constructor, and then try"
+          <> verb
           <> "again."
     ]
 
-missingConstructorNameError :: Pretty -> Pretty -> Pretty -> Pretty -> Name -> Pretty
-missingConstructorNameError verb theType aVerb verbing name =
+missingConstructorNameError :: Pretty -> Pretty -> Name -> Pretty
+missingConstructorNameError command theType name =
   P.lines $
-    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (verb <> ":"),
+    [ P.wrap $ "Sorry, I wasn't able to perform the" <> P.group (command <> ":"),
       "",
       P.wrap $
         theType
           <> prettyName name
-          <> "has some constructors with missing names, and I can't perform"
-          <> aVerb
+          <> "has some constructors with missing names, and I can't"
+          <> command
           <> "in this situation.",
       "",
       P.wrap $
@@ -3853,25 +4523,27 @@ missingConstructorNameError verb theType aVerb verbing name =
           <> "and"
           <> IP.makeExample IP.aliasTerm ["<hash>", prettyName name <> ".<ConstructorName>"]
           <> "to give names to each unnamed constructor, and then try"
-          <> verbing
+          <> command
           <> "again."
     ]
 
-nestedDeclAliasError :: Pretty -> Pretty -> Pretty -> Name -> Name -> Pretty
-nestedDeclAliasError theType aVerb verbing shorterName longerName =
+nestedDeclAliasError :: Pretty -> Pretty -> Name -> Name -> Pretty
+nestedDeclAliasError theType verb shorterName longerName =
   P.wrap $
     theType
       <> prettyName longerName
       <> "is an alias of"
       <> P.group (prettyName shorterName <> ".")
-      <> "I'm not able to perform"
-      <> aVerb
-      <> "when a type exists nested under an alias of itself. Please separate them or delete one copy, and then try"
-      <> verbing
+      <> "I'm not able to"
+      <> verb
+      <> "when a type exists nested under an alias of itself. Please separate them or"
+      <> IP.makeExample' IP.deleteForce
+      <> "one copy, and then try"
+      <> verb
       <> "again."
 
-strayConstructorError :: Pretty -> Pretty -> Pretty -> Name -> Pretty
-strayConstructorError verb theConstructor verbing name =
+strayConstructorError :: Pretty -> Pretty -> Name -> Pretty
+strayConstructorError verb theConstructor name =
   P.lines
     [ P.wrap $
         "Sorry, I wasn't able to perform the"
@@ -3884,8 +4556,54 @@ strayConstructorError verb theConstructor verbing name =
           <> "is not nested beneath the corresponding type name. Please either use"
           <> IP.makeExample' IP.moveAll
           <> "to move it, or if it's an extra copy, you can simply"
-          <> IP.makeExample' IP.delete
+          <> IP.makeExample' IP.deleteForce
           <> "it. Then try"
-          <> verbing
+          <> verb
           <> "again."
     ]
+
+prettyEmptyBranchDiff :: Pretty
+prettyEmptyBranchDiff =
+  "Those branches are the same."
+
+-- | Pretty print a list of moved items with aligned arrows
+prettyMovedItems :: [(Path.Path', Path.Path')] -> Pretty
+prettyMovedItems items =
+  P.column2 [(prettyPath src, "-> " <> prettyPath dest) | (src, dest) <- items]
+
+-- | Pretty print conflict groups as numbered lists, with a blank line between groups
+prettyNumberedConflictGroups :: [(NameSegment, [Path.Path'])] -> [Pretty]
+prettyNumberedConflictGroups conflicts =
+  let -- Group by segment, keeping track of starting index for each group
+      groups = go (1 :: Int) conflicts
+        where
+          go _ [] = []
+          go startIdx ((_, srcs) : rest) =
+            let indexed = zip [startIdx ..] srcs
+                nextIdx = startIdx + length srcs
+             in indexed : go nextIdx rest
+      -- Format each group as a numbered list
+      formatGroup indexed = P.indentN 2 . P.lines $ [P.shown i <> ". " <> prettyPath p | (i, p) <- indexed]
+   in intercalate [""] (map (\g -> [formatGroup g]) groups)
+
+-- | Generate example commands for resolving the first conflict group
+prettyConflictExample :: [(NameSegment, [Path.Path'])] -> Path.Path' -> [Pretty]
+prettyConflictExample [] _ = []
+prettyConflictExample ((_seg, srcs) : _) dest =
+  case srcs of
+    [] -> []
+    [_] -> [] -- Only one item, no conflict (shouldn't happen)
+    (_ : rest) ->
+      let -- Get the parent path of the second item (the one to rename)
+          secondPath = head rest
+          parentPath = case Path.split secondPath of
+            Just (parent, _) -> parent
+            Nothing -> secondPath
+          -- Example: rename 2 <newName>
+          renameExample = P.indentN 2 $ P.backticked $ "rename 2 <newName>"
+          -- Example: moveTo 1 parent.<newName> dest
+          moveToExample =
+            P.indentN 2 $
+              P.backticked $
+                "moveTo 1 " <> prettyPath parentPath <> ".<newName> " <> prettyPath dest
+       in [renameExample, "", moveToExample]

@@ -38,27 +38,34 @@ module Unison.Name
     unqualified,
     isUnqualified,
 
-    -- * To organize later
-    commonPrefix,
-    preferShallowLibDepth,
-    searchByRankedSuffix,
+    -- * Suffix-based searching on collections of names
+
+    -- ** Search
     searchBySuffix,
+    gsearchBySuffix,
+    searchUnconflictedBySuffix,
+    searchByRankedSuffix,
+
+    -- ** Filter
     filterBySuffix,
     filterByRankedSuffix,
-    suffixifyByName,
-    suffixifyByHash,
-    suffixifyByHashName,
+
+    -- * To organize later
+    commonPrefix,
+    compareSuffix,
+    filterUnconflictedBySuffix,
+    preferShallowLibDepth,
     sortByText,
     sortNamed,
     sortNames,
     splits,
     suffixFrom,
+    suffixifyByHash,
+    suffixifyByHashName,
+    suffixifyByName,
 
     -- * Re-exports
     module Unison.Util.Alphabetical,
-
-    -- * Exported for testing
-    compareSuffix,
   )
 where
 
@@ -77,6 +84,8 @@ import Unison.NameSegment qualified as NameSegment
 import Unison.Position (Position (..))
 import Unison.Prelude
 import Unison.Util.Alphabetical (Alphabetical, compareAlphabetical)
+import Unison.Util.BiMultimap (BiMultimap)
+import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.List qualified as List
 import Unison.Util.Relation qualified as R
 
@@ -97,8 +106,6 @@ import Unison.Util.Relation qualified as R
 --
 -- Used for suffix-based lookup of a name. For instance, given a @r : Relation Name x@,
 -- @Relation.searchDom (compareSuffix "foo.bar") r@ will find all @r@ whose name has @foo.bar@ as a suffix.
---
--- This is only exported for testing; use 'searchBySuffix' or 'shortestUniqueSuffix' instead.
 --
 -- /O(n)/, where /n/ is the number of name segments.
 compareSuffix :: Name -> Name -> Ordering
@@ -337,7 +344,13 @@ lastSegment = List.NonEmpty.head . reverseSegments
 -- NB: Implementation uses logarithmic time lookups, not a linear scan.
 searchBySuffix :: (Ord r) => Name -> R.Relation Name r -> Set r
 searchBySuffix suffix rel =
-  R.lookupDom suffix rel `orElse` R.searchDom (compareSuffix suffix) rel
+  gsearchBySuffix (`R.lookupDom` rel) (`R.searchDom` rel) suffix
+
+-- | Like 'searchBySuffix', but takes a lookup and a search function rather than a relation. This allows searching in
+-- similar structures, like BiMultimap or just Map.
+gsearchBySuffix :: (Ord r) => (Name -> Set r) -> ((Name -> Ordering) -> Set r) -> Name -> Set r
+gsearchBySuffix lookup search name =
+  lookup name `orElse` search (compareSuffix name)
   where
     orElse s1 s2 = if Set.null s1 then s2 else s1
 
@@ -347,6 +360,18 @@ filterBySuffix suffix rel =
   case Map.lookup suffix (R.domain rel) of
     Just refs -> R.fromManyRan suffix refs
     Nothing -> R.searchDomG R.fromManyRan (compareSuffix suffix) rel
+
+searchUnconflictedBySuffix :: (Ord ref) => Name -> BiMultimap ref Name -> Set ref
+searchUnconflictedBySuffix name m =
+  case BiMultimap.lookupRan name m of
+    Just ref -> Set.singleton ref
+    Nothing -> BiMultimap.searchRan (\ref _ -> Set.singleton ref) (compareSuffix name) m
+
+filterUnconflictedBySuffix :: (Ord ref) => Name -> BiMultimap ref Name -> BiMultimap ref Name
+filterUnconflictedBySuffix name m =
+  case BiMultimap.lookupRan name m of
+    Just ref -> BiMultimap.singleton ref name
+    Nothing -> BiMultimap.searchrRan BiMultimap.insert BiMultimap.empty (compareSuffix name) m
 
 -- Like `searchBySuffix`, but prefers local (outside `lib`) and direct (one `lib` deep) names to indirect (two or more
 -- `lib` deep) names.

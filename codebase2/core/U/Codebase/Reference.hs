@@ -28,6 +28,7 @@ module U.Codebase.Reference
     toId,
     unsafeId,
     component,
+    getComponentElem,
   )
 where
 
@@ -39,6 +40,7 @@ import Data.Text qualified as Text
 import Unison.Hash (Hash)
 import Unison.Hash qualified as H
 import Unison.Hash qualified as Hash
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Prelude
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
@@ -148,9 +150,9 @@ toId =
 
 toShortHash :: Reference -> ShortHash
 toShortHash = \case
-  ReferenceBuiltin b -> SH.Builtin b
-  ReferenceDerived (Id h 0) -> SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing
-  ReferenceDerived (Id h i) -> SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing
+  ReferenceBuiltin b -> Builtin b
+  ReferenceDerived (Id h 0) -> NotBuiltin (SH.ShortHash (Hash.toBase32HexText h) Nothing Nothing)
+  ReferenceDerived (Id h i) -> NotBuiltin (SH.ShortHash (Hash.toBase32HexText h) (Just i) Nothing)
 
 unsafeId :: Reference -> Id
 unsafeId = \case
@@ -173,3 +175,9 @@ component :: H.Hash -> [k] -> [(k, Id)]
 component h ks =
   let
    in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
+
+-- | Get a single element out of a component.
+getComponentElem :: (HasCallStack) => [a] -> Pos -> a
+getComponentElem (x : _) 0 = x
+getComponentElem (_ : xs) p = getComponentElem xs (p - 1)
+getComponentElem _ _ = error (reportBug "E898558" "Component position out of bounds")

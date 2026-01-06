@@ -139,9 +139,14 @@ scratch/ns1> debug.alias.term.force junk fromJust
 
   Done.
 
-scratch/ns1> delete.term junk
+scratch/ns1> delete.term.force junk
 
-  Done.
+  I deleted these terms:
+
+    1. junk
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison :hide
@@ -287,13 +292,11 @@ scratch/ns2> alias.term fromJust' yoohoo
 
   Done.
 
-scratch/ns2> delete.term.verbose fromJust'
+scratch/ns2> delete.term fromJust'
 
-  Name changes:
+  I deleted these terms:
 
-    Original        Changes
-    1. fromJust' ┐  2. fromJust' (removed)
-    3. yoohoo    ┘  
+    1. fromJust'
 
   Tip: You can use `undo` or use a hash from `reflog` to undo
        this change.

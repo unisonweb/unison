@@ -50,6 +50,7 @@ import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.CommandLine
 import Unison.CommandLine.FuzzySelect qualified as Fuzzy
 import Unison.CommandLine.InputPattern (aliases, patternName)
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
@@ -132,7 +133,13 @@ withRunner isTest verbosity ucmVersion action = do
                   authenticatedHTTPClient
                   credMan
                   stanzas
+                  & catchExceptions
   where
+    catchExceptions :: forall x. IO (Either Error x) -> IO (Either Error x)
+    catchExceptions io =
+      UnliftIO.tryAny (io >>= UnliftIO.evaluate) >>= \case
+        Left someException -> pure $ Left (Exception someException)
+        Right r -> pure r
     withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
       RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
@@ -220,7 +227,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       outputUcmResult :: Pretty.Pretty Pretty.ColorText -> IO ()
       outputUcmResult line = do
         hide <- hideOutput False
-        unless hide . outputUcmLine . UcmOutputLine . Text.pack $
+        unless hide . outputUcmLine . UcmOutputLine $
           -- We shorten the terminal width, because "Transcript" manages a 2-space indent for output lines.
           Pretty.toPlain (terminalWidth - 2) line
 
@@ -236,7 +243,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                 [ "The stanza above marked with `:error :bug` is now failing with",
                   "",
                   "```",
-                  Text.pack $ Pretty.toPlain terminalWidth msg,
+                  Pretty.toPlain terminalWidth msg,
                   "```",
                   "",
                   "so you can remove `:bug` and close any appropriate Github issues. If the error message is different \
@@ -248,7 +255,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
       doHttpRequest req = do
         resp <- HTTP.responseBody <$> HTTP.httpLbs req httpManager
         case Aeson.eitherDecode @Aeson.Value resp of
-          Left err -> dieWithMsg $ "Error decoding response from " <> BSC.unpack (HTTP.method req) <> ": " <> err
+          Left err -> dieWithMsg . Text.pack $ "Error decoding response from " <> (BSC.unpack (HTTP.method req)) <> ": " <> err
           Right v -> do
             let prettyBytes = Aeson.encodePretty' (Aeson.defConfig {Aeson.confCompare = compare}) v
             pure $ Text.pack . BL.unpack $ prettyBytes
@@ -261,7 +268,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
           APIComment {} -> pure $ pure req
           GetRequest path -> do
             httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
-              Left err -> dieWithMsg (show err)
+              Left err -> dieWithMsg (tShow err)
               Right r -> pure r
             respTxt <- doHttpRequest httpReq
             if hide
@@ -269,7 +276,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
               else pure [req, APIResponse respTxt]
           PostRequest path body -> do
             httpReq <- case HTTP.parseRequest (Text.unpack $ baseURL <> path) of
-              Left err -> dieWithMsg (show err)
+              Left err -> dieWithMsg (tShow err)
               Right r ->
                 pure $
                   r
@@ -341,7 +348,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                 atomically . Q.undequeue cmdQueue $ Just p
                 pure $ Right switchCommand
               Nothing -> do
-                case words . Text.unpack $ lineTxt of
+                case fromMaybe [] $ IP.parseArgs (Text.unpack lineTxt) of
                   [] -> Cli.returnEarlyWithoutOutput
                   args -> do
                     liftIO $ outputUcmLine p
@@ -482,7 +489,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
           (\block -> unless (elem (pure block) currentOut) $ modifyIORef' out (<> pure (pure block)))
           blockOpt
 
-      dieWithMsg :: forall a. String -> IO a
+      dieWithMsg :: forall a. Text -> IO a
       dieWithMsg msg = do
         appendFailingStanza
         transcriptFailure
@@ -490,7 +497,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
           out
           "The transcript failed due to an error in the stanza above. The error is:"
           . pure
-          $ Text.pack msg
+          $ msg
 
       dieUnexpectedSuccess :: IO ()
       dieUnexpectedSuccess = do
@@ -532,7 +539,9 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
             sandboxedRuntime = sbRuntime,
             serverBaseUrl = Nothing,
             ucmVersion,
-            isTranscriptTest = isTest
+            isTranscriptTest = isTest,
+            -- Transcripts don't support file watching
+            watchState = Nothing
           }
 
   let loop :: Cli.LoopState -> IO (Seq Stanza)
@@ -582,5 +591,6 @@ data Error
   = ParseError (P.ParseErrorBundle Text Void)
   | RunFailure Transcript
   | PortBindingFailure
+  | Exception SomeException
   deriving stock (Show)
   deriving anyclass (Exception)

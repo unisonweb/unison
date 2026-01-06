@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -59,6 +59,7 @@ library
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
       Unison.Runtime.Foreign
+      Unison.Runtime.Foreign.Dynamic
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
       Unison.Runtime.Interface
@@ -73,6 +74,7 @@ library
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
       Unison.Runtime.Serialize
+      Unison.Runtime.Serialize.Get
       Unison.Runtime.SparseVector
       Unison.Runtime.Stack
       Unison.Runtime.TypeTags
@@ -110,6 +112,8 @@ library
       TypeFamilies
       ViewPatterns
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2
+  c-sources:
+      cbits/i2d.c
   build-depends:
       asn1-encoding
     , asn1-types
@@ -119,7 +123,6 @@ library
     , binary
     , bytes
     , bytestring
-    , cereal
     , clock
     , containers >=0.6.3
     , crypton-x509
@@ -137,6 +140,7 @@ library
     , inspection-testing
     , iproute
     , lens
+    , libffi
     , memory
     , mmorph
     , mtl
@@ -159,6 +163,7 @@ library
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
+    , unison-dynlib
     , unison-hash
     , unison-parser-typechecker
     , unison-prelude
@@ -232,8 +237,7 @@ test-suite runtime-tests
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2 -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
-    , bytes
-    , cereal
+    , bytestring
     , code-page
     , containers
     , cryptonite

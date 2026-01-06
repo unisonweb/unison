@@ -12,7 +12,7 @@ FYI, here are the `Exception` and `Failure` types:
   structural ability builtin.Exception where
     raise : Failure ->{Exception} x
 
-  type builtin.io2.Failure = Failure Type Text Any
+  type builtin.io2.Failure = Failure Link.Type Text Any
 ```
 
 Here's a sample program just to verify that the typechecker allows `run` to throw exceptions:

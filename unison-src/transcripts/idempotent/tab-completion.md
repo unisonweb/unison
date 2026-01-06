@@ -13,14 +13,14 @@ scratch/main> debug.tab-complete vi
 scratch/main> debug.tab-complete delete.
 
    delete.branch
+   delete.force
    delete.namespace
    delete.namespace.force
    delete.project
    delete.term
-   delete.term.verbose
+   delete.term.force
    delete.type
-   delete.type.verbose
-   delete.verbose
+   delete.type.force
 ```
 
 ## Tab complete terms & types
@@ -229,4 +229,13 @@ myproject/main> add
 myproject/main> debug.tab-complete merge mybr
 
    /mybranch
+```
+
+# Tab complete quoted string
+
+``` ucm
+scratch/main> debug.tab-complete "vi
+
+   view
+   view.global
 ```

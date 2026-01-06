@@ -162,8 +162,10 @@ data ForeignFunc
   | IO_randomBytes
   | Bytes_zlib_compress
   | Bytes_gzip_compress
+  | Bytes_zstd_compress
   | Bytes_zlib_decompress
   | Bytes_gzip_decompress
+  | Bytes_zstd_decompress
   | Bytes_toBase16
   | Bytes_toBase32
   | Bytes_toBase64
@@ -364,6 +366,21 @@ data ForeignFunc
   | Natural_isEven
   | Natural_isOdd
   | Universal_murmurHashUntyped
+  | FFI_openDLL
+  | FFI_int64
+  | FFI_int32
+  | FFI_int16
+  | FFI_uint64
+  | FFI_uint32
+  | FFI_uint16
+  | FFI_double
+  | FFI_float
+  | FFI_void
+  | FFI_pinnedByteArray
+  | FFI_base
+  | FFI_baseIO
+  | FFI_arr
+  | FFI_getDLLSym
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -522,8 +539,10 @@ foreignFuncBuiltinName = \case
   IO_randomBytes -> "IO.randomBytes"
   Bytes_zlib_compress -> "Bytes.zlib.compress"
   Bytes_gzip_compress -> "Bytes.gzip.compress"
+  Bytes_zstd_compress -> "Bytes.zstd.compress"
   Bytes_zlib_decompress -> "Bytes.zlib.decompress"
   Bytes_gzip_decompress -> "Bytes.gzip.decompress"
+  Bytes_zstd_decompress -> "Bytes.zstd.decompress"
   Bytes_toBase16 -> "Bytes.toBase16"
   Bytes_toBase32 -> "Bytes.toBase32"
   Bytes_toBase64 -> "Bytes.toBase64"
@@ -724,3 +743,18 @@ foreignFuncBuiltinName = \case
   Natural_isEven -> "Natural.isEven"
   Natural_isOdd -> "Natural.isOdd"
   Universal_murmurHashUntyped -> "Universal.murmurHashUntyped"
+  FFI_openDLL -> "FFI.openDLL"
+  FFI_int64 -> "FFI.int64"
+  FFI_int32 -> "FFI.int32"
+  FFI_int16 -> "FFI.int16"
+  FFI_uint64 -> "FFI.uint64"
+  FFI_uint32 -> "FFI.uint32"
+  FFI_uint16 -> "FFI.uint16"
+  FFI_double -> "FFI.double"
+  FFI_float -> "FFI.float"
+  FFI_void -> "FFI.void"
+  FFI_pinnedByteArray -> "FFI.pinnedByteArray"
+  FFI_base -> "FFI.base"
+  FFI_baseIO -> "FFI.baseIO"
+  FFI_arr -> "FFI.arr"
+  FFI_getDLLSym -> "FFI.getDLLSym"

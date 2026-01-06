@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- This module wraps the operations in the primitive package so that
 -- bounds checks can be toggled on during the build for debugging
@@ -15,6 +17,7 @@ module Unison.Runtime.Array
     readArray,
     writeArray,
     copyArray,
+    traverseArrayIO,
     copyMutableArray,
     cloneMutableArray,
     readByteArray,
@@ -26,11 +29,15 @@ module Unison.Runtime.Array
     readPrimArray,
     writePrimArray,
     indexPrimArray,
+    byteArrayToShortByteString,
+    withMutableByteArrayContents,
   )
 where
 
+import Control.Exception (evaluate)
 import Control.Monad.Primitive
-import Data.Kind (Constraint)
+import Data.ByteString.Short
+import Data.Kind (Constraint, Type)
 import Data.Primitive.Array as EPA hiding
   ( cloneMutableArray,
     copyArray,
@@ -56,6 +63,13 @@ import Data.Primitive.PrimArray as EPA hiding
 import Data.Primitive.PrimArray qualified as PA
 import Data.Primitive.Types
 import Data.Word (Word8)
+-- For `withMutableByteArrayContents`
+import GHC.Exts
+  ( State#,
+    UnliftedType,
+    keepAlive#,
+    unsafeCoerce#,
+  )
 import GHC.IsList (toList)
 
 #ifdef ARRAY_CHECK
@@ -427,3 +441,63 @@ indexPrimArray = checkIPArray "indexPrimArray" PA.indexPrimArray
 
 byteArrayToList :: ByteArray -> [Word8]
 byteArrayToList = toList
+
+traverseArrayIO :: (a -> IO b) -> Array a -> IO (Array b)
+traverseArrayIO f src = do
+  dst <- newArray sz (error "traverseArray: impossible")
+  let fill i
+        | i < sz = do
+            PA.writeArray dst i =<< evaluate =<< f =<< indexArrayM src i
+            fill (i + 1)
+        | otherwise = unsafeFreezeArray dst
+  fill 0
+  where
+    sz = sizeofArray src
+{-# INLINE traverseArrayIO #-}
+
+byteArrayToShortByteString :: ByteArray -> ShortByteString
+byteArrayToShortByteString (ByteArray ba) = SBS ba
+
+-- Port from newer version of `primitive` than we rely on currently.
+-- Replace with the upstream when dependencies are bumped.
+withMutableByteArrayContents ::
+  (PrimBase m) =>
+  MutableByteArray (PrimState m) ->
+  (Ptr Word8 -> m r) ->
+  m r
+withMutableByteArrayContents arr@(MutableByteArray arr#) k =
+  keepAliveUnlifted arr# (k (mutableByteArrayContents arr))
+{-# INLINE withMutableByteArrayContents #-}
+
+keepAliveUnlifted ::
+  forall
+    (m :: Type -> Type)
+    (a :: UnliftedType)
+    (r :: Type).
+  (PrimBase m) =>
+  a ->
+  m r ->
+  m r
+keepAliveUnlifted x k =
+  primitive \s -> keepAliveWrap x s (internal k)
+{-# INLINE keepAliveUnlifted #-}
+
+keepAliveWrap ::
+  forall (a :: UnliftedType) (s :: Type) (b :: Type).
+  a ->
+  State# s ->
+  (State# s -> (# State# s, b #)) ->
+  (# State# s, b #)
+keepAliveWrap x s k = case keepAlive# x (s2rw s) k# of
+  (# s, b #) -> (# rw2s s, b #)
+  where
+    rw2s :: State# RealWorld -> State# s
+    rw2s = unsafeCoerce#
+
+    s2rw :: State# s -> State# RealWorld
+    s2rw = unsafeCoerce#
+
+    k# :: State# RealWorld -> (# State# RealWorld, b #)
+    k# s = case k (rw2s s) of
+      (# s, b #) -> (# s2rw s, b #)
+{-# INLINE keepAliveWrap #-}

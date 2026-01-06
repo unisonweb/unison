@@ -9,15 +9,13 @@ where
 
 import Control.Lens (mapped, (.=), (?=))
 import Control.Monad.Reader.Class (ask)
-import Data.Bifoldable (bifoldMap)
-import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Builder qualified
-import U.Codebase.Reference (Reference, TermReferenceId)
+import U.Codebase.Reference (TermReferenceId)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.Queries qualified as Queries
@@ -40,7 +38,6 @@ import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as Decl
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
@@ -48,7 +45,7 @@ import Unison.DeclNameLookup (DeclNameLookup (..))
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.NameSegment qualified as NameSegment
-import Unison.Names (Names)
+import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
@@ -56,7 +53,7 @@ import Unison.PrettyPrintEnv.Names qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Project (ProjectAndBranch (..), projectBranchNameToValidProjectBranchNameText)
-import Unison.Reference (TypeReference, TypeReferenceId)
+import Unison.Reference (TypeReferenceId)
 import Unison.Reference qualified as Reference (fromId)
 import Unison.Referent qualified as Referent
 import Unison.Sqlite (Transaction)
@@ -67,6 +64,7 @@ import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.UnisonFile.Type (TypecheckedUnisonFile)
+import Unison.Util.Alphabetical (sortAlphabeticallyOn)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Defns (Defns (..), DefnsF, defnsAreEmpty)
 import Unison.Util.Monoid qualified as Monoid
@@ -94,7 +92,7 @@ handleUpdate2 = do
   -- Assert that the namespace doesn't have any conflicted names
   unconflictedView <-
     Branch.asUnconflicted currentBranch0
-      & onLeft (Cli.returnEarly . Output.ConflictedDefn "update")
+      & onLeft (Cli.returnEarly . Output.ConflictedDefn)
 
   -- Assert that the namespace doesn't have any incoherent decls
   declNameLookup <-
@@ -118,7 +116,12 @@ handleUpdate2 = do
             dependents0 <-
               getNamespaceDependentsOf
                 unconflictedView.defns
-                (getExistingReferencesNamed namespaceBindings unconflictedView.names)
+                ( Names.references
+                    Names
+                      { terms = Relation.restrictDom namespaceBindings.terms unconflictedView.names.terms,
+                        types = Relation.restrictDom namespaceBindings.types unconflictedView.names.types
+                      }
+                )
 
             -- Throw away the dependents that are shadowed by the file itself
             let dependents1 :: DefnsF (Map Name) TermReferenceId TypeReferenceId
@@ -134,7 +137,7 @@ handleUpdate2 = do
 
             -- Hydrate the dependents for rendering
             hydratedDependents0 <-
-              hydrateRefs (Codebase.unsafeGetTermComponent env.codebase) Operations.expectDeclComponent dependentsRefs
+              hydrateRefs env.codebase dependentsRefs
 
             let hydratedDependents1 =
                   nameHydratedRefIds dependents1 hydratedDependents0
@@ -176,17 +179,17 @@ handleUpdate2 = do
                               & Branch.setLibdeps (Branch.getAt0 (Path.singleton NameSegment.libSegment) currentBranch0)
                               & (`Branch.cons` currentBranch)
 
-                      if pp.branch.isUpdate || pp.branch.isUpgrade
+                      if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge
                         then do
                           Cli.updateProjectBranchRoot_ pp.branch "update" (const nextNamespace)
                           scratchFilePath <- fst <$> Cli.expectLatestFile
-                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
                           done Output.UpdateTypecheckingFailure
                         else do
                           uniqueTypeGuidsByName <-
                             Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 
-                          (_updateBranchId, updateBranchName) <-
+                          (_updateBranchId, _updateBranchName) <-
                             HandleInput.Branch.createBranch
                               ("update " <> into @Text (ProjectAndBranch pp.project.name pp.branch.name))
                               ( HandleInput.Branch.CreateFrom'Update
@@ -203,12 +206,12 @@ handleUpdate2 = do
                               )
                           scratchFilePath <- fst <$> Cli.expectLatestFile
                           #latestFile ?= (scratchFilePath, True)
-                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
-                          done (Output.UpdateTypecheckingFailure2 scratchFilePath pp.branch.name updateBranchName)
+                          liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
+                          done (Output.UpdateTypecheckingFailure2 scratchFilePath pp.branch.name)
                     else do
                       scratchFilePath <- fst <$> Cli.expectLatestFile
                       #latestFile ?= (scratchFilePath, True)
-                      liftIO $ env.writeSource (Text.pack scratchFilePath) (Text.pack $ Pretty.toPlain 80 prettyUnisonFile) True
+                      liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
                       done Output.UpdateTypecheckingFailure
 
               respondRegion (Output.Literal (Pretty.wrap "Everything typechecks, so I'm saving the results..."))
@@ -226,9 +229,9 @@ handleUpdate2 = do
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
 
-        -- Special case: we are running a successful `update` on an update/upgrade branch that has a parent (such
+        -- Special case: we are running a successful `update` on a merge/update/upgrade branch that has a parent (such
         -- branches won't have a parent only if the parent has been deleted for some reason).
-        case (pp.branch.isUpdate || pp.branch.isUpgrade, pp.branch.parentBranchId) of
+        case (pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge, pp.branch.parentBranchId) of
           (True, Just parentBranchId) -> do
             -- Switch to the parent branch
             parentBranch <-
@@ -236,7 +239,7 @@ handleUpdate2 = do
                 Queries.expectProjectBranch projectId parentBranchId
             Cli.switchProject (ProjectAndBranch projectId parentBranch.branchId)
 
-            -- Merge the update branch into the parent branch. This isn't guaranteed to succeed, but it probably will.
+            -- Merge into the parent branch. This isn't guaranteed to succeed, but it probably will.
 
             Merge.doMergeLocalBranch
               Merge.TwoWay
@@ -244,10 +247,9 @@ handleUpdate2 = do
                   bob = ProjectAndBranch pp.project pp.branch
                 }
 
-            -- If the merge succeeded, delete the current (update or upgrade) branch. We may want to try to delete it
-            -- even if the merge fails, because otherwise the user will have to manually clean it up, which isn't as
-            -- nice as a successful `update` on an update branch. However, it's very likely that the merge is simply a
-            -- fast-forward.
+            -- If the merge succeeded, delete the current branch. We may want to try to delete it even if the merge
+            -- fails, because otherwise the user will have to manually clean it up, which isn't as nice as a successful
+            -- `update` on an update branch. However, it's very likely that the merge is simply a fast-forward.
 
             DeleteBranch.doDeleteProjectBranch (ProjectAndBranch pp.project pp.branch)
           _ -> pure ()
@@ -266,16 +268,14 @@ makePrettyUnisonFile originalFile dependents =
     <> "-- Please fix the errors and try `update` again."
     <> Pretty.newline
     <> Pretty.newline
-    <> ( dependents
-           & inAlphabeticalOrder
-           & let f = foldMap (\defn -> defn <> Pretty.newline <> Pretty.newline) in bifoldMap f f
-       )
+    <> renderDefns dependents.types
+    <> renderDefns dependents.terms
   where
-    inAlphabeticalOrder :: DefnsF (Map Name) a b -> DefnsF [] a b
-    inAlphabeticalOrder =
-      bimap f f
-      where
-        f = map snd . List.sortOn (Name.toText . fst) . Map.toList
+    renderDefns :: Map Name (Pretty ColorText) -> Pretty ColorText
+    renderDefns =
+      foldMap (\(_, defn) -> defn <> Pretty.newline <> Pretty.newline)
+        . sortAlphabeticallyOn fst
+        . Map.toList
 
 -- @typecheckedUnisonFileToBranchUpdates getConstructors file@ returns a list of branch updates (suitable for passing
 -- along to `batchUpdates` or some "step at" combinator) that corresponds to using all of the contents of @file@.
@@ -350,22 +350,6 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
     splitVar :: Symbol -> Path.Split Path
     splitVar = Path.splitFromName . Name.unsafeParseVar
 
--- | get references from `names` that have the same names as in `defns`
--- For constructors, we get the type reference.
-getExistingReferencesNamed :: DefnsF Set Name Name -> Names -> Set Reference
-getExistingReferencesNamed defns names =
-  bifoldMap fromTerms fromTypes defns
-  where
-    fromTerms :: Set Name -> Set Reference
-    fromTerms =
-      foldMap \name ->
-        Set.map Referent.toReference (Relation.lookupDom name (Names.terms names))
-
-    fromTypes :: Set Name -> Set TypeReference
-    fromTypes =
-      foldMap \name ->
-        Relation.lookupDom name (Names.types names)
-
 -- The big picture behind PPE building, though there are many details:
 --
 --   * We are updating old references to new references by rendering old references as names that are then parsed
@@ -393,11 +377,10 @@ makePPE ::
   DefnsF (Map Name) TermReferenceId TypeReferenceId ->
   PrettyPrintEnvDecl
 makePPE hashLen namespaceNames initialFileNames dependents =
-  PPED.addFallback
-    ( let names = initialFileNames <> Names.fromUnconflictedReferenceIds dependents
-       in PPED.makePPED (PPE.namer names) (PPE.suffixifyByName (Names.shadowing names namespaceNames))
-    )
-    ( PPED.makePPED
+  PPED.leftBiased
+    [ let names = initialFileNames <> Names.fromUnconflictedReferenceIds dependents
+       in PPED.makePPED (PPE.namer names) (PPE.suffixifyByName (Names.shadowing names namespaceNames)),
+      PPED.makePPED
         (PPE.hqNamer hashLen namespaceNames)
         -- We don't want to over-suffixify for a reference in the namespace. For example, say we have "foo.bar" in the
         -- namespace and "oink.bar" in the file. "bar" may be a unique suffix among the namespace names, but would be
@@ -406,4 +389,4 @@ makePPE hashLen namespaceNames initialFileNames dependents =
         -- So, we use `shadowing`, which starts with the LHS names (the namespace), and adds to it names from the
         -- RHS (the initial file names, i.e. what was originally saved) that don't already exist in the LHS.
         (PPE.suffixifyByHash (Names.shadowing namespaceNames initialFileNames))
-    )
+    ]

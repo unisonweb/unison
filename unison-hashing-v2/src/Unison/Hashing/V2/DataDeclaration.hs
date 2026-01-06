@@ -58,7 +58,7 @@ hashDecls0 :: (Eq v, ABT.Var v, Show v) => Map v (DataDeclaration v ()) -> [(v, 
 hashDecls0 decls =
   let abts = toABT <$> decls
       ref r = ABT.tm (Type (Type.TypeRef (ReferenceDerivedId r)))
-      cs = Reference.Util.hashComponents ref abts
+      cs = ABT.crashOnHashingWarning $ Reference.Util.hashComponents ref abts
    in [(v, r) | (v, (r, _)) <- Map.toList cs]
 
 -- | compute the hashes of these user defined types and update any free vars
@@ -121,6 +121,7 @@ instance Hashable1 F where
               let (hashes, hash') = hashCycle bindings
                in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
             Constructors cs ->
+              -- Should constructors be considered top-level?
               let (hashes, _) = hashCycle cs
                in tag 2 : map hashed hashes
             Modified m t ->

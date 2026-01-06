@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -29,6 +29,7 @@ extra-source-files:
     sql/017-add-update-branch-table.sql
     sql/018-add-derived-dependents-by-dependency-index.sql
     sql/019-add-upgrade-branch-table.sql
+    sql/020-add-history-comments.sql
     sql/create.sql
 
 source-repository head
@@ -39,6 +40,7 @@ library
   exposed-modules:
       U.Codebase.Branch
       U.Codebase.Causal.Squash
+      U.Codebase.Config
       U.Codebase.Sqlite.Branch.Diff
       U.Codebase.Sqlite.Branch.Format
       U.Codebase.Sqlite.Branch.Full
@@ -48,6 +50,7 @@ library
       U.Codebase.Sqlite.Decode
       U.Codebase.Sqlite.Entity
       U.Codebase.Sqlite.HashHandle
+      U.Codebase.Sqlite.HistoryComment
       U.Codebase.Sqlite.LocalIds
       U.Codebase.Sqlite.LocalizeObject
       U.Codebase.Sqlite.ObjectType

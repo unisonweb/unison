@@ -2,6 +2,7 @@ module Unison.PrettyTerminal where
 
 import Data.Char (isSpace)
 import Data.List (dropWhileEnd)
+import Data.Text.IO qualified as Text
 import System.Console.Terminal.Size qualified as Terminal
 import Unison.Util.ColorText qualified as CT
 import Unison.Util.Less (less)
@@ -23,7 +24,7 @@ putPrettyLnUnpaged :: P.Pretty CT.ColorText -> IO ()
 putPrettyLnUnpaged p | p == mempty = pure ()
 putPrettyLnUnpaged p = do
   width <- getAvailableWidth
-  putStrLn . P.toANSI width $ P.border 2 p
+  Text.putStrLn . P.toANSI width $ P.border 2 p
 
 putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p | p == mempty = pure ()
@@ -41,7 +42,7 @@ clearCurrentLine = do
 putPretty' :: P.Pretty CT.ColorText -> IO ()
 putPretty' p = do
   width <- getAvailableWidth
-  putStr $ P.toANSI width p
+  Text.putStr $ P.toANSI width p
 
 -- | Returns a `P.Width` in the range 80–100, depending on the terminal width.
 getAvailableWidth :: IO P.Width

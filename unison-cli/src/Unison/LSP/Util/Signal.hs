@@ -26,7 +26,7 @@ newSignalIO a = do
 -- | Update the value of a signal, notifying all subscribers (even if the value didn't change)
 writeSignal :: Signal a -> a -> STM ()
 writeSignal (Signal signalVar) a = do
-  (_, n) <- readTVar signalVar
+  (_, !n) <- readTVar signalVar
   writeTVar signalVar (Just a, succ n)
 
 -- | Update the value of a signal, notifying all subscribers (even if the value didn't change)
@@ -60,7 +60,7 @@ writeSignalIO signal a = liftIO $ STM.atomically (writeSignal signal a)
 -- ("sub2",Nothing)
 subscribe :: (MonadIO m) => Signal a -> m (STM a)
 subscribe (Signal signalVar) = do
-  (_, n) <- readTVarIO signalVar
+  (_, !n) <- readTVarIO signalVar
   -- Start with a different n, so the subscriber will trigger on its first read.
   latestNVar <- newTVarIO (pred n)
   pure $ do

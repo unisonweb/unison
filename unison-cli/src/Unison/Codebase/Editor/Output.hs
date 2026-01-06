@@ -15,10 +15,12 @@ module Unison.Codebase.Editor.Output
     ShareError (..),
     isFailure,
     isNumberedFailure,
+    outputShouldUsePager,
   )
 where
 
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Time (UTCTime)
@@ -27,7 +29,9 @@ import Servant.Client qualified as Servant (ClientError)
 import System.Console.Haskeline qualified as Completion
 import System.Exit (ExitCode)
 import U.Codebase.Branch.Diff (NameChanges)
+import U.Codebase.Config (ConfigKey)
 import U.Codebase.HashTags (CausalHash)
+import U.Codebase.Sqlite.HistoryComment (HistoryComment)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -52,6 +56,7 @@ import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.CommandLine.InputPattern qualified as Input
+import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (..))
@@ -59,6 +64,7 @@ import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.LabeledDependency (LabeledDependency)
+import Unison.Merge qualified as Merge
 import Unison.Name (Name)
 import Unison.NameSegment (NameSegment)
 import Unison.Names (Names)
@@ -67,11 +73,12 @@ import Unison.Names.ResolutionResult qualified as Names
 import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnvDecl (PrettyPrintEnvDecl)
 import Unison.PrettyPrintEnvDecl qualified as PPE
 import Unison.Project (ProjectAndBranch, ProjectBranchName, ProjectName, Semver)
-import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Runtime (Error)
@@ -88,7 +95,7 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
-import Unison.Util.Defns (DefnsF, defnsAreEmpty)
+import Unison.Util.Defns (Defns, DefnsF, DefnsF2, defnsAreEmpty)
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Relation (Relation)
 import Unison.WatchKind qualified as WK
@@ -109,7 +116,6 @@ type HashLength = Int
 data NumberedOutput
   = ShowDiffNamespace (Either ShortCausalHash ProjectPath) (Either ShortCausalHash ProjectPath) PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterUndo PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
-  | ShowDiffAfterDeleteDefinitions PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterDeleteBranch Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterModifyBranch Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
   | ShowDiffAfterPull Path.Path' Path.Absolute PPE.PrettyPrintEnv (BranchDiffOutput Symbol Ann)
@@ -123,8 +129,6 @@ data NumberedOutput
       (Map TermReferenceId [Text]) -- oks
       (Map TermReferenceId [Text]) -- fails
   | Output'Todo !TodoOutput
-  | -- | CantDeleteDefinitions ppe couldntDelete becauseTheseStillReferenceThem
-    CantDeleteDefinitions PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | CantDeleteNamespace ppe couldntDelete becauseTheseStillReferenceThem
     CantDeleteNamespace PPE.PrettyPrintEnvDecl (Map LabeledDependency (NESet LabeledDependency))
   | -- | DeletedDespiteDependents ppe deletedThings thingsWhichNowHaveUnnamedReferences
@@ -133,8 +137,8 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(CausalHash, Names.Diff)]
-      HistoryTail -- 'origin point' of this view of history.
+      [(CausalHash, Maybe (HistoryComment () ()), Names.Diff)]
+      (Maybe (HistoryComment () ()), HistoryTail) -- 'origin point' of this view of history.
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -148,6 +152,12 @@ data NumberedOutput
       (Maybe UTCTime {- current time, omitted in transcript tests to be more deterministic -})
       MoreEntriesThanShown
       [ProjectReflog.Entry Project ProjectBranch (CausalHash, SCH.ShortCausalHash)]
+  | DeletedDefinitions (DefnsF Set Name Name)
+  | -- | List of currently watched paths (working dir is included)
+    WatchList ![FilePath]
+  | -- | Successfully removed paths from the watch list
+    -- (removed paths, failed paths, remaining paths)
+    WatchRemoved ![FilePath] ![FilePath] ![FilePath]
 
 data TodoOutput = TodoOutput
   { defnsInLib :: !Bool,
@@ -214,11 +224,19 @@ data Output
   | BranchNotFound Path'
   | EmptyLooseCodePush Path'
   | EmptyProjectBranchPush (ProjectAndBranch ProjectName ProjectBranchName)
-  | NameNotFound (HQ'.HashQualified (Path.Split Path'))
-  | NamesNotFound [Name]
+  | TermAndOrTypeNameNotFound !(Maybe (Defn () ())) !(HQ'.HashQualified Name)
   | TypeNotFound (HQ'.HashQualified (Path.Split Path'))
   | TermNotFound (HQ'.HashQualified (Path.Split Path'))
   | MoveNothingFound Path'
+  | MoveToResult
+      [(Path', Path')] -- moved items: (source, destination)
+  | MoveToConflicts
+      [(Path', Path')] -- moved items: (source, destination)
+      [(NameSegment, [Path'])] -- conflicts: name segment and the conflicting source paths
+      Path' -- destination namespace
+  | RenameResult
+      Path' -- source
+      Path' -- destination
   | TypeNotFound' ShortHash
   | TermNotFound' ShortHash
   | NoLastRunResult
@@ -283,14 +301,10 @@ data Output
   | RunResult PPE.PrettyPrintEnv (Term Symbol ())
   | LoadingFile SourceName
   | Typechecked
-      PPE.PrettyPrintEnv
-      PPE.PrettyPrintEnv
-      ( DefnsF
-          (Map Name)
-          (SR.TermSlurp Symbol Ann)
-          (SR.SlurpEntry (DD.DeclOrBuiltin Symbol Ann))
-      )
-      (Map Referent (NESet Name))
+      !PPE.PrettyPrintEnv
+      !PPE.PrettyPrintEnv
+      !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
+      !(Map Referent (NESet Name))
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)
   | -- "display" the provided code to the console.
     DisplayDefinitions (P.Pretty P.ColorText)
@@ -323,22 +337,23 @@ data Output
   | NoBranchWithHash ShortCausalHash
   | -- | List direct dependencies of a type or term.
     ListDependencies
-      PPE.PrettyPrintEnv
-      (Set LabeledDependency)
+      (DefnsF2 Set HQ.HashQualified Name Name)
       ( DefnsF
           []
           (HQ.HashQualified Name, HQ.HashQualified Name)
           (HQ.HashQualified Name, HQ.HashQualified Name)
       )
-  | -- | List dependents of a type or term.
+  | -- | List direct dependents of a type or term.
     ListDependents
-      PPE.PrettyPrintEnv
-      (Set LabeledDependency)
-      ( DefnsF
-          []
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-          (HQ'.HashQualified Name, HQ'.HashQualified Name)
-      )
+      -- Nothing = don't say where the dependency is (because it's in the codebase and not in the file)
+      -- Just False = say "in codebase" (because it's in both, and we are reporting on codebase version)
+      -- Just True = say "in file" (because it's not in the codebase)
+      !(DefnsF2 (Map (HQ.HashQualified Name)) Maybe Bool Bool)
+      !( DefnsF
+           []
+           (HQ'.HashQualified Name, HQ'.HashQualified Name)
+           (HQ'.HashQualified Name, HQ'.HashQualified Name)
+       )
   | DumpNumberedArgs HashLength NumberedArgs
   | DumpBitBooster CausalHash (Map CausalHash [CausalHash])
   | DumpUnisonFileHashes Int [(Name, Reference.Id)] [(Name, Reference.Id)] [(Name, Reference.Id)]
@@ -422,12 +437,13 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
+  | DeleteFailure !FilePath !ProjectBranchName
   | UpdateTypecheckingFailure
-  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName !ProjectBranchName
-  | UpgradeFailure !ProjectBranchName !ProjectBranchName !FilePath !NameSegment !NameSegment
-  | UpgradeSuccess !NameSegment !NameSegment !(Maybe NameSegment)
-  | MergeFailure !FilePath !MergeSourceAndTarget !ProjectBranchName
-  | MergeFailureWithMergetool !MergeSourceAndTarget !ProjectBranchName !Text !ExitCode
+  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName
+  | UpgradeFailure !ProjectBranchName !FilePath !(List.NonEmpty (NameSegment, NameSegment))
+  | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
+  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget
   | MergeConflictedAliases !MergeSourceOrTarget !(Defn (Name, Name) (Name, Name))
@@ -438,7 +454,9 @@ data Output
   | PullIntoMissingBranch !(ReadRemoteNamespace Share.RemoteProjectBranch) !(ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | NoMergeInProgress
   | Output'DebugSynhashTerm !TermReference !Hash !Text
-  | ConflictedDefn !Text {- what operation? -} !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | ConflictedDefn !(Defn (Conflicted Name Referent) (Conflicted Name TypeReference))
+  | IncoherentDeclDuringDelete !DeleteTarget !IncoherentDeclReason
+  | IncoherentDeclDuringDiffBranch !DiffBranchArg !IncoherentDeclReason
   | IncoherentDeclDuringMerge !MergeSourceOrTarget !IncoherentDeclReason
   | IncoherentDeclDuringUpdate !IncoherentDeclReason
   | IncoherentDeclDuringUpgrade !IncoherentDeclReason
@@ -452,6 +470,48 @@ data Output
   | BranchSquashSuccess ({- source -} ProjectAndBranch Project ProjectBranch) ({- dest branch -} ProjectAndBranch Project ProjectBranch)
   | BranchUpdate'BranchChanged
   | SyncingFromTo CausalHash CausalHash
+  | CantDeleteConstructor !(NESet Name)
+  | CantDoThatDuring !Text {- "an upgrade" / "a merge" -} !Text {- "upgrade" / "merge" -}
+  | ShowEmptyBranchDiff
+  | ShowBranchDiff
+      !(Merge.TwoWay DiffBranchArg)
+      !(Merge.TwoWay PPE.PrettyPrintEnv)
+      !(Merge.TwoWay (Map NameSegment (Merge.DiffOp CausalHash)))
+      !( Merge.TwoWay
+           ( Defns
+               ( Map Name (Type Symbol Ann),
+                 Map Name (Type Symbol Ann),
+                 Map Name (Type Symbol Ann)
+               )
+               ( Map Name (DeclOrBuiltin Symbol Ann),
+                 Map Name (DeclOrBuiltin Symbol Ann),
+                 Map Name (DeclOrBuiltin Symbol Ann)
+               )
+           )
+       )
+      !(Maybe (Text, ExitCode))
+  | ShowUpdateDiff
+      !PPE.PrettyPrintEnvDecl
+      -- PPE for old definitions (namespace names without file shadowing)
+      !PPE.PrettyPrintEnvDecl
+      -- New definitions (terms with body and type, types with decl)
+      !(Defns (Map Name (Term Symbol Ann, Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
+      -- Updated definitions: ((old term, old type), (new term, new type)) for terms,
+      -- ((old refId, old decl), (new refId, new decl)) for types
+      !(Defns (Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann))) (Map Name ((TypeReferenceId, DD.Decl Symbol Ann), (TypeReferenceId, DD.Decl Symbol Ann))))
+      -- Dependents that would be retypechecked (terms, types)
+      !(DefnsF (Map Name) TermReferenceId TypeReferenceId)
+  | StaleRun !PrettyPrintEnv !Name !(List.NonEmpty (Defn TermReference TypeReference)) !Bool {- True = found in file, False = found in codebase -}
+  | InvalidCommentTarget Text
+  | CommentedSuccessfully
+  | CommentAborted
+  | AuthorNameRequired
+  | ConfigValueGet ConfigKey (Maybe Text)
+  | WatchDisabled
+  | -- | Result of attempting to add a path to the watch list.
+    -- First FilePath is the canonical path on success (Nothing on failure),
+    -- second is the original path requested.
+    WatchAddResult !(Maybe FilePath) !FilePath
 
 data MoreEntriesThanShown = MoreEntriesThanShown | AllEntriesShown
   deriving (Eq, Show)
@@ -505,8 +565,18 @@ data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving (Show)
 
 type SourceFileContents = Text
 
+outputShouldUsePager :: Output -> Bool
+outputShouldUsePager o = case o of
+  -- These are typically non-interactive outputs, so we don't page them.
+  LoadingFile {} -> False
+  Typechecked {} -> False
+  Evaluated {} -> False
+  EvaluationFailure {} -> False
+  _ -> True
+
 isFailure :: Output -> Bool
 isFailure o = case o of
+  DeleteFailure {} -> True
   UpdateTypecheckingFailure {} -> True
   UpdateTypecheckingFailure2 {} -> True
   AmbiguousCloneLocal {} -> True
@@ -542,12 +612,14 @@ isFailure o = case o of
   BadName {} -> True
   BadNamespace {} -> True
   BranchNotFound {} -> True
-  NameNotFound {} -> True
-  NamesNotFound _ -> True
+  TermAndOrTypeNameNotFound {} -> True
   TypeNotFound {} -> True
   TypeNotFound' {} -> True
   TermNotFound {} -> True
   MoveNothingFound {} -> True
+  MoveToResult {} -> False
+  MoveToConflicts {} -> True
+  RenameResult {} -> False
   TermNotFound' {} -> True
   SearchTermsNotFound ts -> not (null ts)
   SearchTermsNotFoundDetailed _ misses otherHits -> not (null misses && null otherHits)
@@ -679,6 +751,8 @@ isFailure o = case o of
   NoMergeInProgress {} -> True
   Output'DebugSynhashTerm {} -> False
   ConflictedDefn {} -> True
+  IncoherentDeclDuringDelete {} -> True
+  IncoherentDeclDuringDiffBranch {} -> True
   IncoherentDeclDuringMerge {} -> True
   IncoherentDeclDuringUpdate {} -> True
   IncoherentDeclDuringUpgrade {} -> True
@@ -690,12 +764,25 @@ isFailure o = case o of
   BranchSquashSuccess {} -> False
   BranchUpdate'BranchChanged {} -> True
   SyncingFromTo {} -> False
+  CantDeleteConstructor {} -> True
+  CantDoThatDuring {} -> True
+  ShowEmptyBranchDiff {} -> False
+  ShowBranchDiff {} -> False
+  ShowUpdateDiff {} -> False
+  StaleRun {} -> True
+  InvalidCommentTarget {} -> True
+  CommentedSuccessfully {} -> False
+  CommentAborted {} -> True
+  AuthorNameRequired {} -> True
+  ConfigValueGet {} -> False
+  WatchDisabled -> True
+  WatchAddResult Nothing _ -> True
+  WatchAddResult (Just _) _ -> False
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
   AmbiguousReset {} -> True
   AmbiguousSwitch {} -> True
-  CantDeleteDefinitions {} -> True
   CantDeleteNamespace {} -> True
   DeletedDespiteDependents {} -> False
   History {} -> False
@@ -703,7 +790,6 @@ isNumberedFailure = \case
   ListProjects {} -> False
   ShowDiffAfterCreateAuthor {} -> False
   ShowDiffAfterDeleteBranch {} -> False
-  ShowDiffAfterDeleteDefinitions {} -> False
   ShowDiffAfterModifyBranch {} -> False
   ShowDiffAfterPull {} -> False
   ShowDiffAfterUndo {} -> False
@@ -712,3 +798,6 @@ isNumberedFailure = \case
   TestResults _ _ _ _ _ fails -> not (null fails)
   Output'Todo {} -> False
   ShowProjectBranchReflog {} -> False
+  DeletedDefinitions {} -> False
+  WatchList {} -> False
+  WatchRemoved _ failedPaths _ -> not (null failedPaths)

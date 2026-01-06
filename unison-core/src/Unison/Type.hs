@@ -104,6 +104,17 @@ arity (Arrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
 arity _ = 0
 
+-- | Like 'arity', but counts arguments past effect boundaries.
+-- E.g. for this type: `a ->{e} b -> c`,
+--   'arity' returns 1.
+--   'arityIgnoringEffects' returns 2.
+arityIgnoringEffects :: Type v a -> Int
+arityIgnoringEffects (ForallNamed' _ body) = arityIgnoringEffects body
+arityIgnoringEffects (Arrow' _ o) = 1 + arityIgnoringEffects o
+arityIgnoringEffects (Ann' a _) = arityIgnoringEffects a
+arityIgnoringEffects (Effect' _ o) = arityIgnoringEffects o
+arityIgnoringEffects _ = 0
+
 -- some smart patterns
 pattern Ref' :: TypeReference -> ABT.Term F v a
 pattern Ref' r <- ABT.Tm' (Ref r)
@@ -142,7 +153,7 @@ pattern Effects' es <- ABT.Tm' (Effects es)
 pattern Effect1' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Effect1' e t <- ABT.Tm' (Effect e t)
 
-pattern Effect' :: (Ord v) => [Type v a] -> Type v a -> Type v a
+pattern Effect' :: [Type v a] -> Type v a -> Type v a
 pattern Effect' es t <- (unEffects1 -> Just (es, t))
 
 pattern Effect'' :: (Ord v) => [Type v a] -> Type v a -> Type v a
@@ -242,7 +253,7 @@ unEffect0 :: (Ord v) => Type v a -> ([Type v a], Type v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
 unEffect0 t = ([], t)
 
-unEffects1 :: (Ord v) => Type v a -> Maybe ([Type v a], Type v a)
+unEffects1 :: Type v a -> Maybe ([Type v a], Type v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
 unEffects1 _ = Nothing
 
@@ -369,6 +380,12 @@ timeSpecRef = Reference.Builtin "TimeSpec"
 
 hmapRef :: TypeReference
 hmapRef = Reference.Builtin "Map"
+
+ffiTypeRef, ffiSpecRef, ffiDllRef, ffiFuncRef :: TypeReference
+ffiTypeRef = Reference.Builtin "FFI.Type"
+ffiSpecRef = Reference.Builtin "FFI.Spec"
+ffiDllRef = Reference.Builtin "FFI.DLL"
+ffiFuncRef = Reference.Builtin "FFI.Func"
 
 any :: (Ord v) => a -> Type v a
 any a = ref a anyRef
@@ -768,6 +785,7 @@ functionResult = go False
   where
     go inArr (ForallNamed' _ body) = go inArr body
     go _inArr (Arrow' _i o) = go True o
+    go _inArr (Effect1' _e body) = go True body
     go inArr t = if inArr then Just t else Nothing
 
 -- | Bind all free variables (not in `except`) that start with a lowercase

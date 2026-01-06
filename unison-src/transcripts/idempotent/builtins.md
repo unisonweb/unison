@@ -441,6 +441,7 @@ test> Bytes.tests.compression =
         roundTrip b =
           (Bytes.zlib.decompress (Bytes.zlib.compress b) == Right b)
             && (Bytes.gzip.decompress (Bytes.gzip.compress b) == Right b)
+            && (Bytes.zstd.decompress (Bytes.zstd.compress +3 b) == Right b)
 
         checks [
           roundTrip 0xs2093487509823745709827345789023457892345,
@@ -451,7 +452,8 @@ test> Bytes.tests.compression =
           roundTrip 0xs222222222fffffffffffffffffffffffffffffff,
           -- these fail due to bad checksums and/or headers
           isLeft (zlib.decompress 0xs2093487509823745709827345789023457892345),
-          isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345)
+          isLeft (gzip.decompress 0xs201209348750982374593939393939709827345789023457892345),
+          isLeft (zstd.decompress 0xs28b52ffd20ffffffffffffffff)
         ]
 
 test> Bytes.tests.fromBase64UrlUnpadded =
@@ -520,6 +522,10 @@ test> checks [
         List.take bigN [1,2,3] == [1,2,3],
         List.drop bigN [1,2,3] == []
       ]
+```
+
+``` ucm :hide
+> add
 ```
 
 ## `Any` functions
@@ -691,24 +697,24 @@ Test the pinned array and mutable byte array functionality
 PinnedByteArray.tests.cast.operations = do
   -- Create a pinned array using IO.pinnedByteArray
   pinned = IO.pinnedByteArray 10
-  
+
   -- Cast the pinned array to a mutable byte array
   mutable = PinnedByteArray.cast pinned
-  
+
   -- Write some test data to the mutable array
   write8 mutable 0 42
   write8 mutable 1 123
   write8 mutable 2 255
   write16be mutable 3 12345
   write32be mutable 5 987654321
-  
+
   -- Read the data back and verify it's correct
   read8_0 = read8 mutable 0
   read8_1 = read8 mutable 1
   read8_2 = read8 mutable 2
   read16be_3 = read16be mutable 3
   read32be_5 = read32be mutable 5
-  
+
   -- Verify all the values are correct
   checks [
     read8_0 == 42,
@@ -754,7 +760,7 @@ Now let's add comprehensive tests for all the byte array read/write functions
 -- Test all byte array read/write operations
 ByteArray.tests.allOperations = do
   mutable = IO.bytearray 100
-  
+
   -- Write test data using all available functions
   write8 mutable 0 0x12
   write8 mutable 1 0x34
@@ -771,7 +777,7 @@ ByteArray.tests.allOperations = do
   write32le mutable 16 0x12345678
   write64be mutable 20 0x0123456789abcdef
   write64le mutable 28 0x0123456789abcdef
-  
+
   -- Read the data back and verify it's correct
   read8_0 = read8 mutable 0
   read8_1 = read8 mutable 1
@@ -798,7 +804,7 @@ ByteArray.tests.allOperations = do
 
   -- Verify all the values are correct
   checks [
-    read8_0 == 0x12,  
+    read8_0 == 0x12,
     read8_1 == 0x34,
     read16be_2 == 0x5678,
     read16le_4 == 0x5678,
@@ -882,17 +888,18 @@ Now that all the tests have been added to the codebase, let's view the test repo
     25. Sandbox.test1                       ◉ Passed
     26. Sandbox.test2                       ◉ Passed
     27. Sandbox.test3                       ◉ Passed
-    28. test.ebobca6b0t                     ◉ Passed
-    29. Text.tests.alignment                ◉ Passed
-    30. Text.tests.indexOf                  ◉ Passed
-    31. Text.tests.indexOfEmoji             ◉ Passed
-    32. Text.tests.literalsEq               ◉ Passed
-    33. Text.tests.patterns                 ◉ Passed
-    34. Text.tests.repeat                   ◉ Passed
-    35. Text.tests.takeDropAppend           ◉ Passed
-    36. Universal.murmurHash.tests          ◉ Passed
+    28. test.dtrliu8iuq                     ◉ Passed
+    29. test.ebobca6b0t                     ◉ Passed
+    30. Text.tests.alignment                ◉ Passed
+    31. Text.tests.indexOf                  ◉ Passed
+    32. Text.tests.indexOfEmoji             ◉ Passed
+    33. Text.tests.literalsEq               ◉ Passed
+    34. Text.tests.patterns                 ◉ Passed
+    35. Text.tests.repeat                   ◉ Passed
+    36. Text.tests.takeDropAppend           ◉ Passed
+    37. Universal.murmurHash.tests          ◉ Passed
 
-  ✅ 36 test(s) passing
+  ✅ 37 test(s) passing
 
   Tip: Use view 1 to view the source of a test.
 ```

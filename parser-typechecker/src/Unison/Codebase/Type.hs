@@ -42,6 +42,7 @@ data Codebase m v a = Codebase
     -- Note that it is possible to call 'putTypeDeclaration', then 'getTypeDeclaration', and receive @Nothing@, per the
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: TypeReferenceId -> Sqlite.Transaction (Maybe (Decl v a)),
+    getTypeDeclarationComponent :: Hash -> Sqlite.Transaction (Maybe [Decl v a]),
     -- | Get the type of a given decl.
     getDeclType :: TypeReference -> Sqlite.Transaction CT.ConstructorType,
     expectDeclNumConstructors :: TypeReferenceId -> Sqlite.Transaction Int,

@@ -296,13 +296,13 @@ wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
 group :: Pretty s -> Pretty s
 group p = Pretty (delta p) (Group p)
 
-toANSI :: Width -> Pretty CT.ColorText -> String
+toANSI :: Width -> Pretty CT.ColorText -> Text
 toANSI avail = CT.toANSI . render avail
 
-toPlain :: Width -> Pretty CT.ColorText -> String
+toPlain :: Width -> Pretty CT.ColorText -> Text
 toPlain avail = CT.toPlain . render avail
 
-toHTML :: String -> Pretty CT.ColorText -> String
+toHTML :: Text -> Pretty CT.ColorText -> Text
 toHTML cssPrefix = CT.toHTML cssPrefix . render 0
 
 syntaxToColor :: Pretty (ST.SyntaxText' r) -> Pretty ColorText
@@ -1034,8 +1034,8 @@ plural f p = case length f of
   1 -> p
   -- todo: consider use of plural package
   _ ->
-    p <> case reverse (toPlain 0 p) of
-      's' : _ -> "es"
+    p <> case Text.unsnoc (toPlain 0 p) of
+      Just (_, 's') -> "es"
       _ -> "s"
 
 border :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s

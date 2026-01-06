@@ -4,7 +4,7 @@ module Unison.DataDeclaration
   ( DataDeclaration (..),
     EffectDeclaration (..),
     Decl,
-    DeclOrBuiltin (..),
+    DeclOrBuiltin,
     Modifier (..),
     allVars,
     asDataDecl,
@@ -30,6 +30,8 @@ module Unison.DataDeclaration
     expectTypeOfConstructor,
     withEffectDeclM,
     amap,
+    vmap,
+    vmap',
     updateDependencies,
     constructors_,
     asDataDecl_,
@@ -50,6 +52,7 @@ import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.LabeledDependency qualified as LD
 import Unison.Name qualified as Name
 import Unison.Names.ResolutionResult qualified as Names
+import Unison.OrBuiltin (OrBuiltin)
 import Unison.Prelude
 import Unison.Reference (Reference, TypeReference)
 import Unison.Reference qualified as Reference
@@ -63,10 +66,8 @@ import Prelude hiding (cycle)
 
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
-data DeclOrBuiltin v a
-  = Builtin CT.ConstructorType
-  | Decl (Decl v a)
-  deriving (Eq, Ord, Show)
+type DeclOrBuiltin v a =
+  OrBuiltin CT.ConstructorType (Decl v a)
 
 asDataDecl :: Decl v a -> DataDeclaration v a
 asDataDecl = either toDataDecl id
@@ -306,3 +307,18 @@ unhashComponent m =
 amap :: (a -> a2) -> Decl v a -> Decl v a2
 amap f (Left e) = Left (f <$> e)
 amap f (Right d) = Right (f <$> d)
+
+vmap' ::
+  (Ord v') =>
+  (v -> v') ->
+  DataDeclaration v a ->
+  DataDeclaration v' a
+vmap' f (DataDeclaration m a bs cs) =
+  DataDeclaration m a (f <$> bs) (h <$> cs)
+  where
+    h (a, u, ty) = (a, f u, ABT.vmap f ty)
+
+vmap :: (Ord v') => (v -> v') -> Decl v a -> Decl v' a
+vmap f (Right dd) = Right $ vmap' f dd
+vmap f (Left (EffectDeclaration dd)) =
+  Left . EffectDeclaration $ vmap' f dd

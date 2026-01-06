@@ -1,6 +1,7 @@
 module Unison.Merge.PartitionCombinedDiffs
   ( partitionCombinedDiffs,
     narrowConflictsToNonBuiltins,
+    assumeUnconflicts,
   )
 where
 
@@ -147,6 +148,12 @@ identifyUnconflicts ::
 identifyUnconflicts declNameLookups conflicts =
   bimap (identifyTermUnconflicts declNameLookups conflicts) (identifyTypeUnconflicts (view #types <$> conflicts))
 
+assumeUnconflicts ::
+  DefnsF2 (Map Name) CombinedDiffOp Referent TypeReference ->
+  DefnsF Unconflicts Referent TypeReference
+assumeUnconflicts =
+  bimap assumeTermUnconflicts assumeTypeUnconflicts
+
 identifyTermUnconflicts ::
   TwoWay DeclNameLookup ->
   TwoWay (DefnsF (Map Name) TermReference TypeReference) ->
@@ -193,6 +200,17 @@ identifyTermUnconflicts declNameLookups conflicts =
         termIsConflicted =
           Map.member name . view #terms <$> conflicts
 
+assumeTermUnconflicts :: Map Name (CombinedDiffOp Referent) -> Unconflicts Referent
+assumeTermUnconflicts =
+  Map.foldlWithKey' (\acc name op -> f name op acc) Unconflicts.empty
+  where
+    f :: Name -> CombinedDiffOp Referent -> Unconflicts Referent -> Unconflicts Referent
+    f name = \case
+      CombinedDiffOp'Add who -> keepIt #adds who name
+      CombinedDiffOp'Update who -> keepIt #updates (view #new <$> who) name
+      CombinedDiffOp'Delete who -> keepIt #deletes who name
+      CombinedDiffOp'Conflict _ -> ignoreIt
+
 identifyTypeUnconflicts ::
   TwoWay (Map Name TypeReference) ->
   Map Name (CombinedDiffOp TypeReference) ->
@@ -219,6 +237,21 @@ identifyTypeUnconflicts conflicts =
         typeIsConflicted :: TwoWay Bool
         typeIsConflicted =
           Map.member name <$> conflicts
+
+assumeTypeUnconflicts :: Map Name (CombinedDiffOp TypeReference) -> Unconflicts TypeReference
+assumeTypeUnconflicts =
+  Map.foldlWithKey' (\acc name ref -> f name ref acc) Unconflicts.empty
+  where
+    f :: Name -> CombinedDiffOp TypeReference -> Unconflicts TypeReference -> Unconflicts TypeReference
+    f name = \case
+      CombinedDiffOp'Add who -> addOrUpdate #adds who
+      CombinedDiffOp'Update who -> addOrUpdate #updates (view #new <$> who)
+      CombinedDiffOp'Delete who -> keepIt #deletes who name
+      CombinedDiffOp'Conflict _ -> ignoreIt
+      where
+        addOrUpdate :: Lens' (Unconflicts v) (TwoWayI (Map Name v)) -> EitherWayI v -> Unconflicts v -> Unconflicts v
+        addOrUpdate l who =
+          keepIt l who name
 
 keepIt ::
   Lens' (Unconflicts v) (TwoWayI (Map Name v)) ->

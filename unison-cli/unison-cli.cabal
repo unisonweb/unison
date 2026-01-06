@@ -30,6 +30,7 @@ library
       Unison.Auth.Tokens
       Unison.Auth.Types
       Unison.Auth.UserInfo
+      Unison.Cli.DirectoryUtils
       Unison.Cli.DownloadUtils
       Unison.Cli.MergeTypes
       Unison.Cli.Monad
@@ -52,20 +53,27 @@ library
       Unison.Codebase.Editor.HandleInput.Branches
       Unison.Codebase.Editor.HandleInput.BranchRename
       Unison.Codebase.Editor.HandleInput.BranchSquash
-      Unison.Codebase.Editor.HandleInput.CommitMerge
+      Unison.Codebase.Editor.HandleInput.Cancel
+      Unison.Codebase.Editor.HandleInput.Config
       Unison.Codebase.Editor.HandleInput.DebugDefinition
+      Unison.Codebase.Editor.HandleInput.DebugDependentsGraph
       Unison.Codebase.Editor.HandleInput.DebugFoldRanges
       Unison.Codebase.Editor.HandleInput.DebugSynhashTerm
+      Unison.Codebase.Editor.HandleInput.Delete
       Unison.Codebase.Editor.HandleInput.DeleteBranch
       Unison.Codebase.Editor.HandleInput.DeleteNamespace
       Unison.Codebase.Editor.HandleInput.DeleteProject
       Unison.Codebase.Editor.HandleInput.Dependencies
       Unison.Codebase.Editor.HandleInput.Dependents
+      Unison.Codebase.Editor.HandleInput.DiffBranch
+      Unison.Codebase.Editor.HandleInput.DiffUpdate
       Unison.Codebase.Editor.HandleInput.EditDependents
       Unison.Codebase.Editor.HandleInput.EditNamespace
       Unison.Codebase.Editor.HandleInput.FindAndReplace
       Unison.Codebase.Editor.HandleInput.FormatFile
       Unison.Codebase.Editor.HandleInput.Global
+      Unison.Codebase.Editor.HandleInput.History
+      Unison.Codebase.Editor.HandleInput.HistoryComment
       Unison.Codebase.Editor.HandleInput.InstallLib
       Unison.Codebase.Editor.HandleInput.Load
       Unison.Codebase.Editor.HandleInput.Ls
@@ -74,6 +82,7 @@ library
       Unison.Codebase.Editor.HandleInput.MoveAll
       Unison.Codebase.Editor.HandleInput.MoveBranch
       Unison.Codebase.Editor.HandleInput.MoveTerm
+      Unison.Codebase.Editor.HandleInput.MoveTo
       Unison.Codebase.Editor.HandleInput.MoveType
       Unison.Codebase.Editor.HandleInput.Names
       Unison.Codebase.Editor.HandleInput.NamespaceDiffUtils
@@ -86,6 +95,7 @@ library
       Unison.Codebase.Editor.HandleInput.Push
       Unison.Codebase.Editor.HandleInput.Reflogs
       Unison.Codebase.Editor.HandleInput.ReleaseDraft
+      Unison.Codebase.Editor.HandleInput.Rename
       Unison.Codebase.Editor.HandleInput.Run
       Unison.Codebase.Editor.HandleInput.RuntimeUtils
       Unison.Codebase.Editor.HandleInput.ShowDefinition
@@ -133,6 +143,7 @@ library
       Unison.LSP.Configuration
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
+      Unison.LSP.DocumentSymbols
       Unison.LSP.FileAnalysis
       Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
@@ -211,6 +222,7 @@ library
     , ListLike
     , aeson >=2.0.0.0
     , aeson-pretty
+    , algebraic-graphs
     , ansi-terminal
     , attoparsec
     , base
@@ -258,7 +270,6 @@ library
     , random-shuffle
     , raw-strings-qq
     , recover-rtti
-    , regex-tdfa
     , semialign
     , serialise
     , servant
@@ -280,6 +291,7 @@ library
     , unison-core
     , unison-core1
     , unison-hash
+    , unison-hashing-v2
     , unison-merge
     , unison-parser-typechecker
     , unison-prelude

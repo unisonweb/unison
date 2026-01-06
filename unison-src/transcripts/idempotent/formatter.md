@@ -133,8 +133,8 @@ explicit.doc =
 
 Thing.doc = {{ A doc before an ability }}
 ability Thing where
-  more : Nat -> Text ->{Thing} Nat
   doThing : Nat ->{Thing} Int
+  more : Nat -> Text ->{Thing} Nat
 
 
 Ask.doc = {{ Ability with single constructor }}
@@ -150,7 +150,7 @@ provide a action =
   handle action() with h
 
 Optional.doc = {{ A Doc before a type }}
-structural type Optional a = More Text | Some | Other a | None Nat
+structural type Optional a = More Text | None Nat | Other a | Some
 
 Two.doc = {{ A doc before a type with no type-vars }}
 type Two = One Nat | Two Text

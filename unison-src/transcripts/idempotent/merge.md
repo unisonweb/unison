@@ -8,20 +8,6 @@ scratch/main> help merge
 
   merge
   `merge /branch` merges `branch` into the current branch
-
-scratch/main> help merge.commit
-
-  merge.commit (or commit.merge)
-  `merge.commit` merges a temporary branch created by the
-  `merge` command back into its parent branch, and removes the
-  temporary branch.
-
-  For example, if you've done `merge topic` from main, then
-  `merge.commit` is equivalent to doing
-
-    * switch /main
-    * merge /merge-topic-into-main
-    * delete.branch /merge-topic-into-main
 ```
 
 Let's see a simple unconflicted merge in action: Alice (us) and Bob (them) add different terms. The merged result
@@ -494,7 +480,12 @@ Bob's changes:
 ``` ucm
 scratch/bob> delete.term foo
 
-  Done.
+  I deleted these terms:
+
+    1. foo
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Merge result:
@@ -790,7 +781,12 @@ Alice's delete:
 ``` ucm
 scratch/alice> delete.term foo
 
-  Done.
+  I deleted these terms:
+
+    1. foo
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` ucm :hide
@@ -828,13 +824,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -915,13 +911,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1013,13 +1009,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1116,13 +1112,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1197,13 +1193,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1213,7 +1209,7 @@ scratch/alice> merge /bob
 type Foo = Baz Nat Nat | Qux Text
 
 -- scratch/bob
-type Foo = BobQux Text | Baz Nat
+type Foo = Baz Nat | BobQux Text
 
 ```
 
@@ -1278,23 +1274,23 @@ scratch/alice> merge bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
 
 ``` unison :added-by-ucm scratch.u
 -- scratch/alice
-type Foo = Qux Text | Alice Nat
+type Foo = Alice Nat | Qux Text
 
 -- scratch/bob
-type Foo = Bob Text | Baz Nat
+type Foo = Baz Nat | Bob Text
 
 ```
 
@@ -1355,13 +1351,13 @@ scratch/alice> merge bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1419,7 +1415,12 @@ Bob adds the type `Foo` with constructor `Foo.Bar`, replacing the original `Foo.
 ``` ucm
 scratch/bob> delete.term Foo.Bar
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison :hide
@@ -1449,13 +1450,13 @@ scratch/alice> merge bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1504,10 +1505,6 @@ Alice deletes this type entirely, and repurposes its constructor names for other
 
 ``` ucm :hide
 scratch/alice> delete.type Foo
-
-scratch/alice> delete.term Foo.Bar.Baz
-
-scratch/alice> delete.term Foo.Bar.Qux
 ```
 
 ``` unison :hide
@@ -1553,7 +1550,7 @@ scratch/bob> move.term Foo.Bar.Qux Foo.Bar.Hello
 ``` ucm
 scratch/bob> view Foo.Bar
 
-  type Foo.Bar = Hello Nat Nat | Baz Nat
+  type Foo.Bar = Baz Nat | Hello Nat Nat
 ```
 
 At this point, Bob and alice have both updated the name `Foo.Bar.Hello` in different ways, so that's a conflict. Therefore, Bob's entire type (`Foo.Bar` with constructors `Foo.Bar.Baz` and `Foo.Bar.Hello`) gets rendered into the scratch file.
@@ -1577,13 +1574,13 @@ scratch/alice> merge bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1598,7 +1595,7 @@ Foo.Bar.Hello : Nat
 Foo.Bar.Hello = 18
 
 -- scratch/bob
-type Foo.Bar = Hello Nat Nat | Baz Nat
+type Foo.Bar = Baz Nat | Hello Nat Nat
 
 ```
 
@@ -1667,13 +1664,13 @@ scratch/alice> merge bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1702,10 +1699,9 @@ bob _ = 19
 scratch/main> project.delete scratch
 ```
 
-## `merge.commit` example (success)
+## `update` to commit merge example
 
-After merge conflicts are resolved, you can use `merge.commit` rather than `switch` + `merge` + `branch.delete` to
-"commit" your changes.
+To resolve merge conflicts, use `update`, which acts like `switch` + `merge` + `branch.delete`.
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
@@ -1767,13 +1763,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -1789,7 +1785,7 @@ foo = "bobs foo"
 
 ```
 
-Resolve conflicts and commit:
+Resolve conflicts:
 
 ``` unison
 foo : Text
@@ -1810,12 +1806,10 @@ scratch/merge-bob-into-alice> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
-  Done.
-
-scratch/merge-bob-into-alice> merge.commit
-
   I fast-forward merged scratch/merge-bob-into-alice into
   scratch/alice.
+
+  Done.
 
 scratch/alice> view foo
 
@@ -1828,33 +1822,6 @@ scratch/alice> branches
   1.   alice    
   2.   bob      
   3.   main     
-```
-
-``` ucm :hide
-scratch/main> project.delete scratch
-```
-
-## `merge.commit` example (failure)
-
-`merge.commit` can only be run on a "merge branch".
-
-``` ucm :hide
-scratch/main> builtins.mergeio lib.builtins
-```
-
-``` ucm
-scratch/main> branch topic
-
-  Done. I've created the topic branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
-```
-
-``` ucm :error
-scratch/topic> merge.commit
-
-  It doesn't look like there's a merge in progress.
 ```
 
 ``` ucm :hide
@@ -2060,16 +2027,16 @@ scratch/alice> merge /bob
 
   Loading namespaces...
 
-  Sorry, I wasn't able to perform the merge:
+  Sorry, I wasn't able to perform the `merge`:
 
   On scratch/alice, the type Foo has a constructor with multiple
-  names, and I can't perform a merge in this situation:
+  names, and I can't `merge` in this situation:
 
     * Foo.Bar
     * Foo.some.other.Alias
 
-  Please delete all but one name for each constructor, and then
-  try merging again.
+  Please `delete.force` all but one name for each constructor,
+  and then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2099,9 +2066,14 @@ scratch/alice> add
 ```
 
 ``` ucm
-scratch/alice> delete.term Foo.Bar
+scratch/alice> delete.term.force Foo.Bar
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Bob's branch:
@@ -2124,14 +2096,14 @@ scratch/alice> merge /bob
 
   Loading namespaces...
 
-  Sorry, I wasn't able to perform the merge:
+  Sorry, I wasn't able to perform the `merge`:
 
   On scratch/alice, the type Foo has some constructors with
-  missing names, and I can't perform a merge in this situation.
+  missing names, and I can't `merge` in this situation.
 
   You can use `view Foo` and
   `alias.term <hash> Foo.<ConstructorName>` to give names to
-  each unnamed constructor, and then try merging again.
+  each unnamed constructor, and then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2190,9 +2162,9 @@ scratch/alice> merge /bob
   Loading namespaces...
 
   On scratch/alice, the type A.inner.X is an alias of A. I'm not
-  able to perform a merge when a type exists nested under an
-  alias of itself. Please separate them or delete one copy, and
-  then try merging again.
+  able to `merge` when a type exists nested under an alias of
+  itself. Please separate them or `delete.force` one copy, and
+  then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2255,14 +2227,14 @@ scratch/alice> merge bob
 
   Loading namespaces...
 
-  Sorry, I wasn't able to perform the merge, because I need all
-  constructor names to be nested somewhere beneath the
+  Sorry, I wasn't able to perform the `merge`, because I need
+  all constructor names to be nested somewhere beneath the
   corresponding type name.
 
   On scratch/alice, the constructor AliasOutsideFooNamespace is
   not nested beneath the corresponding type name. Please either
   use `move` to move it, or if it's an extra copy, you can
-  simply `delete` it. Then try merging again.
+  simply `delete.force` it. Then try `merge` again.
 ```
 
 ``` ucm :hide
@@ -2349,16 +2321,21 @@ structural type Foo = Bar Nat | Baz Nat Nat
 ```
 
 ``` ucm
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/main> delete.term Foo.Baz
+scratch/main> delete.term.force Foo.Baz
 
-  Done.
+  I deleted these terms:
+
+    1. Foo.Baz
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 Alice's branch:
@@ -2371,13 +2348,23 @@ scratch/main> branch alice
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
 
-scratch/alice> delete.type Foo
+scratch/alice> delete.type.force Foo
 
-  Done.
+  I deleted these types:
 
-scratch/alice> delete.term Foo.Bar
+    1. Foo
 
-  Done.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
+
+scratch/alice> delete.term.force Foo.Bar
+
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
@@ -2412,13 +2399,23 @@ scratch/main> branch bob
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /bob`.
 
-scratch/bob> delete.type Foo
+scratch/bob> delete.type.force Foo
 
-  Done.
+  I deleted these types:
 
-scratch/bob> delete.term Foo.Bar
+    1. Foo
 
-  Done.
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
+
+scratch/bob> delete.term.force Foo.Bar
+
+  I deleted these terms:
+
+    1. Foo.Bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
@@ -2502,7 +2499,12 @@ scratch/main> branch alice
 
 scratch/alice> delete.term bar
 
-  Done.
+  I deleted these terms:
+
+    1. bar
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
@@ -2801,13 +2803,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -3186,13 +3188,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```
@@ -3237,13 +3239,10 @@ scratch/merge-bob-into-alice> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
+  I fast-forward merged scratch/merge-bob-into-alice into
+  scratch/alice.
+
   Done.
-
-scratch/merge-bob-into-alice> names Bar
-
-  'Bar':
-  Hash          Kind   Names
-  #h3af39sae7   Type   Bar
 
 scratch/alice> names Bar
 
@@ -3260,6 +3259,8 @@ scratch/main> project.delete scratch
 
 When on a merge branch, if the parser has to pick between two different GUIDs, and the two merge parents themselves have
 a branch parent-child relationship, it will prefer the parent's GUID. If they don't the parser will make a new GUID.
+
+Case 1: Merging child `/topic` into parent `/main` uses parent `/main`'s GUID
 
 ``` ucm :hide
 scratch/main> builtins.mergeio lib.builtins
@@ -3285,14 +3286,7 @@ scratch/main> branch topic
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /topic`.
 
-scratch/main> branch topic2
-
-  Done. I've created the topic2 branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic2`.
-
-scratch/main> add
+scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
@@ -3315,40 +3309,15 @@ type Foo = Bar
 ```
 
 ``` ucm
-scratch/topic> add
+scratch/topic> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
 
   Done.
 
-scratch/topic> switch /topic2
+scratch/topic> switch /main
 ```
-
-``` unison
-type Foo = Bar
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + type Foo
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
-scratch/topic2> add
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
-scratch/main> switch /main
-```
-
-Case 1: Merging child `/topic` into parent `/main` uses parent `/main`'s GUID
 
 ``` ucm :error
 scratch/main> merge /topic
@@ -3367,13 +3336,13 @@ scratch/main> merge /topic
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into main and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-topic-into-main
+    cancel
 
   to delete the temporary branch and switch back to main.
 ```
@@ -3409,6 +3378,9 @@ scratch/merge-topic-into-main> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
+  I fast-forward merged scratch/merge-topic-into-main into
+  scratch/main.
+
   Done.
 
 scratch/main> names Foo
@@ -3422,15 +3394,68 @@ scratch/topic> names Foo
   'Foo':
   Hash          Kind   Names
   #j49bpadp1q   Type   Foo
+```
 
-scratch/merge-topic-into-main> names Foo
-
-  'Foo':
-  Hash          Kind   Names
-  #j2e5n5ucie   Type   Foo
+``` ucm :hide
+scratch/main> project.delete scratch
 ```
 
 Case 2: Merging parent `/main` into child `/topic` also uses parent `/main`'s GUID
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Foo
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> switch /topic
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Foo
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
 
 ``` ucm :error
 scratch/topic> merge /main
@@ -3449,27 +3474,24 @@ scratch/topic> merge /main
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into topic and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-main-into-topic
+    cancel
 
   to delete the temporary branch and switch back to topic.
 ```
 
 ``` unison :added-by-ucm scratch.u
 -- scratch/topic
-unique[sfr163dp38r14s2j75i08e7eejljege9] type Foo = Bar
+unique[m53c0ha7hv61pbmftvphmbsbp9o105v6] type Foo = Bar
 
 -- scratch/main
-unique[qg9i3saca6l177670mmf60tc2lkc6fs0] type Foo = Bar
+unique[hbitrgs28kj0h30sonlh7ir421bhm61h] type Foo = Bar
 
-```
-
-``` ucm
 ```
 
 ``` unison
@@ -3490,28 +3512,97 @@ scratch/merge-main-into-topic> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
+  I fast-forward merged scratch/merge-main-into-topic into
+  scratch/topic.
+
   Done.
 
 scratch/main> names Foo
 
   'Foo':
   Hash          Kind   Names
-  #j2e5n5ucie   Type   Foo
+  #m9d4p4toq3   Type   Foo
 
 scratch/topic> names Foo
 
   'Foo':
   Hash          Kind   Names
-  #j49bpadp1q   Type   Foo
+  #m9d4p4toq3   Type   Foo
+```
 
-scratch/merge-main-into-topic> names Foo
-
-  'Foo':
-  Hash          Kind   Names
-  #j2e5n5ucie   Type   Foo
+``` ucm :hide
+scratch/main> project.delete scratch
 ```
 
 Case 3: Merging `/topic` into `/topic2` (neither of which is a parent of the other) uses a new third GUID
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+``` ucm
+scratch/main> branch topic
+
+  Done. I've created the topic branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic`.
+
+scratch/main> branch topic2
+
+  Done. I've created the topic2 branch based off of main.
+
+  Tip: To merge your work back into the main branch, first
+       `switch /main` then `merge /topic2`.
+
+scratch/main> switch /topic
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Foo
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/topic> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/topic> switch /topic2
+```
+
+``` unison
+type Foo = Bar
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Foo
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/topic2> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> switch /main
+```
 
 ``` ucm :error
 scratch/topic> merge /topic2
@@ -3530,27 +3621,24 @@ scratch/topic> merge /topic2
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into topic and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-topic2-into-topic
+    cancel
 
   to delete the temporary branch and switch back to topic.
 ```
 
 ``` unison :added-by-ucm scratch.u
 -- scratch/topic
-unique[sfr163dp38r14s2j75i08e7eejljege9] type Foo = Bar
+unique[vbd5r4r3s97herm0109qdm5g539hpg0q] type Foo = Bar
 
 -- scratch/topic2
-unique[jhn3rdj2mr8k4g6domoj1qd1kdsshaa9] type Foo = Bar
+unique[rb45pr524qqstpni5nj20nhpqhahls02] type Foo = Bar
 
-```
-
-``` ucm
 ```
 
 ``` unison
@@ -3571,25 +3659,22 @@ scratch/merge-topic2-into-topic> update
   Okay, I'm searching the branch for code that needs to be
   updated...
 
+  I fast-forward merged scratch/merge-topic2-into-topic into
+  scratch/topic.
+
   Done.
 
 scratch/topic> names Foo
 
   'Foo':
   Hash          Kind   Names
-  #j49bpadp1q   Type   Foo
+  #v09si0p35d   Type   Foo
 
 scratch/topic2> names Foo
 
   'Foo':
   Hash          Kind   Names
-  #c0h5g2udvs   Type   Foo
-
-scratch/merge-topic2-into-topic> names Foo
-
-  'Foo':
-  Hash          Kind   Names
-  #5td3ht8h1s   Type   Foo
+  #1bslv94kbe   Type   Foo
 ```
 
 ``` ucm :hide
@@ -3710,13 +3795,13 @@ scratch/alice> merge /bob
 
   When you're done, you can run
 
-    merge.commit
+    update
 
   to merge your changes back into alice and delete the temporary
   branch. Or, if you decide to cancel the merge instead, you can
   run
 
-    delete.branch /merge-bob-into-alice
+    cancel
 
   to delete the temporary branch and switch back to alice.
 ```

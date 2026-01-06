@@ -186,7 +186,7 @@ initCommand :: Mod CommandFields Command
 initCommand = command "init" (info initParser (progDesc initHelp))
   where
     initHelp =
-      "This command is has been removed. Use --codebase-create instead to create a codebase in the specified directory when starting the UCM."
+      "This command has been removed. Use --codebase-create instead to create a codebase in the specified directory when starting the UCM."
 
 runDesc :: String -> String -> String
 runDesc cmd location =

@@ -5,6 +5,7 @@ module Unison.Builtin
     builtinDataDecls,
     builtinEffectDecls,
     builtinConstructorType,
+    expectBuiltinTermType,
     expectBuiltinConstructorType,
     builtinTypeDependents,
     builtinTypeDependentsOfComponent,
@@ -255,7 +256,10 @@ builtinTypesSrc =
     B' "ClientSockAddr" CT.Data,
     B' "PinnedByteArray" CT.Data,
     B' "Integer" CT.Data,
-    B' "Natural" CT.Data
+    B' "Natural" CT.Data,
+    B' "FFI.Type" CT.Data,
+    B' "FFI.Spec" CT.Data,
+    B' "FFI.DLL" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -274,6 +278,15 @@ intrinsicTermReferences = Map.keysSet termRefTypes
 builtinConstructorType :: Map R.Reference CT.ConstructorType
 builtinConstructorType = Map.fromList [(R.Builtin r, ct) | B' r ct <- builtinTypesSrc]
 
+expectBuiltinTermType :: Text -> Type
+expectBuiltinTermType builtin =
+  fromMaybe (error (reportBug "E129709" err)) (Map.lookup (R.Builtin builtin) termRefTypes)
+  where
+    err =
+      "I don't know about the builtin term "
+        ++ show (R.Builtin builtin :: R.TermReference)
+        ++ ", but I've been asked for its Type."
+
 expectBuiltinConstructorType :: Text -> CT.ConstructorType
 expectBuiltinConstructorType builtin =
   fromMaybe (error (reportBug "E680087" err)) (Map.lookup (R.Builtin builtin) builtinConstructorType)
@@ -281,7 +294,7 @@ expectBuiltinConstructorType builtin =
     err =
       "I don't know about the builtin type "
         ++ show (R.Builtin builtin :: R.TypeReference)
-        ++ ", but I've been asked for it's ConstructorType."
+        ++ ", but I've been asked for its ConstructorType."
 
 data BuiltinTypeDSL = B' Text CT.ConstructorType | D' Text | Rename' Text Text | Alias' Text Text
 
@@ -559,6 +572,8 @@ builtinsSrc =
     B "Bytes.zlib.decompress" $ bytes --> eithert text bytes,
     B "Bytes.gzip.compress" $ bytes --> bytes,
     B "Bytes.gzip.decompress" $ bytes --> eithert text bytes,
+    B "Bytes.zstd.compress" $ int --> bytes --> bytes,
+    B "Bytes.zstd.decompress" $ bytes --> eithert text bytes,
     {- These are all `Bytes -> Bytes`, rather than `Bytes -> Text`.
        This is intentional: it avoids a round trip to `Text` if all
        you are doing with the bytes is dumping them to a file or a
@@ -798,7 +813,26 @@ builtinsSrc =
     B "Natural.gteq" $ natural --> natural --> boolean,
     B "Natural.toFloat" $ natural --> float,
     B "Natural.isEven" $ natural --> boolean,
-    B "Natural.isOdd" $ natural --> boolean
+    B "Natural.isOdd" $ natural --> boolean,
+    B "FFI.openDLL" $ text --> ioexn dll,
+    B "FFI.int16" $ ffiType int,
+    B "FFI.int32" $ ffiType int,
+    B "FFI.int64" $ ffiType int,
+    B "FFI.uint64" $ ffiType nat,
+    B "FFI.uint32" $ ffiType nat,
+    B "FFI.uint16" $ ffiType nat,
+    B "FFI.double" $ ffiType float,
+    B "FFI.float" $ ffiType float,
+    B "FFI.void" $ ffiType unit,
+    B "FFI.pinnedByteArray" $ ffiType (pinnedByteArrayt iot),
+    B "FFI.base" . forall2 "a" "b" $ \a b ->
+      ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
+    B "FFI.baseIO" . forall2 "a" "b" $ \a b ->
+      ffiType a --> ffiType b --> ffiSpec (a --> io b),
+    B "FFI.arr" . forall2 "a" "b" $ \a b ->
+      ffiType a --> ffiSpec b --> ffiSpec (a --> Type.effect () [] b),
+    B "FFI.getDLLSym" . forall1 "a" $ \a ->
+      dll --> text --> ffiSpec a --> ioexn a
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1164,6 +1198,9 @@ iof = io . eithert failure
 iot :: Type
 iot = (Type.effects () [Type.builtinIO ()])
 
+ioexn :: Type -> Type
+ioexn = Type.effect () [Type.builtinIO (), DD.exceptionType ()]
+
 failure :: Type
 failure = DD.failureType ()
 
@@ -1190,6 +1227,15 @@ iarrayt a = Type.iarrayType () `app` a
 
 marrayt :: Type -> Type -> Type
 marrayt g a = Type.marrayType () `app` g `app` a
+
+ffiType :: Type -> Type
+ffiType t = Type.ref () Type.ffiTypeRef `app` t
+
+ffiSpec :: Type -> Type
+ffiSpec t = Type.ref () Type.ffiSpecRef `app` t
+
+dll :: Type
+dll = Type.ref () Type.ffiDllRef
 
 socket, threadId, handle, phandle, unit :: Type
 socket = Type.socket ()

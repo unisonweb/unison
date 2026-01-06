@@ -37,6 +37,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "#0qbc2dfom7m4pputtdojo849g2mp5kkr00kvsvjktb07tcmo1jql53bg73bqiib35vja4a7059rcet0raf7jsh4d8vg5582ibinpqj8",
+                                  "fqn": "MyType",
                                   "tag": "TypeReference"
                               },
                               "segment": "MyType"
@@ -60,6 +61,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -93,6 +95,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -126,6 +129,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -149,6 +153,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"
@@ -195,6 +200,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "#0qbc2dfom7m4pputtdojo849g2mp5kkr00kvsvjktb07tcmo1jql53bg73bqiib35vja4a7059rcet0raf7jsh4d8vg5582ibinpqj8",
+                                  "fqn": "MyType",
                                   "tag": "TypeReference"
                               },
                               "segment": "MyType"
@@ -218,6 +224,7 @@ RESPONSE:
                           {
                               "annotation": {
                                   "contents": "##Nat",
+                                  "fqn": "builtin.Nat",
                                   "tag": "TypeReference"
                               },
                               "segment": "builtin.Nat"

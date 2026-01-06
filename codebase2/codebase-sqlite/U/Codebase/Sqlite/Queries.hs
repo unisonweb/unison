@@ -184,6 +184,7 @@ module U.Codebase.Sqlite.Queries
     getDirectDependenciesOfScope,
     getDirectDependentsWithinScope,
     getTransitiveDependentsWithinScope,
+    getTransitiveDependentsGraphWithinScope,
 
     -- ** type index
     addToTypeIndex,
@@ -233,6 +234,10 @@ module U.Codebase.Sqlite.Queries
     expectCurrentProjectPath,
     setCurrentProjectPath,
 
+    -- * History Comments
+    commentOnCausal,
+    getLatestCausalComment,
+
     -- * migrations
     runCreateSql,
     addTempEntityTables,
@@ -254,6 +259,7 @@ module U.Codebase.Sqlite.Queries
     addUpdateBranchTable,
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
+    addHistoryComments,
 
     -- ** schema version
     currentSchemaVersion,
@@ -283,6 +289,12 @@ module U.Codebase.Sqlite.Queries
     x2cTerm,
     x2cDecl,
     checkBranchExistsForCausalHash,
+
+    -- * Config
+    getAuthorName,
+    setAuthorName,
+    getConfigValue,
+    setConfigValue,
 
     -- * Types
     TextPathSegments,
@@ -319,6 +331,8 @@ import Data.Time qualified as Time
 import Data.Vector qualified as Vector
 import Network.URI (URI)
 import U.Codebase.Branch.Type (NamespaceStats (..))
+import U.Codebase.Config (AuthorName, ConfigKey)
+import U.Codebase.Config qualified as Config
 import U.Codebase.Decl qualified as C
 import U.Codebase.Decl qualified as C.Decl
 import U.Codebase.HashTags (BranchHash (..), CausalHash (..), PatchHash (..))
@@ -336,6 +350,7 @@ import U.Codebase.Sqlite.DbId
     CausalHashId (..),
     HashId (..),
     HashVersion,
+    HistoryCommentId,
     ObjectId (..),
     PatchObjectId (..),
     ProjectBranchId (..),
@@ -351,6 +366,7 @@ import U.Codebase.Sqlite.Decode
 import U.Codebase.Sqlite.Entity (SyncEntity)
 import U.Codebase.Sqlite.Entity qualified as Entity
 import U.Codebase.Sqlite.HashHandle (HashHandle (..))
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.LocalIds
   ( LocalDefnId (..),
     LocalIds,
@@ -413,7 +429,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 22
+currentSchemaVersion = 23
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -498,6 +514,10 @@ addDerivedDependentsByDependencyIndex =
 addUpgradeBranchTable :: Transaction ()
 addUpgradeBranchTable =
   executeStatements $(embedProjectStringFile "sql/019-add-upgrade-branch-table.sql")
+
+addHistoryComments :: Transaction ()
+addHistoryComments =
+  executeStatements $(embedProjectStringFile "sql/020-add-history-comments.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -1903,21 +1923,23 @@ getDirectDependenciesOfScope isBuiltinType scope = do
 
   pure dependencies1
 
--- | `getDirectDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope` (not
--- including `query` itself).
+-- | `getDirectDependentsWithinScope scope query` returns all direct dependents of `query` that are in `scope`.
 getDirectDependentsWithinScope ::
-  Set S.Reference.Id ->
-  Set S.Reference ->
+  DefnsF Set S.TermReferenceId S.TypeReferenceId ->
+  DefnsF Set S.TermReference S.TypeReference ->
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getDirectDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
   let scopeTableName = [sql| dependents_search_scope |]
   createTemporaryTableOfReferenceIds scopeTableName
-  for_ scope \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.terms \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.types \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
 
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
-  createTemporaryTableOfReferences queryTableName query
+  createTemporaryTableOfReferences queryTableName
+  for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+  for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
 
   -- Get their direct dependents (tagged with object type)
   dependents0 <-
@@ -1955,11 +1977,10 @@ getDirectDependentsWithinScope scope query = do
 
   pure dependents1
 
--- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`
--- (not including `query` itself).
+-- | `getTransitiveDependentsWithinScope scope query` returns all transitive dependents of `query` that are in `scope`.
 getTransitiveDependentsWithinScope ::
   DefnsF Set S.TermReferenceId S.TypeReferenceId ->
-  Set S.Reference ->
+  DefnsF Set S.TermReference S.TypeReference ->
   Transaction (DefnsF Set S.TermReferenceId S.TypeReferenceId)
 getTransitiveDependentsWithinScope scope query = do
   -- Populate a temporary table with all of the references in `scope`
@@ -1970,7 +1991,9 @@ getTransitiveDependentsWithinScope scope query = do
 
   -- Populate a temporary table with all of the references in `query`
   let queryTableName = [sql| dependencies_query |]
-  createTemporaryTableOfReferences queryTableName query
+  createTemporaryTableOfReferences queryTableName
+  for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+  for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
 
   -- Say the query set is { #foo, #bar }, and the scope set is { #foo, #bar, #baz, #qux, #honk }.
   --
@@ -1996,13 +2019,13 @@ getTransitiveDependentsWithinScope scope query = do
         WITH RECURSIVE
         dependents_index_in_scope AS (
           SELECT *
-          FROM dependents_index d
-          WHERE (d.dependent_object_id, d.dependent_component_index) IN (
+          FROM dependents_index
+          WHERE (dependent_object_id, dependent_component_index) IN (
             SELECT object_id, component_index
             FROM $scopeTableName
           )
           -- Ignore self-dependents
-          AND ((d.dependency_object_id, d.dependency_component_index) IS DISTINCT FROM (d.dependent_object_id, d.dependent_component_index))
+          AND ((dependency_object_id, dependency_component_index) IS DISTINCT FROM (dependent_object_id, dependent_component_index))
         ),
         transitive_dependents (object_id, component_index, type_id) AS (
           SELECT d.dependent_object_id, d.dependent_component_index, o.type_id
@@ -2021,7 +2044,7 @@ getTransitiveDependentsWithinScope scope query = do
             JOIN object o ON d.dependent_object_id = o.id
         )
         SELECT *
-        FROM transitive_dependents t
+        FROM transitive_dependents
       |]
 
   execute [sql| DROP TABLE $scopeTableName |]
@@ -2040,8 +2063,88 @@ getTransitiveDependentsWithinScope scope query = do
 
   pure result1
 
-createTemporaryTableOfReferences :: Sql -> Set S.Reference -> Transaction ()
-createTemporaryTableOfReferences tableName refs = do
+-- | Like 'getTransitiveDependentsWithinScope', but returns the dependents as a searchable adjacency matrix rather than
+-- just a set of references.
+--
+-- Returns (dependent ref, dependent type, dependency, dependency type)
+getTransitiveDependentsGraphWithinScope ::
+  DefnsF Set S.TermReferenceId S.TypeReferenceId ->
+  DefnsF Set S.TermReference S.TypeReference ->
+  Transaction [S.Reference.Id :. Only ObjectType :. S.Reference :. Only (Maybe ObjectType)]
+getTransitiveDependentsGraphWithinScope scope query = do
+  -- Populate a temporary table with all of the references in `scope`
+  let scopeTableName = [sql| dependents_search_scope |]
+  createTemporaryTableOfReferenceIds scopeTableName
+  for_ scope.terms \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+  for_ scope.types \ref -> execute [sql| INSERT INTO $scopeTableName VALUES (@ref, @) |]
+
+  -- Populate a temporary table with all of the references in `query`
+  let queryTableName = [sql| dependencies_query |]
+  createTemporaryTableOfReferences queryTableName
+  for_ query.terms \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+  for_ query.types \ref -> execute [sql| INSERT INTO $queryTableName VALUES (@ref, @, @) |]
+
+  result :: [S.Reference.Id :. Only ObjectType :. S.Reference :. Only (Maybe ObjectType)] <-
+    queryListRow
+      [sql|
+        WITH RECURSIVE
+        dependents_index_in_scope AS (
+          SELECT *
+          FROM dependents_index
+          WHERE
+            (dependent_object_id, dependent_component_index) IN (
+              SELECT object_id, component_index
+              FROM $scopeTableName
+            )
+            AND (dependency_object_id, dependency_component_index)
+              IS DISTINCT FROM (dependent_object_id, dependent_component_index)
+        ),
+        transitive_dependents AS (
+          SELECT *
+          FROM dependents_index_in_scope
+          WHERE
+            (dependency_builtin IS NULL AND
+              (dependency_object_id, dependency_component_index) IN (
+                SELECT dependency_object_id, dependency_component_index
+                FROM $queryTableName
+                WHERE dependency_builtin IS NULL
+              )
+            )
+            OR
+            (dependency_builtin IS NOT NULL AND
+              dependency_builtin IN (
+                SELECT dependency_builtin
+                FROM $queryTableName
+                WHERE dependency_builtin IS NOT NULL
+              )
+            )
+          UNION
+          SELECT d.*
+          FROM transitive_dependents t
+            JOIN dependents_index_in_scope d
+              ON t.dependent_object_id = d.dependency_object_id
+              AND t.dependent_component_index = d.dependency_component_index
+        )
+        SELECT
+          t.dependent_object_id,
+          t.dependent_component_index,
+          o1.type_id,
+          t.dependency_builtin,
+          t.dependency_object_id,
+          t.dependency_component_index,
+          o2.type_id
+        FROM transitive_dependents t
+          JOIN object o1 ON t.dependent_object_id = o1.id
+          LEFT JOIN object o2 ON t.dependency_object_id = o2.id
+      |]
+
+  execute [sql| DROP TABLE $scopeTableName |]
+  execute [sql| DROP TABLE $queryTableName |]
+
+  pure result
+
+createTemporaryTableOfReferences :: Sql -> Transaction ()
+createTemporaryTableOfReferences tableName = do
   execute
     [sql|
       CREATE TEMPORARY TABLE $tableName (
@@ -2052,9 +2155,6 @@ createTemporaryTableOfReferences tableName refs = do
         CHECK ((object_id IS NULL) = (component_index IS NULL))
       )
     |]
-
-  for_ refs \ref ->
-    execute [sql| INSERT INTO $tableName VALUES (@ref, @, @) |]
 
 createTemporaryTableOfReferenceIds :: Sql -> Transaction ()
 createTemporaryTableOfReferenceIds tableName = do
@@ -3004,6 +3104,7 @@ loadProjectBranchSql projectId branchId =
       project_branch.branch_id,
       project_branch.name,
       project_branch_parent.parent_branch_id,
+      EXISTS (SELECT 1 FROM merge_branch WHERE project_id = :projectId AND branch_id = :branchId),
       EXISTS (SELECT 1 FROM update_branch WHERE project_id = :projectId AND branch_id = :branchId),
       EXISTS (SELECT 1 FROM upgrade_branch WHERE project_id = :projectId AND branch_id = :branchId)
     FROM
@@ -3016,10 +3117,10 @@ loadProjectBranchSql projectId branchId =
   |]
 
 mungeLoadProjectBranchResult ::
-  (ProjectId, ProjectBranchId, ProjectBranchName, Maybe ProjectBranchId, Bool, Bool) ->
+  (ProjectId, ProjectBranchId, ProjectBranchName, Maybe ProjectBranchId, Bool, Bool, Bool) ->
   ProjectBranch
-mungeLoadProjectBranchResult (projectId, branchId, name, parentBranchId, isUpdate, isUpgrade) =
-  ProjectBranch {projectId, branchId, name, parentBranchId, isUpdate, isUpgrade}
+mungeLoadProjectBranchResult (projectId, branchId, name, parentBranchId, isMerge, isUpdate, isUpgrade) =
+  ProjectBranch {projectId, branchId, name, parentBranchId, isMerge, isUpdate, isUpgrade}
 
 loadProjectBranchByName :: ProjectId -> ProjectBranchName -> Transaction (Maybe ProjectBranch)
 loadProjectBranchByName projectId name = do
@@ -3044,6 +3145,7 @@ loadProjectBranchByName projectId name = do
 
 loadProjectBranchByProjectBranchRow :: ProjectBranchRow -> Transaction ProjectBranch
 loadProjectBranchByProjectBranchRow branch = do
+  isMerge <- projectBranchIsMergeBranch branch.projectId branch.branchId
   isUpdate <- projectBranchIsUpdateBranch branch.projectId branch.branchId
   isUpgrade <- projectBranchIsUpgradeBranch branch.projectId branch.branchId
   pure
@@ -3052,6 +3154,7 @@ loadProjectBranchByProjectBranchRow branch = do
         branchId = branch.branchId,
         name = branch.name,
         parentBranchId = branch.parentBranchId,
+        isMerge,
         isUpdate,
         isUpgrade
       }
@@ -3675,6 +3778,20 @@ loadProjectBranchParent projectId projectBranchId =
         AND branch_id = :projectBranchId
     |]
 
+-- | Get whether or not a project branch is a "merge branch". Returns false if the branch either isn't a merge branch
+-- (likely) or doesn't exist at all (weird).
+projectBranchIsMergeBranch :: ProjectId -> ProjectBranchId -> Transaction Bool
+projectBranchIsMergeBranch projectId branchId =
+  queryOneCol
+    [sql|
+      SELECT EXISTS (
+        SELECT 1
+        FROM merge_branch
+        WHERE project_id = :projectId
+          AND branch_id = :branchId
+      )
+    |]
+
 loadMergeBranchParents ::
   ProjectId ->
   ProjectBranchId ->
@@ -4004,4 +4121,74 @@ saveSquashResult bhId chId =
         :chId
         )
       ON CONFLICT DO NOTHING
+    |]
+
+getLatestCausalComment ::
+  CausalHashId ->
+  Transaction (Maybe (HistoryComment CausalHashId HistoryCommentId))
+getLatestCausalComment causalHashId =
+  queryMaybeRow @(HistoryCommentId, CausalHashId, Text, Text, Text)
+    [sql|
+      SELECT cc.id, cc.causal_hash_id, cc.author, ccr.subject, ccr.contents
+        FROM history_comments AS cc
+        JOIN history_comment_revisions AS ccr ON cc.id = ccr.comment_id
+        WHERE cc.causal_hash_id = :causalHashId
+        ORDER BY ccr.created_at DESC
+        LIMIT 1
+    |]
+    <&> fmap \(commentId, causal, author, subject, content) ->
+      HistoryComment {author, subject, content, commentId, causal}
+
+commentOnCausal :: HistoryComment CausalHashId () -> Transaction ()
+commentOnCausal HistoryComment {author, content, subject, causal = causalHashId} = do
+  mayExistingCommentId <-
+    queryMaybeCol @HistoryCommentId
+      [sql|
+      SELECT id
+        FROM history_comments
+        WHERE causal_hash_id = :causalHashId
+    |]
+  commentId <- case mayExistingCommentId of
+    Nothing ->
+      queryOneCol @HistoryCommentId
+        [sql|
+            INSERT INTO history_comments (author, causal_hash_id, created_at)
+            VALUES (:author, :causalHashId, strftime('%s', 'now', 'subsec'))
+            RETURNING id
+          |]
+    Just cid -> pure cid
+  execute
+    [sql|
+      INSERT INTO history_comment_revisions (comment_id, subject, contents, created_at)
+      VALUES (:commentId, :subject, :content, strftime('%s', 'now', 'subsec'))
+    |]
+
+getAuthorName :: Transaction (Maybe AuthorName)
+getAuthorName = do
+  r <- getConfigValue Config.AuthorNameKey <&> fmap Config.mkAuthorName
+  case r of
+    Just (Left err) -> error $ "getAuthorName: " <> Text.unpack err
+    Just (Right authorName) -> pure (Just authorName)
+    Nothing -> pure Nothing
+
+setAuthorName :: AuthorName -> Transaction ()
+setAuthorName authorName =
+  setConfigValue Config.AuthorNameKey (Config.unAuthorName authorName)
+
+setConfigValue :: ConfigKey -> Text -> Transaction ()
+setConfigValue key value =
+  execute
+    [sql|
+      INSERT INTO config (key, value)
+      VALUES (:key, :value)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    |]
+
+getConfigValue :: ConfigKey -> Transaction (Maybe Text)
+getConfigValue key =
+  queryMaybeCol
+    [sql|
+      SELECT value
+      FROM config
+      WHERE key = :key
     |]

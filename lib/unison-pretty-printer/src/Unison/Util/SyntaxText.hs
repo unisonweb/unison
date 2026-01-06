@@ -18,8 +18,8 @@ data Element r
   | BooleanLiteral
   | Blank
   | Var
-  | TypeReference r
-  | TermReference (Referent' r)
+  | TypeReference (Maybe Name {- fqn, if it has one -}) r
+  | TermReference (Maybe Name {- fqn, if it has one -}) (Referent' r)
   | Op SeqOp
   | AbilityBraces
   | -- let|handle|in|where|match|with|cases|->|if|then|else|and|or
@@ -56,6 +56,6 @@ data Element r
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
 syntax = annotate
 
--- Convert a `SyntaxText` to a `String`, ignoring syntax markup
-toPlain :: SyntaxText' r -> String
-toPlain (AnnotatedText at) = join (toList $ segment <$> at)
+-- Convert a `SyntaxText` to a `Text`, ignoring syntax markup
+toPlain :: SyntaxText' r -> Text
+toPlain (AnnotatedText at) = foldMap segment at

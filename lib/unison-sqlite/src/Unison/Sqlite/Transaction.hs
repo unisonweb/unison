@@ -364,7 +364,7 @@ transactionRetryDelay = 100_000
 -- Debug timing
 
 -- | Time a transaction.
-time :: String -> Transaction a -> Transaction a
+time :: Text -> Transaction a -> Transaction a
 time label action =
   if Debug.shouldDebug Debug.Timing
     then Transaction \conn -> do

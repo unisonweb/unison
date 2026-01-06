@@ -75,7 +75,7 @@ scratch/main> ls .
   1. Bar      (Nat)
   2. Bar      (type)
   3. Bar.     (4 terms, 1 type)
-  4. builtin. (665 terms, 103 types)
+  4. builtin. (682 terms, 107 types)
 
 scratch/main> ls Bar
 
@@ -89,7 +89,7 @@ scratch/main> history Bar
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #hk3a3lsc2e
+  ⊙ 1. #3cghtnopgc
 
     + Adds / updates:
     
@@ -99,7 +99,7 @@ scratch/main> history Bar
     
       T.T
 
-  □ 2. #vqc50q3b3v (start of history)
+  □ 2. #b9cgp80aad (start of history)
 ```
 
 ## Happy Path - Just term
@@ -134,7 +134,7 @@ z/main> move bonk zonk
 
 z/main> ls .
 
-  1. builtin. (665 terms, 103 types)
+  1. builtin. (682 terms, 107 types)
   2. zonk     (Nat)
 ```
 
@@ -171,7 +171,7 @@ a/main> move bonk zonk
 
 a/main> ls .
 
-  1. builtin. (665 terms, 103 types)
+  1. builtin. (682 terms, 107 types)
   2. zonk.    (1 term)
 
 a/main> view zonk.zonk

@@ -47,11 +47,11 @@ forget2 k = handle provide 3 k with cases
 
   only needs the abilities:
 
-      {Tell a147}
+      {Tell a138}
 
   but the available abilities are:
 
-      {Tell a147, Ask Nat}
+      {Tell a138, Ask Nat}
 
   The argument:
 
@@ -59,11 +59,11 @@ forget2 k = handle provide 3 k with cases
 
   only needs the abilities:
 
-      {Tell a84}
+      {Tell a80}
 
   but the available abilities are:
 
-      {Tell a84, Ask Nat}
+      {Tell a80, Ask Nat}
 
   To avoid this warning, you can give explicit types to the arguments
   of the recursive call to the handler.

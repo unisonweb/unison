@@ -82,6 +82,9 @@ module Unison.Codebase.Branch
     edits_,
 
     -- ** Term/type queries
+    deepDefns,
+    deepDefnsRefs,
+    deepDefnsIds,
     deepTerms,
     deepTypes,
     deepPaths,
@@ -96,6 +99,7 @@ module Unison.Codebase.Branch
 where
 
 import Control.Lens hiding (children, cons, transform, uncons)
+import Data.Foldable qualified as Foldable
 import Data.Map qualified as Map
 import Data.Monoid (Any (..))
 import Data.Semialign qualified as Align
@@ -111,6 +115,8 @@ import Unison.Codebase.Branch.Type
     UnwrappedBranch,
     branch0,
     children_,
+    deepDefns,
+    deepDefnsRefs,
     deepPaths,
     deepTerms,
     deepTypes,
@@ -245,6 +251,10 @@ deepReferents = R.dom . deepTerms
 deepTermReferences :: Branch0 m -> Set TermReference
 deepTermReferences =
   Set.mapMaybe Referent.toTermReference . deepReferents
+
+deepDefnsIds :: Branch0 m -> DefnsF Set TermReferenceId TypeReferenceId
+deepDefnsIds branch =
+  Defns {terms = deepTermReferenceIds branch, types = deepTypeReferenceIds branch}
 
 deepTermReferenceIds :: Branch0 m -> Set TermReferenceId
 deepTermReferenceIds =
@@ -499,7 +509,10 @@ batchUpdatesM ::
 batchUpdatesM (toList -> actions) curBranch = foldM execActions curBranch (groupActionsByLocation actions)
   where
     groupActionsByLocation :: [(Path, b)] -> [(ActionLocation, [(Path, b)])]
-    groupActionsByLocation = List.groupMap \(p, act) -> (pathLocation p, (p, act))
+    groupActionsByLocation xs =
+      xs
+        & List.groupMap (\(p, act) -> (pathLocation p, (p, act)))
+        <&> second Foldable.toList
 
     execActions ::
       ( Branch0 m ->

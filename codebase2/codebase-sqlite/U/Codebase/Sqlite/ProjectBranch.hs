@@ -16,6 +16,7 @@ data ProjectBranch = ProjectBranch
     branchId :: !ProjectBranchId,
     name :: !ProjectBranchName,
     parentBranchId :: !(Maybe ProjectBranchId),
+    isMerge :: !Bool,
     isUpdate :: !Bool,
     isUpgrade :: !Bool
   }

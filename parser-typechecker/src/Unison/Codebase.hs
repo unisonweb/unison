@@ -39,7 +39,8 @@ module Unison.Codebase
     -- * Type declarations
     getTypeDeclaration,
     unsafeGetTypeDeclaration,
-    SqliteCodebase.Operations.getDeclComponent,
+    getTypeDeclarationComponent,
+    expectTypeDeclarationComponent,
     putTypeDeclaration,
     putTypeDeclarationComponent,
     SqliteCodebase.Operations.typeReferencesByPrefix,
@@ -126,7 +127,6 @@ module Unison.Codebase
 where
 
 import Control.Monad.Except (ExceptT)
-import Data.Bifoldable (Bifoldable (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -158,12 +158,14 @@ import Unison.DataDeclaration qualified as DD
 import Unison.Hash (Hash)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.LabeledDependency qualified as LD
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (ProjectAndBranch), ProjectBranchName, ProjectName)
-import Unison.Reference (Reference, TermReference, TermReferenceId, TypeReference)
+import Unison.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ShortHash qualified as SH
 import Unison.Sqlite qualified as Sqlite
@@ -176,7 +178,6 @@ import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Defns (Defns (..), DefnsF)
-import Unison.Util.Defns qualified as Defns
 import Unison.Util.Recursion (XNor (Both, Neither), cata)
 import Unison.Util.Relation qualified as Rel
 import Unison.Util.Set qualified as Set
@@ -529,32 +530,39 @@ dependentsOfComponent h =
 -- | Find direct dependents of any provided definitions which are within the provided branch.
 --
 -- Note: You may wish to delete lib deps beforehand.
-dependentsWithinBranchScope :: Branch.Branch0 m -> (DefnsF Set Referent.Referent Reference.TypeReference) -> Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
+dependentsWithinBranchScope ::
+  Branch.Branch0 m ->
+  DefnsF Set Referent TypeReference ->
+  Sqlite.Transaction (DefnsF Set TermReferenceId Reference.TypeReferenceId)
 dependentsWithinBranchScope branch0 refs = do
-  Operations.directDependentsWithinScope
-    ( Set.union
-        (Set.mapMaybe Reference.toId (Branch.deepTypeReferences branch0))
-        (Set.mapMaybe Referent.toTermReferenceId (Branch.deepReferents branch0))
-    )
-    (bifoldMap (Set.map Referent.toReference) id refs)
+  Operations.directDependentsWithinScope (Branch.deepDefnsIds branch0) (NamesUtils.referentsToRefs refs)
 
 directDependencies ::
-  (DefnsF Set Referent.Referent Reference.TypeReference) ->
+  DefnsF Set Referent TypeReference ->
   Sqlite.Transaction (DefnsF Set TermReference TypeReference)
 directDependencies refs = do
-  Operations.directDependenciesOfScope
-    Builtin.isBuiltinType
-    ( let refToIds :: Reference -> Set Reference.Id
-          refToIds =
-            maybe Set.empty Set.singleton . Reference.toId
-       in bifoldMap
-            ( foldMap \case
-                Referent.Con ref _ -> Defns.fromTypes (refToIds (ref ^. ConstructorReference.reference_))
-                Referent.Ref ref -> Defns.fromTerms (refToIds ref)
-            )
-            (foldMap (refToIds >>> Defns.fromTypes))
-            refs
-    )
+  Operations.directDependenciesOfScope Builtin.isBuiltinType (defnsToRefsIds refs)
+
+defnsToRefsIds :: DefnsF Set Referent TypeReference -> DefnsF Set TermReferenceId TypeReferenceId
+defnsToRefsIds defns =
+  Defns
+    { terms = termRefIds,
+      types = Set.union constructorRefIds (Set.mapMaybe Reference.toId defns.types)
+    }
+  where
+    termRefIds :: Set TermReferenceId
+    constructorRefIds :: Set TypeReferenceId
+    (termRefIds, constructorRefIds) =
+      Set.foldl'
+        ( \ ~acc@(terms, constructors) -> \case
+            Referent.Con (ConstructorReference (ReferenceDerived refId) _) _ ->
+              let !constructors1 = Set.insert refId constructors in (terms, constructors1)
+            Referent.Ref (ReferenceDerived refId) ->
+              let !terms1 = Set.insert refId terms in (terms1, constructors)
+            _ -> acc
+        )
+        (Set.empty, Set.empty)
+        defns.terms
 
 -- | Get the set of terms-or-constructors that have the given type.
 termsOfType :: (Var v) => Codebase m v a -> Type v a -> Sqlite.Transaction (Set Referent.Referent)
@@ -672,8 +680,15 @@ unsafeGetTermComponent ::
   Sqlite.Transaction [(Term v a, Type v a)]
 unsafeGetTermComponent codebase hash =
   getTermComponentWithTypes codebase hash <&> \case
-    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
     Just terms -> terms
+    Nothing -> error (reportBug "E769004" ("term component " ++ show hash ++ " not found"))
+
+-- | Like 'getTypeDeclarationComponent', for when the type decl component is known to exist in the codebase.
+expectTypeDeclarationComponent :: (HasCallStack) => Codebase m v a -> Hash -> Sqlite.Transaction [Decl v a]
+expectTypeDeclarationComponent codebase hash =
+  getTypeDeclarationComponent codebase hash <&> \case
+    Just component -> component
+    Nothing -> error (reportBug "E101611" ("decl component " ++ show hash ++ " not found"))
 
 expectCurrentProjectPath :: (HasCallStack) => Sqlite.Transaction PP.ProjectPath
 expectCurrentProjectPath = do

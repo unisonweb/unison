@@ -25,10 +25,9 @@ import ArgParse
   )
 import Compat (defaultInterruptHandler, withInterruptHandler)
 import Control.Concurrent (newEmptyMVar, runInUnboundThread, takeMVar)
-import Control.Exception (displayException, evaluate, fromException)
+import Control.Exception (displayException, fromException)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
 import Data.Either.Validation (Validation (..))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text qualified as Text
@@ -78,6 +77,7 @@ import Unison.CommandLine.Types qualified as CommandLine
 import Unison.CommandLine.Welcome (CodebaseInitStatus (..))
 import Unison.CommandLine.Welcome qualified as Welcome
 import Unison.Core.Project (ProjectAndBranch (..), ProjectName (..))
+import Unison.Hashing.V2 qualified as ABT
 import Unison.LSP qualified as LSP
 import Unison.LSP.Util.Signal qualified as Signal
 import Unison.MCP qualified as MCP
@@ -108,26 +108,32 @@ main version = do
   -- We've made one exception for `ExitSuccess`, because we've discovered the `lsp` library unhelpfully throws it from a
   -- background thread as part of the default "exit notification handler", with no way to modify the behavior.
   setUncaughtExceptionHandler \exception -> do
-    when (not (isExitSuccess exception)) do
-      let shown = tShow exception
-      let displayed = Text.pack (displayException exception)
-      let indented = Text.unlines . map ("  " <>) . Text.lines
+    if
+      | isExitSuccess exception -> pure ()
+      -- This is a bit of a hack to make hashing failures more user-friendly.
+      -- https://github.com/unisonweb/unison/pull/6007
+      | Just hf <- fromException @ABT.HashingWarning exception -> do
+          Text.hPutStrLn stderr ("\n" <> tShow hf <> "\n")
+      | otherwise -> do
+          let shown = tShow exception
+          let displayed = Text.pack (displayException exception)
+          let indented = Text.unlines . map ("  " <>) . Text.lines
 
-      Text.hPutStrLn stderr . Text.unlines . fold $
-        [ [ "Uh oh, an unexpected exception brought the process down! That should never happen. Please file a bug report.",
-            "",
-            "Here's a stringy rendering of the exception:",
-            "",
-            indented shown
-          ],
-          if shown /= displayed
-            then
-              [ "And here's a different one, in case it's easier to understand:",
+          Text.hPutStrLn stderr . Text.unlines . fold $
+            [ [ "Uh oh, an unexpected exception brought the process down! That should never happen. Please file a bug report.",
                 "",
-                indented displayed
-              ]
-            else []
-        ]
+                "Here's a stringy rendering of the exception:",
+                "",
+                indented shown
+              ],
+              if shown /= displayed
+                then
+                  [ "And here's a different one, in case it's easier to understand:",
+                    "",
+                    indented displayed
+                  ]
+                else []
+            ]
   -- This makes our error messages more safe w/r to concurrency. Without it sometimes the
   -- error messaging from the UCM server and LSP server (both running in separate threads) get
   -- interleaved.
@@ -230,8 +236,8 @@ main version = do
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
         Run (RunCompiled file) args ->
-          BL.readFile file >>= \bs ->
-            try (evaluate $ RTI.decodeStandalone bs) >>= \case
+          BS.readFile file >>= \bs ->
+            try (RTI.decodeStandalone bs) >>= \case
               Left re -> do
                 exnMessage <- RTI.prettyRuntimeExn fetchIssueFromGitHub re
                 exitError . P.lines $
@@ -509,7 +515,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
   and
     <$> getCodebaseOrExit
       (Just (DontCreateCodebaseWhenMissing transcriptDir))
-      SC.DoLock
+      SC.BlockUntilLock
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
         let isTest = False
@@ -551,6 +557,13 @@ runTranscripts' version progName transcriptDir markdownFiles = do
                                 <> "to do more work with it."
                           ],
                           Transcript.format msg
+                        )
+                      Transcript.Exception someException ->
+                        ( [ P.indentN 2 $ "An unexpected exception occurred while running the following file: " <> P.string fileName,
+                            "",
+                            P.indentN 2 (P.text $ tShow someException)
+                          ],
+                          tShow someException
                         )
                   )
                   (pure . Transcript.format)

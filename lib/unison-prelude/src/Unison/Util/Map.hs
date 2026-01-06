@@ -22,6 +22,8 @@ module Unison.Util.Map
     thenInsertPair,
     traverseKeys,
     traverseKeysWith,
+    search,
+    searchr,
     swap,
     upsert,
     upsertF,
@@ -72,6 +74,64 @@ asList_ f s =
     & Map.toList
     & f
     <&> Map.fromList
+
+-- | Search a map, given a monotone ordering function on keys. Summarizes the key/value pairs of the (possibly empty)
+-- contiguous block that compares equal.
+search :: (Monoid m) => (k -> v -> m) -> (k -> Ordering) -> Map k v -> m
+search f keyOrdering =
+  go
+  where
+    go = \case
+      Map.Bin _ k v l r ->
+        case keyOrdering k of
+          EQ -> goL l <> f k v <> goR r
+          LT -> go r
+          GT -> go l
+      Map.Tip -> mempty
+
+    goL = \case
+      Map.Bin _ k v l r ->
+        case keyOrdering k of
+          EQ -> goL l <> f k v <> Map.foldrWithKey (\k v acc -> f k v <> acc) mempty r
+          LT -> goL r
+          GT -> error "predicate not monotone with respect to ordering"
+      Map.Tip -> mempty
+
+    goR = \case
+      Map.Bin _ k v l r ->
+        case keyOrdering k of
+          EQ -> Map.foldrWithKey (\k v acc -> f k v <> acc) mempty l <> f k v <> goR r
+          GT -> goR l
+          LT -> error "predicate not monotone with respect to ordering"
+      Map.Tip -> mempty
+
+searchr :: (k -> v -> acc -> acc) -> acc -> (k -> Ordering) -> Map k v -> acc
+searchr f z keyOrdering =
+  go z
+  where
+    go acc = \case
+      Map.Bin _ k v l r ->
+        case keyOrdering k of
+          EQ -> goL (f k v (goR acc r)) l -- goL l <> f k v <> goR r
+          LT -> go acc r
+          GT -> go acc l
+      Map.Tip -> acc
+
+    goL acc = \case
+      Map.Bin _ k v l r ->
+        case keyOrdering k of
+          EQ -> goL (f k v (Map.foldrWithKey f acc r)) l
+          LT -> goL acc r
+          GT -> error "predicate not monotone with respect to ordering"
+      Map.Tip -> acc
+
+    goR acc = \case
+      Map.Bin _ k v l r ->
+        case keyOrdering k of
+          EQ -> Map.foldrWithKey f (f k v (goR acc r)) l
+          GT -> goR acc l
+          LT -> error "predicate not monotone with respect to ordering"
+      Map.Tip -> acc
 
 -- | 'swap' throws away data if the input contains duplicate values
 swap :: (Ord b) => Map a b -> Map b a

@@ -1231,8 +1231,10 @@ declareForeigns = do
   declareForeign Tracked 1 IO_randomBytes
   declareForeign Untracked 1 Bytes_zlib_compress
   declareForeign Untracked 1 Bytes_gzip_compress
+  declareForeign Untracked 2 Bytes_zstd_compress
   declareForeign Untracked 1 Bytes_zlib_decompress
   declareForeign Untracked 1 Bytes_gzip_decompress
+  declareForeign Untracked 1 Bytes_zstd_decompress
 
   declareForeign Untracked 1 Bytes_toBase16
   declareForeign Untracked 1 Bytes_toBase32
@@ -1402,6 +1404,21 @@ declareForeigns = do
   declareForeign Untracked 1 Json_unconsText
   declareForeign Untracked 1 Json_tryUnconsText
   declareForeign Untracked 3 Avro_decodeBinary
+  declareForeign Tracked 1 FFI_openDLL
+  declareForeignWrap Untracked direct FFI_int64
+  declareForeignWrap Untracked direct FFI_int32
+  declareForeignWrap Untracked direct FFI_int16
+  declareForeignWrap Untracked direct FFI_uint64
+  declareForeignWrap Untracked direct FFI_uint32
+  declareForeignWrap Untracked direct FFI_uint16
+  declareForeignWrap Untracked direct FFI_double
+  declareForeignWrap Untracked direct FFI_float
+  declareForeignWrap Untracked direct FFI_void
+  declareForeignWrap Untracked direct FFI_pinnedByteArray
+  declareForeign Untracked 2 FFI_base
+  declareForeign Untracked 2 FFI_baseIO
+  declareForeign Untracked 2 FFI_arr
+  declareForeign Tracked 3 FFI_getDLLSym
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))

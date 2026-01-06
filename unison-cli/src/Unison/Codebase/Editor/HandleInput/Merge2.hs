@@ -24,10 +24,8 @@ import Data.Semialign (zipWith)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import System.Directory (canonicalizePath, getCurrentDirectory, getTemporaryDirectory, removeFile)
+import System.Directory (getCurrentDirectory, removeFile)
 import System.Environment (lookupEnv)
-import System.FilePath ((</>))
-import System.IO.Temp qualified as Temporary
 import System.OsPath qualified
 import System.Process qualified as Process
 import Text.ANSI qualified as Text
@@ -43,6 +41,7 @@ import U.Codebase.Sqlite.Operations qualified as Operations
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Queries
+import Unison.Cli.DirectoryUtils (makeMakeTempFilename)
 import Unison.Cli.MergeTypes (MergeSource (..), MergeSourceAndTarget (..), MergeSourceOrTarget (..))
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -63,7 +62,6 @@ import Unison.Codebase.Path (Path)
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.ProjectPath qualified as PP
-import Unison.Codebase.SqliteCodebase.Operations qualified as Operations
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.Debug qualified as Debug
@@ -218,7 +216,7 @@ doMerge info = do
         -- FIXME: Oops, if this fails due to a conflicted name, we don't actually say where the conflicted name came from.
         -- We should have a better error message (even though you can't do anything about conflicted names in the LCA).
         defns <- do
-          let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn "merge")
+          let asUnconflicted branch = Branch.asUnconflicted branch & onLeft (done . Output.ConflictedDefn)
           lca <- maybe (pure UnconflictedLocalDefnsView.empty) (asUnconflicted . Branch.head) branches.lca
           alice <- asUnconflicted (Branch.head branches.alice)
           bob <- asUnconflicted (Branch.head branches.bob)
@@ -259,10 +257,7 @@ doMerge info = do
                 | defnsAreEmpty refs = pure (Defns Map.empty Map.empty)
                 | otherwise = do
                     Sqlite.unsafeIO (respondRegion (Output.Literal message))
-                    hydrateRefs
-                      (Codebase.unsafeGetTermComponent env.codebase)
-                      Operations.expectDeclComponent
-                      refs
+                    hydrateRefs env.codebase refs
                 where
                   refs = fold refs0
 
@@ -354,7 +349,7 @@ doMerge info = do
         typecheckedFile <-
           mergeblob.typecheckedFile & onNothing do
             env <- ask
-            (_temporaryBranchId, temporaryBranchName) <-
+            _ <-
               HandleInput.Branch.createBranch
                 info.description
                 ( let sourceStuff =
@@ -386,7 +381,7 @@ doMerge info = do
             --                Yes                    Yes                                              Run that cool tool
 
             maybeMergetool <-
-              if not (defnsAreEmpty mergeblob.conflicts.alice)
+              if not env.isTranscriptTest && not (defnsAreEmpty mergeblob.conflicts.alice)
                 then liftIO (lookupEnv "UCM_MERGETOOL")
                 else pure Nothing
 
@@ -400,18 +395,13 @@ doMerge info = do
                 liftIO $
                   env.writeSource
                     (Text.pack scratchFilePath)
-                    (Text.pack $ Pretty.toPlain 80 mergeblob.unparsedFile)
+                    (Pretty.toPlain 80 mergeblob.unparsedFile)
                     True
-                done (Output.MergeFailure scratchFilePath mergeSourceAndTarget temporaryBranchName)
+                done (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
-                makeTempFilename <-
-                  liftIO do
-                    tmpdir0 <- getTemporaryDirectory
-                    tmpdir1 <- canonicalizePath tmpdir0
-                    tmpdir2 <- Temporary.createTempDirectory tmpdir1 "unison-merge"
-                    pure \filename -> Text.pack (tmpdir2 </> Text.unpack (Text.Builder.run filename))
+                makeTempFilename <- makeMakeTempFilename
                 let filenames =
                       fmap
                         makeTempFilename
@@ -439,7 +429,7 @@ doMerge info = do
                         & Text.replace "$REMOTE" filenames.bob
                 exitCode <-
                   liftIO do
-                    let fileContents = Text.pack . Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles
+                    let fileContents = Pretty.toPlain 80 <$> mergeblob.unparsedSoloFiles
                     removeFile (Text.unpack mergedFilename) <|> pure ()
                     for_ ((,) <$> filenames <*> fileContents) \(name, contents) ->
                       env.writeSource name contents True
@@ -453,7 +443,7 @@ doMerge info = do
                       True
                     let createProcess = (Process.shell (Text.unpack mergetool)) {Process.delegate_ctlc = True}
                     Process.withCreateProcess createProcess \_ _ _ -> Process.waitForProcess
-                done (Output.MergeFailureWithMergetool mergeSourceAndTarget temporaryBranchName mergetool exitCode)
+                done (Output.MergeFailureWithMergetool mergeSourceAndTarget mergetool exitCode)
 
         Cli.runTransaction (Codebase.addDefsToCodebase env.codebase typecheckedFile)
         Cli.updateProjectBranchRoot_

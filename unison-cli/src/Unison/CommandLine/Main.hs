@@ -4,7 +4,8 @@ module Unison.CommandLine.Main
 where
 
 import Compat (withInterruptHandler)
-import Control.Exception (catch, displayException, mask)
+import Control.Concurrent (threadDelay)
+import Control.Exception (displayException, mask)
 import Control.Lens ((?~))
 import Control.Lens.Lens
 import Crypto.Random qualified as Random
@@ -21,7 +22,6 @@ import System.Console.Haskeline qualified as Line
 import System.Console.Haskeline.History qualified as Line
 import System.FSNotify qualified as FSNotify
 import System.IO (hGetEcho, hPutStrLn, hSetEcho, stderr, stdin)
-import System.IO.Error (isDoesNotExistError)
 import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
@@ -34,12 +34,13 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch)
 import Unison.Codebase.Editor.HandleInput qualified as HandleInput
 import Unison.Codebase.Editor.Input (Event (UnisonFileChanged), Input (..))
-import Unison.Codebase.Editor.Output (NumberedArgs, Output)
+import Unison.Codebase.Editor.Output (NumberedArgs, Output, outputShouldUsePager)
 import Unison.Codebase.Editor.UCMVersion (UCMVersion)
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine
 import Unison.CommandLine.Completion (haskelineTabComplete)
+import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (fetchIssueFromGitHub, notifyNumbered, notifyUser)
 import Unison.CommandLine.Types (ShouldWatchFiles (..))
@@ -57,7 +58,6 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Pretty qualified as P
 import UnliftIO qualified
-import UnliftIO.Directory qualified as Directory
 import UnliftIO.STM
 
 getUserInput ::
@@ -93,12 +93,20 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
 
     go :: Line.InputT IO Input
     go = do
-      let promptString = P.prettyProjectPath pp
-      let fullPrompt = P.toANSI 80 (P.red (P.string codeserverPrompt) <> promptString <> fromString prompt)
-      line <- Line.getInputLine fullPrompt
+      let statusString = if pp.branch.isUpdate || pp.branch.isUpgrade || pp.branch.isMerge then "🧩 " else ""
+      let branchString = P.prettyProjectPath pp
+      let fullPrompt =
+            P.toANSI 80 $
+              fold
+                [ P.red (P.string codeserverPrompt),
+                  statusString,
+                  branchString,
+                  fromString prompt
+                ]
+      line <- Line.getInputLine $ Text.unpack fullPrompt
       case line of
         Nothing -> pure QuitI
-        Just l -> case words l of
+        Just l -> case fromMaybe [] $ IP.parseArgs l of
           [] -> go
           ws -> do
             liftIO (parseInput codebase pp currentProjectRoot numberedArgs IP.patternMap ws) >>= \case
@@ -113,11 +121,19 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                 go
               Right (Just (expandedArgs, i)) -> do
                 let expandedArgs' = IP.unifyArgument <$> expandedArgs
-                    expandedArgsStr = unwords expandedArgs'
-                when (expandedArgs' /= ws) $ do
-                  liftIO . putStrLn $ fullPrompt <> expandedArgsStr
+                    expandedArgsStr =
+                      expandedArgs'
+                        <&> requote
+                        & unwords
+                when (expandedArgs' /= fmap IP.renderCliArg ws) $ do
+                  liftIO . Text.putStrLn $ fullPrompt <> Text.pack expandedArgsStr
                 Line.modifyHistory $ Line.addHistoryUnlessConsecutiveDupe expandedArgsStr
                 pure i
+    requote :: String -> String
+    requote s =
+      if elem ' ' s
+        then "\"" <> s <> "\""
+        else s
     settings :: Line.Settings IO
     settings =
       Line.Settings
@@ -160,20 +176,25 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
       _ <- Ki.fork scope (Codebase.expectProjectBranchRoot codebase ppIds.project ppIds.branch)
       -- IOSource takes a while to compile, we should start compiling it on startup
       _ <- Ki.fork scope (IO.evaluate IOSource.typecheckedFile)
-      -- Fork the file watcher thread, which returns an IO action we can call to get one filesystem event.
-      awaitFileEvent <- do
-        (fmap . fmap)
-          (\(file, contents) -> UnisonFileChanged (Text.pack file) contents)
-          ( Watch.watchDirectory
-              scope
-              mgr
-              dir
-              -- We could elect to not spawn a file-watching thread at all if --no-file-watch is passed to ucm, but that
-              -- is an extremely uncommon option, this isn't super inefficient, and this makes the types simpler.
-              case shouldWatchFiles of
-                ShouldNotWatchFiles -> const False
-                ShouldWatchFiles -> allow
-          )
+
+      -- Create the watch state for managing all watched paths (including working directory).
+      -- When --no-file-watch is passed, watchState is Nothing.
+      watchState <- case shouldWatchFiles of
+        ShouldNotWatchFiles -> pure Nothing
+        ShouldWatchFiles -> do
+          ws <- Watch.newWatchState mgr allow
+          -- Add the working directory as the first watched path
+          _ <- Watch.watchPath ws dir
+          pure (Just ws)
+
+      -- Await function that gets events from any watched path.
+      -- When --no-file-watch is passed, this blocks forever.
+      let awaitFileEvent :: IO Event
+          awaitFileEvent = case watchState of
+            Nothing -> forever (threadDelay maxBound)
+            Just ws -> do
+              (file, contents) <- Watch.awaitEvent ws
+              pure (UnisonFileChanged (Text.pack file) contents)
 
       -- On startup, we tell the user about any existing project names that don't pass the new project name regex,
       -- which isn't enforced yet.
@@ -210,8 +231,6 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
 
       let initialState = Cli.loopState0 ppIds
       initialInputsRef <- newIORef $ Welcome.run welcome ++ initialInputs ++ invalidProjectNamesInputs
-      pageOutput <- newIORef True
-
       initialEcho <- hGetEcho stdin
       let restoreEcho = (\currentEcho -> when (currentEcho /= initialEcho) $ hSetEcho stdin initialEcho)
       let getInput :: Cli.LoopState -> IO Input
@@ -227,29 +246,12 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               pp
               getProjectRoot
               (loopState ^. #numberedArgs)
-      let loadSourceFile :: Text -> IO Cli.LoadSourceResult
-          loadSourceFile fname =
-            if allow $ Text.unpack fname
-              then
-                let handle :: IOException -> IO Cli.LoadSourceResult
-                    handle e =
-                      case e of
-                        _ | isDoesNotExistError e -> return Cli.InvalidSourceNameError
-                        _ -> return Cli.LoadError
-                    go = do
-                      contents <- readUtf8 $ Text.unpack fname
-                      return $ Cli.LoadSuccess contents
-                 in catch go handle
-              else return Cli.InvalidSourceNameError
       let notify :: Output -> IO ()
-          notify =
-            notifyUser (pure dir) fetchIssueFromGitHub
-              >=> ( \o ->
-                      ifM
-                        (readIORef pageOutput)
-                        (putPrettyNonempty o)
-                        (putPrettyLnUnpaged o)
-                  )
+          notify o = do
+            rendered <- notifyUser (pure dir) fetchIssueFromGitHub o
+            if outputShouldUsePager o
+              then putPrettyNonempty rendered
+              else putPrettyLnUnpaged rendered
 
       let awaitInput :: Cli.LoopState -> IO (Either Event Input)
           awaitInput loopState = do
@@ -266,31 +268,22 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                       [ do
                           event <- Ki.await fileEventThread
                           pure do
-                            writeIORef pageOutput False
                             pure (Left event),
                         do
                           input <- Ki.await userInputThread
-                          pure (pure (Right input))
+                          pure do
+                            pure (Right input)
                       ]
                 action
-
-      let writeSource :: Text -> Text -> Bool -> IO ()
-          writeSource fp contents addFold = do
-            path <- Directory.canonicalizePath (Text.unpack fp)
-            prependUtf8
-              path
-              if addFold
-                then contents <> "\n\n---- Anything below this line is ignored by Unison.\n\n"
-                else contents <> "\n\n"
 
       let env =
             Cli.Env
               { authHTTPClient,
                 codebase,
                 credentialManager,
-                loadSource = loadSourceFile,
+                loadSource = defaultLoadSourceFile,
                 lspCheckForChanges,
-                writeSource,
+                writeSource = defaultWriteSourceFile,
                 generateUniqueName = Parser.uniqueBase32Namegen <$> Random.getSystemDRG,
                 notify,
                 notifyNumbered = \o ->
@@ -300,7 +293,8 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                 sandboxedRuntime = sbRuntime,
                 serverBaseUrl,
                 ucmVersion,
-                isTranscriptTest = False
+                isTranscriptTest = False,
+                watchState = watchState
               }
 
       (onInterrupt, waitForInterrupt) <- buildInterruptHandler
@@ -367,7 +361,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
                           Left _ -> resultState
                           Right inp -> resultState & #lastInput ?~ inp
                     pure (result, sNext)
-              UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step)) >>= \case
+              UnliftIO.race waitForInterrupt (UnliftIO.tryAny (restore step >>= UnliftIO.evaluate)) >>= \case
                 -- SIGINT
                 Left () -> do
                   hPutStrLn stderr "\nAborted."

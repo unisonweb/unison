@@ -6,7 +6,7 @@ module Unison.Merge.Mergeblob
 where
 
 import Control.Monad.Trans.Except qualified as Except
-import Data.Bifoldable (bifold, bifoldMap)
+import Data.Bifoldable (bifoldMap)
 import Data.Bitraversable (bitraverse)
 import Data.List qualified as List
 import Data.Map.Merge.Strict qualified as Map
@@ -14,6 +14,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
+import Data.Text qualified as Text
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DataDeclaration
@@ -36,10 +37,11 @@ import Unison.Merge.Updated (GUpdated (..), Updated)
 import Unison.Name (Name)
 import Unison.Names (Names)
 import Unison.Names qualified as Names
+import Unison.NamesUtils qualified as NamesUtils
 import Unison.Parser.Ann (Ann)
 import Unison.Parsers qualified as Parsers
 import Unison.Prelude
-import Unison.Reference (Reference, Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
+import Unison.Reference (Reference' (..), TermReference, TermReferenceId, TypeReference, TypeReferenceId)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -51,6 +53,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker qualified as Typechecker
 import Unison.Typechecker.TypeLookup (TypeLookup)
+import Unison.Typechecker.Variance qualified as Variance
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UnisonFile
@@ -82,7 +85,10 @@ makeMergeblob ::
   ( ThreeWay (DefnsF Set TermReferenceId TypeReferenceId) ->
     m (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
   ) ->
-  (DefnsF Set TermReferenceId TypeReferenceId -> Set Reference -> m (DefnsF Set TermReferenceId TypeReferenceId)) ->
+  ( DefnsF Set TermReferenceId TypeReferenceId ->
+    DefnsF Set TermReference TypeReference ->
+    m (DefnsF Set TermReferenceId TypeReferenceId)
+  ) ->
   m (Updated Names) ->
   (DefnsF Set TermReference TypeReference -> m (TypeLookup Symbol Ann)) ->
   Diffblob libdep ->
@@ -113,7 +119,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
 
     dependentsIds <- do
       for ((,) <$> ThreeWay.forgetLca blob.defnsIds <*> coreDependencies) \(defns, deps) ->
-        loadDependents defns (bifold deps)
+        loadDependents defns deps
 
     hydratedDefnsById <- do
       let unhydratedConflictsAndDependentsIds :: TwoWay (DefnsF Set TermReferenceId TypeReferenceId)
@@ -138,7 +144,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                 (TypeReferenceId, Decl Symbol Ann)
             )
         hydratedDefnsByName =
-          nameHydratedRefs hydratedDefnsById . bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns
+          nameHydratedRefs hydratedDefnsById . NamesUtils.byName . (.defns) <$> blob.defns
 
     let dependentsNames :: TwoWay (DefnsF Set Name Name)
         dependentsNames =
@@ -174,7 +180,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
           renderUnisonFiles
             authors
             blob.declNameLookups
-            (bimap BiMultimap.range BiMultimap.range . (.defns) <$> blob.defns)
+            (NamesUtils.byName . (.defns) <$> blob.defns)
             hydratedDefnsByName
             libdepsNames
             conflictsNames
@@ -193,7 +199,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                   conflictsNames
                   blob.unconflicts
                   dependentsNames
-                  (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns)
+                  (NamesUtils.byName blob.defns.lca.defns)
 
               parsingEnv =
                 ParsingEnv
@@ -216,7 +222,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                     maybeNamespace = Nothing,
                     localNamespacePrefixedTypesAndConstructors = mempty
                   }
-           in case runIdentity (Parsers.parseFile "<merge>" (Pretty.toPlain 80 unparsedFile) parsingEnv) of
+           in case runIdentity (Parsers.parseFile "<merge>" (Text.unpack $ Pretty.toPlain 80 unparsedFile) parsingEnv) of
                 Left _err -> pure Nothing
                 Right file -> do
                   typeLookup <- loadTypeLookup (UnisonFile.dependencies file)
@@ -226,7 +232,8 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
                             termsByShortname = Map.empty,
                             typeLookup,
                             freeNameToFuzzyTermsByShortName = Map.empty,
-                            topLevelComponents = Map.empty
+                            topLevelComponents = Map.empty,
+                            variances = Variance.fromTypeLookup typeLookup
                           }
                   FileParsers.synthesizeFile typecheckingEnv file
                     & Result.runResultT
@@ -245,7 +252,7 @@ makeMergeblob hydrate loadDependents loadLibdepsNames loadTypeLookup blob author
               conflictsNames
               blob.unconflicts
               dependentsNames
-              (bimap BiMultimap.range BiMultimap.range blob.defns.lca.defns),
+              (NamesUtils.byName blob.defns.lca.defns),
           uniqueTypeGuids =
             Map.mapMaybe (DataDeclaration.uniqueTypeGuid . snd) . (.types)
               <$> ThreeWay.forgetLca hydratedDefnsByName,

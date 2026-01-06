@@ -21,6 +21,7 @@ module Unison.Reference
     TypeReferenceId,
     derivedBase32Hex,
     component,
+    getComponentElem,
     components,
     groupByComponent,
     componentFor,
@@ -59,6 +60,8 @@ import U.Codebase.Reference
     TermReferenceId,
     TypeReference,
     TypeReferenceId,
+    component,
+    getComponentElem,
     idToHash,
     idToShortHash,
     isBuiltin,
@@ -119,6 +122,7 @@ type Size = CycleSize
 type CycleSize = Word64
 
 -- enumerate the `a`s and associates them with corresponding `Reference.Id`s
+-- TODO delete this, it's just `U.Codebase.Reference.component` with swapped tuple elems
 componentFor :: H.Hash -> [a] -> [(Id, a)]
 componentFor h as = [(Id h i, a) | (i, a) <- zip [0 ..] as]
 
@@ -173,11 +177,6 @@ fromText t = case Text.split (== '#') t of
   _ -> bail
   where
     bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
-
-component :: H.Hash -> [k] -> [(k, Id)]
-component h ks =
-  let
-   in [(k, (Id h i)) | (k, i) <- ks `zip` [0 ..]]
 
 components :: [(H.Hash, [k])] -> [(k, Id)]
 components sccs = uncurry component =<< sccs

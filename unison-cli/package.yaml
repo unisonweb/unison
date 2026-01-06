@@ -17,6 +17,7 @@ library:
     - ListLike
     - aeson >= 2.0.0.0
     - aeson-pretty
+    - algebraic-graphs
     - ansi-terminal
     - attoparsec
     - base
@@ -64,7 +65,6 @@ library:
     - random-shuffle
     - raw-strings-qq
     - recover-rtti
-    - regex-tdfa
     - semialign
     - serialise
     - servant
@@ -86,6 +86,7 @@ library:
     - unison-core
     - unison-core1
     - unison-hash
+    - unison-hashing-v2
     - unison-merge
     - unison-parser-typechecker
     - unison-prelude

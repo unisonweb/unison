@@ -45,6 +45,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -66,6 +67,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -87,6 +89,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#ej86si0ur1lsjade71dojr25phk9bbom9rdks6dltolos5tjivakujcriqe02npba53n9gd7tkh8bmv08ttjb9t35lq2ch5heshqcs0",
+                      "fqn": "builtin.Doc2",
                       "tag": "TypeReference"
                   },
                   "segment": "Doc2"
@@ -114,6 +117,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#aql7qk3iud6vs4cvu43aimopoosgk0fnipibdkc3so13adencmibgfn0u5c01r0adei55nkl3ttsjhl8gbj7tr4gnpj63g64ftbq6s0",
+                      "fqn": "builtin.Test.Result",
                       "tag": "TypeReference"
                   },
                   "segment": "Result"
@@ -141,6 +145,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -162,6 +167,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -183,6 +189,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Nat",
+                      "fqn": "Nat",
                       "tag": "TypeReference"
                   },
                   "segment": "Nat"
@@ -204,6 +211,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#altimqs66j3dh94dpab5pg7j5adjrndq61n803j7fg0v0ohdiut6or66bu1fiongpd45s5euiuo8ru47b928aqv8osln1ikdeg05hq0",
+                      "fqn": "Thing",
                       "tag": "TypeReference"
                   },
                   "segment": "Thing"
@@ -225,6 +233,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -246,6 +255,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -267,6 +277,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -288,6 +299,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -309,6 +321,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -330,6 +343,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -351,6 +365,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -372,6 +387,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -393,6 +409,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -414,6 +431,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -435,6 +453,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -456,6 +475,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -477,6 +497,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -498,6 +519,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -519,6 +541,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -540,6 +563,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -561,6 +585,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -582,6 +607,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Text",
+                      "fqn": "builtin.Text",
                       "tag": "TypeReference"
                   },
                   "segment": "Text"
@@ -603,6 +629,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Handle",
+                      "fqn": "builtin.io2.Handle",
                       "tag": "TypeReference"
                   },
                   "segment": "Handle"
@@ -624,6 +651,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##Bytes",
+                      "fqn": "builtin.Bytes",
                       "tag": "TypeReference"
                   },
                   "segment": "Bytes"
@@ -647,6 +675,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "##IO",
+                      "fqn": "builtin.io2.IO",
                       "tag": "TypeReference"
                   },
                   "segment": "IO"
@@ -664,6 +693,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#0o7mf021foma9acqdaibmlh1jidlijq08uf7f5se9tssttqs546pfunjpk6s31mqoq8s2o1natede8hkk6he45l95fibglidikt44v8",
+                      "fqn": "builtin.Either",
                       "tag": "TypeReference"
                   },
                   "segment": "Either"
@@ -675,6 +705,7 @@ RESPONSE:
               {
                   "annotation": {
                       "contents": "#r29dja8j9dmjjp45trccchaata8eo1h6d6haar1eai74pq1jt4m7u3ldhlq79f7phfo57eq4bau39vqotl2h63k7ff1m5sj5o9ajuf8",
+                      "fqn": "builtin.io2.Failure",
                       "tag": "TypeReference"
                   },
                   "segment": "Failure"

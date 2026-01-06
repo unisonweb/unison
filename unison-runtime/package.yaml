@@ -49,6 +49,9 @@ library:
     - condition: false
       other-modules: Paths_unison_runtime
 
+  c-sources:
+    - cbits/i2d.c
+
   dependencies:
     - asn1-encoding
     - asn1-types
@@ -58,7 +61,6 @@ library:
     - binary
     - bytes
     - bytestring
-    - cereal
     - clock
     - containers >= 0.6.3
     - cryptonite
@@ -71,6 +73,7 @@ library:
     - hashable
     - iproute
     - lens
+    - libffi
     - memory
     - mmorph
     - mtl
@@ -94,6 +97,7 @@ library:
     - unison-codebase-sqlite
     - unison-core
     - unison-core1
+    - unison-dynlib
     - unison-hash
     - unison-parser-typechecker
     - unison-prelude
@@ -119,8 +123,7 @@ tests:
         other-modules: Paths_unison_parser_typechecker
     dependencies:
       - base
-      - bytes
-      - cereal
+      - bytestring
       - code-page
       - containers
       - cryptonite

@@ -65,7 +65,7 @@ handleStructuredFindReplaceI rule = do
       uf' = (vs, finish uf0')
   #latestTypecheckedFile .= Just (Left . snd $ uf')
   let msg = "| Rewrote using: "
-  let rendered = Text.pack . P.toPlain 80 $ renderRewrittenFile ppe msg uf'
+  let rendered = P.toPlain 80 $ renderRewrittenFile ppe msg uf'
   liftIO $ env.writeSource (Text.pack dest) rendered True
   Cli.respond $ OutputRewrittenFile dest vs
 
@@ -132,6 +132,10 @@ handleTextFindI allowLib tokens = do
             r = join $ Pattern.foldMap' txtPattern . Term.matchPattern <$> cases
         txts _ = ABT.Continue
         txtPattern (Pattern.Text _ txt) = [txt]
+        txtPattern (Pattern.Nat _ n) = [Text.pack (show n)]
+        txtPattern (Pattern.Int _ n) = [Text.pack (show n)]
+        txtPattern (Pattern.Float _ n) = [Text.pack (show n)]
+        txtPattern (Pattern.Char _ c) = [Text.pack [c]]
         txtPattern _ = []
 
 lookupRewrite ::

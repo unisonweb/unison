@@ -29,13 +29,10 @@ import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
-import Unison.Codebase.Editor.HandleInput.RuntimeUtils
-  ( EvalMode (..),
-    modeProfSpec,
-  )
+import Unison.Codebase.Editor.HandleInput.RuntimeUtils (EvalMode (..), modeProfSpec)
 import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.Editor.SlurpResult (SlurpEntry (..), TermSlurp (..))
+import Unison.Codebase.Editor.SlurpResult (TermSlurp (..), TypeSlurp (..))
 import Unison.Codebase.Execute qualified as Codebase
 import Unison.Codebase.ProjectPath (ProjectPathG (..))
 import Unison.Codebase.Runtime qualified as Runtime
@@ -43,11 +40,12 @@ import Unison.Codebase.Runtime.Profile (ProfileSpec (NoProf))
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.DataDeclaration (DeclOrBuiltin)
 import Unison.DataDeclaration qualified as DataDeclaration
-import Unison.DataDeclaration qualified as DeclOrBuiltin (DeclOrBuiltin (..))
 import Unison.FileParsers qualified as FileParsers
+import Unison.Merge (GUpdated (..))
 import Unison.Name (Name)
 import Unison.Names (Names (..))
 import Unison.Names qualified as Names
+import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Parsers qualified as Parsers
@@ -68,6 +66,7 @@ import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
+import Unison.Typed (Typed (..))
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -76,7 +75,8 @@ import Unison.Util.Relation (Relation)
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Timing qualified as Timing
 import Unison.Var qualified as Var
-import Unison.WatchKind qualified as WK
+import Unison.WatchKind (WatchKind)
+import Unison.WatchKind qualified as WatchKind
 
 handleLoad :: Maybe FilePath -> Cli ()
 handleLoad maybePath = do
@@ -194,7 +194,7 @@ slurpTerms ::
   Bool ->
   Map Name (Set Referent) ->
   Map Name (Set Referent) ->
-  Sqlite.Transaction (Map Name (TermSlurp Symbol Ann))
+  Sqlite.Transaction (Map Name TermSlurp)
 slurpTerms codebase unisonFile isUpdate =
   Map.mergeA
     ( if isUpdate
@@ -202,7 +202,7 @@ slurpTerms codebase unisonFile isUpdate =
           case Set.findMin refs of
             Referent.Ref ref -> do
               ty <- Codebase.expectTypeOfTerm codebase ref
-              pure (Just (TermSlurp'Delete ref ty))
+              pure (Just (TermSlurp'Delete (Typed ref ty)))
             Referent.Con _ _ -> pure Nothing
         else Map.dropMissing
     )
@@ -210,7 +210,7 @@ slurpTerms codebase unisonFile isUpdate =
         case Set.findMin refs of
           Referent.Ref ref -> do
             ty <- getNewRefType name ref
-            pure (Just (TermSlurp'Add ref ty))
+            pure (Just (TermSlurp'Add (Typed ref ty)))
           Referent.Con _ _ -> pure Nothing
     )
     ( Map.zipWithMaybeAMatched \name oldRefs newRefs ->
@@ -227,15 +227,15 @@ slurpTerms codebase unisonFile isUpdate =
                   else do
                     oldType <- Codebase.expectTypeOfTerm codebase oldRef1
                     newType <- getNewRefType name newRef1
-                    pure (Just (TermSlurp'Update oldRef oldType newRef newType))
+                    pure (Just (TermSlurp'Update (Updated (Typed oldRef oldType) (Typed newRef newType))))
               (Referent.Con oldRef1 _, Referent.Ref newRef1) -> do
                 oldType <- Codebase.expectTypeOfConstructor codebase oldRef1
                 newType <- getNewRefType name newRef1
-                pure (Just (TermSlurp'Update oldRef oldType newRef newType))
+                pure (Just (TermSlurp'Update (Updated (Typed oldRef oldType) (Typed newRef newType))))
               (Referent.Ref oldRef1, Referent.Con newRef1 _) -> do
                 oldType <- Codebase.expectTypeOfTerm codebase oldRef1
                 newType <- getNewConType name newRef1
-                pure (Just (TermSlurp'Update oldRef oldType newRef newType))
+                pure (Just (TermSlurp'Update (Updated (Typed oldRef oldType) (Typed newRef newType))))
               (Referent.Con _ _, Referent.Con _ _) ->
                 pure Nothing
     )
@@ -246,11 +246,38 @@ slurpTerms codebase unisonFile isUpdate =
         Just (ConstructorReference _ conId, decl) ->
           pure (DataDeclaration.expectTypeOfConstructor (DataDeclaration.asDataDecl decl) conId)
         Nothing -> Codebase.expectTypeOfConstructor codebase ref
+
     getNewRefType :: Name -> TermReference -> Sqlite.Transaction (Type Symbol Ann)
     getNewRefType name ref =
       case Map.lookup (Name.toVar name) (UF.hashTermsId unisonFile) of
         Just (_, _, _, _, ty) -> pure ty
-        Nothing -> Codebase.expectTypeOfTerm codebase ref
+        Nothing ->
+          -- This is super unlikely in practice (but has been observed in a transcript) - the term name matches an
+          -- unnamed test watch's generated name. In this case, the map lookup above (by Name.toVar name) won't find the
+          -- unnamed test watch, as it has a var type of UnnamedWatch, not User.
+          case Map.lookup name unnamedTestWatchesByName of
+            Nothing -> Codebase.expectTypeOfTerm codebase ref
+            Just ty -> pure ty
+
+    unnamedTestWatchesByName :: Map Name (Type Symbol Ann)
+    unnamedTestWatchesByName =
+      foldr f Map.empty unisonFile.watchComponents
+      where
+        f ::
+          (WatchKind, [(Symbol, Ann, Term Symbol Ann, Type Symbol Ann)]) ->
+          Map Name (Type Symbol Ann) ->
+          Map Name (Type Symbol Ann)
+        f (WatchKind.TestWatch, component) acc = foldr g acc component
+        f _ acc = acc
+
+        g ::
+          (Symbol, Ann, Term Symbol Ann, Type Symbol Ann) ->
+          Map Name (Type Symbol Ann) ->
+          Map Name (Type Symbol Ann)
+        g (var, _, _, ty) acc =
+          case Var.typeOf var of
+            Var.UnnamedWatch _ _ -> Map.insert (Name.unsafeParseVar var) ty acc
+            _ -> acc
 
 slurpTypes ::
   Codebase m Symbol Ann ->
@@ -258,14 +285,14 @@ slurpTypes ::
   Bool ->
   Map Name (Set TypeReference) ->
   Map Name (Set TypeReference) ->
-  Sqlite.Transaction (Map Name (SlurpEntry (DeclOrBuiltin Symbol Ann)))
+  Sqlite.Transaction (Map Name TypeSlurp)
 slurpTypes codebase unisonFile isUpdate =
   Map.mergeA
     ( if isUpdate
-        then Map.traverseMissing \_ -> fmap SlurpEntry'Delete . getOldDecl . Set.findMin
+        then Map.traverseMissing \_ -> fmap TypeSlurp'Delete . getOldDecl . Set.findMin
         else Map.dropMissing
     )
-    (Map.traverseMissing \name -> fmap SlurpEntry'Add . getNewDecl name . Set.findMin)
+    (Map.traverseMissing \name -> fmap TypeSlurp'Add . getNewDecl name . Set.findMin)
     ( Map.zipWithMaybeAMatched \name oldRefs newRefs ->
         let oldRef = Set.findMin oldRefs
             newRef = Set.findMin newRefs
@@ -273,44 +300,43 @@ slurpTypes codebase unisonFile isUpdate =
               then fmap Just do
                 oldDecl <- getOldDecl oldRef
                 newDecl <- getNewDecl name newRef
-                pure (SlurpEntry'Update oldDecl newDecl)
+                pure (TypeSlurp'Update (Updated oldDecl newDecl))
               else
                 pure
                   if isUpdate
                     then case UF.lookupDecl (Name.toVar name) unisonFile of
                       Nothing -> Nothing
-                      Just _ -> Just SlurpEntry'Unchanged
-                    else Just SlurpEntry'Unchanged
+                      Just _ -> Just TypeSlurp'Unchanged
+                    else Just TypeSlurp'Unchanged
     )
   where
     getOldDecl :: TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
     getOldDecl = \case
-      Reference.DerivedId ref -> DeclOrBuiltin.Decl <$> Codebase.unsafeGetTypeDeclaration codebase ref
-      Reference.Builtin builtin -> pure (DeclOrBuiltin.Builtin (Builtin.expectBuiltinConstructorType builtin))
+      Reference.DerivedId ref -> NotBuiltin <$> Codebase.unsafeGetTypeDeclaration codebase ref
+      Reference.Builtin builtin -> pure (Builtin (Builtin.expectBuiltinConstructorType builtin))
     getNewDecl :: Name -> TypeReference -> Sqlite.Transaction (DeclOrBuiltin Symbol Ann)
     getNewDecl name = \case
       Reference.DerivedId ref ->
         case UF.lookupDecl (Name.toVar name) unisonFile of
-          Just (_, decl) -> pure (DeclOrBuiltin.Decl decl)
-          Nothing -> DeclOrBuiltin.Decl <$> Codebase.unsafeGetTypeDeclaration codebase ref
-      Reference.Builtin builtin ->
-        pure (DeclOrBuiltin.Builtin (Builtin.expectBuiltinConstructorType builtin))
+          Just (_, decl) -> pure (NotBuiltin decl)
+          Nothing -> NotBuiltin <$> Codebase.unsafeGetTypeDeclaration codebase ref
+      Reference.Builtin builtin -> pure (Builtin (Builtin.expectBuiltinConstructorType builtin))
 
-getTermAliases :: Relation Name Referent -> Map Name (TermSlurp Symbol Ann) -> Map Referent (NESet Name)
+getTermAliases :: Relation Name Referent -> Map Name TermSlurp -> Map Referent (NESet Name)
 getTermAliases existingTerms slurpTerms =
   -- For the purpose of identifying aliases to call out, we omit names that are changing by this update.
   let (changedNames, changedRefs) =
         Map.foldlWithKey'
           ( \ ~acc@(names, refs) name -> \case
-              TermSlurp'Add ref _ ->
+              TermSlurp'Add (Typed ref _) ->
                 let !names1 = Set.insert name names
                     !refs1 = Set.insert (Referent.Ref ref) refs
                  in (names1, refs1)
-              TermSlurp'Delete ref _ ->
+              TermSlurp'Delete (Typed ref _) ->
                 let !names1 = Set.insert name names
                     !refs1 = Set.insert (Referent.Ref ref) refs
                  in (names1, refs1)
-              TermSlurp'Update old _ new _ ->
+              TermSlurp'Update (Updated (Typed old _) (Typed new _)) ->
                 let !names1 = Set.insert name names
                     !refs1 = Set.insert new (Set.insert old refs)
                  in (names1, refs1)
@@ -427,7 +453,7 @@ evalUnisonFile ::
     ( Either
         Error
         ( [(Symbol, Term Symbol ())],
-          Map Symbol (Ann, WK.WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
+          Map Symbol (Ann, WatchKind, Reference.Id, Term Symbol (), Term Symbol (), Bool)
         )
     )
 evalUnisonFile mode ppe unisonFile args = do

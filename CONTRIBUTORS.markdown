@@ -93,3 +93,6 @@ The format for this list: name, GitHub handle
 * Manish Bhasin (@xmbhasin)
 * Erik Schnetter (@eschnett)
 * Régis Kuckaertz (@regiskuckaertz)
+* Emil Petersen (@leetemil)
+* Lars Wilhelmsen (@larsw)
+* Nic Luciano (@kn0ll)

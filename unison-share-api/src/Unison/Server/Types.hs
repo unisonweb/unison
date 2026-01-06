@@ -10,6 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bitraversable (Bitraversable (..))
 import Data.ByteString.Lazy qualified as LZ
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.OpenApi
   ( OpenApiType (..),
@@ -54,6 +55,7 @@ import Unison.Server.Syntax qualified as Syntax
 import Unison.ShortHash (ShortHash)
 import Unison.Syntax.HashQualified qualified as HQ (parseText)
 import Unison.Syntax.Name qualified as Name
+import Unison.Util.AnnotatedText (Segment)
 import Unison.Util.Pretty (Width (..))
 
 type APIHeaders x =
@@ -287,28 +289,22 @@ data TypeTag = Ability | Data
 -- | A type for semantic diffing of definitions.
 -- Includes special-cases for when the name in a definition has changed but the hash hasn't
 -- (rename/alias), and when the hash has changed but the name hasn't (update propagation).
-data SemanticSyntaxDiff
-  = Old [Syntax.SyntaxSegment]
-  | New [Syntax.SyntaxSegment]
-  | Both [Syntax.SyntaxSegment]
+data SemanticSyntaxDiff a
+  = OnlyThisSide (NonEmpty (Segment a))
+  | Both (NonEmpty (Segment a))
   | --  (fromSegment, toSegment) (shared annotation)
-    SegmentChange (String, String) (Maybe Syntax.Element)
+    SegmentChange (Text, Text) (Maybe a)
   | -- (shared segment) (fromAnnotation, toAnnotation)
-    AnnotationChange String (Maybe Syntax.Element, Maybe Syntax.Element)
+    AnnotationChange Text (Maybe a, Maybe a)
   deriving (Eq, Show, Ord, Generic)
 
-deriving instance ToSchema SemanticSyntaxDiff
+deriving instance (ToSchema a) => ToSchema (SemanticSyntaxDiff a)
 
-instance ToJSON SemanticSyntaxDiff where
+instance (ToJSON a) => ToJSON (SemanticSyntaxDiff a) where
   toJSON = \case
-    Old segments ->
+    OnlyThisSide segments ->
       object
-        [ "diffTag" .= ("old" :: Text),
-          "elements" .= segments
-        ]
-    New segments ->
-      object
-        [ "diffTag" .= ("new" :: Text),
+        [ "diffTag" .= ("oneSided" :: Text),
           "elements" .= segments
         ]
     Both segments ->
@@ -331,12 +327,11 @@ instance ToJSON SemanticSyntaxDiff where
           "toAnnotation" .= toAnnotation
         ]
 
-instance FromJSON SemanticSyntaxDiff where
+instance (FromJSON a) => FromJSON (SemanticSyntaxDiff a) where
   parseJSON = Aeson.withObject "SemanticSyntaxDiff" \obj -> do
     diffTag :: Text <- obj .: "diffTag"
     case diffTag of
-      "old" -> Old <$> obj .: "elements"
-      "new" -> New <$> obj .: "elements"
+      "one-sided" -> OnlyThisSide <$> obj .: "elements"
       "both" -> Both <$> obj .: "elements"
       "segmentChange" -> do
         fromSegment <- obj .: "fromSegment"
@@ -350,13 +345,79 @@ instance FromJSON SemanticSyntaxDiff where
         pure $ AnnotationChange segment (fromAnnotation, toAnnotation)
       _ -> fail "Invalid diffTag"
 
+data Changed a
+  = Changed a
+  | Unchanged a
+  | Spacer
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+instance (ToJSON a) => ToJSON (Changed a) where
+  toJSON = \case
+    Changed a ->
+      object
+        [ "kind" .= ("changed" :: Text),
+          "value" .= a
+        ]
+    Unchanged a ->
+      object
+        [ "kind" .= ("unchanged" :: Text),
+          "value" .= a
+        ]
+    Spacer ->
+      object
+        [ "kind" .= ("spacer" :: Text)
+        ]
+
+instance (FromJSON a) => FromJSON (Changed a) where
+  parseJSON = Aeson.withObject "Changed" \obj -> do
+    kind :: Text <- obj .: "kind"
+    case kind of
+      "changed" -> Changed <$> obj .: "value"
+      "unchanged" -> Unchanged <$> obj .: "value"
+      "spacer" -> pure Spacer
+      _ -> fail "Invalid kind"
+
+deriving instance (ToSchema a) => ToSchema (Changed a)
+
+data LinewiseDiff a = LinewiseDiff
+  { lhsLines :: [Changed [a]],
+    rhsLines :: [Changed [a]]
+  }
+  deriving stock (Eq, Show, Ord, Generic, Functor, Foldable, Traversable)
+
+deriving instance (ToSchema a) => ToSchema (LinewiseDiff a)
+
+instance (ToJSON a) => ToJSON (LinewiseDiff a) where
+  toJSON LinewiseDiff {..} =
+    object
+      [ "left" .= lhsLines,
+        "right" .= rhsLines
+      ]
+
+instance (FromJSON a) => FromJSON (LinewiseDiff a) where
+  parseJSON = Aeson.withObject "LinewiseDiff" \obj -> do
+    lhsLines <- obj .: "left"
+    rhsLines <- obj .: "right"
+    pure $ LinewiseDiff {..}
+
+-- Diff data can be one-sided or have a counter-part on the other side of the diff.
+-- We can use this to represent things like name-changes for the same hash, or hash-changes for the same name.
+data Paired a
+  = OneSided a
+  | Paired a a
+  deriving (Eq, Ord, Show)
+
+swapPair :: Paired a -> Paired a
+swapPair (OneSided a) = OneSided a
+swapPair (Paired a b) = Paired b a
+
 -- | A diff of the syntax of a term or type
 --
 -- It doesn't make sense to diff builtins with ABTs, so in that case we just provide the
 -- undiffed syntax.
 data DisplayObjectDiff
-  = DisplayObjectDiff (DisplayObject [SemanticSyntaxDiff] [SemanticSyntaxDiff])
-  | MismatchedDisplayObjects (DisplayObject Syntax.SyntaxText Syntax.SyntaxText) (DisplayObject Syntax.SyntaxText Syntax.SyntaxText)
+  = DisplayObjectDiff (DisplayObject (LinewiseDiff (SemanticSyntaxDiff Syntax.Element)) (LinewiseDiff (SemanticSyntaxDiff Syntax.Element)))
+  | MismatchedDisplayObjects (DisplayObject SyntaxText SyntaxText) (DisplayObject SyntaxText SyntaxText)
   deriving stock (Show, Eq, Ord, Generic)
 
 deriving instance ToSchema DisplayObjectDiff

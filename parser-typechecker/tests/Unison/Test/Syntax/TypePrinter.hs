@@ -5,6 +5,7 @@
 module Unison.Test.Syntax.TypePrinter where
 
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 import EasyTest
 import Unison.Builtin qualified
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -22,7 +23,7 @@ tc_diff_rtt :: Bool -> String -> String -> PP.Width -> Test ()
 tc_diff_rtt rtt s expected width =
   let input_type = Common.t s
       get_names = PPE.makePPE (PPE.hqNamer Common.hqLength Unison.Builtin.names) PPE.dontSuffixify
-      prettied = fmap toPlain $ PP.syntaxToColor . runPretty get_names $ prettyRaw Map.empty (-1) input_type
+      prettied = fmap (Text.unpack . toPlain) $ PP.syntaxToColor . runPretty get_names $ prettyRaw Map.empty (-1) input_type
       actual = PP.render width prettied
       actual_reparsed = Common.t actual
    in scope s $

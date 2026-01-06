@@ -6,6 +6,7 @@ module Unison.Syntax.TermPrinter
     pretty',
     prettyBinding,
     prettyBinding',
+    prettyBindingForDiff,
     prettyBindingWithoutTypeSignature,
     prettyDoc2,
     pretty0,
@@ -234,19 +235,19 @@ pretty0
           Ref' r -> do
             env <- ask
             let name = elideFQN im $ PrettyPrintEnv.termName env.ppe (Referent.Ref r)
-            pure . parenIfInfix name ic $ styleHashQualified'' (fmt $ S.TermReference (Referent.Ref r)) name
+            pure . parenIfInfix name ic $ styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN env.ppe (Referent.Ref r)) (Referent.Ref r)) name
           TermLink' r -> do
             env <- ask
             let name = elideFQN im $ PrettyPrintEnv.termName env.ppe r
             pure . paren (p >= Application) $
               fmt S.LinkKeyword "termLink "
-                <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TermReference r) name)
+                <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN env.ppe r) r) name)
           TypeLink' r -> do
             env <- ask
             let name = elideFQN im $ PrettyPrintEnv.typeName env.ppe r
             pure . paren (p >= Application) $
               fmt S.LinkKeyword "typeLink "
-                <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TypeReference r) name)
+                <> parenIfInfix name ic (styleHashQualified'' (fmt $ S.TypeReference (PrettyPrintEnv.typeFQN env.ppe r) r) name)
           Ann' tm t -> do
             tm' <- pretty0 (ac Application Normal im doc) tm
             tp' <- TypePrinter.pretty0 im 0 t
@@ -262,22 +263,24 @@ pretty0
           --      metaprograms), then it needs to be able to print them (and then the
           --      parser ought to be able to parse them, to maintain symmetry.)
           Boolean' b -> pure . fmt S.BooleanLiteral $ if b then l "true" else l "false"
-          Text' s
-            | Just quotes <- useRaw s ->
-                pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> "\n" <> PP.text quotes
-            where
-              -- we only use this syntax if we're not wrapped in something else,
-              -- to avoid possible round trip issues if the text ends at an odd column
-              useRaw _ | p >= Annotation = Nothing
-              useRaw s | Text.elem '\n' s && Text.all ok s = Just quotes
-              useRaw _ = Nothing
-              ok ch = isPrint ch || ch == '\n'
-              -- Picks smallest number of surrounding """ to be unique
-              quotes = Text.pack (replicate numQuotes '"')
-              numQuotes = max 3 $ longestRun '"' s + 1
-              longestRun :: Char -> Text -> Int
-              longestRun c = maximum . (0 :) . map Text.length . filter ((== c) . Text.head) . Text.group
-          Text' s -> pure . fmt S.TextLiteral $ l $ U.ushow s
+          Text' s -> do
+            env <- ask
+            -- Use raw strings (triple-quoted) for multiline text when:
+            -- 1. forceRawStrings is True (for diff output), OR
+            -- 2. We're not wrapped in something else (p < Annotation)
+            -- AND the text contains newlines and only printable chars
+            let useRawAllowed = env.forceRawStrings || p < Annotation
+                canUseRaw = useRawAllowed && Text.elem '\n' s && Text.all ok s
+                ok ch = isPrint ch || ch == '\n'
+                -- Picks smallest number of surrounding """ to be unique
+                quotes = Text.pack (replicate numQuotes '"')
+                numQuotes = max 3 $ longestRun '"' s + 1
+                longestRun :: Char -> Text -> Int
+                longestRun c = maximum . (0 :) . map Text.length . filter ((== c) . Text.head) . Text.group
+            pure $
+              if canUseRaw
+                then fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> "\n" <> PP.text quotes
+                else fmt S.TextLiteral $ l $ U.ushow s
           Char' c -> pure
             . fmt S.CharLiteral
             . l
@@ -289,12 +292,12 @@ pretty0
             env <- ask
             let name = elideFQN im $ PrettyPrintEnv.termName env.ppe conRef
                 conRef = Referent.Con ref CT.Data
-            pure $ styleHashQualified'' (fmt $ S.TermReference conRef) name
+            pure $ styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN env.ppe conRef) conRef) name
           Request' ref -> do
             env <- ask
             let name = elideFQN im $ PrettyPrintEnv.termName env.ppe conRef
                 conRef = Referent.Con ref CT.Effect
-            pure $ styleHashQualified'' (fmt $ S.TermReference conRef) name
+            pure $ styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN env.ppe conRef) conRef) name
           Handle' h body -> do
             pb <- pretty0 (ac Annotation Block im doc) body
             ph <- pretty0 (ac Annotation Block im doc) h
@@ -317,27 +320,31 @@ pretty0
                         <> fmt S.ControlKeyword "with"
                           `hangHandler` ph
                     ]
-          Delay' x
-            | Match' _ _ <- x -> do
+          Delay' x@(Match' scrutinee cs)
+            | not (isDestructuringBind scrutinee cs) -> do
                 px <- pretty0 (ac Annotation Block im doc) x
                 let hang = if isSoftHangable x then PP.softHang else PP.hang
                 pure . paren (p > Control) $
                   fmt S.ControlKeyword "do" `hang` px
-            | otherwise -> do
-                let (im0', uses0) = calcImports im x
-                let allowUses = isLet x || (p == Bottom)
-                let im' = if allowUses then im0' else im
-                let uses = if allowUses then uses0 else []
-                let soft = isSoftHangable x && null uses && p < Annotation
-                let hang = if soft then PP.softHang else PP.hang
-                px <- pretty0 (ac Annotation Block im' doc) x
-                -- this makes sure we get proper indentation if `px` spills onto
-                -- multiple lines, since `do` introduces layout block
-                let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
-                pure . paren (p > Control) $
-                  fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
+          Delay' x -> do
+            let (im0', uses0) = calcImports im x
+            let allowUses = isLet x || (p == Bottom) || isDestructure x
+                  where
+                    isDestructure (Match' scrutinee cs) = isDestructuringBind scrutinee cs
+                    isDestructure _ = False
+            let im' = if allowUses then im0' else im
+            let uses = if allowUses then uses0 else []
+            let soft = isSoftHangable x && null uses && p < Annotation
+            let hang = if soft then PP.softHang else PP.hang
+            px <- pretty0 (ac Annotation Block im' doc) x
+            -- this makes sure we get proper indentation if `px` spills onto
+            -- multiple lines, since `do` introduces layout block
+            let indent = PP.Width (if soft then 2 else 0) + (if soft && p < Application then 1 else 0)
+            pure . paren (p > Control) $
+              fmt S.ControlKeyword "do" `hang` PP.lines (uses <> [PP.indentNAfterNewline indent px])
           List' xs -> do
-            let listLink p = fmt (S.TypeReference Type.listRef) p
+            env <- ask
+            let listLink p = fmt (S.TypeReference (PrettyPrintEnv.typeFQN env.ppe Type.listRef) Type.listRef) p
             let comma = listLink ", " `PP.orElse` ("\n" <> listLink ", ")
             pelems <- traverse (fmap (PP.indentNAfterNewline 2) . pretty0 (ac Annotation Normal im doc)) xs
             let open = listLink "[" `PP.orElse` listLink "[ "
@@ -540,13 +547,14 @@ pretty0
                 let conRef = DD.pairCtorRef
                 env <- ask
                 let name = elideFQN im (PrettyPrintEnv.termName env.ppe conRef)
-                let pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.TermReference conRef)) name
+                let pair = parenIfInfix name ic $ styleHashQualified'' (fmt (S.TermReference (PrettyPrintEnv.termFQN env.ppe conRef) conRef)) name
                 x' <- pretty0 (ac Application Normal im doc) x
                 pure . paren (p >= Application) $
                   pair
-                    `PP.hang` PP.spaced [x', fmt (S.TermReference DD.unitCtorRef) "()"]
+                    `PP.hang` PP.spaced [x', fmt (S.TermReference (PrettyPrintEnv.termFQN env.ppe DD.unitCtorRef) DD.unitCtorRef) "()"]
               (TupleTerm' xs, _) -> do
-                let tupleLink p = fmt (S.TypeReference DD.pairRef) p
+                env <- ask
+                let tupleLink p = fmt (S.TypeReference (PrettyPrintEnv.typeFQN env.ppe DD.pairRef) DD.pairRef) p
                 let comma = tupleLink ", " `PP.orElse` ("\n" <> tupleLink ", ")
                 pelems <- traverse (fmap (PP.indentNAfterNewline 2) . goNormal Annotation) xs
                 let clist = PP.sep comma pelems
@@ -650,8 +658,7 @@ pretty0
 
       isDelay (Delay' _) = True
       isDelay _ = False
-      sepList' f sep xs = fold . intersperse sep <$> traverse f xs
-      varList = runIdentity . sepList' (Identity . PP.text . Var.name) PP.softbreak
+      varList = intercalateMap PP.softbreak prettyBinder
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
       nonForcePred = \case
@@ -692,8 +699,12 @@ printLetBindings ::
 printLetBindings context = \case
   LetBindings bindings -> traverse (printLetBinding context) bindings
   LetrecBindings bindings ->
-    let boundVars = map fst bindings
-     in traverse (printLetrecBinding context boundVars) bindings
+    -- We order let-rec bindings alphabetically rather than hash-ordered when printing
+    -- improve diffing alignment (and sanity). They'll be re-ordered back to hash order when
+    -- parsed.
+    let orderedBindings = sort bindings
+        boundVars = map fst orderedBindings
+     in traverse (printLetrecBinding context boundVars) orderedBindings
 
 printLetBinding :: (MonadPretty v m) => AmbientContext -> (v, Term3 v PrintAnnotation) -> m (Pretty SyntaxText)
 printLetBinding context (v, binding)
@@ -742,7 +753,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
         let (pats_printed, tail_vs) = patterns Bottom vs pats
          in (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref [] ->
-    (styleHashQualified'' (fmt $ S.TermReference conRef) name, vs)
+    (styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN n conRef) conRef) name, vs)
     where
       name = elideFQN im $ PrettyPrintEnv.termName n conRef
       conRef = Referent.Con ref CT.Data
@@ -751,7 +762,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
         name = elideFQN im $ PrettyPrintEnv.termName n conRef
         conRef = Referent.Con ref CT.Data
      in ( paren (p >= Application) $
-            styleHashQualified'' (fmt $ S.TermReference conRef) name
+            styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN n conRef) conRef) name
               `PP.hang` pats_printed,
           tail_vs
         )
@@ -772,7 +783,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
      in ( PP.group
             ( PP.sep " " . PP.nonEmpty $
                 [ fmt S.DelimiterChar "{",
-                  styleHashQualified'' (fmt (S.TermReference conRef)) name,
+                  styleHashQualified'' (fmt (S.TermReference (PrettyPrintEnv.termFQN n conRef) conRef)) name,
                   pats_printed,
                   fmt S.ControlKeyword "->",
                   k_pat_printed,
@@ -966,6 +977,17 @@ prettyBinding_ ::
 prettyBinding_ go ppe n tm =
   runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
 
+-- | Like 'prettyBinding', but uses raw strings for multiline text literals.
+-- This is useful for diff output where we want actual newlines for better diffing.
+prettyBindingForDiff ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyBindingForDiff ppe n tm =
+  runPrettyForDiff (avoidShadowing tm ppe) . fmap renderPrettyBinding $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
+
 prettyBinding' ::
   (Var v) =>
   PrettyPrintEnv ->
@@ -1069,20 +1091,20 @@ prettyBinding0' a@AmbientContext {imports = im, docContext = doc} v term =
               x : y : _ ->
                 PP.sep
                   " "
-                  [ fmt S.Var $ PP.text (Var.name x),
+                  [ fmt S.Var $ prettyBinder x,
                     styleHashQualified'' (fmt $ S.HashQualifier v) $ elideFQN im v,
-                    fmt S.Var $ PP.text (Var.name y)
+                    fmt S.Var $ prettyBinder y
                   ]
               [x] ->
                 PP.sep
                   " "
                   [ renderName v,
-                    fmt S.Var $ PP.text (Var.name x)
+                    fmt S.Var $ prettyBinder x
                   ]
               _ -> l "error"
           | null vs = renderName v
           | otherwise = renderName v `PP.hang` args vs
-        args = PP.spacedMap $ fmt S.Var . PP.text . Var.name
+        args = PP.spacedMap $ fmt S.Var . prettyBinder
         renderName n =
           let n' = elideFQN im n
            in parenIfInfix n' NonInfix $ styleHashQualified'' (fmt $ S.HashQualifier n') n'
@@ -1119,9 +1141,9 @@ prettyDoc n im term =
     go (DD.DocJoin segs) = foldMap go segs
     go (DD.DocBlob txt) = PP.paragraphyText (escaped txt)
     go (DD.DocLink (DD.LinkTerm (TermLink' r))) =
-      curlyRef . fmt (S.TermReference r) $ fmtTerm r
+      curlyRef . fmt (S.TermReference (PrettyPrintEnv.termFQN n r) r) $ fmtTerm r
     go (DD.DocLink (DD.LinkType (TypeLink' r))) =
-      curlyRef $ fmt S.DocKeyword (l "type ") <> fmt (S.TypeReference r) (fmtType r)
+      curlyRef $ fmt S.DocKeyword (l "type ") <> fmt (S.TypeReference (PrettyPrintEnv.typeFQN n r) r) (fmtType r)
     go (DD.DocSource (DD.LinkTerm (TermLink' r))) =
       atKeyword "source" $ fmtTerm r
     go (DD.DocSource (DD.LinkType (TypeLink' r))) =
@@ -1337,8 +1359,9 @@ suffixCounterType n used = \case
 
 printAnnotate :: (HasCallStack, Var v, Ord v) => PrettyPrintEnv -> Term2 v at ap v a -> Term3 v PrintAnnotation
 printAnnotate n tm =
-  fmap snd (go (reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm))
+  fmap snd (go annotated)
   where
+    annotated = reannotateUp (suffixCounterTerm n usedTermNames usedTypeNames) tm
     -- See `countHQ` to see how these are used to make sure that
     -- a `use` clause doesn't introduce shadowing of a local variable
     usedTermNames =
@@ -1348,6 +1371,23 @@ printAnnotate n tm =
     varToName = toList . Name.parseText . Var.name . Var.reset
     go :: (Ord v) => Term2 v at ap v b -> Term2 v () () v b
     go = extraMap' id (const ()) (const ())
+    isLiteral :: Term2 v at ap v a -> Bool
+    isLiteral (Bytes' _) = True
+    isLiteral _ = False
+    reannotateUp g t = case ABT.out t of
+      ABT.Var v -> ABT.annotatedVar (annotation t, g t) v
+      ABT.Cycle body ->
+        let body' = reannotateUp g body
+         in ABT.cycle' (annotation t, snd (annotation body')) body'
+      ABT.Abs v body ->
+        let body' = reannotateUp g body
+         in ABT.abs' (annotation t, snd (annotation body')) v body'
+      ABT.Tm body ->
+        -- literals like 0xsaaff don't contribute to the annotations
+        -- even though they desugar to function calls
+        let body' = reannotateUp g <$> body
+            ann = if isLiteral t then mempty else g t <> foldMap (snd . annotation) body'
+         in ABT.tm' (annotation t, ann) body'
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Set Name -> Type v a -> PrintAnnotation
 countTypeUsages n usedTy t = snd $ annotation $ reannotateUp (suffixCounterType n usedTy) t
@@ -1886,10 +1926,10 @@ unLamsMatch' t = case unLamsUntilDelay' t of
           rhsVars = ABT.freeVars rhs
        in Set.union guardVars rhsVars
 
-pattern Bytes' :: [Word64] -> Term3 v PrintAnnotation
+pattern Bytes' :: [Word64] -> Term2 v at ap v a
 pattern Bytes' bs <- (toBytes -> Just bs)
 
-toBytes :: Term3 v PrintAnnotation -> Maybe [Word64]
+toBytes :: Term2 v at ap v a -> Maybe [Word64]
 toBytes (App' (Builtin' "Bytes.fromList") (List' bs)) =
   toList <$> traverse go bs
   where
@@ -1913,13 +1953,13 @@ prettyDoc2 ac tm = do
       contains :: Char -> Pretty SyntaxText -> Bool
       contains c p =
         PP.toPlain 0 (PP.syntaxToColor p)
-          & elem c
+          & Text.elem c
       -- Finds the longest run of a character and return one bigger than that
       longestRun c s =
-        case filter (\s -> take 2 s == [c, c]) $
-          List.group (PP.toPlain 0 $ PP.syntaxToColor s) of
+        case filter (\s -> Text.take 2 s == Text.pack [c, c]) $
+          Text.group (PP.toPlain 0 $ PP.syntaxToColor s) of
           [] -> 2
-          x -> 1 + maximum (map length x)
+          x -> 1 + maximum (map Text.length x)
       oneMore c inner = replicate (longestRun c inner) c
       makeFence inner = PP.string $ replicate (max 3 $ longestRun '`' inner) '`'
       go :: Width -> Term3 v PrintAnnotation -> m (Pretty SyntaxText)
@@ -2040,8 +2080,8 @@ prettyDoc2 ac tm = do
         tm -> bail tm
         where
           im = imports ac
-          tyName r = styleHashQualified'' (fmt $ S.TypeReference r) . elideFQN im $ PrettyPrintEnv.typeName env.ppe r
-          tmName r = styleHashQualified'' (fmt $ S.TermReference r) . elideFQN im $ PrettyPrintEnv.termName env.ppe r
+          tyName r = styleHashQualified'' (fmt $ S.TypeReference (PrettyPrintEnv.typeFQN env.ppe r) r) . elideFQN im $ PrettyPrintEnv.typeName env.ppe r
+          tmName r = styleHashQualified'' (fmt $ S.TermReference (PrettyPrintEnv.termFQN env.ppe r) r) . elideFQN im $ PrettyPrintEnv.termName env.ppe r
           rec = go hdr
           sepBlankline = intercalateMapM "\n\n" rec
   case tm of
@@ -2336,6 +2376,13 @@ avoidShadowing tm (PrettyPrintEnv terms types) =
     tweak _ p = p
     varToName :: (Var v) => v -> [Name]
     varToName = toList . Name.parseText . Var.name . Var.reset
+
+prettyBinder :: (IsString s, Var v) => v -> Pretty s
+prettyBinder var =
+  let text = Var.name var
+   in case Name.parseText text of
+        Just name | Name.isSymboly name -> "(" <> PP.text text <> ")"
+        _ -> PP.text text
 
 isLeaf :: Term2 vt at ap v a -> Bool
 isLeaf (Var' {}) = True

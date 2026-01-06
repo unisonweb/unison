@@ -79,11 +79,13 @@ tests:
       - unison-share-api
       - base
       - bytestring
+      - raw-strings-qq
       - serialise
       - text
       - unison-hash
       - unison-prelude
       - unison-codebase-sqlite
+      - unison-pretty-printer
       - vector
 
     main: Main.hs

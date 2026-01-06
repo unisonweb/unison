@@ -376,7 +376,8 @@ builtinConstraintTree =
           flip Type.ref Type.timeSpecRef,
           flip Type.ref Type.hashAlgorithmRef,
           flip Type.ref Type.integerRef,
-          flip Type.ref Type.naturalRef
+          flip Type.ref Type.naturalRef,
+          flip Type.ref Type.ffiDllRef
         ],
       traverse
         (constrain (Type :-> Type))
@@ -386,7 +387,9 @@ builtinConstraintTree =
           flip Type.ref Type.tvarRef,
           flip Type.ref Type.ticketRef,
           flip Type.ref Type.promiseRef,
-          flip Type.ref Type.patternRef
+          flip Type.ref Type.patternRef,
+          flip Type.ref Type.ffiTypeRef,
+          flip Type.ref Type.ffiSpecRef
         ],
       traverse
         (constrain Ability)

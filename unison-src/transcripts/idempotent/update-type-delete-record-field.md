@@ -69,12 +69,15 @@ scratch/main> update
 
   That's done. Now I'm making sure everything typechecks...
 
-  Some definitions don't typecheck with your changes. I've
-  update the file scratch.u with the definitions that need
-  fixing. Once the file is compiling, try `update` again.
+  I couldn't complete the update, because some existing
+  definitions would no longer typecheck.
 
-  I've also switched you to a new branch update-main for this
-  work. On `update`, it will be merged back into main.
+  I've created a temporary branch and added the affected
+  definitions to scratch.u, where you can fix them up or remove
+  any that are obsolete.
+
+  Once you're happy with the results, use `update` to merge them
+  back into main, or `cancel` if you change your mind.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -100,7 +103,7 @@ and not in the temporary branch:
 ``` ucm
 scratch/update-main> ls
 
-  1. lib. (665 terms, 103 types)
+  1. lib. (682 terms, 107 types)
 ```
 
 so we can remove the unwanted definitions from the scratch file and `update` again to delete them:
