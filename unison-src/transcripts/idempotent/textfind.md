@@ -47,25 +47,38 @@ qux =
   quaffle = 99
   quaffle + 1
 
-lib.foo = [Any 46, Any "hi", Any "zoink"]
-lib.bar = 3
+libfoo = [Any 46, Any "hi", Any "zoink"]
+libbar = 3
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + bar     : Nat
-  + baz     : [Text]
-  + foo     : Nat
-  + lib.bar : Nat
-  + lib.foo : [Any]
-  + qux     : Nat
+  + bar    : Nat
+  + baz    : [Text]
+  + foo    : Nat
+  + libbar : Nat
+  + libfoo : [Any]
+  + qux    : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
 
-``` ucm :hide
-> add
+``` ucm
+> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> move libfoo lib.foo
+
+  Done.
+
+> move libbar lib.bar
+
+  Done.
 ```
 
 ``` ucm

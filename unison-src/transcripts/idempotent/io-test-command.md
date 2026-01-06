@@ -14,13 +14,15 @@ ioTest : '{IO} [Result]
 ioTest = do
   [Ok "Success"]
 
-lib.ioAndExceptionTestInLib  : '{IO, Exception} [Result]
-lib.ioAndExceptionTestInLib  = do
+ioAndExceptionTestInLib  : '{IO, Exception} [Result]
+ioAndExceptionTestInLib  = do
   [Ok "Success"]
 ```
 
 ``` ucm :hide
-> add
+> update
+
+> move ioAndExceptionTestInLib lib.ioAndExceptionTestInLib
 ```
 
 Run a IO tests one by one

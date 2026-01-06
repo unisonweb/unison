@@ -95,17 +95,17 @@ scratch/main> builtins.mergeio lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 17
-lib.new.foo = +17
-bar = old.foo + old.foo
+foo1 = 17
+foo2 = +17
+bar = foo1 + foo1
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + bar         : Nat
-  + lib.new.foo : Int
-  + lib.old.foo : Nat
+  + bar  : Nat
+  + foo1 : Nat
+  + foo2 : Int
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -115,6 +115,14 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move foo1 lib.old.foo
+
+  Done.
+
+scratch/main> move foo2 lib.new.foo
 
   Done.
 ```

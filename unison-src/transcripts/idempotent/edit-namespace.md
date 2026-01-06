@@ -14,8 +14,8 @@ toplevel = "hi"
 simple.x = 10
 simple.y = 20
 
--- Shouldn't edit things in lib
-lib.project.ignoreMe = 30
+-- Will rename to lib.project.ignoreMe; shouldn't edit things in lib
+ignoreMe = 30
 
 -- Shouldn't render record accessors
 unique type Foo = { bar : Nat, baz : Nat }
@@ -32,7 +32,7 @@ unique type Foo = { bar : Nat, baz : Nat }
   + Foo.baz               : Foo -> Nat
   + Foo.baz.modify        : (Nat ->{g} Nat) -> Foo ->{g} Foo
   + Foo.baz.set           : Nat -> Foo -> Foo
-  + lib.project.ignoreMe  : Nat
+  + ignoreMe              : Nat
   + nested.cycle.ping     : Nat -> Nat
   + nested.cycle.ping.doc : Doc2
   + nested.cycle.pong     : Nat -> Nat
@@ -45,10 +45,14 @@ unique type Foo = { bar : Nat, baz : Nat }
 ```
 
 ``` ucm
-> add
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+> move ignoreMe lib.project.ignoreMe
 
   Done.
 ```
