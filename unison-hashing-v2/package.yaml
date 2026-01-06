@@ -8,6 +8,7 @@ dependencies:
   - base
   - bytestring
   - containers
+  - cborg
   - cryptonite
   - lens
   - memory
