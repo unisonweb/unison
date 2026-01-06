@@ -12,7 +12,6 @@ import U.Codebase.Sqlite.Orphans (AsSqlite (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.PersonalKey (PersonalPrivateKey)
 import Unison.Auth.PersonalKey qualified as PersonalKey
-import Unison.Debug qualified as Debug
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
 import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
@@ -48,7 +47,6 @@ hashAllHistoryComments personalKey = do
       FROM history_comments comment
       JOIN hash causal_hash ON comment.causal_hash_id = causal_hash.id
     |]
-  Debug.debugM Debug.Temp "Got comments" historyComments
   for_ historyComments $ \(HistoryCommentId commentId, causalHash, author, createdAtMs) -> do
     let historyComment =
           HistoryComment
@@ -59,7 +57,6 @@ hashAllHistoryComments personalKey = do
               commentId = ()
             }
     let historyCommentHash = hashHistoryComment historyComment
-    Debug.debugM Debug.Temp "Hashing history comment" (author, causalHash)
     historyCommentHashId <- Q.saveHistoryCommentHash historyCommentHash.commentId
     Sqlite.execute
       [Sqlite.sql|
@@ -76,9 +73,7 @@ hashAllHistoryComments personalKey = do
       JOIN history_comments comment ON hcr.comment_id = comment.id
       JOIN hash comment_hash ON comment.comment_hash_id = comment_hash.id
     |]
-  Debug.debugM Debug.Temp "Got revisions" historyCommentRevisions
   for_ historyCommentRevisions $ \(HistoryCommentRevisionId revisionId, subject, content, isHidden, createdAtMs, commentHash) -> do
-    Debug.debugM Debug.Temp "Hashing history comment revision" (subject, content)
     let historyCommentRevision =
           HistoryCommentRevision
             { subject,
