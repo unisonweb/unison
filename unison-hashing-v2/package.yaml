@@ -13,6 +13,7 @@ dependencies:
   - memory
   - semialign
   - text
+  - time
   - unison-core1
   - unison-hash
   - unison-hashing

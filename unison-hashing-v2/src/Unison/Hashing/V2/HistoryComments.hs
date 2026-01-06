@@ -1,6 +1,7 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Unison.HistoryComments.Hashing
+module Unison.Hashing.V2.HistoryComments
   ( hashHistoryComment,
     hashHistoryCommentRevision,
   )
@@ -13,10 +14,10 @@ import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Text.Encoding qualified as Text
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX qualified as Time
-import U.Codebase.HashTags (CausalHash, HistoryCommentHash (..), HistoryCommentRevisionHash (..))
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
-import Unison.Hashing.V2 (ContentAddressable (..))
+import Unison.HashTags
+import Unison.Hashing.ContentAddressable (ContentAddressable (..))
 import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
 import Unison.KeyThumbprint (KeyThumbprint (..))
 import Unison.Prelude

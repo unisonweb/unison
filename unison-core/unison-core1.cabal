@@ -33,6 +33,7 @@ library
       Unison.Hashable
       Unison.HashQualified
       Unison.HashQualifiedPrime
+      Unison.HashTags
       Unison.HistoryComment
       Unison.KeyThumbprint
       Unison.Kind

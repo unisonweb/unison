@@ -14,8 +14,8 @@ import Unison.Auth.PersonalKey (PersonalPrivateKey)
 import Unison.Auth.PersonalKey qualified as PersonalKey
 import Unison.Hash (Hash)
 import Unison.Hash qualified as Hash
+import Unison.Hashing.V2 (hashHistoryComment, hashHistoryCommentRevision)
 import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
-import Unison.HistoryComments.Hashing (hashHistoryComment, hashHistoryCommentRevision)
 import Unison.Prelude
 import Unison.Sqlite qualified as Sqlite
 

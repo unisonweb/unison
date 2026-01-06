@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -24,6 +24,7 @@ library
       Unison.Hashing.V2.Causal
       Unison.Hashing.V2.ConstructorId
       Unison.Hashing.V2.DataDeclaration
+      Unison.Hashing.V2.HistoryComments
       Unison.Hashing.V2.Kind
       Unison.Hashing.V2.NameSegment
       Unison.Hashing.V2.Patch
@@ -74,6 +75,7 @@ library
     , memory
     , semialign
     , text
+    , time
     , unison-core1
     , unison-hash
     , unison-hashing
