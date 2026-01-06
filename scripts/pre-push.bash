@@ -11,6 +11,7 @@ fi
 
 CMD="./scripts/test.sh"
 if ! "$CMD"; then
-    echo "The git push operation was canceled because ‘$CMD’ did not complete successfully."
+    >&2 echo "The git push operation was canceled because ‘$CMD’ did not complete successfully."
+    >&2 echo "To bypass this check, push with ‘--no-verify’."
     exit 1
 fi
