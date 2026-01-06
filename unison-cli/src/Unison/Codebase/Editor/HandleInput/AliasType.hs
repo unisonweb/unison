@@ -37,24 +37,14 @@ handleAliasType force src' dest' = do
   destTypes <- Cli.getTypesAt $ HQ'.NameOnly dest
   when (not force && not (Set.null destTypes)) do
     Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-  description <- inputDescription force src' dest'
-  Cli.stepAt description (BranchUtil.makeAddTypeName dest srcType)
+  Cli.stepAt
+    ( ( if force
+          then "debug.alias.type.force "
+          else "alias.type "
+      )
+        <> either SH.toText (HQ'.toTextWith (Path.toText . Path.unsplit)) src'
+        <> " "
+        <> into @Text (Path.unsplit dest)
+    )
+    (BranchUtil.makeAddTypeName dest srcType)
   Cli.respond Success
-
-inputDescription :: Bool -> HQ'.HashOrHQ (Path.Split Path') -> Path.Split Path' -> Cli Text
-inputDescription force src0 dest0 = do
-  src <- hhqs' src0
-  dest <- ps' dest0
-  pure ((if force then "debug.alias.type.force " else "alias.term ") <> src <> " " <> dest)
-
-hhqs' :: HQ'.HashOrHQ (Path.Split Path') -> Cli Text
-hhqs' = either (pure . SH.toText) hqs'
-
-hqs' :: HQ'.HashQualified (Path.Split Path') -> Cli Text
-hqs' = pure . HQ'.toTextWith (Path.toText . Path.unsplit)
-
-ps' :: Path.Split Path' -> Cli Text
-ps' = p' . Path.unsplit
-
-p' :: Path' -> Cli Text
-p' = fmap (into @Text) . Cli.resolvePath'
