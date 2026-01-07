@@ -30,15 +30,6 @@ import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Websockets
 import UnliftIO.STM
 
--- type HistoryCommentsAPI = ("ucm" :> "v1" :> "history-comments" :> HistoryCommentsAPI.API)
-
--- downloadCommentsClientM :: BranchRef -> WS.Connection -> Servant.ClientM ()
--- uploadCommentsClientM :: BranchRef -> WS.Connection -> Servant.ClientM ()
--- HistoryCommentsAPI.Routes
---   { uploadHistoryComments = downloadCommentsClientM,
---     downloadHistoryComments = uploadCommentsClientM
---   } = Servant.client historyCommentsAPI
-
 -- | Number of comment chunks that can be queued up in the websockets buffer.
 msgBufferSize :: Int
 msgBufferSize = 20
