@@ -150,7 +150,7 @@ data Input
   | DebugTypecheckedUnisonFileI
   | DeleteBranchI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
   | DeleteI !Bool {- force? -} !DeleteTarget ![HQ'.HashQualified Name]
-  | DeleteNamespaceI Insistence (Maybe (Path.Split Path.Relative))
+  | DeleteNamespaceI Insistence (Maybe (Path.Split Path))
   | DeleteProjectI ProjectName
   | DiffBranchI !DiffBranchArg !DiffBranchArg
   | DiffNamespaceI BranchId2 BranchId2 -- old new
@@ -182,10 +182,10 @@ data Input
   | ListDependentsI (HQ.HashQualified Name)
   | LoadI (Maybe FilePath)
   | MakeStandaloneI String (HQ.HashQualified Name)
-  | MergeBuiltinsI (Maybe Path.Relative)
+  | MergeBuiltinsI (Maybe Path)
   | MergeCommitI
   | MergeI (ProjectAndBranch (Maybe ProjectName) ProjectBranchName)
-  | MergeIOBuiltinsI (Maybe Path.Relative)
+  | MergeIOBuiltinsI (Maybe Path)
   | MoveAllI Path.Path' Path.Path'
   | MoveBranchI Path.Path' Path.Path'
   | MoveTermI (HQ'.HashQualified (Path.Split Path')) (Path.Split Path')
@@ -281,7 +281,7 @@ data TestInput = TestInput
   { -- | Should we run tests in the `lib` namespace?
     includeLibNamespace :: Bool,
     -- | Relative path to run the tests in. Ignore if `includeLibNamespace` is True - that means test everything.
-    path :: Path.Relative,
+    path :: Path,
     showFailures :: Bool,
     showSuccesses :: Bool
   }

@@ -500,16 +500,15 @@ handleNewPath = \case
   I.StructuredArg _sa -> Left $ "can’t use a numbered argument for a new namespace"
 
 -- | When only a relative name is allowed.
-handleSplitArg :: I.Argument -> Either (P.Pretty CT.ColorText) (Path.Split Path.Relative)
+handleSplitArg :: I.Argument -> Either (P.Pretty CT.ColorText) (Path.Split Path)
 handleSplitArg arg =
-  fmap (first Path.Relative) $
-    case arg of
-      I.RawArg raw -> first P.text . Path.parseSplit $ raw
-      I.StructuredArg sa ->
-        case sa of
-          SA.Name name | Name.isRelative name -> pure $ Path.splitFromName name
-          SA.NameWithBranchPrefix _ name | Name.isRelative name -> pure $ Path.splitFromName name
-          otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
+  case arg of
+    I.RawArg raw -> first P.text . Path.parseSplit $ raw
+    I.StructuredArg sa ->
+      case sa of
+        SA.Name name | Name.isRelative name -> pure $ Path.splitFromName name
+        SA.NameWithBranchPrefix _ name | Name.isRelative name -> pure $ Path.splitFromName name
+        otherNumArg -> Left $ wrongStructuredArgument "a relative name" otherNumArg
 
 handleSplit'Arg :: I.Argument -> Either (P.Pretty CT.ColorText) (Path.Split Path')
 handleSplit'Arg = fmap Path.parentOfName . handleNameArg
@@ -632,7 +631,7 @@ handleHashQualifiedSplitArg = \case
         . bitraverse
           ( \case
               Path.AbsolutePath' _ -> Left $ expectedButActually "a relative name" n "an absolute name"
-              Path.RelativePath' p -> pure $ Path.unrelative p
+              Path.RelativePath' p -> pure p
           )
           pure
         $ Path.parentOfName name
@@ -793,7 +792,7 @@ mergeBuiltins =
     "Adds the builtins (excluding `io` and misc) to the specified namespace. Defaults to `builtin.`"
     \case
       [] -> pure . Input.MergeBuiltinsI $ Nothing
-      p : _ -> Input.MergeBuiltinsI . pure . Path.Relative <$> handlePathArg p
+      p : _ -> Input.MergeBuiltinsI . pure <$> handlePathArg p
 
 mergeIOBuiltins :: InputPattern
 mergeIOBuiltins =
@@ -805,7 +804,7 @@ mergeIOBuiltins =
     "Adds all the builtins, including `io` and misc., to the specified namespace. Defaults to `builtin.`"
     \case
       [] -> pure . Input.MergeIOBuiltinsI $ Nothing
-      p : _ -> Input.MergeIOBuiltinsI . pure . Path.Relative <$> handlePathArg p
+      p : _ -> Input.MergeIOBuiltinsI . pure <$> handlePathArg p
 
 updateBuiltins :: InputPattern
 updateBuiltins =
@@ -1990,7 +1989,7 @@ pullImpl name aliases pullMode addendum = do
                 -- Oops we're ignoring the "pull mode" but `pull.without-history` shouldn't really be a `pull` anyway...
                 ( Right (RemoteRepo.ReadShare'ProjectBranch source),
                   Left _,
-                  Right (Path.RelativePath' (Path.Relative (Path.toList -> NameSegment.LibSegment : _)))
+                  Right (Path.RelativePath' (Path.toList -> NameSegment.LibSegment : _))
                   ) ->
                     case source of
                       This sourceProject -> Right (Input.LibInstallI True (ProjectAndBranch sourceProject Nothing))
@@ -3160,7 +3159,7 @@ test =
               Input.TestI
                 Input.TestInput
                   { includeLibNamespace = False,
-                    path = Path.Relative path,
+                    path = path,
                     showFailures = True,
                     showSuccesses = True
                   }

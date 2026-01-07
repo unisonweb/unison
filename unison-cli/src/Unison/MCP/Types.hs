@@ -714,7 +714,7 @@ instance FromJSON ShareProjectSearchToolArguments where
 
 data TestToolArguments = TestToolArguments
   { projectContext :: ProjectContext,
-    subnamespace :: Maybe Path.Relative
+    subnamespace :: Maybe Path.Path
   }
   deriving (Eq, Show)
 
@@ -737,7 +737,7 @@ instance HasInputSchema TestToolArguments where
 instance FromJSON TestToolArguments where
   parseJSON = withObject "TestToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
-    subnamespace <- fmap (Path.Relative . Path.unsafeParseText) <$> (o .:? "subnamespace")
+    subnamespace <- fmap Path.unsafeParseText <$> (o .:? "subnamespace")
     pure $ TestToolArguments {projectContext, subnamespace}
 
 data DeleteDefinitionsToolArguments = DeleteDefinitionsToolArguments

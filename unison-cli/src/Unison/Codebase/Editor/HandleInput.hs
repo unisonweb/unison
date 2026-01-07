@@ -910,7 +910,7 @@ inputDescription input =
     hhqs' = either (pure . SH.toText) hqs'
     hqs' :: HQ'.HashQualified (Path.Split Path') -> Cli Text
     hqs' = pure . HQ'.toTextWith (Path.toText . Path.unsplit)
-    hqs = hqs' . fmap (first $ Path.RelativePath' . Path.Relative)
+    hqs = hqs' . fmap (first Path.RelativePath')
     ps' = p' . Path.unsplit
     bid2 :: BranchId2 -> Cli Text
     bid2 = \case

@@ -267,8 +267,6 @@ roots = [
     '''^Unison\.Codebase\.Init\.Type\.Init$''',
     '''^Unison\.Codebase\.Init\.initCodebaseAndExit$''',
     '''^Unison\.Codebase\.Metadata\.delete$''',
-    '''^Unison\.Codebase\.Path\.relPath_$''',
-    '''^Unison\.Codebase\.Path\.isRelative$''',
     '''^Unison\.Codebase\.Path\.maybePrefix$''',
     '''^Unison\.Codebase\.Path\.toAbsoluteSplit$''',
     '''^Unison\.Codebase\.Path\.ancestors$''',
