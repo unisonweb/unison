@@ -34,14 +34,6 @@ import Unison.ShortHash qualified as SH
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 
--- Cases to test:
---
---
--- [x] Aliasing local type with constructors.
--- [x] Aliasing local type without constructors.
--- [x] Aliasing builtin in lib.
--- [ ] Aliasing non-builtin in lib with one name.
-
 handleAliasType :: Bool -> Either SH.ShortHash (HQ'.HashQualified (Path.Split Path')) -> Path.Split Path' -> Cli ()
 handleAliasType force src' dest' = do
   env <- ask
@@ -141,13 +133,6 @@ handleAliasType force src' dest' = do
       dest =
         over _1 (Path.resolve pp.absPath) dest'
 
-  let destTypes :: Set TypeReference
-      destTypes =
-        BranchUtil.getType (HQ'.NameOnly (over _1 Path.unabsolute dest)) projectNamespace0
-
-  when (not force && not (Set.null destTypes)) do
-    Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-
   let destConstructors :: [(Path.Split Path.Absolute, Referent)]
       destConstructors =
         case maybeSrcConstructors of
@@ -164,7 +149,19 @@ handleAliasType force src' dest' = do
                   )
           Nothing -> []
 
-  -- TODO bail if any constructor name already exists
+  when (not force) do
+    let destTypes :: Set TypeReference
+        destTypes =
+          BranchUtil.getType (HQ'.NameOnly (over _1 Path.unabsolute dest)) projectNamespace0
+
+    when (not (Set.null destTypes)) do
+      Cli.returnEarly (TypeAlreadyExists dest' destTypes)
+
+    for_ destConstructors \(constructorPath, constructorReferent) -> do
+      let existingTerms = BranchUtil.getTerm (HQ'.fromName (over _1 Path.unabsolute constructorPath)) projectNamespace0
+          numExistingTerms = Set.size existingTerms
+      when (numExistingTerms > 1 || numExistingTerms == 1 && Set.findMin existingTerms /= constructorReferent) do
+        Cli.returnEarly (TermAlreadyExists (over _1 Path.absoluteToPath' constructorPath) existingTerms)
 
   Cli.stepManyAt
     pp.branch
@@ -176,8 +173,6 @@ handleAliasType force src' dest' = do
         <> " "
         <> into @Text (Path.unsplit dest)
     )
-    ( BranchUtil.makeAddTypeName dest srcType
-        : map (\(p, r) -> BranchUtil.makeAddTermName p r) destConstructors
-    )
+    (BranchUtil.makeAddTypeName dest srcType : map (\(p, r) -> BranchUtil.makeAddTermName p r) destConstructors)
 
   Cli.respond Success
