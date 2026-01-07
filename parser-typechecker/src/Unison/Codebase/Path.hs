@@ -360,6 +360,9 @@ class Resolve l r o where
 instance Resolve Path Path Path where
   resolve (Path l) (Path r) = Path (l <> r)
 
+instance Resolve Path (Split Path) (Split Path) where
+  resolve l (r, x) = (resolve l r, x)
+
 instance Resolve Relative Relative Relative where
   resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))
 
@@ -383,3 +386,6 @@ instance Resolve Absolute (Split Path) (Split Absolute) where
 instance Resolve Absolute Path' Absolute where
   resolve _ (AbsolutePath' a) = a
   resolve a (RelativePath' r) = resolve a r
+
+instance Resolve (Split Absolute) (Split Path) (Split Absolute) where
+  resolve (l, x) (r, y) = (resolve (descend l x) r, y)
