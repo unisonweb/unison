@@ -493,7 +493,7 @@ BODY:
         "projectContext": {
           "projectName": "scratch",
           "branchName": "foo"
-        }, "code": {"text": "myTerm = 100"}
+        }, "code": {"sourceCode": "myTerm = 100"}
       }
     }
   }
