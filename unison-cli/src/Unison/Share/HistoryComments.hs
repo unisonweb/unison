@@ -7,6 +7,7 @@ where
 import Control.Concurrent.STM.TBMQueue (TBMQueue, closeTBMQueue, newTBMQueueIO, readTBMQueue, writeTBMQueue)
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe (mapMaybeT)
+import Data.List.NonEmpty qualified as NEL
 import Data.Monoid (Any (..))
 import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NESet
@@ -14,15 +15,16 @@ import Data.Text qualified as Text
 import Data.Void
 import Ki qualified
 import Servant.API
-import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.Tokens (newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
 import Unison.Debug qualified as Debug
+import Unison.Hash (Hash)
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
+import Unison.HashTags
 import Unison.HistoryComment qualified as HC
 import Unison.KeyThumbprint (KeyThumbprint (KeyThumbprint))
 import Unison.Prelude
@@ -53,8 +55,8 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
   result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentUploaderChunk) @(MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
-    commentHashesToSendQ <- newTBMQueueIO 100
-    commentHashesToUploadQ <- newTBMQueueIO 100
+    commentHashesToSendQ <- newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
+    commentHashesToUploadQ <- newTBMQueueIO @(Either HistoryCommentHash32 HistoryCommentRevisionHash32) 100
     -- Is filled when the server notifies us it's done requesting comments
     doneRequestingCommentsMVar <- newEmptyTMVarIO
     errMVar <- newEmptyTMVarIO
@@ -66,8 +68,9 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
       Q.streamHistoryCommentsForCausal rootCausalHashId \getCommentIds -> do
         let loop = do
               result <- runMaybeT $ do
-                (_commentId, commentHash32) <- MaybeT $ getCommentIds
-                lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ commentHash32
+                (commentId, commentHash32) <- MaybeT $ getCommentIds
+                revisionHashes <- lift $ Q.commentRevisionHashes commentId
+                lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ (HistoryCommentHash32 commentHash32, HistoryCommentRevisionHash32 <$> revisionHashes)
               -- Loop till a send fails or we run out of comments
               case result of
                 Just () -> loop
@@ -105,23 +108,36 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
       ( MsgOrError err HistoryCommentUploaderChunk ->
         STM Bool
       ) ->
-      TBMQueue Hash32 ->
+      TBMQueue (Either HistoryCommentHash32 HistoryCommentRevisionHash32) ->
       IO ()
     uploaderWorker codebase send uploadCommentQueue = do
       let loop = do
-            commentHash <- MaybeT $ atomically (readTBMQueue uploadCommentQueue)
+            hash <- MaybeT $ atomically (readTBMQueue uploadCommentQueue)
             mapMaybeT (Codebase.runTransaction codebase) $ do
-              commentId <- lift $ Q.expectHistoryCommentIdByHash32 commentHash
-              (comment, revisions) <- lift $ Q.expectHistoryCommentById commentId
-              success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
-              guard success
-              for_ revisions \revision -> do
-                success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Right revision))
-                guard success
+              case hash of
+                Left (HistoryCommentHash32 commentHash) -> do
+                  commentId <- lift $ Q.expectHistoryCommentIdByHash32 commentHash
+                  comment <- lift $ Q.expectHistoryCommentById commentId
+                  success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
+                  guard success
+                Right (HistoryCommentRevisionHash32 revisionHash) -> do
+                  revisionId <- lift $ Q.expectHistoryCommentRevisionIdByHash32 revisionHash
+                  revision <- lift $ Q.expectHistoryCommentRevisionById revisionId
+                  success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Right revision))
+                  guard success
             loop
       void . runMaybeT $ loop
 
-    receiverWorker :: STM (Maybe (MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk)) -> TBMQueue Hash32 -> TMVar Text -> TMVar () -> IO ()
+    receiverWorker ::
+      STM (Maybe (MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk)) ->
+      TBMQueue
+        ( Either
+            HistoryCommentHash32
+            HistoryCommentRevisionHash32
+        ) ->
+      TMVar Text ->
+      TMVar () ->
+      IO ()
     receiverWorker receive toUploadQ errMVar doneRequestingCommentsMVar = do
       let loop = do
             msgOrError <- atomically receive
@@ -142,14 +158,14 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
                 atomically $ putTMVar errMVar $ "uploadHistoryComments: server error: " <> tShow err
       loop
 
-    hashNotifyWorker :: (MsgOrError Void HistoryCommentUploaderChunk -> STM Bool) -> TBMQueue Hash32 -> IO ()
+    hashNotifyWorker :: (MsgOrError Void HistoryCommentUploaderChunk -> STM Bool) -> TBMQueue (HistoryCommentHash32, [HistoryCommentRevisionHash32]) -> IO ()
     hashNotifyWorker send q = do
       let loop = do
             isClosed <- atomically $ do
-              (newHashes, isClosed) <- flushTBMQueue q
+              (hashesToCheck, isClosed) <- flushTBMQueue q
               Any serverClosed <-
-                (NESet.nonEmptySet $ Set.fromList newHashes) & foldMapM \newHashesSet -> do
-                  Any <$> (send $ Msg $ PossiblyNewHashesChunk newHashesSet)
+                NEL.nonEmpty hashesToCheck & foldMapM \possiblyNewHashes -> do
+                  Any <$> (send $ Msg $ PossiblyNewHashesChunk possiblyNewHashes)
               pure (isClosed || serverClosed)
             if isClosed
               then do
@@ -228,7 +244,7 @@ downloadHistoryComments codeserver repoInfo = do
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
   result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentDownloaderChunk) @(MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
-    hashesToCheckQ <- liftIO $ newTBMQueueIO 100
+    hashesToCheckQ <- liftIO $ newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
     commentsQ <- liftIO $ newTBMQueueIO 100
     errMVar <- liftIO newEmptyTMVarIO
     _receiverThread <- liftIO $ Ki.fork scope $ receiverWorker receive errMVar hashesToCheckQ commentsQ
@@ -250,7 +266,44 @@ downloadHistoryComments codeserver repoInfo = do
             when (not (null chunk)) $ do
               Debug.debugM Debug.Temp "Inserting comments chunk of size" (length chunk)
               Codebase.runTransaction codebase $ do
-                for_ chunk Q.insertHistoryComment
+                for_ chunk \case
+                  Left
+                    HistoryComment
+                      { author,
+                        createdAt,
+                        authorThumbprint,
+                        causalHash,
+                        commentHash
+                      } -> do
+                      causalHashId <- Q.expectCausalHashIdForHash32 causalHash
+                      Q.insertHistoryComment
+                        HC.HistoryComment
+                          { author,
+                            createdAt,
+                            authorThumbprint = KeyThumbprint authorThumbprint,
+                            causal = causalHashId,
+                            commentId = HistoryCommentHash $ into @Hash commentHash
+                          }
+                  Right
+                    HistoryCommentRevision
+                      { subject,
+                        content,
+                        createdAt,
+                        isHidden,
+                        authorSignature,
+                        revisionHash,
+                        commentHash
+                      } -> do
+                      Q.insertHistoryCommentRevision
+                        HC.HistoryCommentRevision
+                          { subject,
+                            content,
+                            createdAt,
+                            comment = HistoryCommentHash $ into @Hash commentHash,
+                            isHidden = isHidden,
+                            authorSignature = authorSignature,
+                            revisionId = HistoryCommentRevisionHash $ into @Hash revisionHash
+                          }
             when (not closed) loop
       loop
       Debug.debugLogM Debug.Temp "Inserter worker finished"
@@ -258,7 +311,7 @@ downloadHistoryComments codeserver repoInfo = do
     hashCheckingWorker ::
       Codebase.Codebase IO v a ->
       (MsgOrError err HistoryCommentDownloaderChunk -> STM Bool) ->
-      TBMQueue Hash32 ->
+      TBMQueue (HistoryCommentHash32, [HistoryCommentRevisionHash32]) ->
       IO ()
     hashCheckingWorker codebase send hashesToCheckQ = do
       let loop = do
@@ -267,7 +320,17 @@ downloadHistoryComments codeserver repoInfo = do
             when (not (null hashes)) $ do
               unknownHashes <- do
                 Codebase.runTransaction codebase $ do
-                  Q.filterForUnknownHistoryCommentHashes hashes
+                  hashes & foldMapM \(HistoryCommentHash32 commentHash, revisionHashes) -> do
+                    haveComment <- Q.haveHistoryComment commentHash
+                    if haveComment
+                      then do
+                        revisionHashes & wither \(HistoryCommentRevisionHash32 revisionHash) -> do
+                          Q.haveHistoryCommentRevision revisionHash
+                            <&> \case
+                              True -> Nothing
+                              False -> Just $ Right $ HistoryCommentRevisionHash32 $ revisionHash
+                      else do
+                        pure (pure (Left $ HistoryCommentHash32 commentHash) <> (Right <$> revisionHashes))
               case NESet.nonEmptySet (Set.fromList unknownHashes) of
                 Nothing -> pure ()
                 Just unknownHashesSet -> do
@@ -276,7 +339,15 @@ downloadHistoryComments codeserver repoInfo = do
       loop
       void . atomically $ send $ Msg $ DoneCheckingHashesChunk
       Debug.debugLogM Debug.Temp "Hash checking worker finished"
-    receiverWorker :: STM (Maybe (MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk)) -> TMVar Text -> TBMQueue Hash32 -> TBMQueue (Either HistoryComment HistoryCommentRevision) -> IO ()
+    receiverWorker ::
+      STM (Maybe (MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk)) ->
+      TMVar Text ->
+      TBMQueue
+        ( HistoryCommentHash32,
+          [HistoryCommentRevisionHash32]
+        ) ->
+      TBMQueue (Either HistoryComment HistoryCommentRevision) ->
+      IO ()
     receiverWorker recv errMVar hashesToCheckQ commentsQ = do
       let loop = do
             next <- atomically do

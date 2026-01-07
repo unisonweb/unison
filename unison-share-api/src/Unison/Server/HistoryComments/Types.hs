@@ -6,6 +6,8 @@ module Unison.Server.HistoryComments.Types
     HistoryCommentDownloaderChunk (..),
     HistoryComment (..),
     HistoryCommentRevision (..),
+    HistoryCommentHash32 (..),
+    HistoryCommentRevisionHash32 (..),
   )
 where
 
@@ -148,10 +150,10 @@ instance Serialise HistoryCommentDownloaderChunkTag where
       1 -> pure DoneCheckingHashesTag
       _ -> fail $ "Unknown HistoryCommentDownloaderChunkTag: " ++ show tag
 
-newtype HistoryCommentHash32 = HistoryCommentHash32 Hash32
+newtype HistoryCommentHash32 = HistoryCommentHash32 {unHistoryCommentHash32 :: Hash32}
   deriving newtype (Show, Eq, Ord, Serialise)
 
-newtype HistoryCommentRevisionHash32 = HistoryCommentRevisionHash32 Hash32
+newtype HistoryCommentRevisionHash32 = HistoryCommentRevisionHash32 {unHistoryCommentRevisionHash32 :: Hash32}
   deriving newtype (Show, Eq, Ord, Serialise)
 
 data HistoryCommentDownloaderChunk
