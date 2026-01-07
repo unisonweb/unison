@@ -47,7 +47,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
   let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam repoInfo)
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
-  result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentUploaderChunk) @(MsgOrError Void HistoryCommentDownloaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
+  result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentUploaderChunk) @(MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
     commentHashesToSendQ <- newTBMQueueIO 100
     commentHashesToUploadQ <- newTBMQueueIO 100
     -- Is filled when the server notifies us it's done requesting comments
@@ -116,7 +116,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
             loop
       void . runMaybeT $ loop
 
-    receiverWorker :: STM (Maybe (MsgOrError Void HistoryCommentDownloaderChunk)) -> TBMQueue Hash32 -> TMVar Text -> TMVar () -> IO ()
+    receiverWorker :: STM (Maybe (MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk)) -> TBMQueue Hash32 -> TMVar Text -> TMVar () -> IO ()
     receiverWorker receive toUploadQ errMVar doneRequestingCommentsMVar = do
       let loop = do
             msgOrError <- atomically receive
@@ -133,6 +133,8 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
                   loop
               Just (DeserialiseFailure msg) -> do
                 atomically $ putTMVar errMVar $ "uploadHistoryComments: deserialisation failure: " <> msg
+              Just (UserErr err) -> do
+                atomically $ putTMVar errMVar $ "uploadHistoryComments: server error: " <> tShow err
       loop
 
     hashNotifyWorker :: (MsgOrError Void HistoryCommentUploaderChunk -> STM Bool) -> TBMQueue Hash32 -> IO ()
