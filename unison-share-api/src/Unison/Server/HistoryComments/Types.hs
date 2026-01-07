@@ -13,6 +13,8 @@ import Codec.CBOR.Decoding
 import Codec.Serialise (Serialise)
 import Codec.Serialise.Class (Serialise (..))
 import Data.ByteString (ByteString)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NEL
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text (Text)
@@ -146,9 +148,15 @@ instance Serialise HistoryCommentDownloaderChunkTag where
       1 -> pure DoneCheckingHashesTag
       _ -> fail $ "Unknown HistoryCommentDownloaderChunkTag: " ++ show tag
 
+newtype HistoryCommentHash32 = HistoryCommentHash32 Hash32
+  deriving newtype (Show, Eq, Ord, Serialise)
+
+newtype HistoryCommentRevisionHash32 = HistoryCommentRevisionHash32 Hash32
+  deriving newtype (Show, Eq, Ord, Serialise)
+
 data HistoryCommentDownloaderChunk
   = -- Request the comments we're missing.
-    RequestCommentsChunk (NESet Hash32)
+    RequestCommentsChunk (NESet (Either HistoryCommentHash32 HistoryCommentRevisionHash32))
   | -- We've checked all provided hashes (and received DoneSendingHashesChunk from the uploader), and have issued all the Requests we need.
     DoneCheckingHashesChunk
   deriving (Show, Eq)
@@ -172,7 +180,7 @@ instance Serialise HistoryCommentDownloaderChunk where
 
 data HistoryCommentUploaderChunk
   = -- Tell the other side about some comment hashes that it may wish to request.
-    PossiblyNewHashesChunk (NESet Hash32)
+    PossiblyNewHashesChunk (NonEmpty (HistoryCommentHash32, [HistoryCommentRevisionHash32]))
   | DoneSendingHashesChunk
   | HistoryCommentChunk HistoryComment
   | HistoryCommentRevisionChunk HistoryCommentRevision
@@ -180,9 +188,9 @@ data HistoryCommentUploaderChunk
 
 instance Serialise HistoryCommentUploaderChunk where
   encode = \case
-    PossiblyNewHashesChunk hashSet ->
+    PossiblyNewHashesChunk newHashesChunk ->
       encode PossiblyNewHashesTag
-        <> encode (NESet.toSet hashSet)
+        <> encode newHashesChunk
     DoneSendingHashesChunk ->
       encode DoneSendingHashesTag
     HistoryCommentChunk comment ->
@@ -195,9 +203,9 @@ instance Serialise HistoryCommentUploaderChunk where
     tag <- decode :: Decoder s HistoryCommentChunkTag
     case tag of
       PossiblyNewHashesTag -> do
-        mayHashSet <- NESet.nonEmptySet <$> decode
-        case mayHashSet of
-          Just hashSet -> pure $ PossiblyNewHashesChunk hashSet
+        mayHashList <- NEL.nonEmpty <$> decode
+        case mayHashList of
+          Just hashList -> pure $ PossiblyNewHashesChunk hashList
           Nothing -> fail "HistoryCommentPossiblyNewHashes: unexpected empty set"
       DoneSendingHashesTag -> pure DoneSendingHashesChunk
       HistoryCommentTag -> HistoryCommentChunk <$> decode
