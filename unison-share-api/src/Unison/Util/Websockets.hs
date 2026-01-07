@@ -21,7 +21,6 @@ import Ki.Unlifted qualified as Ki
 import Network.Socket
 import Network.WebSockets
 import Network.WebSockets qualified as WS
-import Unison.Debug qualified as Debug
 import Unison.Prelude
 import Unison.Share.Types
 import UnliftIO
@@ -59,7 +58,6 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
         readTMVar connectionClosedMVar
   race waitConnectionError (action queues) >>= \case
     Left err -> do
-      Debug.debugM Debug.Temp "Connection error occurred, shutting down websocket" (show err)
       -- An error occurred, return it.
       pure (Left err)
     Right result -> do
@@ -77,7 +75,6 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
     selfClose :: (TBMQueue o) -> m [o]
     selfClose receiveQ = do
       -- We've requested to close the connection.
-      Debug.debugLogM Debug.Temp "We've requested close, sending close message"
       liftIO $ sendClose conn ("Done" :: Text)
       let drainMessages :: m [o]
           drainMessages = do
@@ -102,14 +99,12 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
           CloseRequest {} -> do
             -- The other side requested a close, we close the recv channel to indicate
             -- we won't receive any more messages.
-            Debug.debugM Debug.Temp "Other side requested close" ()
             atomically $ do
               closeTBMQueue q
             pure True
 
           -- Other cases are exceptional, set the error var
           err -> do
-            Debug.debugM Debug.Temp "ConnectionException in recvWorker" (show err)
             atomically $ do
               void $ tryPutTMVar errMVar err
             pure True
@@ -161,9 +156,7 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
                 print $ "Connecting to codeserver via WS: " <> show (fixedHost, port, codeserverPath, headers)
                 WS.runClientWith fixedHost port path opts headers action
   toIO <- askRunInIO
-  Debug.debugM Debug.Temp "withCodeserverWebsocket:" (host, codeserverPath)
   liftIO $ withSocketsDo $ (wsRunner codeserverPath connectionOptions headers) \conn -> do
-    Debug.debugM Debug.Temp "CONNECTED to websocket" (host, codeserverPath)
     withQueues msgBufferSize msgBufferSize conn $ \queues -> do
       toIO $ action queues
 

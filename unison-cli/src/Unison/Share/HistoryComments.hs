@@ -16,7 +16,6 @@ import Unison.Auth.Tokens (newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
-import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.HistoryComment qualified as HC
@@ -115,7 +114,6 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
     uploaderWorker codebase send uploadCommentQueue = do
       let loop = do
             commentHash <- MaybeT $ atomically (readTBMQueue uploadCommentQueue)
-            Debug.debugM Debug.Temp "Uploading comment" commentHash
             mapMaybeT (Codebase.runTransaction codebase) $ do
               commentId <- lift $ Q.expectHistoryCommentIdByHash32 commentHash
               (comment, revisions) <- lift $ Q.expectHistoryCommentById commentId
@@ -153,12 +151,10 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
               (newHashes, isClosed) <- flushTBMQueue q
               Any serverClosed <-
                 (NESet.nonEmptySet $ Set.fromList newHashes) & foldMapM \newHashesSet -> do
-                  Debug.debugM Debug.Temp "Notifying server of comment hashes" newHashesSet
                   Any <$> (send $ Msg $ PossiblyNewHashesChunk newHashesSet)
               pure (isClosed || serverClosed)
             if isClosed
               then do
-                Debug.debugM Debug.Temp "sending DoneSendingHashesChunk" ()
                 -- If the queue is closed, send a DoneCheckingHashesChunk to notify the server we're done.
                 void . atomically $ send (Msg DoneSendingHashesChunk)
               else loop
