@@ -21,11 +21,11 @@ import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.Core.Project (ProjectAndBranch (..))
 import Unison.Hash qualified as Hash
-import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
 import Unison.Hashing.V2
   ( hashHistoryComment,
     hashHistoryCommentRevision,
   )
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
