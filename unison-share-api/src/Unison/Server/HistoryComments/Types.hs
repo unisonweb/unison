@@ -1,6 +1,7 @@
 module Unison.Server.HistoryComments.Types
   ( DownloadCommentsRequest (..),
     UploadCommentsResponse (..),
+    DownloadCommentsResponse (..),
     HistoryCommentUploaderChunk (..),
     HistoryCommentDownloaderChunk (..),
     HistoryComment (..),
@@ -50,6 +51,28 @@ instance Serialise UploadCommentsResponse where
       1 -> UploadCommentsNotAuthorized <$> decode
       2 -> UploadCommentsGenericFailure <$> decode
       _ -> fail "Invalid UploadCommentsResponse tag"
+
+data DownloadCommentsResponse
+  = DownloadCommentsProjectBranchNotFound BranchRef
+  | DownloadCommentsNotAuthorized BranchRef
+  | DownloadCommentsGenericFailure Text
+  deriving (Show, Eq)
+
+instance Serialise DownloadCommentsResponse where
+  encode = \case
+    DownloadCommentsProjectBranchNotFound br ->
+      encode (0 :: Word8) <> encode br
+    DownloadCommentsNotAuthorized br ->
+      encode (1 :: Word8) <> encode br
+    DownloadCommentsGenericFailure errMsg ->
+      encode (2 :: Word8) <> encode errMsg
+  decode = do
+    tag <- decode :: Decoder s Word8
+    case tag of
+      0 -> DownloadCommentsProjectBranchNotFound <$> decode
+      1 -> DownloadCommentsNotAuthorized <$> decode
+      2 -> DownloadCommentsGenericFailure <$> decode
+      _ -> fail "Invalid DownloadCommentsResponse tag"
 
 data HistoryComment = HistoryComment
   { author :: Text,

@@ -1,4 +1,8 @@
-module Unison.Share.HistoryComments (uploadHistoryComments) where
+module Unison.Share.HistoryComments
+  ( uploadHistoryComments,
+    downloadHistoryComments,
+  )
+where
 
 import Control.Concurrent.STM.TBMQueue (TBMQueue, closeTBMQueue, newTBMQueueIO, readTBMQueue, writeTBMQueue)
 import Control.Monad.Reader
@@ -16,6 +20,7 @@ import Unison.Auth.Tokens (newTokenProvider)
 import Unison.Cli.Monad
 import Unison.Cli.Monad qualified as Cli
 import Unison.Codebase qualified as Codebase
+import Unison.Debug qualified as Debug
 import Unison.Hash32 (Hash32)
 import Unison.Hash32 qualified as Hash32
 import Unison.HistoryComment qualified as HC
@@ -191,3 +196,113 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
                 revisionHash = revisionId,
                 commentHash
               }
+
+-- Re-run the given STM action at most n times, collecting the results into a list.
+-- If the action returns Nothing, stop and return what has been collected so far, along with a Bool indicating whether the action was exhausted.
+fetchChunk :: (Show a) => Int -> STM (Maybe a) -> STM ([a], Bool)
+fetchChunk size action = do
+  let go 0 = pure ([], False)
+      go n = do
+        optional action >>= \case
+          Nothing -> do
+            -- No more values available at the moment
+            empty
+          Just Nothing -> do
+            -- Queue is closed
+            pure ([], True)
+          Just (Just val) -> do
+            Debug.debugM Debug.Temp "Fetched value from queue" val
+            (rest, exhausted) <- go (n - 1) <|> pure ([], False)
+            pure (val : rest, exhausted)
+  go size
+
+downloadHistoryComments ::
+  -- | The Unison Share URL.
+  Codeserver.CodeserverURI ->
+  -- | The remote branch to upload for.
+  RepoInfo ->
+  Cli ()
+downloadHistoryComments codeserver repoInfo = do
+  Cli.Env {codebase, credentialManager} <- ask
+  let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam repoInfo)
+  -- Enable compression
+  let tokenProvider = newTokenProvider credentialManager
+  result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentDownloaderChunk) @(MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
+    hashesToCheckQ <- liftIO $ newTBMQueueIO 100
+    commentsQ <- liftIO $ newTBMQueueIO 100
+    errMVar <- liftIO newEmptyTMVarIO
+    _receiverThread <- liftIO $ Ki.fork scope $ receiverWorker receive errMVar hashesToCheckQ commentsQ
+    inserterThread <- liftIO $ Ki.fork scope $ inserterWorker codebase commentsQ
+    _hashCheckingThread <- liftIO $ Ki.fork scope $ hashCheckingWorker codebase send hashesToCheckQ
+    Debug.debugLogM Debug.Temp "Downloading history comments: waiting for inserter thread to finish"
+    -- The inserter thread will finish when the client closes the connection.
+    atomically $ Ki.await inserterThread
+  case result of
+    _ -> error "TODO"
+  where
+    inserterWorker ::
+      Codebase.Codebase IO v a ->
+      TBMQueue (Either HistoryComment HistoryCommentRevision) ->
+      IO ()
+    inserterWorker codebase commentsQ = do
+      let loop = do
+            (chunk, closed) <- atomically (fetchChunk insertCommentBatchSize (readTBMQueue commentsQ))
+            when (not (null chunk)) $ do
+              Debug.debugM Debug.Temp "Inserting comments chunk of size" (length chunk)
+              Codebase.runTransaction codebase $ do
+                for_ chunk Q.insertHistoryComment
+            when (not closed) loop
+      loop
+      Debug.debugLogM Debug.Temp "Inserter worker finished"
+
+    hashCheckingWorker ::
+      Codebase.Codebase IO v a ->
+      (MsgOrError err HistoryCommentDownloaderChunk -> STM Bool) ->
+      TBMQueue Hash32 ->
+      IO ()
+    hashCheckingWorker codebase send hashesToCheckQ = do
+      let loop = do
+            (hashes, closed) <- atomically (fetchChunk insertCommentBatchSize (readTBMQueue hashesToCheckQ))
+            Debug.debugM Debug.Temp "Checking hashes chunk of size" (length hashes)
+            when (not (null hashes)) $ do
+              unknownHashes <- do
+                Codebase.runTransaction codebase $ do
+                  Q.filterForUnknownHistoryCommentHashes hashes
+              case NESet.nonEmptySet (Set.fromList unknownHashes) of
+                Nothing -> pure ()
+                Just unknownHashesSet -> do
+                  void . atomically $ send $ Msg $ RequestCommentsChunk unknownHashesSet
+            when (not closed) loop
+      loop
+      void . atomically $ send $ Msg $ DoneCheckingHashesChunk
+      Debug.debugLogM Debug.Temp "Hash checking worker finished"
+    receiverWorker :: STM (Maybe (MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk)) -> TMVar Text -> TBMQueue Hash32 -> TBMQueue (Either HistoryComment HistoryCommentRevision) -> IO ()
+    receiverWorker recv errMVar hashesToCheckQ commentsQ = do
+      let loop = do
+            next <- atomically do
+              recv >>= \case
+                Nothing -> do
+                  closeTBMQueue hashesToCheckQ
+                  closeTBMQueue commentsQ
+                  pure (pure ())
+                Just (DeserialiseFailure err) -> do
+                  putTMVar errMVar $ "downloadHistoryComments: deserialisation failure: " <> err
+                  pure (pure ())
+                Just (UserErr err) -> do
+                  putTMVar errMVar $ "downloadHistoryComments: server error: " <> tShow err
+                  pure (pure ())
+                Just (Msg msg) -> do
+                  case msg of
+                    PossiblyNewHashesChunk hashesToCheck -> do
+                      for_ hashesToCheck $ \h -> writeTBMQueue hashesToCheckQ h
+                    DoneSendingHashesChunk -> do
+                      closeTBMQueue hashesToCheckQ
+                    HistoryCommentChunk comment -> do
+                      writeTBMQueue commentsQ (Left comment)
+                    HistoryCommentRevisionChunk revision -> do
+                      writeTBMQueue commentsQ (Right revision)
+                  pure loop
+            next
+      loop
+      Debug.debugLogM Debug.Temp "Receiver worker finished"
+    insertCommentBatchSize = 100
