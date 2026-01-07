@@ -79,6 +79,7 @@ module U.Codebase.Sqlite.Queries
     saveCausal,
     isCausalHash,
     causalExistsByHash32,
+    expectCausalHashIdForHash32,
     expectCausal,
     loadCausalHashIdByCausalHash,
     expectCausalHashIdByCausalHash,
@@ -240,6 +241,8 @@ module U.Codebase.Sqlite.Queries
 
     -- * History Comments
     commentOnCausal,
+    insertHistoryComment,
+    insertHistoryCommentRevision,
     getLatestCausalComment,
     streamHistoryCommentsForCausal,
     expectHistoryCommentById,
@@ -4304,6 +4307,48 @@ commentOnCausal
             RETURNING id
           |]
       Just cid -> pure cid
+    execute
+      [sql|
+      INSERT INTO history_comment_revisions (revision_hash_id, comment_id, subject, contents, author_signature, created_at_ms)
+      VALUES (:commentRevisionHashId, :commentId, :subject, :content, :authorSignature, :createdAtMs)
+    |]
+
+-- | Insert a history comment on its own. Used in Sync.
+insertHistoryComment :: HistoryComment Time.UTCTime KeyThumbprint CausalHashId HistoryCommentHash -> Transaction ()
+insertHistoryComment HistoryComment {author, authorThumbprint, createdAt, causal = causalHashId, commentId = commentHash} = do
+  commentHashId <- saveHistoryCommentHash commentHash
+  thumbprintId <- ensurePersonalKeyThumbprintId authorThumbprint
+  let createdAtMs = utcTimeToMillis createdAt
+  execute
+    [sql|
+      INSERT INTO history_comments (comment_hash_id, author_thumbprint_id, author, causal_hash_id, created_at_ms)
+      VALUES (:commentHashId, :thumbprintId, :author, :causalHashId, :createdAtMs)
+    |]
+
+-- | Insert revisions for an existing history comment. Assumes the associated history comment has
+-- already been inserted. Used in Sync.
+insertHistoryCommentRevision ::
+  HistoryCommentRevision HistoryCommentRevisionHash Time.UTCTime HistoryCommentHash ->
+  Transaction ()
+insertHistoryCommentRevision
+  HistoryCommentRevision
+    { content,
+      subject,
+      revisionId = commentRevisionHash,
+      authorSignature,
+      createdAt,
+      comment = commentHash
+    } = do
+    commentHashId <- saveHistoryCommentHash commentHash
+    commentRevisionHashId <- saveHistoryCommentRevisionHash commentRevisionHash
+    let createdAtMs = utcTimeToMillis createdAt
+    commentId <-
+      queryOneCol @HistoryCommentId
+        [sql|
+          SELECT id
+          FROM history_comments
+          WHERE comment_hash_id = :commentHashId
+        |]
     execute
       [sql|
       INSERT INTO history_comment_revisions (revision_hash_id, comment_id, subject, contents, author_signature, created_at_ms)
