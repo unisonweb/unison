@@ -93,7 +93,7 @@ typeDefinitionOptions = genericDefinitionOptions False True
 namespaceOptions :: OptionFetcher
 namespaceOptions _codebase _projCtx searchBranch0 = do
   let intoPath' :: Path -> Path'
-      intoPath' = Path.RelativePath' . Path.Relative
+      intoPath' = Path.RelativePath'
   searchBranch0
     & Branch.deepPaths
     & Set.delete mempty {- The current path just renders as an empty string which isn't a valid arg -}

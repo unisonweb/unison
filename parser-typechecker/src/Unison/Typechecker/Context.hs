@@ -916,6 +916,11 @@ getDataConstructorType = getConstructorType' Data getDataDeclaration
 
 getDataConstructors :: forall v loc. (Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
 getDataConstructors typ
+  | Type.Forall' body <- typ = do
+      v <- ABT.freshen body freshenTypeVar
+      appendContext [existential v]
+      let ev = existential' () B.Blank v
+      getDataConstructors $ ABT.bindInheritAnnotation body ev
   | Type.Ref' r <- typ, r == Type.booleanRef = pure BooleanType
   | Type.Request' effects resultType <- typ =
       let phi effect =
@@ -1533,7 +1538,7 @@ getDataConstructorsAtType t0 = do
       let lastT = case t of
             Type.Arrows' xs -> last xs
             _ -> t
-      equate t0 lastT
+      subtype t0 lastT
       applyM t
 
 data PmcState vt v loc = PmcState
@@ -1714,7 +1719,7 @@ checkPattern scrutineeType p =
         let vt = existentialp loc v
         appendContext [existential v]
         -- ['a] <: scrutineeType, where 'a is fresh existential
-        subtype (Type.app loc (Type.list loc) vt) scrutineeType
+        subtype scrutineeType (Type.app loc (Type.list loc) vt)
         applyM vt
       join <$> traverse (checkPattern vt) ps
     Pattern.SequenceOp loc l op r -> do
@@ -1726,7 +1731,7 @@ checkPattern scrutineeType p =
         -- todo: `Type.list loc` is super-probably wrong;
         -- I'm thinking it should be Ann.Intrinsic, but we don't
         -- have access to that here.
-        subtype (Type.app loc (Type.list loc) vt) scrutineeType
+        subtype scrutineeType (Type.app loc (Type.list loc) vt)
         applyM vt
       case op of
         Pattern.Cons -> do
@@ -1763,17 +1768,17 @@ checkPattern scrutineeType p =
               _ -> False
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
-      lift $ subtype (Type.boolean loc) scrutineeType $> mempty
+      lift $ subtype scrutineeType (Type.boolean loc) $> mempty
     Pattern.Int loc _ ->
-      lift $ subtype (Type.int loc) scrutineeType $> mempty
+      lift $ subtype scrutineeType (Type.int loc) $> mempty
     Pattern.Nat loc _ ->
-      lift $ subtype (Type.nat loc) scrutineeType $> mempty
+      lift $ subtype scrutineeType (Type.nat loc) $> mempty
     Pattern.Float loc _ ->
-      lift $ subtype (Type.float loc) scrutineeType $> mempty
+      lift $ subtype scrutineeType (Type.float loc) $> mempty
     Pattern.Text loc _ ->
-      lift $ subtype (Type.text loc) scrutineeType $> mempty
+      lift $ subtype scrutineeType (Type.text loc) $> mempty
     Pattern.Char loc _ ->
-      lift $ subtype (Type.char loc) scrutineeType $> mempty
+      lift $ subtype scrutineeType (Type.char loc) $> mempty
     Pattern.Constructor loc ref args -> do
       dct <- lift $ getDataConstructorType ref
       udct <- lift $ skolemize forcedData dct
@@ -1787,7 +1792,7 @@ checkPattern scrutineeType p =
             lift . failWith $ PatternArityMismatch loc dct (length args)
       (overall, vs) <- foldM step (udct, []) args
       st <- lift $ applyM scrutineeType
-      lift $ subtype overall st
+      lift $ subtype st overall
       pure vs
     Pattern.As loc p' -> do
       v <- getAdvance p
@@ -1813,7 +1818,7 @@ checkPattern scrutineeType p =
             let vt = existentialp loc v
             let et = existentialp loc e
             appendContext [existential v, existential e]
-            subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
+            subtype scrutineeType (Type.effectV loc (loc, et) (loc, vt))
             applyM vt
           checkPattern vt p
     -- ex: { Stream.emit x -> k } -> ...

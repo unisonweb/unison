@@ -160,7 +160,7 @@ handleIOTest main = do
       refs
   Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
 
-findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> Path.Relative -> NESet (Type.Type Symbol Ann) -> Cli (Set TermReferenceId)
+findTermsOfTypes :: Codebase.Codebase m Symbol Ann -> Bool -> Path.Path -> NESet (Type.Type Symbol Ann) -> Cli (Set TermReferenceId)
 findTermsOfTypes codebase includeLib path filterTypes = do
   branch <- Cli.expectBranch0AtPath path
 

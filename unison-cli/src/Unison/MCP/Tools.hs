@@ -670,8 +670,7 @@ deleteNamespaceTool =
           },
       toolArgType = Proxy,
       toolHandler = \(DeleteNamespaceToolArguments {projectContext, namespaceName, force}) -> handleToolError $ do
-        let (path, finalSegment) = Path.splitFromName namespaceName
-            split = (Path.Relative path, finalSegment)
+        let split = Path.splitFromName namespaceName
             insistence = if force then Input.Force else Input.Try
         output <- handleInputMCP projectContext [Right $ Input.DeleteNamespaceI insistence (Just split)]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output

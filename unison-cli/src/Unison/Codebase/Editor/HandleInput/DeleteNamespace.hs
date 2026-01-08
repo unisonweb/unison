@@ -28,7 +28,7 @@ import Unison.PrettyPrintEnvDecl qualified as PPED
 import Unison.Referent qualified as Referent
 import Unison.Sqlite qualified as Sqlite
 
-handleDeleteNamespace :: Input -> Insistence -> Maybe (Path.Split Path.Relative) -> Cli ()
+handleDeleteNamespace :: Input -> Insistence -> Maybe (Path.Split Path.Path) -> Cli ()
 handleDeleteNamespace input insistence = \case
   Nothing -> do
     loopState <- State.get

@@ -288,7 +288,7 @@ getMaybeBranch0FromProjectPath pp =
   fmap Branch.head <$> getMaybeBranchFromProjectPath pp
 
 -- | Get the branch at a relative path, or return early if there's no such branch.
-expectBranchAtPath :: Path.Relative -> Cli (Branch IO)
+expectBranchAtPath :: Path -> Cli (Branch IO)
 expectBranchAtPath =
   expectBranchAtPath' . RelativePath'
 
@@ -304,7 +304,7 @@ expectBranch0AtPath' =
   fmap Branch.head . expectBranchAtPath'
 
 -- | Get the branch0 at a relative path, or return early if there's no such branch.
-expectBranch0AtPath :: Path.Relative -> Cli (Branch0 IO)
+expectBranch0AtPath :: Path -> Cli (Branch0 IO)
 expectBranch0AtPath =
   expectBranch0AtPath' . RelativePath'
 

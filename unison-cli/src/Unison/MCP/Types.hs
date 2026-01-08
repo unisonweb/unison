@@ -310,37 +310,24 @@ instance HasInputSchema UpdateDefinitionsToolArguments where
             [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
               "code"
                 .= object
-                  [ "description" .= ("The source code to update definitions to. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
-                    "oneOf"
-                      .= [ object
-                             [ "description" .= ("The file path to the source code." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "filePath"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("An absolute file path to the source code." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["filePath" :: Text],
-                               "additionalProperties" .= False
-                             ],
-                           object
-                             [ "description" .= ("The source code to use." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "text"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("The source code to use." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["text" :: Text],
-                               "additionalProperties" .= False
-                             ]
-                         ]
+                  [ "description" .= ("The source code to update definitions to. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to update definitions to." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The absolute file path to the source code." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
                   ]
             ],
         "required" .= ["projectContext", "code" :: Text]
@@ -350,12 +337,21 @@ instance FromJSON UpdateDefinitionsToolArguments where
   parseJSON = withObject "UpdateDefinitionsToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
     source <- o .: "code"
-    code <-
-      source .:? "filePath" >>= \case
-        Just filePath -> pure $ Left filePath
-        Nothing -> do
-          text <- source .: "text"
-          pure $ Right text
+    mFilePath <- source .:? "filePath"
+    mSourceCode <- source .:? "sourceCode"
+    mText <- source .:? "text"
+    let providedCount =
+          length
+            (filter id [isJust mFilePath, isJust mSourceCode, isJust mText])
+    when (providedCount == 0) $
+      fail "Expected one of: code.filePath, code.sourceCode"
+    when (providedCount > 1) $
+      fail "Expected exactly one of: code.filePath, code.sourceCode"
+    code <- case (mFilePath, mSourceCode, mText) of
+      (Just filePath, _, _) -> pure (Left filePath)
+      (_, Just sourceCode, _) -> pure (Right sourceCode)
+      (_, _, Just text) -> pure (Right text)
+      _ -> fail "Expected one of: code.filePath, code.sourceCode"
     pure $ UpdateDefinitionsToolArguments {projectContext, code}
 
 data DiffUpdateToolArguments = DiffUpdateToolArguments
@@ -714,7 +710,7 @@ instance FromJSON ShareProjectSearchToolArguments where
 
 data TestToolArguments = TestToolArguments
   { projectContext :: ProjectContext,
-    subnamespace :: Maybe Path.Relative
+    subnamespace :: Maybe Path.Path
   }
   deriving (Eq, Show)
 
@@ -737,7 +733,7 @@ instance HasInputSchema TestToolArguments where
 instance FromJSON TestToolArguments where
   parseJSON = withObject "TestToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
-    subnamespace <- fmap (Path.Relative . Path.unsafeParseText) <$> (o .:? "subnamespace")
+    subnamespace <- fmap Path.unsafeParseText <$> (o .:? "subnamespace")
     pure $ TestToolArguments {projectContext, subnamespace}
 
 data DeleteDefinitionsToolArguments = DeleteDefinitionsToolArguments

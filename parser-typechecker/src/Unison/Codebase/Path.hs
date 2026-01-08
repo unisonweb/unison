@@ -7,8 +7,6 @@ module Unison.Codebase.Path
     Namey (..),
     Absolute (..),
     absPath_,
-    Relative (..),
-    relPath_,
     Resolve (..),
     pattern Current,
     pattern Current',
@@ -16,7 +14,6 @@ module Unison.Codebase.Path
     pattern Root',
     singleton,
     isAbsolute,
-    isRelative,
     parentOfName,
     maybePrefix,
     unprefix,
@@ -66,9 +63,6 @@ import Unison.Util.Recursion (Recursive, XNor, cata, embed)
 -- | A `Path` is an internal structure representing some namespace in the codebase.
 --
 --  @Foo.Bar.baz@ becomes @["Foo", "Bar", "baz"]@.
---
---  __NB__:  This shouldn’t be exposed outside of this module (prefer`Path'`, `Absolute`, or `Relative`), but it’s
---   currently used pretty widely. Such usage should be replaced when encountered.
 newtype Path = Path {toSeq :: Seq NameSegment}
   deriving stock (Eq, Ord, Show)
   deriving newtype (Semigroup, Monoid)
@@ -100,22 +94,10 @@ instance Recursive Absolute (XNor NameSegment) where
 absPath_ :: Lens' Absolute Path
 absPath_ = lens unabsolute (\_ new -> Absolute new)
 
--- | A namespace path that doesn’t necessarily start from the root.
--- Typically refers to a path from the current namespace.
-newtype Relative = Relative {unrelative :: Path}
-  deriving stock (Eq, Ord, Show)
-  deriving newtype (Semigroup, Monoid)
-
-instance From Relative Text where
-  from = toText
-
-relPath_ :: Lens' Relative Path
-relPath_ = lens unrelative (\_ new -> Relative new)
-
 -- | A namespace that may be either absolute or relative, This is the most general type that should be used.
 data Path'
   = AbsolutePath' Absolute
-  | RelativePath' Relative
+  | RelativePath' Path
   deriving (Eq, Ord, Show)
 
 instance From Path' Text where
@@ -125,12 +107,8 @@ isAbsolute :: Path' -> Bool
 isAbsolute (AbsolutePath' _) = True
 isAbsolute _ = False
 
-isRelative :: Path' -> Bool
-isRelative (RelativePath' _) = True
-isRelative _ = False
-
-pattern Current :: Relative
-pattern Current = Relative (Path Seq.Empty)
+pattern Current :: Path
+pattern Current = Path Seq.Empty
 
 pattern Current' :: Path'
 pattern Current' = RelativePath' Current
@@ -147,10 +125,10 @@ type Split path = (path, NameSegment)
 --   unprefix foo.bar .blah == .blah (absolute paths left alone)
 --   unprefix foo.bar id    == id    (relative paths starting w/ nonmatching prefix left alone)
 --   unprefix foo.bar foo.bar.baz == baz (relative paths w/ common prefix get stripped)
-unprefix :: Relative -> Path' -> Path'
-unprefix (Relative prefix) = \case
+unprefix :: Path -> Path' -> Path'
+unprefix prefix = \case
   AbsolutePath' abs -> AbsolutePath' abs
-  RelativePath' rel -> RelativePath' . Relative . fromList . dropPrefix (toList prefix) . toList $ unrelative rel
+  RelativePath' rel -> RelativePath' . fromList . dropPrefix (toList prefix) . toList $ rel
 
 -- | Returns `Nothing` if the second argument is absolute. A common pattern is
 --   @fromMaybe path $ maybePrefix prefix path@ to use the unmodified path in that case.
@@ -167,10 +145,10 @@ maybePrefix pre = \case
 --
 -- >>> longestPathPrefix Empty ("a" :< "b" :< "c" :< Empty)
 -- (,,a.b.c)
-longestPathPrefix :: Absolute -> Absolute -> (Absolute, Relative, Relative)
+longestPathPrefix :: Absolute -> Absolute -> (Absolute, Path, Path)
 longestPathPrefix a b =
   List.splitOnLongestCommonPrefix (toList $ unabsolute a) (toList $ unabsolute b)
-    & \(a, b, c) -> (Absolute $ fromList a, Relative $ fromList b, Relative $ fromList c)
+    & \(a, b, c) -> (Absolute $ fromList a, fromList b, fromList c)
 
 toAbsoluteSplit :: Absolute -> Split Path' -> Split Absolute
 toAbsoluteSplit = first . resolve
@@ -185,7 +163,7 @@ pattern Root' = AbsolutePath' Root
 fromPath' :: Path' -> Path
 fromPath' = \case
   AbsolutePath' (Absolute p) -> p
-  RelativePath' (Relative p) -> p
+  RelativePath' p -> p
 
 toList :: Path -> [NameSegment]
 toList = Foldable.toList . toSeq
@@ -212,7 +190,7 @@ splitFromName name =
 --
 -- >>> unprefixName (Relative $ fromList ["base", "List"]) (Name.unsafeFromText "base.List.map")
 -- Just (Name Relative (NameSegment {toText = "map"} :| []))
-unprefixName :: Relative -> Name -> Maybe Name
+unprefixName :: Path -> Name -> Maybe Name
 unprefixName prefix = toName . unprefix prefix . fromName'
 
 -- | Returns `Nothing` if the second argument is absolute. A common pattern is
@@ -238,8 +216,7 @@ class Pathy path where
   ascend = fmap fst . split
   descend :: path -> NameSegment -> path
 
-  -- | This always prefixes, since the second argument can never be absolute.
-  prefix :: path -> Relative -> path
+  prefix :: path -> Path -> path
 
   split :: path -> Maybe (Split path)
 
@@ -256,7 +233,7 @@ class (Pathy path) => Namey path where
 
 instance Pathy Path where
   descend (Path p) = Path . (p :|>)
-  prefix pre = Path . (toSeq pre <>) . toSeq . unrelative
+  prefix = resolve
   split (Path seq) = case seq of
     Seq.Empty -> Nothing
     p :|> n -> pure (Path p, n)
@@ -269,29 +246,18 @@ instance Namey Path where
 
 instance Pathy Absolute where
   descend (Absolute p) = Absolute . descend p
-  prefix (Absolute pre) = Absolute . prefix pre
+  prefix = resolve
   split (Absolute p) = first Absolute <$> split p
   toText = ("." <>) . toText . unabsolute
 
 instance Namey Absolute where
   nameFromSplit = Name.makeAbsolute . nameFromSplit . first unabsolute
 
-instance Pathy Relative where
-  descend (Relative p) = Relative . descend p
-  prefix (Relative pre) = Relative . prefix pre
-  split (Relative p) = first Relative <$> split p
-  toText = toText . unrelative
-
-instance Namey Relative where
-  nameFromSplit = Name.makeRelative . nameFromSplit . first unrelative
-
 instance Pathy Path' where
   descend = \case
     AbsolutePath' p -> AbsolutePath' . descend p
     RelativePath' p -> RelativePath' . descend p
-  prefix = \case
-    AbsolutePath' p -> AbsolutePath' . prefix p
-    RelativePath' p -> RelativePath' . prefix p
+  prefix = resolve
   split = \case
     AbsolutePath' p -> first AbsolutePath' <$> split p
     RelativePath' p -> first RelativePath' <$> split p
@@ -322,14 +288,14 @@ parentOfName name =
       path = fromList $ reverse t
    in ( if Name.isAbsolute name
           then AbsolutePath' (Absolute path)
-          else RelativePath' (Relative path),
+          else RelativePath' path,
         h
       )
 
 fromName' :: Name -> Path'
 fromName' n
   | Name.isAbsolute n = AbsolutePath' (Absolute path)
-  | otherwise = RelativePath' (Relative path)
+  | otherwise = RelativePath' path
   where
     path = fromName n
 
@@ -350,12 +316,22 @@ unsafeParseText = \case
 -- ""
 unsafeParseText' :: Text -> Path'
 unsafeParseText' = \case
-  "" -> RelativePath' (Relative mempty)
+  "" -> RelativePath' mempty
   "." -> AbsolutePath' (Absolute mempty)
   text -> fromName' (Name.unsafeParseText text)
 
 class Resolve l r o where
   resolve :: l -> r -> o
+
+instance Resolve Absolute Path Absolute where
+  resolve (Absolute l) r = Absolute (resolve l r)
+
+instance Resolve Absolute Path' Absolute where
+  resolve _ (AbsolutePath' a) = a
+  resolve a (RelativePath' r) = resolve a r
+
+instance Resolve Absolute (Split Path) (Split Absolute) where
+  resolve l r = first (resolve l) r
 
 instance Resolve Path Path Path where
   resolve (Path l) (Path r) = Path (l <> r)
@@ -363,29 +339,14 @@ instance Resolve Path Path Path where
 instance Resolve Path (Split Path) (Split Path) where
   resolve l (r, x) = (resolve l r, x)
 
-instance Resolve Relative Relative Relative where
-  resolve (Relative (Path l)) (Relative (Path r)) = Relative (Path (l <> r))
-
-instance Resolve Absolute Relative Absolute where
-  resolve (Absolute l) (Relative r) = Absolute (resolve l r)
-
-instance Resolve Absolute Relative Path' where
-  resolve l r = AbsolutePath' (resolve l r)
-
-instance Resolve Absolute Path Absolute where
-  resolve (Absolute l) r = Absolute (resolve l r)
+instance Resolve Path' Path Path' where
+  resolve (AbsolutePath' l) r = AbsolutePath' (resolve l r)
+  resolve (RelativePath' l) r = RelativePath' (resolve l r)
 
 instance Resolve Path' Path' Path' where
   resolve _ a@(AbsolutePath' {}) = a
   resolve (AbsolutePath' a) (RelativePath' r) = AbsolutePath' (resolve a r)
   resolve (RelativePath' r1) (RelativePath' r2) = RelativePath' (resolve r1 r2)
-
-instance Resolve Absolute (Split Path) (Split Absolute) where
-  resolve l r = first (resolve l) r
-
-instance Resolve Absolute Path' Absolute where
-  resolve _ (AbsolutePath' a) = a
-  resolve a (RelativePath' r) = resolve a r
 
 instance Resolve (Split Absolute) (Split Path) (Split Absolute) where
   resolve (l, x) (r, y) = (resolve (descend l x) r, y)
