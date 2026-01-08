@@ -118,7 +118,7 @@ scratch/main> reflog.global
        history.
 
        Branch            Hash          Description
-  1.   newproject/main   #6bbdh6rbo9   alias.term lib.builtins.Nat newproject/main:MyNat
+  1.   newproject/main   #6bbdh6rbo9   alias.type lib.builtins.Nat newproject/main:MyNat
   2.   newproject/main   #btddbo4t1j   builtins.merge newproject/main:lib.builtins
   3.   newproject/main   #sg60bvjo91   Branch Created
   4.   scratch/other     #lko9jdvg1c   alias.term y scratch/other:z
