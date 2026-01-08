@@ -256,12 +256,6 @@ instance ToParamSchema Path.Path where
       & type_ ?~ OpenApiString
       & example ?~ Aeson.String "base.List"
 
-instance ToParamSchema Path.Relative where
-  toParamSchema _ =
-    mempty
-      & type_ ?~ OpenApiString
-      & example ?~ Aeson.String "base.List"
-
 instance ToParam (QueryParam "name" Name) where
   toParam _ =
     DocQueryParam
@@ -290,15 +284,6 @@ instance FromJSON ConstructorType where
     "Effect" -> pure CT.Effect
     _ -> fail $ "Invalid ConstructorType: " <> Text.unpack txt
 
-instance FromHttpApiData Path.Relative where
-  parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
-    Left s -> Left s
-    Right (Path.RelativePath' p) -> Right p
-    Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
-
-instance ToHttpApiData Path.Relative where
-  toUrlPiece = tShow
-
 instance FromHttpApiData Path.Absolute where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
     Left s -> Left s
@@ -317,7 +302,7 @@ instance ToHttpApiData Path.Path' where
 instance FromHttpApiData Path.Path where
   parseUrlPiece txt = case Path.parsePath' (Text.unpack txt) of
     Left s -> Left s
-    Right (Path.RelativePath' p) -> Right (Path.unrelative p)
+    Right (Path.RelativePath' p) -> Right p
     Right (Path.AbsolutePath' _) -> Left $ "Expected relative path, but " <> txt <> " was absolute."
 
 instance ToHttpApiData Path.Path where

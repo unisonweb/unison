@@ -7,6 +7,7 @@ module Unison.CommandLine.OutputMessages where
 import Control.Arrow ((***))
 import Control.Lens hiding (at)
 import Control.Monad.State.Strict qualified as State
+import Data.Algorithm.Diff qualified as Diff
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Foldable qualified as Foldable
 import Data.List (intercalate, stripPrefix)
@@ -40,6 +41,7 @@ import U.Codebase.Branch (NamespaceStats (..))
 import U.Codebase.Branch.Diff (NameChanges (..))
 import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
+import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
 import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Project (Project (..))
@@ -160,7 +162,7 @@ import Unison.Typed (Typed (..))
 import Unison.Util.Alphabetical (sortAlphabetically, sortAlphabeticallyOn)
 import Unison.Util.Conflicted (Conflicted (..))
 import Unison.Util.Defn (Defn (..))
-import Unison.Util.Defns (Defns (..), DefnsF2)
+import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2)
 import Unison.Util.List qualified as List
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Monoid qualified as Monoid
@@ -2660,6 +2662,147 @@ notifyUser dir issueFn = \case
                in case prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes of
                     Just legend -> legend
                     Nothing -> mempty
+            ]
+  ShowUpdateDiff ppedNew ppedOld newDefns updatedDefns dependents -> do
+    let ppe = PPED.suffixifiedPPE ppedNew
+    let colorAdd = P.green . ("+ " <>)
+
+    let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
+        renderTypes colored types =
+          types
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, decl) ->
+                  colored $
+                    P.syntaxToColor $
+                      DeclPrinter.prettyDeclOrBuiltinHeader
+                        DeclPrinter.RenderUniqueTypeGuids'No
+                        (HQ.fromName name)
+                        decl
+              )
+            & P.lines
+
+    -- Render new terms with "+ " prefix on each line
+    -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
+    -- for better readability
+    let renderTerms :: Map Name (Term Symbol Ann, Type Symbol Ann) -> Pretty
+        renderTerms terms =
+          terms
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, (term, _typ)) ->
+                  let termText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppe (HQ.fromName name) term
+                      termLines = Text.lines termText
+                   in P.lines $ map (\line -> P.green $ P.text $ "+ " <> line) termLines
+              )
+            & P.sepNonEmpty "\n"
+
+    -- Render updated terms with inline diff (removed lines in red, added lines in green)
+    -- Use ppedOld for old terms (so old refs resolve to names)
+    -- Use ppedNew for new terms (so new refs resolve to names)
+    -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
+    -- for better line-by-line diffing
+    let renderUpdatedTerms :: Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann)) -> Pretty
+        renderUpdatedTerms terms =
+          terms
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ((oldTerm, _oldTyp), (newTerm, _newTyp))) ->
+                  let ppeOld = PPED.suffixifiedPPE ppedOld
+                      ppeNew = PPED.suffixifiedPPE ppedNew
+                      oldText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppeOld (HQ.fromName name) oldTerm
+                      newText = P.toPlain 80 $ P.syntaxToColor $ TermPrinter.prettyBindingForDiff ppeNew (HQ.fromName name) newTerm
+                      oldLines = Text.lines oldText
+                      newLines = Text.lines newText
+                      diffLines = Diff.getDiff oldLines newLines
+                      renderDiffLine = \case
+                        Diff.First line -> P.red $ P.text $ "- " <> line
+                        Diff.Second line -> P.green $ P.text $ "+ " <> line
+                        Diff.Both line _ -> P.text $ "  " <> line
+                   in P.lines (map renderDiffLine diffLines)
+              )
+            & P.sepNonEmpty "\n"
+
+    -- Render updated types with inline diff (removed lines in red, added lines in green)
+    -- Use ppedOld for old types (so old refs resolve to names)
+    -- Use ppedNew for new types (so new refs resolve to names)
+    let renderUpdatedTypes :: Map Name ((TypeReferenceId, DD.Decl Symbol Ann), (TypeReferenceId, DD.Decl Symbol Ann)) -> Pretty
+        renderUpdatedTypes types =
+          types
+            & Map.toList
+            & sortAlphabeticallyOn (view _1)
+            & map
+              ( \(name, ((oldRefId, oldDecl), (newRefId, newDecl))) ->
+                  let oldRef = Reference.fromId oldRefId
+                      newRef = Reference.fromId newRefId
+                      oldText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedOld DeclPrinter.RenderUniqueTypeGuids'No oldRef (HQ.fromName name) oldDecl
+                      newText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedNew DeclPrinter.RenderUniqueTypeGuids'No newRef (HQ.fromName name) newDecl
+                      oldLines = Text.lines oldText
+                      newLines = Text.lines newText
+                      diffLines = Diff.getDiff oldLines newLines
+                      renderDiffLine = \case
+                        Diff.First line -> P.red $ P.text $ "- " <> line
+                        Diff.Second line -> P.green $ P.text $ "+ " <> line
+                        Diff.Both line _ -> P.text $ "  " <> line
+                   in P.lines (map renderDiffLine diffLines)
+              )
+            & P.sepNonEmpty "\n"
+
+    let renderDependents :: DefnsF (Map Name) TermReferenceId TypeReferenceId -> Pretty
+        renderDependents deps =
+          let names = Map.keys deps.terms ++ Map.keys deps.types
+           in if null names
+                then mempty
+                else
+                  P.wrap "The following dependents would be retypechecked:"
+                    <> P.newline
+                    <> P.indentN 2 (P.lines (map prettyName (sortAlphabeticallyOn id names)))
+
+    let hasNewDefns = not (Map.null newDefns.terms && Map.null newDefns.types)
+        hasUpdatedDefns = not (Map.null updatedDefns.terms && Map.null updatedDefns.types)
+        hasDependents = not (Map.null dependents.terms && Map.null dependents.types)
+
+    pure $
+      if not hasNewDefns && not hasUpdatedDefns
+        then P.wrap "No changes to preview. The scratch file doesn't contain any new or updated definitions."
+        else
+          P.sepNonEmpty
+            "\n\n"
+            [ P.wrap "Preview of changes that would be made by `update`:",
+              if hasNewDefns
+                then
+                  P.linesNonEmpty
+                    [ P.wrap "New definitions:",
+                      if Map.null newDefns.types then mempty else P.indentN 2 $ renderTypes colorAdd newDefns.types,
+                      if Map.null newDefns.terms then mempty else P.indentN 2 $ renderTerms newDefns.terms
+                    ]
+                else mempty,
+              if hasUpdatedDefns
+                then
+                  P.linesNonEmpty
+                    [ P.wrap "Updated definitions:",
+                      if Map.null updatedDefns.types then mempty else P.indentN 2 $ renderUpdatedTypes updatedDefns.types,
+                      if Map.null updatedDefns.terms then mempty else P.indentN 2 $ renderUpdatedTerms updatedDefns.terms
+                    ]
+                else mempty,
+              if hasDependents
+                then renderDependents dependents
+                else mempty,
+              -- For diff.update, show + (added) and - (deleted) instead of ~ (modified)
+              -- since updated definitions show inline diffs with +/- lines
+              case prettyAddUpdateDeleteLegend (hasNewDefns || hasUpdatedDefns) False hasUpdatedDefns of
+                Just legend -> legend
+                Nothing -> mempty,
+              P.wrap $ "Run " <> IP.makeExample' IP.update <> " to apply these changes."
             ]
   StaleRun ppe main (endOfPath NEList.:| reversePath) inFile ->
     let path = reverse ((True, endOfPath) : map (False,) reversePath)

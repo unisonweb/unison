@@ -4,7 +4,7 @@ module Unison.Test.Codebase.Path where
 
 import Data.Maybe (fromJust)
 import EasyTest
-import Unison.Codebase.Path (Path' (..), Relative (..))
+import Unison.Codebase.Path (Path' (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.Path.Parse (parseHQSplit', parseHashOrHQSplit')
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -39,4 +39,4 @@ test =
     ]
 
 relative :: [Text] -> Path'
-relative = RelativePath' . Relative . Path.fromList . fmap NameSegment
+relative = RelativePath' . Path.fromList . fmap NameSegment

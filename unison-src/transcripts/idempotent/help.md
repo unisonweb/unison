@@ -256,6 +256,11 @@
                                 differs from the namespace
                                 `before`
 
+  diff.update (or update.diff)
+  Shows a preview of what changes would be made if `update` were
+  run. This is a read-only operation that doesn't modify the
+  codebase.
+
   display
   `display foo` prints a rendered version of the term `foo`.
   `display` without arguments invokes a search to select a definition to display, which requires that `fzf` can be found within your PATH.

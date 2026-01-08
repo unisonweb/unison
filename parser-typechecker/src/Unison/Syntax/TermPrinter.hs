@@ -6,6 +6,7 @@ module Unison.Syntax.TermPrinter
     pretty',
     prettyBinding,
     prettyBinding',
+    prettyBindingForDiff,
     prettyBindingWithoutTypeSignature,
     prettyDoc2,
     pretty0,
@@ -262,22 +263,24 @@ pretty0
           --      metaprograms), then it needs to be able to print them (and then the
           --      parser ought to be able to parse them, to maintain symmetry.)
           Boolean' b -> pure . fmt S.BooleanLiteral $ if b then l "true" else l "false"
-          Text' s
-            | Just quotes <- useRaw s ->
-                pure . fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> "\n" <> PP.text quotes
-            where
-              -- we only use this syntax if we're not wrapped in something else,
-              -- to avoid possible round trip issues if the text ends at an odd column
-              useRaw _ | p >= Annotation = Nothing
-              useRaw s | Text.elem '\n' s && Text.all ok s = Just quotes
-              useRaw _ = Nothing
-              ok ch = isPrint ch || ch == '\n'
-              -- Picks smallest number of surrounding """ to be unique
-              quotes = Text.pack (replicate numQuotes '"')
-              numQuotes = max 3 $ longestRun '"' s + 1
-              longestRun :: Char -> Text -> Int
-              longestRun c = maximum . (0 :) . map Text.length . filter ((== c) . Text.head) . Text.group
-          Text' s -> pure . fmt S.TextLiteral $ l $ U.ushow s
+          Text' s -> do
+            env <- ask
+            -- Use raw strings (triple-quoted) for multiline text when:
+            -- 1. forceRawStrings is True (for diff output), OR
+            -- 2. We're not wrapped in something else (p < Annotation)
+            -- AND the text contains newlines and only printable chars
+            let useRawAllowed = env.forceRawStrings || p < Annotation
+                canUseRaw = useRawAllowed && Text.elem '\n' s && Text.all ok s
+                ok ch = isPrint ch || ch == '\n'
+                -- Picks smallest number of surrounding """ to be unique
+                quotes = Text.pack (replicate numQuotes '"')
+                numQuotes = max 3 $ longestRun '"' s + 1
+                longestRun :: Char -> Text -> Int
+                longestRun c = maximum . (0 :) . map Text.length . filter ((== c) . Text.head) . Text.group
+            pure $
+              if canUseRaw
+                then fmt S.TextLiteral $ PP.text quotes <> "\n" <> PP.text s <> "\n" <> PP.text quotes
+                else fmt S.TextLiteral $ l $ U.ushow s
           Char' c -> pure
             . fmt S.CharLiteral
             . l
@@ -973,6 +976,17 @@ prettyBinding_ ::
   Pretty SyntaxText
 prettyBinding_ go ppe n tm =
   runPretty (avoidShadowing tm ppe) . fmap go $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
+
+-- | Like 'prettyBinding', but uses raw strings for multiline text literals.
+-- This is useful for diff output where we want actual newlines for better diffing.
+prettyBindingForDiff ::
+  (Var v) =>
+  PrettyPrintEnv ->
+  HQ.HashQualified Name ->
+  Term2 v at ap v a ->
+  Pretty SyntaxText
+prettyBindingForDiff ppe n tm =
+  runPrettyForDiff (avoidShadowing tm ppe) . fmap renderPrettyBinding $ prettyBinding0 (ac Basement Block Map.empty MaybeDoc) n tm
 
 prettyBinding' ::
   (Var v) =>

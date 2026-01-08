@@ -117,12 +117,9 @@ cliToMCP projCtx onError cli = do
   let notify output = do
         pretty <- Output.notifyUser workDir Output.fetchIssueFromGitHub output
         atomically $ modifyTVar' outputVar (<> Seq.singleton pretty)
-        if (Output.isFailure output)
-          then do
-            atomically $ modifyTVar errorsVar (<> Seq.singleton pretty)
-            liftIO $ onError (Pretty.toPlain 0 pretty)
-          else do
-            atomically $ modifyTVar outputVar (<> Seq.singleton pretty)
+        when (Output.isFailure output) do
+          atomically $ modifyTVar' errorsVar (<> Seq.singleton pretty)
+          liftIO $ onError (Pretty.toPlain 0 pretty)
   let notifyNumbered output = do
         let (pretty, nargs) = Output.notifyNumbered output
         atomically $ modifyTVar' outputVar (<> Seq.singleton pretty)

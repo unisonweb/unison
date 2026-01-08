@@ -13,6 +13,7 @@ module Unison.MCP.Types
     ListLibraryDefinitionsToolArguments (..),
     ViewDefinitionsToolArguments (..),
     UpdateDefinitionsToolArguments (..),
+    DiffUpdateToolArguments (..),
     SearchDefinitionsToolArguments (..),
     SearchByTypeToolArguments (..),
     DocsToolArguments (..),
@@ -22,6 +23,11 @@ module Unison.MCP.Types
     ProjectNameArgument (..),
     ProjectDefinitionNameArgument (..),
     TestToolArguments (..),
+    DeleteDefinitionsToolArguments (..),
+    RenameDefinitionToolArguments (..),
+    MoveDefinitionToolArguments (..),
+    MoveToToolArguments (..),
+    DeleteNamespaceToolArguments (..),
     toToolName,
     fromToolName,
   )
@@ -39,11 +45,13 @@ import Unison.Codebase.Path qualified as Path
 import Unison.Core.Project (ProjectBranchName (UnsafeProjectBranchName), ProjectName (UnsafeProjectName))
 import Unison.MCP.Wrapper (HasInputSchema (..))
 import Unison.Name (Name)
+import Unison.NameSegment (NameSegment)
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Runtime (Runtime)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.Name qualified as Name
+import Unison.Syntax.NameSegment qualified as NameSegment
 
 data Env = Env
   { codebase :: Codebase IO Symbol Ann,
@@ -84,6 +92,12 @@ data ToolKind
   | DependenciesTool
   | DependentsTool
   | TestsTool
+  | DeleteDefinitionsTool
+  | RenameDefinitionTool
+  | MoveDefinitionTool
+  | MoveToTool
+  | DeleteNamespaceTool
+  | DiffUpdateTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -108,7 +122,13 @@ kindNameMapping =
       (GetCurrentProjectContextTool, "get-current-project-context"),
       (DependenciesTool, "list-definition-dependencies"),
       (DependentsTool, "list-definition-dependents"),
-      (TestsTool, "run-tests")
+      (TestsTool, "run-tests"),
+      (DeleteDefinitionsTool, "delete-definitions"),
+      (RenameDefinitionTool, "rename-definition"),
+      (MoveDefinitionTool, "move-definition"),
+      (MoveToTool, "move-to"),
+      (DeleteNamespaceTool, "delete-namespace"),
+      (DiffUpdateTool, "diff-update")
     ]
 
 data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
@@ -290,7 +310,66 @@ instance HasInputSchema UpdateDefinitionsToolArguments where
             [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
               "code"
                 .= object
-                  [ "description" .= ("The source code to update definitions to. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
+                  [ "description" .= ("The source code to update definitions to. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to update definitions to." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The absolute file path to the source code." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
+                  ]
+            ],
+        "required" .= ["projectContext", "code" :: Text]
+      ]
+
+instance FromJSON UpdateDefinitionsToolArguments where
+  parseJSON = withObject "UpdateDefinitionsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    source <- o .: "code"
+    mFilePath <- source .:? "filePath"
+    mSourceCode <- source .:? "sourceCode"
+    mText <- source .:? "text"
+    let providedCount =
+          length
+            (filter id [isJust mFilePath, isJust mSourceCode, isJust mText])
+    when (providedCount == 0) $
+      fail "Expected one of: code.filePath, code.sourceCode"
+    when (providedCount > 1) $
+      fail "Expected exactly one of: code.filePath, code.sourceCode"
+    code <- case (mFilePath, mSourceCode, mText) of
+      (Just filePath, _, _) -> pure (Left filePath)
+      (_, Just sourceCode, _) -> pure (Right sourceCode)
+      (_, _, Just text) -> pure (Right text)
+      _ -> fail "Expected one of: code.filePath, code.sourceCode"
+    pure $ UpdateDefinitionsToolArguments {projectContext, code}
+
+data DiffUpdateToolArguments = DiffUpdateToolArguments
+  { projectContext :: ProjectContext,
+    code :: Either FilePath Text
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema DiffUpdateToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "code"
+                .= object
+                  [ "description" .= ("The source code to diff against the current codebase. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
                     "oneOf"
                       .= [ object
                              [ "description" .= ("The file path to the source code." :: Text),
@@ -314,7 +393,7 @@ instance HasInputSchema UpdateDefinitionsToolArguments where
                                    [ "text"
                                        .= object
                                          [ "type" .= ("string" :: Text),
-                                           "description" .= ("The source code to use." :: Text)
+                                           "description" .= ("The source code." :: Text)
                                          ]
                                    ],
                                "required" .= ["text" :: Text],
@@ -326,8 +405,8 @@ instance HasInputSchema UpdateDefinitionsToolArguments where
         "required" .= ["projectContext", "code" :: Text]
       ]
 
-instance FromJSON UpdateDefinitionsToolArguments where
-  parseJSON = withObject "UpdateDefinitionsToolArguments" $ \o -> do
+instance FromJSON DiffUpdateToolArguments where
+  parseJSON = withObject "DiffUpdateToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
     source <- o .: "code"
     code <-
@@ -336,7 +415,7 @@ instance FromJSON UpdateDefinitionsToolArguments where
         Nothing -> do
           text <- source .: "text"
           pure $ Right text
-    pure $ UpdateDefinitionsToolArguments {projectContext, code}
+    pure $ DiffUpdateToolArguments {projectContext, code}
 
 data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
   { projectContext :: ProjectContext,
@@ -631,7 +710,7 @@ instance FromJSON ShareProjectSearchToolArguments where
 
 data TestToolArguments = TestToolArguments
   { projectContext :: ProjectContext,
-    subnamespace :: Maybe Path.Relative
+    subnamespace :: Maybe Path.Path
   }
   deriving (Eq, Show)
 
@@ -654,8 +733,194 @@ instance HasInputSchema TestToolArguments where
 instance FromJSON TestToolArguments where
   parseJSON = withObject "TestToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
-    subnamespace <- fmap (Path.Relative . Path.unsafeParseText) <$> (o .:? "subnamespace")
+    subnamespace <- fmap Path.unsafeParseText <$> (o .:? "subnamespace")
     pure $ TestToolArguments {projectContext, subnamespace}
+
+data DeleteDefinitionsToolArguments = DeleteDefinitionsToolArguments
+  { projectContext :: ProjectContext,
+    names :: [Name],
+    force :: Bool
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema DeleteDefinitionsToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "names"
+                .= object
+                  [ "type" .= ("array" :: Text),
+                    "items"
+                      .= object
+                        [ "type" .= ("string" :: Text),
+                          "description" .= ("A definition name to delete, e.g. `mynamespace.foo` or `MyType`." :: Text)
+                        ],
+                    "description" .= ("The names of the definitions to delete." :: Text)
+                  ],
+              "force"
+                .= object
+                  [ "type" .= ("boolean" :: Text),
+                    "description" .= ("If true, force delete even if the definition has dependents. Default is false." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "names" :: Text]
+      ]
+
+instance FromJSON DeleteDefinitionsToolArguments where
+  parseJSON = withObject "DeleteDefinitionsToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    names <- fmap Name.unsafeParseText <$> o .: "names"
+    force <- o .:? "force" .!= False
+    pure $ DeleteDefinitionsToolArguments {projectContext, names, force}
+
+data RenameDefinitionToolArguments = RenameDefinitionToolArguments
+  { projectContext :: ProjectContext,
+    oldName :: Name,
+    newNameSegment :: NameSegment
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema RenameDefinitionToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "oldName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The current name of the definition to rename, e.g. `mynamespace.foo` or `MyType`." :: Text)
+                  ],
+              "newNameSegment"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The new name segment (final part only). For example, to rename `foo.bar` to `foo.baz`, provide `baz`. The parent path is preserved." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "oldName", "newNameSegment" :: Text]
+      ]
+
+instance FromJSON RenameDefinitionToolArguments where
+  parseJSON = withObject "RenameDefinitionToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    oldName <- Name.unsafeParseText <$> o .: "oldName"
+    newNameSegment <- NameSegment.unsafeParseText <$> o .: "newNameSegment"
+    pure $ RenameDefinitionToolArguments {projectContext, oldName, newNameSegment}
+
+data MoveDefinitionToolArguments = MoveDefinitionToolArguments
+  { projectContext :: ProjectContext,
+    oldName :: Name,
+    newName :: Name
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema MoveDefinitionToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "oldName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The current full path of the definition to move, e.g. `mynamespace.foo` or `MyType`." :: Text)
+                  ],
+              "newName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The new full path for the definition, e.g. `othernamespace.bar` or `NewType`. Can move to a different namespace." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "oldName", "newName" :: Text]
+      ]
+
+instance FromJSON MoveDefinitionToolArguments where
+  parseJSON = withObject "MoveDefinitionToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    oldName <- Name.unsafeParseText <$> o .: "oldName"
+    newName <- Name.unsafeParseText <$> o .: "newName"
+    pure $ MoveDefinitionToolArguments {projectContext, oldName, newName}
+
+data MoveToToolArguments = MoveToToolArguments
+  { projectContext :: ProjectContext,
+    sources :: [Path.Path'],
+    destination :: Path.Path'
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema MoveToToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "sources"
+                .= object
+                  [ "type" .= ("array" :: Text),
+                    "items"
+                      .= object
+                        [ "type" .= ("string" :: Text),
+                          "description" .= ("A path to move, e.g. `mynamespace.foo` or `MyType`." :: Text)
+                        ],
+                    "description" .= ("The paths of the definitions or namespaces to move. The final segment of each source is preserved in the destination." :: Text),
+                    "minItems" .= (1 :: Int)
+                  ],
+              "destination"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The destination namespace to move the sources into, e.g. `othernamespace` or `foo.bar`. Each source's final segment is preserved." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "sources", "destination" :: Text]
+      ]
+
+instance FromJSON MoveToToolArguments where
+  parseJSON = withObject "MoveToToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    sources <- fmap Path.unsafeParseText' <$> o .: "sources"
+    destination <- Path.unsafeParseText' <$> o .: "destination"
+    pure $ MoveToToolArguments {projectContext, sources, destination}
+
+data DeleteNamespaceToolArguments = DeleteNamespaceToolArguments
+  { projectContext :: ProjectContext,
+    namespaceName :: Name,
+    force :: Bool
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema DeleteNamespaceToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "namespaceName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The name of the namespace to delete, e.g. `mynamespace` or `foo.bar`. This will delete the namespace and all definitions within it." :: Text)
+                  ],
+              "force"
+                .= object
+                  [ "type" .= ("boolean" :: Text),
+                    "description" .= ("If true, force delete even if definitions in the namespace have dependents. Default is false." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext", "namespaceName" :: Text]
+      ]
+
+instance FromJSON DeleteNamespaceToolArguments where
+  parseJSON = withObject "DeleteNamespaceToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    namespaceName <- Name.unsafeParseText <$> o .: "namespaceName"
+    force <- o .:? "force" .!= False
+    pure $ DeleteNamespaceToolArguments {projectContext, namespaceName, force}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =

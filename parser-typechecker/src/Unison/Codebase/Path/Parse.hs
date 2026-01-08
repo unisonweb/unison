@@ -53,7 +53,7 @@ parseHashOrHQSplit' = runParser shortHashOrHQSplitP'
 parseHQSplit :: String -> Either Text (HQ'.HashQualified (Split Path))
 parseHQSplit s =
   parseHQSplit' s >>= traverse \(path, seg) -> case path of
-    RelativePath' (Relative p) -> pure (p, seg)
+    RelativePath' p -> pure (p, seg)
     AbsolutePath' (Absolute _) -> Left $ "Sorry, you can't use an absolute name like " <> Text.pack s <> " here."
 
 parseHQSplit' :: String -> Either Text (HQ'.HashQualified (Split Path'))
