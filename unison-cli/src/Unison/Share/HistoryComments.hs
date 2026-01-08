@@ -240,7 +240,7 @@ downloadHistoryComments ::
   Cli ()
 downloadHistoryComments codeserver repoInfo = do
   Cli.Env {codebase, credentialManager} <- ask
-  let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam repoInfo)
+  let path = "/ucm/v1/history-comments/download?branchRef=" <> Text.unpack (toQueryParam repoInfo)
   -- Enable compression
   let tokenProvider = newTokenProvider credentialManager
   result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentDownloaderChunk) @(MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do

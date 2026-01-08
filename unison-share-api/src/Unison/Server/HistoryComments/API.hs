@@ -13,7 +13,9 @@ api = Proxy
 
 type API = NamedRoutes Routes
 
-type DownloadCommentsStream = WebSocket
+type DownloadCommentsStream =
+  RequiredQueryParam "branchRef" BranchRef
+    :> WebSocket
 
 type UploadCommentsStream =
   RequiredQueryParam "branchRef" BranchRef
