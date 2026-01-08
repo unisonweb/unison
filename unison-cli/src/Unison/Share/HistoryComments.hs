@@ -88,7 +88,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
     -- Once we've uploaded everything we can safely exit and the connection will be closed.
     atomically $ Ki.await uploaderThread
   case result of
-    Left err -> error $ "uploadCommentsClient:" <> show err
+    Left err -> error $ "uploadCommentsClient: " <> show err
     Right ((), _leftovers {- Messages sent by server after we finished. -}) -> pure ()
   where
     -- Read all available values from a TBMQueue, returning them and whether the queue is closed.
@@ -254,7 +254,8 @@ downloadHistoryComments codeserver repoInfo = do
     -- The inserter thread will finish when the client closes the connection.
     atomically $ Ki.await inserterThread
   case result of
-    _ -> error "TODO"
+    Left connException -> error $ "downloadHistoryComments: " <> show connException
+    Right ((), _leftovers) -> pure ()
   where
     inserterWorker ::
       Codebase.Codebase IO v a ->
