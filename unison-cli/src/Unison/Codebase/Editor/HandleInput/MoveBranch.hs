@@ -28,8 +28,8 @@ moveBranchFunc hasConfirmed src' dest' = do
     let (changeRootPath, srcLoc, destLoc) = Path.longestPathPrefix srcAbs destAbs
     let doMove changeRoot =
           changeRoot
-            & Branch.modifyAt (Path.unrelative srcLoc) (const Branch.empty)
-            & Branch.modifyAt (Path.unrelative destLoc) (const srcBranch)
+            & Branch.modifyAt srcLoc (const Branch.empty)
+            & Branch.modifyAt destLoc (const srcBranch)
     if (destBranchExists && not isRootMove)
       then Cli.respond (MovedOverExistingBranch dest')
       else pure ()

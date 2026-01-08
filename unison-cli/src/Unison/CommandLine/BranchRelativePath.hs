@@ -187,7 +187,7 @@ incrementalBranchRelativePathParser =
       path' >>= \case
         Path.AbsolutePath' _ -> failureAt offset "Branch qualified paths don't require a leading '.'"
         -- Branch relative paths are written as relative paths, but are always absolute to the branch root
-        Path.RelativePath' (Path.Relative x) -> pure $ Path.Absolute x
+        Path.RelativePath' x -> pure $ Path.Absolute x
     path' = Megaparsec.try do
       offset <- Megaparsec.getOffset
       either (failureAt offset) pure . Path.parsePath' . Text.unpack =<< Megaparsec.takeRest
