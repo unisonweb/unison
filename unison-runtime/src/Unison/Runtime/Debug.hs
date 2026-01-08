@@ -117,7 +117,8 @@ prettyRefStr = Text.unpack . toANSI 0 . prettyRef
 
 tracePrettyCodes ::
   Bool -> [(Reference, Code Reference)] -> [(Reference, Code Reference)]
-tracePrettyCodes False = id
-tracePrettyCodes True = map f
+tracePrettyCodes False co = co
+tracePrettyCodes True co = trace (foldMap f co "") co
   where
-    f p@(r, c) = trace (prettyGroup (prettyRefStr r) (codeGroup c) "") p
+    f (r, c) =
+      prettyGroup (prettyRefStr r) (codeGroup c) <> showString "\n\n"

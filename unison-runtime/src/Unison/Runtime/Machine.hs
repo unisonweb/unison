@@ -1532,7 +1532,7 @@ cacheAdd0 ::
   [(Reference, Set Reference)] ->
   CCache p ->
   IO ()
-cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
+cacheAdd0 ntys0 (normalizeCodes -> tracePrettyCodes True -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
@@ -1671,7 +1671,7 @@ cacheAdd l cc = do
       l'' = filter (\(r, _) -> M.notMember r rtm) l
       l' = map (second codeGroup) l''
   if S.null missing
-    then [] <$ cacheAdd0 tys (tracePrettyCodes True l'') (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 data ReflectionState = RS
