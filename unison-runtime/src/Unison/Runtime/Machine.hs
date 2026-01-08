@@ -25,6 +25,7 @@ module Unison.Runtime.Machine
     resolveSection,
   )
 where
+import Unison.Runtime.Debug
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
@@ -1339,7 +1340,8 @@ dataBranchClosureError mrf clo =
         "    expected type: " <> prettyRef rftgt <> "\n  "
       Nothing -> "I expected a data type, "
     description = case clo of
-      PAp {} -> "a partially applied function"
+      PAp (CIx rf _ _) _ _ ->
+        "a partial application of " <> prettyRef rf
       Captured {} -> "a continuation"
       Affine {} -> "an affine handler info"
       BlackHole -> "a black hole"
@@ -1669,7 +1671,7 @@ cacheAdd l cc = do
       l'' = filter (\(r, _) -> M.notMember r rtm) l
       l' = map (second codeGroup) l''
   if S.null missing
-    then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 tys (tracePrettyCodes True l'') (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 data ReflectionState = RS
