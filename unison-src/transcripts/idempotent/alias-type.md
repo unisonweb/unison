@@ -1,15 +1,15 @@
 `alias.type` makes a new name for a type.
 
 ``` ucm :hide
-> builtins.mergeio lib.builtins
+scratch/main> builtins.mergeio lib.builtins
 ```
 
 ``` ucm
-> alias.type lib.builtins.Nat Foo
+scratch/main> alias.type lib.builtins.Nat Foo
 
   Done.
 
-> ls .
+scratch/main> ls .
 
   1. Foo  (builtin type)
   2. lib. (855 terms, 125 types)
@@ -18,7 +18,7 @@
 It won't create a conflicted name, though.
 
 ``` ucm :error
-> alias.type lib.builtins.Int Foo
+scratch/main> alias.type lib.builtins.Int Foo
 
   ⚠️
 
@@ -26,7 +26,7 @@ It won't create a conflicted name, though.
 ```
 
 ``` ucm
-> ls .
+scratch/main> ls .
 
   1. Foo  (builtin type)
   2. lib. (855 terms, 125 types)
@@ -35,13 +35,106 @@ It won't create a conflicted name, though.
 You can use `debug.alias.type.force` for that.
 
 ``` ucm
-> debug.alias.type.force lib.builtins.Int Foo
+scratch/main> debug.alias.type.force lib.builtins.Int Foo
 
   Done.
 
-> ls .
+scratch/main> ls .
 
   1. Foo  (builtin type)
   2. Foo  (builtin type)
   3. lib. (855 terms, 125 types)
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+
+scratch/main> builtins.mergeio
+```
+
+`alias.type` moves over constructors, too.
+
+``` unison
+type Foo = Bar
+type Baz = Qux | Honk
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Baz
+  + type Foo
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> move Baz lib.dep.Baz
+
+  Done.
+
+scratch/main> alias.type Foo Foo2
+
+  Done.
+
+scratch/main> alias.type lib.dep.Baz Baz2
+
+  Done.
+
+scratch/main> view Foo2 Baz2
+
+  type Baz2 = Qux | Honk
+
+  type Foo2 = Bar
+
+scratch/main> ls Foo2
+
+  1. Bar (Foo)
+
+scratch/main> ls Baz2
+
+  1. Honk (Baz2)
+  2. Qux  (Baz2)
+```
+
+If there's already some term in the way of a constructor, though, `alias.type` will fail.
+
+``` unison
+Foo3.Bar = 17
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + Foo3.Bar : Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` ucm :error
+scratch/main> alias.type Foo Foo3
+
+  ⚠️
+
+  A term named Foo3.Bar already exists.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
 ```
