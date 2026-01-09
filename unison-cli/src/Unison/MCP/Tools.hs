@@ -10,19 +10,26 @@ import Data.List.NonEmpty qualified as NEL
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Time.Format.ISO8601 (iso8601Show)
 import Text.RawString.QQ (r)
+import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (RemoteProjectId (..))
+import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
+import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
+import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Share.Projects qualified as Share.Projects
 import Unison.Cli.Share.Projects.Types (RemoteProject (..))
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
+import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
+import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
@@ -33,7 +40,8 @@ import Unison.MCP.Types
 import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.NameSegment qualified as NameSegment
-import Unison.Prelude (into, readUtf8)
+import Unison.NamesWithHistory qualified as Names
+import Unison.Prelude (fromMaybe, into, readUtf8)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Relation qualified as R
@@ -71,7 +79,9 @@ tools =
     renameDefinitionTool,
     moveDefinitionTool,
     moveToTool,
-    deleteNamespaceTool
+    deleteNamespaceTool,
+    reflogTool,
+    historyTool
   ]
 
 currentProjectContext :: (MonadIO m, MonadReader Env m) => m ProjectContext
@@ -711,6 +721,92 @@ deleteNamespaceTool =
         let split = Path.splitFromName namespaceName
             insistence = if force then Input.Force else Input.Try
         output <- handleInputMCP projectContext [Right $ Input.DeleteNamespaceI insistence (Just split)]
+        let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
+        pure $ textToolResult outputJSON
+    }
+
+reflogTool :: Tool MCP
+reflogTool =
+  Tool
+    { toolName = toToolName ReflogTool,
+      toolDescription = "Get the reflog (history of branch state changes) for a project or branch. Returns structured data about recent changes.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Reflog",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(ReflogToolArguments {projectContext, scope, limit}) -> handleToolError $ do
+        let limitVal = fromMaybe 100 limit
+            scopeVal = fromMaybe "branch" scope
+        Env {codebase} <- ask
+
+        -- Resolve project and branch from context
+        let projName = projectContext.projectName
+            branchName = projectContext.branchName
+
+        entries <- liftIO $ Codebase.runTransaction codebase $ do
+          schLength <- Codebase.branchHashLength
+          mayProject <- Q.loadProjectByName projName
+          case mayProject of
+            Nothing -> pure []
+            Just project -> do
+              mayBranch <- Q.loadProjectBranchByName project.projectId branchName
+              rawEntries <- case scopeVal of
+                "global" -> Codebase.getGlobalReflog (limitVal + 1)
+                "project" -> Codebase.getProjectReflog (limitVal + 1) project.projectId
+                _ -> case mayBranch of
+                  Nothing -> pure []
+                  Just branch -> Codebase.getProjectBranchReflog (limitVal + 1) branch.branchId
+              -- Convert entries to JSON-friendly format
+              pure $ map (reflogEntryToJSON schLength) rawEntries
+
+        let hasMore = length entries > limitVal
+            finalEntries = take limitVal entries
+            response =
+              Aeson.object
+                [ "entries" Aeson..= finalEntries,
+                  "hasMore" Aeson..= hasMore
+                ]
+        pure $ textToolResult $ Text.decodeUtf8 . BL.toStrict $ Aeson.encode response
+    }
+
+reflogEntryToJSON :: Int -> ProjectReflog.Entry Project ProjectBranch CausalHash -> Aeson.Value
+reflogEntryToJSON schLength entry =
+  Aeson.object
+    [ "project" Aeson..= (into @Text $ entry.project.name),
+      "branch" Aeson..= (into @Text $ entry.branch.name),
+      "time" Aeson..= iso8601Show entry.time,
+      "fromHash" Aeson..= fmap (("#" <>) . SCH.toText . SCH.fromHash schLength) entry.fromRootCausalHash,
+      "toHash" Aeson..= (("#" <>) . SCH.toText . SCH.fromHash schLength $ entry.toRootCausalHash),
+      "reason" Aeson..= entry.reason
+    ]
+
+historyTool :: Tool MCP
+historyTool =
+  Tool
+    { toolName = toToolName HistoryTool,
+      toolDescription = "Get the causal history of a branch, showing changes over time. Returns structured data about commits and diffs.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "History",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just False
+          },
+      toolArgType = Proxy,
+      toolHandler = \(HistoryToolArguments {projectContext, startHash, limit, diffLimit}) -> handleToolError $ do
+        -- Build the BranchId from startHash or use the current branch (root path)
+        branchId <- case startHash of
+          Just hash -> case SCH.fromText hash of
+            Just sch -> pure $ Input.BranchAtSCH sch
+            Nothing -> throwError $ "Invalid causal hash: " <> hash
+          Nothing -> pure $ Input.BranchAtPath Path.Current'
+        output <- handleInputMCP projectContext [Right $ Input.HistoryI limit diffLimit branchId]
         let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode output
         pure $ textToolResult outputJSON
     }

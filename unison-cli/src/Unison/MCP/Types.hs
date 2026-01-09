@@ -29,6 +29,8 @@ module Unison.MCP.Types
     MoveDefinitionToolArguments (..),
     MoveToToolArguments (..),
     DeleteNamespaceToolArguments (..),
+    ReflogToolArguments (..),
+    HistoryToolArguments (..),
     toToolName,
     fromToolName,
   )
@@ -100,6 +102,8 @@ data ToolKind
   | MoveToTool
   | DeleteNamespaceTool
   | DiffUpdateTool
+  | ReflogTool
+  | HistoryTool
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 kindNameMapping :: Map ToolKind Text
@@ -131,7 +135,9 @@ kindNameMapping =
       (MoveDefinitionTool, "move-definition"),
       (MoveToTool, "move-to"),
       (DeleteNamespaceTool, "delete-namespace"),
-      (DiffUpdateTool, "diff-update")
+      (DiffUpdateTool, "diff-update"),
+      (ReflogTool, "reflog"),
+      (HistoryTool, "history")
     ]
 
 data ProjectDefinitionNameArgument = ProjectDefinitionNameArgument
@@ -949,6 +955,86 @@ instance FromJSON DeleteNamespaceToolArguments where
     namespaceName <- Name.unsafeParseText <$> o .: "namespaceName"
     force <- o .:? "force" .!= False
     pure $ DeleteNamespaceToolArguments {projectContext, namespaceName, force}
+
+-- | Arguments for the reflog tool
+data ReflogToolArguments = ReflogToolArguments
+  { projectContext :: ProjectContext,
+    scope :: Maybe Text, -- "branch" | "project" | "global", default "branch"
+    limit :: Maybe Int
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema ReflogToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "scope"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "enum" .= (["branch", "project", "global"] :: [Text]),
+                    "description" .= ("The scope of the reflog: 'branch' (default) shows entries for the current branch, 'project' shows entries for all branches in the project, 'global' shows entries for all projects." :: Text)
+                  ],
+              "limit"
+                .= object
+                  [ "type" .= ("integer" :: Text),
+                    "description" .= ("Maximum number of entries to return. Default is 100." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext" :: Text]
+      ]
+
+instance FromJSON ReflogToolArguments where
+  parseJSON = withObject "ReflogToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    scope <- o .:? "scope"
+    limit <- o .:? "limit"
+    pure $ ReflogToolArguments {projectContext, scope, limit}
+
+-- | Arguments for the history tool
+data HistoryToolArguments = HistoryToolArguments
+  { projectContext :: ProjectContext,
+    startHash :: Maybe Text, -- optional starting causal hash
+    limit :: Maybe Int,
+    diffLimit :: Maybe Int
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema HistoryToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
+              "startHash"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("Optional causal hash to start history from. If not provided, starts from the current branch head." :: Text)
+                  ],
+              "limit"
+                .= object
+                  [ "type" .= ("integer" :: Text),
+                    "description" .= ("Maximum number of history entries to return. Default is 100." :: Text)
+                  ],
+              "diffLimit"
+                .= object
+                  [ "type" .= ("integer" :: Text),
+                    "description" .= ("Maximum number of diff elements to show per entry. Default is 10." :: Text)
+                  ]
+            ],
+        "required" .= ["projectContext" :: Text]
+      ]
+
+instance FromJSON HistoryToolArguments where
+  parseJSON = withObject "HistoryToolArguments" $ \o -> do
+    projectContext <- o .: "projectContext"
+    startHash <- o .:? "startHash"
+    limit <- o .:? "limit"
+    diffLimit <- o .:? "diffLimit"
+    pure $ HistoryToolArguments {projectContext, startHash, limit, diffLimit}
 
 nameKindMapping :: Map Text ToolKind
 nameKindMapping =
