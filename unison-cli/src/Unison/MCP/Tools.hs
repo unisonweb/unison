@@ -14,7 +14,6 @@ import Data.Time.Format.ISO8601 (iso8601Show)
 import Text.RawString.QQ (r)
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Sqlite.DbId (RemoteProjectId (..))
-import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.MonadUtils qualified as Cli
@@ -22,7 +21,6 @@ import Unison.Cli.Share.Projects qualified as Share.Projects
 import Unison.Cli.Share.Projects.Types (RemoteProject (..))
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
-import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
 import Unison.Codebase.Editor.Input (Event (..), FindScope (..), Input (..))
 import Unison.Codebase.Editor.Input qualified as Input
@@ -40,7 +38,6 @@ import Unison.MCP.Types
 import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.NameSegment qualified as NameSegment
-import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude (fromMaybe, into, readUtf8)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Syntax.NameSegment qualified as NameSegment
