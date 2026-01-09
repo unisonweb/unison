@@ -15,6 +15,7 @@ import Compat (onWindows)
 import Control.Monad.Reader
 import Data.ByteString.Builder.Extra (defaultChunkSize)
 import Data.Char (toLower)
+import Data.Proxy (Proxy (Proxy))
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import GHC.IO.Exception (ioe_errno)
@@ -44,6 +45,7 @@ import Unison.LSP.GoToDefinition (goToDeclarationHandler, goToDefinitionHandler,
 import Unison.LSP.HandlerUtils qualified as Handlers
 import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
+import Unison.LSP.OpenInShare (openInShareHandler)
 import Unison.LSP.Orphans ()
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
@@ -187,6 +189,7 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentDefinition (mkHandler goToDefinitionHandler)
     & SMM.insert Msg.SMethod_TextDocumentImplementation (mkHandler goToImplementationHandler)
     & SMM.insert Msg.SMethod_TextDocumentDocumentSymbol (mkHandler documentSymbolsHandler)
+    & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/openInShare")) (mkHandler openInShareHandler)
     & addFormattingHandlers
   where
     addFormattingHandlers handlers =
