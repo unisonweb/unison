@@ -4194,8 +4194,10 @@ getConfigValue key =
       WHERE key = :key
     |]
 
+-- Resolve the last known remote project and branch names for a given local
+-- project and branch, for a specific remote URI.
 resolveRemoteProjectBranchNames :: ProjectAndBranch ProjectId ProjectBranchId -> URI -> Transaction (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
-resolveRemoteProjectBranchNames (ProjectAndBranch projectId branchId) remoteUri = do
+resolveRemoteProjectBranchNames (ProjectAndBranch localProjectId localBranchId) remoteUri = do
   queryMaybeRow
     [sql|
       SELECT
@@ -4204,10 +4206,11 @@ resolveRemoteProjectBranchNames (ProjectAndBranch projectId branchId) remoteUri 
       FROM
         remote_project AS rp
         JOIN remote_project_branch AS rpb ON rp.id = rpb.project_id AND rp.host = rpb.host
+        JOIN project_branch_remote_mapping AS pbrm ON rp.id = pbrm.remote_project_id AND rpb.branch_id = pbrm.remote_branch_id AND rp.host = pbrm.remote_host
       WHERE
-        rp.id = :projectId
-        AND rp.host = :remoteUri
-        AND rpb.branch_id = :branchId
+        pbrm.local_project_id = :localProjectId
+        AND pbrm.local_branch_id = :localBranchId
+        AND pbrm.remote_host = :remoteUri
     |]
     <&> fmap \(projectName, branchName) ->
       ProjectAndBranch projectName branchName

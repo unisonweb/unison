@@ -14,7 +14,6 @@ import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Language.LSP.Protocol.Types qualified as LSP
-import Network.URI (escapeURIString, isUnreserved)
 import U.Codebase.Sqlite.Project
 import U.Codebase.Sqlite.ProjectBranch
 import U.Codebase.Sqlite.Queries qualified as Q
@@ -24,7 +23,6 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.ProjectPath
 import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Core.Project (ProjectBranchName, ProjectName (..))
-import Unison.Debug qualified as Debug
 import Unison.LSP.FileAnalysis (ppedForFile)
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
@@ -85,9 +83,7 @@ openOnShareHandler m respond = do
   result <- runMaybeT . runExceptT $ do
     pp <- lift getCurrentProjectPath
     Env {codebase} <- ask
-    Debug.debugM Debug.Temp "OpenOnShare:resolving names" $ pp
     ProjectAndBranch remoteProjectName remoteBranchName <- lift . MaybeT $ resolveRemoteProjectBranch codebase pp
-    Debug.debugM Debug.Temp "OpenOnShare:names" $ (remoteProjectName, remoteBranchName)
     let paramsJSON = m ^. LSP.params
     OpenOnShareParams {textDocument, position} <- case Aeson.fromJSON paramsJSON of
       Aeson.Error err -> throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) (Text.pack err) Nothing
@@ -95,7 +91,6 @@ openOnShareHandler m respond = do
 
     -- Get the symbol reference at the position
     ref <- lift $ LSPQ.refAtPosition textDocument._uri position
-    Debug.debugM Debug.Temp "OpenOnShare:ref" $ ref
 
     -- Get the FQN for the reference
     pped <- lift $ ppedForFile textDocument._uri
@@ -104,16 +99,14 @@ openOnShareHandler m respond = do
           LD.TypeReference typeRef -> (PPE.typeName unsuffixifiedPPE typeRef, "types")
           LD.TermReferent termRef -> (PPE.termName unsuffixifiedPPE termRef, "terms")
     let fqnText = SyntaxHQ.toText fqn
-    let encodedProjectName = Text.pack $ escapeURIString isUnreserved (Text.unpack $ into @Text remoteProjectName)
-    let encodedBranchName = Text.pack $ escapeURIString isUnreserved (Text.unpack $ into @Text remoteBranchName)
 
     -- E.g. https://share.unison-lang.org/@unison/base/code/releases/7.12.0/latest/terms/data/List/map
     let shareUrl =
           Text.unpack $
             "https://share.unison-lang.org/"
-              <> encodedProjectName
+              <> into @Text remoteProjectName
               <> "/code/"
-              <> encodedBranchName
+              <> into @Text remoteBranchName
               <> "/latest/"
               <> kind
               <> "/"
@@ -127,9 +120,6 @@ openOnShareHandler m respond = do
 
 resolveRemoteProjectBranch :: Codebase IO v a -> PP.ProjectPath -> Lsp (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
 resolveRemoteProjectBranch codebase pp = do
-  liftIO $ Codebase.runTransaction codebase $ runMaybeT $ do
-    (remoteProjectId, remoteBranchId) <- MaybeT $ Q.loadDefaultMergeTargetForLocalProjectBranch pp.project.projectId Share.hardCodedUri pp.branch.branchId
-    Debug.debugM Debug.Temp "OpenOnShare:remote IDs" $ (remoteProjectId, remoteBranchId)
-    remoteProjectName <- lift $ Q.expectRemoteProjectName remoteProjectId Share.hardCodedUri
-    remoteProjectBranchName <- lift $ Q.expectRemoteProjectBranchName Share.hardCodedUri remoteProjectId remoteBranchId
-    pure $ ProjectAndBranch remoteProjectName remoteProjectBranchName
+  liftIO $ Codebase.runTransaction codebase $ do
+    let ids = (ProjectAndBranch pp.project.projectId pp.branch.branchId)
+    Q.resolveRemoteProjectBranchNames ids Share.hardCodedUri
