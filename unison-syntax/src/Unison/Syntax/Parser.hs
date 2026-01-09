@@ -222,6 +222,8 @@ data Error v
   | -- | PatternArityMismatch expectedArity actualArity location
     PatternArityMismatch Int Int Ann
   | FloatPattern Ann
+  | -- Bound the same variable twice
+    DuplicateBinders Ann Ann v
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
