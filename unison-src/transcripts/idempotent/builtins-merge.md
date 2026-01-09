@@ -12,7 +12,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   3.  Boolean             (builtin type)
   4.  Boolean.            (1 term)
   5.  Bytes               (builtin type)
-  6.  Bytes.              (36 terms)
+  6.  Bytes.              (36 terms, 1 type)
   7.  Char                (builtin type)
   8.  Char.               (22 terms, 1 type)
   9.  ClientSockAddr      (builtin type)
