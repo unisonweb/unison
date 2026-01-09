@@ -73,7 +73,7 @@ import Control.DeepSeq (NFData (..))
 import Control.Exception (throw)
 import Control.Monad.Primitive (unsafeIOToPrim)
 import Control.Monad.ST (ST)
-import Data.Bits (shiftL, shiftR, (.|.))
+import Data.Bits (shiftR)
 import Data.ByteArray qualified as BA
 import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString qualified as B
@@ -153,11 +153,12 @@ whenBigEndian
 -- array (obviously), but one that is 'aligned,' because indexing is
 -- element-wise. The above properties ensure both.
 extractChunkArr :: Int -> Int -> Bytes -> ByteArray
-extractChunkArr ix ln (Bytes bs) = fixAlign $ R.extractChunk ix ln bs
-  where
-    fixAlign (V.Vector o _ ba)
-      | o == 0 = ba
-      | otherwise = createByteArray ln (\m -> copyByteArray m 0 ba o ln)
+extractChunkArr ix ln (Bytes bs) = fixAlign ln $ R.extractChunk ix ln bs
+
+fixAlign :: Int -> Chunk -> ByteArray
+fixAlign ln (V.Vector o _ ba)
+  | o == 0 = ba
+  | otherwise = createByteArray ln (\m -> copyByteArray m 0 ba o ln)
 
 null :: Bytes -> Bool
 null = R.null . underlying
@@ -343,100 +344,50 @@ dropBlock nBytes (Bytes chunks) = go mempty chunks
 
 decodeNat64be :: Bytes -> Maybe (Word64, Bytes)
 decodeNat64be bs = case dropBlock 8 bs of
-  Just (head, rest) ->
-    let b8 = V.unsafeIndex head 0
-        b7 = V.unsafeIndex head 1
-        b6 = V.unsafeIndex head 2
-        b5 = V.unsafeIndex head 3
-        b4 = V.unsafeIndex head 4
-        b3 = V.unsafeIndex head 5
-        b2 = V.unsafeIndex head 6
-        b1 = V.unsafeIndex head 7
-        b =
-          shiftL (fromIntegral b8) 56
-            .|. shiftL (fromIntegral b7) 48
-            .|. shiftL (fromIntegral b6) 40
-            .|. shiftL (fromIntegral b5) 32
-            .|. shiftL (fromIntegral b4) 24
-            .|. shiftL (fromIntegral b3) 16
-            .|. shiftL (fromIntegral b2) 8
-            .|. fromIntegral b1
-     in Just (b, rest)
+  Just (head, rest) -> Just (w, rest)
+    where
+      ba = fixAlign 8 head
+      w = whenLittleEndian byteSwap64 $ indexByteArray ba 0
   Nothing -> Nothing
 
 decodeNat64le :: Bytes -> Maybe (Word64, Bytes)
 decodeNat64le bs = case dropBlock 8 bs of
-  Just (head, rest) ->
-    let b1 = V.unsafeIndex head 0
-        b2 = V.unsafeIndex head 1
-        b3 = V.unsafeIndex head 2
-        b4 = V.unsafeIndex head 3
-        b5 = V.unsafeIndex head 4
-        b6 = V.unsafeIndex head 5
-        b7 = V.unsafeIndex head 6
-        b8 = V.unsafeIndex head 7
-        b =
-          shiftL (fromIntegral b8) 56
-            .|. shiftL (fromIntegral b7) 48
-            .|. shiftL (fromIntegral b6) 40
-            .|. shiftL (fromIntegral b5) 32
-            .|. shiftL (fromIntegral b4) 24
-            .|. shiftL (fromIntegral b3) 16
-            .|. shiftL (fromIntegral b2) 8
-            .|. fromIntegral b1
-     in Just (b, rest)
+  Just (head, rest) -> Just (w, rest)
+    where
+      ba = fixAlign 8 head
+      w = whenBigEndian byteSwap64 $ indexByteArray ba 0
   Nothing -> Nothing
 
 decodeNat32be :: Bytes -> Maybe (Word64, Bytes)
 decodeNat32be bs = case dropBlock 4 bs of
-  Just (head, rest) ->
-    let b4 = V.unsafeIndex head 0
-        b3 = V.unsafeIndex head 1
-        b2 = V.unsafeIndex head 2
-        b1 = V.unsafeIndex head 3
-        b =
-          shiftL (fromIntegral b4) 24
-            .|. shiftL (fromIntegral b3) 16
-            .|. shiftL (fromIntegral b2) 8
-            .|. fromIntegral b1
-     in Just (b, rest)
+  Just (head, rest) -> Just (fromIntegral w, rest)
+    where
+      ba = fixAlign 4 head
+      w = whenLittleEndian byteSwap32 $ indexByteArray ba 0
   Nothing -> Nothing
 
 decodeNat32le :: Bytes -> Maybe (Word64, Bytes)
 decodeNat32le bs = case dropBlock 4 bs of
-  Just (head, rest) ->
-    let b1 = V.unsafeIndex head 0
-        b2 = V.unsafeIndex head 1
-        b3 = V.unsafeIndex head 2
-        b4 = V.unsafeIndex head 3
-        b =
-          shiftL (fromIntegral b4) 24
-            .|. shiftL (fromIntegral b3) 16
-            .|. shiftL (fromIntegral b2) 8
-            .|. fromIntegral b1
-     in Just (b, rest)
+  Just (head, rest) -> Just (fromIntegral w, rest)
+    where
+      ba = fixAlign 4 head
+      w = whenBigEndian byteSwap32 $ indexByteArray ba 0
   Nothing -> Nothing
 
 decodeNat16be :: Bytes -> Maybe (Word64, Bytes)
 decodeNat16be bs = case dropBlock 2 bs of
-  Just (head, rest) ->
-    let b2 = V.unsafeIndex head 0
-        b1 = V.unsafeIndex head 1
-        b =
-          shiftL (fromIntegral b2) 8
-            .|. fromIntegral b1
-     in Just (b, rest)
+  Just (head, rest) -> Just (fromIntegral w, rest)
+    where
+      ba = fixAlign 2 head
+      w = whenLittleEndian byteSwap16 $ indexByteArray ba 0
   Nothing -> Nothing
 
 decodeNat16le :: Bytes -> Maybe (Word64, Bytes)
 decodeNat16le bs = case dropBlock 2 bs of
-  Just (head, rest) ->
-    let b1 = V.unsafeIndex head 0
-        b2 = V.unsafeIndex head 1
-        b =
-          shiftL (fromIntegral b2) 8
-            .|. fromIntegral b1
-     in Just (b, rest)
+  Just (head, rest) -> Just (fromIntegral w, rest)
+    where
+      ba = fixAlign 2 head
+      w = whenBigEndian byteSwap16 $ indexByteArray ba 0
   Nothing -> Nothing
 
 fillBE :: Word64 -> Int -> Int -> Word8
