@@ -30,6 +30,12 @@ module Unison.Util.Bytes
     fromLazyByteString,
     flatten,
     at,
+    index16be,
+    index16le,
+    index32be,
+    index32le,
+    index64be,
+    index64le,
     take,
     drop,
     indexOf,
@@ -66,6 +72,7 @@ import Codec.Compression.Zstd qualified as Zstd
 import Control.DeepSeq (NFData (..))
 import Control.Exception (throw)
 import Control.Monad.Primitive (unsafeIOToPrim)
+import Control.Monad.ST (ST)
 import Data.Bits (shiftL, shiftR, (.|.))
 import Data.ByteArray qualified as BA
 import Data.ByteArray.Encoding qualified as BE
@@ -76,8 +83,13 @@ import Data.Char
 import Data.Digest.Murmur64 (Hash64, hash64AddInt)
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
+    MutableByteArray,
+    copyByteArray,
     copyByteArrayToPtr,
     newByteArray,
+    runByteArray,
+    newByteArray,
+    indexByteArray,
   )
 import Data.Primitive.Ptr (copyPtrToMutableByteArray)
 import Data.Text qualified as Text
@@ -92,6 +104,8 @@ import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
+
+import GHC.ByteOrder (ByteOrder(..), targetByteOrder)
 
 type Chunk = V.Vector Word8
 
@@ -111,6 +125,39 @@ instance R.Index Chunk Word8 where unsafeIndex n bs = bs `V.unsafeIndex` n
 instance R.Reverse Chunk where reverse = V.reverse
 
 instance NFData Bytes where rnf _ = ()
+
+createByteArray ::
+  Int -> (forall s. MutableByteArray s -> ST s ()) -> ByteArray
+createByteArray sz f = runByteArray $
+  newByteArray sz >>= \ma -> ma <$ f ma
+
+whenLittleEndian :: (a -> a) -> a -> a
+whenLittleEndian
+  | LittleEndian <- targetByteOrder = \f x -> f x
+  | otherwise = \_ x -> x
+
+whenBigEndian :: (a -> a) -> a -> a
+whenBigEndian
+  | BigEndian <- targetByteOrder = \f x -> f x
+  | otherwise = \_ x -> x
+
+-- Given an offset, size and bytes, extracts a byte array that satisfies
+-- the following properties
+--
+--   1. The array starts at the given offset in the bytes.
+--   2. The array contains _at least_ the specified number of bytes from
+--      the original bytes.
+--
+-- The purpose of this is to avoid complicated logic for dealing with
+-- reading out of a bytes. `indexByteArray` not only requires a single
+-- array (obviously), but one that is 'aligned,' because indexing is
+-- element-wise. The above properties ensure both.
+extractChunkArr :: Int -> Int -> Bytes -> ByteArray
+extractChunkArr ix ln (Bytes bs) = fixAlign $ R.extractChunk ix ln bs
+  where
+    fixAlign (V.Vector o _ ba)
+      | o == 0 = ba
+      | otherwise = createByteArray ln (\m -> copyByteArray m 0 ba o ln)
 
 null :: Bytes -> Bool
 null = R.null . underlying
@@ -236,6 +283,54 @@ indexOf needle haystack =
 at, index :: Int -> Bytes -> Maybe Word8
 at n (Bytes bs) = R.index n bs
 index = at
+
+-- Indexes into a bytes to retrieve a big-endian Word16. The position is
+-- in bytes.
+index16be :: Int -> Bytes -> Maybe Word16
+index16be i bs
+  | i+1 >= size bs = Nothing
+  | ba <- extractChunkArr i 2 bs =
+      Just . whenLittleEndian byteSwap16 $ indexByteArray ba 0
+
+-- Indexes into a bytes to retrieve a little-endian Word16. The position
+-- is in bytes.
+index16le :: Int -> Bytes -> Maybe Word16
+index16le i bs
+  | i+1 >= size bs = Nothing
+  | ba <- extractChunkArr i 2 bs =
+      Just . whenBigEndian byteSwap16 $ indexByteArray ba 0
+
+-- Indexes into a bytes to retrieve a big-endian Word32. The position is
+-- in bytes.
+index32be :: Int -> Bytes -> Maybe Word32
+index32be i bs
+  | i+3 >= size bs = Nothing
+  | ba <- extractChunkArr i 4 bs =
+      Just . whenLittleEndian byteSwap32 $ indexByteArray ba 0
+
+-- Indexes into a bytes to retrieve a little-endian Word32. The position
+-- is in bytes.
+index32le :: Int -> Bytes -> Maybe Word32
+index32le i bs
+  | i+3 >= size bs = Nothing
+  | ba <- extractChunkArr i 4 bs =
+      Just . whenBigEndian byteSwap32 $ indexByteArray ba 0
+
+-- Indexes into a bytes to retrieve a big-endian Word64. The position is
+-- in bytes.
+index64be :: Int -> Bytes -> Maybe Word64
+index64be i bs
+  | i+7 >= size bs = Nothing
+  | ba <- extractChunkArr i 8 bs =
+      Just . whenLittleEndian byteSwap64 $ indexByteArray ba 0
+
+-- Indexes into a bytes to retrieve a little-endian Word64. The position
+-- is in bytes.
+index64le :: Int -> Bytes -> Maybe Word64
+index64le i bs
+  | i+7 >= size bs = Nothing
+  | ba <- extractChunkArr i 8 bs =
+      Just . whenBigEndian byteSwap64 $ indexByteArray ba 0
 
 dropBlock :: Int -> Bytes -> Maybe (Chunk, Bytes)
 dropBlock nBytes (Bytes chunks) = go mempty chunks

@@ -1419,6 +1419,13 @@ declareForeigns = do
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr
   declareForeign Tracked 3 FFI_getDLLSym
+  declareForeign Untracked 2 Bytes_read
+  declareForeign Untracked 2 Bytes_read16le
+  declareForeign Untracked 2 Bytes_read16be
+  declareForeign Untracked 2 Bytes_read32le
+  declareForeign Untracked 2 Bytes_read32be
+  declareForeign Untracked 2 Bytes_read64le
+  declareForeign Untracked 2 Bytes_read64be
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))
