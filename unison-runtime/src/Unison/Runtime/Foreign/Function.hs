@@ -1199,7 +1199,7 @@ foreignCallHelper = \case
     mkForeignExn . wrapOOB "Bytes.read64le" $ Bytes.index64le
   where
     wrapOOB ::
-      Integral n =>
+      (Integral n) =>
       Text ->
       (Int -> Bytes.Bytes -> Maybe n) ->
       (Word64, Bytes.Bytes) ->

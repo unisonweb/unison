@@ -257,13 +257,12 @@ extractChunk ix ln = \case
   One c -> drop ix c
   Two _sz l r
     -- entirely in the left half
-    | ix+ln <= size l -> extractChunk ix ln l
+    | ix + ln <= size l -> extractChunk ix ln l
     -- entirely in the right half
     | size l <= ix -> extractChunk (ix - size l) ln r
     -- split
     | med <- size l - ix ->
         extractChunk ix med l <> extractChunk 0 (ln - med) r
-
 
 instance (Sized a, Take a, Drop a, Eq a) => Eq (Rope a) where
   b1 == b2

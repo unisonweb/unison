@@ -86,10 +86,9 @@ import Data.Primitive.ByteArray
     MutableByteArray,
     copyByteArray,
     copyByteArrayToPtr,
+    indexByteArray,
     newByteArray,
     runByteArray,
-    newByteArray,
-    indexByteArray,
   )
 import Data.Primitive.Ptr (copyPtrToMutableByteArray)
 import Data.Text qualified as Text
@@ -100,12 +99,11 @@ import Data.Vector.Storable.ByteString qualified as BSV
 import Data.Vector.Storable.Mutable qualified as MSV
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Storable (pokeByteOff)
+import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
-
-import GHC.ByteOrder (ByteOrder(..), targetByteOrder)
 
 type Chunk = V.Vector Word8
 
@@ -128,8 +126,9 @@ instance NFData Bytes where rnf _ = ()
 
 createByteArray ::
   Int -> (forall s. MutableByteArray s -> ST s ()) -> ByteArray
-createByteArray sz f = runByteArray $
-  newByteArray sz >>= \ma -> ma <$ f ma
+createByteArray sz f =
+  runByteArray $
+    newByteArray sz >>= \ma -> ma <$ f ma
 
 whenLittleEndian :: (a -> a) -> a -> a
 whenLittleEndian
@@ -289,7 +288,7 @@ index = at
 -- in bytes.
 index16be :: Int -> Bytes -> Maybe Word16
 index16be i bs
-  | i+1 >= size bs = Nothing
+  | i + 1 >= size bs = Nothing
   | ba <- extractChunkArr i 2 bs =
       Just . whenLittleEndian byteSwap16 $ indexByteArray ba 0
 
@@ -297,7 +296,7 @@ index16be i bs
 -- is in bytes.
 index16le :: Int -> Bytes -> Maybe Word16
 index16le i bs
-  | i+1 >= size bs = Nothing
+  | i + 1 >= size bs = Nothing
   | ba <- extractChunkArr i 2 bs =
       Just . whenBigEndian byteSwap16 $ indexByteArray ba 0
 
@@ -305,7 +304,7 @@ index16le i bs
 -- in bytes.
 index32be :: Int -> Bytes -> Maybe Word32
 index32be i bs
-  | i+3 >= size bs = Nothing
+  | i + 3 >= size bs = Nothing
   | ba <- extractChunkArr i 4 bs =
       Just . whenLittleEndian byteSwap32 $ indexByteArray ba 0
 
@@ -313,7 +312,7 @@ index32be i bs
 -- is in bytes.
 index32le :: Int -> Bytes -> Maybe Word32
 index32le i bs
-  | i+3 >= size bs = Nothing
+  | i + 3 >= size bs = Nothing
   | ba <- extractChunkArr i 4 bs =
       Just . whenBigEndian byteSwap32 $ indexByteArray ba 0
 
@@ -321,7 +320,7 @@ index32le i bs
 -- in bytes.
 index64be :: Int -> Bytes -> Maybe Word64
 index64be i bs
-  | i+7 >= size bs = Nothing
+  | i + 7 >= size bs = Nothing
   | ba <- extractChunkArr i 8 bs =
       Just . whenLittleEndian byteSwap64 $ indexByteArray ba 0
 
@@ -329,7 +328,7 @@ index64be i bs
 -- is in bytes.
 index64le :: Int -> Bytes -> Maybe Word64
 index64le i bs
-  | i+7 >= size bs = Nothing
+  | i + 7 >= size bs = Nothing
   | ba <- extractChunkArr i 8 bs =
       Just . whenBigEndian byteSwap64 $ indexByteArray ba 0
 
