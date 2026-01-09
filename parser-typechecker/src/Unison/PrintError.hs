@@ -2122,6 +2122,19 @@ renderParseErrors s = \case
                 tokenAsErrorSite s $ HQ.toText <$> tok
               ]
        in (msg, [rangeForToken tok])
+    go (Parser.DuplicateBinders ann1 ann2 var) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "I found the variable "
+                    <> style ErrorSite (Var.nameStr var)
+                    <> " bound twice in this pattern:",
+                "",
+                annotatedsAsErrorSite s [ann1, ann2],
+                "",
+                Pr.wrap "A variable can only be bound once in a pattern."
+              ]
+       in (msg, mapMaybe rangeForAnnotated [ann1, ann2])
 
 annotatedAsErrorSite ::
   (Annotated a) => String -> a -> Pretty ColorText
