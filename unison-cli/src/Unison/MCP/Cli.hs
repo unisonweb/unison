@@ -140,6 +140,7 @@ cliToMCP projCtx onError cli = do
   let cliEnv =
         Cli.Env
           { authHTTPClient = authenticatedHTTPClient,
+            tokenProvider,
             codebase,
             credentialManager = credMan,
             generateUniqueName = do

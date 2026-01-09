@@ -26,6 +26,7 @@ library:
     - hs-mcp
     - http-media
     - http-types
+    - ki-unlifted
     - lens
     - lucid
     - memory
@@ -65,6 +66,7 @@ library:
     - wai
     - wai-cors
     - warp
+    - websockets
     - yaml
 
 tests:

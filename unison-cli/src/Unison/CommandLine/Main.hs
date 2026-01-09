@@ -26,6 +26,7 @@ import U.Codebase.Sqlite.Queries qualified as Queries
 import Unison.Auth.CredentialManager qualified as AuthN
 import Unison.Auth.HTTPClient (AuthenticatedHttpClient)
 import Unison.Auth.HTTPClient qualified as AuthN
+import Unison.Auth.Tokens (TokenProvider)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Pretty qualified as P
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
@@ -162,11 +163,12 @@ main ::
   Maybe Server.BaseUrl ->
   UCMVersion ->
   AuthN.AuthenticatedHttpClient ->
+  TokenProvider ->
   AuthN.CredentialManager ->
   (PP.ProjectPathIds -> IO ()) ->
   ShouldWatchFiles ->
   IO ()
-main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion authHTTPClient credentialManager lspCheckForChanges shouldWatchFiles = do
+main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl ucmVersion authHTTPClient tokenProvider credentialManager lspCheckForChanges shouldWatchFiles = do
   -- we don't like FSNotify's debouncing (it seems to drop later events)
   -- so we will be doing our own instead
   let config = FSNotify.defaultConfig
@@ -281,6 +283,7 @@ main dir welcome ppIds initialInputs runtime sbRuntime codebase serverBaseUrl uc
               { authHTTPClient,
                 codebase,
                 credentialManager,
+                tokenProvider,
                 loadSource = defaultLoadSourceFile,
                 lspCheckForChanges,
                 writeSource = defaultWriteSourceFile,

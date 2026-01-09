@@ -54,6 +54,7 @@ library:
     - megaparsec
     - memory
     - mtl
+    - network
     - network-simple
     - network-uri
     - nonempty-containers
@@ -105,6 +106,8 @@ library:
     - vector
     - wai
     - warp
+    - websockets
+    - wuss
     - witch
     - witherable
 

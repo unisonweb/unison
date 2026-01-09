@@ -27,20 +27,24 @@ import Unison.Codebase.Editor.RemoteRepo qualified as RemoteRepo
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ProjectPath (ProjectBranch (..))
 import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.Debug qualified as Debug
 import Unison.NameSegment.Internal qualified as NameSegment
 import Unison.Prelude
 import Unison.Share.API.Hash qualified as Share
 import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.Codeserver qualified as Share
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.SyncV2 qualified as SyncV2
+import Unison.Share.SyncV3 qualified as SyncV3
 import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sync.Common qualified as Sync.Common
 import Unison.Sync.Types qualified as Share
 import Unison.SyncV2.Types qualified as SyncV2
+import Unison.SyncV3.Types qualified as SyncV3
 import UnliftIO.Environment qualified as UnliftIO
 
-data SyncVersion = SyncV1 | SyncV2
+data SyncVersion = SyncV1 | SyncV2 | SyncV3
   deriving (Eq, Show)
 
 -- | The version of the sync protocol to use.
@@ -49,7 +53,8 @@ syncVersion = unsafePerformIO do
   UnliftIO.lookupEnv "UNISON_SYNC_VERSION"
     <&> \case
       Just "1" -> SyncV1
-      _ -> SyncV2
+      Just "2" -> SyncV2
+      _ -> SyncV3
 
 -- | Download a project/branch from Share.
 downloadProjectBranchFromShare ::
@@ -70,6 +75,7 @@ downloadProjectBranchFromShare useSquashed branch isPull =
         (Share.NoSquashedHead, _) -> pure branch.branchHead
     let causalHash32 = Share.hashJWTHash causalHashJwt
     exists <- Cli.runTransaction (Queries.causalExistsByHash32 causalHash32)
+    Debug.debugM Debug.Temp "Downloading using Sync " syncVersion
     when (not exists) do
       case syncVersion of
         SyncV1 -> do
@@ -94,6 +100,20 @@ downloadProjectBranchFromShare useSquashed branch isPull =
             done case err0 of
               Share.SyncError pullErr ->
                 Output.ShareErrorPullV2 pullErr
+              Share.TransportError err -> Output.ShareErrorTransport err
+        SyncV3 -> do
+          Debug.debugLogM Debug.Temp "Using SyncV3 protocol"
+          let branchRef = SyncV3.BranchRef (into @Text (ProjectAndBranch branch.projectName remoteProjectBranchName))
+          let shouldValidate = Codeserver.isCustomCodeserver Codeserver.defaultCodeserver
+          when isPull $ do
+            pb <- Cli.getCurrentProjectBranch
+            currentCausalHash <- Cli.runTransaction $ Ops.expectProjectBranchHead pb.projectId pb.branchId
+            Cli.respond $ Output.SyncingFromTo currentCausalHash (Sync.Common.hash32ToCausalHash causalHash32)
+          result <- SyncV3.syncFromCodeserver shouldValidate Share.defaultCodeserver branchRef causalHashJwt
+          void result & onLeft \err0 -> do
+            done case err0 of
+              Share.SyncError _pullErr ->
+                error "TODO: define SyncV3 pull error and handle it here"
               Share.TransportError err -> Output.ShareErrorTransport err
     pure (Sync.Common.hash32ToCausalHash (Share.hashJWTHash causalHashJwt))
 
