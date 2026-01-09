@@ -162,6 +162,7 @@ module U.Codebase.Sqlite.Queries
     setRemoteProjectName,
     loadRemoteProjectBranch,
     loadDefaultMergeTargetForLocalProjectBranch,
+    resolveRemoteProjectBranchNames,
 
     -- ** remote project branches
     loadRemoteBranch,
@@ -4192,3 +4193,21 @@ getConfigValue key =
       FROM config
       WHERE key = :key
     |]
+
+resolveRemoteProjectBranchNames :: ProjectAndBranch ProjectId ProjectBranchId -> URI -> Transaction (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
+resolveRemoteProjectBranchNames (ProjectAndBranch projectId branchId) remoteUri = do
+  queryMaybeRow
+    [sql|
+      SELECT
+        rp.name,
+        rpb.name
+      FROM
+        remote_project AS rp
+        JOIN remote_project_branch AS rpb ON rp.id = rpb.project_id AND rp.host = rpb.host
+      WHERE
+        rp.id = :projectId
+        AND rp.host = :remoteUri
+        AND rpb.branch_id = :branchId
+    |]
+    <&> fmap \(projectName, branchName) ->
+      ProjectAndBranch projectName branchName
