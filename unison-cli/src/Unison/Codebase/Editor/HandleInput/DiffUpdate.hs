@@ -178,8 +178,8 @@ handleDiffUpdate = do
                  | (var, (refId, decl)) <- Map.toList (UF.effectDeclarationsId' tuf)
                ]
 
-  let newTypes :: Map Name (DeclOrBuiltin Symbol Ann)
-      newTypes = Map.restrictKeys fileTypeDecls newTypeNames
+  let newTypes :: Map Name (TypeReferenceId, Decl Symbol Ann)
+      newTypes = Map.restrictKeys fileTypeDeclsWithRefIds newTypeNames
 
   -- Types from the file that are updates to existing codebase definitions
   let updatedFileTypes :: Map Name (TypeReferenceId, Decl Symbol Ann)
