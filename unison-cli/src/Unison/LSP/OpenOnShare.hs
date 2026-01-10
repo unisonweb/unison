@@ -84,7 +84,6 @@ openOnShareHandler m respond = do
           LD.TermReferent termRef -> (PPE.termName unsuffixifiedPPE termRef, "terms")
     let fqnText = SyntaxHQ.toText fqn
 
-    -- E.g. https://share.unison-lang.org/@unison/base/code/releases/7.12.0/latest/terms/data/List/map
     let shareUrl =
           Text.unpack $
             "https://share.unison-lang.org/"
