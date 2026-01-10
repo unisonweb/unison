@@ -39,58 +39,42 @@ data OpenOnShareParams = OpenOnShareParams
   }
   deriving (Show, Eq)
 
-data DefinitionInfo
-  = DefinitionInfo
-  { definitionFQN :: Text,
-    definitionBranchRef :: Text,
-    definitionProjectRef :: Text,
-    definitionKind :: Text
-  }
-  deriving (Show, Eq)
-
-instance Aeson.FromJSON DefinitionInfo where
-  parseJSON = Aeson.withObject "DefinitionInfo" $ \v -> do
-    definitionFQN <- v Aeson..: "fqn"
-    definitionBranchRef <- v Aeson..: "branchRef"
-    definitionProjectRef <- v Aeson..: "projectRef"
-    definitionKind <- v Aeson..: "kind"
-    pure DefinitionInfo {definitionFQN, definitionBranchRef, definitionProjectRef, definitionKind}
-
-data DefinitionSearchResponse = DefinitionSearchResponse
-  { definitions :: [DefinitionInfo]
-  }
-  deriving (Show, Eq)
-
-instance Aeson.FromJSON DefinitionSearchResponse where
-  parseJSON = Aeson.withObject "DefinitionSearchResponse" $ \v -> do
-    definitions <- v Aeson..: "results"
-    pure DefinitionSearchResponse {definitions}
-
 instance Aeson.FromJSON OpenOnShareParams where
   parseJSON = Aeson.withObject "OpenOnShareParams" $ \v -> do
     textDocument <- v Aeson..: "textDocument"
     position <- v Aeson..: "position"
     pure OpenOnShareParams {textDocument, position}
 
+data OpenOnShareResponse = OpenOnShareResponse
+  { error :: Maybe Text
+  }
+  deriving (Show, Eq)
+
+instance Aeson.ToJSON OpenOnShareResponse where
+  toJSON (OpenOnShareResponse err) =
+    Aeson.object
+      [ "error" Aeson..= err
+      ]
+
 -- | Handler for the 'unison/openOnShare' custom LSP request.
 -- This resolves the symbol at the given position to its FQN and makes an HTTP POST
 -- to the local Share service.
 openOnShareHandler ::
   Msg.TRequestMessage ('Msg.Method_CustomMethod "unison/openOnShare") ->
-  (Either Msg.ResponseError (Msg.MessageResult ('Msg.Method_CustomMethod "unison/openOnShare")) -> Lsp ()) ->
+  (Either Msg.ResponseError Aeson.Value -> Lsp ()) ->
   Lsp ()
 openOnShareHandler m respond = do
-  result <- runMaybeT . runExceptT $ do
+  result <- runExceptT $ do
     pp <- lift getCurrentProjectPath
     Env {codebase} <- ask
-    ProjectAndBranch remoteProjectName remoteBranchName <- lift . MaybeT $ resolveRemoteProjectBranch codebase pp
+    ProjectAndBranch remoteProjectName remoteBranchName <- orFail "No Share project found, have you pushed or pulled it yet?" $ resolveRemoteProjectBranch codebase pp
     let paramsJSON = m ^. LSP.params
     OpenOnShareParams {textDocument, position} <- case Aeson.fromJSON paramsJSON of
-      Aeson.Error err -> throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) (Text.pack err) Nothing
+      Aeson.Error err -> throwError $ "Invalid parameters: " <> Text.pack err
       Aeson.Success p -> pure p
 
     -- Get the symbol reference at the position
-    ref <- lift $ LSPQ.refAtPosition textDocument._uri position
+    ref <- orFail "Error: Can only open top-level definitions." . runMaybeT $ LSPQ.refAtPosition textDocument._uri position
 
     -- Get the FQN for the reference
     pped <- lift $ ppedForFile textDocument._uri
@@ -115,8 +99,15 @@ openOnShareHandler m respond = do
 
   -- Send the response
   case result of
-    Just (Left err) -> respond (Left err)
-    _ -> respond (Right Aeson.Null)
+    (Left errMsg) -> respond (Right $ Aeson.toJSON $ OpenOnShareResponse (Just errMsg))
+    _ -> respond (Right $ Aeson.toJSON $ OpenOnShareResponse Nothing)
+  where
+    orFail :: Text -> Lsp (Maybe a) -> ExceptT Text Lsp a
+    orFail err action = do
+      ma <- lift action
+      case ma of
+        Just a -> pure a
+        Nothing -> throwError err
 
 resolveRemoteProjectBranch :: Codebase IO v a -> PP.ProjectPath -> Lsp (Maybe (ProjectAndBranch ProjectName ProjectBranchName))
 resolveRemoteProjectBranch codebase pp = do
