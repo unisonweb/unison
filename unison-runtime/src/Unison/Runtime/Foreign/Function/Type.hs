@@ -154,9 +154,8 @@ data ForeignFunc
   | Crypto_hmacBytes
   | Crypto_hash
   | Crypto_hmac
-  | Crypto_Argon2_HashWith
-  | Crypto_Argon2_HashAutoWith
-  | Crypto_Argon2_Verify
+  | Crypto_Argon2_HashRaw
+  | Crypto_Argon2_VerifyRaw
   | Crypto_Ed25519_sign_impl
   | Crypto_Ed25519_verify_impl
   | Crypto_Rsa_sign_impl
@@ -541,9 +540,8 @@ foreignFuncBuiltinName = \case
   Crypto_hmacBytes -> "crypto.hmacBytes"
   Crypto_hash -> "crypto.hash"
   Crypto_hmac -> "crypto.hmac"
-  Crypto_Argon2_HashWith -> "crypto.argon2HashWith"
-  Crypto_Argon2_HashAutoWith -> "crypto.argon2HashAutoWith"
-  Crypto_Argon2_Verify -> "crypto.argon2Verify"
+  Crypto_Argon2_HashRaw -> "crypto.argon2.hashRaw"
+  Crypto_Argon2_VerifyRaw -> "crypto.argon2.verifyRaw"
   Crypto_Ed25519_sign_impl -> "crypto.Ed25519.sign.impl"
   Crypto_Ed25519_verify_impl -> "crypto.Ed25519.verify.impl"
   Crypto_Rsa_sign_impl -> "crypto.Rsa.sign.impl"

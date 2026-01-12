@@ -52,7 +52,6 @@ source-repository-package
   tag: d8564c70ca09e333b7ce1717d1ac97a62d62966c
 
 constraints:
-  argon2 ==1.3.0.1,
   fuzzyfind ==3.0.2,
   lock-file ==0.7.0.0,
   monad-validat ==1.3.0.0,

@@ -29,10 +29,10 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Primitive qualified as PA
 import Crypto.Error (CryptoError (..), CryptoFailable (..))
 import Crypto.Hash qualified as Hash
+import Crypto.KDF.Argon2 qualified as Argon2
 import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
-import Crypto.Argon2 qualified as Argon2
 import Crypto.Random (getRandomBytes)
 import Data.Avro qualified as Avro
 import Data.Avro.Encoding.FromAvro qualified as FromAvro
@@ -659,14 +659,12 @@ foreignCallHelper = \case
   Crypto_Rsa_verify_impl ->
     mkForeign $
       pure . verifyRsaWrapper
-  Crypto_Argon2_HashWith ->
+  Crypto_Argon2_HashRaw ->
     mkForeign $
-      pure . argon2HashWithWrapper
-  Crypto_Argon2_HashAutoWith ->
-    mkForeign argon2HashAutoWithWrapper
-  Crypto_Argon2_Verify ->
+      pure . argon2HashRawWrapper
+  Crypto_Argon2_VerifyRaw ->
     mkForeign $
-      pure . argon2VerifyWrapper
+      pure . argon2VerifyRawWrapper
   Universal_murmurHash ->
     mkForeign $
       pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
@@ -1474,103 +1472,76 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
 
 -- | Hash a password with Argon2id using the provided options and salt.
 -- Takes: (memory KiB, iterations, parallelism, outputLen, password, salt)
--- Returns: PHC-encoded hash string or failure
-argon2HashWithWrapper ::
-  (Word64, Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes) -> Either Failure Util.Text.Text
-argon2HashWithWrapper (memory, iterations, parallelism, outputLen, password0, salt0) =
-  case Argon2.hashEncoded opts password salt of
-    Left status ->
-      Left $ F.Failure Ty.cryptoFailureRef (argon2ErrMsg status) unitValue
-    Right encoded ->
-      Right . Util.Text.fromText . ShortText.toText $ encoded
+-- Returns: Raw hash bytes or failure
+argon2HashRawWrapper ::
+  (Word64, Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
+argon2HashRawWrapper (memory, iterations, parallelism, outputLen, password0, salt0) =
+  case Argon2.hash opts password salt (fromIntegral outputLen) of
+    CryptoFailed err ->
+      Left $ F.Failure Ty.cryptoFailureRef (argon2ErrMsg err) unitValue
+    CryptoPassed hashBytes ->
+      Right $ Bytes.fromArray (hashBytes :: ByteString)
   where
     password = Bytes.toArray password0 :: ByteString
     salt = Bytes.toArray salt0 :: ByteString
     opts =
-      Argon2.HashOptions
-        { Argon2.hashIterations = fromIntegral iterations,
-          Argon2.hashMemory = fromIntegral memory,
-          Argon2.hashParallelism = fromIntegral parallelism,
-          Argon2.hashVariant = Argon2.Argon2id,
-          Argon2.hashVersion = Argon2.Argon2Version13,
-          Argon2.hashLength = fromIntegral outputLen
+      Argon2.Options
+        { Argon2.iterations = fromIntegral iterations,
+          Argon2.memory = fromIntegral memory,
+          Argon2.parallelism = fromIntegral parallelism,
+          Argon2.variant = Argon2.Argon2id,
+          Argon2.version = Argon2.Version13
         }
 
--- | Hash a password with Argon2id, auto-generating a 16-byte random salt.
--- Takes: (memory KiB, iterations, parallelism, outputLen, password)
--- Returns: PHC-encoded hash string or failure
-argon2HashAutoWithWrapper ::
-  (Word64, Word64, Word64, Word64, Bytes.Bytes) -> IO (Either Failure Util.Text.Text)
-argon2HashAutoWithWrapper (memory, iterations, parallelism, outputLen, password0) = do
-  salt <- getRandomBytes @IO @ByteString 16
-  let password = Bytes.toArray password0 :: ByteString
-      opts =
-        Argon2.HashOptions
-          { Argon2.hashIterations = fromIntegral iterations,
-            Argon2.hashMemory = fromIntegral memory,
-            Argon2.hashParallelism = fromIntegral parallelism,
-            Argon2.hashVariant = Argon2.Argon2id,
-            Argon2.hashVersion = Argon2.Argon2Version13,
-            Argon2.hashLength = fromIntegral outputLen
-          }
-  pure $ case Argon2.hashEncoded opts password salt of
-    Left status ->
-      Left $ F.Failure Ty.cryptoFailureRef (argon2ErrMsg status) unitValue
-    Right encoded ->
-      Right . Util.Text.fromText . ShortText.toText $ encoded
-
--- | Verify a password against a PHC-encoded Argon2 hash.
--- Takes: (encoded hash, password)
--- Returns: True if password matches
-argon2VerifyWrapper ::
-  (Util.Text.Text, Bytes.Bytes) -> Bool
-argon2VerifyWrapper (encoded0, password0) =
-  case Argon2.verifyEncoded (ShortText.fromText $ Util.Text.toText encoded0) password of
-    Argon2.Argon2Ok -> True
-    _ -> False
+-- | Verify a password against a raw Argon2id hash.
+-- Takes: (memory KiB, iterations, parallelism, password, salt, expectedHash)
+-- Returns: True if password matches (constant-time comparison)
+argon2VerifyRawWrapper ::
+  (Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Bool
+argon2VerifyRawWrapper (memory, iterations, parallelism, password0, salt0, expectedHash0) =
+  case Argon2.hash opts password salt hashLen of
+    CryptoFailed _ -> False
+    CryptoPassed computedHash ->
+      BA.constEq (computedHash :: ByteString) expectedHash
   where
     password = Bytes.toArray password0 :: ByteString
+    salt = Bytes.toArray salt0 :: ByteString
+    expectedHash = Bytes.toArray expectedHash0 :: ByteString
+    hashLen = BA.length expectedHash
+    opts =
+      Argon2.Options
+        { Argon2.iterations = fromIntegral iterations,
+          Argon2.memory = fromIntegral memory,
+          Argon2.parallelism = fromIntegral parallelism,
+          Argon2.variant = Argon2.Argon2id,
+          Argon2.version = Argon2.Version13
+        }
 
--- | Convert Argon2Status to human-readable error message
-argon2ErrMsg :: Argon2.Argon2Status -> Util.Text.Text
-argon2ErrMsg status = Util.Text.pack $ "argon2: " ++ case status of
-  Argon2.Argon2Ok -> "ok"
-  Argon2.Argon2OutputPtrNull -> "output pointer null"
-  Argon2.Argon2OutputTooShort -> "output too short"
-  Argon2.Argon2OutputTooLong -> "output too long"
-  Argon2.Argon2PwdTooShort -> "password too short"
-  Argon2.Argon2PwdTooLong -> "password too long"
-  Argon2.Argon2SaltTooShort -> "salt too short (minimum 8 bytes)"
-  Argon2.Argon2SaltTooLong -> "salt too long"
-  Argon2.Argon2AdTooShort -> "associated data too short"
-  Argon2.Argon2AdTooLong -> "associated data too long"
-  Argon2.Argon2SecretTooShort -> "secret too short"
-  Argon2.Argon2SecretTooLong -> "secret too long"
-  Argon2.Argon2TimeTooSmall -> "iterations too small"
-  Argon2.Argon2TimeTooLarge -> "iterations too large"
-  Argon2.Argon2MemoryTooLittle -> "memory too little"
-  Argon2.Argon2MemoryTooMuch -> "memory too much"
-  Argon2.Argon2LanesTooFew -> "lanes too few"
-  Argon2.Argon2LanesTooMany -> "lanes too many"
-  Argon2.Argon2PwdPtrMismatch -> "password pointer mismatch"
-  Argon2.Argon2SaltPtrMismatch -> "salt pointer mismatch"
-  Argon2.Argon2SecretPtrMismatch -> "secret pointer mismatch"
-  Argon2.Argon2AdPtrMismatch -> "associated data pointer mismatch"
-  Argon2.Argon2MemoryAllocationError -> "memory allocation error"
-  Argon2.Argon2FreeMemoryCbkNull -> "free memory callback null"
-  Argon2.Argon2AllocateMemoryCbkNull -> "allocate memory callback null"
-  Argon2.Argon2IncorrectParameter -> "incorrect parameter"
-  Argon2.Argon2IncorrectType -> "incorrect type"
-  Argon2.Argon2OutPtrMismatch -> "output pointer mismatch"
-  Argon2.Argon2ThreadsTooFew -> "threads too few"
-  Argon2.Argon2ThreadsTooMany -> "threads too many"
-  Argon2.Argon2MissingArgs -> "missing arguments"
-  Argon2.Argon2EncodingFail -> "encoding failed"
-  Argon2.Argon2DecodingFail -> "decoding failed"
-  Argon2.Argon2ThreadFail -> "thread failed"
-  Argon2.Argon2DecodingLengthFail -> "decoding length failed"
-  Argon2.Argon2VerifyMismatch -> "password does not match"
-  Argon2.Argon2InternalError -> "internal error"
+-- | Convert CryptoError to human-readable error message
+argon2ErrMsg :: CryptoError -> Util.Text.Text
+argon2ErrMsg err =
+  Util.Text.pack $
+    "argon2: " ++ case err of
+      CryptoError_KeySizeInvalid -> "invalid key size"
+      CryptoError_IvSizeInvalid -> "invalid IV size"
+      CryptoError_SeedSizeInvalid -> "invalid seed size"
+      CryptoError_AEADModeNotSupported -> "AEAD mode not supported"
+      CryptoError_SecretKeySizeInvalid -> "invalid secret key size"
+      CryptoError_SecretKeyStructureInvalid -> "invalid secret key structure"
+      CryptoError_PublicKeySizeInvalid -> "invalid public key size"
+      CryptoError_SharedSecretSizeInvalid -> "invalid shared secret size"
+      CryptoError_EcScalarOutOfBounds -> "EC scalar out of bounds"
+      CryptoError_PointSizeInvalid -> "invalid point size"
+      CryptoError_PointFormatInvalid -> "invalid point format"
+      CryptoError_PointFormatUnsupported -> "unsupported point format"
+      CryptoError_PointCoordinatesInvalid -> "invalid point coordinates"
+      CryptoError_ScalarMultiplicationInvalid -> "invalid scalar multiplication"
+      CryptoError_MacKeyInvalid -> "invalid MAC key"
+      CryptoError_AuthenticationTagSizeInvalid -> "invalid authentication tag size"
+      CryptoError_PrimeSizeInvalid -> "invalid prime size"
+      CryptoError_SaltTooSmall -> "salt too short (minimum 8 bytes)"
+      CryptoError_OutputLengthTooSmall -> "output length too small"
+      CryptoError_OutputLengthTooBig -> "output length too big"
 
 type Failure = F.Failure Val
 
