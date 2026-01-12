@@ -90,7 +90,6 @@ library:
     - tagged
     - temporary
     - text
-    - text-short
     - template-haskell
     - inspection-testing
     - time
