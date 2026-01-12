@@ -248,7 +248,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (855 terms, 126 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"1. builtins. (857 terms, 126 types)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
@@ -493,7 +493,7 @@ BODY:
         "projectContext": {
           "projectName": "scratch",
           "branchName": "foo"
-        }, "code": {"sourceCode": "myTerm = 100"}
+        }, "code": {"text": "myTerm = 100"}
       }
     }
   }

@@ -116,31 +116,45 @@ And here's the full API:
 ``` ucm
 > find-in builtin.crypto
 
-  1.  type CryptoFailure
-  2.  Ed25519.sign.impl : Bytes
+  1.  argon2.hashRaw : Nat
+                       -> Nat
+                       -> Nat
+                       -> Nat
+                       -> Bytes
+                       -> Bytes
+                       -> Either Failure Bytes
+  2.  argon2.verifyRaw : Nat
+                         -> Nat
+                         -> Nat
+                         -> Bytes
+                         -> Bytes
+                         -> Bytes
+                         -> Boolean
+  3.  type CryptoFailure
+  4.  Ed25519.sign.impl : Bytes
                           -> Bytes
                           -> Bytes
                           -> Either Failure Bytes
-  3.  Ed25519.verify.impl : Bytes
+  5.  Ed25519.verify.impl : Bytes
                             -> Bytes
                             -> Bytes
                             -> Either Failure Boolean
-  4.  hash : HashAlgorithm -> a -> Bytes
-  5.  builtin type HashAlgorithm
-  6.  HashAlgorithm.Blake2b_256 : HashAlgorithm
-  7.  HashAlgorithm.Blake2b_512 : HashAlgorithm
-  8.  HashAlgorithm.Blake2s_256 : HashAlgorithm
-  9.  HashAlgorithm.Md5 : HashAlgorithm
-  10. HashAlgorithm.Sha1 : HashAlgorithm
-  11. HashAlgorithm.Sha2_256 : HashAlgorithm
-  12. HashAlgorithm.Sha2_512 : HashAlgorithm
-  13. HashAlgorithm.Sha3_256 : HashAlgorithm
-  14. HashAlgorithm.Sha3_512 : HashAlgorithm
-  15. hashBytes : HashAlgorithm -> Bytes -> Bytes
-  16. hmac : HashAlgorithm -> Bytes -> a -> Bytes
-  17. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
-  18. Rsa.sign.impl : Bytes -> Bytes -> Either Failure Bytes
-  19. Rsa.verify.impl : Bytes
+  6.  hash : HashAlgorithm -> a -> Bytes
+  7.  builtin type HashAlgorithm
+  8.  HashAlgorithm.Blake2b_256 : HashAlgorithm
+  9.  HashAlgorithm.Blake2b_512 : HashAlgorithm
+  10. HashAlgorithm.Blake2s_256 : HashAlgorithm
+  11. HashAlgorithm.Md5 : HashAlgorithm
+  12. HashAlgorithm.Sha1 : HashAlgorithm
+  13. HashAlgorithm.Sha2_256 : HashAlgorithm
+  14. HashAlgorithm.Sha2_512 : HashAlgorithm
+  15. HashAlgorithm.Sha3_256 : HashAlgorithm
+  16. HashAlgorithm.Sha3_512 : HashAlgorithm
+  17. hashBytes : HashAlgorithm -> Bytes -> Bytes
+  18. hmac : HashAlgorithm -> Bytes -> a -> Bytes
+  19. hmacBytes : HashAlgorithm -> Bytes -> Bytes -> Bytes
+  20. Rsa.sign.impl : Bytes -> Bytes -> Either Failure Bytes
+  21. Rsa.verify.impl : Bytes
                         -> Bytes
                         -> Bytes
                         -> Either Failure Boolean

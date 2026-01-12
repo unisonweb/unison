@@ -1494,14 +1494,15 @@ argon2HashRawWrapper (memory, iterations, parallelism, outputLen, password0, sal
 
 -- | Verify a password against a raw Argon2id hash.
 -- Takes: (memory KiB, iterations, parallelism, password, salt, expectedHash)
--- Returns: True if password matches (constant-time comparison)
+-- Returns: Right True if password matches, Right False if mismatch, Left Failure on error
 argon2VerifyRawWrapper ::
-  (Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) -> Bool
+  (Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) ->
+  Either Failure Bool
 argon2VerifyRawWrapper (memory, iterations, parallelism, password0, salt0, expectedHash0) =
   case Argon2.hash opts password salt hashLen of
-    CryptoFailed _ -> False
+    CryptoFailed err -> Left (F.Failure Ty.cryptoFailureRef (argon2ErrMsg err) unitValue)
     CryptoPassed computedHash ->
-      BA.constEq (computedHash :: ByteString) expectedHash
+      Right (BA.constEq (computedHash :: ByteString) expectedHash)
   where
     password = Bytes.toArray password0 :: ByteString
     salt = Bytes.toArray salt0 :: ByteString

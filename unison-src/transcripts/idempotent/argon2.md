@@ -58,18 +58,18 @@ verifyWrong = crypto.argon2.verifyRaw 47104 1 1 (Text.toUtf8 "wrong-password") s
   + expectedHash  : Bytes
   + password      : Bytes
   + salt          : Bytes
-  + verifyCorrect : Boolean
-  + verifyWrong   : Boolean
+  + verifyCorrect : Either Failure Boolean
+  + verifyWrong   : Either Failure Boolean
 
   Run `update` to apply these changes to your codebase.
 
     12 | > verifyCorrect
            ⧩
-           true
+           Right true
 
     13 | > verifyWrong
            ⧩
-           false
+           Right false
 ```
 
 ## Test error handling

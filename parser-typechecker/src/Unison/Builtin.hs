@@ -923,7 +923,7 @@ cryptoBuiltins =
     B "crypto.argon2.hashRaw" $
       nat --> nat --> nat --> nat --> bytes --> bytes --> eithert failure bytes,
     B "crypto.argon2.verifyRaw" $
-      nat --> nat --> nat --> bytes --> bytes --> bytes --> boolean
+      nat --> nat --> nat --> bytes --> bytes --> bytes --> eithert failure boolean
   ]
 
 ioBuiltins :: [(Text, Type)]
