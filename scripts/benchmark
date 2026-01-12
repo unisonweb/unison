@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPTDIR="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
+
+### Run the Unison benchmark suite.
+###
+### NB: If run as a superuser (e.g., under `sudo`), this will use a higher priority to hopefully get more stable
+###     results.
+
+## TODO: `transcripts` should be able to take a search path, but since it currently looks for files relative to its run
+##       path, we `cd` to where it can find them.
+cd "$SCRIPTDIR/.."
+
+niceness=0
+if [[ $EUID -eq 0 ]]; then
+    niceness=-20
+fi
+
+nice -n $niceness stack exec unison -- transcript unison-src/transcripts-manual/benchmarks.md

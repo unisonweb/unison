@@ -50,7 +50,7 @@ Some tests are executables instead:
 * `stack exec transcripts -- prefix-of-filename` runs only transcript tests with a matching filename prefix.
 * `stack exec cli-integration-tests` runs the additional integration tests for cli. These tests are not triggered by `tests` or `transcripts`.
 * `stack exec unison -- transcript unison-src/transcripts-round-trip/main.md` runs the pretty-printing round trip tests
-* `stack exec unison -- transcript unison-src/transcripts-manual/benchmarks.md` runs the benchmark suite.
+* `sudo ./scripts/benchmark` runs the benchmark suite. (If you can’t or won’t run under `sudo` it will just run with lower scheduling priority)
 
 ### Building everything at once, including tests and benchmarks, but without running them:
 Do:
