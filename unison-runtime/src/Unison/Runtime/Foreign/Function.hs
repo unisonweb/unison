@@ -60,7 +60,6 @@ import Data.Text.Internal qualified as TS (Text (..))
 import Data.Text.Internal.Lazy qualified as TL (Text (..))
 import Data.Text.Internal.StrictBuilder qualified as TB
 import Data.Text.Lazy qualified as TL
-import Data.Text.Short qualified as ShortText
 import Data.Time.Clock.POSIX (POSIXTime)
 import Data.Time.Clock.POSIX as SYS
   ( getPOSIXTime,
