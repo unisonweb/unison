@@ -55,35 +55,22 @@ scratch/main> builtins.mergeio
 `alias.type` moves over constructors, too. Here, we demonstrate `view <type>` shows the constructors have names, for
 types created with `alias.type`.
 
-``` unison
+``` unison :hide
 type Foo = Bar
 type Baz = Qux | Honk
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + type Baz
-  + type Foo
-
-  Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm :hide
 scratch/main> update
 
 scratch/main> move Baz lib.dep.Baz
+
+scratch/main> alias.type Foo Foo2
+
+scratch/main> alias.type lib.dep.Baz Baz2
 ```
 
 ``` ucm
-scratch/main> alias.type Foo Foo2
-
-  Done.
-
-scratch/main> alias.type lib.dep.Baz Baz2
-
-  Done.
-
 scratch/main> view Foo2 Baz2
 
   type Baz2 = Qux | Honk
@@ -102,25 +89,12 @@ scratch/main> ls Baz2
 
 If there's already some term in the way of a constructor, though, `alias.type` will fail.
 
-``` unison
+``` unison :hide
 Foo3.Bar = 17
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + Foo3.Bar : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/main> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
 ```
 
 ``` ucm :error
