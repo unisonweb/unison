@@ -52,7 +52,8 @@ scratch/main> project.delete scratch
 scratch/main> builtins.mergeio
 ```
 
-`alias.type` moves over constructors, too.
+`alias.type` moves over constructors, too. Here, we demonstrate `view <type>` shows the constructors have names, for
+types created with `alias.type`.
 
 ``` unison
 type Foo = Bar
@@ -68,18 +69,13 @@ type Baz = Qux | Honk
   Run `update` to apply these changes to your codebase.
 ```
 
-``` ucm
+``` ucm :hide
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 scratch/main> move Baz lib.dep.Baz
+```
 
-  Done.
-
+``` ucm
 scratch/main> alias.type Foo Foo2
 
   Done.
