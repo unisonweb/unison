@@ -70,6 +70,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
               result <- runMaybeT $ do
                 (commentId, commentHash32) <- MaybeT $ getCommentIds
                 revisionHashes <- lift $ Q.commentRevisionHashes commentId
+                Debug.debugM Debug.Temp "Queueing comment for checking" commentHash32
                 lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ (HistoryCommentHash32 commentHash32, HistoryCommentRevisionHash32 <$> revisionHashes)
               -- Loop till a send fails or we run out of comments
               case result of
@@ -118,6 +119,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
             mapMaybeT (Codebase.runTransaction codebase) $ do
               case hash of
                 Left (HistoryCommentHash32 commentHash) -> do
+                  Debug.debugM Debug.Temp "Uploading comment for hash" commentHash
                   commentId <- lift $ Q.expectHistoryCommentIdByHash32 commentHash
                   comment <- lift $ Q.expectHistoryCommentById commentId
                   success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
@@ -167,7 +169,10 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
               (hashesToCheck, isClosed) <- flushTBMQueue q
               Any serverClosed <-
                 NEL.nonEmpty hashesToCheck & foldMapM \possiblyNewHashes -> do
+                  Debug.debugM Debug.Temp "Sending possibly new hashes:" possiblyNewHashes
                   Any <$> (send $ Msg $ PossiblyNewHashesChunk possiblyNewHashes)
+              when (isClosed || serverClosed) $
+                Debug.debugLogM Debug.Temp "Hash notify worker: queue closed or server closed connection, no longer sending hashes"
               pure (isClosed || serverClosed)
             if isClosed
               then do

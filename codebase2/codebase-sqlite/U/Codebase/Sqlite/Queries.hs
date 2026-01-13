@@ -4487,9 +4487,9 @@ streamHistoryCommentsForCausal rootCHID action = do
     WITH RECURSIVE branch_history(causal_hash_id) AS(
       SELECT :rootCHID
       UNION ALL
-      SELECT cp.causal_id
+      SELECT cp.parent_id
         FROM causal_parent cp
-        JOIN branch_history bh ON cp.parent_id = bh.causal_hash_id
+        JOIN branch_history bh ON cp.causal_id = bh.causal_hash_id
     ) SELECT hc.id, comment_hash.base32
         FROM branch_history bh
         JOIN history_comments hc ON hc.causal_hash_id = bh.causal_hash_id
