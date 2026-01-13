@@ -8,13 +8,14 @@ import Control.Concurrent.STM.TBMQueue (TBMQueue, closeTBMQueue, newTBMQueueIO, 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.List.NonEmpty qualified as NEL
-import Data.Monoid (All (..) )
+import Data.Monoid (All (..))
 import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
 import Data.Void
 import Ki qualified
 import Servant.API
+import System.IO.Unsafe (unsafePerformIO)
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Auth.Tokens (newTokenProvider)
 import Unison.Cli.Monad
@@ -35,11 +36,22 @@ import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Types (RepoInfo)
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Websockets
+import UnliftIO.Environment (lookupEnv)
 import UnliftIO.STM
 
 -- | Number of comment chunks that can be queued up in the websockets buffer.
 msgBufferSize :: Int
 msgBufferSize = 20
+
+syncHistoryCommentsEnvKey :: String
+syncHistoryCommentsEnvKey = "UNISON_SYNC_HISTORY_COMMENTS"
+
+shouldSyncHistoryComments :: Bool
+shouldSyncHistoryComments = unsafePerformIO $ do
+  lookupEnv syncHistoryCommentsEnvKey <&> \case
+    Just "false" -> False
+    _ -> True
+{-# NOINLINE shouldSyncHistoryComments #-}
 
 uploadHistoryComments ::
   -- | The local branch causal to upload comments for.
@@ -49,42 +61,44 @@ uploadHistoryComments ::
   -- | The remote branch to upload for.
   RepoInfo ->
   Cli ()
-uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
-  Cli.Env {codebase, credentialManager} <- ask
-  let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam repoInfo)
-  -- Enable compression
-  let tokenProvider = newTokenProvider credentialManager
-  result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentUploaderChunk) @(MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
-    commentHashesToSendQ <- newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
-    commentHashesToUploadQ <- newTBMQueueIO @(Either HistoryCommentHash32 HistoryCommentRevisionHash32) 100
-    errMVar <- newEmptyTMVarIO
-    _ <- Ki.fork scope (hashNotifyWorker send commentHashesToSendQ)
-    uploaderThread <- Ki.fork scope (uploaderWorker codebase send commentHashesToUploadQ)
-    _ <- Ki.fork scope (receiverWorker receive commentHashesToUploadQ errMVar)
-    Codebase.runTransaction codebase $ do
-      rootCausalHashId <- Q.expectCausalHashIdByCausalHash $ CausalHash $ Hash32.toHash rootCausalHash32
-      Q.streamHistoryCommentsForCausal rootCausalHashId \getCommentIds -> do
-        let loop = do
-              result <- runMaybeT $ do
-                (commentId, commentHash32) <- MaybeT $ getCommentIds
-                revisionHashes <- lift $ Q.commentRevisionHashes commentId
-                Debug.debugM Debug.HistoryComments "Queueing comment for checking" commentHash32
-                lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ (HistoryCommentHash32 commentHash32, HistoryCommentRevisionHash32 <$> revisionHashes)
-              -- Loop till a send fails or we run out of comments
-              case result of
-                Just () -> loop
-                Nothing -> pure ()
-        loop
-    -- Close the hashes queue to signal we don't have any more, then wait for the notifier to finish
-    atomically $ closeTBMQueue commentHashesToSendQ
-    -- Now we just have to wait for the uploader to finish sending all the comments we have queued up.
-    -- Once we've uploaded everything we can safely exit and the connection will be closed.
-    Debug.debugLogM Debug.HistoryComments "Uploading history comments: waiting for uploader thread to finish"
-    atomically $ Ki.await uploaderThread
-    Debug.debugLogM Debug.HistoryComments "Done; closing connection"
-  case result of
-    Left err -> error $ "uploadCommentsClient: " <> show err
-    Right ((), _leftovers {- Messages sent by server after we finished. -}) -> pure ()
+uploadHistoryComments rootCausalHash32 codeserver repoInfo
+  | not shouldSyncHistoryComments = pure ()
+  | otherwise = do
+      Cli.Env {codebase, credentialManager} <- ask
+      let path = "/ucm/v1/history-comments/upload?branchRef=" <> Text.unpack (toQueryParam repoInfo)
+      -- Enable compression
+      let tokenProvider = newTokenProvider credentialManager
+      result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentUploaderChunk) @(MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
+        commentHashesToSendQ <- newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
+        commentHashesToUploadQ <- newTBMQueueIO @(Either HistoryCommentHash32 HistoryCommentRevisionHash32) 100
+        errMVar <- newEmptyTMVarIO
+        _ <- Ki.fork scope (hashNotifyWorker send commentHashesToSendQ)
+        uploaderThread <- Ki.fork scope (uploaderWorker codebase send commentHashesToUploadQ)
+        _ <- Ki.fork scope (receiverWorker receive commentHashesToUploadQ errMVar)
+        Codebase.runTransaction codebase $ do
+          rootCausalHashId <- Q.expectCausalHashIdByCausalHash $ CausalHash $ Hash32.toHash rootCausalHash32
+          Q.streamHistoryCommentsForCausal rootCausalHashId \getCommentIds -> do
+            let loop = do
+                  result <- runMaybeT $ do
+                    (commentId, commentHash32) <- MaybeT $ getCommentIds
+                    revisionHashes <- lift $ Q.commentRevisionHashes commentId
+                    Debug.debugM Debug.HistoryComments "Queueing comment for checking" commentHash32
+                    lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ (HistoryCommentHash32 commentHash32, HistoryCommentRevisionHash32 <$> revisionHashes)
+                  -- Loop till a send fails or we run out of comments
+                  case result of
+                    Just () -> loop
+                    Nothing -> pure ()
+            loop
+        -- Close the hashes queue to signal we don't have any more, then wait for the notifier to finish
+        atomically $ closeTBMQueue commentHashesToSendQ
+        -- Now we just have to wait for the uploader to finish sending all the comments we have queued up.
+        -- Once we've uploaded everything we can safely exit and the connection will be closed.
+        Debug.debugLogM Debug.HistoryComments "Uploading history comments: waiting for uploader thread to finish"
+        atomically $ Ki.await uploaderThread
+        Debug.debugLogM Debug.HistoryComments "Done; closing connection"
+      case result of
+        Left err -> error $ "uploadCommentsClient: " <> show err
+        Right ((), _leftovers {- Messages sent by server after we finished. -}) -> pure ()
   where
     -- Read all available values from a TBMQueue, returning them and whether the queue is closed.
     flushTBMQueue :: TBMQueue a -> STM ([a], Bool)
@@ -238,24 +252,26 @@ downloadHistoryComments ::
   -- | The remote branch to upload for.
   RepoInfo ->
   Cli ()
-downloadHistoryComments codeserver repoInfo = do
-  Cli.Env {codebase, credentialManager} <- ask
-  let path = "/ucm/v1/history-comments/download?branchRef=" <> Text.unpack (toQueryParam repoInfo)
-  -- Enable compression
-  let tokenProvider = newTokenProvider credentialManager
-  result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentDownloaderChunk) @(MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
-    hashesToCheckQ <- liftIO $ newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
-    commentsQ <- liftIO $ newTBMQueueIO 100
-    errMVar <- liftIO newEmptyTMVarIO
-    _receiverThread <- liftIO $ Ki.fork scope $ receiverWorker receive errMVar hashesToCheckQ commentsQ
-    inserterThread <- liftIO $ Ki.fork scope $ inserterWorker codebase commentsQ
-    _hashCheckingThread <- liftIO $ Ki.fork scope $ hashCheckingWorker codebase send hashesToCheckQ
-    Debug.debugLogM Debug.HistoryComments "Downloading history comments: waiting for inserter thread to finish"
-    -- The inserter thread will finish when the client closes the connection.
-    atomically $ Ki.await inserterThread
-  case result of
-    Left connException -> error $ "downloadHistoryComments: " <> show connException
-    Right ((), _leftovers) -> pure ()
+downloadHistoryComments codeserver repoInfo
+  | not shouldSyncHistoryComments = pure ()
+  | otherwise = do
+      Cli.Env {codebase, credentialManager} <- ask
+      let path = "/ucm/v1/history-comments/download?branchRef=" <> Text.unpack (toQueryParam repoInfo)
+      -- Enable compression
+      let tokenProvider = newTokenProvider credentialManager
+      result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentDownloaderChunk) @(MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
+        hashesToCheckQ <- liftIO $ newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
+        commentsQ <- liftIO $ newTBMQueueIO 100
+        errMVar <- liftIO newEmptyTMVarIO
+        _receiverThread <- liftIO $ Ki.fork scope $ receiverWorker receive errMVar hashesToCheckQ commentsQ
+        inserterThread <- liftIO $ Ki.fork scope $ inserterWorker codebase commentsQ
+        _hashCheckingThread <- liftIO $ Ki.fork scope $ hashCheckingWorker codebase send hashesToCheckQ
+        Debug.debugLogM Debug.HistoryComments "Downloading history comments: waiting for inserter thread to finish"
+        -- The inserter thread will finish when the client closes the connection.
+        atomically $ Ki.await inserterThread
+      case result of
+        Left connException -> error $ "downloadHistoryComments: " <> show connException
+        Right ((), _leftovers) -> pure ()
   where
     inserterWorker ::
       Codebase.Codebase IO v a ->

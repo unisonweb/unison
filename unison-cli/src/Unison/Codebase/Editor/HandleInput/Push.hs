@@ -55,17 +55,6 @@ import Unison.Share.Types (codeserverBaseURL)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Sync.Types qualified as Share
 
--- | Validate entities received from the server unless this flag is set to false.
-syncHistoryCommentsEnvKey :: String
-syncHistoryCommentsEnvKey = "UNISON_SYNC_HISTORY_COMMENTS"
-
-shouldSyncHistoryComments :: Bool
-shouldSyncHistoryComments = unsafePerformIO $ do
-  lookupEnv syncHistoryCommentsEnvKey <&> \case
-    Just "false" -> False
-    _ -> True
-{-# NOINLINE shouldSyncHistoryComments #-}
-
 -- | Handle a @push@ command.
 handlePushRemoteBranch :: PushRemoteBranchInput -> Cli ()
 handlePushRemoteBranch PushRemoteBranchInput {sourceTarget, pushBehavior} = do
@@ -434,8 +423,7 @@ executeUploadPlan UploadPlan {remoteBranch, remoteHead, causalHash, afterUploadA
           Share.SyncError err -> ShareErrorUploadEntities err
           Share.TransportError err -> ShareErrorTransport err
   afterUploadAction
-  when shouldSyncHistoryComments do
-    Cli.time "Uploading History Comments" $ HC.uploadHistoryComments causalHash codeserverURI (Share.RepoInfo remoteTarget)
+  Cli.time "Uploading History Comments" $ HC.uploadHistoryComments causalHash codeserverURI (Share.RepoInfo remoteTarget)
   let ProjectAndBranch projectName branchName = remoteBranch
   Cli.respond (ViewOnShare (Share.hardCodedUri, projectName, branchName))
 

@@ -95,6 +95,8 @@ instance FromJSON Base64Bytes where
   parseJSON = Aeson.withText "Base64" \txt -> do
     either fail (pure . Base64Bytes) $ convertFromBase Base64 (Text.encodeUtf8 txt)
 
+-- E.g. @unison/base/main
+-- Can be obtained via 'RepoInfo $ into @Text $ ProjectAndBranch projectName projectBranchName'
 newtype RepoInfo = RepoInfo {unRepoInfo :: Text}
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON, ToHttpApiData, FromHttpApiData)
   deriving (Serialise) via Text
