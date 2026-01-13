@@ -148,11 +148,13 @@ handleIOTest main = do
   (fails, oks) <-
     Foldable.foldrM
       ( \(ref, typ) (f, o) -> do
-          when (not $ isIOTest typ)
-            . Cli.returnEarly
-            . BadMainFunction "io.test" main typ suffixifiedPPE
-            . Foldable.toList
-            $ Runtime.ioTestTypes runtime
+          when (not $ isIOTest typ) do
+            Cli.returnEarly $
+              BadMainFunction
+                "io.test"
+                [(main, typ)]
+                suffixifiedPPE
+                (Foldable.toList (Runtime.ioTestTypes runtime))
           bimap (\ts -> if null ts then f else Map.insert ref ts f) (\ts -> if null ts then o else Map.insert ref ts o)
             <$> runIOTest suffixifiedPPE ref
       )

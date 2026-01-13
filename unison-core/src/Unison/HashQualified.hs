@@ -1,5 +1,8 @@
 module Unison.HashQualified where
 
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.ConstructorReference qualified as ConstructorReference
@@ -12,6 +15,8 @@ import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.ShortHash (ShortHash)
 import Unison.ShortHash qualified as SH
+import Unison.Util.Relation (Relation)
+import Unison.Util.Relation qualified as Relation
 import Prelude hiding (take)
 
 data HashQualified n
@@ -130,6 +135,73 @@ requalify hq r = case hq of
   NameOnly n -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _ -> fromReferent r
+
+-- | Like 'Name.searchBySuffix', but uses a hash-qualified name to search instead.
+--
+-- The name *and* the hash are used to determine whether something is an exact match. For example, in namespace
+-- {foo#foo, hello.foo#bar}, searching for foo#bar will return the singleton set {hello.foo#bar}, because even though
+-- there is an exact name match on foo, its hash doesn't match so we fall back to "suffix" matches. This probably isn't
+-- a very important detail in practice, but the other possible implementation (do name-only search, *then* filter result
+-- down to matching hashes) seems worse.
+searchBySuffix :: forall ref. (Ord ref) => (ref -> ShortHash) -> HashQualified Name -> Relation Name ref -> Set ref
+searchBySuffix refHash name0 rel =
+  case name0 of
+    NameOnly name -> Name.searchBySuffix name rel
+    HashQualified name hash
+      | Set.null exactMatches -> suffixMatches
+      | otherwise -> exactMatches
+      where
+        exactMatches :: Set ref
+        exactMatches =
+          keepMatchingHashes (Relation.lookupDom name rel)
+
+        suffixMatches :: Set ref
+        suffixMatches =
+          keepMatchingHashes (Relation.searchDom (Name.compareSuffix name) rel)
+
+        keepMatchingHashes :: Set ref -> Set ref
+        keepMatchingHashes =
+          Set.filter \ref -> hash `SH.isPrefixOf` refHash ref
+    HashOnly hash ->
+      Map.foldlWithKey'
+        (\acc ref _ -> if hash `SH.isPrefixOf` refHash ref then Set.insert ref acc else acc)
+        Set.empty
+        (Relation.range rel)
+
+-- | Like 'searchBySuffix', but also keeps the names around.
+filterBySuffix ::
+  forall ref.
+  (Ord ref) =>
+  (ref -> ShortHash) ->
+  HashQualified Name ->
+  Relation Name ref ->
+  Relation Name ref
+filterBySuffix refHash name0 rel =
+  case name0 of
+    NameOnly name -> Name.filterBySuffix name rel
+    HashQualified name hash
+      | Relation.null exactMatches -> suffixMatches
+      | otherwise -> exactMatches
+      where
+        exactMatches :: Relation Name ref
+        exactMatches =
+          matches name (Relation.lookupDom name rel)
+
+        suffixMatches :: Relation Name ref
+        suffixMatches =
+          Relation.searchDomG matches (Name.compareSuffix name) rel
+
+        matches :: Name -> Set ref -> Relation Name ref
+        matches name =
+          Set.filter (hashMatches hash)
+            >>> Set.NonEmpty.nonEmptySet
+            >>> maybe Relation.empty (Relation.singletonSet name)
+    HashOnly hash ->
+      Relation.filterRan (hashMatches hash) rel
+  where
+    hashMatches :: ShortHash -> ref -> Bool
+    hashMatches hash ref =
+      hash `SH.isPrefixOf` refHash ref
 
 instance (Name.Alphabetical n) => Name.Alphabetical (HashQualified n) where
   -- Ordered alphabetically, based on the name. Hashes come last.

@@ -23,7 +23,6 @@ module Unison.HashQualifiedPrime
 where
 
 import Data.Set qualified as Set
-import Data.Set.NonEmpty qualified as Set.NonEmpty
 import Data.Text qualified as Text
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
@@ -39,7 +38,6 @@ import Unison.ShortHash qualified as SH
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
 import Unison.Util.Relation (Relation)
-import Unison.Util.Relation qualified as Relation
 import Prelude hiding (take)
 
 -- | Like Unison.HashQualified, but doesn't support a HashOnly variant
@@ -116,29 +114,9 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
 
 -- | Like 'Name.searchBySuffix', but uses a hash-qualified name to search instead.
---
--- The name *and* the hash are used to determine whether something is an exact match. For example, in namespace
--- {foo#foo, hello.foo#bar}, searching for foo#bar will return the singleton set {hello.foo#bar}, because even though
--- there is an exact name match on foo, its hash doesn't match so we fall back to "suffix" matches. This probably isn't
--- a very important detail in practice, but the other possible implementation (do name-only search, *then* filter result
--- down to matching hashes) seems worse.
 searchBySuffix :: forall ref. (Ord ref) => (ref -> ShortHash) -> HashQualified Name -> Relation Name ref -> Set ref
-searchBySuffix _ (NameOnly name) rel = Name.searchBySuffix name rel
-searchBySuffix refHash (HashQualified name hash) rel
-  | Set.null exactMatches = suffixMatches
-  | otherwise = exactMatches
-  where
-    exactMatches :: Set ref
-    exactMatches =
-      keepMatchingHashes (Relation.lookupDom name rel)
-
-    suffixMatches :: Set ref
-    suffixMatches =
-      keepMatchingHashes (Relation.searchDom (Name.compareSuffix name) rel)
-
-    keepMatchingHashes :: Set ref -> Set ref
-    keepMatchingHashes =
-      Set.filter \ref -> hash `SH.isPrefixOf` refHash ref
+searchBySuffix refHash =
+  HQ.searchBySuffix refHash . toHQ
 
 -- | Like 'searchBySuffix', but also keeps the names around.
 filterBySuffix ::
@@ -148,28 +126,8 @@ filterBySuffix ::
   HashQualified Name ->
   Relation Name ref ->
   Relation Name ref
-filterBySuffix _ (NameOnly name) rel = Name.filterBySuffix name rel
-filterBySuffix refHash (HashQualified name hash) rel
-  | Relation.null exactMatches = suffixMatches
-  | otherwise = exactMatches
-  where
-    exactMatches :: Relation Name ref
-    exactMatches =
-      matches name (Relation.lookupDom name rel)
-
-    suffixMatches :: Relation Name ref
-    suffixMatches =
-      Relation.searchDomG matches (Name.compareSuffix name) rel
-
-    matches :: Name -> Set ref -> Relation Name ref
-    matches name =
-      Set.filter hashMatches
-        >>> Set.NonEmpty.nonEmptySet
-        >>> maybe Relation.empty (Relation.singletonSet name)
-
-    hashMatches :: ref -> Bool
-    hashMatches ref =
-      hash `SH.isPrefixOf` refHash ref
+filterBySuffix refHash =
+  HQ.filterBySuffix refHash . toHQ
 
 searchUnconflictedBySuffix ::
   forall ref.

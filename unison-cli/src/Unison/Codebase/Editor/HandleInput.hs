@@ -1151,7 +1151,10 @@ searchBranchScored names0 score queries =
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile profile output main = do
   Cli.Env {codebase, runtime} <- ask
-  (ref, ppe) <- resolveMainRef main
+  (_, ref, _, _) <- resolveMainRef "compile" main
+  names <- Cli.currentNames
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+  let ppe = pped.suffixifiedPPE
   let codeLookup = () <$ Codebase.codebaseToCodeLookup codebase
       outf = output <> ".uc"
       copts = Runtime.defaultCompileOpts {Runtime.profile = profile}

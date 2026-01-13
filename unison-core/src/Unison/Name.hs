@@ -49,6 +49,7 @@ module Unison.Name
     -- ** Filter
     filterBySuffix,
     filterByRankedSuffix,
+    keepHighestPriority,
 
     -- * To organize later
     commonPrefix,
@@ -388,15 +389,28 @@ searchByRankedSuffix suffix rel =
 -- | Like 'searchByRankedSuffix', but also keeps the names around.
 filterByRankedSuffix :: (Ord r) => Name -> R.Relation Name r -> R.Relation Name r
 filterByRankedSuffix suffix rel =
-  let matches = filterBySuffix suffix rel
-      highestNamePriority = foldMap prio (R.dom matches)
-      keep (name, _) = prio name <= highestNamePriority
-   in -- Keep only names that are at or less than the highest name priority. This effectively throws out all indirect
-      -- dependencies (NamePriorityTwo) if there are any direct dependencies (NamePriorityOne) or local definitions
-      -- (also NamePriorityOne).
-      R.filter keep matches
+  keepHighestPriority (filterBySuffix suffix rel)
+
+-- Keep only names that are at or less than the highest name priority. This effectively throws out all indirect
+-- dependencies (NamePriorityTwo) if there are any direct dependencies (NamePriorityOne) or local definitions
+-- (also NamePriorityOne).
+keepHighestPriority :: (Ord r) => R.Relation Name r -> R.Relation Name r
+keepHighestPriority =
+  gkeepHighestPriority
+    (\f -> foldMap f . R.dom)
+    (\f -> R.filter (f . fst))
+
+gkeepHighestPriority ::
+  (forall m. (Monoid m) => (Name -> m) -> names -> m) ->
+  ((Name -> Bool) -> names -> names) ->
+  names ->
+  names
+gkeepHighestPriority foldMap filter names =
+  filter keep names
   where
     prio = nameLocationPriority . classifyNameLocation
+    highestNamePriority = foldMap prio names
+    keep name = prio name <= highestNamePriority
 
 -- | precondition: input list is deduped, and so is the Name list in
 -- the tuple
