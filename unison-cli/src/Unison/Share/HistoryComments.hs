@@ -68,7 +68,7 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
               result <- runMaybeT $ do
                 (commentId, commentHash32) <- MaybeT $ getCommentIds
                 revisionHashes <- lift $ Q.commentRevisionHashes commentId
-                Debug.debugM Debug.Temp "Queueing comment for checking" commentHash32
+                Debug.debugM Debug.HistoryComments "Queueing comment for checking" commentHash32
                 lift . Sqlite.unsafeIO $ atomically $ writeTBMQueue commentHashesToSendQ (HistoryCommentHash32 commentHash32, HistoryCommentRevisionHash32 <$> revisionHashes)
               -- Loop till a send fails or we run out of comments
               case result of
@@ -79,9 +79,9 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
     atomically $ closeTBMQueue commentHashesToSendQ
     -- Now we just have to wait for the uploader to finish sending all the comments we have queued up.
     -- Once we've uploaded everything we can safely exit and the connection will be closed.
-    Debug.debugLogM Debug.Temp "Uploading history comments: waiting for uploader thread to finish"
+    Debug.debugLogM Debug.HistoryComments "Uploading history comments: waiting for uploader thread to finish"
     atomically $ Ki.await uploaderThread
-    Debug.debugLogM Debug.Temp "Done; closing connection"
+    Debug.debugLogM Debug.HistoryComments "Done; closing connection"
   case result of
     Left err -> error $ "uploadCommentsClient: " <> show err
     Right ((), _leftovers {- Messages sent by server after we finished. -}) -> pure ()
@@ -111,17 +111,17 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
             mapMaybeT (Codebase.runTransaction codebase) $ do
               case hash of
                 Left (HistoryCommentHash32 commentHash) -> do
-                  Debug.debugM Debug.Temp "Uploading comment for hash" commentHash
+                  Debug.debugM Debug.HistoryComments "Uploading comment for hash" commentHash
                   commentId <- lift $ Q.expectHistoryCommentIdByHash32 commentHash
                   comment <- lift $ Q.expectHistoryCommentById commentId
                   success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
-                  when (not success) $ Debug.debugLogM Debug.Temp "Failed to send the history comment, shutting down"
+                  when (not success) $ Debug.debugLogM Debug.HistoryComments "Failed to send the history comment, shutting down"
                   guard success
                 Right (HistoryCommentRevisionHash32 revisionHash) -> do
                   revisionId <- lift $ Q.expectHistoryCommentRevisionIdByHash32 revisionHash
                   revision <- lift $ Q.expectHistoryCommentRevisionById revisionId
                   success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Right revision))
-                  when (not success) $ Debug.debugLogM Debug.Temp "Failed to send history comment revision, shutting down"
+                  when (not success) $ Debug.debugLogM Debug.HistoryComments "Failed to send history comment revision, shutting down"
                   guard success
             loop
       void . runMaybeT $ loop
@@ -162,10 +162,10 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
               (hashesToCheck, isClosed) <- flushTBMQueue q
               All sentSuccessfully <-
                 NEL.nonEmpty hashesToCheck & foldMapM \possiblyNewHashes -> do
-                  Debug.debugM Debug.Temp "Sending possibly new hashes:" possiblyNewHashes
+                  Debug.debugM Debug.HistoryComments "Sending possibly new hashes:" possiblyNewHashes
                   All <$> (send $ Msg $ PossiblyNewHashesChunk possiblyNewHashes)
               when (isClosed || not sentSuccessfully) $
-                Debug.debugLogM Debug.Temp "Hash notify worker: queue closed or server closed connection, no longer sending hashes"
+                Debug.debugLogM Debug.HistoryComments "Hash notify worker: queue closed or server closed connection, no longer sending hashes"
               pure (isClosed || not sentSuccessfully)
             if isClosed
               then do
@@ -227,7 +227,7 @@ fetchChunk size action = do
             -- Queue is closed
             pure ([], True)
           Just (Just val) -> do
-            Debug.debugM Debug.Temp "Fetched value from queue" val
+            Debug.debugM Debug.HistoryComments "Fetched value from queue" val
             (rest, exhausted) <- go (n - 1) <|> pure ([], False)
             pure (val : rest, exhausted)
   go size
@@ -250,7 +250,7 @@ downloadHistoryComments codeserver repoInfo = do
     _receiverThread <- liftIO $ Ki.fork scope $ receiverWorker receive errMVar hashesToCheckQ commentsQ
     inserterThread <- liftIO $ Ki.fork scope $ inserterWorker codebase commentsQ
     _hashCheckingThread <- liftIO $ Ki.fork scope $ hashCheckingWorker codebase send hashesToCheckQ
-    Debug.debugLogM Debug.Temp "Downloading history comments: waiting for inserter thread to finish"
+    Debug.debugLogM Debug.HistoryComments "Downloading history comments: waiting for inserter thread to finish"
     -- The inserter thread will finish when the client closes the connection.
     atomically $ Ki.await inserterThread
   case result of
@@ -265,7 +265,7 @@ downloadHistoryComments codeserver repoInfo = do
       let loop = do
             (chunk, closed) <- atomically (fetchChunk insertCommentBatchSize (readTBMQueue commentsQ))
             when (not (null chunk)) $ do
-              Debug.debugM Debug.Temp "Inserting comments chunk of size" (length chunk)
+              Debug.debugM Debug.HistoryComments "Inserting comments chunk of size" (length chunk)
               Codebase.runTransaction codebase $ do
                 for_ chunk \case
                   Left
@@ -307,7 +307,7 @@ downloadHistoryComments codeserver repoInfo = do
                           }
             when (not closed) loop
       loop
-      Debug.debugLogM Debug.Temp "Inserter worker finished"
+      Debug.debugLogM Debug.HistoryComments "Inserter worker finished"
 
     hashCheckingWorker ::
       Codebase.Codebase IO v a ->
@@ -317,7 +317,7 @@ downloadHistoryComments codeserver repoInfo = do
     hashCheckingWorker codebase send hashesToCheckQ = do
       let loop = do
             (hashes, closed) <- atomically (fetchChunk insertCommentBatchSize (readTBMQueue hashesToCheckQ))
-            Debug.debugM Debug.Temp "Checking hashes chunk of size" (length hashes)
+            Debug.debugM Debug.HistoryComments "Checking hashes chunk of size" (length hashes)
             when (not (null hashes)) $ do
               unknownHashes <- do
                 Codebase.runTransaction codebase $ do
@@ -339,7 +339,7 @@ downloadHistoryComments codeserver repoInfo = do
             when (not closed) loop
       loop
       void . atomically $ send $ Msg $ DoneCheckingHashesChunk
-      Debug.debugLogM Debug.Temp "Hash checking worker finished"
+      Debug.debugLogM Debug.HistoryComments "Hash checking worker finished"
     receiverWorker ::
       STM (Maybe (MsgOrError DownloadCommentsResponse HistoryCommentUploaderChunk)) ->
       TMVar Text ->
@@ -376,5 +376,5 @@ downloadHistoryComments codeserver repoInfo = do
                   pure loop
             next
       loop
-      Debug.debugLogM Debug.Temp "Receiver worker finished"
+      Debug.debugLogM Debug.HistoryComments "Receiver worker finished"
     insertCommentBatchSize = 100

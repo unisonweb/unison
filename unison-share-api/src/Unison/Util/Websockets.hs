@@ -144,7 +144,7 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
           let tlsPort = 443
               port = maybe tlsPort fromIntegral $ (codeserverPort) codeserver
            in do
-                Debug.debugLogM Debug.Temp $ "Connecting to codeserver via WSS: " <> show (host, port, codeserverPath, headers)
+                Debug.debugLogM Debug.Websockets $ "Connecting to codeserver via WSS: " <> show (host, port, codeserverPath, headers)
                 Wuss.runSecureClientWith host port path opts headers action
         Http ->
           let defaultPort = 80 :: Int
@@ -154,7 +154,7 @@ withCodeserverWebsocket msgBufferSize codeserver tokenProvider codeserverPath ac
                 "localhost" -> "127.0.0.1"
                 _ -> host
            in do
-                Debug.debugLogM Debug.Temp $ "Connecting to codeserver via WS: " <> show (fixedHost, port, codeserverPath, headers)
+                Debug.debugLogM Debug.Websockets $ "Connecting to codeserver via WS: " <> show (fixedHost, port, codeserverPath, headers)
                 WS.runClientWith fixedHost port path opts headers action
   toIO <- askRunInIO
   liftIO $ withSocketsDo $ (wsRunner codeserverPath connectionOptions headers) \conn -> do
