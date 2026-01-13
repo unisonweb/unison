@@ -37,19 +37,19 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #0tqh8jtpel
+  ⊙ 1. #58sqv08t6a
 
     + Adds / updates:
     
       def
 
-  ⊙ 2. #a6mfml1t5q
+  ⊙ 2. #m8nqs6f5r5
 
     + Adds / updates:
     
       def
 
-  □ 3. #amjnc7l29n (start of history)
+  □ 3. #46h5se3fo8 (start of history)
 
 scratch/main> reset 2
 
@@ -65,13 +65,13 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #a6mfml1t5q
+  ⊙ 1. #m8nqs6f5r5
 
     + Adds / updates:
     
       def
 
-  □ 2. #amjnc7l29n (start of history)
+  □ 2. #46h5se3fo8 (start of history)
 ```
 
 Can reset to a value from reflog by number.
@@ -87,10 +87,10 @@ scratch/main> reflog
        history.
 
        Branch         Hash          Description
-  1.   scratch/main   #a6mfml1t5q   reset a6mfml1t5qlv0vpevbg5idchtbm46r4in4fhaeomagk2lmfdngtp1e...
-  2.   scratch/main   #0tqh8jtpel   update
-  3.   scratch/main   #a6mfml1t5q   update
-  4.   scratch/main   #amjnc7l29n   builtins.merge
+  1.   scratch/main   #m8nqs6f5r5   reset m8nqs6f5r56ppbno720j8q1c8dpdf7np0ml7ph3spurn8ugutviceh...
+  2.   scratch/main   #58sqv08t6a   update
+  3.   scratch/main   #m8nqs6f5r5   update
+  4.   scratch/main   #46h5se3fo8   builtins.merge
   5.   scratch/main   #sg60bvjo91   Project Created
 
 -- Reset the current branch to the first history element
@@ -109,19 +109,19 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #0tqh8jtpel
+  ⊙ 1. #58sqv08t6a
 
     + Adds / updates:
     
       def
 
-  ⊙ 2. #a6mfml1t5q
+  ⊙ 2. #m8nqs6f5r5
 
     + Adds / updates:
     
       def
 
-  □ 3. #amjnc7l29n (start of history)
+  □ 3. #46h5se3fo8 (start of history)
 ```
 
 # reset branch

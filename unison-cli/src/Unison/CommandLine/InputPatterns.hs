@@ -2448,7 +2448,7 @@ diffBranch =
                       ProjectBranchSuggestionsConfig
                         { showProjectCompletions = False,
                           projectInclusion = OnlyWithinCurrentProject,
-                          branchInclusion = ExcludeCurrentBranch
+                          branchInclusion = AllBranches
                         }
                in [ ("first branch", completion),
                     ("second branch", completion)

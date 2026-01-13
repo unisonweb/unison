@@ -14,7 +14,7 @@ module Unison.Syntax.TermParser
 where
 
 import Control.Comonad.Trans.Cofree (CofreeF ((:<)))
-import Control.Lens (mapped, _2)
+import Control.Lens (_2)
 import Control.Monad.Reader (asks, local)
 import Control.Monad.Trans.Writer
 import Data.Bitraversable (bitraverse)
@@ -24,6 +24,7 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -65,6 +66,7 @@ import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker.Components qualified as Components
 import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.Map qualified as Map
 import Unison.Util.Recursion
 import Unison.Var (Var)
 import Unison.Var qualified as Var
@@ -204,11 +206,13 @@ matchCases = sepBy semi matchCase <&> \cases_ -> [(n, c) | (n, cs) <- cases_, c 
 --
 --   42, x -> ...
 --   (42, x) -> ...
-matchCase :: (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
+matchCase :: forall m v. (Monad m, Var v) => P v m (Int, [Term.MatchCase Ann (Term v Ann)])
 matchCase = do
   pats <- sepBy1 (label "\",\"" $ reserved ",") (parsePattern >>= bindConstructorsInPattern)
-  let boundVars' = [v | (_, vs) <- pats, (_ann, v) <- vs]
-      pat = case fst <$> pats of
+  let boundVars0 = concatMap snd pats
+  checkForDuplicateBinders boundVars0
+  let boundVars' = map snd boundVars0
+  let pat = case fst <$> pats of
         [p] -> p
         pats -> foldr pair (unit (ann . last $ pats)) pats
       unit ann = Pattern.Constructor ann (ConstructorReference DD.unitRef 0) []
@@ -230,6 +234,23 @@ matchCase = do
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
   let mk (guard, t) = Term.MatchCase pat (fmap (absChain boundVars') guard) (absChain boundVars' t)
   pure $ (length pats, mk <$> guardsAndBlocks)
+
+-- Disallow binding the same variable twice.
+checkForDuplicateBinders :: (Ord v) => [(Ann, v)] -> P v m ()
+checkForDuplicateBinders =
+  let go seen = \case
+        [] -> pure ()
+        (ann, v) : vs -> do
+          seen1 <-
+            Map.upsertF
+              ( \case
+                  Nothing -> pure ann
+                  Just ann0 -> P.customFailure (DuplicateBinders ann0 ann v)
+              )
+              v
+              seen
+          go seen1 vs
+   in go Map.empty
 
 parsePattern :: forall m v. (Monad m, Var v) => P v m (Syntax.Pattern.Pattern v)
 parsePattern =
@@ -1002,8 +1023,10 @@ destructuringBind = do
   --   vs
   --   (Some 42) = List.head elems
   pat <- P.try (parsePattern <* P.lookAhead (openBlockWith "="))
-  (p, boundVars) <- over (_2 . mapped) snd <$> bindConstructorsInPattern pat
+  (p, boundVars0) <- bindConstructorsInPattern pat
+  checkForDuplicateBinders boundVars0
   (_eqAnn, _spanAnn, scrute) <- layoutBlock "=" -- Dwight K. Scrute ("The People's Scrutinee")
+  let boundVars = map snd boundVars0
   let guard = Nothing
   let absChain vs t = foldr (\v t -> ABT.abs' (ann t) v t) t vs
       thecase t = Term.MatchCase p (fmap (absChain boundVars) guard) $ absChain boundVars t
