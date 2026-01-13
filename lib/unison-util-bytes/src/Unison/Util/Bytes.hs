@@ -3,7 +3,7 @@
 
 module Unison.Util.Bytes
   ( Bytes (..),
-    Chunk,
+    Chunk (..),
     fromByteString,
     toByteString,
     fromWord8s,
@@ -71,8 +71,8 @@ import Codec.Compression.Zlib qualified as Zlib
 import Codec.Compression.Zstd qualified as Zstd
 import Control.DeepSeq (NFData (..))
 import Control.Exception (throw)
-import Control.Monad.Primitive (unsafeIOToPrim)
-import Control.Monad.ST (ST)
+import Control.Monad.Primitive (unsafeIOToPrim, unsafePrimToIO)
+import Control.Monad.ST (ST, runST)
 import Data.Bits (shiftR)
 import Data.ByteArray qualified as BA
 import Data.ByteArray.Encoding qualified as BE
@@ -84,43 +84,129 @@ import Data.Digest.Murmur64 (Hash64, hash64AddInt)
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
     MutableByteArray,
+    byteArrayFromListN,
+    compareByteArrays,
     copyByteArray,
     copyByteArrayToPtr,
+    emptyByteArray,
     indexByteArray,
     newByteArray,
     runByteArray,
+    sizeofByteArray,
+    unsafeFreezeByteArray,
+    writeByteArray,
   )
-import Data.Primitive.Ptr (copyPtrToMutableByteArray)
+import Data.Primitive.Ptr (Ptr, copyPtrToMutableByteArray)
+import Data.Semigroup (Semigroup (..))
 import Data.Text qualified as Text
-import Data.Vector.Primitive qualified as V
-import Data.Vector.Primitive.Mutable qualified as MV
-import Data.Vector.Storable qualified as SV
-import Data.Vector.Storable.ByteString qualified as BSV
-import Data.Vector.Storable.Mutable qualified as MSV
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Storable (pokeByteOff)
+import Foreign.Ptr (plusPtr)
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
-import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (drop, take)
 
-type Chunk = V.Vector Word8
+
+withByteArrayST ::
+  BA.ByteArrayAccess a => a -> (Ptr Word8 -> ST s ()) -> ST s ()
+withByteArrayST a k =
+  unsafeIOToPrim $ BA.withByteArray a (unsafePrimToIO . k)
+
+data Chunk =
+  Chunk { _off :: {-# UNPACK #-} !Int,
+          chunkSize :: {-# UNPACK #-} !Int,
+          _arr :: {-# UNPACK #-} !ByteArray
+        }
+
+emptyChunk :: Chunk
+emptyChunk = Chunk 0 0 emptyByteArray
+
+instance Eq Chunk where
+  Chunk ol ll al == Chunk or lr ar =
+    ll == lr && compareByteArrays al ol ar or ll == EQ
+  {-# INLINE (==) #-}
+
+instance Ord Chunk where
+  Chunk ol ll al `compare` Chunk or lr ar =
+    compareByteArrays al ol ar or (min ll lr) <> compare ll lr
+  {-# INLINE compare #-}
+
+concatChunks :: [Chunk] -> Chunk
+concatChunks cs =
+  createChunk len \m ->
+    let go !_ [] = pure ()
+        go !mo (Chunk o l a : cs) =
+          copyByteArray m mo a o l *> go (mo+l) cs
+    in go 0 cs
+  where
+    len = foldl' (\acc (Chunk _ l _) -> acc + l) 0 cs
+{-# INLINE concatChunks #-}
+
+foldl'Chunk :: (r -> Word8 -> r) -> r -> Chunk -> r
+foldl'Chunk f z (Chunk o l a) = go z o
+  where
+    n = o+l
+    go !acc i
+      | i < n = go (f acc $ indexByteArray a i) (i+1)
+      | otherwise = acc
+
+instance Semigroup Chunk where
+  cl@(Chunk ol ll al) <> cr@(Chunk or lr ar)
+    | ll == 0 = cr
+    | lr == 0 = cl
+    | otherwise =
+        createChunk (ll + lr) \m ->
+          copyByteArray m 0 al ol ll *> copyByteArray m ll ar or lr
+
+  sconcat cs = concatChunks (toList cs)
+
+  stimes i c@(Chunk o l a)
+    | j < 1 = emptyChunk
+    | j == 1 = c
+    | fromIntegral l * j > m = error "stimes @Chunk: size too large"
+    | k <- fromIntegral i = createChunk (l*k) \m ->
+        let go 0 = pure ()
+            go (subtract 1 -> n) =
+              copyByteArray m (n*l) a o l *> go n
+        in go k
+    where
+      j :: Integer
+      j = fromIntegral i
+      m :: Integer
+      m = fromIntegral (maxBound :: Int)
+
+instance Monoid Chunk where
+  mempty = emptyChunk
+  mconcat = concatChunks
 
 -- Bytes type represented as a rope of ByteStrings
 newtype Bytes = Bytes {underlying :: R.Rope Chunk}
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
 
-instance R.Sized Chunk where size = V.length
+instance R.Sized Chunk where size = chunkSize
 
-instance R.Drop Chunk where drop = V.drop
+instance R.Drop Chunk where
+  drop n c@(Chunk o l a)
+    | n == 0 = c
+    | n >= l = emptyChunk
+    | otherwise = Chunk (o+n) (l-n) a
 
-instance R.Take Chunk where take = V.take
+instance R.Take Chunk where
+  take 0 _ = emptyChunk
+  take n c@(Chunk o l a)
+    | n < l = Chunk o n a
+    | otherwise = c
 
-instance R.Index Chunk Word8 where unsafeIndex n bs = bs `V.unsafeIndex` n
+instance R.Index Chunk Word8 where
+  unsafeIndex n (Chunk o _ a) = indexByteArray a (n + o)
 
-instance R.Reverse Chunk where reverse = V.reverse
+instance R.Reverse Chunk where
+  reverse (Chunk o l a) = createChunk l \m ->
+    let e = o + l - 1
+        go i
+          | i < l = writeByteArray m i $ indexByteArray @Word8 a (e - i)
+          | otherwise = pure ()
+    in go 0
 
 instance NFData Bytes where rnf _ = ()
 
@@ -129,16 +215,32 @@ createByteArray ::
 createByteArray sz f =
   runByteArray $
     newByteArray sz >>= \ma -> ma <$ f ma
+{-# INLINE createByteArray #-}
+
+createChunk ::
+  Int -> (forall s. MutableByteArray s -> ST s ()) -> Chunk
+createChunk sz f = Chunk 0 sz $ createByteArray sz f
+{-# INLINE createChunk #-}
+
+gCreateChunk ::
+  Int -> (forall s. MutableByteArray s -> ST s r) -> (Chunk, r)
+gCreateChunk sz f = runST do
+  ma <- newByteArray sz
+  r <- f ma
+  (,r) . Chunk 0 sz <$> unsafeFreezeByteArray ma
+{-# INLINE gCreateChunk #-}
 
 whenLittleEndian :: (a -> a) -> a -> a
 whenLittleEndian
   | LittleEndian <- targetByteOrder = \f x -> f x
   | otherwise = \_ x -> x
+{-# INLINE whenLittleEndian #-}
 
 whenBigEndian :: (a -> a) -> a -> a
 whenBigEndian
   | BigEndian <- targetByteOrder = \f x -> f x
   | otherwise = \_ x -> x
+{-# INLINE whenBigEndian #-}
 
 -- Given an offset, size and bytes, extracts a byte array that satisfies
 -- the following properties
@@ -155,7 +257,7 @@ extractChunkArr :: Int -> Int -> Bytes -> ByteArray
 extractChunkArr ix ln (Bytes bs) = fixAlign ln $ R.extractChunk ix ln bs
 
 fixAlign :: Int -> Chunk -> ByteArray
-fixAlign ln (V.Vector o _ ba)
+fixAlign ln (Chunk o _ ba)
   | o == 0 = ba
   | otherwise = createByteArray ln (\m -> copyByteArray m 0 ba o ln)
 
@@ -165,8 +267,17 @@ null = R.null . underlying
 empty :: Bytes
 empty = mempty
 
+isAsciiChunk :: Chunk -> Bool
+isAsciiChunk (Chunk o l a) = test o
+  where
+    n = o+l
+    test i
+      | i >= n = True
+      | indexByteArray @Word8 a i <= 0x7F = test (i+1)
+      | otherwise = False
+
 isAscii :: Bytes -> Bool
-isAscii b = all (V.all (<= 0x7F)) (chunks b)
+isAscii b = all isAsciiChunk (chunks b)
 
 fromByteString :: B.ByteString -> Bytes
 fromByteString b = snoc empty (byteStringToChunk b)
@@ -175,40 +286,47 @@ toByteString :: Bytes -> B.ByteString
 toByteString b = B.concat (map chunkToByteString (chunks b))
 
 toArray :: (BA.ByteArray b) => Bytes -> b
-toArray b = chunkToArray $ V.concat (chunks b)
+toArray (Bytes r) =
+  BA.allocAndFreeze (R.size r) \(p :: Ptr Word8) ->
+    let f po (Chunk o l a)
+          | (p :: Ptr Word8) <- p `plusPtr` po =
+              copyByteArrayToPtr p a o l
+    in R.traverseWithPos_ f r
+{-# INLINE toArray #-}
 
 fromArray :: (BA.ByteArrayAccess b) => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
 
 fromByteArray :: Int -> Int -> ByteArray -> Bytes
-fromByteArray o l ba = snoc empty (V.Vector o l ba)
+fromByteArray o l ba = snoc empty (Chunk o l ba)
 
-toByteArray :: (MSV.PrimMonad m) => Bytes -> m ByteArray
-toByteArray b = chunkToByteArray (V.concat (chunks b))
+toByteArray :: Bytes -> ByteArray
+toByteArray (Bytes r)
+  | R.One (Chunk 0 l a) <- r,
+    l == sizeofByteArray a = a
+  | otherwise =
+      createByteArray (R.size r) \m ->
+        R.traverseWithPos_ (f m) r
+  where
+    f m p (Chunk o l a) = copyByteArray m p a o l
 
 byteStringToChunk, chunkFromByteString :: B.ByteString -> Chunk
-byteStringToChunk = fromStorable . BSV.byteStringToVector
+byteStringToChunk bs
+  | sz == 0 = emptyChunk
+  | otherwise = createChunk sz \m ->
+      withByteArrayST bs \p ->
+        copyPtrToMutableByteArray m 0 p sz
+  where
+    sz = B.length bs
+
 chunkFromByteString = byteStringToChunk
 
 chunkToByteString :: Chunk -> B.ByteString
-chunkToByteString = BSV.vectorToByteString . toStorable
-
-fromStorable :: SV.Vector Word8 -> V.Vector Word8
-fromStorable sv =
-  V.create $ do
-    MSV.MVector l fp <- SV.unsafeThaw sv
-    v@(MV.MVector _ _ ba) <- MV.unsafeNew l
-    unsafeIOToPrim . withForeignPtr fp $ \p ->
-      -- Note: unsafeCoerce is for s -> RealWorld in byte array type
-      copyPtrToMutableByteArray (unsafeCoerce ba) 0 p l
-    pure v
-
-toStorable :: V.Vector Word8 -> SV.Vector Word8
-toStorable (V.Vector o l ba) = SV.create $ do
-  v@(MSV.MVector _ fp) <- MSV.unsafeNew l
-  unsafeIOToPrim . withForeignPtr fp $ \p ->
-    copyByteArrayToPtr p ba o l
-  pure v
+chunkToByteString (Chunk o l a)
+  | l == 0 = B.empty
+  | otherwise =
+      BA.allocAndFreeze l \(p :: Ptr Word8) ->
+        copyByteArrayToPtr p a o l
 
 zlibCompress :: Bytes -> Bytes
 zlibCompress = fromLazyByteString . Zlib.compress . toLazyByteString
@@ -244,9 +362,6 @@ fromLazyByteString b = fromChunks (byteStringToChunk <$> LB.toChunks b)
 size :: Bytes -> Int
 size = R.size . underlying
 
-chunkSize :: Chunk -> Int
-chunkSize = V.length
-
 chunks :: Bytes -> [Chunk]
 chunks (Bytes bs) = toList bs
 
@@ -263,7 +378,9 @@ snoc :: Bytes -> Chunk -> Bytes
 snoc (Bytes bs) b = Bytes (R.snoc bs b)
 
 flatten :: Bytes -> Bytes
-flatten b = snoc mempty (V.concat (chunks b))
+flatten bs = Bytes . R.one . Chunk 0 sz $ toByteArray bs
+  where
+    sz = size bs
 
 take :: Int -> Bytes -> Bytes
 take n (Bytes bs) = Bytes (R.take n bs)
@@ -333,13 +450,28 @@ index64le i bs
       Just . whenBigEndian byteSwap64 $ indexByteArray ba 0
 
 dropBlock :: Int -> Bytes -> Maybe (Chunk, Bytes)
-dropBlock nBytes (Bytes chunks) = go mempty chunks
+dropBlock nBytes (Bytes chunks)
+  | R.size chunks < nBytes = Nothing
+  | otherwise = case R.uncons chunks of
+      Nothing -> Nothing -- should be impossible
+      Just (c, cs)
+        | R.size c == nBytes ->
+            Just (c, Bytes cs)
+        | R.size c > nBytes ->
+            Just (R.take nBytes c, Bytes $ R.cons (R.drop nBytes c) cs)
+        | Chunk o l a <- c ->
+            Just $ gCreateChunk nBytes \m ->
+              copyByteArray m 0 a o l *> crawl m l cs
   where
-    go acc chunks
-      | V.length acc == nBytes = Just (acc, Bytes chunks)
-      | V.length acc >= nBytes, (hd, hd2) <- V.splitAt nBytes acc = Just (hd, Bytes (hd2 `R.cons` chunks))
-      | Just (head, tail) <- R.uncons chunks = go (acc <> head) tail
-      | otherwise = Nothing
+    crawl :: MutableByteArray s -> Int -> R.Rope Chunk -> ST s Bytes
+    crawl m pos chunks = case R.uncons chunks of
+      Just (c@(Chunk o l a), cs)
+        | l + pos == nBytes ->
+            Bytes cs <$ copyByteArray m pos a o l
+        | l + pos > nBytes, ln <- nBytes - pos, c <- R.drop ln c ->
+            Bytes (R.cons c cs) <$ copyByteArray m pos a o ln
+      -- these cases should be impossible due to length check
+      _ -> pure $ Bytes chunks
 
 decodeNat64be :: Bytes -> Maybe (Word64, Bytes)
 decodeNat64be bs = case dropBlock 8 bs of
@@ -395,26 +527,38 @@ fillBE n k i = fromIntegral (shiftR n ((k - i) * 8))
 {-# INLINE fillBE #-}
 
 encodeNat64be :: Word64 -> Bytes
-encodeNat64be n = Bytes (R.one (V.generate 8 (fillBE n 7)))
+encodeNat64be n =
+  Bytes . R.one $ createChunk 8 \m ->
+    writeByteArray m 0 . whenLittleEndian byteSwap64 $ fromIntegral n
 
 encodeNat32be :: Word64 -> Bytes
-encodeNat32be n = Bytes (R.one (V.generate 4 (fillBE n 3)))
+encodeNat32be n =
+  Bytes . R.one $ createChunk 4 \m ->
+    writeByteArray m 0 . whenLittleEndian byteSwap32 $ fromIntegral n
 
 encodeNat16be :: Word64 -> Bytes
-encodeNat16be n = Bytes (R.one (V.generate 2 (fillBE n 1)))
+encodeNat16be n =
+  Bytes . R.one $ createChunk 2 \m ->
+    writeByteArray m 0 . whenLittleEndian byteSwap16 $ fromIntegral n
 
 fillLE :: Word64 -> Int -> Word8
 fillLE n i = fromIntegral (shiftR n (i * 8))
 {-# INLINE fillLE #-}
 
 encodeNat64le :: Word64 -> Bytes
-encodeNat64le n = Bytes (R.one (V.generate 8 (fillLE n)))
+encodeNat64le n =
+  Bytes . R.one $ createChunk 8 \m ->
+    writeByteArray m 0 . whenBigEndian byteSwap64 $ fromIntegral n
 
 encodeNat32le :: Word64 -> Bytes
-encodeNat32le n = Bytes (R.one (V.generate 4 (fillLE n)))
+encodeNat32le n =
+  Bytes . R.one $ createChunk 4 \m ->
+    writeByteArray m 0 . whenBigEndian byteSwap32 $ fromIntegral n
 
 encodeNat16le :: Word64 -> Bytes
-encodeNat16le n = Bytes (R.one (V.generate 2 (fillLE n)))
+encodeNat16le n =
+  Bytes . R.one $ createChunk 2 \m ->
+    writeByteArray m 0 . whenBigEndian byteSwap16 $ fromIntegral n
 
 toBase16 :: Bytes -> Bytes
 toBase16 bs = foldl' step empty (chunks bs)
@@ -427,26 +571,20 @@ toBase16 bs = foldl' step empty (chunks bs)
         )
 
 chunkToArray, arrayFromChunk :: (BA.ByteArray b) => Chunk -> b
-chunkToArray bs = BA.allocAndFreeze (V.length bs) $ \ptr ->
-  let go !ind =
-        if ind < V.length bs
-          then pokeByteOff ptr ind (V.unsafeIndex bs ind) >> go (ind + 1)
-          else pure ()
-   in go 0
+chunkToArray (Chunk o l a) =
+  BA.allocAndFreeze l $ \(ptr :: Ptr Word8) ->
+    copyByteArrayToPtr ptr a o l
 arrayFromChunk = chunkToArray
 
-chunkToByteArray :: (MSV.PrimMonad m) => Chunk -> m ByteArray
-chunkToByteArray bs = do
-  let sz = V.length bs
-  ba <- newByteArray sz
-  let mv = MV.MVector 0 sz ba
-  V.unsafeCopy mv bs
-  (V.Vector _ _ ba) <- V.freeze mv
-  pure ba
+chunkToByteArray :: Chunk -> ByteArray
+chunkToByteArray (Chunk o l a)
+  | o == 0, l == sizeofByteArray a = a
+  | otherwise =
+      createByteArray l \m -> copyByteArray m 0 a o l
 
 arrayToChunk, chunkFromArray :: (BA.ByteArrayAccess b) => b -> Chunk
 arrayToChunk bs = case BA.convert bs :: Block Word8 of
-  Block bs -> V.Vector 0 n (ByteArray bs)
+  Block bs -> Chunk 0 n (ByteArray bs)
   where
     n = BA.length bs
 {-# INLINE arrayToChunk #-}
@@ -466,28 +604,36 @@ fromBase64 = fromBase BE.Base64
 fromBase64UrlUnpadded = fromBase BE.Base64URLUnpadded
 
 fromBase :: BE.Base -> Bytes -> Either Text.Text Bytes
-fromBase e (Bytes bs) = case BE.convertFromBase e (chunkToArray @BA.Bytes $ R.flatten bs) of
+fromBase e bs = case BE.convertFromBase e (toArray @BA.Bytes bs) of
   Left e -> Left (Text.pack e)
   Right b -> Right $ snoc empty (chunkFromArray (b :: BA.Bytes))
 
 toBase :: BE.Base -> Bytes -> Bytes
-toBase e (Bytes bs) = snoc empty (arrayToChunk arr)
+toBase e bs = snoc empty (arrayToChunk arr)
   where
     arr :: BA.Bytes
-    arr = BE.convertToBase e (chunkToArray @BA.Bytes $ R.flatten bs)
+    arr = BE.convertToBase e (toArray @BA.Bytes bs)
 
 toWord8s :: Bytes -> [Word8]
-toWord8s bs = chunks bs >>= V.toList
+toWord8s bs = chunks bs >>= toList
+  where
+    toList (Chunk o l a) = unf o
+      where
+        n = o+l
+        unf i | i < n = indexByteArray a i : unf (i+1)
+              | otherwise = []
 
 fromWord8s :: [Word8] -> Bytes
-fromWord8s bs = snoc empty (V.fromList bs)
+fromWord8s bs = snoc empty . Chunk 0 sz $ byteArrayFromListN sz bs
+  where
+    !sz = length bs
 
 -- Adds the bytes of the value to a hash. This does not depend on the
 -- chunking or splitting of the bytes values, just on the bytes.
 hash64AddBytes :: Bytes -> Hash64 -> Hash64
 hash64AddBytes bs h = foldl' addChunk h $ underlying bs
   where
-    addChunk = V.foldl' (\h b -> hash64AddInt (fromIntegral b) h)
+    addChunk = foldl'Chunk (\h b -> hash64AddInt (fromIntegral b) h)
 
 instance Show Bytes where
   show bs = toWord8s (toBase16 bs) >>= \w -> [chr (fromIntegral w)]

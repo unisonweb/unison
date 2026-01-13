@@ -913,7 +913,8 @@ foreignCallHelper = \case
           $ pure
           $ Right
           $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
-  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
+  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) ->
+    evaluate $ Bytes.toByteArray ba
   PinnedByteArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
