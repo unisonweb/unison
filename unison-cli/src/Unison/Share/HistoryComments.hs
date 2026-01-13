@@ -8,7 +8,7 @@ import Control.Concurrent.STM.TBMQueue (TBMQueue, closeTBMQueue, newTBMQueueIO, 
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.List.NonEmpty qualified as NEL
-import Data.Monoid (Any (..))
+import Data.Monoid (All (..) )
 import Data.Set qualified as Set
 import Data.Set.NonEmpty qualified as NESet
 import Data.Text qualified as Text
@@ -57,12 +57,10 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
   result <- liftIO $ withCodeserverWebsocket @IO @(MsgOrError Void HistoryCommentUploaderChunk) @(MsgOrError UploadCommentsResponse HistoryCommentDownloaderChunk) msgBufferSize codeserver tokenProvider path \Queues {send, receive} -> Ki.scoped \scope -> do
     commentHashesToSendQ <- newTBMQueueIO @(HistoryCommentHash32, [HistoryCommentRevisionHash32]) 100
     commentHashesToUploadQ <- newTBMQueueIO @(Either HistoryCommentHash32 HistoryCommentRevisionHash32) 100
-    -- Is filled when the server notifies us it's done requesting comments
-    doneRequestingCommentsMVar <- newEmptyTMVarIO
     errMVar <- newEmptyTMVarIO
     _ <- Ki.fork scope (hashNotifyWorker send commentHashesToSendQ)
     uploaderThread <- Ki.fork scope (uploaderWorker codebase send commentHashesToUploadQ)
-    _ <- Ki.fork scope (receiverWorker receive commentHashesToUploadQ errMVar doneRequestingCommentsMVar)
+    _ <- Ki.fork scope (receiverWorker receive commentHashesToUploadQ errMVar)
     Codebase.runTransaction codebase $ do
       rootCausalHashId <- Q.expectCausalHashIdByCausalHash $ CausalHash $ Hash32.toHash rootCausalHash32
       Q.streamHistoryCommentsForCausal rootCausalHashId \getCommentIds -> do
@@ -79,12 +77,6 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
         loop
     -- Close the hashes queue to signal we don't have any more, then wait for the notifier to finish
     atomically $ closeTBMQueue commentHashesToSendQ
-    -- Once the comment Hash queue is closed, eventually we'll send a DoneSendingHashesChunk message,
-    -- the server will respond with a DoneCheckingHashesChunk message after it's made all necessary
-    -- requests.
-    --
-    -- Then we can close the comment upload hash queue to signal we won't get any more upload requests.
-    atomically $ readTMVar doneRequestingCommentsMVar >> closeTBMQueue commentHashesToUploadQ
     -- Now we just have to wait for the uploader to finish sending all the comments we have queued up.
     -- Once we've uploaded everything we can safely exit and the connection will be closed.
     Debug.debugLogM Debug.Temp "Uploading history comments: waiting for uploader thread to finish"
@@ -113,9 +105,9 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
       ) ->
       TBMQueue (Either HistoryCommentHash32 HistoryCommentRevisionHash32) ->
       IO ()
-    uploaderWorker codebase send uploadCommentQueue = do
+    uploaderWorker codebase send commentHashesToUploadQ = do
       let loop = do
-            hash <- MaybeT $ atomically (readTBMQueue uploadCommentQueue)
+            hash <- MaybeT $ atomically (readTBMQueue commentHashesToUploadQ)
             mapMaybeT (Codebase.runTransaction codebase) $ do
               case hash of
                 Left (HistoryCommentHash32 commentHash) -> do
@@ -123,11 +115,13 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
                   commentId <- lift $ Q.expectHistoryCommentIdByHash32 commentHash
                   comment <- lift $ Q.expectHistoryCommentById commentId
                   success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Left comment))
+                  when (not success) $ Debug.debugLogM Debug.Temp "Failed to send the history comment, shutting down"
                   guard success
                 Right (HistoryCommentRevisionHash32 revisionHash) -> do
                   revisionId <- lift $ Q.expectHistoryCommentRevisionIdByHash32 revisionHash
                   revision <- lift $ Q.expectHistoryCommentRevisionById revisionId
                   success <- lift $ Sqlite.unsafeIO $ atomically $ send (Msg $ intoChunk (Right revision))
+                  when (not success) $ Debug.debugLogM Debug.Temp "Failed to send history comment revision, shutting down"
                   guard success
             loop
       void . runMaybeT $ loop
@@ -140,9 +134,8 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
             HistoryCommentRevisionHash32
         ) ->
       TMVar Text ->
-      TMVar () ->
       IO ()
-    receiverWorker receive toUploadQ errMVar doneRequestingCommentsMVar = do
+    receiverWorker receive commentHashesToUploadQ errMVar = do
       let loop = do
             msgOrError <- atomically receive
             case msgOrError of
@@ -151,10 +144,10 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
               Just (Msg msg) -> case msg of
                 DoneCheckingHashesChunk -> do
                   -- Notify that the server is done requesting comments
-                  atomically $ putTMVar doneRequestingCommentsMVar ()
+                  atomically $ closeTBMQueue commentHashesToUploadQ
                   loop
                 RequestCommentsChunk comments -> do
-                  atomically $ for_ comments $ writeTBMQueue toUploadQ
+                  atomically $ for_ comments $ writeTBMQueue commentHashesToUploadQ
                   loop
               Just (DeserialiseFailure msg) -> do
                 atomically $ putTMVar errMVar $ "uploadHistoryComments: deserialisation failure: " <> msg
@@ -167,13 +160,13 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
       let loop = do
             isClosed <- atomically $ do
               (hashesToCheck, isClosed) <- flushTBMQueue q
-              Any serverClosed <-
+              All sentSuccessfully <-
                 NEL.nonEmpty hashesToCheck & foldMapM \possiblyNewHashes -> do
                   Debug.debugM Debug.Temp "Sending possibly new hashes:" possiblyNewHashes
-                  Any <$> (send $ Msg $ PossiblyNewHashesChunk possiblyNewHashes)
-              when (isClosed || serverClosed) $
+                  All <$> (send $ Msg $ PossiblyNewHashesChunk possiblyNewHashes)
+              when (isClosed || not sentSuccessfully) $
                 Debug.debugLogM Debug.Temp "Hash notify worker: queue closed or server closed connection, no longer sending hashes"
-              pure (isClosed || serverClosed)
+              pure (isClosed || not sentSuccessfully)
             if isClosed
               then do
                 -- If the queue is closed, send a DoneCheckingHashesChunk to notify the server we're done.

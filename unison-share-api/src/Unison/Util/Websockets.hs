@@ -49,7 +49,7 @@ withQueues inputBuffer outputBuffer conn action = Ki.scoped $ \scope -> do
   let receive = do readTBMQueue receiveQ
   let send msg = do
         writeTBMQueue sendQ msg
-        isClosedTBMQueue sendQ
+        not <$> isClosedTBMQueue sendQ
   let queues = Queues {receive, send}
 
   _ <- Ki.fork scope $ recvWorker connectionClosedMVar receiveQ
