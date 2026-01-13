@@ -316,7 +316,8 @@ jobs:
             unison-src/transcripts-manual/dll-ffi-win.output.md
 
       - name: benchmark smoke tests
-        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true'
+        # benchmarks hang on Windows
+        if: steps.cache-transcript-test-results.outputs.cache-hit != 'true' && runner.os != 'Windows'
         run: |
           ${{env.ucm}} transcript unison-src/transcripts-manual/benchmarks.md
 
