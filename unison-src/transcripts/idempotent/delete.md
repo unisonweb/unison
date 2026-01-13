@@ -313,29 +313,14 @@ Deleting something from `lib.*` is possible with `delete.force`, not `delete`.
 scratch/main> builtins.mergeio lib.builtins
 ```
 
-``` unison
+``` unison :hide
 foo = 17
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + foo : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 scratch/main> move foo lib.foo.foo
-
-  Done.
 ```
 
 ``` ucm :error
