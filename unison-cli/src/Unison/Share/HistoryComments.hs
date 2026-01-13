@@ -86,7 +86,9 @@ uploadHistoryComments rootCausalHash32 codeserver repoInfo = do
     atomically $ readTMVar doneRequestingCommentsMVar >> closeTBMQueue commentHashesToUploadQ
     -- Now we just have to wait for the uploader to finish sending all the comments we have queued up.
     -- Once we've uploaded everything we can safely exit and the connection will be closed.
+    Debug.debugLogM Debug.Temp "Uploading history comments: waiting for uploader thread to finish"
     atomically $ Ki.await uploaderThread
+    Debug.debugLogM Debug.Temp "Done; closing connection"
   case result of
     Left err -> error $ "uploadCommentsClient: " <> show err
     Right ((), _leftovers {- Messages sent by server after we finished. -}) -> pure ()
