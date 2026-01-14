@@ -25,7 +25,7 @@ import Unison.Referent qualified as Referent
 
 -- | A Union Type which contains either Type References or Term Referents.
 data LabeledDependency
-  = TypeReference Reference
+  = TypeReference TypeReference
   | TermReferent Referent
   deriving (Eq, Ord, Show)
 
@@ -34,7 +34,7 @@ pattern ConReference :: ConstructorReference -> ConstructorType -> LabeledDepend
 pattern ConReference ref conType = TermReferent (Referent.Con ref conType)
 
 -- | Match on a TermReferent which is NOT a Constructor.
-pattern TermReference :: Reference -> LabeledDependency
+pattern TermReference :: TermReference -> LabeledDependency
 pattern TermReference ref = TermReferent (Referent.Ref ref)
 
 {-# COMPLETE ConReference, TermReference, TypeReference #-}
