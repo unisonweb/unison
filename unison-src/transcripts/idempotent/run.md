@@ -35,6 +35,8 @@ scratch/main> run foo
 scratch/main> project.delete scratch
 ```
 
+-----
+
 The scratch file contents are prioritized over the codebase.
 
 ``` ucm :hide
@@ -86,6 +88,8 @@ scratch/main> run foo
 scratch/main> project.delete scratch
 ```
 
+-----
+
 If you try to run something of an incompatible type, you'll get an error.
 
 ``` ucm :hide
@@ -121,6 +125,8 @@ scratch/main> run foo
 ``` ucm :hide
 scratch/main> project.delete scratch
 ```
+
+-----
 
 There's a "staleness check" that works as follows. If you try to `run x`, where `x` isn't hash-qualified, and where `x`
 (either found in the scratch file or codebase) depends on a type or term `y` that has registered as a pending update in
@@ -237,6 +243,8 @@ scratch/main> run baz
 scratch/main> project.delete scratch
 ```
 
+-----
+
 This example demonstrates the same error as above, but by trying to run a term in the codebase, not the scratch file.
 
 ``` ucm :hide
@@ -302,6 +310,8 @@ scratch/main> run bar
 scratch/main> project.delete scratch
 ```
 
+-----
+
 And this example demonstrates the same error as above, but via an uncommitted type, not term.
 
 ``` ucm :hide
@@ -362,6 +372,95 @@ scratch/main> run foo
   the scratch file without performing an `update`.
 
   Then, you can try `run foo` again for an up-to-date result.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+-----
+
+You can't provide an ambiguous suffix to `run`, if multiple terms match and have the correct type.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` unison :hide
+one.foo = do 17
+two.foo = do 18
+```
+
+``` ucm :hide
+scratch/main> update
+```
+
+``` ucm :error
+scratch/main> run foo
+
+  I don't know which function you're referring to:
+
+    1. one.foo : 'Nat
+    2. two.foo : 'Nat
+
+  Tip: use `run 1` or `run 2` to pick one of these.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+-----
+
+But if only one of all matching names has a compatible type, it'll be run.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` unison :hide
+one.foo = do 17
+two.foo = 18
+```
+
+``` ucm :hide
+scratch/main> update
+```
+
+``` ucm
+scratch/main> run foo
+
+  17
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
+-----
+
+For resolving ambiguity, indirect dependencies are also ignored if anything in the current project or its direct
+dependencies match. Here we show `run foo` working even though even though there's a `foo` in an indirect dependency.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtin
+```
+
+``` unison :hide
+one.foo = do 17
+two.foo = do 18
+```
+
+``` ucm :hide
+scratch/main> update
+
+scratch/main> move two.foo lib.x.lib.y.two.foo
+```
+
+``` ucm
+scratch/main> run foo
+
+  17
 ```
 
 ``` ucm :hide

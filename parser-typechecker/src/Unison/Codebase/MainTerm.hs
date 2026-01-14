@@ -17,6 +17,7 @@ import Data.Set.NonEmpty qualified as NESet
 import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser.Ann
@@ -57,10 +58,11 @@ getMainTerm loadTypeOfTerm parseNames mainName mainType = do
   let allReferents :: [(Name, Referent)]
       allReferents =
         Relation.toList $
-          HQ.filterBySuffix
-            Referent.toShortHash
-            mainName
-            (Names.terms parseNames)
+          Name.keepHighestPriority $
+            HQ.filterBySuffix
+              Referent.toShortHash
+              mainName
+              (Names.terms parseNames)
 
   -- Keep only the terms (throwing away constructors)
   allTermReferences :: [(Name, TermReference, Type v Ann)] <-
