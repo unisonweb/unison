@@ -305,6 +305,7 @@ data Prim1
   | INCN
   | NEGI -- negate
   | SGNI -- signum
+  | SGNN -- nat signum
   | LZRO -- leadingZeroes
   | TZRO -- trailingZeroes
   | COMN -- complement
@@ -1304,6 +1305,7 @@ emitPOp ANF.NEQI = emitP2 NEQI
 emitPOp ANF.EQLN = emitP2 EQLN
 emitPOp ANF.NEQN = emitP2 NEQN
 emitPOp ANF.SGNI = emitP1 SGNI
+emitPOp ANF.SGNN = emitP1 SGNN
 emitPOp ANF.NEGI = emitP1 NEGI
 emitPOp ANF.INCI = emitP1 INCI
 emitPOp ANF.INCN = emitP1 INCN

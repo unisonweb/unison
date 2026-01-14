@@ -53,6 +53,7 @@ data POp
   | LESN -- <
   | EQLN -- ==
   | NEQN -- !=
+  | SGNN -- signum
   -- Float
   | ADDF -- +
   | SUBF -- -
@@ -323,6 +324,7 @@ pOpCode op = case op of
   NOTB -> 145
   ANDB -> 146
   IORB -> 147
+  SGNN -> 148
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

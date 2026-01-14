@@ -49,6 +49,7 @@ prim1 _env !stk INCN !i = prim1wrap incn stk i
 prim1 _env !stk TRNC !i = prim1wrap trnc stk i
 prim1 _env !stk NEGI !i = prim1wrap negi stk i
 prim1 _env !stk SGNI !i = prim1wrap sgni stk i
+prim1 _env !stk SGNN !i = prim1wrap sgnn stk i
 prim1 _env !stk ABSF !i = prim1wrap absf stk i
 prim1 _env !stk CEIL !i = prim1wrap ceil stk i
 prim1 _env !stk FLOR !i = prim1wrap flor stk i
@@ -242,6 +243,9 @@ negi stk m = pokeI stk (-m)
 
 sgni :: Stack -> Int -> IO ()
 sgni stk m = pokeI stk (signum m)
+
+sgnn :: Stack -> Word64 -> IO ()
+sgnn stk m = pokeN stk (signum m)
 
 absf :: Stack -> Double -> IO ()
 absf stk d = pokeD stk (abs d)

@@ -428,6 +428,7 @@ builtinsSrc =
     B "Nat.toText" $ nat --> text,
     B "Nat.trailingZeros" $ nat --> nat,
     B "Nat.popCount" $ nat --> nat,
+    B "Nat.signum" $ nat --> nat,
     B "Bytes.decodeNat64be" $ bytes --> optionalt (tuple [nat, bytes]),
     B "Bytes.decodeNat64le" $ bytes --> optionalt (tuple [nat, bytes]),
     B "Bytes.decodeNat32be" $ bytes --> optionalt (tuple [nat, bytes]),

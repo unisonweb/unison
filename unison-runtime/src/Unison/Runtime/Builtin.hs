@@ -202,9 +202,11 @@ inci, incn :: (Var v) => SuperNormal ref v
 inci = unop INCI
 incn = unop INCN
 
-sgni, negi :: (Var v) => SuperNormal ref v
+sgni, sgnn, negi :: (Var v) => SuperNormal ref v
 sgni = unop SGNI
+sgnn = unop SGNN
 negi = unop NEGI
+
 
 lzeron, tzeron, lzeroi, tzeroi, popn, popi :: (Var v) => SuperNormal ref v
 lzeron = unop LZRO
@@ -753,6 +755,7 @@ builtinLookup =
         ("Nat.toText", (Untracked, n2t)),
         ("Nat.fromText", (Untracked, t2n)),
         ("Nat.popCount", (Untracked, popn)),
+        ("Nat.signum", (Untracked, sgnn)),
         ("Float.+", (Untracked, addf)),
         ("Float.-", (Untracked, subf)),
         ("Float.*", (Untracked, mulf)),
