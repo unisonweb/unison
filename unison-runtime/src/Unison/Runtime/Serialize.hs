@@ -17,7 +17,6 @@ import Data.Primitive.Array
   )
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Vector.Primitive qualified as BA
 import Data.Word (Word64, Word8)
 import Unison.ConstructorReference (ConstructorReference, GConstructorReference (..))
 import Unison.ConstructorType qualified as CT
@@ -252,7 +251,7 @@ getBlock :: (PrimBase m) => Get m Bytes.Chunk
 getBlock = getLength >>= fmap Bytes.byteStringToChunk . getByteString
 
 putBlock :: Bytes.Chunk -> Builder
-putBlock b = putLength (BA.length b) <> BU.byteString (Bytes.chunkToByteString b)
+putBlock b = putLength (Bytes.chunkSize b) <> BU.byteString (Bytes.chunkToByteString b)
 
 putHash :: Hash -> Builder
 putHash h = putLength (B.length bs) <> BU.byteString bs

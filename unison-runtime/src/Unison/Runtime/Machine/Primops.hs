@@ -732,19 +732,19 @@ lest stk x y = pokeBool stk $ x < y
 {-# INLINE lest #-}
 
 eqlu :: Stack -> Val -> Val -> IO ()
-eqlu stk x y = pokeBool stk $ universalEq (==) x y
+eqlu stk x y = pokeBool stk $ universalEq x y
 {-# INLINE eqlu #-}
 
 cmpu :: Stack -> Val -> Val -> IO ()
-cmpu stk x y = pokeI stk . pred . fromEnum $ universalCompare compare x y
+cmpu stk x y = pokeI stk . pred . fromEnum $ universalCompare x y
 {-# INLINE cmpu #-}
 
 lequ :: Stack -> Val -> Val -> IO ()
-lequ stk x y = pokeBool stk $ universalCompare compare x y /= GT
+lequ stk x y = pokeBool stk $ universalCompare x y /= GT
 {-# INLINE lequ #-}
 
 lesu :: Stack -> Val -> Val -> IO ()
-lesu stk x y = pokeBool stk $ universalCompare compare x y == LT
+lesu stk x y = pokeBool stk $ universalCompare x y == LT
 {-# INLINE lesu #-}
 
 -- Note: if n < 0, then the Nat argument was larger than the largest

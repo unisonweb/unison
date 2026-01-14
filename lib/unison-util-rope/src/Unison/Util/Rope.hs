@@ -4,6 +4,7 @@ module Unison.Util.Rope
     one,
     map,
     traverse,
+    traverseWithPos_,
     null,
     flatten,
     two,
@@ -19,7 +20,7 @@ module Unison.Util.Rope
     Drop (..),
     Reverse (..),
     Index (..),
-    Rope,
+    Rope (..),
   )
 where
 
@@ -62,6 +63,22 @@ traverse f = \case
   Empty -> pure Empty
   One a -> one <$> f a
   Two _ l r -> two <$> traverse f l <*> traverse f r
+
+-- Traverses the chunks of a rope while keeping track of the position of
+-- each chunk. This isn't too onerous due to the pre-aggregation of the
+-- sizes in the rope, so we do not actually need to thread an accumulator
+-- through the computation.
+traverseWithPos_ ::
+  (Applicative f, Sized a) =>
+  (Int -> a -> f ()) ->
+  (Rope a -> f ())
+traverseWithPos_ f = descend 0
+  where
+    descend o = \case
+      Empty -> pure ()
+      One a -> f o a
+      Two _ l r -> descend o l *> descend (o + size l) r
+{-# INLINE traverseWithPos_ #-}
 
 -- typeclasses used for abstracting over the chunk type
 class Sized a where size :: a -> Int
@@ -265,14 +282,18 @@ extractChunk ix ln = \case
         extractChunk ix med l <> extractChunk 0 (ln - med) r
 
 instance (Sized a, Take a, Drop a, Eq a) => Eq (Rope a) where
+  One l == One r = l == r
   b1 == b2
     | size b1 == size b2 =
         uncurry (==) (alignChunks (chunks b1) (chunks b2))
   _ == _ = False
+  {-# INLINE (==) #-}
 
 -- Lexicographical ordering
 instance (Sized a, Take a, Drop a, Ord a) => Ord (Rope a) where
+  One l `compare` One r = compare l r
   b1 `compare` b2 = uncurry compare (alignChunks (chunks b1) (chunks b2))
+  {-# INLINE compare #-}
 
 instance (NFData a) => NFData (Rope a) where
   rnf Empty = ()

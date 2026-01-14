@@ -934,10 +934,10 @@ data Val = Val {getUnboxedVal :: !UVal, getBoxedVal :: !BVal}
 -- | The `Eq` instance for `Val` can’t be derived because you need to take into account the fact that if a `Val` is
 --   boxed, the unboxed side is garbage and should not be compared.
 instance Eq Val where
-  (==) = universalEq (==)
+  (==) = universalEq
 
 instance Ord Val where
-  compare = universalCompare compare
+  compare = universalCompare
 
 instance BuiltinForeign (Seq Val) where
   foreignName = Tagged "Seq"
@@ -1594,11 +1594,10 @@ closureNum BlackHole {} = 5
 closureNum Affine {} = 6
 
 universalEq ::
-  (Foreign -> Foreign -> Bool) ->
   Val ->
   Val ->
   Bool
-universalEq frn = eqVal
+universalEq = eqVal
   where
     eql :: (a -> b -> Bool) -> [a] -> [b] -> Bool
     eql cm l r = length l == length r && and (zipWith cm l r)
@@ -1629,7 +1628,7 @@ universalEq frn = eqVal
       | Just ml <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fl,
         Just mr <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fr =
           mapEq eqVal eqVal ml mr
-      | otherwise = frn fl fr
+      | otherwise = fl == fr
     eqc c d = closureNum c == closureNum d
 
     eqValList :: [Val] -> [Val] -> Bool
@@ -1676,11 +1675,10 @@ compareAsFloat i j
     clear k = clearBit k 64
 
 universalCompare ::
-  (Foreign -> Foreign -> Ordering) ->
   Val ->
   Val ->
   Ordering
-universalCompare frn = cmpVal False
+universalCompare = cmpVal False
   where
     cmpVal :: Bool -> Val -> Val -> Ordering
     cmpVal tyEq = \cases
@@ -1718,7 +1716,7 @@ universalCompare frn = cmpVal False
         | Just ml <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fl,
           Just mr <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fr ->
             mapCmp (cmpVal tyEq) (cmpVal tyEq) ml mr
-        | otherwise -> frn fl fr
+        | otherwise -> compare fl fr
       (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
       (BlackHole) (BlackHole) -> EQ
       c d -> comparing closureNum c d
