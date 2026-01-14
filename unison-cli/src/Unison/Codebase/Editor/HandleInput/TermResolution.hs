@@ -1,6 +1,5 @@
 module Unison.Codebase.Editor.HandleInput.TermResolution
   ( lookupTermRefs,
-    lookupTermRefWithType,
     resolveCon,
     resolveTerm,
     resolveTermRef,
@@ -54,17 +53,6 @@ lookupTermRefs hq parseNames =
   where
     extract rt@(Ref rf) = Just (rf, rt)
     extract _ = Nothing
-
-lookupTermRefWithType ::
-  Codebase.Codebase IO Symbol Ann ->
-  HQ.HashQualified Name ->
-  Cli [(Reference, Type Symbol Ann)]
-lookupTermRefWithType codebase name = do
-  names <- Cli.currentNames
-  liftIO . Codebase.runTransaction codebase . fmap catMaybes . traverse annot . fst $ lookupTermRefs name names
-  where
-    annot tm =
-      fmap ((,) tm) <$> Codebase.getTypeOfTerm codebase tm
 
 resolveTerm :: HQ.HashQualified Name -> Cli Referent
 resolveTerm name = do
