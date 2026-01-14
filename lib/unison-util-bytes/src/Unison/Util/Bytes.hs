@@ -73,7 +73,6 @@ import Control.DeepSeq (NFData (..))
 import Control.Exception (throw)
 import Control.Monad.Primitive (unsafeIOToPrim, unsafePrimToIO)
 import Control.Monad.ST (ST, runST)
-import Data.Bits (shiftR)
 import Data.ByteArray qualified as BA
 import Data.ByteArray.Encoding qualified as BE
 import Data.ByteString qualified as B
@@ -522,11 +521,6 @@ decodeNat16le bs = case dropBlock 2 bs of
       w = whenBigEndian byteSwap16 $ indexByteArray ba 0
   Nothing -> Nothing
 
-fillBE :: Word64 -> Int -> Int -> Word8
-fillBE n k 0 = fromIntegral (shiftR n (k * 8))
-fillBE n k i = fromIntegral (shiftR n ((k - i) * 8))
-{-# INLINE fillBE #-}
-
 encodeNat64be :: Word64 -> Bytes
 encodeNat64be n =
   Bytes . R.one $ createChunk 8 \m ->
@@ -541,10 +535,6 @@ encodeNat16be :: Word64 -> Bytes
 encodeNat16be n =
   Bytes . R.one $ createChunk 2 \m ->
     writeByteArray m 0 . whenLittleEndian byteSwap16 $ fromIntegral n
-
-fillLE :: Word64 -> Int -> Word8
-fillLE n i = fromIntegral (shiftR n (i * 8))
-{-# INLINE fillLE #-}
 
 encodeNat64le :: Word64 -> Bytes
 encodeNat64le n =
@@ -576,12 +566,6 @@ chunkToArray (Chunk o l a) =
   BA.allocAndFreeze l $ \(ptr :: Ptr Word8) ->
     copyByteArrayToPtr ptr a o l
 arrayFromChunk = chunkToArray
-
-chunkToByteArray :: Chunk -> ByteArray
-chunkToByteArray (Chunk o l a)
-  | o == 0, l == sizeofByteArray a = a
-  | otherwise =
-      createByteArray l \m -> copyByteArray m 0 a o l
 
 arrayToChunk, chunkFromArray :: (BA.ByteArrayAccess b) => b -> Chunk
 arrayToChunk bs = case BA.convert bs :: Block Word8 of
