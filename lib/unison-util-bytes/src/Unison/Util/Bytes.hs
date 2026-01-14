@@ -105,17 +105,16 @@ import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, take)
 
-
 withByteArrayST ::
-  BA.ByteArrayAccess a => a -> (Ptr Word8 -> ST s ()) -> ST s ()
+  (BA.ByteArrayAccess a) => a -> (Ptr Word8 -> ST s ()) -> ST s ()
 withByteArrayST a k =
   unsafeIOToPrim $ BA.withByteArray a (unsafePrimToIO . k)
 
-data Chunk =
-  Chunk { _off :: {-# UNPACK #-} !Int,
-          chunkSize :: {-# UNPACK #-} !Int,
-          _arr :: {-# UNPACK #-} !ByteArray
-        }
+data Chunk = Chunk
+  { _off :: {-# UNPACK #-} !Int,
+    chunkSize :: {-# UNPACK #-} !Int,
+    _arr :: {-# UNPACK #-} !ByteArray
+  }
 
 emptyChunk :: Chunk
 emptyChunk = Chunk 0 0 emptyByteArray
@@ -135,8 +134,8 @@ concatChunks cs =
   createChunk len \m ->
     let go !_ [] = pure ()
         go !mo (Chunk o l a : cs) =
-          copyByteArray m mo a o l *> go (mo+l) cs
-    in go 0 cs
+          copyByteArray m mo a o l *> go (mo + l) cs
+     in go 0 cs
   where
     len = foldl' (\acc (Chunk _ l _) -> acc + l) 0 cs
 {-# INLINE concatChunks #-}
@@ -144,9 +143,9 @@ concatChunks cs =
 foldl'Chunk :: (r -> Word8 -> r) -> r -> Chunk -> r
 foldl'Chunk f z (Chunk o l a) = go z o
   where
-    n = o+l
+    n = o + l
     go !acc i
-      | i < n = go (f acc $ indexByteArray a i) (i+1)
+      | i < n = go (f acc $ indexByteArray a i) (i + 1)
       | otherwise = acc
 
 instance Semigroup Chunk where
@@ -163,11 +162,11 @@ instance Semigroup Chunk where
     | j < 1 = emptyChunk
     | j == 1 = c
     | fromIntegral l * j > m = error "stimes @Chunk: size too large"
-    | k <- fromIntegral i = createChunk (l*k) \m ->
+    | k <- fromIntegral i = createChunk (l * k) \m ->
         let go 0 = pure ()
             go (subtract 1 -> n) =
-              copyByteArray m (n*l) a o l *> go n
-        in go k
+              copyByteArray m (n * l) a o l *> go n
+         in go k
     where
       j :: Integer
       j = fromIntegral i
@@ -189,7 +188,7 @@ instance R.Drop Chunk where
   drop n c@(Chunk o l a)
     | n == 0 = c
     | n >= l = emptyChunk
-    | otherwise = Chunk (o+n) (l-n) a
+    | otherwise = Chunk (o + n) (l - n) a
 
 instance R.Take Chunk where
   take 0 _ = emptyChunk
@@ -206,7 +205,7 @@ instance R.Reverse Chunk where
         go i
           | i < l = writeByteArray m i $ indexByteArray @Word8 a (e - i)
           | otherwise = pure ()
-    in go 0
+     in go 0
 
 instance NFData Bytes where rnf _ = ()
 
@@ -270,10 +269,10 @@ empty = mempty
 isAsciiChunk :: Chunk -> Bool
 isAsciiChunk (Chunk o l a) = test o
   where
-    n = o+l
+    n = o + l
     test i
       | i >= n = True
-      | indexByteArray @Word8 a i <= 0x7F = test (i+1)
+      | indexByteArray @Word8 a i <= 0x7F = test (i + 1)
       | otherwise = False
 
 isAscii :: Bytes -> Bool
@@ -291,7 +290,7 @@ toArray (Bytes r) =
     let f po (Chunk o l a)
           | (p :: Ptr Word8) <- p `plusPtr` po =
               copyByteArrayToPtr p a o l
-    in R.traverseWithPos_ f r
+     in R.traverseWithPos_ f r
 {-# INLINE toArray #-}
 
 fromArray :: (BA.ByteArrayAccess b) => b -> Bytes
@@ -303,7 +302,8 @@ fromByteArray o l ba = snoc empty (Chunk o l ba)
 toByteArray :: Bytes -> ByteArray
 toByteArray (Bytes r)
   | R.One (Chunk 0 l a) <- r,
-    l == sizeofByteArray a = a
+    l == sizeofByteArray a =
+      a
   | otherwise =
       createByteArray (R.size r) \m ->
         R.traverseWithPos_ (f m) r
@@ -318,7 +318,6 @@ byteStringToChunk bs
         copyPtrToMutableByteArray m 0 p sz
   where
     sz = B.length bs
-
 chunkFromByteString = byteStringToChunk
 
 chunkToByteString :: Chunk -> B.ByteString
@@ -468,7 +467,9 @@ dropBlock nBytes (Bytes chunks)
       Just (c@(Chunk o l a), cs)
         | l + pos == nBytes ->
             Bytes cs <$ copyByteArray m pos a o l
-        | l + pos > nBytes, ln <- nBytes - pos, c <- R.drop ln c ->
+        | l + pos > nBytes,
+          ln <- nBytes - pos,
+          c <- R.drop ln c ->
             Bytes (R.cons c cs) <$ copyByteArray m pos a o ln
       -- these cases should be impossible due to length check
       _ -> pure $ Bytes chunks
@@ -619,9 +620,10 @@ toWord8s bs = chunks bs >>= toList
   where
     toList (Chunk o l a) = unf o
       where
-        n = o+l
-        unf i | i < n = indexByteArray a i : unf (i+1)
-              | otherwise = []
+        n = o + l
+        unf i
+          | i < n = indexByteArray a i : unf (i + 1)
+          | otherwise = []
 
 fromWord8s :: [Word8] -> Bytes
 fromWord8s bs = snoc empty . Chunk 0 sz $ byteArrayFromListN sz bs
