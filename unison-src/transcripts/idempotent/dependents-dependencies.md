@@ -78,7 +78,9 @@ scratch/main> dependents A
   Tip: Try `view 2` to see the source of any numbered item in
        the above list.
 
--- For better or worse, we don't have constructor-level granularity yet, so myVal shows here.
+-- We do have constructor-level granularity, though it's implemented as a post-processing step rather than leveraging
+
+-- the SQLite index directly. So, myVal doesn't appear below (it used to).
 
 scratch/main> dependents B
 
@@ -87,9 +89,8 @@ scratch/main> dependents B
     Terms:
 
     1. myCase
-    2. myVal
 
-  Tip: Try `view 2` to see the source of any numbered item in
+  Tip: Try `view 1` to see the source of any numbered item in
        the above list.
 ```
 
