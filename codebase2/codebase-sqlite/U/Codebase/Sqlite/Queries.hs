@@ -4299,7 +4299,6 @@ resolveRemoteProjectBranchNames (ProjectAndBranch localProjectId localBranchId) 
     <&> fmap \(projectName, branchName) ->
       ProjectAndBranch projectName branchName
 
-
 -- | Save or return the id for a given key thumbprint
 ensurePersonalKeyThumbprintId :: KeyThumbprint -> Transaction KeyThumbprintId
 ensurePersonalKeyThumbprintId thumbprint = do
