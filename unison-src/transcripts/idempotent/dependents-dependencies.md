@@ -78,10 +78,6 @@ scratch/main> dependents A
   Tip: Try `view 2` to see the source of any numbered item in
        the above list.
 
--- We do have constructor-level granularity, though it's implemented as a post-processing step rather than leveraging
-
--- the SQLite index directly. So, myVal doesn't appear below (it used to).
-
 scratch/main> dependents B
 
   Dependents of: B
