@@ -24,7 +24,7 @@ import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.MCP.Cli (cliToMCP, handleInputMCP, virtualSourceName)
-import Unison.MCP.Share.API (ReadmeResponse (..))
+import Unison.MCP.Share.API (ProjectInfoResponse (..), ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.Types
 import Unison.MCP.Wrapper
@@ -45,6 +45,7 @@ tools :: [MCPWrapper.Tool MCP]
 tools =
   [ installLibTool,
     shareProjectSearchTool,
+    shareProjectInfoTool,
     typecheckCodeTool,
     docsTool,
     runTool,
@@ -124,6 +125,32 @@ shareProjectSearchTool =
             pure $ textToolResult outputJSON
           Left err -> do
             let errorMsg = "Error searching Unison Share: " <> Text.pack (show err)
+            pure $ errorToolResult errorMsg
+    }
+
+shareProjectInfoTool :: Tool MCP
+shareProjectInfoTool =
+  Tool
+    { toolName = toToolName ShareProjectInfoTool,
+      toolDescription = "Get project information from Unison Share, including the latest release version. Requires authentication for private projects.",
+      toolAnnotations =
+        ToolAnnotations
+          { title = Just "Share Project Info",
+            readOnlyHint = Just True,
+            destructiveHint = Just False,
+            idempotentHint = Just True,
+            openWorldHint = Just True
+          },
+      toolArgType = Proxy,
+      toolHandler = \(ShareProjectInfoToolArguments {projectName}) -> do
+        Env {authenticatedHTTPClient} <- ask
+        result <- UnliftIO.liftIO $ Share.shareProjectInfo authenticatedHTTPClient projectName
+        case result of
+          Right projectInfo -> do
+            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projectInfo
+            pure $ textToolResult outputJSON
+          Left err -> do
+            let errorMsg = "Error getting project info from Unison Share: " <> Text.pack (show err)
             pure $ errorToolResult errorMsg
     }
 
