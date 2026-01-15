@@ -6,7 +6,6 @@ module Unison.Codebase.Editor.HandleInput (loop) where
 -- TODO: Don't import backend
 
 import Control.Arrow ((&&&))
-import Control.Error.Util qualified as ErrorUtil
 import Control.Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State (StateT)
@@ -26,7 +25,6 @@ import U.Codebase.Branch.Diff qualified as V2Branch.Diff
 import U.Codebase.Causal qualified as V2Causal
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reflog qualified as Reflog
-import Unison.ABT qualified as ABT
 import Unison.Builtin qualified as Builtin
 import Unison.Builtin.Terms qualified as Builtin
 import Unison.Cli.Monad (Cli)
@@ -65,6 +63,7 @@ import Unison.Codebase.Editor.HandleInput.Dependencies (handleDependencies)
 import Unison.Codebase.Editor.HandleInput.Dependents (handleDependents)
 import Unison.Codebase.Editor.HandleInput.DiffBranch (handleDiffBranch)
 import Unison.Codebase.Editor.HandleInput.DiffUpdate qualified as DiffUpdate
+import Unison.Codebase.Editor.HandleInput.DisplayAndEdit qualified as Display
 import Unison.Codebase.Editor.HandleInput.EditDependents (handleEditDependents)
 import Unison.Codebase.Editor.HandleInput.EditNamespace (handleEditNamespace)
 import Unison.Codebase.Editor.HandleInput.FindAndReplace (handleStructuredFindI, handleStructuredFindReplaceI, handleTextFindI)
@@ -74,7 +73,7 @@ import Unison.Codebase.Editor.HandleInput.History (handleHistory)
 import Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment)
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib, handleInstallLocalLib)
 import Unison.Codebase.Editor.HandleInput.LSPDebug qualified as LSPDebug
-import Unison.Codebase.Editor.HandleInput.Load (EvalMode (Sandboxed), evalUnisonFile, handleLoad, loadUnisonFile)
+import Unison.Codebase.Editor.HandleInput.Load (handleLoad, loadUnisonFile)
 import Unison.Codebase.Editor.HandleInput.Ls (handleLs)
 import Unison.Codebase.Editor.HandleInput.Merge2 (handleMerge)
 import Unison.Codebase.Editor.HandleInput.MoveAll (handleMoveAll)
@@ -95,7 +94,6 @@ import Unison.Codebase.Editor.HandleInput.Reflogs qualified as Reflogs
 import Unison.Codebase.Editor.HandleInput.ReleaseDraft (handleReleaseDraft)
 import Unison.Codebase.Editor.HandleInput.Rename (handleRename)
 import Unison.Codebase.Editor.HandleInput.Run (handleRun)
-import Unison.Codebase.Editor.HandleInput.RuntimeUtils qualified as RuntimeUtils
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (handleShowDefinition)
 import Unison.Codebase.Editor.HandleInput.SyncV2 qualified as SyncV2
 import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
@@ -121,11 +119,9 @@ import Unison.Codebase.ShortCausalHash qualified as SCH
 import Unison.Codebase.Watch qualified as Watch
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.CommandLine.Completion qualified as Completion
-import Unison.CommandLine.DisplayValues qualified as DisplayValues
 import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
-import Unison.DataDeclaration qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
@@ -157,17 +153,14 @@ import Unison.Server.SearchResult qualified as SR
 import Unison.Share.Codeserver qualified as Codeserver
 import Unison.ShortHash qualified as SH
 import Unison.Symbol (Symbol)
-import Unison.Syntax.HashQualified qualified as HQ (parseTextWith, toText)
+import Unison.Syntax.HashQualified qualified as HQ (parseTextWith)
 import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser qualified as Parser
-import Unison.Term (Term)
-import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Type.Names qualified as Type
-import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
 import Unison.Util.Find qualified as Find
@@ -179,10 +172,6 @@ import Unison.Util.Relation qualified as R
 import Unison.Util.Relation qualified as Relation
 import Unison.Util.Set qualified as Set
 import Unison.Util.Star2 qualified as Star2
-import Unison.Var (Var)
-import Unison.Var qualified as Var
-import Unison.WatchKind qualified as WK
-import UnliftIO.Directory qualified as Directory
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Main loop
@@ -484,7 +473,7 @@ loop e = do
             (False, False) -> pure ()
           (ppe, diff) <- diffHelper beforeBranch0 afterBranch0
           Cli.respondNumbered (ShowDiffNamespace beforeLoc afterLoc ppe diff)
-        DisplayI outputLoc namesToDisplay -> traverse_ (displayI outputLoc) namesToDisplay
+        DisplayI outputLoc namesToDisplay -> traverse_ (Display.displayI outputLoc) namesToDisplay
         DocsI srcs -> for_ srcs docsI
         DocsToHtmlI namespacePath' sourceDirectory -> do
           projPath <- ProjectUtils.resolveBranchRelativePath namespacePath'
@@ -990,53 +979,6 @@ handleFindI isVerbose fscope ws input = do
       results' <- Cli.runTransaction (Backend.loadSearchResults codebase results)
       Cli.respond $ ListOfDefinitions fscope ppe isVerbose results'
 
-doDisplay :: OutputLocation -> Names -> Term Symbol () -> Cli ()
-doDisplay outputLoc names tm = do
-  Cli.Env {codebase} <- ask
-  loopState <- State.get
-  let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
-  let suffixifiedPPE = PPED.suffixifiedPPE pped
-  (tms, typs) <- maybe mempty UF.indexByReference <$> Cli.getLatestTypecheckedFile
-  let useCache = True
-      evalTerm tm =
-        fmap ErrorUtil.hush . fmap (fmap Term.unannotate) $
-          RuntimeUtils.evalUnisonTermE Sandboxed suffixifiedPPE useCache (Term.amap (const External) tm)
-      loadTerm (Reference.DerivedId r) = case Map.lookup r tms of
-        Nothing -> fmap (fmap Term.unannotate) $ Cli.runTransaction (Codebase.getTerm codebase r)
-        Just (_, tm, _) -> pure (Just $ Term.unannotate tm)
-      loadTerm _ = pure Nothing
-      loadDecl (Reference.DerivedId r) = case Map.lookup r typs of
-        Nothing -> fmap (fmap $ DD.amap (const ())) $ Cli.runTransaction $ Codebase.getTypeDeclaration codebase r
-        Just decl -> pure (Just $ DD.amap (const ()) decl)
-      loadDecl _ = pure Nothing
-      loadTypeOfTerm' (Referent.Ref (Reference.DerivedId r))
-        | Just (_, _, ty) <- Map.lookup r tms = pure $ Just (void ty)
-      loadTypeOfTerm' r = fmap (fmap void) . Cli.runTransaction . Codebase.getTypeOfReferent codebase $ r
-  rendered <- DisplayValues.displayTerm pped loadTerm loadTypeOfTerm' evalTerm loadDecl tm
-  mayFP <- case outputLoc of
-    ConsoleLocation -> pure Nothing
-    FileLocation path _ -> Just <$> Directory.canonicalizePath path
-    LatestFileLocation _ -> traverse Directory.canonicalizePath $ fmap fst (loopState ^. #latestFile) <|> Just "scratch.u"
-  whenJust mayFP \fp -> do
-    liftIO $ prependFile fp (P.toPlain 80 $ rendered)
-  Cli.respond $ DisplayRendered mayFP rendered
-  where
-    suffixify =
-      case outputLoc of
-        ConsoleLocation -> PPE.suffixifyByHash
-        FileLocation _ _ -> PPE.suffixifyByHashName
-        LatestFileLocation _ -> PPE.suffixifyByHashName
-
-    prependFile :: FilePath -> Text -> IO ()
-    prependFile filePath txt = do
-      exists <- Directory.doesFileExist filePath
-      if exists
-        then do
-          existing <- readUtf8 filePath
-          writeUtf8 filePath (txt <> "\n\n" <> existing)
-        else do
-          writeUtf8 filePath txt
-
 confirmedCommand :: Input -> Cli Bool
 confirmedCommand i = do
   loopState <- State.get
@@ -1140,58 +1082,6 @@ doCompile profile output main = do
     )
     (Cli.returnEarly . EvaluationFailure id)
 
-displayI ::
-  OutputLocation ->
-  HQ.HashQualified Name ->
-  Cli ()
-displayI outputLoc hq = do
-  let useRoot = any Name.isAbsolute hq
-  (names, pped) <-
-    if useRoot
-      then do
-        root <- Cli.getCurrentProjectRoot
-        let root0 = Branch.head root
-        let names = Names.makeAbsolute $ Branch.toNames root0
-        let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
-        pure (names, pped)
-      else do
-        names <- Cli.currentNames
-        let pped = PPED.makePPED (PPE.hqNamer 10 names) (suffixify names)
-        pure (names, pped)
-  let suffixifiedPPE = PPE.suffixifiedPPE pped
-  let bias = maybeToList $ HQ.toName hq
-  latestTypecheckedFile <- Cli.getLatestTypecheckedFile
-  case addWatch (Text.unpack (HQ.toText hq)) latestTypecheckedFile of
-    Nothing -> do
-      let results = Names.lookupHQTerm Names.IncludeSuffixes hq names
-      ref <-
-        Set.asSingleton results & onNothing do
-          Cli.returnEarly
-            if Set.null results
-              then SearchTermsNotFound [hq]
-              else TermAmbiguous suffixifiedPPE hq results
-      let tm = Term.fromReferent External ref
-      tm <- RuntimeUtils.evalUnisonTerm Sandboxed (PPE.biasTo bias $ suffixifiedPPE) True tm
-      doDisplay outputLoc names (Term.unannotate tm)
-    Just (toDisplay, unisonFile) -> do
-      let namesWithDefinitionsFromFile = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
-      let filePPED = PPED.makePPED (PPE.hqNamer 10 namesWithDefinitionsFromFile) (suffixify namesWithDefinitionsFromFile)
-
-      let suffixifiedFilePPE = PPE.biasTo bias $ PPE.suffixifiedPPE filePPED
-      (_, watches) <-
-        evalUnisonFile Sandboxed suffixifiedFilePPE unisonFile [] & onLeftM \err ->
-          Cli.returnEarly (Output.EvaluationFailure id err)
-      (_, _, _, _, tm, _) <-
-        Map.lookup toDisplay watches & onNothing (error $ "Evaluation dropped a watch expression: " <> Text.unpack (HQ.toText hq))
-      let ns = UF.addNamesFromTypeCheckedUnisonFile unisonFile names
-      doDisplay outputLoc ns tm
-  where
-    suffixify =
-      case outputLoc of
-        ConsoleLocation -> PPE.suffixifyByHash
-        FileLocation _ _ -> PPE.suffixifyByHashName
-        LatestFileLocation _ -> PPE.suffixifyByHashName
-
 docsI :: Name -> Cli ()
 docsI src = do
   findInScratchfileByName
@@ -1210,8 +1100,8 @@ docsI src = do
         s | Set.size s == 1 -> do
           -- the displayI command expects full term names, so we resolve
           -- the hash back to its full name in the file
-          displayI ConsoleLocation (Names.longestTermName 10 (Set.findMin s) namesInFile)
-        _ -> displayI ConsoleLocation dotDoc
+          Display.displayI ConsoleLocation (Names.longestTermName 10 (Set.findMin s) namesInFile)
+        _ -> Display.displayI ConsoleLocation dotDoc
 
 lexedSource :: Text -> Text -> Cli (Text, [L.Token L.Lexeme])
 lexedSource name src = do
@@ -1243,34 +1133,6 @@ parseType input src = do
 
   Type.bindNames Name.unsafeParseVar Name.toVar Set.empty names (Type.generalizeLowercase mempty typ) & onLeft \errs ->
     Cli.returnEarly (ParseResolutionFailures src (toList errs))
-
--- Adds a watch expression of the given name to the file, if
--- it would resolve to a TLD in the file. Returns the freshened
--- variable name and the new typechecked file.
---
--- Otherwise, returns `Nothing`.
-addWatch ::
-  (Var v) =>
-  String ->
-  Maybe (TypecheckedUnisonFile v Ann) ->
-  Maybe (v, TypecheckedUnisonFile v Ann)
-addWatch _watchName Nothing = Nothing
-addWatch watchName (Just uf) = do
-  let components = join $ UF.topLevelComponents uf
-  let mainComponent = filter ((\v -> Var.nameStr v == watchName) . view _1) components
-  case mainComponent of
-    [(v, ann, tm, ty)] ->
-      Just $
-        let v2 = Var.freshIn (Set.fromList [v]) v
-            a = ABT.annotation tm
-         in ( v2,
-              UF.typecheckedUnisonFile
-                (UF.dataDeclarationsId' uf)
-                (UF.effectDeclarationsId' uf)
-                (UF.topLevelComponents' uf)
-                (UF.watchComponents uf <> [(WK.RegularWatch, [(v2, ann, Term.var a v, ty)])])
-            )
-    _ -> addWatch watchName Nothing
 
 resolveBranchId2 :: BranchId2 -> Cli (Branch IO)
 resolveBranchId2 = \case

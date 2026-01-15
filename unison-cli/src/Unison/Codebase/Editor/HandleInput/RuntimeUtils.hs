@@ -3,6 +3,7 @@ module Unison.Codebase.Editor.HandleInput.RuntimeUtils
     evalUnisonTermE,
     evalPureUnison,
     displayDecompileErrors,
+    displayResult,
     displayResponse,
     selectRuntime,
     EvalMode (..),
@@ -11,7 +12,7 @@ module Unison.Codebase.Editor.HandleInput.RuntimeUtils
 where
 
 import Control.Lens
-import Control.Monad.Reader (ask)
+import Control.Monad.Reader (MonadReader, ask)
 import Unison.ABT qualified as ABT
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
@@ -38,7 +39,7 @@ import Unison.WatchKind qualified as WK
 
 data EvalMode = Sandboxed | Permissive ProfileSpec
 
-selectRuntime :: EvalMode -> Cli (Runtime Symbol)
+selectRuntime :: (MonadReader Cli.Env m) => EvalMode -> m (Runtime Symbol)
 selectRuntime mode =
   ask <&> \Cli.Env {runtime, sandboxedRuntime} -> case mode of
     Permissive _ -> runtime
@@ -62,12 +63,15 @@ displayDecompileErrors =
 
 -- | Evaluate a single closed definition.
 evalUnisonTermE ::
+  (MonadReader Cli.Env m, MonadIO m) =>
+  ([DecompError] -> m ()) ->
+  ((P.Pretty P.ColorText) -> m ()) ->
   EvalMode ->
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
-  Cli (Either Error (Term Symbol Ann))
-evalUnisonTermE mode ppe useCache tm = do
+  m (Either Error (Term Symbol Ann))
+evalUnisonTermE displayDecompileErrors displayResult mode ppe useCache tm = do
   Cli.Env {codebase} <- ask
   theRuntime <- selectRuntime mode
   let prof = modeProfSpec mode
@@ -85,40 +89,47 @@ evalUnisonTermE mode ppe useCache tm = do
         -- don't cache when there were errors
         | not $ null errs -> displayDecompileErrors errs
       Right (resp, tmr) -> do
-        Cli.runTransaction do
+        liftIO $ Codebase.runTransaction codebase $ do
           Codebase.putWatch
             WK.RegularWatch
             (Hashing.hashClosedTerm tm)
             (Term.amap (const Ann.External) tmr)
-        displayResponse resp
+        displayResponse displayDecompileErrors displayResult resp
       Left _ -> pure ()
   pure $ r <&> Term.amap (\() -> Ann.External) . snd
 
-displayResponse :: Runtime.Response DecompError -> Cli ()
-displayResponse (Runtime.DecompErrs errs)
+displayResponse :: (Applicative m) => ([DecompError] -> m ()) -> (P.Pretty P.ColorText -> m ()) -> Runtime.Response DecompError -> m ()
+displayResponse displayDecompileErrors _displayResult (Runtime.DecompErrs errs)
   | not $ null errs = displayDecompileErrors errs
-displayResponse (Runtime.Profile prof) = Cli.respond (Literal msg)
+displayResponse _displayDecompileErrors displayResult (Runtime.Profile prof) = displayResult msg
   where
     msg = P.lines ["Profile Results:", ""] <> prof
-displayResponse _ = pure ()
+displayResponse _ _ _ = pure ()
+
+displayResult :: P.Pretty P.ColorText -> Cli ()
+displayResult msg = Cli.respond (Literal msg)
 
 -- | Evaluate a single closed definition.
 evalUnisonTerm ::
+  ([DecompError] -> Cli ()) ->
+  (P.Pretty P.ColorText -> Cli ()) ->
   EvalMode ->
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
   Cli (Term Symbol Ann)
-evalUnisonTerm mode ppe useCache tm =
-  evalUnisonTermE mode ppe useCache tm & onLeftM (Cli.returnEarly . EvaluationFailure id)
+evalUnisonTerm displayDecompileErrors displayResult mode ppe useCache tm =
+  evalUnisonTermE displayDecompileErrors displayResult mode ppe useCache tm & onLeftM (Cli.returnEarly . EvaluationFailure id)
 
 evalPureUnison ::
+  ([DecompError] -> Cli ()) ->
+  (P.Pretty P.ColorText -> Cli ()) ->
   PPE.PrettyPrintEnv ->
   Bool ->
   Term Symbol Ann ->
   Cli (Either Error (Term Symbol Ann))
-evalPureUnison ppe useCache tm =
-  evalUnisonTermE mode ppe useCache tm'
+evalPureUnison displayDecompileErrors displayResult ppe useCache tm =
+  evalUnisonTermE displayDecompileErrors displayResult mode ppe useCache tm'
   where
     mode = Permissive NoProf
     tm' =
