@@ -684,6 +684,14 @@ handleNameSegmentArg arg = do
     -- output them as numbered output.
     I.StructuredArg _ -> Left "Expected a name segment"
 
+-- | Just a single simple name segment. Useful for lib names, etc.
+handleTextArg :: I.Argument -> Either (P.Pretty CT.ColorText) Text
+handleTextArg arg = do
+  case arg of
+    I.RawArg txt -> pure $ Text.pack txt
+    -- There are no valid structured args for a raw text arg
+    I.StructuredArg _ -> Left "Expected a text argument"
+
 handleNameArg :: I.Argument -> Either (P.Pretty CT.ColorText) Name
 handleNameArg = \case
   I.RawArg raw -> first P.text . Name.parseTextEither . Text.pack $ raw
@@ -1758,22 +1766,32 @@ historyComment =
     "history.comment"
     ["comment", "comment.history"]
     I.Visible
-    (Parameters [] $ Optional [("hash or branch to create a comment after", namespaceOrProjectBranchArg config)] Nothing)
+    (Parameters [] $ Optional [("hash or branch to create a comment after", namespaceOrProjectBranchArg config), ("comment message", noCompletionsArg)] Nothing)
     ( P.wrapColumn2
         [ ( makeExample historyComment [],
             "Creates a comment after the head of the current branch."
           ),
-          ( makeExample historyComment ["/main"],
+          ( makeExample historyComment ["/main:"],
             "Creates a comment after the head of the `main` branch."
+          ),
+          ( makeExample historyComment ["#abcdefg"],
+            "Creates a comment in the history after #abcdefg"
+          ),
+          ( makeExample historyComment ["/main:", "\"Comment message\""],
+            "Creates a comment with the content 'Comment message' after the head of the `main` branch."
           )
         ]
     )
     \case
-      [] -> pure $ Input.HistoryCommentI Nothing
+      [] -> pure $ Input.HistoryCommentI Nothing Nothing
       [src] -> do
         target <- handleBranchId2Arg src
-        pure $ Input.HistoryCommentI (Just target)
-      _ -> wrongArgsLength "at most one argument" []
+        pure $ Input.HistoryCommentI (Just target) Nothing
+      [src, msg] -> do
+        target <- handleBranchId2Arg src
+        message <- handleTextArg msg
+        pure $ Input.HistoryCommentI (Just target) (Just message)
+      _ -> wrongArgsLength "at most two arguments" []
   where
     config =
       ProjectBranchSuggestionsConfig

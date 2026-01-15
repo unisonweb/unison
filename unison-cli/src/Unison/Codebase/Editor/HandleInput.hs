@@ -525,8 +525,8 @@ loop e = do
               else BranchEmpty branchEmpty
         HistoryI resultsCap diffCap from -> do
           handleHistory resultsCap diffCap from
-        HistoryCommentI toAnnotate -> do
-          handleHistoryComment toAnnotate
+        HistoryCommentI toAnnotate message -> do
+          handleHistoryComment toAnnotate message
         IOTestAllI -> Tests.handleAllIOTests
         IOTestI main -> Tests.handleIOTest main
         LibInstallI remind libdep -> handleInstallLib remind libdep
