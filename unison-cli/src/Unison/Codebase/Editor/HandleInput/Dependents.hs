@@ -4,16 +4,20 @@ module Unison.Codebase.Editor.HandleInput.Dependents
 where
 
 import Control.Lens (review)
+import Control.Monad.Reader (ask)
 import Data.Bifoldable (binull)
+import Data.Foldable qualified as Foldable
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as Set.NonEmpty
+import Data.These (These (..))
 import U.Codebase.Sqlite.Operations qualified as Operations
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NameResolutionUtils (resolveHQName)
+import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output
@@ -23,6 +27,7 @@ import Unison.DataDeclaration (DataDeclaration, Decl, EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.LabeledDependency qualified as LabeledDependency
 import Unison.Name (Name)
 import Unison.Name qualified as Name
 import Unison.NamesUtils qualified as NamesUtils
@@ -44,6 +49,7 @@ import Unison.UnisonFile qualified as UnisonFile
 import Unison.UnisonFile.Names qualified as UnisonFile
 import Unison.Util.Defns (Defns (..), DefnsF, DefnsF2, defnsAreEmpty, zipDefnsWith)
 import Unison.Util.Map qualified as Map
+import Unison.Util.Set qualified as Set
 import Unison.Var (Var)
 import Unison.WatchKind (WatchKind)
 import Unison.WatchKind qualified as WatchKind
@@ -66,11 +72,56 @@ handleCodebaseDependents dependenciesRefs = do
         let names = Branch.toNames (Branch.deleteLibdeps namespace)
          in PPE.makePPE (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
 
-  dependents <-
+  dependents0 <-
     Cli.runTransaction do
       Operations.directDependentsWithinScope
         (Branch.deepDefnsIds namespace)
         (NamesUtils.referentsToRefs dependenciesRefs)
+
+  -- Here we have the dependents of all of the dependencies, having treated all constructors as the entire type, because
+  -- that's all our dependencies index currently supports.
+  --
+  -- So, we have some special logic: if the dependencies actually contained *any* constructors (common case: just 1),
+  -- then we do a slower thing of hydrating all dependents and keeping only the ones whose direct dependencies overlaps
+  -- with the input set.
+  dependents :: DefnsF Set TermReferenceId TypeReferenceId <-
+    case Foldable.find Referent'.isConstructor dependenciesRefs.terms of
+      Nothing -> pure dependents0
+      Just _ -> do
+        env <- ask
+        Cli.runTransaction do
+          dependentTermRefs :: Set TermReferenceId <-
+            Set.filterM
+              ( \dependentTermRef ->
+                  Codebase.getTerm env.codebase dependentTermRef <&> \case
+                    Just dependentTerm ->
+                      let (dependentTermTermDependencies, dependentTermTypeDependencies) =
+                            Set.unalignWith
+                              ( \case
+                                  LabeledDependency.TermReferent x -> This x
+                                  LabeledDependency.TypeReference x -> That x
+                              )
+                              (Term.labeledDependencies dependentTerm)
+                       in Set.intersects dependentTermTermDependencies dependenciesRefs.terms
+                            || Set.intersects dependentTermTypeDependencies dependenciesRefs.types
+                    Nothing -> False
+              )
+              dependents0.terms
+          dependentTypeRefs :: Set TypeReferenceId <-
+            if Set.null dependenciesRefs.types
+              then pure Set.empty
+              else
+                Set.filterM
+                  ( \dependentTypeRef ->
+                      Codebase.getTypeDeclaration env.codebase dependentTypeRef <&> \case
+                        Just dependentType ->
+                          Set.intersects
+                            (DataDeclaration.typeDependencies (DataDeclaration.asDataDecl dependentType))
+                            dependenciesRefs.types
+                        Nothing -> False
+                  )
+                  dependents0.types
+          pure Defns {terms = dependentTermRefs, types = dependentTypeRefs}
 
   let dependentNames ::
         DefnsF
