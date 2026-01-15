@@ -22,7 +22,7 @@ It won't create a conflicted name, though.
 
   ⚠️
 
-  A term by that name already exists.
+  A term named foo already exists.
 ```
 
 ``` ucm

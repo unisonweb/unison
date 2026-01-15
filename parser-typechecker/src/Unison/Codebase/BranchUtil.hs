@@ -29,7 +29,7 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Prelude
-import Unison.Reference (Reference)
+import Unison.Reference (TypeReference)
 import Unison.Reference qualified as Reference
 import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
@@ -81,10 +81,10 @@ makeAnnihilateTermName (p, name) = (p, Branch.annihilateTermName name)
 makeAnnihilateTypeName :: Path.Split path -> (path, Branch0 m -> Branch0 m)
 makeAnnihilateTypeName (p, name) = (p, Branch.annihilateTypeName name)
 
-makeAddTypeName :: Path.Split p -> Reference -> (p, Branch0 m -> Branch0 m)
+makeAddTypeName :: Path.Split p -> TypeReference -> (p, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r = (p, Branch.addTypeName r name)
 
-makeDeleteTypeName :: Path.Split p -> Reference -> (p, Branch0 m -> Branch0 m)
+makeDeleteTypeName :: Path.Split p -> TypeReference -> (p, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
 makeSetBranch :: Path.Split path -> Branch m -> (path, Branch0 m -> Branch0 m)

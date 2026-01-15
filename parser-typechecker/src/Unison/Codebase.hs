@@ -718,7 +718,7 @@ preloadProjectBranch codebase (ProjectAndBranch projectId branchId) = do
   preloadBranch codebase ch
 
 -- | Look up types in the codebase by short hash, and include builtins.
-typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set Reference)
+typeReferencesByShortHash :: SH.ShortHash -> Sqlite.Transaction (Set TypeReference)
 typeReferencesByShortHash sh = do
   fromCodebase <- SqliteCodebase.Operations.typeReferencesByPrefix sh
   let fromBuiltins =

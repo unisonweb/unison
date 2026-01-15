@@ -793,8 +793,12 @@ notifyUser dir issueFn = \case
                    <> prettyConflictExample conflicts dest
                )
            ]
-  TermAlreadyExists _ _ ->
-    pure . P.warnCallout $ "A term by that name already exists."
+  TermAlreadyExists path _ ->
+    pure . P.warnCallout $
+      P.wrap $
+        "A term named"
+          <> prettyName (Name.makeRelative (Path.nameFromSplit path))
+          <> "already exists."
   TypeAlreadyExists _ _ ->
     pure . P.warnCallout $ "A type by that name already exists."
   BranchEmpty b ->
