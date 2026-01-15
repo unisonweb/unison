@@ -92,6 +92,9 @@ stmFailureRef = lookupDeclRef "io2.STMFailure"
 threadKilledFailureRef = lookupDeclRef "io2.ThreadKilledFailure"
 asyncCancelledFailureRef = lookupDeclRef "io2.AsyncCancelledFailure"
 
+outOfBoundsRef :: Reference
+outOfBoundsRef = lookupDeclRef "Bytes.OutOfBounds"
+
 fileModeRef, filePathRef, bufferModeRef, seekModeRef, seqViewRef :: Reference
 fileModeRef = lookupDeclRef "io2.FileMode"
 filePathRef = lookupDeclRef "io2.FilePath"
@@ -532,6 +535,7 @@ builtinDataDecls = rs1 ++ rs
           (v "io2.STMFailure", stmFailure),
           (v "io2.ThreadKilledFailure", threadKilledFailure),
           (v "io2.AsyncCancelledFailure", asyncCancelledFailure),
+          (v "Bytes.OutOfBounds", outOfBounds),
           (v "crypto.CryptoFailure", cryptoFailure),
           (v "RewriteTerm", rewriteTerm),
           (v "RewriteSignature", rewriteType),
@@ -811,6 +815,13 @@ builtinDataDecls = rs1 ++ rs
     cryptoFailure =
       DataDeclaration
         (Unique "09132bf0cc3f07db75be127d141da91fdd545adcff88866268dfd428e9879742")
+        ()
+        []
+        []
+
+    outOfBounds =
+      DataDeclaration
+        (Unique "d80kaupsg4a83vgdhbibalkovk439sat")
         ()
         []
         []

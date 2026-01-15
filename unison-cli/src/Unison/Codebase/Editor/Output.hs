@@ -158,6 +158,7 @@ data NumberedOutput
   | -- | Successfully removed paths from the watch list
     -- (removed paths, failed paths, remaining paths)
     WatchRemoved ![FilePath] ![FilePath] ![FilePath]
+  | AmbiguousMainFunction Text [(HQ.HashQualified Name, Type Symbol Ann)] PPE.PrettyPrintEnv
 
 data TodoOutput = TodoOutput
   { defnsInLib :: !Bool,
@@ -197,10 +198,8 @@ data Output
     BadMainFunction
       -- | what we were trying to do (e.g. "run", "io.test")
       Text
-      -- | name of function
-      (HQ.HashQualified Name)
-      -- | bad type of function
-      (Type Symbol Ann)
+      -- | names and bad types of functions matching input name. invariant: length >= 1
+      [(HQ.HashQualified Name, Type Symbol Ann)]
       PPE.PrettyPrintEnv
       -- | acceptable type(s) of function
       [Type Symbol Ann]
@@ -784,6 +783,7 @@ isFailure o = case o of
 
 isNumberedFailure :: NumberedOutput -> Bool
 isNumberedFailure = \case
+  AmbiguousMainFunction {} -> True
   AmbiguousReset {} -> True
   AmbiguousSwitch {} -> True
   CantDeleteNamespace {} -> True

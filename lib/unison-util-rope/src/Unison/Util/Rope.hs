@@ -4,6 +4,7 @@ module Unison.Util.Rope
     one,
     map,
     traverse,
+    traverseWithPos_,
     null,
     flatten,
     two,
@@ -13,12 +14,13 @@ module Unison.Util.Rope
     unsnoc,
     index,
     debugDepth,
+    extractChunk,
     Sized (..),
     Take (..),
     Drop (..),
     Reverse (..),
     Index (..),
-    Rope,
+    Rope (..),
   )
 where
 
@@ -61,6 +63,22 @@ traverse f = \case
   Empty -> pure Empty
   One a -> one <$> f a
   Two _ l r -> two <$> traverse f l <*> traverse f r
+
+-- Traverses the chunks of a rope while keeping track of the position of
+-- each chunk. This isn't too onerous due to the pre-aggregation of the
+-- sizes in the rope, so we do not actually need to thread an accumulator
+-- through the computation.
+traverseWithPos_ ::
+  (Applicative f, Sized a) =>
+  (Int -> a -> f ()) ->
+  (Rope a -> f ())
+traverseWithPos_ f = descend 0
+  where
+    descend o = \case
+      Empty -> pure ()
+      One a -> f o a
+      Two _ l r -> descend o l *> descend (o + size l) r
+{-# INLINE traverseWithPos_ #-}
 
 -- typeclasses used for abstracting over the chunk type
 class Sized a where size :: a -> Int
@@ -239,15 +257,43 @@ alignChunks bs1 bs2 = (cs1, cs2)
         len1 = size hd1
         len2 = size hd2
 
+-- Extracts a chunk from a rope that
+--
+--   1. Begins at the specified position in the rope.
+--   2. Is at least the size specified.
+--
+-- In general this involves concatenating chunks, so it is advisable to
+-- not use a very large size, to avoid concatenating too many.
+--
+-- This function *assumes* that the rope actually contains the necessary
+-- elements. If that is not the case, #2 above will certainly not be
+-- satisfied, but the exact behavior should not be relied upon.
+extractChunk :: (Monoid a, Sized a, Drop a) => Int -> Int -> Rope a -> a
+extractChunk ix ln = \case
+  Empty -> mempty
+  One c -> drop ix c
+  Two _sz l r
+    -- entirely in the left half
+    | ix + ln <= size l -> extractChunk ix ln l
+    -- entirely in the right half
+    | size l <= ix -> extractChunk (ix - size l) ln r
+    -- split
+    | med <- size l - ix ->
+        extractChunk ix med l <> extractChunk 0 (ln - med) r
+
 instance (Sized a, Take a, Drop a, Eq a) => Eq (Rope a) where
+  One l == One r = l == r
   b1 == b2
     | size b1 == size b2 =
         uncurry (==) (alignChunks (chunks b1) (chunks b2))
   _ == _ = False
+  {-# INLINE (==) #-}
 
 -- Lexicographical ordering
 instance (Sized a, Take a, Drop a, Ord a) => Ord (Rope a) where
+  One l `compare` One r = compare l r
   b1 `compare` b2 = uncurry compare (alignChunks (chunks b1) (chunks b2))
+  {-# INLINE compare #-}
 
 instance (NFData a) => NFData (Rope a) where
   rnf Empty = ()

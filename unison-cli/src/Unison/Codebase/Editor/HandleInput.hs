@@ -45,6 +45,7 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.AuthorInfo (AuthorInfo (..))
 import Unison.Codebase.Editor.AuthorInfo qualified as AuthorInfo
 import Unison.Codebase.Editor.HandleInput.AddRun (handleAddRun)
+import Unison.Codebase.Editor.HandleInput.AliasType (handleAliasType)
 import Unison.Codebase.Editor.HandleInput.AuthLogin (authLogin)
 import Unison.Codebase.Editor.HandleInput.Branch (handleBranch)
 import Unison.Codebase.Editor.HandleInput.BranchRename (handleBranchRename)
@@ -277,29 +278,7 @@ loop e = do
           description <- inputDescription input
           Cli.stepAt description (BranchUtil.makeAddTermName dest srcTerm)
           Cli.respond Success
-        AliasTypeI force src' dest' -> do
-          src <- traverse (traverse Cli.resolveSplit') src'
-          srcTypes <-
-            either
-              (Cli.runTransaction . Backend.typeReferencesByShortHash)
-              Cli.getTypesAt
-              src
-          srcType <-
-            Set.asSingleton srcTypes & onNothing do
-              Cli.returnEarly =<< case (Set.null srcTypes, src') of
-                (True, Left hash) -> pure (TypeNotFound' hash)
-                (True, Right name) -> pure (TypeNotFound name)
-                (False, Left hash) -> pure (HashAmbiguous hash (Set.map Referent.Ref srcTypes))
-                (False, Right name) -> do
-                  hqLength <- Cli.runTransaction Codebase.hashLength
-                  pure (DeleteNameAmbiguous hqLength name Set.empty srcTypes)
-          dest <- Cli.resolveSplit' dest'
-          destTypes <- Cli.getTypesAt $ HQ'.NameOnly dest
-          when (not force && not (Set.null destTypes)) do
-            Cli.returnEarly (TypeAlreadyExists dest' destTypes)
-          description <- inputDescription input
-          Cli.stepAt description (BranchUtil.makeAddTypeName dest srcType)
-          Cli.respond Success
+        AliasTypeI force src dest -> handleAliasType force src dest
         ApiI -> do
           pp <- Cli.getCurrentProjectPath
           whenJust env.serverBaseUrl \baseUrl ->
@@ -756,10 +735,6 @@ inputDescription input =
       src <- hhqs' src0
       dest <- ps' dest0
       pure ((if force then "debug.alias.term.force " else "alias.term ") <> src <> " " <> dest)
-    AliasTypeI force src0 dest0 -> do
-      src <- hhqs' src0
-      dest <- ps' dest0
-      pure ((if force then "debug.alias.type.force " else "alias.term ") <> src <> " " <> dest)
     AliasManyI srcs0 dest0 -> do
       srcs <- traverse hqs srcs0
       dest <- p' dest0
@@ -819,6 +794,7 @@ inputDescription input =
       pure $ "sync.from-file " <> into @Text fp <> " " <> into @Text pab
     UndoI {} -> pure "undo"
     -- wat land
+    AliasTypeI {} -> wat
     ApiI -> wat
     AuthLoginI {} -> wat
     BranchI {} -> wat
@@ -1151,7 +1127,10 @@ searchBranchScored names0 score queries =
 doCompile :: Bool -> String -> HQ.HashQualified Name -> Cli ()
 doCompile profile output main = do
   Cli.Env {codebase, runtime} <- ask
-  (ref, ppe) <- resolveMainRef main
+  (_, ref, _, _) <- resolveMainRef "compile" main
+  names <- Cli.currentNames
+  let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+  let ppe = pped.suffixifiedPPE
   let codeLookup = () <$ Codebase.codebaseToCodeLookup codebase
       outf = output <> ".uc"
       copts = Runtime.defaultCompileOpts {Runtime.profile = profile}

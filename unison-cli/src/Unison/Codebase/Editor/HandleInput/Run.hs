@@ -29,8 +29,8 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.HandleInput.Load (EvalMode (..), evalUnisonFile)
+import Unison.Codebase.Editor.HandleInput.TermResolution (resolveMainRef)
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.Codebase.MainTerm qualified as MainTerm
 import Unison.Codebase.Runtime qualified as Runtime
 import Unison.Codebase.Runtime.Profile (ProfileSpec (..))
 import Unison.Hash qualified as Hash
@@ -104,72 +104,51 @@ handleRun prof main args = do
     bonk (_, (_ann, watchKind, _id, _term0, term1, _isCacheHit)) =
       (watchKind, term1)
 
-data GetTermResult
-  = NoTermWithThatName
-  | TermHasBadType (Type Symbol Ann)
-  | GetTermSuccess (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann, Maybe TermReference)
-
 -- | Look up runnable term with the given name in the codebase or
 -- latest typechecked unison file. Return its symbol, term, type, and
 -- the type of the evaluated term, and whether it was found in the codebase (Just ref) or file (Nothing)
 getTerm :: HQ.HashQualified Name -> Cli (Symbol, Term Symbol Ann, Type Symbol Ann, Type Symbol Ann, Maybe TermReference)
-getTerm main =
-  getTerm' main >>= \case
-    NoTermWithThatName -> do
-      mainType <- Runtime.mainType <$> view #runtime
-      names <- Cli.currentNames
-      let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-      let suffixifiedPPE = PPED.suffixifiedPPE pped
-      Cli.returnEarly $ Output.NoMainFunction main suffixifiedPPE [mainType]
-    TermHasBadType ty -> do
-      mainType <- Runtime.mainType <$> view #runtime
-      names <- Cli.currentNames
-      let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
-      let suffixifiedPPE = PPED.suffixifiedPPE pped
-      Cli.returnEarly $ Output.BadMainFunction "run" main ty suffixifiedPPE [mainType]
-    GetTermSuccess x -> pure x
-
-getTerm' :: HQ.HashQualified Name -> Cli GetTermResult
-getTerm' mainName =
+getTerm mainName =
   let getFromCodebase = do
-        Cli.Env {codebase, runtime} <- ask
-        names <- Cli.currentNames
-        let loadTypeOfTerm ref = Cli.runTransaction (Codebase.getTypeOfTerm codebase ref)
-        mainToFile
-          =<< MainTerm.getMainTerm loadTypeOfTerm names mainName (Runtime.mainType runtime)
-        where
-          mainToFile (MainTerm.NotFound _) = pure NoTermWithThatName
-          mainToFile (MainTerm.BadType _ ty) = pure $ maybe NoTermWithThatName TermHasBadType ty
-          mainToFile (MainTerm.Success hq ref tm typ) =
-            let v = Var.named (HQ.toText hq)
-             in checkType Nothing typ \otyp ->
-                  pure (GetTermSuccess (v, tm, typ, otyp, Just ref))
+        (hq, ref, tm, typ) <- resolveMainRef "run" mainName
+        let v = Var.named (HQ.toText hq)
+        otyp <- doSynthesizeForce Nothing typ
+        pure (v, tm, typ, otyp, Just ref)
 
       getFromFile uf = do
         let components = join $ UF.topLevelComponents uf
         -- __TODO__: We shouldn’t need to serialize mainName` for this check
         let mainComponent = filter ((\v -> Var.name v == HQ.toText mainName) . view _1) components
         case mainComponent of
-          [(v, _, tm, ty)] ->
-            checkType (Just uf) ty \otyp ->
-              let runMain = DD.forceTerm a a (Term.var a v)
-                  v2 = Var.freshIn (Set.fromList [v]) v
-                  a = ABT.annotation tm
-               in pure (GetTermSuccess (v2, runMain, ty, otyp, Nothing))
+          [(v, _, tm, ty)] -> do
+            env <- ask
+            let mainType = Runtime.mainType env.runtime
+            when (not (Typechecker.fitsScheme ty (Runtime.mainType env.runtime))) do
+              names <- Cli.currentNames
+              let pped = PPED.makePPED (PPE.hqNamer 10 names) (PPE.suffixifyByHash names)
+              let ppe = pped.suffixifiedPPE
+              Cli.returnEarly $
+                Output.BadMainFunction
+                  "run"
+                  [(mainName, ty)]
+                  ppe
+                  [mainType]
+            otyp <- doSynthesizeForce (Just uf) ty
+            let runMain = DD.forceTerm a a (Term.var a v)
+                v2 = Var.freshIn (Set.fromList [v]) v
+                a = ABT.annotation tm
+            pure (v2, runMain, ty, otyp, Nothing)
           _ -> getFromCodebase
 
-      checkType :: Maybe (TypecheckedUnisonFile Symbol Ann) -> Type Symbol Ann -> (Type Symbol Ann -> Cli GetTermResult) -> Cli GetTermResult
-      checkType mayTuf ty f = do
-        Cli.Env {codebase, runtime} <- ask
+      doSynthesizeForce :: Maybe (TypecheckedUnisonFile Symbol Ann) -> Type Symbol Ann -> Cli (Type Symbol Ann)
+      doSynthesizeForce mayTuf ty = do
+        env <- ask
         let ufDeps = maybe mempty UF.externalTypeDependencies mayTuf
-        case Typechecker.fitsScheme ty (Runtime.mainType runtime) of
-          True -> do
-            tlCodebase <-
-              Cli.runTransaction $
-                Codebase.typeLookupForDependencies codebase Defns {terms = Set.empty, types = Type.dependencies ty <> ufDeps}
-            let tlTuf = Monoid.fromMaybe (fmap UF.typecheckedToTypeLookup mayTuf)
-            f $! synthesizeForce (tlTuf <> tlCodebase) ty
-          False -> pure (TermHasBadType ty)
+        tlCodebase <-
+          Cli.runTransaction $
+            Codebase.typeLookupForDependencies env.codebase Defns {terms = Set.empty, types = Type.dependencies ty <> ufDeps}
+        let tlTuf = Monoid.fromMaybe (fmap UF.typecheckedToTypeLookup mayTuf)
+        pure (synthesizeForce (tlTuf <> tlCodebase) ty)
    in Cli.getLatestTypecheckedFile >>= \case
         Nothing -> getFromCodebase
         Just uf -> getFromFile uf

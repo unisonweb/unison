@@ -11,6 +11,7 @@ where
 
 import Control.Exception (finally)
 import Control.Monad.Except
+import Data.Text qualified as Text
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.Queries qualified as Q
@@ -36,6 +37,7 @@ import Unison.Runtime (Error (UnstructuredError), Runtime)
 import Unison.Runtime.IOSource qualified as IOSource
 import Unison.Symbol (Symbol)
 import Unison.Syntax.HashQualified qualified as HQ (toText)
+import Unison.Util.Monoid (intercalateMap)
 
 execute :: Codebase.Codebase IO Symbol Ann -> Runtime Symbol -> PP.ProjectPathNames -> IO (Either Error ())
 execute codebase runtime mainPath =
@@ -60,8 +62,15 @@ execute codebase runtime mainPath =
 
     mt <- liftIO $ Codebase.runTransaction codebase $ getMainTerm loadTypeOfTerm projectRootNames mainName mainType
     case mt of
-      MainTerm.NotFound s -> throwError . UnstructuredError $ "Not found: " <> HQ.toText s
-      MainTerm.BadType s _ -> throwError . UnstructuredError $ HQ.toText s <> " is not of type '{IO} ()"
+      MainTerm.NotFound -> throwError . UnstructuredError $ "Not found: " <> HQ.toText mainName
+      MainTerm.BadType ss ->
+        throwError . UnstructuredError $
+          case ss of
+            [(s, _, _)] -> HQ.toText s <> " is not of type '{IO} ()"
+            _ -> "None of " <> intercalateMap Text.empty (\(s, _, _) -> HQ.toText s) ss <> " are of type '{IO} ()"
+      MainTerm.Ambiguous ss ->
+        throwError . UnstructuredError $
+          "I don't know which of these you mean: " <> intercalateMap Text.empty (\(s, _, _) -> HQ.toText s) ss
       MainTerm.Success _ _ tm _ -> do
         let codeLookup = codebaseToCodeLookup codebase
             ppe = PPE.empty

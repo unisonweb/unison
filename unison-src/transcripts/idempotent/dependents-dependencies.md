@@ -78,8 +78,6 @@ scratch/main> dependents A
   Tip: Try `view 2` to see the source of any numbered item in
        the above list.
 
--- For better or worse, we don't have constructor-level granularity yet, so myVal shows here.
-
 scratch/main> dependents B
 
   Dependents of: B
@@ -87,9 +85,8 @@ scratch/main> dependents B
     Terms:
 
     1. myCase
-    2. myVal
 
-  Tip: Try `view 2` to see the source of any numbered item in
+  Tip: Try `view 1` to see the source of any numbered item in
        the above list.
 ```
 

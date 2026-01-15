@@ -381,6 +381,13 @@ data ForeignFunc
   | FFI_baseIO
   | FFI_arr
   | FFI_getDLLSym
+  | Bytes_read
+  | Bytes_read16be
+  | Bytes_read16le
+  | Bytes_read32be
+  | Bytes_read32le
+  | Bytes_read64be
+  | Bytes_read64le
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -758,3 +765,10 @@ foreignFuncBuiltinName = \case
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"
   FFI_getDLLSym -> "FFI.getDLLSym"
+  Bytes_read -> "Bytes.read"
+  Bytes_read16be -> "Bytes.read16be"
+  Bytes_read16le -> "Bytes.read16le"
+  Bytes_read32be -> "Bytes.read32be"
+  Bytes_read32le -> "Bytes.read32le"
+  Bytes_read64be -> "Bytes.read64be"
+  Bytes_read64le -> "Bytes.read64le"

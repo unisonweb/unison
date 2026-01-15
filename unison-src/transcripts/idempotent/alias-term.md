@@ -12,7 +12,7 @@
 > ls .
 
   1. foo  (a -> b)
-  2. lib. (855 terms, 125 types)
+  2. lib. (855 terms, 126 types)
 ```
 
 It won't create a conflicted name, though.
@@ -22,14 +22,14 @@ It won't create a conflicted name, though.
 
   ⚠️
 
-  A term by that name already exists.
+  A term named foo already exists.
 ```
 
 ``` ucm
 > ls .
 
   1. foo  (a -> b)
-  2. lib. (855 terms, 125 types)
+  2. lib. (855 terms, 126 types)
 ```
 
 You can use `debug.alias.term.force` for that.
@@ -43,5 +43,5 @@ You can use `debug.alias.term.force` for that.
 
   1. foo  (a -> b)
   2. foo  (a -> b)
-  3. lib. (855 terms, 125 types)
+  3. lib. (855 terms, 126 types)
 ```

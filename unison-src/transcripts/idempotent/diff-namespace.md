@@ -211,15 +211,7 @@ scratch/ns2> alias.type A A'
 
   Done.
 
-scratch/ns2> alias.term A.A A'.A
-
-  Done.
-
 scratch/ns2> alias.type X X'
-
-  Done.
-
-scratch/ns2> alias.term X.x X'.x
 
   Done.
 
@@ -269,15 +261,7 @@ scratch/ns1> alias.type X X2
 
   Done.
 
-scratch/ns1> alias.term X.x X2.x
-
-  Done.
-
 scratch/ns2> alias.type A' A''
-
-  Done.
-
-scratch/ns2> alias.term A'.A A''.A
 
   Done.
 

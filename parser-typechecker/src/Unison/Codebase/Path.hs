@@ -336,11 +336,17 @@ instance Resolve Absolute (Split Path) (Split Absolute) where
 instance Resolve Path Path Path where
   resolve (Path l) (Path r) = Path (l <> r)
 
+instance Resolve Path (Split Path) (Split Path) where
+  resolve l (r, x) = (resolve l r, x)
+
+instance Resolve Path' Path Path' where
+  resolve (AbsolutePath' l) r = AbsolutePath' (resolve l r)
+  resolve (RelativePath' l) r = RelativePath' (resolve l r)
+
 instance Resolve Path' Path' Path' where
   resolve _ a@(AbsolutePath' {}) = a
   resolve (AbsolutePath' a) (RelativePath' r) = AbsolutePath' (resolve a r)
   resolve (RelativePath' r1) (RelativePath' r2) = RelativePath' (resolve r1 r2)
 
-instance Resolve Path' Path Path' where
-  resolve (AbsolutePath' l) r = AbsolutePath' (resolve l r)
-  resolve (RelativePath' l) r = RelativePath' (resolve l r)
+instance Resolve (Split Absolute) (Split Path) (Split Absolute) where
+  resolve (l, x) (r, y) = (resolve (descend l x) r, y)

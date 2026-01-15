@@ -913,7 +913,8 @@ foreignCallHelper = \case
           $ pure
           $ Right
           $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
-  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) -> Bytes.toByteArray ba
+  ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) ->
+    evaluate $ Bytes.toByteArray ba
   PinnedByteArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
   IO_array -> mkForeign $
     \n -> PA.newArray n emptyVal
@@ -1184,7 +1185,38 @@ foreignCallHelper = \case
               dummyCix = CIx dummyRef maxBound 0
               comb = LamI (n + 1) (n + 2) (Ins DLLCall . Yield $ VArg1 0)
           evaluate $ PApV dummyCix comb [encodeVal df]
+  Bytes_read -> mkForeignExn . wrapOOB "Bytes.read" $ Bytes.at
+  Bytes_read16be ->
+    mkForeignExn . wrapOOB "Bytes.read16be" $ Bytes.index16be
+  Bytes_read16le ->
+    mkForeignExn . wrapOOB "Bytes.read16le" $ Bytes.index16le
+  Bytes_read32be ->
+    mkForeignExn . wrapOOB "Bytes.read32be" $ Bytes.index32be
+  Bytes_read32le ->
+    mkForeignExn . wrapOOB "Bytes.read32le" $ Bytes.index32le
+  Bytes_read64be ->
+    mkForeignExn . wrapOOB "Bytes.read64be" $ Bytes.index64be
+  Bytes_read64le ->
+    mkForeignExn . wrapOOB "Bytes.read64le" $ Bytes.index64le
   where
+    wrapOOB ::
+      (Integral n) =>
+      Text ->
+      (Int -> Bytes.Bytes -> Maybe n) ->
+      (Word64, Bytes.Bytes) ->
+      IO (Either Failure Word64)
+    wrapOOB nm f = \p@(i, bs) -> case f (fromIntegral i) bs of
+      Nothing ->
+        evaluate
+          . Left
+          . F.Failure Ty.outOfBoundsRef msg
+          . BoxedVal
+          $ encodeAny p
+        where
+          msg = nm <> ": index out of bounds"
+      Just r -> evaluate . Right $ fromIntegral r
+    {-# INLINE wrapOOB #-}
+
     forceListSpine xs = foldl (\u x -> x `seq` u) xs xs
     chop = reverse . dropWhile isPathSeparator . reverse
 
@@ -3236,6 +3268,34 @@ functionReplacementList =
     ( "01csmdujt5ot550j9t0o1gfop4ephtssv358rkfqdo2e01knekgds",
       0,
       Avro_decodeBinary
+    ),
+    ( "00g26ic9p19nioms4innabb2lth4c8dvvi83lualqdnfua4dvngfe",
+      0,
+      Bytes_read
+    ),
+    ( "03r6sk30dj5v0v0bk9bnpvh27io7aq9na6mjnepq129vilf757fag",
+      0,
+      Bytes_read16le
+    ),
+    ( "01fvfsabpu0vmp7tjlj6d9kupl9scoh3fn8cajl1gu9jc6nn977c2",
+      0,
+      Bytes_read16be
+    ),
+    ( "01q8h5knrvg7943q70i34m7hqh7sif5lc35b0p2ld7f3rqe92h1cm",
+      0,
+      Bytes_read32le
+    ),
+    ( "01vq0d62hiiljdh7ff1ui9nbs7tk7nte22kdisimeqsojakovv06g",
+      0,
+      Bytes_read32be
+    ),
+    ( "017fgcg3nje9visijeebaafetbv614orqn7ncc684kcifa11qsi5u",
+      0,
+      Bytes_read64le
+    ),
+    ( "036e5hmgb1hi689v6ptmmogtq128ofuj3n8oa1ij6huiv3qa4ovqu",
+      0,
+      Bytes_read64be
     )
   ]
 

@@ -48,6 +48,7 @@ library
       Unison.Codebase.Editor.AuthorInfo
       Unison.Codebase.Editor.HandleInput
       Unison.Codebase.Editor.HandleInput.AddRun
+      Unison.Codebase.Editor.HandleInput.AliasType
       Unison.Codebase.Editor.HandleInput.AuthLogin
       Unison.Codebase.Editor.HandleInput.Branch
       Unison.Codebase.Editor.HandleInput.Branches
@@ -152,6 +153,7 @@ library
       Unison.LSP.HandlerUtils
       Unison.LSP.Hover
       Unison.LSP.NotificationHandlers
+      Unison.LSP.OpenOnShare
       Unison.LSP.Orphans
       Unison.LSP.Queries
       Unison.LSP.Types

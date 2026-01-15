@@ -578,6 +578,31 @@ notifyNumbered = \case
               ],
       map SA.FilePath remainingPaths
     )
+  AmbiguousMainFunction what terms ppe ->
+    ( P.wrap "I don't know which function you're referring to:"
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( P.numberedList
+              ( map
+                  ( \(name, ty) ->
+                      P.syntaxToColor (prettyHashQualified name) <> " : " <> TypePrinter.pretty ppe ty
+                  )
+                  terms
+              )
+          )
+        <> P.newline
+        <> P.newline
+        <> tip
+          ( "use "
+              <> P.backticked (P.text what <> " 1")
+              <> " or "
+              <> P.backticked (P.text what <> " 2")
+              <> " to pick one of these."
+          ),
+      map (SA.HashQualified . fst) terms
+    )
   where
     absPathToBranchId = BranchAtPath
     -- Like oxfordCommas but uses "or" instead of "and", without extra spaces.
@@ -768,8 +793,12 @@ notifyUser dir issueFn = \case
                    <> prettyConflictExample conflicts dest
                )
            ]
-  TermAlreadyExists _ _ ->
-    pure . P.warnCallout $ "A term by that name already exists."
+  TermAlreadyExists path _ ->
+    pure . P.warnCallout $
+      P.wrap $
+        "A term named"
+          <> prettyName (Name.makeRelative (Path.nameFromSplit path))
+          <> "already exists."
   TypeAlreadyExists _ _ ->
     pure . P.warnCallout $ "A type by that name already exists."
   BranchEmpty b ->
@@ -788,17 +817,19 @@ notifyUser dir issueFn = \case
           "",
           P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
         ]
-  BadMainFunction what main ty ppe ts ->
-    pure . P.callout "😶" $
-      P.lines
-        [ P.string "I found this function:",
-          "",
-          P.indentN 2 $ P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe ty,
-          "",
-          P.wrap $ P.string "but in order for me to" <> P.backticked (P.text what) <> "it needs to be a subtype of:",
-          "",
-          P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
-        ]
+  BadMainFunction what terms ppe ts ->
+    let f (main, ty) =
+          P.lines
+            [ P.string "I found this function:",
+              "",
+              P.indentN 2 $ P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe ty,
+              "",
+              P.wrap $ P.string "but in order for me to" <> P.backticked (P.text what) <> "it needs to be a subtype of:",
+              "",
+              P.indentN 2 $ P.lines [P.text (HQ.toText main) <> " : " <> TypePrinter.pretty ppe t | t <- ts]
+            ]
+     in pure . P.callout "😶" $
+          intercalateMap "\n\n" f terms
   NoUnisonFile -> do
     fileName <- maybe (pure . P.group $ P.blue "〈redacted〉") (renderFileName <=< canonicalizePath) dir
     pure . P.callout "😶" $

@@ -1,33 +1,50 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 
 -- | Find a computation of type '{IO} () in the codebase.
-module Unison.Codebase.MainTerm where
+module Unison.Codebase.MainTerm
+  ( MainTerm (..),
+    getMainTerm,
+    builtinIOTestTypes,
+    builtinMain,
+    builtinMainWithResultType,
+  )
+where
 
+import Control.Lens (mapped, _1)
 import Data.List.NonEmpty qualified as NEList
 import Data.Set.NonEmpty (NESet)
 import Data.Set.NonEmpty qualified as NESet
 import Unison.Builtin.Decls qualified as DD
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
+import Unison.Name qualified as Name
 import Unison.Names qualified as Names
-import Unison.NamesWithHistory qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Parser.Ann
 import Unison.Prelude
 import Unison.Reference (Reference, TermReference)
+import Unison.Referent (Referent)
 import Unison.Referent qualified as Referent
 import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
+import Unison.Util.Relation qualified as Relation
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
 data MainTerm v
-  = NotFound (HQ.HashQualified Name)
-  | BadType (HQ.HashQualified Name) (Maybe (Type v Ann))
-  | Success (HQ.HashQualified Name) TermReference (Term v Ann) (Type v Ann)
+  = -- No terms were found with this name
+    NotFound
+  | -- 1 or more terms were found with this name, but none of them have the right type
+    -- Invariant: list is not empty
+    BadType [(HQ.HashQualified Name, TermReference, Type v Ann)]
+  | -- 2 or more terms were found with this name, and of those, 2 or more have the right type
+    -- Invariant: length of list is >= 2
+    Ambiguous [(HQ.HashQualified Name, TermReference, Type v Ann)]
+  | -- 1 or more terms were found with this name, and exactly 1 has the right type
+    Success (HQ.HashQualified Name) TermReference (Term v Ann) (Type v Ann)
 
 getMainTerm ::
   (Monad m, Var v) =>
@@ -37,21 +54,43 @@ getMainTerm ::
   Type.Type v Ann ->
   m (MainTerm v)
 getMainTerm loadTypeOfTerm parseNames mainName mainType = do
-  let refs = Names.lookupHQTerm Names.IncludeSuffixes mainName parseNames
-  let a = Parser.Ann.External
-  case toList refs of
-    [] -> pure (NotFound mainName)
-    [Referent.Ref ref] -> do
-      typ <- loadTypeOfTerm ref
-      case typ of
-        Just typ ->
-          if Typechecker.fitsScheme typ mainType
-            then do
-              let tm = DD.forceTerm a a (Term.ref a ref)
-              return (Success mainName ref tm typ)
-            else pure (BadType mainName $ Just typ)
-        _ -> pure (BadType mainName Nothing)
-    _ -> pure (error "multiple matching refs") -- TODO: make a real exception
+  -- Get all terms and constructors referred to by that name
+  let allReferents :: [(Name, Referent)]
+      allReferents =
+        Relation.toList $
+          Name.keepHighestPriority $
+            HQ.filterBySuffix
+              Referent.toShortHash
+              mainName
+              (Names.terms parseNames)
+
+  -- Keep only the terms (throwing away constructors)
+  allTermReferences :: [(Name, TermReference, Type v Ann)] <-
+    allReferents & mapMaybeM \case
+      (name, Referent.Ref ref) -> do
+        loadTypeOfTerm ref <&> \case
+          Just ty -> Just (name, ref, ty)
+          -- this shouldn't really happen
+          Nothing -> Nothing
+      _ -> pure Nothing
+
+  -- Keep only the terms that are of the right 'main' type
+  let allTermReferencesThatCouldBeRun :: [(Name, TermReference, Type v Ann)]
+      allTermReferencesThatCouldBeRun =
+        filter
+          (\(_, _, ty) -> Typechecker.fitsScheme ty mainType)
+          allTermReferences
+
+  pure case allTermReferencesThatCouldBeRun of
+    [(name, ref, ty)] ->
+      let a = Parser.Ann.External
+          tm = DD.forceTerm a a (Term.ref a ref)
+       in Success (mainName $> name) ref tm ty
+    [] ->
+      case allTermReferences of
+        [] -> NotFound
+        _ -> BadType (over (mapped . _1) (mainName $>) allTermReferences)
+    _ -> Ambiguous (over (mapped . _1) (mainName $>) allTermReferencesThatCouldBeRun)
 
 -- forall x. '{ io2.IO, Exception } x
 builtinMain :: (Var v) => a -> Type.Type v a
