@@ -307,6 +307,46 @@ scratch/main> delete.force a.Foo.Foo
 scratch/main> project.delete scratch
 ```
 
+Deleting something from `lib.*` is possible with `delete.force`, not `delete`.
+
+``` ucm :hide
+scratch/main> builtins.mergeio lib.builtins
+```
+
+``` unison :hide
+foo = 17
+```
+
+``` ucm :hide
+scratch/main> update
+
+scratch/main> move foo lib.foo.foo
+```
+
+``` ucm :error
+scratch/main> delete lib.foo.foo
+
+  ⚠️
+
+  I couldn't find any terms or types that match the name
+  lib.foo.foo.
+```
+
+``` ucm
+scratch/main> delete.force lib.foo.foo
+
+  I deleted these terms:
+
+    1. lib.foo.foo
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
+```
+
+``` ucm :hide
+scratch/main> project.delete scratch
+```
+
 Finally, let's try to delete a term and a type with the same name.
 
 ``` ucm :hide

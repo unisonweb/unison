@@ -267,18 +267,18 @@ handleDelete False {- force? -} which (List.nubOrd -> targetNames) = do
   Cli.respondNumbered (DeletedDefinitions (bimap BiMultimap.ran BiMultimap.ran target))
 -- A force-delete is muuch simpler: don't care if we leave nameless dependencies, just nuke things from the namespace.
 -- You also have to use this version when deleting a constructor, which doesn't happen often, but could (e.g. if you
--- have an incoherent decl due to extra constructor alias).
+-- have an incoherent decl due to extra constructor alias). This is also the ony way to delete from lib.*, which we want
+-- do discourage or even prevent in general, but is useful in transcripts.
 handleDelete True {- force? -} which targetNames = do
   projectAndBranch <- Cli.getCurrentProjectAndBranch
 
   currentNamespace <- Cli.getCurrentProjectRoot
   let currentNamespace0 = Branch.head currentNamespace
-  let currentNamespaceSansLib0 = Branch.deleteLibdeps currentNamespace0
 
   -- Identify the terms, types, and constructors identified by the provided names.
   let target :: DefnsF (Relation Name) Referent TypeReference
       target =
-        currentNamespaceSansLib0
+        currentNamespace0
           & Branch.deepDefns
           & bimap Relation.swap Relation.swap
           & resolveTargetInConflicted which targetNames
