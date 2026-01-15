@@ -72,5 +72,9 @@ executeCommandHandler m respond =
                   Right _ -> pure ()
               )
           _ -> invalidCmdErr
+        "editDefinition" -> case args of
+          Just [Aeson.String fqn] -> do
+            _
+          _ -> invalidCmdErr
         _ -> invalidCmdErr
     pure $ InL Aeson.Null
