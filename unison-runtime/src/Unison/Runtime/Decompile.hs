@@ -29,10 +29,10 @@ import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
-    foreignRef,
     HashAlgorithm (..),
     UnboxedTypeTag (..),
     Val (..),
+    foreignRef,
     pattern DataC,
     pattern PApV,
   )
@@ -167,7 +167,7 @@ decompileForeign backref topTerms = \case
       app
         ()
         (ref () ibarrayFromBytesRef)
-          (decompileBytes . By.fromWord8s $ byteArrayToList a)
+        (decompileBytes . By.fromWord8s $ byteArrayToList a)
   WrapSeq s ->
     list' () <$> traverse (decompile backref topTerms) s
   WrapMap m -> do

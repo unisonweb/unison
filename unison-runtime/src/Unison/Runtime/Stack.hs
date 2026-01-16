@@ -171,7 +171,6 @@ module Unison.Runtime.Stack
     -- pseudo data stuff
     inflateMap,
     deflateMap,
-
     -- local foreigns that get wrapped
     HashAlgorithm (..),
     Tls (..),
@@ -183,6 +182,8 @@ import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate, throw, throwIO)
 import Control.Monad.Primitive
 import Control.Monad.State.Strict (StateT (..))
+-- import for `Foreign` section
+import Crypto.Hash qualified as Hash
 import Data.Atomics qualified as Atomic
 import Data.Bits (clearBit)
 import Data.Char qualified as Char
@@ -194,43 +195,42 @@ import Data.Primitive (sizeOf)
 import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Word
+import Data.X509 qualified as X509
 import GHC.Base
 import GHC.Exts as L (IsList (..))
 import Language.Haskell.TH qualified as TH
-import Test.Inspection qualified as TI
-import Unison.Builtin.Decls as Ty
-  hiding (tlsSignedCertRef, tlsPrivateKeyRef)
-import Unison.Prelude
-import Unison.Reference (Reference)
-import Unison.Referent (Referent)
-import Unison.Runtime.ANF (PackedTag, maskTags, Code, Value)
-import Unison.Runtime.Array as PA
-import Unison.Runtime.MCode
-import Unison.Runtime.Referenced (Referenced, dereference)
-import Unison.Runtime.TypeTags qualified as TT
-import Unison.Type qualified as Ty
-import Unison.Util.EnumContainers as EC
-import Unison.Util.Text qualified as U
-import Unison.Util.Monoid qualified as Monoid
-import Unison.Util.RefPromise (Promise)
-import Prelude hiding (words)
-
--- import for `Foreign` section
-import Crypto.Hash qualified as Hash
-import Data.X509 qualified as X509
-import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
-import Numeric.Natural (Natural)
 import Network.Socket (Socket)
 import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
+import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
+import Numeric.Natural (Natural)
 import System.Clock (TimeSpec)
 import System.IO (Handle)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Mem.StableName (makeStableName)
 import System.Process (ProcessHandle)
+import Test.Inspection qualified as TI
+import Unison.Builtin.Decls as Ty hiding
+  ( tlsPrivateKeyRef,
+    tlsSignedCertRef,
+  )
+import Unison.Prelude
+import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
+import Unison.Runtime.Array as PA
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
+import Unison.Runtime.MCode
+import Unison.Runtime.Referenced (Referenced, dereference)
+import Unison.Runtime.TypeTags qualified as TT
+import Unison.Type qualified as Ty
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.EnumContainers as EC
+import Unison.Util.Monoid qualified as Monoid
+import Unison.Util.RefPromise (Promise)
+import Unison.Util.Text qualified as U
 import Unison.Util.Text.Pattern (CPattern, CharPattern)
+import Prelude hiding (words)
 
 #ifdef STACK_CHECK
 type DebugCallStack = (HasCallStack :: Constraint)
@@ -1797,7 +1797,6 @@ deflateMap (DataC _ t [NatVal sz, k, v, BoxedVal l, BoxedVal r])
       Bin (fromIntegral sz) k v <$> deflateMap l <*> deflateMap r
 deflateMap _ = Nothing
 
-
 -- ------------------------------
 -- 'Foreign' value implementation
 -- ------------------------------
@@ -1987,7 +1986,11 @@ instance Eq Foreign where
   l == r =
     error $
       "Attempting to check equality of values of different types: "
-        <> "`" <> foreignName l <> "` vs `" <> foreignName r <> "`"
+        <> "`"
+        <> foreignName l
+        <> "` vs `"
+        <> foreignName r
+        <> "`"
 
 compareForeign :: Bool -> Foreign -> Foreign -> Ordering
 compareForeign _tyEq (WrapText l) (WrapText r) = compare l r
@@ -2013,7 +2016,10 @@ compareForeign _tyEq l r
   | otherwise =
       error $
         "Attempting to compare two values of different types: `"
-          <> foreignName l <> "` vs `" <> foreignName r <> "`"
+          <> foreignName l
+          <> "` vs `"
+          <> foreignName r
+          <> "`"
 
 instance Ord Foreign where
   compare = compareForeign False
@@ -2021,12 +2027,12 @@ instance Ord Foreign where
 instance Show Foreign where
   showsPrec p f =
     showParen (p > 9) $
-      showString "Wrap " .
-      showString (foreignName f) .
-      showString " " .
-      case f of
-        WrapText t -> shows t
-        _ -> showString "_"
+      showString "Wrap "
+        . showString (foreignName f)
+        . showString " "
+        . case f of
+          WrapText t -> shows t
+          _ -> showString "_"
 
 instance BuiltinForeign U.Text where
   builtinName = Tagged "Text"
@@ -2354,4 +2360,3 @@ instance BuiltinForeign CDynFunc where
     WrapCDynFunc v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
-

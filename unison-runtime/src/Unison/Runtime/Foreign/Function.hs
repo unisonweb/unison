@@ -2820,14 +2820,14 @@ instance (ForeignConvention a) => ForeignConvention (F.Failure a) where
   readAtIndex stk i = bpeekOff stk i >>= decodeFailure
   writeBack stk f = bpoke stk $ encodeFailure f
 
-decodeForeignClo :: forall a. BuiltinForeign a => Closure -> IO a
+decodeForeignClo :: forall a. (BuiltinForeign a) => Closure -> IO a
 decodeForeignClo (Foreign x)
   | Just x <- maybeUnwrapBuiltin x = pure x
 decodeForeignClo c = foreignConventionError ty (BoxedVal c)
   where
     Tagged ty = builtinName :: Tagged a String
 
-encodeForeignClo :: BuiltinForeign a => a -> Closure
+encodeForeignClo :: (BuiltinForeign a) => a -> Closure
 encodeForeignClo = Foreign . wrapBuiltin
 
 decodeBuiltin :: forall a. (BuiltinForeign a) => Val -> IO a
