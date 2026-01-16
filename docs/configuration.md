@@ -11,6 +11,7 @@
     * [`UNISON_READONLY`](#unison_readonly)
     * [`UNISON_ENTITY_VALIDATION`](#unison_entity_validation)
     * [`UNISON_SYNC_VERSION`](#unison_sync_version)
+    * [`UNISON_SYNC_HISTORY_COMMENTS`](#unison_sync_history_comments)
     * [`UNISON_MIGRATION`](#unison_migration)
     * [`UNISON_FZF_PATH`](#unison_fzf_path)
     * [Local Codebase Server](#local-codebase-server)
@@ -126,6 +127,16 @@ Allows regressing to sync version 1 when interacting with Share.
 
 ```sh
 $ UNISON_SYNC_VERSION="1" ucm
+```
+
+### `UNISON_SYNC_HISTORY_COMMENTS`
+
+Toggles syncing of history comments with Share.
+
+Defaults to disabled.
+
+```sh
+$ UNISON_SYNC_VERSION="true" ucm
 ```
 
 ### `UNISON_MIGRATION`
