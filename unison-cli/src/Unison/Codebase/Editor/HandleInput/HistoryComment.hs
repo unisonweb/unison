@@ -22,8 +22,8 @@ import UnliftIO.Directory (findExecutable)
 import UnliftIO.Environment qualified as Env
 import UnliftIO.Process qualified as Proc
 
-handleHistoryComment :: Maybe BranchId2 -> Cli ()
-handleHistoryComment mayThingToAnnotate = do
+handleHistoryComment :: Maybe BranchId2 -> Maybe Text -> Cli ()
+handleHistoryComment mayThingToAnnotate mayMessage = do
   authorName <-
     Cli.runTransaction Q.getAuthorName >>= \case
       Nothing -> Cli.returnEarly $ AuthorNameRequired
@@ -49,16 +49,24 @@ handleHistoryComment mayThingToAnnotate = do
     causalHashId <- Q.expectCausalHashIdByCausalHash causalHash
     mayExistingCommentInfo <- Q.getLatestCausalComment causalHashId
     pure (causalHashId, mayExistingCommentInfo)
-  let populatedMsg = fromMaybe commentInstructions $ do
-        HistoryComment {subject, content} <- mayHistoryComment
-        pure $ Text.unlines [subject, "", content, commentInstructions]
-  mayNewMessage <- liftIO (editMessage (Just populatedMsg))
-  case mayNewMessage of
-    Nothing -> Cli.respond $ CommentAborted
+  maySubjectContent <- case mayMessage of
+    Just msg -> do
+      let (subject, content) = cleanComment msg
+      pure $ Just (subject, content)
+    Nothing -> do
+      let populatedMsg = fromMaybe commentInstructions $ do
+            HistoryComment {subject, content} <- mayHistoryComment
+            pure $ Text.unlines [subject, "", content, commentInstructions]
+      mayNewMessage <- liftIO (editMessage (Just populatedMsg))
+      case mayNewMessage of
+        Nothing -> pure Nothing
+        Just (subject, content) -> pure $ Just (subject, content)
+  case maySubjectContent of
     Just (subject, content) -> do
       let historyComment = HistoryComment {author = Config.unAuthorName authorName, subject, content, commentId = (), causal = causalHashId}
       Cli.runTransaction $ Q.commentOnCausal historyComment
       Cli.respond $ CommentedSuccessfully
+    Nothing -> Cli.respond $ CommentAborted
   where
     commentInstructions =
       [r|
@@ -98,15 +106,18 @@ editMessage initialMessage = runMaybeT do
       Left _ -> empty
       Right () -> pure ()
     result <- liftIO (readUtf8 tempFilePath)
-    let cleanedResult =
-          result
-            & Text.lines
-            & filter (not . Text.isPrefixOf "--")
-            & Text.unlines
-            & Text.strip
-    guard $ not (Text.null cleanedResult)
-    let (subject, contents) =
-          case Text.lines cleanedResult of
-            [] -> ("", "")
-            (s : rest) -> (Text.strip s, Text.strip $ Text.unlines rest)
+    let (subject, contents) = cleanComment result
+    guard $ not (Text.null subject)
     pure (subject, contents)
+
+cleanComment :: Text -> (Text, Text)
+cleanComment txt =
+  txt
+    & Text.lines
+    & filter (not . Text.isPrefixOf "--")
+    & Text.unlines
+    & Text.strip
+    & Text.lines
+    & \case
+      [] -> ("", "")
+      (s : rest) -> (Text.strip s, Text.strip $ Text.unlines rest)

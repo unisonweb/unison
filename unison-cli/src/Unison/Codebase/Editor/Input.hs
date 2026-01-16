@@ -167,7 +167,7 @@ data Input
   | ForkLocalBranchI (Either ShortCausalHash BranchRelativePath) BranchRelativePath
   | HistoryI (Maybe Int {- cap on number of results -}) (Maybe Int {- cap on diff elements shown -}) BranchId
   | -- An optional causal hash or branch to annotate.
-    HistoryCommentI (Maybe BranchId2 {- causal to annotate -})
+    HistoryCommentI (Maybe BranchId2 {- causal to annotate -}) (Maybe Text {- comment -})
   | IOTestAllI
   | IOTestI (HQ.HashQualified Name)
   | LibInstallI

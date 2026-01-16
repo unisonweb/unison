@@ -522,10 +522,21 @@
                                 The full hash must be provided.
 
   history.comment (or comment, comment.history)
-  `history.comment`        Creates a comment after the head of
-                           the current branch.
-  `history.comment /main`  Creates a comment after the head of
-                           the `main` branch.
+  `history.comment`                           Creates a comment
+                                              after the head of
+                                              the current
+                                              branch.
+  `history.comment /main:`                    Creates a comment
+                                              after the head of
+                                              the `main` branch.
+  `history.comment #abcdefg`                  Creates a comment
+                                              in the history
+                                              after #abcdefg
+  `history.comment /main: "Comment message"`  Creates a comment
+                                              with the content
+                                              'Comment message'
+                                              after the head of
+                                              the `main` branch.
 
   io.test (or test.io)
   `io.test mytest`  Runs `!mytest`, where `mytest` is a delayed
