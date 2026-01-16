@@ -81,7 +81,6 @@ import Data.Text qualified as Text
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
-import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Dynamic qualified as DLL
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -253,9 +252,9 @@ unitValue = BoxedVal $ unitClosure
 
 litToVal :: MLit -> Val
 litToVal = \case
-  MT t -> BoxedVal $ Foreign (Wrap Rf.textRef t)
-  MM r -> BoxedVal $ Foreign (Wrap Rf.termLinkRef r)
-  MY r -> BoxedVal $ Foreign (Wrap Rf.typeLinkRef r)
+  MT t -> BoxedVal $ Foreign (WrapText t)
+  MM r -> BoxedVal $ Foreign (WrapReferent r)
+  MY r -> BoxedVal $ Foreign (WrapReference r)
   MI i -> IntVal i
   MN n -> NatVal n
   MC c -> CharVal c
@@ -466,7 +465,7 @@ exec env henv !activeThreads !stk !k _ (Fork i)
   | otherwise = do
       tid <- forkEval env activeThreads =<< peekOff stk i
       stk <- bump stk
-      bpoke stk . Foreign . Wrap Rf.threadIdRef $ tid
+      bpoke stk . Foreign . WrapThreadId $ tid
       pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Atomically i)
   | sandboxed env = die [] $ "attempted to use sandboxed operation: atomically"
@@ -596,7 +595,7 @@ encodeExn stk exc = do
       -- that slot.
       stk <- bumpn stk 3
       pokeTag stk 0
-      bpokeOff stk 1 $ Foreign (Wrap Rf.typeLinkRef link)
+      bpokeOff stk 1 $ Foreign (WrapReference link)
       pokeOffBi stk 2 msg
       stk <$ pokeOff stk 3 extra
       where
@@ -1216,13 +1215,12 @@ dataBranch mrf stk (Test1 u cu df) = \case
   DataG _ t seg
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
-  Foreign f
-    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
-        M.Bin sz k e l r
-          | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
-        M.Tip
-          | u == Rf.mapTip -> pure (cu, stk)
-        _ -> pure (df, stk)
+  Foreign (WrapMap m) -> case m of
+    M.Bin sz k e l r
+      | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+    M.Tip
+      | u == Rf.mapTip -> pure (cu, stk)
+    _ -> pure (df, stk)
   clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch mrf stk (Test2 u cu v cv df) = \case
   Enum _ t
@@ -1251,15 +1249,14 @@ dataBranch mrf stk (Test2 u cu v cv df) = \case
     | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
     | maskTags t == v -> (cv,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
-  Foreign f
-    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
-        M.Bin sz k e l r
-          | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
-          | v == Rf.mapBin -> (cv,) <$> dumpBin sz k e l r stk
-        M.Tip
-          | u == Rf.mapTip -> pure (cu, stk)
-          | v == Rf.mapTip -> pure (cv, stk)
-        _ -> pure (df, stk)
+  Foreign (WrapMap m) -> case m of
+    M.Bin sz k e l r
+      | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+      | v == Rf.mapBin -> (cv,) <$> dumpBin sz k e l r stk
+    M.Tip
+      | u == Rf.mapTip -> pure (cu, stk)
+      | v == Rf.mapTip -> pure (cv, stk)
+    _ -> pure (df, stk)
   clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch mrf stk (TestW df bs) = \case
   Enum _ t
@@ -1280,15 +1277,14 @@ dataBranch mrf stk (TestW df bs) = \case
     | Just ca <- EC.lookup (maskTags t) bs ->
         (ca,) <$> dumpSeg stk seg S
     | otherwise -> pure (df, stk)
-  Foreign f
-    | Just m <- maybeUnwrapForeign Rf.hmapRef f -> case m of
-        M.Bin sz k e l r
-          | Just ca <- EC.lookup Rf.mapBin bs ->
-              (ca,) <$> dumpBin sz k e l r stk
-        M.Tip
-          | Just ca <- EC.lookup Rf.mapTip bs ->
-              pure (ca, stk)
-        _ -> pure (df, stk)
+  Foreign (WrapMap m) -> case m of
+    M.Bin sz k e l r
+      | Just ca <- EC.lookup Rf.mapBin bs ->
+          (ca,) <$> dumpBin sz k e l r stk
+    M.Tip
+      | Just ca <- EC.lookup Rf.mapTip bs ->
+          pure (ca, stk)
+    _ -> pure (df, stk)
   clo -> (df, stk) <$ dataBranchClosureError mrf clo
 dataBranch _ _ br = \_ ->
   dataBranchBranchError br
@@ -1347,7 +1343,7 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag FloatTag -> "a floating point number"
       UnboxedTypeTag IntTag -> "an integer"
       UnboxedTypeTag NatTag -> "a natural number"
-      Foreign (Wrap rf _) ->
+      Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
 
 dataBranchBranchError :: MBranch -> IO a
@@ -1847,29 +1843,20 @@ reflectValue0 rty rtm = goV0
         <$> goIx cix
         <*> goK k
 
-    goF f
-      | Just t <- maybeUnwrapBuiltin f =
-          pure (ANF.Text t)
-      | Just b <- maybeUnwrapBuiltin f =
-          pure (ANF.Bytes b)
-      | Just s <- maybeUnwrapForeign Rf.listRef f =
-          ANF.List <$> traverse goV s
-      | Just l <- maybeUnwrapBuiltin f =
-          ANF.TmLink <$> canonicalizeReferent l
-      | Just l <- maybeUnwrapBuiltin f =
-          ANF.TyLink <$> canonicalizeReference True l
-      | Just v <- maybeUnwrapBuiltin f =
-          ANF.Quote <$> canonicalizeReferenced v
-      | Just g <- maybeUnwrapBuiltin f =
-          ANF.Code <$> canonicalizeReferenced g
-      | Just a <- maybeUnwrapForeign Rf.ibytearrayRef f =
-          pure (ANF.BArr a)
-      | Just a <- maybeUnwrapForeign Rf.iarrayRef f =
-          ANF.Arr <$> traverse goV a
-      | Just m <- maybeUnwrapBuiltin f =
-          ANF.Map
-            <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) (M.toList m)
-      | otherwise = reflExn "foreign value"
+    goF = \case
+      WrapText t -> pure (ANF.Text t)
+      WrapBytes b -> pure (ANF.Bytes b)
+      WrapSeq s -> ANF.List <$> traverse goV s
+      WrapReferent l -> ANF.TmLink <$> canonicalizeReferent l
+      WrapReference l -> ANF.TyLink <$> canonicalizeReference True l
+      WrapValue v -> ANF.Quote <$> canonicalizeReferenced v
+      WrapCode g -> ANF.Code <$> canonicalizeReferenced g
+      WrapByteArray a -> pure (ANF.BArr a)
+      WrapArray a -> ANF.Arr <$> traverse goV a
+      WrapMap m ->
+        ANF.Map
+          <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) (M.toList m)
+      _ -> reflExn "foreign value"
 
 data ReflectExn = ReflectExn String deriving (Show)
 
@@ -2117,7 +2104,7 @@ reifyValue0 (combs, rty, rtm) = goV
 
     goL :: ANF.BLit Reference -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
-    goL (ANF.List l) = boxedVal . Foreign . Wrap Rf.listRef <$> traverse goV l
+    goL (ANF.List l) = boxedVal . Foreign . WrapSeq <$> traverse goV l
     goL (ANF.TmLink r) = pure $ encodeVal r
     goL (ANF.TyLink r) = pure $ encodeVal r
     goL (ANF.Bytes b) = pure $ encodeVal b

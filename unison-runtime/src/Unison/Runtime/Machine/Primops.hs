@@ -16,7 +16,6 @@ import Unison.Reference (Reference)
 import Unison.Referent (Referent, toShortHash, pattern Ref)
 import Unison.Runtime.ANF (Code, Value, codeGroup)
 import Unison.Runtime.Exception (die)
-import Unison.Runtime.Foreign
 import Unison.Runtime.Foreign.Function
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Types
@@ -24,7 +23,6 @@ import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as Ty
 import Unison.ShortHash qualified as SH
-import Unison.Type qualified as Rf
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Text as UText
@@ -209,10 +207,10 @@ primxx _env stk TRCE _ _ = pure stk
 {-# INLINE primxx #-}
 
 termLinkVal :: Referent -> Val
-termLinkVal = BoxedVal . Foreign . Wrap Rf.termLinkRef
+termLinkVal = BoxedVal . Foreign . WrapReferent
 
 typeLinkVal :: Reference -> Val
-typeLinkVal = BoxedVal . Foreign . Wrap Rf.typeLinkRef
+typeLinkVal = BoxedVal . Foreign . WrapReference
 
 -- Evaluation and writeback portion of primops.
 --
@@ -732,19 +730,19 @@ lest stk x y = pokeBool stk $ x < y
 {-# INLINE lest #-}
 
 eqlu :: Stack -> Val -> Val -> IO ()
-eqlu stk x y = pokeBool stk $ universalEq x y
+eqlu stk x y = pokeBool stk $ x == y
 {-# INLINE eqlu #-}
 
 cmpu :: Stack -> Val -> Val -> IO ()
-cmpu stk x y = pokeI stk . pred . fromEnum $ universalCompare x y
+cmpu stk x y = pokeI stk . pred . fromEnum $ compare x y
 {-# INLINE cmpu #-}
 
 lequ :: Stack -> Val -> Val -> IO ()
-lequ stk x y = pokeBool stk $ universalCompare x y /= GT
+lequ stk x y = pokeBool stk $ x <= y
 {-# INLINE lequ #-}
 
 lesu :: Stack -> Val -> Val -> IO ()
-lesu stk x y = pokeBool stk $ universalCompare x y == LT
+lesu stk x y = pokeBool stk $ x < y
 {-# INLINE lesu #-}
 
 -- Note: if n < 0, then the Nat argument was larger than the largest

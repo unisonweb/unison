@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -23,6 +24,11 @@ module Unison.Runtime.Stack
         BlackHole,
         UnboxedTypeTag
       ),
+    Failure (..),
+    Foreign (..),
+    foreignRef,
+    foreignName,
+    BuiltinForeign (..),
     AffineRef (..),
     AEnv,
     DEnv,
@@ -162,15 +168,17 @@ module Unison.Runtime.Stack
     charTypeTag,
     floatTypeTag,
     hasNoAllocations,
-    universalEq,
-    universalCompare,
     -- pseudo data stuff
     inflateMap,
     deflateMap,
+
+    -- local foreigns that get wrapped
+    HashAlgorithm (..),
+    Tls (..),
   )
 where
 
-import Control.Concurrent (MVar)
+import Control.Concurrent (MVar, ThreadId)
 import Control.Concurrent.STM (TVar)
 import Control.Exception (evaluate, throw, throwIO)
 import Control.Monad.Primitive
@@ -184,7 +192,6 @@ import Data.Map.Strict.Internal (Map (..))
 import Data.Ord (comparing)
 import Data.Primitive (sizeOf)
 import Data.Primitive.ByteArray qualified as BA
-import Data.Sequence qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Word
 import GHC.Base
@@ -192,18 +199,38 @@ import GHC.Exts as L (IsList (..))
 import Language.Haskell.TH qualified as TH
 import Test.Inspection qualified as TI
 import Unison.Builtin.Decls as Ty
+  hiding (tlsSignedCertRef, tlsPrivateKeyRef)
 import Unison.Prelude
 import Unison.Reference (Reference)
-import Unison.Runtime.ANF (PackedTag, maskTags)
+import Unison.Referent (Referent)
+import Unison.Runtime.ANF (PackedTag, maskTags, Code, Value)
 import Unison.Runtime.Array as PA
-import Unison.Runtime.Foreign
 import Unison.Runtime.MCode
+import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
 import Unison.Util.EnumContainers as EC
+import Unison.Util.Text qualified as U
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.RefPromise (Promise)
 import Prelude hiding (words)
+
+-- import for `Foreign` section
+import Crypto.Hash qualified as Hash
+import Data.X509 qualified as X509
+import Network.UDP (ClientSockAddr, ListenSocket, UDPSocket)
+import Numeric.Natural (Natural)
+import Network.Socket (Socket)
+import Network.TLS qualified as TLS (ClientParams, Context, ServerParams)
+import System.Clock (TimeSpec)
+import System.IO (Handle)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Mem.StableName (makeStableName)
+import System.Process (ProcessHandle)
+import Unison.Runtime.FFI.DLL
+import Unison.Runtime.Foreign.Dynamic
+import Unison.Util.Bytes (Bytes)
+import Unison.Util.Text.Pattern (CPattern, CharPattern)
 
 #ifdef STACK_CHECK
 type DebugCallStack = (HasCallStack :: Constraint)
@@ -557,13 +584,13 @@ formDataReplaced r t sg@(usg, bsg)
           Just (ur :: Map Val Val) <- maybeUnwrapBuiltin r,
           sz <- indexByteArray usg 4,
           Closure (GUnboxedTypeTag NatTag) <- indexArray bsg 4 ->
-            Foreign . Wrap Ty.hmapRef $
+            Foreign . WrapMap $
               Bin sz (Val uk bk) (Val uv bv) ul ur
       _ -> error "formDataReplaced: bad `Map`"
   | otherwise = formDataSeg r t sg
 
 tipClosure :: Closure
-tipClosure = Foreign $ Wrap Ty.hmapRef Tip
+tipClosure = Foreign $ WrapMap Tip
 
 frameDataSize :: K -> Int
 frameDataSize = go 0
@@ -737,12 +764,22 @@ data RuntimePanic = Panic String (Maybe Val)
 
 instance Exception RuntimePanic
 
-marshalUnwrapForeignIO :: (HasCallStack) => Closure -> IO a
-marshalUnwrapForeignIO (Foreign x) = pure $ unwrapForeign x
+marshalUnwrapForeignIO ::
+  (HasCallStack, BuiltinForeign a) => Closure -> IO a
+marshalUnwrapForeignIO (Foreign x) = unwrapForeignIO x
 marshalUnwrapForeignIO c =
   throwIO $ Panic "marshalUnwrapForeignIO: unhandled closure" (Just v)
   where
     v = BoxedVal c
+
+unwrapForeignIO ::
+  forall a. (HasCallStack, BuiltinForeign a) => Foreign -> IO a
+unwrapForeignIO f = maybe err pure $ maybeUnwrapBuiltin f
+  where
+    Tagged exName = builtinName @a
+    v = BoxedVal (Foreign f)
+    err = throwIO $ Panic msg (Just v)
+    msg = "unwrapForeignIO: expected `" <> exName <> "`"
 
 type Off = Int
 
@@ -931,49 +968,8 @@ type UVal = Int
 data Val = Val {getUnboxedVal :: !UVal, getBoxedVal :: !BVal}
   deriving (Show)
 
--- | The `Eq` instance for `Val` can’t be derived because you need to take into account the fact that if a `Val` is
---   boxed, the unboxed side is garbage and should not be compared.
-instance Eq Val where
-  (==) = universalEq
-
 instance Ord Val where
-  compare = universalCompare
-
-instance BuiltinForeign (Seq Val) where
-  foreignName = Tagged "Seq"
-  foreignRef = Tagged Ty.listRef
-
-instance BuiltinForeign (Map Val Val) where
-  foreignName = Tagged "Map"
-  foreignRef = Tagged Ty.hmapRef
-
-instance BuiltinForeign (IORef Val) where
-  foreignName = Tagged "IORef"
-  foreignRef = Tagged Ty.refRef
-
-instance BuiltinForeign (Atomic.Ticket Val) where
-  foreignName = Tagged "Ticket"
-  foreignRef = Tagged Ty.ticketRef
-
-instance BuiltinForeign (MVar Val) where
-  foreignName = Tagged "MVar"
-  foreignRef = Tagged Ty.mvarRef
-
-instance BuiltinForeign (TVar Val) where
-  foreignName = Tagged "TVar"
-  foreignRef = Tagged Ty.tvarRef
-
-instance BuiltinForeign (Promise Val) where
-  foreignName = Tagged "Promise"
-  foreignRef = Tagged Ty.promiseRef
-
-instance BuiltinForeign (MutableArray s Val) where
-  foreignName = Tagged "MutableArray"
-  foreignRef = Tagged Ty.marrayRef
-
-instance BuiltinForeign (Array Val) where
-  foreignName = Tagged "Array"
-  foreignRef = Tagged Ty.iarrayRef
+  compare = compareVal False
 
 -- | A nulled out value you can use when filling empty arrays, etc.
 emptyVal :: Val
@@ -1466,11 +1462,11 @@ pokeOffBi stk i x = bpokeOff stk i (Foreign $ wrapBuiltin x)
 {-# INLINE pokeOffBi #-}
 
 peekBi :: (BuiltinForeign b) => Stack -> IO b
-peekBi stk = unwrapForeign . marshalToForeign <$> bpeek stk
+peekBi stk = marshalUnwrapForeignIO =<< bpeek stk
 {-# INLINE peekBi #-}
 
 peekOffBi :: (BuiltinForeign b) => Stack -> Int -> IO b
-peekOffBi stk i = unwrapForeign . marshalToForeign <$> bpeekOff stk i
+peekOffBi stk i = marshalUnwrapForeignIO =<< bpeekOff stk i
 {-# INLINE peekOffBi #-}
 
 peekBool :: Stack -> IO Bool
@@ -1490,16 +1486,15 @@ peekOffBool stk i = do
 {-# INLINE peekOffBool #-}
 
 peekOffS :: Stack -> Int -> IO USeq
-peekOffS stk i =
-  unwrapForeign . marshalToForeign <$> bpeekOff stk i
+peekOffS stk i = marshalUnwrapForeignIO =<< bpeekOff stk i
 {-# INLINE peekOffS #-}
 
 pokeS :: Stack -> USeq -> IO ()
-pokeS stk s = bpoke stk (Foreign $ Wrap Ty.listRef s)
+pokeS stk s = bpoke stk (Foreign $ WrapSeq s)
 {-# INLINE pokeS #-}
 
 pokeOffS :: Stack -> Int -> USeq -> IO ()
-pokeOffS stk i s = bpokeOff stk i (Foreign $ Wrap Ty.listRef s)
+pokeOffS stk i s = bpokeOff stk i (Foreign $ WrapSeq s)
 {-# INLINE pokeOffS #-}
 
 unull :: USeg
@@ -1559,9 +1554,8 @@ closureTermRefs f = \case
       UnboxedVal {} -> mempty
   (Captured k _ (_useg, bseg)) ->
     contTermRefs f k <> foldMap (closureTermRefs f) bseg
-  (Foreign fo)
-    | Just (cs :: USeq) <- maybeUnwrapForeign Ty.listRef fo ->
-        foldMap (\(Val _i clos) -> closureTermRefs f clos) cs
+  (Foreign (WrapSeq cs)) ->
+    foldMap (\(Val _i clos) -> closureTermRefs f clos) cs
   _ -> mempty
 
 contTermRefs :: (Monoid m) => (Reference -> m) -> K -> m
@@ -1593,55 +1587,38 @@ closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
 closureNum Affine {} = 6
 
-universalEq ::
-  Val ->
-  Val ->
-  Bool
-universalEq = eqVal
-  where
-    eql :: (a -> b -> Bool) -> [a] -> [b] -> Bool
-    eql cm l r = length l == length r && and (zipWith cm l r)
-    eqVal :: Val -> Val -> Bool
-    eqVal (UnboxedVal v1 t1) (UnboxedVal v2 t2) = matchUnboxedTypes t1 t2 && v1 == v2
-    eqVal (BoxedVal x) (BoxedVal y) = eqc x y
-    eqVal _ _ = False
-    eqc :: Closure -> Closure -> Bool
-    eqc (DataC _ ct1 [w1]) (DataC _ ct2 [w2]) =
-      matchTags ct1 ct2 && eqVal w1 w2
-    eqc (DataC _ ct1 vs1) (DataC _ ct2 vs2) =
-      ct1 == ct2
-        && eqValList vs1 vs2
-    eqc (PApV cix1 _ segs1) (PApV cix2 _ segs2) =
-      cix1 == cix2
-        && eqValList segs1 segs2
-    eqc (CapV k1 a1 vs1) (CapV k2 a2 vs2) =
-      eqK k1 k2
-        && a1 == a2
-        && eqValList vs1 vs2
-    eqc (Foreign fl) (Foreign fr)
-      | Just al <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fl,
-        Just ar <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fr =
-          arrayEq eqVal al ar
-      | Just sl <- maybeUnwrapForeign @(Seq Val) Ty.listRef fl,
-        Just sr <- maybeUnwrapForeign @(Seq Val) Ty.listRef fr =
-          length sl == length sr && and (Sq.zipWith eqVal sl sr)
-      | Just ml <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fl,
-        Just mr <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fr =
-          mapEq eqVal eqVal ml mr
-      | otherwise = fl == fr
-    eqc c d = closureNum c == closureNum d
+-- | The `Eq` instance for `Val` can’t be derived because you need to
+-- take into account the fact that if a `Val` is boxed, the unboxed side
+-- is garbage and should not be compared.
+instance Eq Val where
+  UnboxedVal v1 t1 == UnboxedVal v2 t2 =
+    matchUnboxedTypes t1 t2 && v1 == v2
+  BoxedVal x == BoxedVal y = x == y
+  _ == _ = False
 
-    eqValList :: [Val] -> [Val] -> Bool
-    eqValList vs1 vs2 = eql eqVal vs1 vs2
+instance Eq Closure where
+  DataC _ ct1 [w1] == DataC _ ct2 [w2] =
+    matchTags ct1 ct2 && w1 == w2
+  DataC _ ct1 vs1 == DataC _ ct2 vs2 =
+    ct1 == ct2 && eqValList vs1 vs2
+  PApV cix1 _ segs1 == PApV cix2 _ segs2 =
+    cix1 == cix2 && eqValList segs1 segs2
+  CapV k1 a1 vs1 == CapV k2 a2 vs2 =
+    k1 == k2 && a1 == a2 && eqValList vs1 vs2
+  Foreign fl == Foreign fr = fl == fr
+  c == d = closureNum c == closureNum d
 
-    eqK :: K -> K -> Bool
-    eqK KE KE = True
-    eqK (CB cb) (CB cb') = cb == cb'
-    eqK (Mark a ps m k) (Mark a' ps' m' k') =
-      a == a' && ps == ps' && liftEq eqVal m m' && eqK k k'
-    eqK (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') =
-      f == f' && a == a' && ci == ci' && eqK k k'
-    eqK _ _ = False
+instance Eq K where
+  KE == KE = True
+  CB cb == CB cb' = cb == cb'
+  Mark a ps m k == Mark a' ps' m' k' =
+    a == a' && ps == ps' && liftEq (==) m m' && k == k'
+  Push f a ci _ _ k == Push f' a' ci' _ _ k' =
+    f == f' && a == a' && ci == ci' && k == k'
+  _ == _ = False
+
+eqValList :: [Val] -> [Val] -> Bool
+eqValList l r = length l == length r && l == r
 
 -- IEEE floating point layout is such that comparison as integers
 -- somewhat works. Positive floating values map to positive integers
@@ -1674,152 +1651,115 @@ compareAsFloat i j
   where
     clear k = clearBit k 64
 
-universalCompare ::
-  Val ->
-  Val ->
-  Ordering
-universalCompare = cmpVal False
-  where
-    cmpVal :: Bool -> Val -> Val -> Ordering
-    cmpVal tyEq = \cases
-      (BoxedVal c1) (BoxedVal c2) -> cmpc tyEq c1 c2
-      (UnboxedVal {}) (BoxedVal {}) -> LT
-      (BoxedVal {}) (UnboxedVal {}) -> GT
-      (NatVal i) (NatVal j) -> compare i j
-      (UnboxedVal v1 t1) (UnboxedVal v2 t2) -> cmpUnboxed tyEq (t1, v1) (t2, v2)
-    cmpl :: (a -> b -> Ordering) -> [a] -> [b] -> Ordering
-    cmpl cm l r =
-      compare (length l) (length r) <> fold (zipWith cm l r)
-    cmpc :: Bool -> Closure -> Closure -> Ordering
-    cmpc tyEq = \cases
-      (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) ->
-        (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
-          <> compare (maskTags ct1) (maskTags ct2)
-          -- when comparing corresponding `Any` values, which have
-          -- existentials inside check that type references match
-          <> cmpValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
-      (PApV cix1 _ segs1) (PApV cix2 _ segs2) ->
-        compare cix1 cix2
-          <> cmpValList tyEq segs1 segs2
-      (CapV k1 a1 vs1) (CapV k2 a2 vs2) ->
-        cmpK tyEq k1 k2
-          <> compare a1 a2
-          <> cmpValList True vs1 vs2
-      (Foreign fl) (Foreign fr)
-        | Just sl <- maybeUnwrapForeign @(Seq Val) Ty.listRef fl,
-          Just sr <- maybeUnwrapForeign @(Seq Val) Ty.listRef fr ->
-            fold (Sq.zipWith (cmpVal tyEq) sl sr)
-              <> compare (length sl) (length sr)
-        | Just al <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fl,
-          Just ar <- maybeUnwrapForeign @(PA.Array Val) Ty.iarrayRef fr ->
-            arrayCmp (cmpVal tyEq) al ar
-        | Just ml <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fl,
-          Just mr <- maybeUnwrapForeign @(Map Val Val) Ty.hmapRef fr ->
-            mapCmp (cmpVal tyEq) (cmpVal tyEq) ml mr
-        | otherwise -> compare fl fr
-      (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
-      (BlackHole) (BlackHole) -> EQ
-      c d -> comparing closureNum c d
+compareVal :: Bool -> Val -> Val -> Ordering
+compareVal tyEq = \cases
+  (BoxedVal c1) (BoxedVal c2) -> compareClosure tyEq c1 c2
+  (UnboxedVal {}) (BoxedVal {}) -> LT
+  (BoxedVal {}) (UnboxedVal {}) -> GT
+  (NatVal i) (NatVal j) -> compare i j
+  (UnboxedVal v1 t1) (UnboxedVal v2 t2) ->
+    compareUnboxed tyEq (t1, v1) (t2, v2)
 
-    cmpUnboxed :: Bool -> (UnboxedTypeTag, Int) -> (UnboxedTypeTag, Int) -> Ordering
-    cmpUnboxed tyEq = \cases
-      -- Need to cast to Nat or else maxNat == -1 and it flips comparisons of large Nats.
-      -- TODO: Investigate whether bit-twiddling is faster than using Haskell's fromIntegral.
-      (IntTag, n1) (IntTag, n2) -> compare n1 n2
-      (NatTag, n1) (NatTag, n2) -> compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
-      (NatTag, n1) (IntTag, n2)
-        | n2 < 0 -> GT
-        | otherwise -> compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
-      (IntTag, n1) (NatTag, n2)
-        | n1 < 0 -> LT
-        | otherwise -> compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
-      (FloatTag, n1) (FloatTag, n2) -> compareAsFloat n1 n2
-      (t1, v1) (t2, v2) ->
-        Monoid.whenM tyEq (compare t1 t2)
-          <> compare v1 v2
+compareClosure :: Bool -> Closure -> Closure -> Ordering
+compareClosure tyEq = \cases
+  (DataC rf1 ct1 vs1) (DataC rf2 ct2 vs2) ->
+    (if tyEq && ct1 /= ct2 then compare rf1 rf2 else EQ)
+      <> compare (maskTags ct1) (maskTags ct2)
+      -- when comparing corresponding `Any` values, which have
+      -- existentials inside check that type references match
+      <> compareValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
+  (PApV cix1 _ segs1) (PApV cix2 _ segs2) ->
+    compare cix1 cix2
+      <> compareValList tyEq segs1 segs2
+  (CapV k1 a1 vs1) (CapV k2 a2 vs2) ->
+    compareK tyEq k1 k2
+      <> compare a1 a2
+      <> compareValList True vs1 vs2
+  (Foreign fl) (Foreign fr) -> compareForeign tyEq fl fr
+  (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
+  (BlackHole) (BlackHole) -> EQ
+  c d -> comparing closureNum c d
 
-    cmpValList :: Bool -> [Val] -> [Val] -> Ordering
-    cmpValList tyEq vs1 vs2 = cmpl (cmpVal tyEq) vs1 vs2
+compareUnboxed ::
+  Bool -> (UnboxedTypeTag, Int) -> (UnboxedTypeTag, Int) -> Ordering
+compareUnboxed tyEq = \cases
+  -- Need to cast to Nat or else maxNat == -1 and it flips comparisons
+  -- of large Nats.
+  --
+  -- TODO: Investigate whether bit-twiddling is faster than using
+  -- Haskell's fromIntegral.
+  (IntTag, n1) (IntTag, n2) -> compare n1 n2
+  (NatTag, n1) (NatTag, n2) ->
+    compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
+  (NatTag, n1) (IntTag, n2)
+    | n2 < 0 -> GT
+    | otherwise ->
+        compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
+  (IntTag, n1) (NatTag, n2)
+    | n1 < 0 -> LT
+    | otherwise ->
+        compare (fromIntegral n1 :: Word64) (fromIntegral n2 :: Word64)
+  (FloatTag, n1) (FloatTag, n2) -> compareAsFloat n1 n2
+  (t1, v1) (t2, v2) ->
+    Monoid.whenM tyEq (compare t1 t2) <> compare v1 v2
 
-    cmpK :: Bool -> K -> K -> Ordering
-    cmpK tyEq = \cases
-      KE KE -> EQ
-      (CB cb) (CB cb') -> compare cb cb'
-      (Mark a ps m k) (Mark a' ps' m' k') ->
-        compare a a'
-          <> compare ps ps'
-          <> liftCompare (cmpVal tyEq) m m'
-          <> cmpK tyEq k k'
-      (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') ->
-        compare f f'
-          <> compare a a'
-          <> compare ci ci'
-          <> cmpK tyEq k k'
-      KE _ -> LT
-      _ KE -> GT
-      (CB {}) _ -> LT
-      _ (CB {}) -> GT
-      (Mark {}) _ -> LT
-      _ (Mark {}) -> GT
-      (Local {}) _ -> error "compare K: captured Local frame"
-      _ (Local {}) -> error "compare K: captured Local frame"
-      (AMark {}) _ -> error "compare K: captured AMark frame"
-      _ (AMark {}) -> error "compare K: captured AMark frame"
+compareValList :: Bool -> [Val] -> [Val] -> Ordering
+compareValList tyEq l r =
+  compare (length l) (length r) <> fold (zipWith (compareVal tyEq) l r)
 
-arrayCmp ::
-  (a -> a -> Ordering) ->
-  PA.Array a ->
-  PA.Array a ->
-  Ordering
-arrayCmp cmpVal l r =
-  comparing PA.sizeofArray l r <> go (PA.sizeofArray l - 1)
-  where
-    go i
-      | i < 0 = EQ
-      | otherwise = cmpVal (PA.indexArray l i) (PA.indexArray r i) <> go (i - 1)
-
-arrayEq :: (a -> a -> Bool) -> PA.Array a -> PA.Array a -> Bool
-arrayEq eqc l r
-  | PA.sizeofArray l /= PA.sizeofArray r = False
-  | otherwise = go (PA.sizeofArray l - 1)
-  where
-    go i
-      | i < 0 = True
-      | otherwise = eqc (PA.indexArray l i) (PA.indexArray r i) && go (i - 1)
+compareK :: Bool -> K -> K -> Ordering
+compareK tyEq = \cases
+  KE KE -> EQ
+  (CB cb) (CB cb') -> compare cb cb'
+  (Mark a ps m k) (Mark a' ps' m' k') ->
+    compare a a'
+      <> compare ps ps'
+      <> liftCompare (compareVal tyEq) m m'
+      <> compareK tyEq k k'
+  (Push f a ci _ _sect k) (Push f' a' ci' _ _sect' k') ->
+    compare f f'
+      <> compare a a'
+      <> compare ci ci'
+      <> compareK tyEq k k'
+  KE _ -> LT
+  _ KE -> GT
+  (CB {}) _ -> LT
+  _ (CB {}) -> GT
+  (Mark {}) _ -> LT
+  _ (Mark {}) -> GT
+  (Local {}) _ -> error "compare K: captured Local frame"
+  _ (Local {}) -> error "compare K: captured Local frame"
+  (AMark {}) _ -> error "compare K: captured AMark frame"
+  _ (AMark {}) -> error "compare K: captured AMark frame"
 
 -- Note: these are not the same as the Data.Map Eq/Ord instances,
--- because the automatic derivations in unison doesn't consider
+-- because the automatic derivation in unison doesn't consider
 -- equivalent maps to be the same. It just checks the exact
 -- data structure.
-mapEq :: (k -> k -> Bool) -> (v -> v -> Bool) -> Map k v -> Map k v -> Bool
-mapEq _ _ Tip Tip = True
-mapEq ek ev (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
+mapEq :: Map Val Val -> Map Val Val -> Bool
+mapEq Tip Tip = True
+mapEq (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
   and
     [ szl == szr,
-      ek kl kr,
-      ev vl vr,
-      mapEq ek ev ll lr,
-      mapEq ek ev rl rr
+      kl == kr,
+      vl == vr,
+      mapEq ll lr,
+      mapEq rl rr
     ]
-mapEq _ _ _ _ = False
+mapEq _ _ = False
 
-mapCmp ::
-  (k -> k -> Ordering) ->
-  (v -> v -> Ordering) ->
-  Map k v ->
-  Map k v ->
-  Ordering
-mapCmp _ _ Tip Tip = EQ
-mapCmp ck cv (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
+mapCmp :: Bool -> Map Val Val -> Map Val Val -> Ordering
+mapCmp _tyEq Tip Tip = EQ
+mapCmp tyEq (Bin szl kl vl ll rl) (Bin szr kr vr lr rr) =
   fold
     [ compare szl szr,
-      ck kl kr,
-      cv vl vr,
-      mapCmp ck cv ll lr,
-      mapCmp ck cv rl rr
+      compareVal tyEq kl kr,
+      compareVal tyEq vl vr,
+      mapCmp tyEq ll lr,
+      mapCmp tyEq rl rr
     ]
-mapCmp _ _ Tip Bin {} = compare mapTip mapBin
-mapCmp _ _ Bin {} Tip = compare mapBin mapTip
+mapCmp _ Tip Bin {} = compare mapTip mapBin
+mapCmp _ Bin {} Tip = compare mapBin mapTip
 
 -- serialization doesn't necessarily preserve Int tags, so be
 -- more accepting for those.
@@ -1856,3 +1796,562 @@ deflateMap (DataC _ t [NatVal sz, k, v, BoxedVal l, BoxedVal r])
   | t == TT.mapBinTag =
       Bin (fromIntegral sz) k v <$> deflateMap l <*> deflateMap r
 deflateMap _ = Nothing
+
+
+-- ------------------------------
+-- 'Foreign' value implementation
+-- ------------------------------
+
+-- Disjoint union of wraped Haskell values. Originally this was going to
+-- be an existential type to enable extensibility, but that never
+-- materialized, and a big bunch of cases facilitates some nicer behavior.
+data Foreign
+  = WrapArray !(Array Val)
+  | WrapByteArray !ByteArray
+  | WrapBytes !Bytes
+  | WrapCDynFunc !CDynFunc
+  | WrapCPattern !CPattern
+  | WrapCharPattern !CharPattern
+  | WrapCode !(Referenced Code)
+  | WrapClientSockAddr !ClientSockAddr
+  | WrapDLL !DLL
+  | WrapFFISpec !FFSpec
+  | WrapFFIType !FFType
+  | WrapHandle !Handle
+  | WrapHashAlgorithm !HashAlgorithm
+  | WrapIORef !(IORef Val)
+  | WrapInteger !Integer
+  | WrapListenSocket !ListenSocket
+  | WrapMap !(Map Val Val)
+  | WrapMutableByteArray !(MutableByteArray RealWorld)
+  | WrapMutableArray !(MutableArray RealWorld Val)
+  | WrapMVar !(MVar Val)
+  | WrapNatural !Natural
+  | WrapProcessHandle !ProcessHandle
+  | WrapPromise !(Promise Val)
+  | WrapReference !Reference
+  | WrapReferent !Referent
+  | WrapSeq !(Seq Val)
+  | WrapSocket !Socket
+  | WrapText !U.Text
+  | WrapThreadId !ThreadId
+  | WrapTicket !(Atomic.Ticket Val)
+  | WrapTimeSpec !TimeSpec
+  | WrapTlsClientParams !TLS.ClientParams
+  | WrapTlsServerParams !TLS.ServerParams
+  | WrapTls !Tls
+  | WrapTVar !(TVar Val)
+  | WrapUDPSocket !UDPSocket
+  | WrapValue !(Referenced Value)
+  | WrapX509PrivKey !X509.PrivKey
+  | WrapX509SignedCertificate !X509.SignedCertificate
+
+-- Convenience class for (un)wrapping Haskell values automatically
+class BuiltinForeign f where
+  builtinName :: Tagged f String
+  wrapBuiltin :: f -> Foreign
+  maybeUnwrapBuiltin :: Foreign -> Maybe f
+
+foreignRef :: Foreign -> Reference
+foreignRef WrapArray {} = Ty.iarrayRef
+foreignRef WrapByteArray {} = Ty.ibytearrayRef
+foreignRef WrapBytes {} = Ty.bytesRef
+foreignRef WrapCDynFunc {} = Ty.ffiFuncRef
+foreignRef WrapCPattern {} = Ty.patternRef
+foreignRef WrapCharPattern {} = Ty.charClassRef
+foreignRef WrapCode {} = Ty.codeRef
+foreignRef WrapClientSockAddr {} = Ty.udpClientSockAddrRef
+foreignRef WrapDLL {} = Ty.ffiDllRef
+foreignRef WrapFFISpec {} = Ty.ffiSpecRef
+foreignRef WrapFFIType {} = Ty.ffiTypeRef
+foreignRef WrapHandle {} = Ty.fileHandleRef
+foreignRef WrapHashAlgorithm {} = Ty.hashAlgorithmRef
+foreignRef WrapIORef {} = Ty.refRef
+foreignRef WrapInteger {} = Ty.integerRef
+foreignRef WrapListenSocket {} = Ty.udpListenSocketRef
+foreignRef WrapMap {} = Ty.hmapRef
+foreignRef WrapMutableByteArray {} = Ty.mbytearrayRef
+foreignRef WrapMutableArray {} = Ty.marrayRef
+foreignRef WrapMVar {} = Ty.mvarRef
+foreignRef WrapNatural {} = Ty.naturalRef
+foreignRef WrapProcessHandle {} = Ty.processHandleRef
+foreignRef WrapPromise {} = Ty.promiseRef
+foreignRef WrapReference {} = Ty.typeLinkRef
+foreignRef WrapReferent {} = Ty.termLinkRef
+foreignRef WrapSeq {} = Ty.listRef
+foreignRef WrapSocket {} = Ty.socketRef
+foreignRef WrapText {} = Ty.textRef
+foreignRef WrapThreadId {} = Ty.threadIdRef
+foreignRef WrapTicket {} = Ty.ticketRef
+foreignRef WrapTimeSpec {} = Ty.timeSpecRef
+foreignRef WrapTlsClientParams {} = Ty.tlsClientConfigRef
+foreignRef WrapTlsServerParams {} = Ty.tlsServerConfigRef
+foreignRef WrapTls {} = Ty.tlsRef
+foreignRef WrapTVar {} = Ty.tvarRef
+foreignRef WrapUDPSocket {} = Ty.udpSocketRef
+foreignRef WrapValue {} = Ty.valueRef
+foreignRef WrapX509PrivKey {} = Ty.tlsPrivateKeyRef
+foreignRef WrapX509SignedCertificate {} = Ty.tlsSignedCertRef
+
+foreignName :: Foreign -> String
+foreignName WrapArray {} = "Array"
+foreignName WrapByteArray {} = "ByteArray"
+foreignName WrapBytes {} = "Bytes"
+foreignName WrapCDynFunc {} = "DLL.Func"
+foreignName WrapCPattern {} = "CPattern"
+foreignName WrapCharPattern {} = "CharPattern"
+foreignName WrapCode {} = "Code"
+foreignName WrapClientSockAddr {} = "ClientSockAddr"
+foreignName WrapDLL {} = "DLL"
+foreignName WrapFFIType {} = "FFI.Type"
+foreignName WrapFFISpec {} = "FFI.Spec"
+foreignName WrapHandle {} = "Handle"
+foreignName WrapHashAlgorithm {} = "HashAlgorithm"
+foreignName WrapIORef {} = "IORef"
+foreignName WrapInteger {} = "Integer"
+foreignName WrapListenSocket {} = "ListenSocket"
+foreignName WrapMap {} = "Map"
+foreignName WrapMutableByteArray {} = "MutableByteArray"
+foreignName WrapMutableArray {} = "MutableArray"
+foreignName WrapMVar {} = "MVar"
+foreignName WrapNatural {} = "Natural"
+foreignName WrapProcessHandle {} = "ProcessHandle"
+foreignName WrapPromise {} = "Promise"
+foreignName WrapReference {} = "Reference"
+foreignName WrapReferent {} = "Referent"
+foreignName WrapSeq {} = "Seq"
+foreignName WrapSocket {} = "Socket"
+foreignName WrapText {} = "Text"
+foreignName WrapThreadId {} = "ThreadId"
+foreignName WrapTicket {} = "Ticket"
+foreignName WrapTimeSpec {} = "TimeSpec"
+foreignName WrapTlsClientParams {} = "ClientParams"
+foreignName WrapTlsServerParams {} = "ServerParams"
+foreignName WrapTls {} = "Tls"
+foreignName WrapTVar {} = "TVar"
+foreignName WrapUDPSocket {} = "UDPSocket"
+foreignName WrapValue {} = "Value"
+foreignName WrapX509PrivKey {} = "X509.PrivKey"
+foreignName WrapX509SignedCertificate {} = "X509.SignedCertificate"
+
+-- Gets a number corresponding to the foreign constructor. Should just
+-- be used for testing whether two values have the same or distinct
+-- constructors.
+foreignId :: Foreign -> Int
+foreignId f = I# (dataToTag# f)
+
+ptrEq :: a -> a -> Bool
+ptrEq x y =
+  unsafePerformIO $ do
+    sn1 <- makeStableName $! x
+    sn2 <- makeStableName $! y
+    return (sn1 == sn2)
+
+instance Eq Foreign where
+  WrapArray l == WrapArray r = l == r
+  WrapText l == WrapText r = l == r
+  WrapReferent l == WrapReferent r = l == r
+  WrapReference l == WrapReference r = l == r
+  WrapBytes l == WrapBytes r = l == r
+  WrapMVar l == WrapMVar r = l == r
+  WrapSeq l == WrapSeq r = l == r
+  WrapTVar l == WrapTVar r = l == r
+  WrapSocket l == WrapSocket r = l == r
+  WrapTls (Tls l _) == WrapTls (Tls r _) = l == r
+  WrapUDPSocket l == WrapUDPSocket r = l == r
+  WrapIORef l == WrapIORef r = l == r
+  WrapThreadId l == WrapThreadId r = l == r
+  WrapMap l == WrapMap r = mapEq l r
+  WrapMutableArray l == WrapMutableArray r = l == r
+  WrapMutableByteArray l == WrapMutableByteArray r = l == r
+  WrapByteArray l == WrapByteArray r = l == r
+  WrapCPattern l == WrapCPattern r = l == r
+  WrapCharPattern l == WrapCharPattern r = l == r
+  WrapCode l == WrapCode r = dereference l == dereference r
+  WrapInteger l == WrapInteger r = l == r
+  WrapNatural l == WrapNatural r = l == r
+  WrapX509SignedCertificate l == WrapX509SignedCertificate r = l == r
+  WrapListenSocket l == WrapListenSocket r = l == r
+  WrapClientSockAddr l == WrapClientSockAddr r = l == r
+  WrapHandle l == WrapHandle r = l == r
+  WrapHashAlgorithm l == WrapHashAlgorithm r = ptrEq l r
+  WrapTicket l == WrapTicket r = l == r
+  WrapTimeSpec l == WrapTimeSpec r = l == r
+  WrapX509PrivKey l == WrapX509PrivKey r = l == r
+  -- these lack Eq instances
+  WrapProcessHandle l == WrapProcessHandle r = ptrEq l r
+  WrapPromise l == WrapPromise r = ptrEq l r
+  WrapTlsClientParams l == WrapTlsClientParams r = ptrEq l r
+  WrapTlsServerParams l == WrapTlsServerParams r = ptrEq l r
+  WrapValue l == WrapValue r = ptrEq l r
+  l == r =
+    error $
+      "Attempting to check equality of values of different types: "
+        <> "`" <> foreignName l <> "` vs `" <> foreignName r <> "`"
+
+compareForeign :: Bool -> Foreign -> Foreign -> Ordering
+compareForeign _tyEq (WrapText l) (WrapText r) = compare l r
+compareForeign _tyEq (WrapReference l) (WrapReference r) = compare l r
+compareForeign _tyEq (WrapReferent l) (WrapReferent r) = compare l r
+compareForeign _tyEq (WrapBytes l) (WrapBytes r) = compare l r
+compareForeign _tyEq (WrapThreadId l) (WrapThreadId r) = compare l r
+compareForeign _tyEq (WrapByteArray l) (WrapByteArray r) = compare l r
+compareForeign _tyEq (WrapCPattern l) (WrapCPattern r) = compare l r
+compareForeign _tyEq (WrapCharPattern l) (WrapCharPattern r) = compare l r
+compareForeign _tyEq (WrapInteger l) (WrapInteger r) = compare l r
+compareForeign _tyEq (WrapNatural l) (WrapNatural r) = compare l r
+compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
+compareForeign tyEq (WrapSeq l) (WrapSeq r) =
+  liftCompare (compareVal tyEq) l r
+compareForeign tyEq (WrapArray l) (WrapArray r) =
+  liftCompare (compareVal tyEq) l r
+compareForeign _tyEq l r
+  | foreignId l == foreignId r =
+      error $
+        "Do not know how to compare values of type: "
+          <> foreignName l
+  | otherwise =
+      error $
+        "Attempting to compare two values of different types: `"
+          <> foreignName l <> "` vs `" <> foreignName r <> "`"
+
+instance Ord Foreign where
+  compare = compareForeign False
+
+instance Show Foreign where
+  showsPrec p f =
+    showParen (p > 9) $
+      showString "Wrap " .
+      showString (foreignName f) .
+      showString " " .
+      case f of
+        WrapText t -> shows t
+        _ -> showString "_"
+
+instance BuiltinForeign U.Text where
+  builtinName = Tagged "Text"
+  wrapBuiltin = WrapText
+  maybeUnwrapBuiltin = \case
+    WrapText v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Bytes where
+  builtinName = Tagged "Bytes"
+  wrapBuiltin = WrapBytes
+  maybeUnwrapBuiltin = \case
+    WrapBytes v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Handle where
+  builtinName = Tagged "Handle"
+  wrapBuiltin = WrapHandle
+  maybeUnwrapBuiltin = \case
+    WrapHandle v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign ProcessHandle where
+  builtinName = Tagged "ProcessHandle"
+  wrapBuiltin = WrapProcessHandle
+  maybeUnwrapBuiltin = \case
+    WrapProcessHandle v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+-- | Note: References are assumed to be type links
+instance BuiltinForeign Reference where
+  builtinName = Tagged "Reference"
+  wrapBuiltin = WrapReference
+  maybeUnwrapBuiltin = \case
+    WrapReference v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Referent where
+  builtinName = Tagged "Referent"
+  wrapBuiltin = WrapReferent
+  maybeUnwrapBuiltin = \case
+    WrapReferent v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Socket where
+  builtinName = Tagged "Socket"
+  wrapBuiltin = WrapSocket
+  maybeUnwrapBuiltin = \case
+    WrapSocket v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign ListenSocket where
+  builtinName = Tagged "ListenSocket"
+  wrapBuiltin = WrapListenSocket
+  maybeUnwrapBuiltin = \case
+    WrapListenSocket v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign ClientSockAddr where
+  builtinName = Tagged "ClientSockAddr"
+  wrapBuiltin = WrapClientSockAddr
+  maybeUnwrapBuiltin = \case
+    WrapClientSockAddr v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign UDPSocket where
+  builtinName = Tagged "UDPSocket"
+  wrapBuiltin = WrapUDPSocket
+  maybeUnwrapBuiltin = \case
+    WrapUDPSocket v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign ThreadId where
+  builtinName = Tagged "ThreadId"
+  wrapBuiltin = WrapThreadId
+  maybeUnwrapBuiltin = \case
+    WrapThreadId v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign TLS.ClientParams where
+  builtinName = Tagged "ClientParams"
+  wrapBuiltin = WrapTlsClientParams
+  maybeUnwrapBuiltin = \case
+    WrapTlsClientParams v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign TLS.ServerParams where
+  builtinName = Tagged "ServerParams"
+  wrapBuiltin = WrapTlsServerParams
+  maybeUnwrapBuiltin = \case
+    WrapTlsServerParams v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign X509.SignedCertificate where
+  builtinName = Tagged "X509.SignedCertificate"
+  wrapBuiltin = WrapX509SignedCertificate
+  maybeUnwrapBuiltin = \case
+    WrapX509SignedCertificate v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign X509.PrivKey where
+  builtinName = Tagged "X509.PrivKey"
+  wrapBuiltin = WrapX509PrivKey
+  maybeUnwrapBuiltin = \case
+    WrapX509PrivKey v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Tls where
+  builtinName = Tagged "Tls"
+  wrapBuiltin = WrapTls
+  maybeUnwrapBuiltin = \case
+    WrapTls v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Referenced Code) where
+  builtinName = Tagged "Code"
+  wrapBuiltin = WrapCode
+  maybeUnwrapBuiltin = \case
+    WrapCode v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Referenced Value) where
+  builtinName = Tagged "Value"
+  wrapBuiltin = WrapValue
+  maybeUnwrapBuiltin = \case
+    WrapValue v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign TimeSpec where
+  builtinName = Tagged "TimeSpec"
+  wrapBuiltin = WrapTimeSpec
+  maybeUnwrapBuiltin = \case
+    WrapTimeSpec v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (MutableByteArray RealWorld) where
+  builtinName = Tagged "MutableByteArray"
+  wrapBuiltin = WrapMutableByteArray
+  maybeUnwrapBuiltin = \case
+    WrapMutableByteArray v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign ByteArray where
+  builtinName = Tagged "ByteArray"
+  wrapBuiltin = WrapByteArray
+  maybeUnwrapBuiltin = \case
+    WrapByteArray v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Integer where
+  builtinName = Tagged "Integer"
+  wrapBuiltin = WrapInteger
+  maybeUnwrapBuiltin = \case
+    WrapInteger v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign Natural where
+  builtinName = Tagged "Natural"
+  wrapBuiltin = WrapNatural
+  maybeUnwrapBuiltin = \case
+    WrapNatural v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign DLL where
+  builtinName = Tagged "DLL"
+  wrapBuiltin = WrapDLL
+  maybeUnwrapBuiltin = \case
+    WrapDLL v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Seq Val) where
+  builtinName = Tagged "Seq"
+  wrapBuiltin = WrapSeq
+  maybeUnwrapBuiltin = \case
+    WrapSeq v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Map Val Val) where
+  builtinName = Tagged "Map"
+  wrapBuiltin = WrapMap
+  maybeUnwrapBuiltin = \case
+    WrapMap v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (IORef Val) where
+  builtinName = Tagged "IORef"
+  wrapBuiltin = WrapIORef
+  maybeUnwrapBuiltin = \case
+    WrapIORef v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Atomic.Ticket Val) where
+  builtinName = Tagged "Ticket"
+  wrapBuiltin = WrapTicket
+  maybeUnwrapBuiltin = \case
+    WrapTicket v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (MVar Val) where
+  builtinName = Tagged "MVar"
+  wrapBuiltin = WrapMVar
+  maybeUnwrapBuiltin = \case
+    WrapMVar v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (TVar Val) where
+  builtinName = Tagged "TVar"
+  wrapBuiltin = WrapTVar
+  maybeUnwrapBuiltin = \case
+    WrapTVar v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Promise Val) where
+  builtinName = Tagged "Promise"
+  wrapBuiltin = WrapPromise
+  maybeUnwrapBuiltin = \case
+    WrapPromise v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (MutableArray RealWorld Val) where
+  builtinName = Tagged "MutableArray"
+  wrapBuiltin = WrapMutableArray
+  maybeUnwrapBuiltin = \case
+    WrapMutableArray v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Array Val) where
+  builtinName = Tagged "Array"
+  wrapBuiltin = WrapArray
+  maybeUnwrapBuiltin = \case
+    WrapArray v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+data HashAlgorithm where
+  -- Reference is a reference to the hash algorithm
+  HashAlgorithm :: (Hash.HashAlgorithm a) => Reference -> a -> HashAlgorithm
+
+data Tls = Tls
+  { socket :: Socket,
+    context :: TLS.Context
+  }
+
+instance Eq Tls where
+  Tls s1 _ == Tls s2 _ = s1 == s2
+
+data Failure a = Failure Reference U.Text a
+
+instance BuiltinForeign HashAlgorithm where
+  builtinName = Tagged "HashAlgorithm"
+  wrapBuiltin = WrapHashAlgorithm
+  maybeUnwrapBuiltin = \case
+    WrapHashAlgorithm v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign CPattern where
+  builtinName = Tagged "CPattern"
+  wrapBuiltin = WrapCPattern
+  maybeUnwrapBuiltin = \case
+    WrapCPattern v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign CharPattern where
+  builtinName = Tagged "CharPattern"
+  wrapBuiltin = WrapCharPattern
+  maybeUnwrapBuiltin = \case
+    WrapCharPattern v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign FFType where
+  builtinName = Tagged "FFI.Type"
+  wrapBuiltin = WrapFFIType
+  maybeUnwrapBuiltin = \case
+    WrapFFIType v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign FFSpec where
+  builtinName = Tagged "FFI.Spec"
+  wrapBuiltin = WrapFFISpec
+  maybeUnwrapBuiltin = \case
+    WrapFFISpec v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign CDynFunc where
+  builtinName = Tagged "DLL.Func"
+  wrapBuiltin = WrapCDynFunc
+  maybeUnwrapBuiltin = \case
+    WrapCDynFunc v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
