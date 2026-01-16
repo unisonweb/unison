@@ -65,6 +65,8 @@ roots = [
     '''^Unison\.Auth\.CredentialManager\.getCodeserverCredentials$''',
     '''^Unison\.Auth\.CredentialManager\.getOrCreatePersonalKey$''',
     '''^Unison\.Auth\.CredentialManager\.isExpired$''',
+    '''^Unison\.Auth\.CredentialManager\.getCredentials$''',
+    '''^Unison\.Auth\.CredentialManager\.newCredentialManager$''',
     '''^Unison\.Auth\.Types\.emptyCredentials$''',
     '''^Unison\.Auth\.Types\.Code$''',
     '''^Unison\.Auth\.Types\.OAuthState$''',
