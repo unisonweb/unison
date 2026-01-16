@@ -49,8 +49,8 @@ syncHistoryCommentsEnvKey = "UNISON_SYNC_HISTORY_COMMENTS"
 shouldSyncHistoryComments :: Bool
 shouldSyncHistoryComments = unsafePerformIO $ do
   lookupEnv syncHistoryCommentsEnvKey <&> \case
-    Just "false" -> False
-    _ -> True
+    Just "true" -> True
+    _ -> False
 {-# NOINLINE shouldSyncHistoryComments #-}
 
 uploadHistoryComments ::
