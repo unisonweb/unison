@@ -3128,8 +3128,8 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
 --      unison type. These last two steps ensure that sending
 --      values between machines doesn't need to know anything about
 --      replacements.
---   7. Implement `universalCompare` and `universalEq` cases for
---      the builtin values.
+--   7. Implement `Eq` and `Ord` cases for the builtin values in the
+--      `Foreign` instances in `Unison.Runtime.Stack`.
 --   8. Add a case in `Unison.Runtime.Decompile` to decompile the
 --      builtin values as the original unison values.
 --
