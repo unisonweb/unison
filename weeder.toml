@@ -56,6 +56,34 @@ roots = [
     '''^Unison\.Debug\.[^\.]+$''',
     '''^Unison\.Runtime\.Debug\.[^\.]+$''',
 
+    ## Share API – used by the Share server and CLI.
+    '''^Unison\.Auth\.CredentialFile\.atomicallyModifyCredentialsFile$''',
+    '''^Unison.Share.Types\.[^\.]+$''',
+    '''^Unison\.Auth\.CredentialManager\.saveCredentials$''',
+    '''^Unison\.Auth\.CredentialManager\.CredentialManager$''',
+    '''^Unison\.Auth\.CredentialManager\.globalCredentialManager$''',
+    '''^Unison\.Auth\.CredentialManager\.getCodeserverCredentials$''',
+    '''^Unison\.Auth\.CredentialManager\.getOrCreatePersonalKey$''',
+    '''^Unison\.Auth\.CredentialManager\.isExpired$''',
+    '''^Unison\.Auth\.CredentialManager\.getCredentials$''',
+    '''^Unison\.Auth\.CredentialManager\.newCredentialManager$''',
+    '''^Unison\.Auth\.Types\.emptyCredentials$''',
+    '''^Unison\.Auth\.Types\.Code$''',
+    '''^Unison\.Auth\.Types\.OAuthState$''',
+    '''^Unison\.Auth\.Types\.PKCEVerifier$''',
+    '''^Unison\.Auth\.Types\.PKCEChallenge$''',
+    '''^Unison\.Auth\.Types\.codeserverCredentials$''',
+    '''^Unison\.Auth\.Types\.getCodeserverCredentials$''',
+    '''^Unison\.Auth\.Types\.setCodeserverCredentials$''',
+    '''^Unison\.Auth\.Types\.codeserverFromURI$''',
+    '''^Unison\.Auth\.Types\.codeserverIdFromURI$''',
+    '''^Unison\.Auth\.Types\.codeserverIdFromURIAuth$''',
+    '''^Unison\.Auth\.Types\.codeserverIdFromCodeserverURI$''',
+    '''^Unison\.Auth\.Types\.codeserverBaseURL$''',
+    '''^Unison\.Server\.HistoryComments\.API.api$''',
+    '''^Unison\.Server\.HistoryComments\.API.API$''',
+    '''^Unison\.Server\.HistoryComments\.API.Routes$''',
+
     ## Entries below here have been grandfathered in and should be reviewed.
     '''^U\.Codebase\.Branch\.Type\.hoist$''',
     '''^U\.Codebase\.Branch\.Type\.hoistCausalBranch$''',
@@ -861,6 +889,8 @@ roots = [
     '''^Unison\.Test\.Ucm\.deleteCodebase$''',
     '''^Unison\.Test\.UriParser\.mkPath$''',
     '''^Unison\.Test\.UriParser\.sch$''',
+    '''^Unison\.Auth\.PersonalKey\.publicKey$''',
+    '''^Unison\.Auth\.PersonalKey\.verifyWithPersonalKey$''',
 ]
 type-class-roots = true
 unused-types = true

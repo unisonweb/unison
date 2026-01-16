@@ -17,6 +17,7 @@ library:
     - bytestring
     - cborg
     - containers
+    - conduit
     - Diff
     - directory
     - errors
@@ -26,10 +27,12 @@ library:
     - hs-mcp
     - http-media
     - http-types
+    - ki-unlifted
     - lens
     - lucid
     - memory
     - mtl
+    - network
     - nonempty-containers
     - openapi3
     - regex-tdfa
@@ -38,7 +41,10 @@ library:
     - servant-docs
     - servant-openapi3
     - servant-server
+    - servant-websockets
+    - stm-chans
     - text
+    - time
     - transformers
     - unison-codebase
     - unison-codebase-sqlite
@@ -63,8 +69,10 @@ library:
     - utf8-string
     - vector
     - wai
+    - websockets
     - wai-cors
     - warp
+    - wuss
     - yaml
 
 tests:

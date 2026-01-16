@@ -2,7 +2,6 @@ module Unison.Codebase.Editor.HandleInput.History (handleHistory) where
 
 import Data.Map qualified as Map
 import U.Codebase.HashTags
-import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Queries qualified as Q
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -14,6 +13,7 @@ import Unison.Codebase.Causal qualified as Causal
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Path (Path')
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..), LatestHistoryComment)
 import Unison.NamesWithHistory qualified as Names
 import Unison.Prelude
 
@@ -30,7 +30,7 @@ handleHistory resultsCap diffCap from = do
   history <- doHistory schLength 0 branch []
   Cli.respondNumbered history
   where
-    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe (HistoryComment () ()), Names.Diff)] -> Cli.Cli NumberedOutput
+    doHistory :: Int -> Int -> Branch IO -> [(CausalHash, Maybe (LatestHistoryComment () () () ()), Names.Diff)] -> Cli.Cli NumberedOutput
     doHistory schLength !n b acc =
       if maybe False (n >=) resultsCap
         then do
@@ -49,8 +49,10 @@ handleHistory resultsCap diffCap from = do
             mayComment <- getComment causalHash
             let elem = (causalHash, mayComment, Branch.namesDiff b' b)
             doHistory schLength (n + 1) b' (elem : acc)
-    getComment :: CausalHash -> Cli.Cli (Maybe (HistoryComment () ()))
+    getComment :: CausalHash -> Cli.Cli (Maybe (LatestHistoryComment () () () ()))
     getComment ch = Cli.runTransaction $ do
       causalHashId <- Q.expectCausalHashIdByCausalHash ch
       Q.getLatestCausalComment causalHashId
-        <&> fmap \hc -> hc {causal = (), commentId = ()}
+        <&> fmap \hcr ->
+          let comment = hcr.comment {authorThumbprint = (), causal = (), commentId = ()}
+           in hcr {comment = comment, revisionId = ()}

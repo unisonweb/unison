@@ -1,11 +1,15 @@
 module Unison.Codebase.Editor.HandleInput.HistoryComment (handleHistoryComment) where
 
+import Control.Monad.Reader
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
+import Data.Time.Clock.POSIX qualified as Time
 import Text.RawString.QQ (r)
 import U.Codebase.Config qualified as Config
-import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
+import U.Codebase.HashTags
 import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Auth.CredentialManager qualified as CredMan
+import Unison.Auth.PersonalKey qualified as PK
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
@@ -16,6 +20,12 @@ import Unison.Codebase.Editor.Output (Output (..))
 import Unison.Codebase.Path qualified as Path
 import Unison.CommandLine.BranchRelativePath (BranchRelativePath (..))
 import Unison.Core.Project (ProjectAndBranch (..))
+import Unison.Hash qualified as Hash
+import Unison.Hashing.V2
+  ( hashHistoryComment,
+    hashHistoryCommentRevision,
+  )
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..))
 import Unison.Prelude
 import UnliftIO qualified
 import UnliftIO.Directory (findExecutable)
@@ -24,10 +34,16 @@ import UnliftIO.Process qualified as Proc
 
 handleHistoryComment :: Maybe BranchId2 -> Maybe Text -> Cli ()
 handleHistoryComment mayThingToAnnotate mayMessage = do
-  authorName <-
-    Cli.runTransaction Q.getAuthorName >>= \case
-      Nothing -> Cli.returnEarly $ AuthorNameRequired
-      Just authorName -> pure authorName
+  Cli.Env {credentialManager} <- ask
+  personalKey <- liftIO (CredMan.getOrCreatePersonalKey credentialManager)
+  let authorThumbprint = PK.personalKeyThumbprint personalKey
+  mayAuthorName <-
+    Cli.runTransaction do
+      authorName <- Q.getAuthorName
+      pure (authorName)
+  authorName <- case mayAuthorName of
+    Nothing -> Cli.returnEarly $ AuthorNameRequired
+    Just authorName -> pure authorName
   causalHash <- case mayThingToAnnotate of
     Nothing -> do
       Branch.headHash <$> Cli.getCurrentProjectRoot
@@ -55,7 +71,7 @@ handleHistoryComment mayThingToAnnotate mayMessage = do
       pure $ Just (subject, content)
     Nothing -> do
       let populatedMsg = fromMaybe commentInstructions $ do
-            HistoryComment {subject, content} <- mayHistoryComment
+            HistoryCommentRevision {subject, content} <- mayHistoryComment
             pure $ Text.unlines [subject, "", content, commentInstructions]
       mayNewMessage <- liftIO (editMessage (Just populatedMsg))
       case mayNewMessage of
@@ -63,8 +79,39 @@ handleHistoryComment mayThingToAnnotate mayMessage = do
         Just (subject, content) -> pure $ Just (subject, content)
   case maySubjectContent of
     Just (subject, content) -> do
-      let historyComment = HistoryComment {author = Config.unAuthorName authorName, subject, content, commentId = (), causal = causalHashId}
-      Cli.runTransaction $ Q.commentOnCausal historyComment
+      createdAt <- liftIO $ Time.getCurrentTime
+      let historyComment =
+            hashHistoryComment $
+              HistoryComment
+                { author =
+                    Config.unAuthorName authorName,
+                  commentId = (),
+                  causal = causalHash,
+                  createdAt,
+                  authorThumbprint
+                }
+      let historyCommentRevision =
+            hashHistoryCommentRevision $
+              HistoryCommentRevision
+                { revisionId = (),
+                  subject,
+                  content,
+                  createdAt,
+                  -- Hard coded for now, we can change this later if we want to support hiding comments
+                  isHidden = False,
+                  authorSignature = "",
+                  comment = historyComment.commentId
+                }
+      let historyComment' = historyComment {causal = causalHashId}
+      let historyCommentRevisionHashBytes =
+            historyCommentRevision.revisionId
+              & unHistoryCommentRevisionHash
+              & Hash.toByteString
+      PK.PersonalKeySignature authorSignature <-
+        PK.signWithPersonalKey personalKey historyCommentRevisionHashBytes >>= \case
+          Left err -> Cli.returnEarly $ CommentFailed (Text.pack (show err))
+          Right sig -> pure sig
+      Cli.runTransaction $ Q.commentOnCausal $ historyCommentRevision {comment = historyComment', authorSignature = authorSignature}
       Cli.respond $ CommentedSuccessfully
     Nothing -> Cli.respond $ CommentAborted
   where

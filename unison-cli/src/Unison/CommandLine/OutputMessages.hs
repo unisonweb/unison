@@ -43,7 +43,6 @@ import U.Codebase.Config qualified as Config
 import U.Codebase.HashTags (CausalHash (..))
 import U.Codebase.Reference (TermReferenceId, TypeReferenceId)
 import U.Codebase.Reference qualified as Reference
-import U.Codebase.Sqlite.HistoryComment (HistoryComment (..))
 import U.Codebase.Sqlite.Project (Project (..))
 import U.Codebase.Sqlite.ProjectBranch (ProjectBranch (..))
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -95,6 +94,7 @@ import Unison.Hash qualified as Hash
 import Unison.Hash32 (Hash32)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.HistoryComment (HistoryComment (..), HistoryCommentRevision (..), LatestHistoryComment)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.LabeledDependency qualified as LD
 import Unison.Merge (GUpdated (..), TwoWay (..))
@@ -310,10 +310,10 @@ notifyNumbered = \case
       reversedHistory = reverse history
       showNum :: Int -> Pretty
       showNum n = P.shown n <> ". "
-      displayComment :: Bool -> Maybe (HistoryComment () ()) -> [Pretty]
+      displayComment :: Bool -> Maybe (LatestHistoryComment () () () ()) -> [Pretty]
       displayComment prefixSpacer mayComment = case mayComment of
         Nothing -> []
-        Just (HistoryComment {author, subject, content}) ->
+        Just (HistoryCommentRevision {comment = HistoryComment {author}, subject, content}) ->
           Monoid.whenM prefixSpacer [""]
             <> [(P.text "⊙ " <> P.bold (P.text author))]
             <> [ P.indent (P.blue "  ┃ ") (P.text subject)
@@ -2888,9 +2888,10 @@ notifyUser dir issueFn = \case
       prettyMain :: Pretty
       prettyMain =
         prettyName main
-  InvalidCommentTarget msg -> pure (P.wrap $ "Annotation failed, " <> P.text msg)
+  InvalidCommentTarget msg -> pure (P.wrap $ "Comment failed, " <> P.text msg)
   CommentedSuccessfully -> pure $ P.bold "Done."
-  CommentAborted -> pure (P.wrap "Annotation aborted.")
+  CommentAborted -> pure (P.wrap "Comment aborted.")
+  CommentFailed err -> pure (P.fatalCallout $ P.wrap $ "Comment failed, " <> P.text err)
   AuthorNameRequired ->
     pure $
       P.hang "Please configure your a display name for your user." $

@@ -38,19 +38,12 @@ import Data.Text qualified as Text
 import Data.Word (Word16, Word64)
 import U.Codebase.HashTags (CausalHash)
 import U.Codebase.Sqlite.TempEntity (TempEntity)
-import Unison.Core.Project (ProjectAndBranch (..), ProjectBranchName, ProjectName)
 import Unison.Hash32 (Hash32)
-import Unison.Prelude (From (..))
 import Unison.Server.Orphans ()
+import Unison.Server.Types
 import Unison.Share.API.Hash (HashJWT)
 import Unison.Sync.Types qualified as SyncV1
 import Unison.Util.Servant.CBOR
-
-newtype BranchRef = BranchRef {unBranchRef :: Text}
-  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON) via Text
-
-instance From (ProjectAndBranch ProjectName ProjectBranchName) BranchRef where
-  from pab = BranchRef $ from pab
 
 data GetCausalHashErrorTag
   = GetCausalHashNoReadPermissionTag

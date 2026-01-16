@@ -47,6 +47,8 @@ data DebugFlag
   | KindInference
   | Update
   | Tests
+  | HistoryComments
+  | Websockets
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 debugFlags :: Set DebugFlag
@@ -76,6 +78,8 @@ debugFlags = case (unsafePerformIO (lookupEnv "UNISON_DEBUG")) of
       "KIND_INFERENCE" -> pure KindInference
       "UPDATE" -> pure Update
       "TESTS" -> pure Tests
+      "HISTORY_COMMENTS" -> pure HistoryComments
+      "WEBSOCKETS" -> pure Websockets
       _ -> empty
 {-# NOINLINE debugFlags #-}
 
@@ -151,6 +155,14 @@ debugTests :: Bool
 debugTests = Tests `Set.member` debugFlags
 {-# NOINLINE debugTests #-}
 
+debugHistoryComments :: Bool
+debugHistoryComments = HistoryComments `Set.member` debugFlags
+{-# NOINLINE debugHistoryComments #-}
+
+debugWebSockets :: Bool
+debugWebSockets = Websockets `Set.member` debugFlags
+{-# NOINLINE debugWebSockets #-}
+
 -- | Use for trace-style selective debugging.
 -- E.g. 1 + (debug Sync "The second number" 2)
 --
@@ -208,3 +220,5 @@ shouldDebug = \case
   KindInference -> debugKindInference
   Update -> debugUpdate
   Tests -> debugTests
+  HistoryComments -> debugHistoryComments
+  Websockets -> debugWebSockets

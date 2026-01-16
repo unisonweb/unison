@@ -35,6 +35,8 @@ module Unison.Hashing.V2
     hashTermComponentsWithoutTypes,
     typeToReference,
     typeToReferenceMentions,
+    hashHistoryComment,
+    hashHistoryCommentRevision,
 
     -- * Re-exports
     ContentAddressable (..),
@@ -46,6 +48,7 @@ import Unison.Hashing.V2.ABT (HashingWarning (..), crashOnHashingWarning)
 import Unison.Hashing.V2.Branch (Branch (..), MdValues (..))
 import Unison.Hashing.V2.Causal (Causal (..))
 import Unison.Hashing.V2.DataDeclaration (DataDeclaration (..), Decl, EffectDeclaration (..), Modifier (..), hashDecls)
+import Unison.Hashing.V2.HistoryComments (hashHistoryComment, hashHistoryCommentRevision)
 import Unison.Hashing.V2.Kind (Kind (..))
 import Unison.Hashing.V2.NameSegment (NameSegment (..))
 import Unison.Hashing.V2.Patch (Patch (..))

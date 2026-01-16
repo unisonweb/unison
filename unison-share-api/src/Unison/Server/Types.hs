@@ -4,7 +4,9 @@
 module Unison.Server.Types where
 
 -- Types common to endpoints --
-import Control.Lens hiding ((.=))
+
+import Codec.Serialise
+import Control.Lens hiding (from, (.=))
 import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Bifoldable (Bifoldable (..))
@@ -903,3 +905,9 @@ instance FromJSON TermOrTypeTag where
     case parseQueryParam txt of
       Left err -> fail $ Text.unpack err
       Right tag -> pure tag
+
+newtype BranchRef = BranchRef {unBranchRef :: Text}
+  deriving (Serialise, Eq, Show, Ord, ToJSON, FromJSON, ToHttpApiData, FromHttpApiData) via Text
+
+instance From (ProjectAndBranch ProjectName ProjectBranchName) BranchRef where
+  from pab = BranchRef $ from pab

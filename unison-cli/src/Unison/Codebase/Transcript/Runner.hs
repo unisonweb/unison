@@ -54,7 +54,6 @@ import Unison.CommandLine.InputPattern qualified as IP
 import Unison.CommandLine.InputPatterns qualified as IP
 import Unison.CommandLine.OutputMessages (notifyNumbered, notifyUser, showIssueUrl)
 import Unison.CommandLine.Welcome (asciiartUnison)
-import Unison.Debug qualified as Debug
 import Unison.MCP qualified as MCP
 import Unison.MCP.Server qualified as MCP
 import Unison.Parser.Ann (Ann)
@@ -96,7 +95,7 @@ withRunner ::
   (Runner -> m r) ->
   m r
 withRunner isTest verbosity ucmVersion action = do
-  credMan <- AuthN.newCredentialManager
+  let credMan = AuthN.globalCredentialManager
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
   -- If we're in a transcript test, configure the environment to use a non-existent fzf binary
@@ -284,9 +283,7 @@ run isTest verbosity codebase runtime sbRuntime ucmVersion baseURL authenticated
                       HTTP.requestBody = HTTP.RequestBodyBS (Text.encodeUtf8 body),
                       HTTP.requestHeaders = [("Content-Type", "application/json"), ("Accept", "application/json")]
                     }
-            Debug.debugM Debug.Temp "POST REQUEST" httpReq
             respTxt <- doHttpRequest httpReq
-            Debug.debugM Debug.Temp "RESPONSE" respTxt
             if hide
               then pure [req]
               else pure [req, APIResponse respTxt]

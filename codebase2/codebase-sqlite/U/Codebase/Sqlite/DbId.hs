@@ -39,6 +39,14 @@ newtype CausalHashId = CausalHashId {unCausalHashId :: HashId}
   deriving (Eq, Ord)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
 
+newtype CommentHashId = CommentHashId {unCommentHashId :: HashId}
+  deriving (Eq, Ord)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
+
+newtype CommentRevisionHashId = CommentRevisionHashId {unCommentRevisionHashId :: HashId}
+  deriving (Eq, Ord)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via HashId
+
 newtype ProjectBranchId = ProjectBranchId {unProjectBranchId :: UUID}
   deriving newtype (Eq, FromField, Ord, Show, ToField)
 
@@ -67,6 +75,20 @@ instance Show BranchHashId where
 instance Show CausalHashId where
   show h = "CausalHashId (" ++ show (unCausalHashId h) ++ ")"
 
+instance Show CommentHashId where
+  show h = "CommentHashId (" ++ show (unCommentHashId h) ++ ")"
+
+instance Show CommentRevisionHashId where
+  show h = "CommentRevisionHashId (" ++ show (unCommentRevisionHashId h) ++ ")"
+
 newtype HistoryCommentId = HistoryCommentId Word64
+  deriving (Eq, Ord, Show)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
+
+newtype HistoryCommentRevisionId = HistoryCommentRevisionId Word64
+  deriving (Eq, Ord, Show)
+  deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64
+
+newtype KeyThumbprintId = KeyThumbprintId Word64
   deriving (Eq, Ord, Show)
   deriving (Num, Real, Enum, Integral, Bits, FromField, ToField) via Word64

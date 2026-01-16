@@ -31,7 +31,6 @@ import System.Exit (ExitCode)
 import U.Codebase.Branch.Diff (NameChanges)
 import U.Codebase.Config (ConfigKey)
 import U.Codebase.HashTags (CausalHash)
-import U.Codebase.Sqlite.HistoryComment (HistoryComment)
 import U.Codebase.Sqlite.Project qualified as Sqlite
 import U.Codebase.Sqlite.ProjectBranch qualified as Sqlite
 import U.Codebase.Sqlite.ProjectReflog qualified as ProjectReflog
@@ -63,6 +62,7 @@ import Unison.DeclCoherencyCheck (IncoherentDeclReason, IncoherentDeclReasons (.
 import Unison.Hash (Hash)
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
+import Unison.HistoryComment (LatestHistoryComment)
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Merge qualified as Merge
 import Unison.Name (Name)
@@ -137,8 +137,8 @@ data NumberedOutput
     History
       (Maybe Int) -- Amount of history to print
       HashLength
-      [(CausalHash, Maybe (HistoryComment () ()), Names.Diff)]
-      (Maybe (HistoryComment () ()), HistoryTail) -- 'origin point' of this view of history.
+      [(CausalHash, Maybe (LatestHistoryComment () () () ()), Names.Diff)]
+      (Maybe (LatestHistoryComment () () () ()), HistoryTail) -- 'origin point' of this view of history.
   | ListProjects [Sqlite.Project]
   | ListBranches ProjectName [(ProjectBranchName, [(URI, ProjectName, ProjectBranchName)])]
   | AmbiguousSwitch ProjectName (ProjectAndBranch ProjectName ProjectBranchName)
@@ -504,6 +504,7 @@ data Output
   | InvalidCommentTarget Text
   | CommentedSuccessfully
   | CommentAborted
+  | CommentFailed Text
   | AuthorNameRequired
   | ConfigValueGet ConfigKey (Maybe Text)
   | WatchDisabled
@@ -772,6 +773,7 @@ isFailure o = case o of
   InvalidCommentTarget {} -> True
   CommentedSuccessfully {} -> False
   CommentAborted {} -> True
+  CommentFailed {} -> True
   AuthorNameRequired {} -> True
   ConfigValueGet {} -> False
   WatchDisabled -> True

@@ -18,6 +18,12 @@ newtype CausalHash = CausalHash {unCausalHash :: Hash}
 newtype PatchHash = PatchHash {unPatchHash :: Hash}
   deriving stock (Eq, Ord)
 
+newtype HistoryCommentHash = HistoryCommentHash {unHistoryCommentHash :: Hash}
+  deriving stock (Eq, Ord)
+
+newtype HistoryCommentRevisionHash = HistoryCommentRevisionHash {unHistoryCommentRevisionHash :: Hash}
+  deriving stock (Eq, Ord)
+
 instance Show ComponentHash where
   show h = "ComponentHash (" ++ show (unComponentHash h) ++ ")"
 
@@ -29,6 +35,12 @@ instance Show CausalHash where
 
 instance Show PatchHash where
   show h = "PatchHash (" ++ show (unPatchHash h) ++ ")"
+
+instance Show HistoryCommentHash where
+  show h = "HistoryCommentHash (" ++ show (unHistoryCommentHash h) ++ ")"
+
+instance Show HistoryCommentRevisionHash where
+  show h = "HistoryCommentRevisionHash (" ++ show (unHistoryCommentRevisionHash h) ++ ")"
 
 instance From ComponentHash Text where
   from = from @Hash @Text . unComponentHash
@@ -42,6 +54,12 @@ instance From CausalHash Text where
 instance From PatchHash Text where
   from = from @Hash @Text . unPatchHash
 
+instance From HistoryCommentHash Text where
+  from = from @Hash @Text . unHistoryCommentHash
+
+instance From HistoryCommentRevisionHash Text where
+  from = from @Hash @Text . unHistoryCommentRevisionHash
+
 instance From ComponentHash Hash
 
 instance From BranchHash Hash
@@ -50,6 +68,10 @@ instance From CausalHash Hash
 
 instance From PatchHash Hash
 
+instance From HistoryCommentHash Hash
+
+instance From HistoryCommentRevisionHash Hash
+
 instance From Hash ComponentHash
 
 instance From Hash BranchHash
@@ -57,6 +79,10 @@ instance From Hash BranchHash
 instance From Hash CausalHash
 
 instance From Hash PatchHash
+
+instance From Hash HistoryCommentHash
+
+instance From Hash HistoryCommentRevisionHash
 
 instance From ComponentHash Hash32 where
   from = from @Hash @Hash32 . unComponentHash
@@ -81,3 +107,9 @@ instance From Hash32 CausalHash where
 
 instance From Hash32 PatchHash where
   from = PatchHash . from @Hash32 @Hash
+
+instance From HistoryCommentHash Hash32 where
+  from = from @Hash @Hash32 . unHistoryCommentHash
+
+instance From HistoryCommentRevisionHash Hash32 where
+  from = from @Hash @Hash32 . unHistoryCommentRevisionHash

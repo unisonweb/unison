@@ -33,6 +33,9 @@ import Unison.CommandLine.InputPattern qualified as InputPattern
 import Unison.CommandLine.InputPatterns qualified as InputPatterns
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..), ProjectBranchNameOrLatestRelease (..), ProjectName, defaultBranchName)
+import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.HistoryComments qualified as HC
+import Unison.Sync.Types (RepoInfo (..))
 
 handlePull :: PullSourceTarget -> PullMode -> Cli ()
 handlePull unresolvedSourceAndTarget pullMode = do
@@ -45,15 +48,21 @@ handlePull unresolvedSourceAndTarget pullMode = do
   remoteCausalHash <- do
     case source of
       ReadShare'LooseCode repo -> downloadLooseCodeFromShare repo & onLeftM (Cli.returnEarly . Output.ShareError)
-      ReadShare'ProjectBranch remoteBranch ->
-        downloadProjectBranchFromShare
-          ( case pullMode of
-              Input.PullWithHistory -> Share.NoSquashedHead
-              Input.PullWithoutHistory -> Share.IncludeSquashedHead
-          )
-          remoteBranch
-          True
-          & onLeftM (Cli.returnEarly . Output.ShareError)
+      ReadShare'ProjectBranch remoteBranch -> do
+        result <-
+          downloadProjectBranchFromShare
+            ( case pullMode of
+                Input.PullWithHistory -> Share.NoSquashedHead
+                Input.PullWithoutHistory -> Share.IncludeSquashedHead
+            )
+            remoteBranch
+            True
+            & onLeftM
+              (Cli.returnEarly . Output.ShareError)
+        HC.downloadHistoryComments
+          Codeserver.defaultCodeserver
+          (RepoInfo $ into @Text $ ProjectAndBranch remoteBranch.projectName remoteBranch.branchName)
+        pure result
 
   remoteBranchIsEmpty <-
     Cli.runTransaction do

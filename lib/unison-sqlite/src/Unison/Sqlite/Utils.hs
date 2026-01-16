@@ -1,4 +1,7 @@
-module Unison.Sqlite.Utils (likeEscape) where
+module Unison.Sqlite.Utils
+  ( likeEscape,
+  )
+where
 
 import Data.Text (Text)
 import Data.Text qualified as Text

@@ -35,12 +35,10 @@ library:
     - mtl
     - murmur-hash
     - mutable-containers
-    - network-uri
     - nonempty-containers
     - pretty-simple
     - regex-tdfa
     - semialign
-    - servant-client
     - stm
     - text
     - these
@@ -53,6 +51,7 @@ library:
     - unison-codebase-sync
     - unison-core
     - unison-core1
+    - unison-credentials
     - unison-hash
     - unison-hashing-v2
     - unison-prelude

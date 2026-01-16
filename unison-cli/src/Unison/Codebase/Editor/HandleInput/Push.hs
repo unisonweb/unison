@@ -48,6 +48,7 @@ import Unison.Project
 import Unison.Share.API.Hash qualified as Share.API
 import Unison.Share.API.Projects qualified as Share.API
 import Unison.Share.Codeserver qualified as Codeserver
+import Unison.Share.HistoryComments qualified as HC
 import Unison.Share.Sync qualified as Share
 import Unison.Share.Sync.Types qualified as Share
 import Unison.Share.Types (codeserverBaseURL)
@@ -199,6 +200,7 @@ pushProjectBranchToProjectBranch'InferredProject force localProjectAndBranch loc
                   pure
                     UploadPlan
                       { remoteBranch = ProjectAndBranch (remoteBranch ^. #projectName) (remoteBranch ^. #branchName),
+                        remoteHead = Just $ Share.API.hashJWTHash remoteBranch.branchHead,
                         causalHash = localBranchHead,
                         afterUploadAction
                       }
@@ -300,6 +302,7 @@ pushToProjectBranch0 force pushing localBranchHead remoteProjectAndBranch = do
       pure
         UploadPlan
           { remoteBranch = remoteProjectAndBranch,
+            remoteHead = Nothing,
             causalHash = localBranchHead,
             afterUploadAction =
               createBranchAfterUploadAction
@@ -315,6 +318,7 @@ pushToProjectBranch0 force pushing localBranchHead remoteProjectAndBranch = do
           pure
             UploadPlan
               { remoteBranch = remoteProjectAndBranch,
+                remoteHead = Nothing,
                 causalHash = localBranchHead,
                 afterUploadAction =
                   createBranchAfterUploadAction
@@ -330,6 +334,7 @@ pushToProjectBranch0 force pushing localBranchHead remoteProjectAndBranch = do
           pure
             UploadPlan
               { remoteBranch = remoteProjectAndBranch,
+                remoteHead = Just (Share.API.hashJWTHash remoteBranch.branchHead),
                 causalHash = localBranchHead,
                 afterUploadAction
               }
@@ -348,6 +353,7 @@ pushToProjectBranch1 force localProjectAndBranch localBranchHead remoteProjectAn
       pure
         UploadPlan
           { remoteBranch = over #project snd remoteProjectAndBranch,
+            remoteHead = Nothing,
             causalHash = localBranchHead,
             afterUploadAction =
               createBranchAfterUploadAction
@@ -363,6 +369,7 @@ pushToProjectBranch1 force localProjectAndBranch localBranchHead remoteProjectAn
       pure
         UploadPlan
           { remoteBranch = over #project snd remoteProjectAndBranch,
+            remoteHead = Just (Share.API.hashJWTHash remoteBranch.branchHead),
             causalHash = localBranchHead,
             afterUploadAction
           }
@@ -381,6 +388,8 @@ pushToProjectBranch1 force localProjectAndBranch localBranchHead remoteProjectAn
 data UploadPlan = UploadPlan
   { -- The remote branch we are uploading entities for.
     remoteBranch :: ProjectAndBranch ProjectName ProjectBranchName,
+    -- The current head of the remote branch.
+    remoteHead :: Maybe Hash32,
     -- The causal hash to upload.
     causalHash :: Hash32,
     -- The action to call after a successful upload.
@@ -389,25 +398,32 @@ data UploadPlan = UploadPlan
 
 -- Execute an upload plan.
 executeUploadPlan :: UploadPlan -> Cli ()
-executeUploadPlan UploadPlan {remoteBranch, causalHash, afterUploadAction} = do
-  (uploadResult, numUploaded) <-
-    Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
-      uploadResult <-
-        Share.uploadEntities
-          (codeserverBaseURL Codeserver.defaultCodeserver)
-          -- On the wire, the remote branch is encoded as e.g.
-          --   { "repo_info": "@unison/base/@arya/topic", ... }
-          (Share.RepoInfo (into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))))
-          (Set.NonEmpty.singleton causalHash)
-          uploadedCallback
-      numUploaded <- liftIO getNumUploaded
-      pure (uploadResult, numUploaded)
-  Cli.respond (Output.UploadedEntities numUploaded)
-  uploadResult & onLeft \err0 -> do
-    (Cli.returnEarly . Output.ShareError) case err0 of
-      Share.SyncError err -> ShareErrorUploadEntities err
-      Share.TransportError err -> ShareErrorTransport err
+executeUploadPlan UploadPlan {remoteBranch, remoteHead, causalHash, afterUploadAction} = do
+  let codeserverURI = Codeserver.defaultCodeserver
+  let remoteTarget = into @Text (ProjectAndBranch (remoteBranch ^. #project) (remoteBranch ^. #branch))
+  case remoteHead of
+    Just remoteHeadHash | remoteHeadHash == causalHash -> do
+      Cli.respond (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteBranch)
+    _ -> do
+      (uploadResult, numUploaded) <-
+        Cli.with withEntitiesUploadedProgressCallback \(uploadedCallback, getNumUploaded) -> do
+          uploadResult <-
+            Share.uploadEntities
+              (codeserverBaseURL codeserverURI)
+              -- On the wire, the remote branch is encoded as e.g.
+              --   { "repo_info": "@unison/base/@arya/topic", ... }
+              (Share.RepoInfo remoteTarget)
+              (Set.NonEmpty.singleton causalHash)
+              uploadedCallback
+          numUploaded <- liftIO getNumUploaded
+          pure (uploadResult, numUploaded)
+      Cli.respond (Output.UploadedEntities numUploaded)
+      uploadResult & onLeft \err0 -> do
+        (Cli.returnEarly . Output.ShareError) case err0 of
+          Share.SyncError err -> ShareErrorUploadEntities err
+          Share.TransportError err -> ShareErrorTransport err
   afterUploadAction
+  Cli.time "Uploading History Comments" $ HC.uploadHistoryComments causalHash codeserverURI (Share.RepoInfo remoteTarget)
   let ProjectAndBranch projectName branchName = remoteBranch
   Cli.respond (ViewOnShare (Share.hardCodedUri, projectName, branchName))
 
@@ -499,48 +515,47 @@ makeSetHeadAfterUploadAction ::
 makeSetHeadAfterUploadAction force pushing localBranchHead remoteBranch = do
   let remoteProjectAndBranchNames = ProjectAndBranch remoteBranch.projectName remoteBranch.branchName
 
-  when (localBranchHead == Share.API.hashJWTHash remoteBranch.branchHead) do
-    Cli.respond (RemoteProjectBranchIsUpToDate Share.hardCodedUri remoteProjectAndBranchNames)
-    Cli.returnEarly (ViewOnShare (Share.hardCodedUri, remoteBranch.projectName, remoteBranch.branchName))
-
   when (not force) do
     whenM (Cli.runTransaction (wouldNotBeFastForward localBranchHead remoteBranchHead)) do
       Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
 
-  pure do
-    let request =
-          Share.API.SetProjectBranchHeadRequest
-            { projectId = unRemoteProjectId (remoteBranch ^. #projectId),
-              branchId = unRemoteProjectBranchId (remoteBranch ^. #branchId),
-              branchOldCausalHash = Just remoteBranchHead,
-              branchNewCausalHash = localBranchHead
-            }
-    let onSuccess =
-          case pushing of
-            PushingLooseCode -> pure ()
-            PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
-              Cli.runTransaction do
-                Queries.ensureBranchRemoteMapping
-                  (localProject ^. #projectId)
-                  (localBranch ^. #branchId)
-                  (remoteBranch ^. #projectId)
-                  Share.hardCodedUri
-                  (remoteBranch ^. #branchId)
-    Share.setProjectBranchHead request >>= \case
-      Share.SetProjectBranchHeadResponseSuccess -> onSuccess
-      -- Sometimes a different request gets through in between checking the remote head and
-      -- executing the check-and-set push, if it managed to set the head to what we wanted
-      -- then the goal was achieved and we can consider it a success.
-      Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected actual
-        | actual == localBranchHead -> onSuccess
-      Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
-        Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
-      Share.SetProjectBranchHeadResponseNotFound -> do
-        Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
-      Share.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> do
-        Cli.returnEarly (Output.RemoteProjectReleaseIsDeprecated Share.hardCodedUri remoteProjectAndBranchNames)
-      Share.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> do
-        Cli.returnEarly (Output.RemoteProjectPublishedReleaseCannotBeChanged Share.hardCodedUri remoteProjectAndBranchNames)
+  if
+    | localBranchHead == Share.API.hashJWTHash remoteBranch.branchHead -> do
+        pure $ pure ()
+    | otherwise -> pure do
+        let request =
+              Share.API.SetProjectBranchHeadRequest
+                { projectId = unRemoteProjectId (remoteBranch ^. #projectId),
+                  branchId = unRemoteProjectBranchId (remoteBranch ^. #branchId),
+                  branchOldCausalHash = Just remoteBranchHead,
+                  branchNewCausalHash = localBranchHead
+                }
+        let onSuccess =
+              case pushing of
+                PushingLooseCode -> pure ()
+                PushingProjectBranch (ProjectAndBranch localProject localBranch) -> do
+                  Cli.runTransaction do
+                    Queries.ensureBranchRemoteMapping
+                      (localProject ^. #projectId)
+                      (localBranch ^. #branchId)
+                      (remoteBranch ^. #projectId)
+                      Share.hardCodedUri
+                      (remoteBranch ^. #branchId)
+        Share.setProjectBranchHead request >>= \case
+          Share.SetProjectBranchHeadResponseSuccess -> onSuccess
+          -- Sometimes a different request gets through in between checking the remote head and
+          -- executing the check-and-set push, if it managed to set the head to what we wanted
+          -- then the goal was achieved and we can consider it a success.
+          Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected actual
+            | actual == localBranchHead -> onSuccess
+          Share.SetProjectBranchHeadResponseExpectedCausalHashMismatch _expected _actual ->
+            Cli.returnEarly (RemoteProjectBranchHeadMismatch Share.hardCodedUri remoteProjectAndBranchNames)
+          Share.SetProjectBranchHeadResponseNotFound -> do
+            Cli.returnEarly (Output.RemoteProjectBranchDoesntExist Share.hardCodedUri remoteProjectAndBranchNames)
+          Share.SetProjectBranchHeadResponseDeprecatedReleaseIsImmutable -> do
+            Cli.returnEarly (Output.RemoteProjectReleaseIsDeprecated Share.hardCodedUri remoteProjectAndBranchNames)
+          Share.SetProjectBranchHeadResponsePublishedReleaseIsImmutable -> do
+            Cli.returnEarly (Output.RemoteProjectPublishedReleaseCannotBeChanged Share.hardCodedUri remoteProjectAndBranchNames)
   where
     remoteBranchHead =
       Share.API.hashJWTHash (remoteBranch ^. #branchHead)

@@ -14,12 +14,15 @@ import Text.Printf (printf)
 import U.Codebase.Reference qualified as C.Reference
 import U.Codebase.Sqlite.DbId (HashVersion (..), SchemaVersion (..))
 import U.Codebase.Sqlite.Queries qualified as Q
+import Unison.Auth.CredentialManager qualified as CredMan
+import Unison.Auth.PersonalKey (PersonalPrivateKey)
 import Unison.Codebase (CodebasePath)
 import Unison.Codebase.Init (BackupStrategy (..), VacuumStrategy (..))
 import Unison.Codebase.Init.OpenCodebaseError (OpenCodebaseError (OpenCodebaseUnknownSchemaVersion))
 import Unison.Codebase.Init.OpenCodebaseError qualified as Codebase
 import Unison.Codebase.IntegrityCheck (IntegrityResult (..), integrityCheckAllBranches, integrityCheckAllCausals, prettyPrintIntegrityErrors)
 import Unison.Codebase.SqliteCodebase.Migrations.Helpers (abortMigration)
+import Unison.Codebase.SqliteCodebase.Migrations.MigrateHistoryComments (hashHistoryCommentsMigration)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema11To12 (migrateSchema11To12)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema16To17 (migrateSchema16To17)
 import Unison.Codebase.SqliteCodebase.Migrations.MigrateSchema1To2 (migrateSchema1To2)
@@ -43,6 +46,7 @@ import UnliftIO qualified
 -- | Mapping from schema version to the migration required to get there.
 -- E.g. The migration at index 2 must be run on a codebase at version 1.
 migrations ::
+  PersonalPrivateKey ->
   (MVar Region.ConsoleRegion) ->
   -- | A 'getDeclType'-like lookup, possibly backed by a cache.
   (C.Reference.Reference -> Sqlite.Transaction CT.ConstructorType) ->
@@ -50,7 +54,7 @@ migrations ::
   TVar (Map Hash Ops2.DeclBufferEntry) ->
   CodebasePath ->
   Map SchemaVersion (Sqlite.Connection -> IO ())
-migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
+migrations personalKey regionVar getDeclType termBuffer declBuffer rootCodebasePath =
   Map.fromList
     [ (2, runT $ migrateSchema1To2 getDeclType termBuffer declBuffer),
       -- The 1 to 2 migration kept around hash objects of hash version 1, unfortunately this
@@ -90,7 +94,10 @@ migrations regionVar getDeclType termBuffer declBuffer rootCodebasePath =
       sqlMigration 20 Q.addUpdateBranchTable,
       sqlMigration 21 Q.addDerivedDependentsByDependencyIndex,
       sqlMigration 22 Q.addUpgradeBranchTable,
-      sqlMigration 23 Q.addHistoryComments
+      sqlMigration 23 Q.addHistoryComments,
+      sqlMigration 24 Q.addHistoryCommentHashing,
+      (25, runT $ hashHistoryCommentsMigration personalKey),
+      sqlMigration 26 Q.historyCommentHashingCleanup
     ]
   where
     runT :: Sqlite.Transaction () -> Sqlite.Connection -> IO ()
@@ -152,7 +159,9 @@ ensureCodebaseIsUpToDate localOrRemote root getDeclType termBuffer declBuffer sh
 
     Region.displayConsoleRegions do
       (`UnliftIO.finally` finalizeRegion) do
-        let migs = migrations regionVar getDeclType termBuffer declBuffer root
+        let credMan = CredMan.globalCredentialManager
+        personalKey <- CredMan.getOrCreatePersonalKey credMan
+        let migs = migrations personalKey regionVar getDeclType termBuffer declBuffer root
         -- The highest schema that this ucm knows how to migrate to.
         let highestKnownSchemaVersion = fst . head $ Map.toDescList migs
         currentSchemaVersion <- Sqlite.runTransaction conn Q.schemaVersion

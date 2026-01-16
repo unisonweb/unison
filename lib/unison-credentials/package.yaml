@@ -1,33 +1,35 @@
-name: unison-hashing-v2
+name: unison-credentials
 github: unisonweb/unison
-copyright: Copyright (C) 2013-2021 Unison Computing, PBC and contributors
+copyright: Copyright (C) 2013-2025 Unison Computing, PBC and contributors
 
-ghc-options: -Wall
+ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
 dependencies:
   - base
+  - aeson
   - bytestring
   - containers
-  - cborg
-  - cryptonite
-  - lens
-  - memory
-  - semialign
+  - crypton
+  - filepath
+  - jose
   - text
+  - base64-bytestring
+  - lens
+  - lock-file
+  - memory
+  - mtl
+  - network-uri
   - time
+  - transformers
   - unison-core1
-  - unison-hash
-  - unison-hashing
   - unison-prelude
-  - unison-util-relation
+  - unliftio
 
 library:
-  exposed-modules:
-    Unison.Hashing.V2
   source-dirs: src
   when:
     - condition: false
-      other-modules: Paths_unison_hashing_v2
+      other-modules: Paths_unison_credentials
 
 default-extensions:
   - ApplicativeDo
@@ -40,18 +42,21 @@ default-extensions:
   - DerivingStrategies
   - DerivingVia
   - DoAndIfThenElse
+  - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
   - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
-  - InstanceSigs
   - LambdaCase
   - MultiParamTypeClasses
   - NamedFieldPuns
+  - OverloadedRecordDot
   - OverloadedStrings
   - PatternSynonyms
   - RankNTypes
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections
   - TypeApplications
+  - TypeFamilies
   - ViewPatterns

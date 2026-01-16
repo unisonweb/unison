@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,6 +25,8 @@ library
       Unison.Server.Doc.Markdown.Render
       Unison.Server.Doc.Markdown.Types
       Unison.Server.Errors
+      Unison.Server.HistoryComments.API
+      Unison.Server.HistoryComments.Types
       Unison.Server.Local
       Unison.Server.Local.Definitions
       Unison.Server.Local.Endpoints.Current
@@ -53,6 +55,7 @@ library
       Unison.SyncV2.Types
       Unison.Util.Find
       Unison.Util.Servant.CBOR
+      Unison.Util.Websockets
   hs-source-dirs:
       src
   default-extensions:
@@ -96,6 +99,7 @@ library
     , bytes
     , bytestring
     , cborg
+    , conduit
     , containers
     , directory
     , errors
@@ -105,10 +109,12 @@ library
     , hs-mcp
     , http-media
     , http-types
+    , ki-unlifted
     , lens
     , lucid
     , memory
     , mtl
+    , network
     , nonempty-containers
     , openapi3
     , regex-tdfa
@@ -117,7 +123,10 @@ library
     , servant-docs
     , servant-openapi3
     , servant-server
+    , servant-websockets
+    , stm-chans
     , text
+    , time
     , transformers
     , unison-codebase
     , unison-codebase-sqlite
@@ -144,6 +153,8 @@ library
     , wai
     , wai-cors
     , warp
+    , websockets
+    , wuss
     , yaml
   default-language: Haskell2010
 
