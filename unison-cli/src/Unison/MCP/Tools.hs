@@ -736,9 +736,10 @@ reflogTool =
             openWorldHint = Just False
           },
       toolArgType = Proxy,
-      toolHandler = \(ReflogToolArguments {projectContext, scope, limit}) -> handleToolError $ do
+      toolHandler = \(ReflogToolArguments {projectContext, scope, limit, includeTimestamps}) -> handleToolError $ do
         let limitVal = fromMaybe 100 limit
             scopeVal = fromMaybe "branch" scope
+            includeTs = fromMaybe True includeTimestamps
         Env {codebase} <- ask
 
         -- Resolve project and branch from context
@@ -759,7 +760,7 @@ reflogTool =
                   Nothing -> pure []
                   Just branch -> Codebase.getProjectBranchReflog (limitVal + 1) branch.branchId
               -- Convert entries to JSON-friendly format
-              pure $ map (reflogEntryToJSON schLength) rawEntries
+              pure $ map (reflogEntryToJSON includeTs schLength) rawEntries
 
         let hasMore = length entries > limitVal
             finalEntries = take limitVal entries
@@ -771,16 +772,16 @@ reflogTool =
         pure $ textToolResult $ Text.decodeUtf8 . BL.toStrict $ Aeson.encode response
     }
 
-reflogEntryToJSON :: Int -> ProjectReflog.Entry Project ProjectBranch CausalHash -> Aeson.Value
-reflogEntryToJSON schLength entry =
-  Aeson.object
+reflogEntryToJSON :: Bool -> Int -> ProjectReflog.Entry Project ProjectBranch CausalHash -> Aeson.Value
+reflogEntryToJSON includeTimestamps schLength entry =
+  Aeson.object $
     [ "project" Aeson..= (into @Text $ entry.project.name),
       "branch" Aeson..= (into @Text $ entry.branch.name),
-      "time" Aeson..= iso8601Show entry.time,
       "fromHash" Aeson..= fmap (("#" <>) . SCH.toText . SCH.fromHash schLength) entry.fromRootCausalHash,
       "toHash" Aeson..= (("#" <>) . SCH.toText . SCH.fromHash schLength $ entry.toRootCausalHash),
       "reason" Aeson..= entry.reason
     ]
+      <> ["time" Aeson..= iso8601Show entry.time | includeTimestamps]
 
 historyTool :: Tool MCP
 historyTool =

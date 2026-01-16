@@ -960,7 +960,8 @@ instance FromJSON DeleteNamespaceToolArguments where
 data ReflogToolArguments = ReflogToolArguments
   { projectContext :: ProjectContext,
     scope :: Maybe Text, -- "branch" | "project" | "global", default "branch"
-    limit :: Maybe Int
+    limit :: Maybe Int,
+    includeTimestamps :: Maybe Bool -- default True
   }
   deriving (Eq, Show)
 
@@ -981,6 +982,11 @@ instance HasInputSchema ReflogToolArguments where
                 .= object
                   [ "type" .= ("integer" :: Text),
                     "description" .= ("Maximum number of entries to return. Default is 100." :: Text)
+                  ],
+              "includeTimestamps"
+                .= object
+                  [ "type" .= ("boolean" :: Text),
+                    "description" .= ("Whether to include timestamps in the output. Default is true." :: Text)
                   ]
             ],
         "required" .= ["projectContext" :: Text]
@@ -991,7 +997,8 @@ instance FromJSON ReflogToolArguments where
     projectContext <- o .: "projectContext"
     scope <- o .:? "scope"
     limit <- o .:? "limit"
-    pure $ ReflogToolArguments {projectContext, scope, limit}
+    includeTimestamps <- o .:? "includeTimestamps"
+    pure $ ReflogToolArguments {projectContext, scope, limit, includeTimestamps}
 
 -- | Arguments for the history tool
 data HistoryToolArguments = HistoryToolArguments

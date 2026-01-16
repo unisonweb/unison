@@ -824,3 +824,104 @@ RESPONSE:
   }
 
 ```
+
+## reflog
+
+First, set up a branch with some changes to create reflog entries:
+
+``` ucm
+scratch/reflog-test> builtins.merge lib.builtins
+
+  Done.
+```
+
+``` unison :hide
+reflogTestTerm = 1
+```
+
+``` ucm
+scratch/reflog-test> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+Now get the reflog:
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "reflog",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "reflog-test"
+        },
+        "scope": "branch",
+        "limit": 5,
+        "includeTimestamps": false
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#btddbo4t1j\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#6bknb5j9uv\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#btddbo4t1j\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
+
+## history
+
+``` api
+POST /mcp
+BODY:
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "history",
+      "arguments": {
+        "projectContext": {
+          "projectName": "scratch",
+          "branchName": "reflog-test"
+        },
+        "limit": 5
+      }
+    }
+  }
+
+RESPONSE:
+  {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "result": {
+          "content": [
+              {
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #6bknb5j9uv\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #btddbo4t1j (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "type": "text"
+              }
+          ],
+          "isError": false
+      }
+  }
+
+```
