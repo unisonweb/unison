@@ -1,11 +1,12 @@
 module Unison.Codebase.Editor.HandleInput.ShowDefinition
   ( handleShowDefinition,
     showDefinitions,
+    renderToFile,
   )
 where
 
 import Control.Lens
-import Control.Monad.Reader (ask)
+import Control.Monad.Reader (MonadReader, ask)
 import Control.Monad.State qualified as State
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as List (NonEmpty)
@@ -47,7 +48,6 @@ import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty (Pretty)
@@ -113,32 +113,92 @@ showDefinitions ::
   [HQ.HashQualified Name] ->
   Cli ()
 showDefinitions outputLoc pped terms types misses = do
-  env <- ask
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> do
-      -- If we're writing to console we don't add test-watch syntax
-      let isTest _ = False
-      let isSourceFile = False
-      -- No filepath, render code to console.
-      let (renderedCodePretty, _numRendered) =
-            renderCodePretty
-              pped
-              isSourceFile
-              isTest
-              terms
-              types
-              (Defns Set.empty Set.empty)
-      Cli.respond $ DisplayDefinitions renderedCodePretty
+    Nothing -> renderToConsole pped terms types
     Just (fp, relToFold) -> do
-      -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
-      -- already bound in the file
-      excludeNames <-
+      mayTF <- use #latestTypecheckedFile
+      didRender <- renderToFile mayTF fp relToFold pped terms types
+
+      when didRender do
+        -- We set latestFile to be programmatically generated, if we
+        -- are viewing these definitions to a file - this will skip the
+        -- next update for that file (which will happen immediately)
+        #latestFile ?= (fp, True)
+
+  when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
+  where
+    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
+    getOutputPath :: Cli (Maybe (FilePath, RelativeToFold))
+    getOutputPath =
+      case outputLoc of
+        ConsoleLocation -> pure Nothing
+        FileLocation path relToFold -> pure (Just (path, relToFold))
+        LatestFileLocation relToFold -> do
+          loopState <- State.get
+          pure case loopState ^. #latestFile of
+            Nothing -> Just ("scratch.u", relToFold)
+            Just (path, _) -> Just (path, relToFold)
+
+renderCodePretty ::
+  PPED.PrettyPrintEnvDecl ->
+  Bool ->
+  (TermReferenceId -> Bool) ->
+  Map Reference.TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map Reference (DisplayObject () (Decl Symbol Ann)) ->
+  Defns (Set Symbol) (Set Symbol) ->
+  (Pretty Pretty.ColorText, Bool)
+renderCodePretty pped isSourceFile isTest terms types excludeNames =
+  let prettyTypes = prettyTypeDisplayObjects pped types excludeNames.types
+      prettyTerms = prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames.terms
+   in ( Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)),
+        not $ null prettyTerms && null prettyTypes
+      )
+
+renderToConsole ::
+  PPED.PrettyPrintEnvDecl ->
+  Map
+    Reference.TermReference
+    (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map Reference (DisplayObject () (Decl Symbol Ann)) ->
+  Cli ()
+renderToConsole pped terms types = do
+  -- If we're writing to console we don't add test-watch syntax
+  let isTest _ = False
+  let isSourceFile = False
+  -- No filepath, render code to console.
+  let (renderedCodePretty, _numRendered) =
+        renderCodePretty
+          pped
+          isSourceFile
+          isTest
+          terms
+          types
+          (Defns Set.empty Set.empty)
+  Cli.respond $ DisplayDefinitions renderedCodePretty
+
+-- | Render definitions to a file.
+-- Returns whether anything was rendered.
+-- Definitions can be obtained via definitionsByName
+renderToFile ::
+  (MonadReader Cli.Env m, MonadIO m) =>
+  Maybe (Either (UnisonFile.UnisonFile Symbol Ann) (UnisonFile.TypecheckedUnisonFile Symbol a)) ->
+  FilePath ->
+  RelativeToFold ->
+  PPED.PrettyPrintEnvDecl ->
+  Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
+  Map Reference (DisplayObject () (Decl Symbol Ann)) ->
+  (m Bool)
+renderToFile mayTF fp relToFold pped terms types = do
+  Cli.Env {codebase, writeSource} <- ask
+  -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
+  -- already bound in the file
+  let excludeNames =
         case relToFold of
-          AboveFold -> pure (Defns Set.empty Set.empty)
+          AboveFold -> Defns Set.empty Set.empty
           WithinFold ->
-            use #latestTypecheckedFile <&> \case
+            case mayTF of
               Nothing -> Defns Set.empty Set.empty
               Just (Left unisonFile) ->
                 let boundTermNames = Map.keysSet unisonFile.terms
@@ -155,49 +215,23 @@ showDefinitions outputLoc pped terms types misses = do
                       }
               Just (Right typecheckedUnisonFile) -> UnisonFile.namespaceBindings typecheckedUnisonFile
 
-      -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
-      testRefs <-
-        Cli.runTransaction do
-          Codebase.filterTermsByReferenceIdHavingType
-            env.codebase
-            (DD.testResultListType mempty)
-            (Map.keysSet terms & Set.mapMaybe Reference.toId)
-      let isTest r = Set.member r testRefs
-      let isSourceFile = True
-      let (renderedCodePretty, numRendered) = renderCodePretty pped isSourceFile isTest terms types excludeNames
-      when (numRendered > 0) do
-        let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
-
-        -- We set latestFile to be programmatically generated, if we
-        -- are viewing these definitions to a file - this will skip the
-        -- next update for that file (which will happen immediately)
-        #latestFile ?= (fp, True)
-        liftIO $
-          env.writeSource (Text.pack fp) renderedCodeText case relToFold of
-            AboveFold -> True
-            WithinFold -> False
-      Cli.respond $ LoadedDefinitionsToSourceFile fp numRendered
-
-  when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
-  where
-    -- Get the file path to send the definition(s) to. `Nothing` means the terminal.
-    getOutputPath :: Cli (Maybe (FilePath, RelativeToFold))
-    getOutputPath =
-      case outputLoc of
-        ConsoleLocation -> pure Nothing
-        FileLocation path relToFold -> pure (Just (path, relToFold))
-        LatestFileLocation relToFold -> do
-          loopState <- State.get
-          pure case loopState ^. #latestFile of
-            Nothing -> Just ("scratch.u", relToFold)
-            Just (path, _) -> Just (path, relToFold)
-
-    renderCodePretty pped isSourceFile isTest terms types excludeNames =
-      let prettyTypes = prettyTypeDisplayObjects pped types excludeNames.types
-          prettyTerms = prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames.terms
-       in ( Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)),
-            length prettyTerms + length prettyTypes
-          )
+  -- We build an 'isTest' check to prepend "test>" to tests in a scratch file.
+  testRefs <-
+    liftIO $ Codebase.runTransaction codebase do
+      Codebase.filterTermsByReferenceIdHavingType
+        codebase
+        (DD.testResultListType mempty)
+        (Map.keysSet terms & Set.mapMaybe Reference.toId)
+  let isTest r = Set.member r testRefs
+  let isSourceFile = True
+  let (renderedCodePretty, didRender) = renderCodePretty pped isSourceFile isTest terms types excludeNames
+  when didRender do
+    let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
+    liftIO $
+      writeSource (Text.pack fp) renderedCodeText case relToFold of
+        AboveFold -> True
+        WithinFold -> False
+  pure didRender
 
 prettyTypeDisplayObjects ::
   PPED.PrettyPrintEnvDecl ->
