@@ -849,7 +849,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"defaultBranch\":\"main\",\"latestRelease\":\"2.9.0\",\"projectId\":\"P-900debbb-139c-4691-b425-d601709d2dc8\",\"projectName\":\"@hojberg/html\"}",
+                  "text": "{\"latestRelease\":\"2.9.0\",\"projectId\":\"P-900debbb-139c-4691-b425-d601709d2dc8\",\"projectName\":\"@hojberg/html\"}",
                   "type": "text"
               }
           ],

@@ -1,6 +1,6 @@
 module Unison.MCP.Tools (tools) where
 
-import Control.Monad.Except (ExceptT)
+import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.Reader
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson qualified as Aeson
@@ -11,7 +11,10 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Text.RawString.QQ (r)
+import U.Codebase.Sqlite.DbId (RemoteProjectId (..))
 import Unison.Cli.MonadUtils qualified as Cli
+import Unison.Cli.Share.Projects qualified as Share.Projects
+import Unison.Cli.Share.Projects.Types (RemoteProject (..))
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Editor.HandleInput.InstallLib (handleInstallLib)
@@ -24,13 +27,13 @@ import Unison.Core.Project (ProjectBranchName (..), ProjectName (..))
 import Unison.HashQualified qualified as HQ
 import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.MCP.Cli (cliToMCP, handleInputMCP, virtualSourceName)
-import Unison.MCP.Share.API (ProjectInfoResponse (..), ReadmeResponse (..))
+import Unison.MCP.Share.API (ReadmeResponse (..))
 import Unison.MCP.Share.API qualified as Share
 import Unison.MCP.Types
 import Unison.MCP.Wrapper
 import Unison.MCP.Wrapper qualified as MCPWrapper
 import Unison.NameSegment qualified as NameSegment
-import Unison.Prelude (readUtf8)
+import Unison.Prelude (into, readUtf8)
 import Unison.Project (ProjectBranchNameOrLatestRelease (..))
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Util.Relation qualified as R
@@ -142,16 +145,24 @@ shareProjectInfoTool =
             openWorldHint = Just True
           },
       toolArgType = Proxy,
-      toolHandler = \(ShareProjectInfoToolArguments {projectName}) -> do
-        Env {authenticatedHTTPClient} <- ask
-        result <- UnliftIO.liftIO $ Share.shareProjectInfo authenticatedHTTPClient projectName
+      toolHandler = \(ShareProjectInfoToolArguments {projectName}) -> handleToolError $ do
+        -- Use a dummy project context since getProjectByName doesn't need it
+        dummyContext <- currentProjectContext
+        let parsedName = UnsafeProjectName projectName
+        (result, _output) <- cliToMCP dummyContext (const $ pure ()) $ Share.Projects.getProjectByName parsedName
         case result of
-          Right projectInfo -> do
-            let outputJSON = Text.decodeUtf8 . BL.toStrict $ Aeson.encode projectInfo
-            pure $ textToolResult outputJSON
-          Left err -> do
-            let errorMsg = "Error getting project info from Unison Share: " <> Text.pack (show err)
-            pure $ errorToolResult errorMsg
+          Just (Just remoteProject) -> do
+            let response =
+                  Aeson.object
+                    [ "projectId" Aeson..= remoteProject.projectId.unRemoteProjectId,
+                      "projectName" Aeson..= (into @Text remoteProject.projectName),
+                      "latestRelease" Aeson..= fmap (into @Text) remoteProject.latestRelease
+                    ]
+            pure $ textToolResult $ Text.decodeUtf8 . BL.toStrict $ Aeson.encode response
+          Just Nothing -> do
+            throwError $ "Project not found: " <> projectName
+          Nothing -> do
+            throwError "Failed to get project info"
     }
 
 -- | Load and typecheck the provided code, THEN run the provided inputs within that scratchfile context.
