@@ -90,7 +90,9 @@ data Env = Env
     cancellationMapVar :: TVar (Map (Int32 |? Text) (IO ())),
     -- A lazily computed map of all valid completion suffixes from the current path.
     completionsVar :: TMVar CompletionTree,
-    scope :: Ki.Scope
+    scope :: Ki.Scope,
+    -- The last file URI we received a "change" event for.
+    lastTouchedFileVar :: TVar (Maybe Uri)
   }
 
 -- | A suffix tree over path segments of name completions.

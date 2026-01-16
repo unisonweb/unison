@@ -6,11 +6,12 @@ module Unison.Codebase.Editor.HandleInput.ShowDefinition
 where
 
 import Control.Lens
-import Control.Monad.Reader (MonadReader, ask)
+import Control.Monad.Reader (ask)
 import Control.Monad.State qualified as State
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.List.NonEmpty qualified as List.NonEmpty
+import Data.List.NonEmpty qualified as NEL
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -20,6 +21,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.NamesUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
+import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
@@ -113,13 +115,14 @@ showDefinitions ::
   [HQ.HashQualified Name] ->
   Cli ()
 showDefinitions outputLoc pped terms types misses = do
+  Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
     Nothing -> renderToConsole pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      didRender <- renderToFile mayTF fp relToFold pped terms types
+      didRender <- renderToFile codebase writeSource mayTF fp relToFold pped terms types
 
       when didRender do
         -- We set latestFile to be programmatically generated, if we
@@ -148,13 +151,13 @@ renderCodePretty ::
   Map Reference.TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map Reference (DisplayObject () (Decl Symbol Ann)) ->
   Defns (Set Symbol) (Set Symbol) ->
-  (Pretty Pretty.ColorText, Bool)
+  -- Result is Nothing if nothing was rendered
+  (Maybe (Pretty Pretty.ColorText))
 renderCodePretty pped isSourceFile isTest terms types excludeNames =
   let prettyTypes = prettyTypeDisplayObjects pped types excludeNames.types
       prettyTerms = prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames.terms
-   in ( Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)),
-        not $ null prettyTerms && null prettyTypes
-      )
+   in NEL.nonEmpty (prettyTypes ++ prettyTerms)
+        $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)))
 
 renderToConsole ::
   PPED.PrettyPrintEnvDecl ->
@@ -168,7 +171,7 @@ renderToConsole pped terms types = do
   let isTest _ = False
   let isSourceFile = False
   -- No filepath, render code to console.
-  let (renderedCodePretty, _numRendered) =
+  let renderedCodePretty =
         renderCodePretty
           pped
           isSourceFile
@@ -176,13 +179,15 @@ renderToConsole pped terms types = do
           terms
           types
           (Defns Set.empty Set.empty)
-  Cli.respond $ DisplayDefinitions renderedCodePretty
+  Cli.respond $ DisplayDefinitions (fromMaybe mempty renderedCodePretty)
 
 -- | Render definitions to a file.
 -- Returns whether anything was rendered.
 -- Definitions can be obtained via definitionsByName
 renderToFile ::
-  (MonadReader Cli.Env m, MonadIO m) =>
+  (MonadIO m, Monoid a) =>
+  Codebase IO Symbol a ->
+  (Text -> Text -> Bool -> IO ()) ->
   Maybe (Either (UnisonFile.UnisonFile Symbol Ann) (UnisonFile.TypecheckedUnisonFile Symbol a)) ->
   FilePath ->
   RelativeToFold ->
@@ -190,8 +195,7 @@ renderToFile ::
   Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map Reference (DisplayObject () (Decl Symbol Ann)) ->
   (m Bool)
-renderToFile mayTF fp relToFold pped terms types = do
-  Cli.Env {codebase, writeSource} <- ask
+renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -224,14 +228,16 @@ renderToFile mayTF fp relToFold pped terms types = do
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let (renderedCodePretty, didRender) = renderCodePretty pped isSourceFile isTest terms types excludeNames
-  when didRender do
-    let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
-    liftIO $
-      writeSource (Text.pack fp) renderedCodeText case relToFold of
-        AboveFold -> True
-        WithinFold -> False
-  pure didRender
+  let mayRenderedCodePretty = renderCodePretty pped isSourceFile isTest terms types excludeNames
+  case mayRenderedCodePretty of
+    Just renderedCodePretty -> do
+      let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
+      liftIO $
+        writeSource (Text.pack fp) renderedCodeText case relToFold of
+          AboveFold -> True
+          WithinFold -> False
+      pure True
+    Nothing -> pure False
 
 prettyTypeDisplayObjects ::
   PPED.PrettyPrintEnvDecl ->

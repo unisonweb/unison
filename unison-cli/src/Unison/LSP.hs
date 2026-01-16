@@ -153,6 +153,7 @@ lspDoInitialize vfsVar codebase runtime scope signal lspContext _initMsg = do
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newEmptyTMVarIO
   nameSearchCacheVar <- newEmptyTMVarIO
+  lastTouchedFileVar <- newTVarIO Nothing
   let env =
         Env
           { ppedCache = atomically $ readTMVar ppedCacheVar,
