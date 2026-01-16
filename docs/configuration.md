@@ -131,7 +131,7 @@ $ UNISON_SYNC_VERSION="1" ucm
 
 ### `UNISON_SYNC_HISTORY_COMMENTS`
 
-Toggles syncing of history comments with Share.
+Toggles on/off syncing of history comments with Share.
 
 Defaults to disabled.
 
