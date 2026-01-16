@@ -84,7 +84,6 @@ module Unison.Runtime.Stack
     traceK,
     frameDataSize,
     RuntimePanic (..),
-    marshalToForeign,
     marshalUnwrapForeignIO,
     unull,
     bnull,
@@ -753,11 +752,6 @@ traverseAccumSegToList f (usrc, bsrc) = StateT \s -> go s [] 0
           go s (x : xs) (i + 1)
       | otherwise = pure (xs, s)
 {-# INLINE traverseAccumSegToList #-}
-
-marshalToForeign :: (HasCallStack) => Closure -> Foreign
-marshalToForeign (Foreign x) = x
-marshalToForeign c =
-  error $ "marshalToForeign: unhandled closure: " ++ show c
 
 data RuntimePanic = Panic String (Maybe Val)
   deriving (Show)
