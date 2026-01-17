@@ -15,7 +15,7 @@ import Unison.LSP.Util.Wrappers (editDefinitionByFQN)
 import Unison.Prelude
 
 supportedCommands :: [Text]
-supportedCommands = ["replaceText"]
+supportedCommands = ["replaceText", "editDefinition"]
 
 replaceText ::
   --  | The text displayed to the user for this command if used in a CodeLens
