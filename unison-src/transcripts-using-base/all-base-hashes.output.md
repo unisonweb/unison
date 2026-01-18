@@ -917,7 +917,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Bytes
         -> Bytes
         -> Bytes
-        -> Boolean
+        -> Either Failure Boolean
         
   249.  -- #bcubd2qdb27v92gb4kohhbq710cdu0g1njvnjm5iqemr6b0sq44nheo4jsgi9demkcrej53oj8hgjgdcsc50l5j53mg9h4koo52bfb8
         type builtin.crypto.CryptoFailure

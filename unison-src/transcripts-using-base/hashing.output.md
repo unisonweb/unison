@@ -129,7 +129,7 @@ And here's the full API:
                          -> Bytes
                          -> Bytes
                          -> Bytes
-                         -> Boolean
+                         -> Either Failure Boolean
   3.  type CryptoFailure
   4.  Ed25519.sign.impl : Bytes
                           -> Bytes
