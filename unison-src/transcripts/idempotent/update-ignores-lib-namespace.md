@@ -8,23 +8,27 @@ one's own code if the "lib" namespace is simply ignored.
 
 ``` unison
 foo = 100
-lib.foo = 100
+libfoo = 100
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + foo     : Nat
-  + lib.foo : Nat
+  + foo    : Nat
+  + libfoo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-> add
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+> move libfoo lib.foo
 
   Done.
 ```

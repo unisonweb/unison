@@ -530,18 +530,24 @@ scratch/main> branch alice
 ```
 
 ``` unison :hide
-lib.alice.foo : Nat
-lib.alice.foo = 17
+alice.foo : Nat
+alice.foo = 17
 
-lib.bothSame.bar : Nat
-lib.bothSame.bar = 18
+bothSame.bar : Nat
+bothSame.bar = 18
 
-lib.bothDifferent.baz : Nat
-lib.bothDifferent.baz = 19
+bothDifferent.baz : Nat
+bothDifferent.baz = 19
 ```
 
 ``` ucm :hide
-scratch/alice> add
+scratch/alice> update
+
+scratch/alice> move alice.foo lib.alice.foo
+
+scratch/alice> move bothSame.bar lib.bothSame.bar
+
+scratch/alice> move bothDifferent.baz lib.bothDifferent.baz
 
 scratch/main> branch bob
 ```
@@ -549,18 +555,24 @@ scratch/main> branch bob
 Bob's adds:
 
 ``` unison :hide
-lib.bob.foo : Nat
-lib.bob.foo = 20
+bob.foo : Nat
+bob.foo = 20
 
-lib.bothSame.bar : Nat
-lib.bothSame.bar = 18
+bothSame.bar : Nat
+bothSame.bar = 18
 
-lib.bothDifferent.baz : Nat
-lib.bothDifferent.baz = 21
+bothDifferent.baz : Nat
+bothDifferent.baz = 21
 ```
 
 ``` ucm :hide
-scratch/bob> add
+scratch/bob> update
+
+scratch/bob> move bob.foo lib.bob.foo
+
+scratch/bob> move bothSame.bar lib.bothSame.bar
+
+scratch/bob> move bothDifferent.baz lib.bothDifferent.baz
 ```
 
 Merge result:
@@ -2256,12 +2268,14 @@ scratch/main> branch alice
 ```
 
 ``` unison :hide
-lib.foo : Nat
-lib.foo = 1
+foo : Nat
+foo = 1
 ```
 
 ``` ucm :hide
-scratch/alice> add
+scratch/alice> update
+
+scratch/alice> move foo lib.foo
 
 scratch/main> branch bob
 ```

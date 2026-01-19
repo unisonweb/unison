@@ -65,27 +65,39 @@ Suffix-based resolution prefers names that are not in an indirect dependency.
 
 ``` unison
 cool.abra.cadabra = "my project"
-lib.distributed.abra.cadabra = "direct dependency 1"
-lib.distributed.baz.qux = "direct dependency 2"
-lib.distributed.lib.baz.qux = "indirect dependency"
+distributed.abra.cadabra = "direct dependency 1"
+distributed.baz.qux = "direct dependency 2"
+distributed.lib.baz.qux = "indirect dependency"
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + cool.abra.cadabra            : Text
-  + lib.distributed.abra.cadabra : Text
-  + lib.distributed.baz.qux      : Text
-  + lib.distributed.lib.baz.qux  : Text
+  + cool.abra.cadabra        : Text
+  + distributed.abra.cadabra : Text
+  + distributed.baz.qux      : Text
+  + distributed.lib.baz.qux  : Text
 
   Run `update` to apply these changes to your codebase.
 ```
 
 ``` ucm
-> add
+> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+> move distributed.abra.cadabra lib.distributed.abra.cadabra
+
+  Done.
+
+> move distributed.baz.qux lib.distributed.baz.qux
+
+  Done.
+
+> move distributed.lib.baz.qux lib.distributed.lib.baz.qux
 
   Done.
 ```

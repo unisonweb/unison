@@ -5,17 +5,17 @@ proj/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 17
-lib.new.foo = 18
-thingy = lib.old.foo + 10
+old.foo = 17
+new.foo = 18
+thingy = old.foo + 10
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.new.foo : Nat
-  + lib.old.foo : Nat
-  + thingy      : Nat
+  + new.foo : Nat
+  + old.foo : Nat
+  + thingy  : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -25,6 +25,14 @@ proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+proj/main> move old.foo lib.old.foo
+
+  Done.
+
+proj/main> move new.foo lib.new.foo
 
   Done.
 ```
@@ -80,17 +88,17 @@ proj/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 17
-lib.new.foo = +18
-thingy = lib.old.foo + 10
+old.foo = 17
+new.foo = +18
+thingy = old.foo + 10
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.new.foo : Int
-  + lib.old.foo : Nat
-  + thingy      : Nat
+  + new.foo : Int
+  + old.foo : Nat
+  + thingy  : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -100,6 +108,14 @@ proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+proj/main> move old.foo lib.old.foo
+
+  Done.
+
+proj/main> move new.foo lib.new.foo
 
   Done.
 ```
@@ -183,17 +199,17 @@ proj/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 17
-lib.new.foo = +18
-thingy = lib.old.foo + 10
+old.foo = 17
+new.foo = +18
+thingy = old.foo + 10
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.new.foo : Int
-  + lib.old.foo : Nat
-  + thingy      : Nat
+  + new.foo : Int
+  + old.foo : Nat
+  + thingy  : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -203,6 +219,14 @@ proj/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+proj/main> move old.foo lib.old.foo
+
+  Done.
+
+proj/main> move new.foo lib.new.foo
 
   Done.
 ```
@@ -284,19 +308,19 @@ myproject/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 141
-lib.new.foo = 142
+old.foo = 141
+new.foo = 142
 bar = 141
-mything = lib.old.foo + 100
+mything = old.foo + 100
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + bar         : Nat
-  + lib.new.foo : Nat
-  + lib.old.foo : Nat
-  + mything     : Nat
+  + bar     : Nat
+  + mything : Nat
+  + new.foo : Nat
+  + old.foo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -306,6 +330,14 @@ myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+myproject/main> move old.foo lib.old.foo
+
+  Done.
+
+myproject/main> move new.foo lib.new.foo
 
   Done.
 
@@ -337,25 +369,25 @@ myproject/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 25
-lib.new.foo = +30
+old.foo = 25
+new.foo = +30
 a.x.x.x.x = 100
 b.x.x.x.x = 100
-c.y.y.y.y = lib.old.foo + 10
-d.y.y.y.y = lib.old.foo + 10
+c.y.y.y.y = old.foo + 10
+d.y.y.y.y = old.foo + 10
 bar = a.x.x.x.x + c.y.y.y.y
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + a.x.x.x.x   : Nat
-  + b.x.x.x.x   : Nat
-  + bar         : Nat
-  + c.y.y.y.y   : Nat
-  + d.y.y.y.y   : Nat
-  + lib.new.foo : Int
-  + lib.old.foo : Nat
+  + a.x.x.x.x : Nat
+  + b.x.x.x.x : Nat
+  + bar       : Nat
+  + c.y.y.y.y : Nat
+  + d.y.y.y.y : Nat
+  + new.foo   : Int
+  + old.foo   : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -365,6 +397,14 @@ myproject/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+myproject/main> move old.foo lib.old.foo
+
+  Done.
+
+myproject/main> move new.foo lib.new.foo
 
   Done.
 ```
@@ -417,19 +457,19 @@ foo/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.old.foo = 18
-lib.new.other = 18
-lib.new.foo = 19
-mything = lib.old.foo + lib.old.foo
+old.foo = 18
+new.other = 18
+new.foo = 19
+mything = old.foo + old.foo
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.new.foo   : Nat
-  + lib.new.other : Nat
-  + lib.old.foo   : Nat
-  + mything       : Nat
+  + mything   : Nat
+  + new.foo   : Nat
+  + new.other : Nat
+  + old.foo   : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -439,6 +479,18 @@ foo/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+foo/main> move old.foo lib.old.foo
+
+  Done.
+
+foo/main> move new.other lib.new.other
+
+  Done.
+
+foo/main> move new.foo lib.new.foo
 
   Done.
 
@@ -469,15 +521,15 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.dep.foo = 1
-lib.dep__2.foo = 2
+dep.foo = 1
+dep__2.foo = 2
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.dep.foo    : Nat
-  + lib.dep__2.foo : Nat
+  + dep.foo    : Nat
+  + dep__2.foo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -487,6 +539,14 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move dep.foo lib.dep.foo
+
+  Done.
+
+scratch/main> move dep__2.foo lib.dep__2.foo
 
   Done.
 
@@ -511,17 +571,17 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.dep.foo = 1
-lib.hello.foo = 2
-lib.dep__2.foo = 3
+dep.foo = 1
+hello.foo = 2
+dep__2.foo = 3
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.dep.foo    : Nat
-  + lib.dep__2.foo : Nat
-  + lib.hello.foo  : Nat
+  + dep.foo    : Nat
+  + dep__2.foo : Nat
+  + hello.foo  : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -531,6 +591,18 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move dep.foo lib.dep.foo
+
+  Done.
+
+scratch/main> move hello.foo lib.hello.foo
+
+  Done.
+
+scratch/main> move dep__2.foo lib.dep__2.foo
 
   Done.
 
@@ -558,10 +630,10 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.foo_1.foo = 17
-lib.foo_2.foo = 18
-lib.bar_1.bar = 19
-lib.bar_2.bar = 20
+foo_1.foo = 17
+foo_2.foo = 18
+bar_1.bar = 19
+bar_2.bar = 20
 
 thing = foo_1.foo + bar_1.bar
 ```
@@ -569,11 +641,11 @@ thing = foo_1.foo + bar_1.bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.bar_1.bar : Nat
-  + lib.bar_2.bar : Nat
-  + lib.foo_1.foo : Nat
-  + lib.foo_2.foo : Nat
-  + thing         : Nat
+  + bar_1.bar : Nat
+  + bar_2.bar : Nat
+  + foo_1.foo : Nat
+  + foo_2.foo : Nat
+  + thing     : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -583,6 +655,22 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move foo_1.foo lib.foo_1.foo
+
+  Done.
+
+scratch/main> move foo_2.foo lib.foo_2.foo
+
+  Done.
+
+scratch/main> move bar_1.bar lib.bar_1.bar
+
+  Done.
+
+scratch/main> move bar_2.bar lib.bar_2.bar
 
   Done.
 
@@ -615,10 +703,10 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.foo_1.foo = 17
-lib.foo_2.foo = 18
-lib.bar_1.bar = 19
-lib.bar_2.bar = +20
+foo_1.foo = 17
+foo_2.foo = 18
+bar_1.bar = 19
+bar_2.bar = +20
 
 thing = foo_1.foo + bar_1.bar
 ```
@@ -626,11 +714,11 @@ thing = foo_1.foo + bar_1.bar
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.bar_1.bar : Nat
-  + lib.bar_2.bar : Int
-  + lib.foo_1.foo : Nat
-  + lib.foo_2.foo : Nat
-  + thing         : Nat
+  + bar_1.bar : Nat
+  + bar_2.bar : Int
+  + foo_1.foo : Nat
+  + foo_2.foo : Nat
+  + thing     : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -640,6 +728,22 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move foo_1.foo lib.foo_1.foo
+
+  Done.
+
+scratch/main> move foo_2.foo lib.foo_2.foo
+
+  Done.
+
+scratch/main> move bar_1.bar lib.bar_1.bar
+
+  Done.
+
+scratch/main> move bar_2.bar lib.bar_2.bar
 
   Done.
 ```
@@ -692,19 +796,19 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.foo.foo = 17
-lib.foo__2.foo = 18
-lib.bar.bar = 19
-lib.bar__2.bar = 20
+foo.foo = 17
+foo__2.foo = 18
+bar.bar = 19
+bar__2.bar = 20
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.bar.bar    : Nat
-  + lib.bar__2.bar : Nat
-  + lib.foo.foo    : Nat
-  + lib.foo__2.foo : Nat
+  + bar.bar    : Nat
+  + bar__2.bar : Nat
+  + foo.foo    : Nat
+  + foo__2.foo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -714,6 +818,22 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move foo.foo lib.foo.foo
+
+  Done.
+
+scratch/main> move foo__2.foo lib.foo__2.foo
+
+  Done.
+
+scratch/main> move bar.bar lib.bar.bar
+
+  Done.
+
+scratch/main> move bar__2.bar lib.bar__2.bar
 
   Done.
 
@@ -742,19 +862,19 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.foo.foo = 17
-lib.foo__2.foo = 18
-lib.bar.bar = 19
-lib.foo__3.bar = 20
+foo.foo = 17
+foo__2.foo = 18
+bar.bar = 19
+foo__3.bar = 20
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.bar.bar    : Nat
-  + lib.foo.foo    : Nat
-  + lib.foo__2.foo : Nat
-  + lib.foo__3.bar : Nat
+  + bar.bar    : Nat
+  + foo.foo    : Nat
+  + foo__2.foo : Nat
+  + foo__3.bar : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -764,6 +884,22 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move foo.foo lib.foo.foo
+
+  Done.
+
+scratch/main> move foo__2.foo lib.foo__2.foo
+
+  Done.
+
+scratch/main> move bar.bar lib.bar.bar
+
+  Done.
+
+scratch/main> move foo__3.bar lib.foo__3.bar
 
   Done.
 
@@ -791,19 +927,19 @@ scratch/main> builtins.merge lib.builtin
 ```
 
 ``` unison
-lib.foo_1.foo = 17
-lib.foo_2.foo = 18
-lib.bar_1.bar = 19
-lib.bar_2.bar = 20
+foo_1.foo = 17
+foo_2.foo = 18
+bar_1.bar = 19
+bar_2.bar = 20
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.bar_1.bar : Nat
-  + lib.bar_2.bar : Nat
-  + lib.foo_1.foo : Nat
-  + lib.foo_2.foo : Nat
+  + bar_1.bar : Nat
+  + bar_2.bar : Nat
+  + foo_1.foo : Nat
+  + foo_2.foo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -813,6 +949,22 @@ scratch/main> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/main> move foo_1.foo lib.foo_1.foo
+
+  Done.
+
+scratch/main> move foo_2.foo lib.foo_2.foo
+
+  Done.
+
+scratch/main> move bar_1.bar lib.bar_1.bar
+
+  Done.
+
+scratch/main> move bar_2.bar lib.bar_2.bar
 
   Done.
 ```

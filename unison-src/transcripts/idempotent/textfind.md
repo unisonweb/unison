@@ -47,8 +47,8 @@ qux =
   quaffle = 99
   quaffle + 1
 
-lib.foo = [Any 46, Any "hi", Any "zoink"]
-lib.bar = 3
+libfoo = [Any 46, Any "hi", Any "zoink"]
+libbar = 3
 
 magicNumber = 230971246918247
 
@@ -64,8 +64,8 @@ openSesame = cases
   + bar         : Nat
   + baz         : [Text]
   + foo         : Nat
-  + lib.bar     : Nat
-  + lib.foo     : [Any]
+  + libbar      : Nat
+  + libfoo      : [Any]
   + magicNumber : Nat
   + openSesame  : Nat -> Text
   + qux         : Nat
@@ -73,8 +73,21 @@ openSesame = cases
   Run `update` to apply these changes to your codebase.
 ```
 
-``` ucm :hide
-> add
+``` ucm
+> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+> move libfoo lib.foo
+
+  Done.
+
+> move libbar lib.bar
+
+  Done.
 ```
 
 ``` ucm

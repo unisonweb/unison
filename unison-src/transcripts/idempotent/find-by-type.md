@@ -69,15 +69,19 @@ Set up a scenario with transitive dependencies:
 myFn : A -> A
 myFn a = a
 
-lib.directDep.fn : A -> A
-lib.directDep.fn a = a
+direct : A -> A
+direct a = a
 
-lib.directDep.lib.transitive.fn : A -> A
-lib.directDep.lib.transitive.fn a = a
+transitive : A -> A
+transitive a = a
 ```
 
 ``` ucm :hide
-> add
+> update
+
+> move direct lib.directDep.fn
+
+> move transitive lib.directDep.lib.transitive.fn
 ```
 
 Now, `find : A -> A` should only show `myFn` (local) - not things in lib:
@@ -111,15 +115,19 @@ direct dependencies (but still not transitive deps).
 ``` unison :hide
 unique type B = B
 
-lib.directDep.libOnlyFn : B -> B
-lib.directDep.libOnlyFn b = b
+direct : B -> B
+direct b = b
 
-lib.directDep.lib.transitive.libOnlyFn : B -> B
-lib.directDep.lib.transitive.libOnlyFn b = b
+transitive : B -> B
+transitive b = b
 ```
 
 ``` ucm :hide
-> add
+> update
+
+> move direct lib.directDep.libOnlyFn
+
+> move transitive lib.directDep.lib.transitive.libOnlyFn
 ```
 
 `find : B -> B` should fall back to lib but still exclude transitive deps:

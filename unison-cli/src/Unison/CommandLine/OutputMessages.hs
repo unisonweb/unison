@@ -1255,11 +1255,24 @@ notifyUser dir issueFn = \case
                   Just legend -> legend <> P.newline <> P.newline
                   Nothing -> mempty
               )
-                <> P.wrap
-                  ( "Run"
-                      <> makeExample' IP.update
-                      <> "to apply these changes to your codebase."
-                  )
+                <> ( let addsAndUpdatesInLib =
+                           let f name acc
+                                 | Name.beginsWithSegment name NameSegment.libSegment = Set.insert name acc
+                                 | otherwise = acc
+                            in Set.empty
+                                 & (\acc -> foldr (\(name, _) -> f name) acc newTypes)
+                                 & (\acc -> foldr (\(name, _, _) -> f name) acc updatedTypes)
+                                 & (\acc -> foldr (\(name, _, _) -> f name) acc newTerms)
+                                 & (\acc -> foldr (\(name, _, _, _, _) -> f name) acc updatedTerms)
+                      in if Set.null addsAndUpdatesInLib
+                           then
+                             P.wrap
+                               ( "Run"
+                                   <> makeExample' IP.update
+                                   <> "to apply these changes to your codebase."
+                               )
+                           else P.warnCallout (modifyingLibNotAllowed addsAndUpdatesInLib)
+                   )
             ]
         else "No changes found."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
@@ -2930,12 +2943,31 @@ notifyUser dir issueFn = \case
         "When I tried to watch"
           <> P.group (P.blue (P.string originalPath) <> ",")
           <> "it didn't seem to exist."
+  CantUpdateLib names ->
+    pure (P.fatalCallout (modifyingLibNotAllowed names))
   where
     iveCreatedATemporaryBranch scratchFile =
       P.wrap $
         "I've created a temporary branch and added the affected definitions to"
           <> P.group (scratchFile <> ",")
           <> "where you can fix them up or remove any that are obsolete."
+
+    modifyingLibNotAllowed :: (Foldable f) => f Name -> Pretty
+    modifyingLibNotAllowed names =
+      P.wrap "Your scratch file has edits to the following definitions:"
+        <> P.newline
+        <> P.newline
+        <> P.indentN
+          2
+          ( names
+              & Foldable.toList
+              & List.sortBy Name.compareAlphabetical
+              & map prettyName
+              & P.lines
+          )
+        <> P.newline
+        <> P.newline
+        <> P.wrap "Modifying definitions in `lib` is not allowed."
 
     onceYoureHappy baseBranch =
       P.wrap $

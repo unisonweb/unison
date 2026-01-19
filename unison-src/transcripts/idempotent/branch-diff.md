@@ -156,15 +156,15 @@ scratch/main> builtins.mergeio lib.builtin
 ```
 
 ``` unison
-lib.foo.foo = 17
-lib.bar.bar = 18
+foo = 17
+bar = 18
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.bar.bar : Nat
-  + lib.foo.foo : Nat
+  + bar : Nat
+  + foo : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -177,27 +177,42 @@ scratch/main> update
 
   Done.
 
+scratch/main> move.term foo lib.foo.foo
+
+  Done.
+
+scratch/main> move.term bar lib.bar.bar
+
+  Done.
+
 scratch/main> branch alice
 
   Done. I've created the alice branch based off of main.
 
   Tip: To merge your work back into the main branch, first
        `switch /main` then `merge /alice`.
+
+scratch/alice> delete.force lib.foo.foo
+
+  I deleted these terms:
+
+    1. lib.foo.foo
+
+  Tip: You can use `undo` or use a hash from `reflog` to undo
+       this change.
 ```
 
 ``` unison
-lib.foo.foo = 18
-lib.baz.baz = 19
+foo = 18
+baz = 19
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.baz.baz : Nat
-  ~ lib.foo.foo : Nat
+  + baz : Nat
+  + foo : Nat
       (also named lib.bar.bar)
-
-  + (added), ~ (modified)
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -207,6 +222,14 @@ scratch/alice> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/alice> move.term foo lib.foo.foo
+
+  Done.
+
+scratch/alice> move.term baz lib.baz.baz
 
   Done.
 
@@ -308,15 +331,15 @@ scratch/main> builtins.mergeio lib.builtin
 ```
 
 ``` unison
-lib.dep_1_0_0.thing = 17
+thing = 17
 foo = thing + thing
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + foo                 : Nat
-  + lib.dep_1_0_0.thing : Nat
+  + foo   : Nat
+  + thing : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -329,6 +352,10 @@ scratch/main> update
 
   Done.
 
+scratch/main> move thing lib.dep_1_0_0.thing
+
+  Done.
+
 scratch/main> branch topic
 
   Done. I've created the topic branch based off of main.
@@ -338,13 +365,13 @@ scratch/main> branch topic
 ```
 
 ``` unison
-lib.dep_2_0_0.thing = 18
+thing = 18
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + lib.dep_2_0_0.thing : Nat
+  + thing : Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -354,6 +381,10 @@ scratch/topic> update
 
   Okay, I'm searching the branch for code that needs to be
   updated...
+
+  Done.
+
+scratch/topic> move thing lib.dep_2_0_0.thing
 
   Done.
 
