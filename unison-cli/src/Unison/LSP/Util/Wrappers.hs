@@ -25,7 +25,8 @@ editDefinitionByFQN ::
   LSP.Uri ->
   -- | Fully qualified name of the definition to edit
   Text ->
-  ExceptT Text Lsp ()
+  -- Returns 'True' if the definition was added to the file, False if it was already present
+  ExceptT Text Lsp Bool
 editDefinitionByFQN fileURI fqn = do
   Env {codebase} <- ask
   nameSearch <- getNameSearch
@@ -60,4 +61,4 @@ editDefinitionByFQN fileURI fqn = do
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
           Right _ -> pure ()
-  void $ renderToFile codebase appendText mayUnisonFile fp WithinFold pped termResults typeResults
+  renderToFile codebase appendText mayUnisonFile fp WithinFold pped termResults typeResults

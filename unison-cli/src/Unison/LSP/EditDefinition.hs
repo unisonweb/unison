@@ -39,16 +39,21 @@ instance Aeson.FromJSON EditDefinitionParams where
     fqn <- v Aeson..:? "fqn"
     pure EditDefinitionParams {textDocument, position, fqn}
 
-data EditDefinitionResponse = EditDefinitionResponse
-  { error :: Maybe Text
-  }
+data EditDefinitionResponse
+  = EditDefinitionError Text
+  | EditDefinitionSuccess Bool {- Whether the definition was newly added -}
   deriving (Show, Eq)
 
 instance Aeson.ToJSON EditDefinitionResponse where
-  toJSON (EditDefinitionResponse err) =
-    Aeson.object
-      [ "error" Aeson..= err
-      ]
+  toJSON = \case
+    EditDefinitionSuccess newlyAdded ->
+      Aeson.object
+        [ "newlyAdded" Aeson..= newlyAdded
+        ]
+    EditDefinitionError err ->
+      Aeson.object
+        [ "error" Aeson..= err
+        ]
 
 -- | Handler for the 'unison/editDefinition' custom LSP request.
 -- This resolves the symbol at the given position to its FQN and adds it to the current file.
@@ -94,8 +99,9 @@ editDefinitionHandler m respond = do
 
   -- Send the response
   case result of
-    (Left errMsg) -> respond (Right $ Aeson.toJSON $ EditDefinitionResponse (Just errMsg))
-    _ -> respond (Right $ Aeson.toJSON $ EditDefinitionResponse Nothing)
+    (Left errMsg) -> respond (Right $ Aeson.toJSON $ EditDefinitionError errMsg)
+    Right isNewDefinition ->
+      respond (Right $ Aeson.toJSON $ EditDefinitionSuccess isNewDefinition)
   where
     orFail :: Text -> Lsp (Maybe a) -> ExceptT Text Lsp a
     orFail err action = do
