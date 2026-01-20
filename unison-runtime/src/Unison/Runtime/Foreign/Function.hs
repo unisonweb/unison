@@ -71,12 +71,14 @@ import Data.X509 qualified as X
 import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
 import Data.X509.Validation as X
+import Foreign.Marshal.Alloc qualified as Mem
+import Foreign.Storable qualified as Mem
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Conc qualified as STM
 import GHC.Exts (Int (..), indexWord8ArrayAsWord16#, indexWord8ArrayAsWord32#, indexWord8ArrayAsWord64#, readWord8ArrayAsWord16#, readWord8ArrayAsWord32#, readWord8ArrayAsWord64#, writeWord8ArrayAsWord16#, writeWord8ArrayAsWord32#, writeWord8ArrayAsWord64#)
 import GHC.Float (double2Float, float2Double)
 import GHC.IO (IO (IO))
-import GHC.Ptr (Ptr (..))
+import GHC.Ptr (Ptr)
 import GHC.Word (Word16 (W16#), Word32 (W32#), Word64 (W64#))
 import Network.Simple.TCP as SYS
   ( HostPreference (..),
@@ -1156,17 +1158,18 @@ foreignCallHelper = \case
   Natural_ge -> mkForeign $ \(l :: Natural, r :: Natural) -> pure $ encodeVal (l >= r)
   FFI_openDLL -> mkForeignIOExn $ \(fname :: Text) ->
     evaluate =<< openDLL (unpack fname)
-  FFI_int64 -> mkForeign \() -> pure $ I64
-  FFI_int32 -> mkForeign \() -> pure $ I32
-  FFI_int16 -> mkForeign \() -> pure $ I16
-  FFI_int8 -> mkForeign \() -> pure $ I8
-  FFI_uint64 -> mkForeign \() -> pure $ U64
-  FFI_uint32 -> mkForeign \() -> pure $ U32
-  FFI_uint16 -> mkForeign \() -> pure $ U16
-  FFI_uint8 -> mkForeign \() -> pure $ U8
-  FFI_double -> mkForeign \() -> pure $ D64
-  FFI_float -> mkForeign \() -> pure $ F32
-  FFI_void -> mkForeign \() -> pure $ Void
+  FFI_int64 -> mkForeign \() -> pure I64
+  FFI_int32 -> mkForeign \() -> pure I32
+  FFI_int16 -> mkForeign \() -> pure I16
+  FFI_int8 -> mkForeign \() -> pure I8
+  FFI_uint64 -> mkForeign \() -> pure U64
+  FFI_uint32 -> mkForeign \() -> pure U32
+  FFI_uint16 -> mkForeign \() -> pure U16
+  FFI_uint8 -> mkForeign \() -> pure U8
+  FFI_double -> mkForeign \() -> pure D64
+  FFI_float -> mkForeign \() -> pure F32
+  FFI_void -> mkForeign \() -> pure Void
+  FFI_ptr -> mkForeign \() -> pure Ptr
   FFI_pinnedByteArray -> mkForeign \() -> pure $ MBArr
   FFI_base -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
   FFI_baseIO -> mkForeign $ \(a, r) -> evaluate $ FFSpec [a] r
@@ -1193,6 +1196,65 @@ foreignCallHelper = \case
     mkForeignExn . wrapOOB "Bytes.read64be" $ Bytes.index64be
   Bytes_read64le ->
     mkForeignExn . wrapOOB "Bytes.read64le" $ Bytes.index64le
+
+  -- pointer functions
+  FFI_Ptr_Int8_allocate    -> mkForeign $ allocPtr @Int8
+  FFI_Ptr_Int16_allocate   -> mkForeign $ allocPtr @Int16
+  FFI_Ptr_Int32_allocate   -> mkForeign $ allocPtr @Int32
+  FFI_Ptr_Int_allocate     -> mkForeign $ allocPtr @Int64
+  FFI_Ptr_Nat8_allocate    -> mkForeign $ allocPtr @Word8
+  FFI_Ptr_Nat16_allocate   -> mkForeign $ allocPtr @Word16
+  FFI_Ptr_Nat32_allocate   -> mkForeign $ allocPtr @Word32
+  FFI_Ptr_Nat_allocate     -> mkForeign $ allocPtr @Word64
+  FFI_Ptr_Float32_allocate -> mkForeign $ allocPtr @Float
+  FFI_Ptr_Float_allocate   -> mkForeign $ allocPtr @Double
+  FFI_Ptr_Int8_get         -> mkForeign $ Mem.peek @Int8
+  FFI_Ptr_Int16_get        -> mkForeign $ Mem.peek @Int16
+  FFI_Ptr_Int32_get        -> mkForeign $ Mem.peek @Int32
+  FFI_Ptr_Int_get          -> mkForeign $ Mem.peek @Int64
+  FFI_Ptr_Nat8_get         -> mkForeign $ Mem.peek @Word8
+  FFI_Ptr_Nat16_get        -> mkForeign $ Mem.peek @Word16
+  FFI_Ptr_Nat32_get        -> mkForeign $ Mem.peek @Word32
+  FFI_Ptr_Nat_get          -> mkForeign $ Mem.peek @Word64
+  FFI_Ptr_Float32_get      -> mkForeign $ Mem.peek @Float
+  FFI_Ptr_Float_get        -> mkForeign $ Mem.peek @Double
+  FFI_Ptr_Int8_getAt       -> mkForeign $ peekAt @Int8
+  FFI_Ptr_Int16_getAt      -> mkForeign $ peekAt @Int16
+  FFI_Ptr_Int32_getAt      -> mkForeign $ peekAt @Int32
+  FFI_Ptr_Int_getAt        -> mkForeign $ peekAt @Int64
+  FFI_Ptr_Nat8_getAt       -> mkForeign $ peekAt @Word8
+  FFI_Ptr_Nat16_getAt      -> mkForeign $ peekAt @Word16
+  FFI_Ptr_Nat32_getAt      -> mkForeign $ peekAt @Word32
+  FFI_Ptr_Nat_getAt        -> mkForeign $ peekAt @Word64
+  FFI_Ptr_Float32_getAt    -> mkForeign $ peekAt @Float
+  FFI_Ptr_Float_getAt      -> mkForeign $ peekAt @Double
+  FFI_Ptr_Int8_set         -> mkForeign . uncurry $ Mem.poke @Int8
+  FFI_Ptr_Int16_set        -> mkForeign . uncurry $ Mem.poke @Int16
+  FFI_Ptr_Int32_set        -> mkForeign . uncurry $ Mem.poke @Int32
+  FFI_Ptr_Int_set          -> mkForeign . uncurry $ Mem.poke @Int64
+  FFI_Ptr_Nat8_set         -> mkForeign . uncurry $ Mem.poke @Word8
+  FFI_Ptr_Nat16_set        -> mkForeign . uncurry $ Mem.poke @Word16
+  FFI_Ptr_Nat32_set        -> mkForeign . uncurry $ Mem.poke @Word32
+  FFI_Ptr_Nat_set          -> mkForeign . uncurry $ Mem.poke @Word64
+  FFI_Ptr_Float32_set      -> mkForeign . uncurry $ Mem.poke @Float
+  FFI_Ptr_Float_set        -> mkForeign . uncurry $ Mem.poke @Double
+  FFI_Ptr_Int8_setAt       -> mkForeign $ pokeAt @Int8
+  FFI_Ptr_Int16_setAt      -> mkForeign $ pokeAt @Int16
+  FFI_Ptr_Int32_setAt      -> mkForeign $ pokeAt @Int32
+  FFI_Ptr_Int_setAt        -> mkForeign $ pokeAt @Int64
+  FFI_Ptr_Nat8_setAt       -> mkForeign $ pokeAt @Word8
+  FFI_Ptr_Nat16_setAt      -> mkForeign $ pokeAt @Word16
+  FFI_Ptr_Nat32_setAt      -> mkForeign $ pokeAt @Word32
+  FFI_Ptr_Nat_setAt        -> mkForeign $ pokeAt @Word64
+  FFI_Ptr_Float32_setAt    -> mkForeign $ pokeAt @Float
+  FFI_Ptr_Float_setAt      -> mkForeign $ pokeAt @Double
+  FFI_Ptr_Ptr_allocate -> mkForeign $ allocPtr @(Ptr ())
+  FFI_Ptr_Ptr_get -> mkForeign $ Mem.peek @(Ptr ())
+  FFI_Ptr_Ptr_set -> mkForeign . uncurry $ Mem.poke @(Ptr ())
+  FFI_Ptr_Ptr_getAt -> mkForeign $ peekAt @(Ptr ())
+  FFI_Ptr_Ptr_setAt -> mkForeign $ pokeAt @(Ptr ())
+  FFI_Ptr_free -> mkForeign $ Mem.free @()
+  FFI_Ptr_cast -> mkForeign $ pure @IO @(Ptr ())
   where
     wrapOOB ::
       (Integral n) =>
@@ -1267,6 +1329,20 @@ foreignCallHelper = \case
           "FFI interface initialization failed for `"
             <> pack name
             <> "`: array results are currently unsupported"
+
+-- pointer function implementations
+
+-- allocate memory for the given number of elements
+allocPtr :: forall a. Mem.Storable a => Word64 -> IO (Ptr a)
+allocPtr elemCount = Mem.mallocBytes byteCount
+  where
+    byteCount = fromIntegral elemCount * Mem.sizeOf (undefined :: a)
+
+peekAt :: forall a. Mem.Storable a => (Ptr a, Word64) -> IO a
+peekAt (ptr, off) = Mem.peekElemOff ptr $ fromIntegral off
+
+pokeAt :: forall a. Mem.Storable a => (Ptr a, Word64, a) -> IO ()
+pokeAt (ptr, off, x) = Mem.pokeElemOff ptr (fromIntegral off) x
 
 {-# INLINE mkHashAlgorithm #-}
 mkHashAlgorithm :: forall alg. (Hash.HashAlgorithm alg) => TS.Text -> alg -> Args -> Stack -> IO (Bool, Stack)
@@ -2607,6 +2683,38 @@ instance ForeignConvention Word64 where
   readAtIndex stk i = peekOffN stk i
   writeBack stk w = pokeN stk w
 
+instance ForeignConvention Int8 where
+  decodeVal (IntVal v) = pure $ fromIntegral v
+  decodeVal v = foreignConventionError "Int8" v
+  encodeVal w = IntVal $ fromIntegral w
+
+  readAtIndex stk i = fromIntegral <$> peekOffN stk i
+  writeBack stk v = pokeN stk $ fromIntegral v
+
+instance ForeignConvention Int16 where
+  decodeVal (IntVal v) = pure $ fromIntegral v
+  decodeVal v = foreignConventionError "Int16" v
+  encodeVal w = IntVal $ fromIntegral w
+
+  readAtIndex stk i = fromIntegral <$> peekOffN stk i
+  writeBack stk v = pokeN stk $ fromIntegral v
+
+instance ForeignConvention Int32 where
+  decodeVal (IntVal v) = pure $ fromIntegral v
+  decodeVal v = foreignConventionError "Int32" v
+  encodeVal w = IntVal $ fromIntegral w
+
+  readAtIndex stk i = fromIntegral <$> upeekOff stk i
+  writeBack stk v = pokeN stk $ fromIntegral v
+
+instance ForeignConvention Int64 where
+  decodeVal (IntVal v) = pure $ fromIntegral v
+  decodeVal v = foreignConventionError "Int64" v
+  encodeVal w = IntVal $ fromIntegral w
+
+  readAtIndex stk i = fromIntegral <$> upeekOff stk i
+  writeBack stk v = pokeN stk $ fromIntegral v
+
 instance ForeignConvention Char where
   decodeVal (CharVal c) = pure c
   decodeVal v = foreignConventionError "Char" v
@@ -2615,6 +2723,15 @@ instance ForeignConvention Char where
 
   readAtIndex = peekOffC
   writeBack = pokeC
+
+instance ForeignConvention Float where
+  decodeVal (DoubleVal d) = pure $ double2Float d
+  decodeVal v = foreignConventionError "Float" v
+
+  encodeVal f = DoubleVal (float2Double f)
+
+  readAtIndex stk i = double2Float <$> peekOffD stk i
+  writeBack stk f = pokeD stk $ float2Double f
 
 unitClo :: Closure
 unitClo = Enum Ty.unitRef TT.unitTag

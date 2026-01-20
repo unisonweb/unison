@@ -89,6 +89,7 @@ import Unison.Runtime.Foreign.Function
     functionReplacements,
     functionUnreplacements,
     pseudoConstructors,
+    writeBack,
   )
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
@@ -505,6 +506,8 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
             DLL.F32 -> Store.peek (castPtr cRet) >>= pokeD stk . ff32
             DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
             DLL.Void -> poke stk unitValue
+            DLL.Ptr ->
+              Store.peek (castPtr cRet) >>= writeBack @(Ptr ()) stk
             DLL.MBArr ->
               die [] $ "unexpected array result from DLL function"
   pure (False, henv, stk, k)
@@ -589,6 +592,8 @@ copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
       mb <- peekOffBi stk i
       withMutableByteArrayContents mb \ptr ->
         Store.poke (castPtr p) ptr >> nx
+    store DLL.Ptr i p nx = do
+      peekOffBi @(Ptr ()) stk i >>= Store.poke (castPtr p) >> nx
     store _ i p nx =
       upeekOff stk i >>= Store.poke p >> nx
     {-# INLINE store #-}

@@ -195,6 +195,7 @@ import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Word
 import Data.X509 qualified as X509
+import Foreign.Ptr qualified as Ptr
 import GHC.Base
 import GHC.Exts as L (IsList (..))
 import Language.Haskell.TH qualified as TH
@@ -1822,6 +1823,7 @@ data Foreign
   | WrapNatural !Natural
   | WrapProcessHandle !ProcessHandle
   | WrapPromise !(Promise Val)
+  | WrapPtr !(Ptr.Ptr ())
   | WrapReference !Reference
   | WrapReferent !Referent
   | WrapSeq !(Seq Val)
@@ -1869,6 +1871,7 @@ foreignRef WrapMVar {} = Ty.mvarRef
 foreignRef WrapNatural {} = Ty.naturalRef
 foreignRef WrapProcessHandle {} = Ty.processHandleRef
 foreignRef WrapPromise {} = Ty.promiseRef
+foreignRef WrapPtr {} = Ty.ffiPtrRef
 foreignRef WrapReference {} = Ty.typeLinkRef
 foreignRef WrapReferent {} = Ty.termLinkRef
 foreignRef WrapSeq {} = Ty.listRef
@@ -1910,6 +1913,7 @@ foreignName WrapMVar {} = "MVar"
 foreignName WrapNatural {} = "Natural"
 foreignName WrapProcessHandle {} = "ProcessHandle"
 foreignName WrapPromise {} = "Promise"
+foreignName WrapPtr {} = "Ptr"
 foreignName WrapReference {} = "Reference"
 foreignName WrapReferent {} = "Referent"
 foreignName WrapSeq {} = "Seq"
@@ -1971,6 +1975,7 @@ instance Eq Foreign where
   WrapTicket l == WrapTicket r = l == r
   WrapTimeSpec l == WrapTimeSpec r = l == r
   WrapX509PrivKey l == WrapX509PrivKey r = l == r
+  WrapPtr l == WrapPtr r = l == r
   -- these lack Eq instances
   WrapProcessHandle l == WrapProcessHandle r = ptrEq l r
   WrapPromise l == WrapPromise r = ptrEq l r
@@ -1997,6 +2002,7 @@ compareForeign _tyEq (WrapCPattern l) (WrapCPattern r) = compare l r
 compareForeign _tyEq (WrapCharPattern l) (WrapCharPattern r) = compare l r
 compareForeign _tyEq (WrapInteger l) (WrapInteger r) = compare l r
 compareForeign _tyEq (WrapNatural l) (WrapNatural r) = compare l r
+compareForeign _tyEq (WrapPtr l) (WrapPtr r) = compare l r
 compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
 compareForeign tyEq (WrapSeq l) (WrapSeq r) =
   liftCompare (compareVal tyEq) l r
@@ -2057,6 +2063,14 @@ instance BuiltinForeign ProcessHandle where
   wrapBuiltin = WrapProcessHandle
   maybeUnwrapBuiltin = \case
     WrapProcessHandle v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Ptr.Ptr a) where
+  builtinName = Tagged "Ptr"
+  wrapBuiltin = WrapPtr . Ptr.castPtr
+  maybeUnwrapBuiltin = \case
+    WrapPtr p -> Just (Ptr.castPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 

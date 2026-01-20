@@ -25,6 +25,7 @@ data FFType
   | D64
   | Void
   | MBArr
+  | Ptr
   deriving (Eq, Ord, Show)
 
 -- arguments and return type
@@ -66,6 +67,7 @@ encodeType D64 = ffi_type_double
 encodeType F32 = ffi_type_float
 encodeType Void = ffi_type_void
 encodeType MBArr = ffi_type_pointer
+encodeType Ptr = ffi_type_pointer
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes [] !_ = pure ()

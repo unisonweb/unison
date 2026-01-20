@@ -1417,6 +1417,7 @@ declareForeigns = do
   declareForeignWrap Untracked direct FFI_float
   declareForeignWrap Untracked direct FFI_void
   declareForeignWrap Untracked direct FFI_pinnedByteArray
+  declareForeignWrap Untracked direct FFI_ptr
   declareForeign Untracked 2 FFI_base
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr
@@ -1428,6 +1429,70 @@ declareForeigns = do
   declareForeign Untracked 2 Bytes_read32be
   declareForeign Untracked 2 Bytes_read64le
   declareForeign Untracked 2 Bytes_read64be
+
+  declareForeign Tracked 1 FFI_Ptr_Int8_allocate
+  declareForeign Tracked 1 FFI_Ptr_Int16_allocate
+  declareForeign Tracked 1 FFI_Ptr_Int32_allocate
+  declareForeign Tracked 1 FFI_Ptr_Int_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat8_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat16_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat32_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat_allocate
+  declareForeign Tracked 1 FFI_Ptr_Float32_allocate
+  declareForeign Tracked 1 FFI_Ptr_Float_allocate
+
+  declareForeign Tracked 1 FFI_Ptr_Int8_get
+  declareForeign Tracked 1 FFI_Ptr_Int16_get
+  declareForeign Tracked 1 FFI_Ptr_Int32_get
+  declareForeign Tracked 1 FFI_Ptr_Int_get
+  declareForeign Tracked 1 FFI_Ptr_Nat8_get
+  declareForeign Tracked 1 FFI_Ptr_Nat16_get
+  declareForeign Tracked 1 FFI_Ptr_Nat32_get
+  declareForeign Tracked 1 FFI_Ptr_Nat_get
+  declareForeign Tracked 1 FFI_Ptr_Float32_get
+  declareForeign Tracked 1 FFI_Ptr_Float_get
+
+  declareForeign Tracked 2 FFI_Ptr_Int8_getAt
+  declareForeign Tracked 2 FFI_Ptr_Int16_getAt
+  declareForeign Tracked 2 FFI_Ptr_Int32_getAt
+  declareForeign Tracked 2 FFI_Ptr_Int_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat8_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat16_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat32_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat_getAt
+  declareForeign Tracked 2 FFI_Ptr_Float32_getAt
+  declareForeign Tracked 2 FFI_Ptr_Float_getAt
+
+  declareForeign Tracked 2 FFI_Ptr_Int8_set
+  declareForeign Tracked 2 FFI_Ptr_Int16_set
+  declareForeign Tracked 2 FFI_Ptr_Int32_set
+  declareForeign Tracked 2 FFI_Ptr_Int_set
+  declareForeign Tracked 2 FFI_Ptr_Nat8_set
+  declareForeign Tracked 2 FFI_Ptr_Nat16_set
+  declareForeign Tracked 2 FFI_Ptr_Nat32_set
+  declareForeign Tracked 2 FFI_Ptr_Nat_set
+  declareForeign Tracked 2 FFI_Ptr_Float32_set
+  declareForeign Tracked 2 FFI_Ptr_Float_set
+
+  declareForeign Tracked 3 FFI_Ptr_Int8_setAt
+  declareForeign Tracked 3 FFI_Ptr_Int16_setAt
+  declareForeign Tracked 3 FFI_Ptr_Int32_setAt
+  declareForeign Tracked 3 FFI_Ptr_Int_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat8_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat16_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat32_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat_setAt
+  declareForeign Tracked 3 FFI_Ptr_Float32_setAt
+  declareForeign Tracked 3 FFI_Ptr_Float_setAt
+
+  declareForeign Tracked 1 FFI_Ptr_Ptr_allocate
+  declareForeign Tracked 1 FFI_Ptr_Ptr_get
+  declareForeign Tracked 2 FFI_Ptr_Ptr_set
+  declareForeign Tracked 2 FFI_Ptr_Ptr_getAt
+  declareForeign Tracked 3 FFI_Ptr_Ptr_setAt
+
+  declareForeign Tracked 1 FFI_Ptr_free
+  declareForeign Tracked 1 FFI_Ptr_cast
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))
