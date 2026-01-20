@@ -494,9 +494,11 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
         copyArgs stk (DLL.cffArgs cf) storage cArgs do
           DLL.callForeign cf cArgs cRet
           case DLL.cffResult cf of
+            DLL.I8 -> Store.peek (castPtr cRet) >>= pokeI stk . fi8
             DLL.I16 -> Store.peek (castPtr cRet) >>= pokeI stk . fi16
             DLL.I32 -> Store.peek (castPtr cRet) >>= pokeI stk . fi32
             DLL.I64 -> Store.peek cRet >>= pokeI stk
+            DLL.U8 -> Store.peek (castPtr cRet) >>= pokeN stk . fu8
             DLL.U16 -> Store.peek (castPtr cRet) >>= pokeN stk . fu16
             DLL.U32 -> Store.peek (castPtr cRet) >>= pokeN stk . fu32
             DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
@@ -509,6 +511,18 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
+
+fi8 :: Int8 -> Int
+fi8 = fromIntegral
+
+ti8 :: Int -> Int8
+ti8 = fromIntegral
+
+fu8 :: Word8 -> Word64
+fu8 = fromIntegral
+
+tu8 :: Word64 -> Word8
+tu8 = fromIntegral
 
 fi16 :: Int16 -> Int
 fi16 = fromIntegral
@@ -565,6 +579,10 @@ copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
       upeekOff stk i >>= Store.poke (castPtr p) . ti16 >> nx
     store DLL.U16 i p nx =
       peekOffN stk i >>= Store.poke (castPtr p) . tu16 >> nx
+    store DLL.I8 i p nx =
+      upeekOff stk i >>= Store.poke (castPtr p) . ti8 >> nx
+    store DLL.U8 i p nx =
+      peekOffN stk i >>= Store.poke (castPtr p) . tu8 >> nx
     store DLL.F32 i p nx =
       peekOffD stk i >>= Store.poke (castPtr p) . tf32 >> nx
     store DLL.MBArr i p nx = do

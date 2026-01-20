@@ -1408,9 +1408,11 @@ declareForeigns = do
   declareForeignWrap Untracked direct FFI_int64
   declareForeignWrap Untracked direct FFI_int32
   declareForeignWrap Untracked direct FFI_int16
+  declareForeignWrap Untracked direct FFI_int8
   declareForeignWrap Untracked direct FFI_uint64
   declareForeignWrap Untracked direct FFI_uint32
   declareForeignWrap Untracked direct FFI_uint16
+  declareForeignWrap Untracked direct FFI_uint8
   declareForeignWrap Untracked direct FFI_double
   declareForeignWrap Untracked direct FFI_float
   declareForeignWrap Untracked direct FFI_void

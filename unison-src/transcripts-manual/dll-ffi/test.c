@@ -24,6 +24,13 @@ int16_t testi16(int16_t m, int16_t n) {
 #ifdef WINDOWS_BUILD
 __declspec(dllexport)
 #endif
+int8_t testi8(int8_t m, int8_t n) {
+  return 1 + m + n;
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
 uint64_t testu64(uint64_t m, uint64_t n) {
   return 1 + m + n;
 }
@@ -39,6 +46,13 @@ uint32_t testu32(uint32_t m, uint32_t n) {
 __declspec(dllexport)
 #endif
 uint16_t testu16(uint16_t m, uint16_t n) {
+  return 1 + m + n;
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+uint8_t testu8(uint8_t m, uint8_t n) {
   return 1 + m + n;
 }
 

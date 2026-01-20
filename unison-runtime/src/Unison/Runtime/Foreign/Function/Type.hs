@@ -370,9 +370,11 @@ data ForeignFunc
   | FFI_int64
   | FFI_int32
   | FFI_int16
+  | FFI_int8
   | FFI_uint64
   | FFI_uint32
   | FFI_uint16
+  | FFI_uint8
   | FFI_double
   | FFI_float
   | FFI_void
@@ -754,9 +756,11 @@ foreignFuncBuiltinName = \case
   FFI_int64 -> "FFI.int64"
   FFI_int32 -> "FFI.int32"
   FFI_int16 -> "FFI.int16"
+  FFI_int8 -> "FFI.int8"
   FFI_uint64 -> "FFI.uint64"
   FFI_uint32 -> "FFI.uint32"
   FFI_uint16 -> "FFI.uint16"
+  FFI_uint8 -> "FFI.uint8"
   FFI_double -> "FFI.double"
   FFI_float -> "FFI.float"
   FFI_void -> "FFI.void"

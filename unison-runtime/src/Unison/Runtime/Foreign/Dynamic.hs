@@ -13,9 +13,11 @@ import Foreign.Storable qualified as Store
 import Unison.Runtime.FFI.DLL
 
 data FFType
-  = I16
+  = I8
+  | I16
   | I32
   | I64
+  | U8
   | U16
   | U32
   | U64
@@ -52,9 +54,11 @@ instance Show CDynFunc where
   show f = "<" ++ cName f ++ ">"
 
 encodeType :: FFType -> Ptr CType
+encodeType I8 = ffi_type_sint8
 encodeType I16 = ffi_type_sint16
 encodeType I32 = ffi_type_sint32
 encodeType I64 = ffi_type_sint64
+encodeType U8 = ffi_type_uint8
 encodeType U16 = ffi_type_uint16
 encodeType U32 = ffi_type_uint32
 encodeType U64 = ffi_type_uint64
