@@ -29,6 +29,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Primitive qualified as PA
 import Crypto.Error (CryptoError (..), CryptoFailable (..))
 import Crypto.Hash qualified as Hash
+import Crypto.KDF.Argon2 qualified as Argon2
 import Crypto.MAC.HMAC qualified as HMAC
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Crypto.PubKey.RSA.PKCS15 qualified as RSA
@@ -650,6 +651,12 @@ foreignCallHelper = \case
   Crypto_Rsa_verify_impl ->
     mkForeign $
       pure . verifyRsaWrapper
+  Crypto_Argon2_HashRaw ->
+    mkForeign $
+      pure . argon2HashRawWrapper
+  Crypto_Argon2_VerifyRaw ->
+    mkForeign $
+      pure . argon2VerifyRawWrapper
   Universal_murmurHash ->
     mkForeign $
       pure . asWord64 . hash64 . ANF.serializeValueForHash . dereference
@@ -1454,6 +1461,80 @@ verifyRsaWrapper (public0, msg0, sig0) = case validated of
     msg = Bytes.toArray msg0 :: ByteString
     sig = Bytes.toArray sig0 :: ByteString
     validated = Rsa.parseRsaPublicKey (Bytes.toArray public0 :: ByteString)
+
+-- | Hash a password with Argon2id using the provided options and salt.
+-- Takes: (memory KiB, iterations, parallelism, outputLen, password, salt)
+-- Returns: Raw hash bytes or failure
+argon2HashRawWrapper ::
+  (Word64, Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes) -> Either Failure Bytes.Bytes
+argon2HashRawWrapper (memory, iterations, parallelism, outputLen, password0, salt0) =
+  case Argon2.hash opts password salt (fromIntegral outputLen) of
+    CryptoFailed err ->
+      Left $ F.Failure Ty.cryptoFailureRef (argon2ErrMsg err) unitValue
+    CryptoPassed hashBytes ->
+      Right $ Bytes.fromArray (hashBytes :: ByteString)
+  where
+    password = Bytes.toArray password0 :: ByteString
+    salt = Bytes.toArray salt0 :: ByteString
+    opts =
+      Argon2.Options
+        { Argon2.iterations = fromIntegral iterations,
+          Argon2.memory = fromIntegral memory,
+          Argon2.parallelism = fromIntegral parallelism,
+          Argon2.variant = Argon2.Argon2id,
+          Argon2.version = Argon2.Version13
+        }
+
+-- | Verify a password against a raw Argon2id hash.
+-- Takes: (memory KiB, iterations, parallelism, password, salt, expectedHash)
+-- Returns: Right True if password matches, Right False if mismatch, Left Failure on error
+argon2VerifyRawWrapper ::
+  (Word64, Word64, Word64, Bytes.Bytes, Bytes.Bytes, Bytes.Bytes) ->
+  Either Failure Bool
+argon2VerifyRawWrapper (memory, iterations, parallelism, password0, salt0, expectedHash0) =
+  case Argon2.hash opts password salt hashLen of
+    CryptoFailed err -> Left (F.Failure Ty.cryptoFailureRef (argon2ErrMsg err) unitValue)
+    CryptoPassed computedHash ->
+      Right (BA.constEq (computedHash :: ByteString) expectedHash)
+  where
+    password = Bytes.toArray password0 :: ByteString
+    salt = Bytes.toArray salt0 :: ByteString
+    expectedHash = Bytes.toArray expectedHash0 :: ByteString
+    hashLen = BA.length expectedHash
+    opts =
+      Argon2.Options
+        { Argon2.iterations = fromIntegral iterations,
+          Argon2.memory = fromIntegral memory,
+          Argon2.parallelism = fromIntegral parallelism,
+          Argon2.variant = Argon2.Argon2id,
+          Argon2.version = Argon2.Version13
+        }
+
+-- | Convert CryptoError to human-readable error message
+argon2ErrMsg :: CryptoError -> Util.Text.Text
+argon2ErrMsg err =
+  Util.Text.pack $
+    "argon2: " ++ case err of
+      CryptoError_KeySizeInvalid -> "invalid key size"
+      CryptoError_IvSizeInvalid -> "invalid IV size"
+      CryptoError_SeedSizeInvalid -> "invalid seed size"
+      CryptoError_AEADModeNotSupported -> "AEAD mode not supported"
+      CryptoError_SecretKeySizeInvalid -> "invalid secret key size"
+      CryptoError_SecretKeyStructureInvalid -> "invalid secret key structure"
+      CryptoError_PublicKeySizeInvalid -> "invalid public key size"
+      CryptoError_SharedSecretSizeInvalid -> "invalid shared secret size"
+      CryptoError_EcScalarOutOfBounds -> "EC scalar out of bounds"
+      CryptoError_PointSizeInvalid -> "invalid point size"
+      CryptoError_PointFormatInvalid -> "invalid point format"
+      CryptoError_PointFormatUnsupported -> "unsupported point format"
+      CryptoError_PointCoordinatesInvalid -> "invalid point coordinates"
+      CryptoError_ScalarMultiplicationInvalid -> "invalid scalar multiplication"
+      CryptoError_MacKeyInvalid -> "invalid MAC key"
+      CryptoError_AuthenticationTagSizeInvalid -> "invalid authentication tag size"
+      CryptoError_PrimeSizeInvalid -> "invalid prime size"
+      CryptoError_SaltTooSmall -> "salt too short (minimum 8 bytes)"
+      CryptoError_OutputLengthTooSmall -> "output length too small"
+      CryptoError_OutputLengthTooBig -> "output length too big"
 
 type Failure = F.Failure Val
 
@@ -2776,6 +2857,47 @@ instance
 
   readAtIndex stk i = bpeekOff stk i >>= decodeTup5
   writeBack stk p = bpoke stk $ encodeTup5 p
+
+pattern Tup5V v w x y z = BoxedVal (Tup5C v w x y z)
+
+pattern Tup6C u v w x y z = ConsC u (Tup5V v w x y z)
+
+decodeTup6 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d, ForeignConvention e, ForeignConvention f) => Closure -> IO (a, b, c, d, e, f)
+decodeTup6 (Tup6C u v w x y z) =
+  (,,,,,) <$> decodeVal u <*> decodeVal v <*> decodeVal w <*> decodeVal x <*> decodeVal y <*> decodeVal z
+decodeTup6 c = foreignConventionError "Sextuple" (BoxedVal c)
+
+encodeTup6 :: (ForeignConvention a, ForeignConvention b, ForeignConvention c, ForeignConvention d, ForeignConvention e, ForeignConvention f) => (a, b, c, d, e, f) -> Closure
+encodeTup6 (u, v, w, x, y, z) =
+  Tup6C (encodeVal u) (encodeVal v) (encodeVal w) (encodeVal x) (encodeVal y) (encodeVal z)
+
+instance
+  ( ForeignConvention a,
+    ForeignConvention b,
+    ForeignConvention c,
+    ForeignConvention d,
+    ForeignConvention e,
+    ForeignConvention f
+  ) =>
+  ForeignConvention (a, b, c, d, e, f)
+  where
+  decodeVal (BoxedVal c) = decodeTup6 c
+  decodeVal v = foreignConventionError "Sextuple" v
+
+  encodeVal = BoxedVal . encodeTup6
+
+  readsAt stk (VArgN v) =
+    (,,,,,)
+      <$> readAtIndex stk (PA.indexPrimArray v 0)
+      <*> readAtIndex stk (PA.indexPrimArray v 1)
+      <*> readAtIndex stk (PA.indexPrimArray v 2)
+      <*> readAtIndex stk (PA.indexPrimArray v 3)
+      <*> readAtIndex stk (PA.indexPrimArray v 4)
+      <*> readAtIndex stk (PA.indexPrimArray v 5)
+  readsAt _ as = readsAtError "six arguments" as
+
+  readAtIndex stk i = bpeekOff stk i >>= decodeTup6
+  writeBack stk p = bpoke stk $ encodeTup6 p
 
 decodeFailure :: (ForeignConvention a) => Closure -> IO (F.Failure a)
 decodeFailure (DataG _ _ (_, args)) =

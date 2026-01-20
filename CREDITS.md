@@ -56,7 +56,7 @@ These are listed in alphabetical order.
 | [contravariant-1.5.2](https://hackage.haskell.org/package/contravariant-1.5.2) | [BSD3](https://hackage.haskell.org/package/contravariant-1.5.2/src/LICENSE) |
 | [cryptohash-md5-0.11.100.1](https://hackage.haskell.org/package/cryptohash-md5-0.11.100.1) | [BSD3](https://hackage.haskell.org/package/cryptohash-md5-0.11.100.1/src/LICENSE) |
 | [cryptohash-sha1-0.11.100.1](https://hackage.haskell.org/package/cryptohash-sha1-0.11.100.1) | [BSD3](https://hackage.haskell.org/package/cryptohash-sha1-0.11.100.1/src/LICENSE) |
-| [cryptonite-0.26](https://hackage.haskell.org/package/cryptonite-0.26) | [BSD3](https://hackage.haskell.org/package/cryptonite-0.26/src/LICENSE) |
+| [crypton-1.0.4](https://hackage.haskell.org/package/crypton-1.0.4) | [BSD3](https://hackage.haskell.org/package/crypton-1.0.4/src/LICENSE) |
 | [data-inttrie-0.1.4](https://hackage.haskell.org/package/data-inttrie-0.1.4) | [BSD3](https://hackage.haskell.org/package/data-inttrie-0.1.4/src/LICENSE) |
 | [data-memocombinators-0.5.1](https://hackage.haskell.org/package/data-memocombinators-0.5.1) | [BSD3](https://hackage.haskell.org/package/data-memocombinators-0.5.1/src/LICENSE) |
 | [deepseq-1.4.4.0](https://hackage.haskell.org/package/deepseq-1.4.4.0) | [BSD3](https://hackage.haskell.org/package/deepseq-1.4.4.0/src/LICENSE) |

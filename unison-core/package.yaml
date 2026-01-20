@@ -13,7 +13,7 @@ library:
     - aeson
     - bytestring
     - containers >= 0.6.3
-    - cryptonite
+    - crypton
     - deepseq
     - edit-distance
     - extra

@@ -63,7 +63,7 @@ library:
     - bytestring
     - clock
     - containers >= 0.6.3
-    - cryptonite
+    - crypton
     - data-default
     - data-memocombinators
     - deepseq
@@ -126,7 +126,7 @@ tests:
       - bytestring
       - code-page
       - containers
-      - cryptonite
+      - crypton
       - directory
       - easytest
       - hedgehog
