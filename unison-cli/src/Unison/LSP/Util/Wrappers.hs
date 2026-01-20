@@ -55,7 +55,7 @@ editDefinitionByFQN fileURI fqn = do
         let params =
               ApplyWorkspaceEditParams
                 (Just description)
-                (WorkspaceEdit (Just ((Map.singleton fileUri [TextEdit range rendered]))) Nothing Nothing)
+                (WorkspaceEdit (Just ((Map.singleton fileUri [TextEdit range (rendered <> "\n\n")]))) Nothing Nothing)
         Debug.debugM Debug.LSP "Applying workspace edit for editDefinitionByFQN" params
         void $ sendRequest Msg.SMethod_WorkspaceApplyEdit params $ \case
           Left err -> Debug.debugM Debug.LSP "Error applying workspace edit" err
