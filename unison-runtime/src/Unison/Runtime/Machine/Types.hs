@@ -36,7 +36,6 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
-import Unison.Runtime.Foreign (Failure (..))
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling

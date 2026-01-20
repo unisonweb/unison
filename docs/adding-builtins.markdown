@@ -98,7 +98,7 @@ followed by renames, so it'll be factored into a list of the name and
 type, and we can then call the `moveUnder` helper to generate the `B`
 declaration and the `Rename`.
 
-## Builtin function implementation -- new runtime
+## Builtin function implementation -- interpreter
 
 What we have done so far only declares the functions and their types.
 There is nothing yet implementing them. This section will proceed
@@ -113,95 +113,74 @@ in `Unison.Runtime.Builtin`, in a definition `declareForeigns`. We
 can declare our builtins there by adding:
 
 ```haskell
-  declareForeign Tracked "MVar.new" boxDirect
-    . mkForeign $ \(c :: Closure) -> newMVar c
-  declareForeign Tracked "MVar.take" boxToEFBox
-    . mkForeignIOF $ \(mv :: MVar Closure) -> takeMVar mv
+  declareForeign Tracked 1 MVar_new
+  declareForeign Tracked 1 MVar_take
 ```
 
 These lines do multiple things at once. The first argument to
 `declareForeign` determines whether the function should be explicitly
-tracked by the Unison Cloud sandboxing functionality or not. As a
-general guideline, functions in `{IO}` are `Tracked`, and pure
-functions are `Untracked`. The second argument must match the name
-from `Unison.Builtin`, as this is how they are associated. The third
-argument is wrapper code that defines the conversion from the Haskell
-runtime calling convention into Unison, and the definitions for these
-two cases will be shown later. The last argument is the actual Haskell
-implementation of the operation. However, the format for foreign
-functions is somewhat more limited than 'any Haskell function,' so the
-`mkForeign` and `mkForeignIOF` helpers assist in wrapping Haskell
-functions correctly. The latter will catch some exceptions and yield
-them as explicit results.
+tracked by the Unison Cloud sandboxing functionality or not. As a general
+guideline, functions in `{IO}` are `Tracked`, and pure functions are
+`Untracked`. The second argument specifies the number of arguments that
+the operation takes, so that appropriate wrapper code can be generated.
+The last argument is a constructor of the `ForeignFunc` type that
+identifies the operation.
 
-The wrapper code for these two operations looks like:
+This last bit leads us to the `Unison.Runtime.Foreign.Function.Type`
+module, where we must add constructors for our new function. This is also
+where we give a name to each constructor, which must match the one used
+earlier in `Unison.Builtin`.
+
+Finally, we must give the function implementation in
+`Unison.Runtime.Foreign.Function`. This looks like
+
 ```haskell
--- a -> b
-boxDirect :: ForeignOp
-boxDirect instr =
-  ([BX],)
-    . TAbs arg
-    $ TFOp instr [arg]
-  where
-    arg = fresh1
-
--- a -> Either Failure b
-boxToEFBox :: ForeignOp
-boxToEFBox =
-  inBx arg result $
-    outIoFailBox stack1 stack2 stack3 any fail result
-  where
-    (arg, result, stack1, stack2, stack3, any, fail) = fresh
+  MVar_new -> mkForeign $ \(c :: Val) -> newMVar c
+  MVar_take -> mkForeignIOF $ \(mv :: MVar Val) -> takeMVar mv
 ```
 
-The breakdown of what is happening here is as follows:
-- `instr` is an identifier that is used to decouple the wrapper
-  code from the actual Haskell implementation functions. It is
-  made up in `declareForeign` and passed to the wrapper to use as a
-  sort of instruction code.
-- A `ForeignOp` may take many arguments, and the list in the tuple
-  section specifies the calling convention for them. `[BX]` means
-  one boxed argument, which in this case is the value of type `a`.
-  `[BX,BX]` would be two boxed arguments, and `[BX,UN]` would be
-  one boxed and one unboxed argument. Builtin wrappers will
-  currently be taking all boxed arguments, because there is no way
-  to talk about unboxed values in the surface syntax where they are
-  called.
-- `TAbs arg` abstracts the argument variable, which we got from
-  `fresh1'` at the bottom. Multiple arguments may be abstracted with
-  e.g. `TAbss [x,y,z]`. You can call `fresh` to instantiate a tuple of
-  fresh variables of a certain arity.
-- `inBx` and `outIoFailBox` are helper functions for calling the
-  instruction and wrapping up a possible error result.
-- `TFOp` simply calls the instruction with the assumption that the
-  result value is acceptable for directly returning. `MVar` values
-  will be represented directly by their Haskell values wrapped into
-  a closure, so the `boxDirect` code doesn't need to do any
-  processing of the results of its foreign function.
-
-The names of the helpers generally follow a form of form of Hungarian
-notation, e.g. `boxToEFBox` means "boxed value to either a failure or
-a boxed value", i.e. `a -> Either a b`.
-However, not all helpers are named consistently at the moment, and
-different builtins use slightly different implementations, so looking
-at other parts of the file may be instructive, depending on what is
-being added.
+The helper functions `mkForeign` and `mkForeignIOF` assist in wrapping
+Haskell functions into a form recognized by the interpreter. The latter
+will catch exceptions and yield them in Unison as a `Failure` result (the
+overall result type of the function should be an `Either` in Unison).
+There is also `mkForeignExn` which will produce a foreign function whose
+unison type is `... ->{Exception} a`, and `mkForeignIOExn` which is like
+this, except automatically catches IO exceptions to create the `Failure`.
 
 At first, our declarations will cause an error, because some of the
 automatic machinery for creating builtin 'foreign' functions does not
-exist for `MVar`. To rectify this, we can add a `ForeignConvention`
-instance in `Unison.Runtime.Foreign.Function` that specifies how to
-automatically marshal `MVar Closure`, which is the representation
-we'll be using.
+exist for `MVar`. To rectify this, there are two options.
+
+First, we can add a case to the `Foreign` type in `Unison.Runtime.Stack`.
+For instance:
 
 ```haskell
-instance ForeignConvention (MVar Closure) where
-  readForeign = readForeignAs (unwrapForeign . marshalToForeign)
-  writeForeign = writeForeignAs (Foreign . Wrap mvarRef)
+  | WrapMVar !(MVar Val)
 ```
 
-This takes advantage of the `Closure` instance, and uses helper
-functions that apply (un)wrappers from another convention.
+If this is done, some cases will need to be filled in in various
+functions, to support equality, ordering, etc. Also, a `BuiltinForeign`
+instance should be added to provide information on how to (un)wrap values
+of the type. This is what `mkForeign` needs to work.
+
+A second option is to encode the Haskell type as another already wrapped
+type (or possibly one of Unison's closure types). In this case, a
+`ForeignConvention` instance should be defined. That specifies several
+functions for translating between the Unison representation and the
+Haskell type. For instance
+
+```haskell
+instance {-# OVERLAPPING #-} ForeignConvention String where
+  decodeVal = decodeAsBuiltin unpack
+  encodeVal = encodeAsBuiltin pack
+
+  readAtIndex = readAsBuiltin unpack
+  writeBack = writeAsBuiltin pack
+```
+
+This instance allows wrapping Haskell functions that take/return
+`String`, using Unison's `Text` as the representation, which is mediated
+by the `(un)pack` functions.
 
 With these in place, the functions should now be usable in the new
 runtime.
@@ -216,13 +195,10 @@ the `decompileForeign` function. For instance, `Text` is decompiled in
 the case:
 
 ```haskell
-  | Just t <- maybeUnwrapBuiltin f = Right $ text () t
+  WrapText t -> pure $ text () (Text.toText t)
 ```
 
-Further cases may be added using the `maybeUnwrapBuiltin`, which just
-requires adding an instance to the `BuiltinForeign` class in
-`Unison.Runtime.Foreign`, specifying which builtin reference
-corresponds to the type.
+Further cases may be added to match on your newly added type.
 
 ## Transcripts
 

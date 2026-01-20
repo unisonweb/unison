@@ -181,8 +181,6 @@ import Unison.Runtime.Builtin
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
-import Unison.Runtime.Foreign hiding (Failure)
-import Unison.Runtime.Foreign qualified as F
 import Unison.Runtime.Foreign.Dynamic as Dyn
 import Unison.Runtime.Foreign.Function.Type
   ( ForeignFunc (..),
@@ -190,16 +188,11 @@ import Unison.Runtime.Foreign.Function.Type
   )
 import Unison.Runtime.MCode
 import Unison.Runtime.Referenced (Referenced, dereference)
-import Unison.Runtime.Stack
+import Unison.Runtime.Stack hiding (Failure)
+import Unison.Runtime.Stack qualified as F
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
-import Unison.Type
-  ( anyRef,
-    listRef,
-    textRef,
-    typeLinkRef,
-  )
-import Unison.Type qualified as Ty
+import Unison.Type (anyRef)
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.RefPromise
   ( Promise,
@@ -598,7 +591,7 @@ foreignCallHelper = \case
       pure $ ANF.prettyGroup @Symbol (Util.Text.unpack nm) sg ""
   Value_dependencies ->
     mkForeign $
-      pure . fmap (Wrap Ty.termLinkRef . Ref) . ANF.valueTermLinks . dereference
+      pure . fmap (WrapReferent . Ref) . ANF.valueTermLinks . dereference
   Value_serialize ->
     mkForeign $
       pure . Bytes.fromArray . ANF.serializeValue
@@ -2391,13 +2384,13 @@ avroEncodeValue = \case
   FromAvro.Bytes schema bs ->
     BoxedVal $ Data2 Ty.avroRef TT.avroBytesTag (avroEncodeReadSchema schema) (encodeVal (Bytes.fromByteString bs))
   FromAvro.String schema s ->
-    BoxedVal $ Data2 Ty.avroRef TT.avroStringTag (avroEncodeReadSchema schema) (encodeVal (Util.Text.fromText s))
+    BoxedVal $ Data2 Ty.avroRef TT.avroStringTag (avroEncodeReadSchema schema) (textVal s)
   FromAvro.Array xs ->
     BoxedVal $ Data1 Ty.avroRef TT.avroArrayTag (encodeVal (map avroEncodeValue (Vector.toList xs)))
   FromAvro.Map xs ->
     let m = HashMap.toList xs
-        encoded = map (second avroEncodeValue) m
-     in BoxedVal $ Data1 Ty.avroRef TT.avroMapTag $ BoxedVal $ Foreign (Wrap Ty.hmapRef (Map.fromList encoded))
+        encoded = map (bimap textVal avroEncodeValue) m
+     in BoxedVal $ Data1 Ty.avroRef TT.avroMapTag $ BoxedVal $ Foreign (WrapMap (Map.fromList encoded))
   FromAvro.Record schema fields ->
     BoxedVal $ Data2 Ty.avroRef TT.avroRecordTag (avroEncodeReadSchema schema) (encodeVal (map avroEncodeValue (Vector.toList fields)))
   FromAvro.Union schema tag v ->
@@ -2405,7 +2398,9 @@ avroEncodeValue = \case
   FromAvro.Fixed schema bytes ->
     BoxedVal $ Data2 Ty.avroRef TT.avroFixedTag (avroEncodeReadSchema schema) (encodeVal (Bytes.fromByteString bytes))
   FromAvro.Enum schema ix v ->
-    BoxedVal $ DataG Ty.avroRef TT.avroEnumTag (segFromList [avroEncodeReadSchema schema, encodeVal ix, encodeVal (Util.Text.fromText v)])
+    BoxedVal $ DataG Ty.avroRef TT.avroEnumTag (segFromList [avroEncodeReadSchema schema, encodeVal ix, textVal v])
+  where
+    textVal = encodeVal . Util.Text.fromText
 
 avroEncodeDefaultValue :: AvroSchema.DefaultValue -> Val
 avroEncodeDefaultValue = \case
@@ -2802,7 +2797,7 @@ decodeTypeLink :: Closure -> IO Reference
 decodeTypeLink = marshalUnwrapForeignIO
 
 encodeTypeLink :: Reference -> Closure
-encodeTypeLink rf = Foreign (Wrap typeLinkRef rf)
+encodeTypeLink rf = Foreign (WrapReference rf)
 
 encodeAny :: (ForeignConvention a) => a -> Closure
 encodeAny v = Data1 anyRef TT.anyTag (encodeVal v)
@@ -2815,7 +2810,7 @@ decodeText :: Closure -> IO Text
 decodeText = marshalUnwrapForeignIO
 
 encodeText :: Text -> Closure
-encodeText tx = Foreign (Wrap textRef tx)
+encodeText tx = Foreign (WrapText tx)
 
 instance (ForeignConvention a) => ForeignConvention (F.Failure a) where
   decodeVal (BoxedVal v) = decodeFailure v
@@ -2825,34 +2820,31 @@ instance (ForeignConvention a) => ForeignConvention (F.Failure a) where
   readAtIndex stk i = bpeekOff stk i >>= decodeFailure
   writeBack stk f = bpoke stk $ encodeFailure f
 
-decodeForeignClo :: String -> Closure -> IO a
-decodeForeignClo _ (Foreign x) = pure $ unwrapForeign x
-decodeForeignClo ty c = foreignConventionError ty (BoxedVal c)
+decodeForeignClo :: forall a. (BuiltinForeign a) => Closure -> IO a
+decodeForeignClo (Foreign x)
+  | Just x <- maybeUnwrapBuiltin x = pure x
+decodeForeignClo c = foreignConventionError ty (BoxedVal c)
+  where
+    Tagged ty = builtinName :: Tagged a String
 
-encodeForeignClo :: Reference -> a -> Closure
-encodeForeignClo r = Foreign . Wrap r
+encodeForeignClo :: (BuiltinForeign a) => a -> Closure
+encodeForeignClo = Foreign . wrapBuiltin
 
 decodeBuiltin :: forall a. (BuiltinForeign a) => Val -> IO a
 decodeBuiltin v
-  | BoxedVal c <- v = decodeForeignClo ty c
+  | BoxedVal c <- v = decodeForeignClo c
   | otherwise = foreignConventionError ty v
   where
-    Tagged ty = foreignName :: Tagged a String
+    Tagged ty = builtinName :: Tagged a String
 
 encodeBuiltin :: forall a. (BuiltinForeign a) => a -> Val
-encodeBuiltin = BoxedVal . encodeForeignClo r
-  where
-    Tagged r = foreignRef :: Tagged a Reference
+encodeBuiltin = BoxedVal . encodeForeignClo
 
 readBuiltinAt :: forall a. (BuiltinForeign a) => Stack -> Int -> IO a
-readBuiltinAt stk i = bpeekOff stk i >>= decodeForeignClo ty
-  where
-    Tagged ty = foreignName :: Tagged a String
+readBuiltinAt stk i = bpeekOff stk i >>= decodeForeignClo
 
 writeBuiltin :: forall a. (BuiltinForeign a) => Stack -> a -> IO ()
-writeBuiltin stk = bpoke stk . encodeForeignClo r
-  where
-    Tagged r = foreignRef :: Tagged a Reference
+writeBuiltin stk = bpoke stk . Foreign . wrapBuiltin
 
 decodeAsBuiltin :: (BuiltinForeign t) => (t -> a) -> Val -> IO a
 decodeAsBuiltin k = fmap k . decodeBuiltin
@@ -3073,12 +3065,12 @@ instance ForeignConvention Foreign where
   writeBack stk f = bpoke stk (Foreign f)
 
 instance (ForeignConvention a) => ForeignConvention [a] where
-  decodeVal (BoxedVal (Foreign f))
-    | (sq :: Sq.Seq Val) <- unwrapForeign f = traverse decodeVal (toList sq)
+  decodeVal (BoxedVal (Foreign (WrapSeq sq))) =
+    traverse decodeVal (toList sq)
   decodeVal v = foreignConventionError "List" v
 
   encodeVal l =
-    BoxedVal . Foreign . Wrap listRef . Sq.fromList $ encodeVal <$> l
+    BoxedVal . Foreign . WrapSeq . Sq.fromList $ encodeVal <$> l
 
   readAtIndex stk i = traverse decodeVal . toList =<< peekOffS stk i
 
@@ -3093,7 +3085,7 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
   readsAt stk (VArg1 i) = readAtIndex stk i
   readsAt _ args = readsAtError argname args
     where
-      Tagged name = foreignName @b
+      Tagged name = builtinName @b
       argname = "one " ++ name ++ " argument"
 
 -- Replacing Functions/Data Types
@@ -3136,8 +3128,8 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
 --      unison type. These last two steps ensure that sending
 --      values between machines doesn't need to know anything about
 --      replacements.
---   7. Implement `universalCompare` and `universalEq` cases for
---      the builtin values.
+--   7. Implement `Eq` and `Ord` cases for the builtin values in the
+--      `Foreign` instances in `Unison.Runtime.Stack`.
 --   8. Add a case in `Unison.Runtime.Decompile` to decompile the
 --      builtin values as the original unison values.
 --

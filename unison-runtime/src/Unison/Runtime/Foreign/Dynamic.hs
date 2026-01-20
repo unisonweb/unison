@@ -4,7 +4,6 @@ module Unison.Runtime.Foreign.Dynamic where
 
 import Control.Exception
 import Control.Monad (unless, when)
-import Data.Tagged (Tagged (..))
 import Foreign.ForeignPtr
 import Foreign.LibFFI.FFITypes
 import Foreign.LibFFI.Internal
@@ -12,8 +11,6 @@ import Foreign.Marshal
 import Foreign.Ptr
 import Foreign.Storable qualified as Store
 import Unison.Runtime.FFI.DLL
-import Unison.Runtime.Foreign
-import Unison.Type (ffiFuncRef, ffiSpecRef, ffiTypeRef)
 
 data FFType
   = I16
@@ -28,17 +25,9 @@ data FFType
   | MBArr
   deriving (Eq, Ord, Show)
 
-instance BuiltinForeign FFType where
-  foreignName = Tagged "FFI.Type"
-  foreignRef = Tagged ffiTypeRef
-
 -- arguments and return type
 data FFSpec = FFSpec {ffArgs :: ![FFType], ffResult :: !FFType}
   deriving (Eq, Ord, Show)
-
-instance BuiltinForeign FFSpec where
-  foreignName = Tagged "FFI.Spec"
-  foreignRef = Tagged ffiSpecRef
 
 data CSpec = CSpec
   { cInterface :: !(ForeignPtr CIF),
@@ -61,10 +50,6 @@ cffResult = ffResult . ffSpec . cSpec
 
 instance Show CDynFunc where
   show f = "<" ++ cName f ++ ">"
-
-instance BuiltinForeign CDynFunc where
-  foreignName = Tagged "DLL.Func"
-  foreignRef = Tagged ffiFuncRef
 
 encodeType :: FFType -> Ptr CType
 encodeType I16 = ffi_type_sint16

@@ -23,24 +23,16 @@ import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.ANF (maskTags)
-import Unison.Runtime.Array
-  ( Array,
-    ByteArray,
-    byteArrayToList,
-  )
-import Unison.Runtime.Foreign
-  ( Foreign (..),
-    HashAlgorithm (..),
-    maybeUnwrapBuiltin,
-    maybeUnwrapForeign,
-  )
+import Unison.Runtime.Array (byteArrayToList)
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
 import Unison.Runtime.MCode (CombIx (..))
 import Unison.Runtime.Stack
   ( Closure (..),
-    USeq,
+    Foreign (..),
+    HashAlgorithm (..),
     UnboxedTypeTag (..),
     Val (..),
+    foreignRef,
     pattern DataC,
     pattern PApV,
   )
@@ -67,14 +59,6 @@ import Unison.Term qualified as Term
 import Unison.Type
   ( anyRef,
     booleanRef,
-    hmapRef,
-    iarrayRef,
-    ibytearrayRef,
-    integerRef,
-    listRef,
-    naturalRef,
-    termLinkRef,
-    typeLinkRef,
   )
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Text qualified as Text
@@ -166,41 +150,40 @@ decompileForeign ::
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
   DecompResult v
-decompileForeign backref topTerms f
-  | Just t <- maybeUnwrapBuiltin f = pure $ text () (Text.toText t)
-  | Just b <- maybeUnwrapBuiltin f = pure $ decompileBytes b
-  | Just h <- maybeUnwrapBuiltin f = pure $ decompileHashAlgorithm h
-  | Just l <- maybeUnwrapForeign termLinkRef f =
-      pure . termLink () $ case l of
-        Ref r -> maybe l Ref $ backref r
-        _ -> l
-  | Just l <- maybeUnwrapForeign typeLinkRef f =
-      pure $ typeLink () l
-  | Just (a :: Array Val) <- maybeUnwrapForeign iarrayRef f =
-      app () (ref () iarrayFromListRef) . list ()
-        <$> traverse (decompile backref topTerms) (toList a)
-  | Just (a :: ByteArray) <- maybeUnwrapForeign ibytearrayRef f =
-      pure $
-        app
-          ()
-          (ref () ibarrayFromBytesRef)
-          (decompileBytes . By.fromWord8s $ byteArrayToList a)
-  | Just s <- unwrapSeq f =
-      list' () <$> traverse (decompile backref topTerms) s
-  | Just m <- maybeUnwrapForeign hmapRef f = do
-      let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
-      kvs <- traverse (uncurry decompileEntry) (Map.toList m)
-      pure $ app () map_fromList (list () kvs)
-  | Just n <- maybeUnwrapForeign naturalRef f =
-      pure $ app () naturalFromText (text () $ DT.pack (show (n :: Natural)))
-  | Just i <- maybeUnwrapForeign integerRef f =
-      pure $ app () integerFromText (text () $ DT.pack (show (i :: Integer)))
-decompileForeign _ _ (Wrap r _) =
-  err (BadForeign r) $ bug text
-  where
-    text
-      | Builtin name <- r = "<" <> name <> ">"
-      | otherwise = "<Foreign>"
+decompileForeign backref topTerms = \case
+  WrapText t -> pure $ text () (Text.toText t)
+  WrapBytes b -> pure $ decompileBytes b
+  WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
+  WrapReferent l ->
+    pure . termLink () $ case l of
+      Ref r -> maybe l Ref $ backref r
+      _ -> l
+  WrapReference l -> pure $ typeLink () l
+  WrapArray a ->
+    app () (ref () iarrayFromListRef) . list ()
+      <$> traverse (decompile backref topTerms) (toList a)
+  WrapByteArray a ->
+    pure $
+      app
+        ()
+        (ref () ibarrayFromBytesRef)
+        (decompileBytes . By.fromWord8s $ byteArrayToList a)
+  WrapSeq s ->
+    list' () <$> traverse (decompile backref topTerms) s
+  WrapMap m -> do
+    let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
+    kvs <- traverse (uncurry decompileEntry) (Map.toList m)
+    pure $ app () map_fromList (list () kvs)
+  WrapNatural n ->
+    pure $ app () naturalFromText (text () $ DT.pack (show (n :: Natural)))
+  WrapInteger i ->
+    pure $ app () integerFromText (text () $ DT.pack (show (i :: Integer)))
+  fo -> err (BadForeign r) $ bug text
+    where
+      r = foreignRef fo
+      text
+        | Builtin name <- r = "<" <> name <> ">"
+        | otherwise = "<Foreign>"
 
 naturalFromText :: (Var v) => Term v ()
 naturalFromText =
@@ -237,6 +220,3 @@ decompileBytes =
 
 decompileHashAlgorithm :: (Var v) => HashAlgorithm -> Term v ()
 decompileHashAlgorithm (HashAlgorithm r _) = ref () r
-
-unwrapSeq :: Foreign -> Maybe USeq
-unwrapSeq = maybeUnwrapForeign listRef
