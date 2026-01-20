@@ -11,11 +11,10 @@ import Language.LSP.Protocol.Types
 import Language.LSP.Server (sendRequest)
 import Unison.Debug qualified as Debug
 import Unison.LSP.Types
-import Unison.LSP.Util.Wrappers (editDefinitionByFQN)
 import Unison.Prelude
 
 supportedCommands :: [Text]
-supportedCommands = ["replaceText", "editDefinition"]
+supportedCommands = ["replaceText"]
 
 replaceText ::
   --  | The text displayed to the user for this command if used in a CodeLens
@@ -60,12 +59,7 @@ executeCommandHandler m respond = do
     let cmd = m ^. params . command
     let args = m ^. params . arguments
     let invalidCmdErr = throwError $ Msg.ResponseError (InR ErrorCodes_InvalidParams) "Invalid command" Nothing
-    let invalidParam msg = Msg.ResponseError (InR ErrorCodes_InvalidParams) ("Invalid parameter: " <> msg) Nothing
     case cmd of
-      "editDefinition" -> case args of
-        Just [Aeson.String fqn] -> do
-          withExceptT invalidParam $ editDefinitionByFQN Nothing fqn
-        _ -> invalidCmdErr
       "replaceText" -> case args of
         Just [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)] -> do
           let params =

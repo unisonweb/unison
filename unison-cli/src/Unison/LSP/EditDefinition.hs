@@ -89,7 +89,7 @@ editDefinitionHandler m respond = do
 
     -- Call the editDefinitionByFQN utility
     Debug.debugM Debug.Temp "editDefinitionHandler: Editing definition for FQN: " fqnText
-    editDefinitionByFQN (Just fileURI) fqnText
+    editDefinitionByFQN fileURI fqnText
   Debug.debugM Debug.Temp "editDefinitionHandler: Got result" result
 
   -- Send the response

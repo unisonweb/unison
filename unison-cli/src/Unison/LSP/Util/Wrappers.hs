@@ -22,18 +22,18 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Syntax.Name qualified as Names
 
 editDefinitionByFQN ::
-  Maybe LSP.Uri ->
+  LSP.Uri ->
   -- | Fully qualified name of the definition to edit
   Text ->
   ExceptT Text Lsp ()
-editDefinitionByFQN mayFileURI fqn = do
+editDefinitionByFQN fileURI fqn = do
   Env {codebase} <- ask
   nameSearch <- getNameSearch
   lastTouchedFileV <- asks lastTouchedFileVar
   mayLastTouchedFile <- liftIO $ atomically $ readTVar lastTouchedFileV
   Debug.debugM Debug.Temp "editDefinitionByFQN: Last touched file:" mayLastTouchedFile
   (mayUnisonFile, fileUri, fp) <- case mayLastTouchedFile of
-    Nothing -> pure (Nothing, fromMaybe (filePathToUri "scratch.u") mayFileURI, fromMaybe "scratch.u" $ mayFileURI >>= uriToFilePath)
+    Nothing -> pure (Nothing, fileURI, fromMaybe "scratch.u" $ uriToFilePath fileURI)
     Just uri -> do
       mayTypecheckedFile <- runMaybeT do
         FileAnalysis {parsedFile, typecheckedFile} <- FA.getFileAnalysis uri
