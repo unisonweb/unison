@@ -64,7 +64,7 @@ executeCommandHandler m respond = do
     case cmd of
       "editDefinition" -> case args of
         Just [Aeson.String fqn] -> do
-          withExceptT invalidParam $ editDefinitionByFQN fqn
+          withExceptT invalidParam $ editDefinitionByFQN Nothing fqn
         _ -> invalidCmdErr
       "replaceText" -> case args of
         Just [Aeson.fromJSON -> Aeson.Success (TextReplacement range description replacementText fileUri)] -> do

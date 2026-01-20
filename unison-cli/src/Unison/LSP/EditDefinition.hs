@@ -69,10 +69,10 @@ editDefinitionHandler m respond = do
         pure directFqn
       (Nothing, Just pos) -> do
         -- Get the symbol reference at the position
-        ref <- orFail "Error: Can only edit top-level definitions." . runMaybeT $ LSPQ.refAtPosition textDocument._uri pos
+        ref <- orFail "Error: Can only edit top-level definitions." . runMaybeT $ LSPQ.refAtPosition fileURI pos
 
         -- Get the FQN for the reference
-        pped <- lift $ ppedForFile textDocument._uri
+        pped <- lift $ ppedForFile fileURI
         let unsuffixifiedPPE = PPED.unsuffixifiedPPE pped
         let fqnName = case ref of
               LD.TypeReference typeRef -> PPE.typeName unsuffixifiedPPE typeRef
@@ -82,7 +82,7 @@ editDefinitionHandler m respond = do
         throwError "Either 'position' or 'fqn' must be provided"
 
     -- Call the editDefinitionByFQN utility
-    editDefinitionByFQN fqnText
+    editDefinitionByFQN (Just fileURI) fqnText
 
   -- Send the response
   case result of

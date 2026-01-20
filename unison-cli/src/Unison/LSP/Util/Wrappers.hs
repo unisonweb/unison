@@ -7,6 +7,7 @@ import Control.Monad.Reader
 import Data.Map qualified as Map
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
+import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Server (sendRequest)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.HandleInput.ShowDefinition (renderToFile)
@@ -21,16 +22,17 @@ import Unison.Server.Backend qualified as Backend
 import Unison.Syntax.Name qualified as Names
 
 editDefinitionByFQN ::
+  Maybe LSP.Uri ->
   -- | Fully qualified name of the definition to edit
   Text ->
   ExceptT Text Lsp ()
-editDefinitionByFQN fqn = do
+editDefinitionByFQN mayFileURI fqn = do
   Env {codebase} <- ask
   nameSearch <- getNameSearch
   lastTouchedFileV <- asks lastTouchedFileVar
   mayLastTouchedFile <- liftIO $ atomically $ readTVar lastTouchedFileV
   (mayUnisonFile, fileUri, fp) <- case mayLastTouchedFile of
-    Nothing -> pure (Nothing, filePathToUri "scratch.u", "scratch.u")
+    Nothing -> pure (Nothing, fromMaybe (filePathToUri "scratch.u") mayFileURI, fromMaybe "scratch.u" $ mayFileURI >>= uriToFilePath)
     Just uri -> do
       mayTypecheckedFile <- runMaybeT do
         FileAnalysis {parsedFile, typecheckedFile} <- FA.getFileAnalysis uri
