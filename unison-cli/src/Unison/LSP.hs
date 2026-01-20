@@ -48,6 +48,7 @@ import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.OpenOnShare (openOnShareHandler)
 import Unison.LSP.Orphans ()
+import Unison.LSP.ProjectContext (projectContextHandler)
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.Util.Signal (Signal)
@@ -193,6 +194,7 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentDocumentSymbol (mkHandler documentSymbolsHandler)
     & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/openOnShare")) (mkHandler openOnShareHandler)
     & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/editDefinition")) (mkHandler editDefinitionHandler)
+    & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/projectContext")) (mkHandler projectContextHandler)
     & addFormattingHandlers
   where
     addFormattingHandlers handlers =

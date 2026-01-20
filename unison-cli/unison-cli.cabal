@@ -153,6 +153,7 @@ library
       Unison.LSP.NotificationHandlers
       Unison.LSP.OpenOnShare
       Unison.LSP.Orphans
+      Unison.LSP.ProjectContext
       Unison.LSP.Queries
       Unison.LSP.Types
       Unison.LSP.UCMWorker
