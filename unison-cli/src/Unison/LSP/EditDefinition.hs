@@ -14,6 +14,7 @@ import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Language.LSP.Protocol.Types qualified as LSP
+import Unison.Debug qualified as Debug
 import Unison.LSP.FileAnalysis (ppedForFile)
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types
@@ -58,18 +59,22 @@ editDefinitionHandler ::
 editDefinitionHandler m respond = do
   result <- runExceptT $ do
     let paramsJSON = m ^. LSP.params
+    Debug.debugM Debug.Temp "editDefinitionHandler: Received request, params:" paramsJSON
     EditDefinitionParams {textDocument, position, fqn} <- case Aeson.fromJSON paramsJSON of
       Aeson.Error err -> throwError $ "Invalid parameters: " <> Text.pack err
       Aeson.Success p -> pure p
 
+    let fileURI = textDocument._uri
     -- Get the FQN either directly or by resolving the symbol at the position
     fqnText <- case (fqn, position) of
       (Just directFqn, _) ->
         -- Use the provided FQN directly
         pure directFqn
       (Nothing, Just pos) -> do
+        Debug.debugM Debug.Temp "editDefinitionHandler: Resolving FQN at position: " pos
         -- Get the symbol reference at the position
         ref <- orFail "Error: Can only edit top-level definitions." . runMaybeT $ LSPQ.refAtPosition fileURI pos
+        Debug.debugM Debug.Temp "editDefinitionHandler: Found reference: " ref
 
         -- Get the FQN for the reference
         pped <- lift $ ppedForFile fileURI
@@ -77,12 +82,15 @@ editDefinitionHandler m respond = do
         let fqnName = case ref of
               LD.TypeReference typeRef -> PPE.typeName unsuffixifiedPPE typeRef
               LD.TermReferent termRef -> PPE.termName unsuffixifiedPPE termRef
+        Debug.debugM Debug.Temp "editDefinitionHandler: Resolved FQN: " fqnName
         pure $ SyntaxHQ.toText fqnName
       (Nothing, Nothing) ->
         throwError "Either 'position' or 'fqn' must be provided"
 
     -- Call the editDefinitionByFQN utility
+    Debug.debugM Debug.Temp "editDefinitionHandler: Editing definition for FQN: " fqnText
     editDefinitionByFQN (Just fileURI) fqnText
+  Debug.debugM Debug.Temp "editDefinitionHandler: Got result" result
 
   -- Send the response
   case result of
