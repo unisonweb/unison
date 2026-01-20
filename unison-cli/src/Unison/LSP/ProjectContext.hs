@@ -12,8 +12,7 @@ import Unison.Codebase.ProjectPath qualified as PP
 import Unison.Core.Project
 import Unison.LSP.Types
 
-data ProjectContextResponse
-  = ProjectContextSuccess
+data ProjectContextResponse = ProjectContextSuccess
   { projectName :: ProjectName,
     projectBranch :: ProjectBranchName
   }
