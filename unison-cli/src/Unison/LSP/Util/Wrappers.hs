@@ -32,7 +32,6 @@ editDefinitionByFQN fileURI fqn = do
   nameSearch <- getNameSearch
   lastTouchedFileV <- asks lastTouchedFileVar
   mayLastTouchedFile <- liftIO $ atomically $ readTVar lastTouchedFileV
-  Debug.debugM Debug.Temp "editDefinitionByFQN: Last touched file:" mayLastTouchedFile
   (mayUnisonFile, fileUri, fp) <- case mayLastTouchedFile of
     Nothing -> pure (Nothing, fileURI, fromMaybe "scratch.u" $ uriToFilePath fileURI)
     Just uri -> do
@@ -40,12 +39,10 @@ editDefinitionByFQN fileURI fqn = do
         FileAnalysis {parsedFile, typecheckedFile} <- FA.getFileAnalysis uri
         hoistMaybe (Right <$> typecheckedFile <|> Left <$> parsedFile)
       pure (mayTypecheckedFile, uri, fromMaybe "scratch.u" $ uriToFilePath uri)
-  Debug.debugM Debug.Temp "editDefinitionByFQN: Using file info:" (fileUri, fp)
   parsedFQN <- case Names.parseTextEither fqn of
     Left err -> throwError err
     Right parsedFQN -> do
       pure parsedFQN
-  Debug.debugM Debug.Temp "editDefinitionByFQN: Searching for FQN:" parsedFQN
   Backend.DefinitionResults {termResults, typeResults} <- liftIO $ do
     Codebase.runTransaction codebase $ Backend.definitionsByName codebase nameSearch Backend.IncludeCycles Names.ExactName [HQ.NameOnly parsedFQN]
   pped <- currentPPED
