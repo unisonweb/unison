@@ -20,6 +20,14 @@ To get cracking with Unison:
 
 On startup, Unison prints a url for the codebase UI. If you did step 3 above, then visiting that URL in a browser will give you a nice interface to your codebase.
 
+## Git hooks
+
+There are some Git hooks provided by Unison. If you want to use them, you can run
+
+``` bash
+./scripts/install-hooks.bash
+```
+
 ## Autoformatting your code with Ormolu
 
 We use Ormolu (see [the specific version](./nix/versions.nix)) and CI will add an extra commit, if needed, to autoformat your code.
