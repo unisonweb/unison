@@ -34,6 +34,8 @@ doTest = do
   )
 
 testmbaSpec = arr uint64 (baseIO pinnedByteArray void)
+testpSpec = arr uint64 (baseIO ptr void)
+getpSpec = baseIO void ptr
 
 doArrTest = do
   dll = libtest()
@@ -41,12 +43,23 @@ doArrTest = do
   pa = IO.pinnedByteArray 32
   ta 32 pa
   freeze! (PinnedByteArray.cast pa)
+
+doPTest = do
+  dll = libtest()
+  gp = getDLLSym dll "getptr" getpSpec
+  tp = getDLLSym dll "testptr2" testpSpec
+  aa = getDLLSym dll "accessarr" (baseIO uint64 uint32)
+
+  p = gp()
+  tp 10 p
+  map aa [0,1,2,3,4,5,6,7,8,9]
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   + doArrTest   : '{IO, Exception} ImmutableByteArray
+  + doPTest     : '{IO, Exception} [Nat]
   + doTest      : '{IO, Exception} ( Nat,
                     Nat,
                     Nat,
@@ -57,6 +70,7 @@ doArrTest = do
                     Int,
                     Float,
                     Float)
+  + getpSpec    : Spec ('{IO} Ptr a)
   + libtest     : '{IO, Exception} DLL
   + testdSpec   : Spec (Float -> Float -> Float)
   + testfSpec   : Spec (Float -> Float -> Float)
@@ -65,6 +79,7 @@ doArrTest = do
   + testi64Spec : Spec (Int -> Int -> Int)
   + testi8Spec  : Spec (Int -> Int -> Int)
   + testmbaSpec : Spec (Nat -> PinnedByteArray {IO} ->{IO} ())
+  + testpSpec   : Spec (Nat -> Ptr a ->{IO} ())
   + testu16Spec : Spec (Nat -> Nat -> Nat)
   + testu32Spec : Spec (Nat -> Nat -> Nat)
   + testu64Spec : Spec (Nat -> Nat -> Nat)
@@ -82,4 +97,8 @@ scratch/dll-ffi> run doArrTest
 
   fromBytes
     0xs0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+
+scratch/dll-ffi> run doPTest
+
+  [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 ```

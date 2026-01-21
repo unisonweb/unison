@@ -34,6 +34,8 @@ doTest = do
   )
 
 testmbaSpec = arr uint64 (baseIO pinnedByteArray void)
+testpSpec = arr uint64 (baseIO ptr void)
+getpSpec = baseIO void ptr
 
 doArrTest = do
   dll = libtest()
@@ -41,9 +43,20 @@ doArrTest = do
   pa = IO.pinnedByteArray 32
   ta 32 pa
   freeze! (PinnedByteArray.cast pa)
+
+doPTest = do
+  dll = libtest()
+  gp = getDLLSym dll "getptr" getpSpec
+  tp = getDLLSym dll "testptr2" testpSpec
+  aa = getDLLSym dll "accessarr" (baseIO uint64 uint32)
+
+  p = gp()
+  tp 10 p
+  map aa [0,1,2,3,4,5,6,7,8,9]
 ```
 
 ``` ucm
 scratch/dll-ffi> run doTest
 scratch/dll-ffi> run doArrTest
+scratch/dll-ffi> run doPTest
 ```

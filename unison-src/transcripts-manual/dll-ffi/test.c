@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef WINDOWS_BUILD
 __declspec(dllexport)
@@ -73,12 +74,37 @@ double testd(double m, double n) {
 #ifdef WINDOWS_BUILD
 __declspec(dllexport)
 #endif
-void testptr(uint64_t sz, uint8_t *arr) {
+void testptr(uint64_t sz, uint8_t *ptr) {
   uint64_t i = 0;
   uint8_t j = 1;
   while (i < sz) {
-    arr[i] = j;
-    i++;
-    j++;
+    ptr[i++] = j++;
+  }
+}
+
+uint32_t arr[10] = {0,1,2,3,4,5,6,7,8,9};
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+uint32_t *getptr() {
+  return arr;
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+uint32_t accessarr(uint64_t i) {
+  return arr[i];
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+void testptr2(uint64_t sz, uint32_t *ptr) {
+  uint64_t i = 0;
+  uint32_t j = 10;
+  while (i < sz) {
+    ptr[i++] = j++;
   }
 }
