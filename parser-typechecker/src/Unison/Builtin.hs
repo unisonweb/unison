@@ -998,7 +998,12 @@ cryptoBuiltins =
     B "crypto.Rsa.sign.impl" $
       bytes --> bytes --> eithert failure bytes,
     B "crypto.Rsa.verify.impl" $
-      bytes --> bytes --> bytes --> eithert failure boolean
+      bytes --> bytes --> bytes --> eithert failure boolean,
+    -- Argon2id password hashing (raw bytes API)
+    B "crypto.argon2.hashRaw" $
+      nat --> nat --> nat --> nat --> bytes --> bytes --> eithert failure bytes,
+    B "crypto.argon2.verifyRaw" $
+      nat --> nat --> nat --> bytes --> bytes --> bytes --> eithert failure boolean
   ]
 
 ioBuiltins :: [(Text, Type)]

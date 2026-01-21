@@ -9,7 +9,7 @@ dependencies:
   - bytestring
   - containers
   - cborg
-  - cryptonite
+  - crypton
   - lens
   - memory
   - semialign

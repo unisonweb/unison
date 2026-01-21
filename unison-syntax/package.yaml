@@ -14,7 +14,7 @@ library:
     - base
     - bytes
     - containers
-    - cryptonite
+    - crypton
     - deriving-compat
     - extra
     - free

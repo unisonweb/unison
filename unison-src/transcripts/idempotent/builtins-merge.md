@@ -103,7 +103,7 @@ The `builtins.merge` command adds the known builtins to the specified subnamespa
   94.  Value.              (6 terms)
   95.  avro.               (95 terms, 22 types)
   96.  bug                 (a -> b)
-  97.  crypto.             (17 terms, 2 types)
+  97.  crypto.             (19 terms, 2 types)
   98.  io2.                (157 terms, 33 types)
   99.  metadata.           (2 terms)
   100. todo                (a -> b)
