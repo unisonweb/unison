@@ -14,7 +14,6 @@ import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Message qualified as Msg
 import Language.LSP.Protocol.Types
 import Language.LSP.Protocol.Types qualified as LSP
-import Unison.Debug qualified as Debug
 import Unison.LSP.FileAnalysis (ppedForFile)
 import Unison.LSP.Queries qualified as LSPQ
 import Unison.LSP.Types

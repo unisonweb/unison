@@ -30,7 +30,6 @@ import Unison.Codebase.Editor.Input (OutputLocation (..), RelativeToFold (..), S
 import Unison.Codebase.Editor.Output
 import Unison.DataDeclaration (Decl)
 import Unison.DataDeclaration qualified as DD
-import Unison.Debug qualified as Debug
 import Unison.HashQualified qualified as HQ
 import Unison.Name (Name)
 import Unison.Name qualified as Name
@@ -233,7 +232,6 @@ renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
   case mayRenderedCodePretty of
     Just renderedCodePretty -> do
       let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
-      Debug.debugM Debug.Temp "Writing to file: " (fp, renderedCodeText)
       liftIO $
         writeSource (Text.pack fp) renderedCodeText case relToFold of
           AboveFold -> True
