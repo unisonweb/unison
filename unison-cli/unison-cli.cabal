@@ -237,7 +237,7 @@ library
     , conduit
     , conduit-extra
     , containers >=0.6.3
-    , cryptonite
+    , crypton
     , directory
     , either
     , errors
@@ -431,7 +431,7 @@ test-suite cli-tests
       base
     , code-page
     , containers
-    , cryptonite
+    , crypton
     , directory
     , easytest
     , extra
