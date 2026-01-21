@@ -8,6 +8,13 @@ We clone releases and not dev branches to avoid external changes, and also to re
   Cloned @unison/base/releases/3.19.0.
 
 @unison/base/releases/3.19.0> edit.namespace .
+
+  ☝️
+
+  I added 6902 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
 ```
 
 ```` unison :added-by-ucm scratch.u
@@ -83116,6 +83123,13 @@ Void.doc =
   Cloned @unison/http/releases/3.3.2.
 
 @unison/http/releases/3.3.2> edit.namespace .
+
+  ☝️
+
+  I added 410 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
 ```
 
 ```` unison :added-by-ucm scratch.u

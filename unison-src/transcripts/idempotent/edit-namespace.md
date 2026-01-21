@@ -61,6 +61,13 @@ unique type Foo = { bar : Nat, baz : Nat }
 
 ``` ucm
 > edit.namespace .
+
+  ☝️
+
+  I added 8 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -96,6 +103,13 @@ toplevel = "hi"
 
 ``` ucm
 > edit.namespace nested simple
+
+  ☝️
+
+  I added 6 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
 ```
 
 ``` unison :added-by-ucm scratch.u

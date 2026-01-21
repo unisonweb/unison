@@ -157,6 +157,13 @@ to alphabetical re-ordering.
 
 ``` ucm
 scratch/main> edit MyType
+
+  ☝️
+
+  I added 1 definitions to the top of scratch.u
+
+  You can edit them there, then run `update` to replace the
+  definitions currently in this namespace.
 ```
 
 ``` unison :added-by-ucm scratch.u

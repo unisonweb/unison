@@ -119,16 +119,18 @@ showDefinitions outputLoc pped terms types misses = do
   outputPath <- getOutputPath
   case outputPath of
     _ | null terms && null types -> pure ()
-    Nothing -> renderToConsole pped terms types
+    Nothing -> do
+      renderToConsole pped terms types
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      didRender <- renderToFile codebase writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile codebase writeSource mayTF fp relToFold pped terms types
 
-      when didRender do
+      when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
         -- are viewing these definitions to a file - this will skip the
         -- next update for that file (which will happen immediately)
         #latestFile ?= (fp, True)
+      Cli.respond $ LoadedDefinitionsToSourceFile fp numRendered
 
   when (not (null misses)) (Cli.respond (SearchTermsNotFound misses))
   where
@@ -152,12 +154,12 @@ renderCodePretty ::
   Map Reference (DisplayObject () (Decl Symbol Ann)) ->
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
-  (Maybe (Pretty Pretty.ColorText))
+  (Maybe (Pretty Pretty.ColorText, Int))
 renderCodePretty pped isSourceFile isTest terms types excludeNames =
   let prettyTypes = prettyTypeDisplayObjects pped types excludeNames.types
       prettyTerms = prettyTermDisplayObjects pped isSourceFile isTest terms excludeNames.terms
    in NEL.nonEmpty (prettyTypes ++ prettyTerms)
-        $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)))
+        $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
 
 renderToConsole ::
   PPED.PrettyPrintEnvDecl ->
@@ -172,13 +174,14 @@ renderToConsole pped terms types = do
   let isSourceFile = False
   -- No filepath, render code to console.
   let renderedCodePretty =
-        renderCodePretty
-          pped
-          isSourceFile
-          isTest
-          terms
-          types
-          (Defns Set.empty Set.empty)
+        fst
+          <$> renderCodePretty
+            pped
+            isSourceFile
+            isTest
+            terms
+            types
+            (Defns Set.empty Set.empty)
   Cli.respond $ DisplayDefinitions (fromMaybe mempty renderedCodePretty)
 
 -- | Render definitions to a file.
@@ -194,7 +197,7 @@ renderToFile ::
   PPED.PrettyPrintEnvDecl ->
   Map Reference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map Reference (DisplayObject () (Decl Symbol Ann)) ->
-  (m Bool)
+  (m Int)
 renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
@@ -230,14 +233,14 @@ renderToFile codebase writeSource mayTF fp relToFold pped terms types = do
   let isSourceFile = True
   let mayRenderedCodePretty = renderCodePretty pped isSourceFile isTest terms types excludeNames
   case mayRenderedCodePretty of
-    Just renderedCodePretty -> do
-      let renderedCodeText = Pretty.toPlain 80 renderedCodePretty
+    Just (renderedCodePretty, numRendered) -> do
+      let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty
       liftIO $
         writeSource (Text.pack fp) renderedCodeText case relToFold of
           AboveFold -> True
           WithinFold -> False
-      pure True
-    Nothing -> pure False
+      pure numRendered
+    Nothing -> pure 0
 
 prettyTypeDisplayObjects ::
   PPED.PrettyPrintEnvDecl ->
