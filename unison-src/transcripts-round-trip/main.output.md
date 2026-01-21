@@ -34,13 +34,6 @@ So we can see the pretty-printed output:
 
 ``` ucm
 scratch/a1> edit.new 1-1000
-
-  ☝️
-
-  I added 111 definitions to the top of scratch.u
-
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
 ```
 
 ````` unison :added-by-ucm scratch.u
@@ -869,13 +862,6 @@ scratch/a3> find
 
 ``` ucm
 scratch/a3> edit.new 1-5000
-
-  ☝️
-
-  I added 2 definitions to the top of scratch.u
-
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
 ```
 
 ```` unison :added-by-ucm scratch.u
@@ -936,13 +922,6 @@ scratch/regressions> alias.term ##Nat.+ plus
   Done.
 
 scratch/regressions> edit.new plus
-
-  ☝️
-
-  I added 1 definitions to the top of scratch.u
-
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
 
 scratch/regressions> load
 

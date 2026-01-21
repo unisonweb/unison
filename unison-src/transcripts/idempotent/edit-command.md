@@ -30,21 +30,7 @@ mytest = [Ok "ok"]
 
 > edit.new foo bar
 
-  ☝️
-
-  I added 2 definitions to the top of scratch.u
-
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
-
 > edit.new mytest
-
-  ☝️
-
-  I added 1 definitions to the top of scratch.u
-
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
 ```
 
 ``` unison :added-by-ucm scratch.u
@@ -136,13 +122,6 @@ bar = 18
 
 ``` ucm
 > edit bar baz
-
-  ☝️
-
-  I added 1 definitions to the top of scratch.u
-
-  You can edit them there, then run `update` to replace the
-  definitions currently in this namespace.
 ```
 
 ``` unison :added-by-ucm scratch.u
