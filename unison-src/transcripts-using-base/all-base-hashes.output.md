@@ -1369,7 +1369,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   371.  -- ##FFI.Ptr.Float.setAt
         builtin.FFI.Ptr.Float.setAt : Ptr Float
         -> Nat
-        -> Int
+        -> Float
         ->{IO} ()
         
   372.  -- ##FFI.Ptr.Float32.allocate
@@ -1392,7 +1392,7 @@ This transcript is intended to make visible accidental changes to the hashing al
   376.  -- ##FFI.Ptr.Float32.setAt
         builtin.FFI.Ptr.Float32.setAt : Ptr Float32
         -> Nat
-        -> Int
+        -> Float
         ->{IO} ()
         
   377.  -- ##FFI.Ptr.free

@@ -892,8 +892,8 @@ builtinsSrc =
     B "FFI.Ptr.Nat16.setAt" $ ptr nat16 --> nat --> nat --> io unit,
     B "FFI.Ptr.Nat32.setAt" $ ptr nat32 --> nat --> nat --> io unit,
     B "FFI.Ptr.Nat.setAt" $ ptr nat --> nat --> nat --> io unit,
-    B "FFI.Ptr.Float32.setAt" $ ptr float32 --> nat --> int --> io unit,
-    B "FFI.Ptr.Float.setAt" $ ptr float --> nat --> int --> io unit,
+    B "FFI.Ptr.Float32.setAt" $ ptr float32 --> nat --> float --> io unit,
+    B "FFI.Ptr.Float.setAt" $ ptr float --> nat --> float --> io unit,
     B "FFI.Ptr.Ptr.allocate" $
       forall1 "a" \a -> nat --> io (ptr (ptr a)),
     B "FFI.Ptr.Ptr.get" $
