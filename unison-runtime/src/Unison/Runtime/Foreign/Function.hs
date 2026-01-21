@@ -1203,58 +1203,57 @@ foreignCallHelper = \case
     mkForeignExn . wrapOOB "Bytes.read64be" $ Bytes.index64be
   Bytes_read64le ->
     mkForeignExn . wrapOOB "Bytes.read64le" $ Bytes.index64le
-
   -- pointer functions
-  FFI_Ptr_Int8_allocate    -> mkForeign $ allocPtr @Int8
-  FFI_Ptr_Int16_allocate   -> mkForeign $ allocPtr @Int16
-  FFI_Ptr_Int32_allocate   -> mkForeign $ allocPtr @Int32
-  FFI_Ptr_Int_allocate     -> mkForeign $ allocPtr @Int64
-  FFI_Ptr_Nat8_allocate    -> mkForeign $ allocPtr @Word8
-  FFI_Ptr_Nat16_allocate   -> mkForeign $ allocPtr @Word16
-  FFI_Ptr_Nat32_allocate   -> mkForeign $ allocPtr @Word32
-  FFI_Ptr_Nat_allocate     -> mkForeign $ allocPtr @Word64
+  FFI_Ptr_Int8_allocate -> mkForeign $ allocPtr @Int8
+  FFI_Ptr_Int16_allocate -> mkForeign $ allocPtr @Int16
+  FFI_Ptr_Int32_allocate -> mkForeign $ allocPtr @Int32
+  FFI_Ptr_Int_allocate -> mkForeign $ allocPtr @Int64
+  FFI_Ptr_Nat8_allocate -> mkForeign $ allocPtr @Word8
+  FFI_Ptr_Nat16_allocate -> mkForeign $ allocPtr @Word16
+  FFI_Ptr_Nat32_allocate -> mkForeign $ allocPtr @Word32
+  FFI_Ptr_Nat_allocate -> mkForeign $ allocPtr @Word64
   FFI_Ptr_Float32_allocate -> mkForeign $ allocPtr @Float
-  FFI_Ptr_Float_allocate   -> mkForeign $ allocPtr @Double
-  FFI_Ptr_Int8_get         -> mkForeign $ Mem.peek @Int8
-  FFI_Ptr_Int16_get        -> mkForeign $ Mem.peek @Int16
-  FFI_Ptr_Int32_get        -> mkForeign $ Mem.peek @Int32
-  FFI_Ptr_Int_get          -> mkForeign $ Mem.peek @Int64
-  FFI_Ptr_Nat8_get         -> mkForeign $ Mem.peek @Word8
-  FFI_Ptr_Nat16_get        -> mkForeign $ Mem.peek @Word16
-  FFI_Ptr_Nat32_get        -> mkForeign $ Mem.peek @Word32
-  FFI_Ptr_Nat_get          -> mkForeign $ Mem.peek @Word64
-  FFI_Ptr_Float32_get      -> mkForeign $ Mem.peek @Float
-  FFI_Ptr_Float_get        -> mkForeign $ Mem.peek @Double
-  FFI_Ptr_Int8_getAt       -> mkForeign $ peekAt @Int8
-  FFI_Ptr_Int16_getAt      -> mkForeign $ peekAt @Int16
-  FFI_Ptr_Int32_getAt      -> mkForeign $ peekAt @Int32
-  FFI_Ptr_Int_getAt        -> mkForeign $ peekAt @Int64
-  FFI_Ptr_Nat8_getAt       -> mkForeign $ peekAt @Word8
-  FFI_Ptr_Nat16_getAt      -> mkForeign $ peekAt @Word16
-  FFI_Ptr_Nat32_getAt      -> mkForeign $ peekAt @Word32
-  FFI_Ptr_Nat_getAt        -> mkForeign $ peekAt @Word64
-  FFI_Ptr_Float32_getAt    -> mkForeign $ peekAt @Float
-  FFI_Ptr_Float_getAt      -> mkForeign $ peekAt @Double
-  FFI_Ptr_Int8_set         -> mkForeign . uncurry $ Mem.poke @Int8
-  FFI_Ptr_Int16_set        -> mkForeign . uncurry $ Mem.poke @Int16
-  FFI_Ptr_Int32_set        -> mkForeign . uncurry $ Mem.poke @Int32
-  FFI_Ptr_Int_set          -> mkForeign . uncurry $ Mem.poke @Int64
-  FFI_Ptr_Nat8_set         -> mkForeign . uncurry $ Mem.poke @Word8
-  FFI_Ptr_Nat16_set        -> mkForeign . uncurry $ Mem.poke @Word16
-  FFI_Ptr_Nat32_set        -> mkForeign . uncurry $ Mem.poke @Word32
-  FFI_Ptr_Nat_set          -> mkForeign . uncurry $ Mem.poke @Word64
-  FFI_Ptr_Float32_set      -> mkForeign . uncurry $ Mem.poke @Float
-  FFI_Ptr_Float_set        -> mkForeign . uncurry $ Mem.poke @Double
-  FFI_Ptr_Int8_setAt       -> mkForeign $ pokeAt @Int8
-  FFI_Ptr_Int16_setAt      -> mkForeign $ pokeAt @Int16
-  FFI_Ptr_Int32_setAt      -> mkForeign $ pokeAt @Int32
-  FFI_Ptr_Int_setAt        -> mkForeign $ pokeAt @Int64
-  FFI_Ptr_Nat8_setAt       -> mkForeign $ pokeAt @Word8
-  FFI_Ptr_Nat16_setAt      -> mkForeign $ pokeAt @Word16
-  FFI_Ptr_Nat32_setAt      -> mkForeign $ pokeAt @Word32
-  FFI_Ptr_Nat_setAt        -> mkForeign $ pokeAt @Word64
-  FFI_Ptr_Float32_setAt    -> mkForeign $ pokeAt @Float
-  FFI_Ptr_Float_setAt      -> mkForeign $ pokeAt @Double
+  FFI_Ptr_Float_allocate -> mkForeign $ allocPtr @Double
+  FFI_Ptr_Int8_get -> mkForeign $ Mem.peek @Int8
+  FFI_Ptr_Int16_get -> mkForeign $ Mem.peek @Int16
+  FFI_Ptr_Int32_get -> mkForeign $ Mem.peek @Int32
+  FFI_Ptr_Int_get -> mkForeign $ Mem.peek @Int64
+  FFI_Ptr_Nat8_get -> mkForeign $ Mem.peek @Word8
+  FFI_Ptr_Nat16_get -> mkForeign $ Mem.peek @Word16
+  FFI_Ptr_Nat32_get -> mkForeign $ Mem.peek @Word32
+  FFI_Ptr_Nat_get -> mkForeign $ Mem.peek @Word64
+  FFI_Ptr_Float32_get -> mkForeign $ Mem.peek @Float
+  FFI_Ptr_Float_get -> mkForeign $ Mem.peek @Double
+  FFI_Ptr_Int8_getAt -> mkForeign $ peekAt @Int8
+  FFI_Ptr_Int16_getAt -> mkForeign $ peekAt @Int16
+  FFI_Ptr_Int32_getAt -> mkForeign $ peekAt @Int32
+  FFI_Ptr_Int_getAt -> mkForeign $ peekAt @Int64
+  FFI_Ptr_Nat8_getAt -> mkForeign $ peekAt @Word8
+  FFI_Ptr_Nat16_getAt -> mkForeign $ peekAt @Word16
+  FFI_Ptr_Nat32_getAt -> mkForeign $ peekAt @Word32
+  FFI_Ptr_Nat_getAt -> mkForeign $ peekAt @Word64
+  FFI_Ptr_Float32_getAt -> mkForeign $ peekAt @Float
+  FFI_Ptr_Float_getAt -> mkForeign $ peekAt @Double
+  FFI_Ptr_Int8_set -> mkForeign . uncurry $ Mem.poke @Int8
+  FFI_Ptr_Int16_set -> mkForeign . uncurry $ Mem.poke @Int16
+  FFI_Ptr_Int32_set -> mkForeign . uncurry $ Mem.poke @Int32
+  FFI_Ptr_Int_set -> mkForeign . uncurry $ Mem.poke @Int64
+  FFI_Ptr_Nat8_set -> mkForeign . uncurry $ Mem.poke @Word8
+  FFI_Ptr_Nat16_set -> mkForeign . uncurry $ Mem.poke @Word16
+  FFI_Ptr_Nat32_set -> mkForeign . uncurry $ Mem.poke @Word32
+  FFI_Ptr_Nat_set -> mkForeign . uncurry $ Mem.poke @Word64
+  FFI_Ptr_Float32_set -> mkForeign . uncurry $ Mem.poke @Float
+  FFI_Ptr_Float_set -> mkForeign . uncurry $ Mem.poke @Double
+  FFI_Ptr_Int8_setAt -> mkForeign $ pokeAt @Int8
+  FFI_Ptr_Int16_setAt -> mkForeign $ pokeAt @Int16
+  FFI_Ptr_Int32_setAt -> mkForeign $ pokeAt @Int32
+  FFI_Ptr_Int_setAt -> mkForeign $ pokeAt @Int64
+  FFI_Ptr_Nat8_setAt -> mkForeign $ pokeAt @Word8
+  FFI_Ptr_Nat16_setAt -> mkForeign $ pokeAt @Word16
+  FFI_Ptr_Nat32_setAt -> mkForeign $ pokeAt @Word32
+  FFI_Ptr_Nat_setAt -> mkForeign $ pokeAt @Word64
+  FFI_Ptr_Float32_setAt -> mkForeign $ pokeAt @Float
+  FFI_Ptr_Float_setAt -> mkForeign $ pokeAt @Double
   FFI_Ptr_Ptr_allocate -> mkForeign $ allocPtr @(Ptr ())
   FFI_Ptr_Ptr_get -> mkForeign $ Mem.peek @(Ptr ())
   FFI_Ptr_Ptr_set -> mkForeign . uncurry $ Mem.poke @(Ptr ())
@@ -1340,15 +1339,15 @@ foreignCallHelper = \case
 -- pointer function implementations
 
 -- allocate memory for the given number of elements
-allocPtr :: forall a. Mem.Storable a => Word64 -> IO (Ptr a)
+allocPtr :: forall a. (Mem.Storable a) => Word64 -> IO (Ptr a)
 allocPtr elemCount = Mem.mallocBytes byteCount
   where
     byteCount = fromIntegral elemCount * Mem.sizeOf (undefined :: a)
 
-peekAt :: forall a. Mem.Storable a => (Ptr a, Word64) -> IO a
+peekAt :: forall a. (Mem.Storable a) => (Ptr a, Word64) -> IO a
 peekAt (ptr, off) = Mem.peekElemOff ptr $ fromIntegral off
 
-pokeAt :: forall a. Mem.Storable a => (Ptr a, Word64, a) -> IO ()
+pokeAt :: forall a. (Mem.Storable a) => (Ptr a, Word64, a) -> IO ()
 pokeAt (ptr, off, x) = Mem.pokeElemOff ptr (fromIntegral off) x
 
 {-# INLINE mkHashAlgorithm #-}

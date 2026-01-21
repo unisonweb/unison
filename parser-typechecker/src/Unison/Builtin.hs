@@ -844,7 +844,6 @@ builtinsSrc =
       ffiType a --> ffiSpec b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.getDLLSym" . forall1 "a" $ \a ->
       dll --> text --> ffiSpec a --> ioexn a,
-
     B "FFI.Ptr.Int8.allocate" $ nat --> io (ptr int8),
     B "FFI.Ptr.Int16.allocate" $ nat --> io (ptr int16),
     B "FFI.Ptr.Int32.allocate" $ nat --> io (ptr int32),
@@ -855,7 +854,6 @@ builtinsSrc =
     B "FFI.Ptr.Nat.allocate" $ nat --> io (ptr nat),
     B "FFI.Ptr.Float32.allocate" $ nat --> io (ptr float32),
     B "FFI.Ptr.Float.allocate" $ nat --> io (ptr float),
-
     B "FFI.Ptr.Int8.get" $ ptr int8 --> io int,
     B "FFI.Ptr.Int16.get" $ ptr int16 --> io int,
     B "FFI.Ptr.Int32.get" $ ptr int32 --> io int,
@@ -866,7 +864,6 @@ builtinsSrc =
     B "FFI.Ptr.Nat.get" $ ptr nat --> io nat,
     B "FFI.Ptr.Float32.get" $ ptr float32 --> io float,
     B "FFI.Ptr.Float.get" $ ptr float --> io float,
-
     B "FFI.Ptr.Int8.getAt" $ ptr int8 --> nat --> io int,
     B "FFI.Ptr.Int16.getAt" $ ptr int16 --> nat --> io int,
     B "FFI.Ptr.Int32.getAt" $ ptr int32 --> nat --> io int,
@@ -877,7 +874,6 @@ builtinsSrc =
     B "FFI.Ptr.Nat.getAt" $ ptr nat --> nat --> io nat,
     B "FFI.Ptr.Float32.getAt" $ ptr float32 --> nat --> io float,
     B "FFI.Ptr.Float.getAt" $ ptr float --> nat --> io float,
-
     B "FFI.Ptr.Int8.set" $ ptr int8 --> int --> io unit,
     B "FFI.Ptr.Int16.set" $ ptr int16 --> int --> io unit,
     B "FFI.Ptr.Int32.set" $ ptr int32 --> int --> io unit,
@@ -888,7 +884,6 @@ builtinsSrc =
     B "FFI.Ptr.Nat.set" $ ptr nat --> nat --> io unit,
     B "FFI.Ptr.Float32.set" $ ptr float32 --> float --> io unit,
     B "FFI.Ptr.Float.set" $ ptr float --> float --> io unit,
-
     B "FFI.Ptr.Int8.setAt" $ ptr int8 --> nat --> int --> io unit,
     B "FFI.Ptr.Int16.setAt" $ ptr int16 --> nat --> int --> io unit,
     B "FFI.Ptr.Int32.setAt" $ ptr int32 --> nat --> int --> io unit,
@@ -899,7 +894,6 @@ builtinsSrc =
     B "FFI.Ptr.Nat.setAt" $ ptr nat --> nat --> nat --> io unit,
     B "FFI.Ptr.Float32.setAt" $ ptr float32 --> nat --> int --> io unit,
     B "FFI.Ptr.Float.setAt" $ ptr float --> nat --> int --> io unit,
-
     B "FFI.Ptr.Ptr.allocate" $
       forall1 "a" \a -> nat --> io (ptr (ptr a)),
     B "FFI.Ptr.Ptr.get" $
@@ -910,7 +904,6 @@ builtinsSrc =
       forall1 "a" \a -> ptr (ptr a) --> nat --> io (ptr a),
     B "FFI.Ptr.Ptr.setAt" $
       forall1 "a" \a -> ptr (ptr a) --> nat --> ptr a --> io unit,
-
     B "FFI.Ptr.free" $ forall1 "a" \a -> ptr a --> io unit,
     B "FFI.Ptr.cast" $ forall2 "a" "b" \a b -> ptr a --> ptr b
   ]
