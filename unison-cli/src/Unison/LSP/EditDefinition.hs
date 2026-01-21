@@ -76,7 +76,7 @@ editDefinitionHandler m respond = do
         pure directFqn
       (Nothing, Just pos) -> do
         -- Get the symbol reference at the position
-        ref <- orFail "Error: Can only edit top-level definitions." . runMaybeT $ LSPQ.refAtPosition fileURI pos
+        ref <- orFail "Error: Definition not found in Codebase" . runMaybeT $ LSPQ.refAtPosition fileURI pos
 
         -- Get the FQN for the reference
         pped <- lift $ ppedForFile fileURI
