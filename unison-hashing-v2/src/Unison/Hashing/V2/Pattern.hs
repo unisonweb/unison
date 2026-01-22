@@ -19,6 +19,7 @@ data Pattern loc
   | PatternText loc !Text
   | PatternChar loc !Char
   | PatternConstructor loc !Reference !ConstructorId [Pattern loc]
+  | PatternRecord loc !Reference [(Text, Pattern loc)]
   | PatternAs loc (Pattern loc)
   | PatternEffectPure loc (Pattern loc)
   | PatternEffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
@@ -54,6 +55,8 @@ instance H.Tokenizable (Pattern p) where
   tokens (PatternSequenceLiteral _ ps) = H.Tag 11 : concatMap H.tokens ps
   tokens (PatternSequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
   tokens (PatternChar _ c) = H.Tag 13 : H.tokens c
+  tokens (PatternRecord _ r fields) =
+    H.Tag 14 : H.accumulateToken r : concatMap (\(fieldName, p) -> H.tokens fieldName ++ H.tokens p) fields
 
 instance Eq (Pattern loc) where
   PatternUnbound _ == PatternUnbound _ = True

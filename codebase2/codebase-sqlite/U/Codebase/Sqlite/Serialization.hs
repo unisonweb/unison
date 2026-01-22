@@ -280,6 +280,8 @@ putSingleTerm t = putABT putSymbol putUnit putF t
         putWord8 20 *> putReferent' putRecursiveReference putReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
+      Term.Record r fields ->
+        putWord8 22 *> putReference r *> putFoldable (\(name, val) -> putText name *> putChild val) fields
     putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
@@ -364,6 +366,12 @@ getSingleTerm = getABT getSymbol getUnit getF
         19 -> Term.Char <$> getChar
         20 -> Term.TermLink <$> getReferent
         21 -> Term.TypeLink <$> getReference
+        22 ->
+          Term.Record
+            <$> getReference
+            <*> getList
+              ( (,) <$> getText <*> getChild
+              )
         tag -> unknownTag "getSingleTerm" tag
       where
         getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.TypeRef)

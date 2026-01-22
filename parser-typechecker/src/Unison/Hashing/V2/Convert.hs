@@ -119,6 +119,7 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Blank b -> pure (Hashing.TermBlank b)
   Memory.Term.Ref r -> pure (Hashing.TermRef (m2hReference r))
   Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReference r) i)
+  Memory.Term.Record r -> pure (Hashing.TermRecord (m2hReference r))
   Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReference r) i)
   Memory.Term.Handle x y -> pure (Hashing.TermHandle x y)
   Memory.Term.App f x -> pure (Hashing.TermApp f x)
@@ -149,6 +150,7 @@ m2hPattern = \case
   Memory.Pattern.Char loc c -> Hashing.PatternChar loc c
   Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps ->
     Hashing.PatternConstructor loc (m2hReference r) i (fmap m2hPattern ps)
+  Memory.Pattern.Record loc ref fields -> Hashing.PatternRecord loc (m2hReference ref) (fields <&> second m2hPattern)
   Memory.Pattern.As loc p -> Hashing.PatternAs loc (m2hPattern p)
   Memory.Pattern.EffectPure loc p -> Hashing.PatternEffectPure loc (m2hPattern p)
   Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference r i) ps k ->
@@ -181,6 +183,7 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermRef r -> Memory.Term.Ref (h2mReference r)
   Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
+  Hashing.TermRecord r -> Memory.Term.Record (h2mReference r)
   Hashing.TermHandle x y -> Memory.Term.Handle x y
   Hashing.TermApp f x -> Memory.Term.App f x
   Hashing.TermAnn e t -> Memory.Term.Ann e (h2mType t)
@@ -210,6 +213,7 @@ h2mPattern = \case
   Hashing.PatternChar loc c -> Memory.Pattern.Char loc c
   Hashing.PatternConstructor loc r i ps ->
     Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
+  Hashing.PatternRecord loc ref fields -> Memory.Pattern.Record loc (h2mReference ref) (fields <&> second h2mPattern)
   Hashing.PatternAs loc p -> Memory.Pattern.As loc (h2mPattern p)
   Hashing.PatternEffectPure loc p -> Memory.Pattern.EffectPure loc (h2mPattern p)
   Hashing.PatternEffectBind loc r i ps k ->
