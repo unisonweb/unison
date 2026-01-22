@@ -2771,6 +2771,10 @@ c2xTerm saveText saveDefn tm tp =
         C.Term.Constructor
           <$> bitraverse lookupText lookupDefn typeRef
           <*> pure cid
+      C.Term.Record typeRef fields ->
+        C.Term.Record
+          <$> bitraverse lookupText lookupDefn typeRef
+          <*> pure fields
       C.Term.Request typeRef cid ->
         C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
       C.Term.Handle a a2 -> pure $ C.Term.Handle a a2

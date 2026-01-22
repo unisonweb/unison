@@ -64,6 +64,7 @@ data F' text termRef typeRef termLink typeLink vt a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     Constructor typeRef ConstructorId
+  | Record typeRef [(Text {- field name -}, a {- field value -})]
   | Request typeRef ConstructorId
   | Handle a a
   | App a a
@@ -187,6 +188,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Char c -> pure $ Char c
       Ref r -> Ref <$> ftermRef r
       Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
+      Record r fields -> Record <$> (ftypeRef r) <*> (traverse (\(fname, fval) -> (fname,) <$> pure fval) fields)
       Request r cid -> Request <$> ftypeRef r <*> pure cid
       Handle e h -> pure $ Handle e h
       App f a -> pure $ App f a
@@ -329,6 +331,7 @@ unhashComponent componentHash refToVar m =
             Text t -> ABT.tm () $ Text t
             Char c -> ABT.tm () $ Char c
             Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
+            Record typeRef fields -> ABT.tm () $ Record typeRef fields
             Request typeRef conId -> ABT.tm () $ Request typeRef conId
             Handle e h -> ABT.tm () $ Handle e h
             App f a -> ABT.tm () $ App f a

@@ -45,6 +45,7 @@ data TermF typeVar typeAnn patternAnn a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     TermConstructor Reference ConstructorId
+  | TermRecord Reference [(Text, a)]
   | TermRequest Reference ConstructorId
   | TermHandle a a
   | TermApp a a
@@ -200,3 +201,12 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermOr x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermTermLink r -> [tag 18, accumulateToken r]
                   TermTypeLink r -> [tag 19, accumulateToken r]
+                  TermRecord r fields -> [tag 20, accumulateToken r] <> fieldTokens fields
+                    where
+                      fieldTokens :: [(Text, x)] -> [Hashable.Token]
+                      fieldTokens fs =
+                        foldMap
+                          ( \(name, val) ->
+                              [accumulateToken name, hashed (hash val)]
+                          )
+                          fs

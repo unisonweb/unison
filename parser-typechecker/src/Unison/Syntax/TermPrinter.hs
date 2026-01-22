@@ -766,6 +766,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
               `PP.hang` pats_printed,
           tail_vs
         )
+  Pattern.Record _loc ref fields -> "TODO: Unimplemented: Here's where we'd implement record pattern printing"
   Pattern.As _ pat ->
     case vs of
       (v : tail_vs) ->
