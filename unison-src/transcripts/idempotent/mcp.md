@@ -824,37 +824,3 @@ RESPONSE:
   }
 
 ```
-
-## share-project-info
-
-``` api
-POST /mcp
-BODY:
-  {
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-      "name": "share-project-info",
-      "arguments": {
-        "projectName": "@hojberg/html"
-      }
-    }
-  }
-
-RESPONSE:
-  {
-      "id": 1,
-      "jsonrpc": "2.0",
-      "result": {
-          "content": [
-              {
-                  "text": "{\"latestRelease\":\"2.9.0\",\"projectId\":\"P-900debbb-139c-4691-b425-d601709d2dc8\",\"projectName\":\"@hojberg/html\"}",
-                  "type": "text"
-              }
-          ],
-          "isError": false
-      }
-  }
-
-```
