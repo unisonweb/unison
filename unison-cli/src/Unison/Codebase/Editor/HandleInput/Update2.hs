@@ -110,19 +110,19 @@ handleUpdate2 = do
   -- Of all the namespace bindings in the latest typechecked Unison file, keep the ones that don't correspond to "no
   -- change" (i.e. the thing was just `edit`-ed and untouched). We also reject the update entirely if it touches
   -- anything in lib.*.
-  let addedOrUpdatedNamespaceBindings0 :: Defns (Set Name, Map Name ()) (Set Name, Map Name ())
+  let addedOrUpdatedNamespaceBindings0 :: Defns (Set Name, Map Name Bool) (Set Name, Map Name Bool)
       addedOrUpdatedNamespaceBindings0 =
-        let f :: (Eq ref1) => Relation Name ref1 -> (ref2 -> ref1) -> Name -> ref2 -> (Set Name, ())
+        let f :: (Eq ref1) => Relation Name ref1 -> (ref2 -> ref1) -> Name -> ref2 -> (Set Name, Bool)
             f libdeps toRef name fileRef
               | Name.beginsWithSegment name NameSegment.libSegment,
                 maybe True (/= toRef fileRef) (Set.asSingleton (Relation.lookupDom name libdeps)) =
-                  (Set.singleton name, ())
-              | otherwise = (Set.empty, ())
-            g :: (Eq ref1) => (ref2 -> ref1) -> name -> ref1 -> ref2 -> Maybe ()
+                  (Set.singleton name, False)
+              | otherwise = (Set.empty, False)
+            g :: (Eq ref1) => (ref2 -> ref1) -> name -> ref1 -> ref2 -> Maybe Bool
             g toRef _ codebaseRef fileRef
               | codebaseRef == toRef fileRef = Nothing
-              | otherwise = Just ()
-            h :: (Eq ref1) => Relation Name ref1 -> (ref2 -> ref1) -> BiMultimap ref1 Name -> Map Symbol ref2 -> (Set Name, Map Name ())
+              | otherwise = Just True
+            h :: (Eq ref1) => Relation Name ref1 -> (ref2 -> ref1) -> BiMultimap ref1 Name -> Map Symbol ref2 -> (Set Name, Map Name Bool)
             h libdeps toRef codebaseDefns fileDefns =
               Map.mergeA
                 Map.dropMissing
@@ -209,7 +209,8 @@ handleUpdate2 = do
                               (over (#terms . mapped) snd hydratedDependents)
                           )
 
-              parsingEnv <- Cli.makeParsingEnv pp namesIncludingLibdeps
+              parsingEnv <-
+                Cli.makeParsingEnv pp namesIncludingLibdeps
 
               secondTuf <-
                 parseAndTypecheck prettyUnisonFile parsingEnv & onNothingM do
@@ -219,7 +220,30 @@ handleUpdate2 = do
                           nextNamespace =
                             unconflictedView.defns
                               & bimap
-                                (BiMultimap.range >>> (`Map.withoutKeys` namespaceBindings.terms))
+                                ( BiMultimap.range
+                                    >>> ( `Map.withoutKeys`
+                                            -- Toss (by name):
+                                            --   1. the terms in the file
+                                            --   2. the old constructors of the types in the file
+                                            ( Map.foldlWithKey'
+                                                ( \acc typeName isUpdate ->
+                                                    if isUpdate
+                                                      then
+                                                        foldr
+                                                          Set.insert
+                                                          acc
+                                                          ( Map.findWithDefault
+                                                              [] -- impossible, could error
+                                                              typeName
+                                                              declNameLookup.declToConstructors
+                                                          )
+                                                      else acc
+                                                )
+                                                namespaceBindings.terms
+                                                (snd addedOrUpdatedNamespaceBindings0.types)
+                                            )
+                                        )
+                                )
                                 (BiMultimap.range >>> (`Map.withoutKeys` namespaceBindings.types))
                               & subtractDependents dependentsRefs
                               & Branch.fromUnconflictedDefns
