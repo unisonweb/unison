@@ -118,4 +118,6 @@ lspCloseFile msg =
 lspChangeFile :: Msg.TNotificationMessage 'Msg.Method_TextDocumentDidChange -> Lsp ()
 lspChangeFile msg = do
   usingVFS . changeFromClientVFS vfsLogger $ msg
+  lastTouchedFileV <- asks lastTouchedFileVar
+  atomically $ writeTVar lastTouchedFileV (Just (msg ^. params . textDocument . uri))
   markFilesDirty [msg ^. params . textDocument]

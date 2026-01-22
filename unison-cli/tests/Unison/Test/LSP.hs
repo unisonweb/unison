@@ -76,12 +76,14 @@ runTestLsp action = do
     projPath <- Codebase.runTransaction codebase $ do
       Codebase.expectCurrentProjectPath
     checkedFilesVar <- UnliftIO.newTVarIO mempty
+    lastTouchedFileVar <- UnliftIO.newTVarIO Nothing
 
     vfsVar <- UnliftIO.newMVar VFS.emptyVFS
     let env =
           ULSP.Env
             { lspContext = error "test runner is missing lspContext",
               codebase,
+              lastTouchedFileVar,
               currentNamesCache = pure mempty,
               ppedCache = pure PPED.empty,
               nameSearchCache = error "test runner is missing nameSearchCache",
