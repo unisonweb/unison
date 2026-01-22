@@ -1455,8 +1455,6 @@ data Func ref v
     FCont v
   | -- data constructor
     FCon !ref !CTag
-  | -- Record constructor
-    FRec !ref ![Text] -- Field names to pack. Should this be stored elsewhere in the AST?
   | -- ability request
     FReq !ref !CTag
   | -- prim op
@@ -2465,7 +2463,6 @@ funcLinks ::
   f (Func ref1 v)
 funcLinks f (FComb r) = FComb <$> f False r
 funcLinks f (FCon r t) = flip FCon t <$> f True r
-funcLinks f (FRec r names) = flip FRec names <$> f True r
 funcLinks f (FReq r t) = flip FReq t <$> f True r
 funcLinks _ (FVar v) = pure $ FVar v
 funcLinks _ (FCont v) = pure $ FCont v
@@ -2658,12 +2655,6 @@ prettyFunc (FCon r t) =
     . showsShort r
     . showString ","
     . shows t
-    . showString ")"
-prettyFunc (FRec r fieldNames) =
-  showString "REC("
-    . shows r
-    . showString ","
-    . shows fieldNames
     . showString ")"
 prettyFunc (FReq r t) =
   showString "REQ("

@@ -1191,13 +1191,6 @@ emitFunction rns _grpr _ _ _ (FCon r t) as =
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns _grpr _ _ _ (FRec r fieldNames) as =
-  Ins (RecPack r (packTags rt zeroConstructorTag) as (fnum rns <$> fieldNames))
-    . Yield
-    $ VArg1 0
-  where
-    zeroConstructorTag = 0
-    rt = toEnum . fromIntegral $ dnum rns r
 emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
