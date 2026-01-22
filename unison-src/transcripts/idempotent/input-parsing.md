@@ -29,7 +29,7 @@ scratch/main> run main "all one arg" "contains escaped \" quote" 'single quoted'
     ]
 ```
 
-Quoted numbers are not expanded.
+Numbers are not expanded when used as non-structured arguments (this is command dependent)
 
 ``` ucm
 scratch/main> ls
@@ -37,7 +37,7 @@ scratch/main> ls
   1. builtin. (857 terms, 126 types)
   2. main     ('{IO} Either Failure [Text])
 
-scratch/main> run main "1" "2-" "3-4"
+scratch/main> run main 1 2- 3-4
 
   Right ["1", "2-", "3-4"]
 ```
