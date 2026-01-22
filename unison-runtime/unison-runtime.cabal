@@ -124,11 +124,11 @@ library
     , bytestring
     , clock
     , containers >=0.6.3
+    , crypton
     , crypton-x509
     , crypton-x509-store
     , crypton-x509-system
     , crypton-x509-validation
-    , cryptonite
     , data-default
     , data-memocombinators
     , deepseq
@@ -239,7 +239,7 @@ test-suite runtime-tests
     , bytestring
     , code-page
     , containers
-    , cryptonite
+    , crypton
     , directory
     , easytest
     , filemanip

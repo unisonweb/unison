@@ -74,7 +74,7 @@ openOnShareHandler m respond = do
       Aeson.Success p -> pure p
 
     -- Get the symbol reference at the position
-    ref <- orFail "Error: Can only open top-level definitions." . runMaybeT $ LSPQ.refAtPosition textDocument._uri position
+    ref <- orFail "Error: Definition not found in Codebase" . runMaybeT $ LSPQ.refAtPosition textDocument._uri position
 
     -- Get the FQN for the reference
     pped <- lift $ ppedForFile textDocument._uri

@@ -142,6 +142,7 @@ library
       Unison.LSP.Conversions
       Unison.LSP.Diagnostics
       Unison.LSP.DocumentSymbols
+      Unison.LSP.EditDefinition
       Unison.LSP.FileAnalysis
       Unison.LSP.FileAnalysis.UnusedBindings
       Unison.LSP.FoldingRange
@@ -152,11 +153,13 @@ library
       Unison.LSP.NotificationHandlers
       Unison.LSP.OpenOnShare
       Unison.LSP.Orphans
+      Unison.LSP.ProjectContext
       Unison.LSP.Queries
       Unison.LSP.Types
       Unison.LSP.UCMWorker
       Unison.LSP.Util.IntersectionMap
       Unison.LSP.Util.Signal
+      Unison.LSP.Util.Wrappers
       Unison.LSP.VFS
       Unison.Main
       Unison.MCP
@@ -234,7 +237,7 @@ library
     , conduit
     , conduit-extra
     , containers >=0.6.3
-    , cryptonite
+    , crypton
     , directory
     , either
     , errors
@@ -428,7 +431,7 @@ test-suite cli-tests
       base
     , code-page
     , containers
-    , cryptonite
+    , crypton
     , directory
     , easytest
     , extra

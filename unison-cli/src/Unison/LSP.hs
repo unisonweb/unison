@@ -38,6 +38,7 @@ import Unison.LSP.Commands (executeCommandHandler, supportedCommands)
 import Unison.LSP.Completion (completionHandler, completionItemResolveHandler)
 import Unison.LSP.Configuration qualified as Config
 import Unison.LSP.DocumentSymbols (documentSymbolsHandler)
+import Unison.LSP.EditDefinition (editDefinitionHandler)
 import Unison.LSP.FileAnalysis qualified as Analysis
 import Unison.LSP.FoldingRange (foldingRangeRequest)
 import Unison.LSP.Formatting (formatDocRequest, formatRangeRequest)
@@ -47,6 +48,7 @@ import Unison.LSP.Hover (hoverHandler)
 import Unison.LSP.NotificationHandlers qualified as Notifications
 import Unison.LSP.OpenOnShare (openOnShareHandler)
 import Unison.LSP.Orphans ()
+import Unison.LSP.ProjectContext (projectContextHandler)
 import Unison.LSP.Types
 import Unison.LSP.UCMWorker (ucmWorker)
 import Unison.LSP.Util.Signal (Signal)
@@ -153,6 +155,7 @@ lspDoInitialize vfsVar codebase runtime scope signal lspContext _initMsg = do
   cancellationMapVar <- newTVarIO mempty
   completionsVar <- newEmptyTMVarIO
   nameSearchCacheVar <- newEmptyTMVarIO
+  lastTouchedFileVar <- newTVarIO Nothing
   let env =
         Env
           { ppedCache = atomically $ readTMVar ppedCacheVar,
@@ -190,6 +193,8 @@ lspRequestHandlers lspFormattingConfig =
     & SMM.insert Msg.SMethod_TextDocumentImplementation (mkHandler goToImplementationHandler)
     & SMM.insert Msg.SMethod_TextDocumentDocumentSymbol (mkHandler documentSymbolsHandler)
     & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/openOnShare")) (mkHandler openOnShareHandler)
+    & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/editDefinition")) (mkHandler editDefinitionHandler)
+    & SMM.insert (Msg.SMethod_CustomMethod (Proxy :: Proxy "unison/projectContext")) (mkHandler projectContextHandler)
     & addFormattingHandlers
   where
     addFormattingHandlers handlers =

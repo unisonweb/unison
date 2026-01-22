@@ -71,7 +71,7 @@ library
     , bytestring
     , cborg
     , containers
-    , cryptonite
+    , crypton
     , lens
     , memory
     , semialign
