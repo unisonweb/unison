@@ -24,12 +24,12 @@ data Pattern loc
   | Text loc !Text
   | Char loc !Char
   | Constructor loc !ConstructorReference [Pattern loc]
-  | Record loc !Reference [(Text, Pattern loc)]
   | As loc (Pattern loc)
   | EffectPure loc (Pattern loc)
   | EffectBind loc !ConstructorReference [Pattern loc] (Pattern loc)
   | SequenceLiteral loc [Pattern loc]
   | SequenceOp loc (Pattern loc) !SeqOp (Pattern loc)
+  | Record loc !Reference [(Text, Pattern loc)]
   deriving (Ord, Generic, Functor, Foldable, Traversable)
 
 data SeqOp

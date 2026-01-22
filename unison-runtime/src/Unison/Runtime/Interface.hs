@@ -920,11 +920,12 @@ data StoredCache
       (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
+      (Map Unison.Prelude.Text TT.FieldTag)
       (Map Reference (Set Reference))
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty fts sbs) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -935,6 +936,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) 
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
     <> putMap putReference putNat rty
+    <> putMap putText putFieldTag fts
     <> putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: (PrimBase m) => Get m StoredCache
@@ -950,6 +952,7 @@ getStoredCache =
     <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
+    <*> getMap getText getFieldTag
     <*> getMap getReference (fromList <$> getList getReference)
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
@@ -959,7 +962,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty fts sbs) = do
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -973,6 +976,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
+      <*> newTVarIO fts
       <*> newTVarIO (sbs <> baseSandboxInfo)
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
         srcCombs

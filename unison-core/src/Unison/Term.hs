@@ -70,7 +70,6 @@ data F typeVar typeAnn patternAnn a
   | Blank (B.Blank typeAnn)
   | Ref Reference
   | Constructor ConstructorReference
-  | Record Reference [(Text, a)]
   | Request ConstructorReference
   | Handle a {- <- the handler -} a {- <- the action to run -}
   | App a {- <- func -} a {- <- arg -}
@@ -101,6 +100,7 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
+  | Record Reference [(Text, a)]
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference

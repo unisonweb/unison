@@ -424,7 +424,11 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (RecPack r t args ftags) = do
+exec _ henv !_activeThreads !stk !k _ (RecPack r t args _ftags) = do
+  error "TODO: exec: RecPack"
+  clo <- buildRec stk r t args
+  stk <- bump stk
+  bpoke stk clo
   pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
@@ -1102,10 +1106,11 @@ buildData !stk !r !t (VArgV i) = do
     l = fsize stk - i
 {-# INLINE buildData #-}
 
+-- | Pack some number of args into a record data type of the provided ref/tag type.
 buildRec :: Stack -> Reference -> PackedTag -> Args -> IO Closure
-buildRec stk r t args = do
-  seg <- augSeg I stk nullSeg (Just $ ArgN args)
-  pure $ DataG r t seg
+buildRec stk r t =
+  -- Records are represented the as regular product types.
+  buildData stk r t
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -1863,6 +1868,7 @@ reflectValue0 rty rtm = goV0
           DataG _ t seg -> do
             r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> goVs seg
+          DataR _ _t _m -> error "reflectValue: Record reflection not yet implemented"
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
