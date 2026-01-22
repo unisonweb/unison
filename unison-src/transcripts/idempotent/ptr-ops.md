@@ -103,11 +103,30 @@ ptrTest = do
   r = Ptr.cast (Ptr.getAt p 0)
   Ptr.free p
   (p == q, p == r)
+
+baTest = do
+  pinned = IO.pinnedByteArray 10
+  p = PinnedByteArray.contents pinned
+
+  go = cases
+    n | n < 10 ->
+        Nat8.setAt p n n
+        go (n+1)
+      | otherwise -> ()
+
+  keepAlive pinned '(go 0)
+
+  read acc = cases
+    i | i < 10 -> read (acc :+ Nat8.getAt p i) (i+1)
+      | otherwise -> acc
+
+  keepAlive pinned '(read [] 0)
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + baTest      : '{IO} [Nat]
   + float32Test : '{IO} (Boolean, Boolean)
   + floatTest   : '{IO} (Boolean, Boolean)
   + int16Test   : '{IO} (Boolean, Boolean)
@@ -167,4 +186,8 @@ scratch/ptr> run nat64Test
 scratch/ptr> run ptrTest
 
   (true, true)
+
+scratch/ptr> run baTest
+
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 ```

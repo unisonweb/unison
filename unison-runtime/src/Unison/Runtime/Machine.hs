@@ -511,6 +511,10 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
             DLL.MBArr ->
               die [] $ "unexpected array result from DLL function"
   pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ (KeepAlive i) = do
+  x <- bpeekOff stk i
+  (stk, a) <- saveArgs stk
+  pure (False, henv, stk, Keep x a k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
@@ -1019,6 +1023,7 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
       go denv sk $ Push n a cix f rsect k
     go !_ (Local {}) !_ = die [] "repush: captured Local frame"
     go !_ (AMark {}) !_ = die [] "repush: captured AMark frame"
+    go !_ (Keep {}) !_ = die [] "repush: captured Keep frame"
     go !_ (CB _) !_ = die [] "repush: impossible"
 {-# INLINE repush #-}
 
@@ -1193,6 +1198,9 @@ yield !yld env henv0 !activeThreads !stk = leap
       stk <- restoreFrame stk 0 asz
       yield yld env henv activeThreads stk k
     leap (CB (Hook f)) = f (unpackXStack stk)
+    leap (Keep _ asz k) = do
+      stk <- restoreFrame stk 0 asz
+      yield yld env henv0 activeThreads stk k
     leap KE = pure ()
 {-# INLINE yield #-}
 
@@ -1404,6 +1412,8 @@ splitCont !denv !stk !k !p =
       die [] "splitCont: Local frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (AMark {}) =
       die [] "splitCont: AMark frame" >> finish denv sz 0 ck KE
+    walk !denv !sz !ck (Keep {}) =
+      die [] "splitCont: Keep frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Mark a ps cs k)
       | EC.member p ps = finish denv' sz a ck k
       | otherwise = walk denv' (sz + a) (Mark a ps cs' ck) k
@@ -1437,6 +1447,7 @@ abortCont !stk !k !r = walk (asize stk) k
       (CB _) -> die [] "abortCont: fell off stack"
       (Local _ a k) -> walk (sz + a) k
       (Push n a _ _ _ k) -> walk (sz + n + a) k
+      (Keep _ a k) -> walk (sz + a) k
       -- dynamic mark cannot match
       (Mark a _ _ k) -> walk (sz + a) k
       (AMark a aenv s k)
@@ -1854,6 +1865,7 @@ reflectValue0 rty rtm = goV0
     goK (CB _) = reflExn "callback continuation"
     goK (Local {}) = reflExn "captured Local frame"
     goK (AMark {}) = reflExn "captured AMark frame"
+    goK (Keep {}) = reflExn "captured Keep frame"
     goK KE = pure ANF.KE
     goK (Mark a ps de k) = do
       ps <- traverse (resolveTy rty) (EC.setToList ps)

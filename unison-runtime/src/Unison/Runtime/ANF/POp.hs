@@ -171,6 +171,8 @@ data POp
   | NOTB -- not
   | ANDB -- and
   | IORB -- or
+  -- low level
+  | KEEP -- keepAlive
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -323,6 +325,7 @@ pOpCode op = case op of
   NOTB -> 145
   ANDB -> 146
   IORB -> 147
+  KEEP -> 148
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

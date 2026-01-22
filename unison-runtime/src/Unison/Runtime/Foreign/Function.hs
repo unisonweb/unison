@@ -1260,7 +1260,8 @@ foreignCallHelper = \case
   FFI_Ptr_Ptr_getAt -> mkForeign $ peekAt @(Ptr ())
   FFI_Ptr_Ptr_setAt -> mkForeign $ pokeAt @(Ptr ())
   FFI_Ptr_free -> mkForeign $ Mem.free @()
-  FFI_Ptr_cast -> mkForeign $ pure @IO @(Ptr ())
+  PinnedByteArray_contents ->
+    mkForeign $ evaluate . PA.mutableByteArrayContents @PA.RealWorld
   where
     wrapOOB ::
       (Integral n) =>

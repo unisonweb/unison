@@ -305,6 +305,12 @@ data K
       HEnv -- stored environment; intentionally lazy
       !Int -- pending args
       !K
+  | -- holds onto a reference to something to avoid garbage collection
+    forall a.
+    Keep
+      !a   -- retained value
+      !Int -- pending args
+      !K
 
 newtype Closure = Closure {unClosure :: (GClosure (RComb Val))}
   deriving stock (Show)
@@ -600,6 +606,8 @@ frameDataSize = go 0
     go sz (Mark a _ _ k) = go (sz + a) k
     go sz (Push f a _ _ _ k) =
       go (sz + f + a) k
+    go _ (Keep {}) =
+      error "frameDataSize: captured Keep frame"
     go _ (Local {}) =
       error "frameDataSize: captured Local frame"
     go _ (AMark {}) =
@@ -1514,6 +1522,8 @@ instance Show K where
         com ++ "L " ++ show a ++ go "," k
       go com (AMark a _ _ k) =
         com ++ "A " ++ show a ++ go "," k
+      go com (Keep _ a k) =
+        com ++ "K " ++ show a ++ go "," k
 
 frameView :: Stack -> IO ()
 frameView stk = putStr "|" >> gof False 0
@@ -1726,6 +1736,8 @@ compareK tyEq = \cases
   _ (Local {}) -> error "compare K: captured Local frame"
   (AMark {}) _ -> error "compare K: captured AMark frame"
   _ (AMark {}) -> error "compare K: captured AMark frame"
+  (Keep {}) _ -> error "compare K: captured Keep frame"
+  _ (Keep {}) -> error "compare K: captured Keep frame"
 
 -- Note: these are not the same as the Data.Map Eq/Ord instances,
 -- because the automatic derivation in unison doesn't consider

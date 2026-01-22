@@ -562,6 +562,8 @@ data GInstr comb
     TryForce !Int
   | -- Attempted to use a builtin that was not allowed in the current sandboxing context.
     SandboxingFailure !Text.Text -- The name of the builtin which failed was sandboxed.
+  | -- keep a value alive while subsequent computations are run
+    KeepAlive !Int
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Section = GSection CombIx
@@ -1447,6 +1449,9 @@ emitPOp ANF.INFO = \case
 emitPOp ANF.TFRC = \case
   VArg1 i -> TryForce i
   _ -> internalBug [] "tryEval takes exactly one boxed argument"
+emitPOp ANF.KEEP = \case
+  VArg1 i -> KeepAlive i
+  _ -> internalBug [] "keepAlive takes exactly one boxed argument"
 
 -- handled in emitSection because Die is not an instruction
 

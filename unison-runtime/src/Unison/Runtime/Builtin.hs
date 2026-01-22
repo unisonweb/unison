@@ -428,6 +428,11 @@ coerceType destType =
     TLetD tag UN (TLit $ I $ fromIntegral $ unboxedTypeTagToInt destType) $
       TPrm CAST [v, tag]
 
+-- Casting a pointer doesn't need to change the representation at all,
+-- so the identity function with type `Ptr a -> Ptr b` is fine.
+cast'ptr :: SuperNormal ref Symbol
+cast'ptr = unop0 0 \[v] -> TVar v
+
 -- This version of unsafeCoerce is the identity function. It works
 -- only if the two types being coerced between are actually the same,
 -- because it keeps the same representation. It is not capable of
@@ -454,6 +459,16 @@ fork'comp =
     $ TPrm FORK [lz]
   where
     (act, unit, lz) = fresh
+
+keep'alive :: SuperNormal Reference Symbol
+keep'alive =
+  Lambda [BX, BX]
+    . TAbss [val, act]
+    . TLetD unit BX (TCon Ty.unitRef 0 [])
+    . TLets Direct [] [] (TPrm KEEP [val])
+    $ TApp (FVar act) [unit]
+  where
+    (val, act, unit) = fresh
 
 try'eval :: SuperNormal Reference Symbol
 try'eval =
@@ -875,7 +890,9 @@ builtinLookup =
         ("Ref.Ticket.read", (Tracked, ref'ticket'read)),
         ("Ref.readForCas", (Tracked, ref'readForCas)),
         ("Scope.ref", (Untracked, ref'new)),
-        ("IO.ref", (Tracked, ref'new))
+        ("IO.ref", (Tracked, ref'new)),
+        ("FFI.Ptr.cast", (Tracked, cast'ptr)),
+        ("IO.keepAlive", (Tracked, keep'alive))
       ]
       ++ foreignWrappers
 
@@ -1495,7 +1512,7 @@ declareForeigns = do
   declareForeign Tracked 3 FFI_Ptr_Ptr_setAt
 
   declareForeign Tracked 1 FFI_Ptr_free
-  declareForeign Tracked 1 FFI_Ptr_cast
+  declareForeign Tracked 1 PinnedByteArray_contents
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))

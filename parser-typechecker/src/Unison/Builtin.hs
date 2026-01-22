@@ -905,7 +905,11 @@ builtinsSrc =
     B "FFI.Ptr.Ptr.setAt" $
       forall1 "a" \a -> ptr (ptr a) --> nat --> ptr a --> io unit,
     B "FFI.Ptr.free" $ forall1 "a" \a -> ptr a --> io unit,
-    B "FFI.Ptr.cast" $ forall2 "a" "b" \a b -> ptr a --> ptr b
+    B "FFI.Ptr.cast" $ forall2 "a" "b" \a b -> ptr a --> ptr b,
+    B "PinnedByteArray.contents" $ forall1 "g" \g ->
+      pinnedByteArrayt g --> ptr nat8,
+    B "IO.keepAlive" $ forall2 "a" "b" \a b ->
+      a --> (unit --> io b) --> io b
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=

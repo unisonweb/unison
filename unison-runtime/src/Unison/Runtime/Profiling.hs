@@ -28,6 +28,7 @@ addSample wait c k (Prof count trie refs) =
     combs acc (AMark _ _ _ k) = combs acc k
     combs acc (Mark _ _ _ k) = combs acc k
     combs acc (Local _ _ k) = combs acc k
+    combs acc (Keep _ _ k) = combs acc k
     combs acc (Push _ _ c _ _ k) = combs (cixToPair c : acc) k
 
 addSamples :: [(Bool, CombIx, K)] -> Profile Word64 -> Profile Word64

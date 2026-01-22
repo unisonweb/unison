@@ -169,6 +169,7 @@ data InstrT
   | SandboxingFailureT
   | DiscardT
   | InLocalT
+  | KeepAliveT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -190,6 +191,7 @@ instance Tag InstrT where
   tag2word SandboxingFailureT = 18
   tag2word DiscardT = 19
   tag2word InLocalT = 20
+  tag2word KeepAliveT = 21
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -210,6 +212,7 @@ instance Tag InstrT where
   word2tag 18 = pure SandboxingFailureT
   word2tag 19 = pure DiscardT
   word2tag 20 = pure InLocalT
+  word2tag 21 = pure KeepAliveT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -236,6 +239,7 @@ putInstr = \case
   (Seq a) -> putTag SeqT <> putArgs a
   (TryForce i) -> putTag TryForceT <> pInt i
   (InLocal i) -> putTag InLocalT <> pInt i
+  (KeepAlive i) -> putTag KeepAliveT <> pInt i
   (SandboxingFailure {}) ->
     -- Sandboxing failures should only exist in code we're actively running, it shouldn't be serialized.
     error "putInstr: Unexpected serialized Sandboxing Failure"
@@ -264,6 +268,7 @@ getInstr =
     SeqT -> Seq <$> getArgs
     TryForceT -> TryForce <$> gInt
     InLocalT -> InLocal <$> gInt
+    KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
 
 data ArgsT
