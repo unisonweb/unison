@@ -195,6 +195,7 @@ import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Word
 import Data.X509 qualified as X509
+import Foreign.Ptr qualified as Ptr
 import GHC.Base
 import GHC.Exts as L (IsList (..))
 import Language.Haskell.TH qualified as TH
@@ -302,6 +303,12 @@ data K
   | -- saved context during affine handler
     Local
       HEnv -- stored environment; intentionally lazy
+      !Int -- pending args
+      !K
+  | -- holds onto a reference to something to avoid garbage collection
+    forall a.
+    Keep
+      !a -- retained value
       !Int -- pending args
       !K
 
@@ -599,6 +606,8 @@ frameDataSize = go 0
     go sz (Mark a _ _ k) = go (sz + a) k
     go sz (Push f a _ _ _ k) =
       go (sz + f + a) k
+    go _ (Keep {}) =
+      error "frameDataSize: captured Keep frame"
     go _ (Local {}) =
       error "frameDataSize: captured Local frame"
     go _ (AMark {}) =
@@ -1513,6 +1522,8 @@ instance Show K where
         com ++ "L " ++ show a ++ go "," k
       go com (AMark a _ _ k) =
         com ++ "A " ++ show a ++ go "," k
+      go com (Keep _ a k) =
+        com ++ "K " ++ show a ++ go "," k
 
 frameView :: Stack -> IO ()
 frameView stk = putStr "|" >> gof False 0
@@ -1725,6 +1736,8 @@ compareK tyEq = \cases
   _ (Local {}) -> error "compare K: captured Local frame"
   (AMark {}) _ -> error "compare K: captured AMark frame"
   _ (AMark {}) -> error "compare K: captured AMark frame"
+  (Keep {}) _ -> error "compare K: captured Keep frame"
+  _ (Keep {}) -> error "compare K: captured Keep frame"
 
 -- Note: these are not the same as the Data.Map Eq/Ord instances,
 -- because the automatic derivation in unison doesn't consider
@@ -1822,6 +1835,7 @@ data Foreign
   | WrapNatural !Natural
   | WrapProcessHandle !ProcessHandle
   | WrapPromise !(Promise Val)
+  | WrapPtr !(Ptr.Ptr ())
   | WrapReference !Reference
   | WrapReferent !Referent
   | WrapSeq !(Seq Val)
@@ -1869,6 +1883,7 @@ foreignRef WrapMVar {} = Ty.mvarRef
 foreignRef WrapNatural {} = Ty.naturalRef
 foreignRef WrapProcessHandle {} = Ty.processHandleRef
 foreignRef WrapPromise {} = Ty.promiseRef
+foreignRef WrapPtr {} = Ty.ffiPtrRef
 foreignRef WrapReference {} = Ty.typeLinkRef
 foreignRef WrapReferent {} = Ty.termLinkRef
 foreignRef WrapSeq {} = Ty.listRef
@@ -1910,6 +1925,7 @@ foreignName WrapMVar {} = "MVar"
 foreignName WrapNatural {} = "Natural"
 foreignName WrapProcessHandle {} = "ProcessHandle"
 foreignName WrapPromise {} = "Promise"
+foreignName WrapPtr {} = "Ptr"
 foreignName WrapReference {} = "Reference"
 foreignName WrapReferent {} = "Referent"
 foreignName WrapSeq {} = "Seq"
@@ -1971,6 +1987,7 @@ instance Eq Foreign where
   WrapTicket l == WrapTicket r = l == r
   WrapTimeSpec l == WrapTimeSpec r = l == r
   WrapX509PrivKey l == WrapX509PrivKey r = l == r
+  WrapPtr l == WrapPtr r = l == r
   -- these lack Eq instances
   WrapProcessHandle l == WrapProcessHandle r = ptrEq l r
   WrapPromise l == WrapPromise r = ptrEq l r
@@ -1997,6 +2014,7 @@ compareForeign _tyEq (WrapCPattern l) (WrapCPattern r) = compare l r
 compareForeign _tyEq (WrapCharPattern l) (WrapCharPattern r) = compare l r
 compareForeign _tyEq (WrapInteger l) (WrapInteger r) = compare l r
 compareForeign _tyEq (WrapNatural l) (WrapNatural r) = compare l r
+compareForeign _tyEq (WrapPtr l) (WrapPtr r) = compare l r
 compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
 compareForeign tyEq (WrapSeq l) (WrapSeq r) =
   liftCompare (compareVal tyEq) l r
@@ -2057,6 +2075,14 @@ instance BuiltinForeign ProcessHandle where
   wrapBuiltin = WrapProcessHandle
   maybeUnwrapBuiltin = \case
     WrapProcessHandle v -> Just v
+    _ -> Nothing
+  {-# INLINE maybeUnwrapBuiltin #-}
+
+instance BuiltinForeign (Ptr.Ptr a) where
+  builtinName = Tagged "Ptr"
+  wrapBuiltin = WrapPtr . Ptr.castPtr
+  maybeUnwrapBuiltin = \case
+    WrapPtr p -> Just (Ptr.castPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 

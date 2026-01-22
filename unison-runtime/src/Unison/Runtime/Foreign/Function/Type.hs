@@ -372,12 +372,15 @@ data ForeignFunc
   | FFI_int64
   | FFI_int32
   | FFI_int16
+  | FFI_int8
   | FFI_uint64
   | FFI_uint32
   | FFI_uint16
+  | FFI_uint8
   | FFI_double
   | FFI_float
   | FFI_void
+  | FFI_ptr
   | FFI_pinnedByteArray
   | FFI_base
   | FFI_baseIO
@@ -390,6 +393,63 @@ data ForeignFunc
   | Bytes_read32le
   | Bytes_read64be
   | Bytes_read64le
+  | FFI_Ptr_Int8_allocate
+  | FFI_Ptr_Int16_allocate
+  | FFI_Ptr_Int32_allocate
+  | FFI_Ptr_Int_allocate
+  | FFI_Ptr_Nat8_allocate
+  | FFI_Ptr_Nat16_allocate
+  | FFI_Ptr_Nat32_allocate
+  | FFI_Ptr_Nat_allocate
+  | FFI_Ptr_Float32_allocate
+  | FFI_Ptr_Float_allocate
+  | FFI_Ptr_Int8_get
+  | FFI_Ptr_Int16_get
+  | FFI_Ptr_Int32_get
+  | FFI_Ptr_Int_get
+  | FFI_Ptr_Nat8_get
+  | FFI_Ptr_Nat16_get
+  | FFI_Ptr_Nat32_get
+  | FFI_Ptr_Nat_get
+  | FFI_Ptr_Float32_get
+  | FFI_Ptr_Float_get
+  | FFI_Ptr_Int8_getAt
+  | FFI_Ptr_Int16_getAt
+  | FFI_Ptr_Int32_getAt
+  | FFI_Ptr_Int_getAt
+  | FFI_Ptr_Nat8_getAt
+  | FFI_Ptr_Nat16_getAt
+  | FFI_Ptr_Nat32_getAt
+  | FFI_Ptr_Nat_getAt
+  | FFI_Ptr_Float32_getAt
+  | FFI_Ptr_Float_getAt
+  | FFI_Ptr_Int8_set
+  | FFI_Ptr_Int16_set
+  | FFI_Ptr_Int32_set
+  | FFI_Ptr_Int_set
+  | FFI_Ptr_Nat8_set
+  | FFI_Ptr_Nat16_set
+  | FFI_Ptr_Nat32_set
+  | FFI_Ptr_Nat_set
+  | FFI_Ptr_Float32_set
+  | FFI_Ptr_Float_set
+  | FFI_Ptr_Int8_setAt
+  | FFI_Ptr_Int16_setAt
+  | FFI_Ptr_Int32_setAt
+  | FFI_Ptr_Int_setAt
+  | FFI_Ptr_Nat8_setAt
+  | FFI_Ptr_Nat16_setAt
+  | FFI_Ptr_Nat32_setAt
+  | FFI_Ptr_Nat_setAt
+  | FFI_Ptr_Float32_setAt
+  | FFI_Ptr_Float_setAt
+  | FFI_Ptr_Ptr_allocate
+  | FFI_Ptr_Ptr_get
+  | FFI_Ptr_Ptr_set
+  | FFI_Ptr_Ptr_getAt
+  | FFI_Ptr_Ptr_setAt
+  | FFI_Ptr_free
+  | PinnedByteArray_contents
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -758,13 +818,16 @@ foreignFuncBuiltinName = \case
   FFI_int64 -> "FFI.int64"
   FFI_int32 -> "FFI.int32"
   FFI_int16 -> "FFI.int16"
+  FFI_int8 -> "FFI.int8"
   FFI_uint64 -> "FFI.uint64"
   FFI_uint32 -> "FFI.uint32"
   FFI_uint16 -> "FFI.uint16"
+  FFI_uint8 -> "FFI.uint8"
   FFI_double -> "FFI.double"
   FFI_float -> "FFI.float"
   FFI_void -> "FFI.void"
   FFI_pinnedByteArray -> "FFI.pinnedByteArray"
+  FFI_ptr -> "FFI.ptr"
   FFI_base -> "FFI.base"
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"
@@ -776,3 +839,60 @@ foreignFuncBuiltinName = \case
   Bytes_read32le -> "Bytes.read32le"
   Bytes_read64be -> "Bytes.read64be"
   Bytes_read64le -> "Bytes.read64le"
+  FFI_Ptr_Int8_allocate -> "FFI.Ptr.Int8.allocate"
+  FFI_Ptr_Int16_allocate -> "FFI.Ptr.Int16.allocate"
+  FFI_Ptr_Int32_allocate -> "FFI.Ptr.Int32.allocate"
+  FFI_Ptr_Int_allocate -> "FFI.Ptr.Int.allocate"
+  FFI_Ptr_Nat8_allocate -> "FFI.Ptr.Nat8.allocate"
+  FFI_Ptr_Nat16_allocate -> "FFI.Ptr.Nat16.allocate"
+  FFI_Ptr_Nat32_allocate -> "FFI.Ptr.Nat32.allocate"
+  FFI_Ptr_Nat_allocate -> "FFI.Ptr.Nat.allocate"
+  FFI_Ptr_Float32_allocate -> "FFI.Ptr.Float32.allocate"
+  FFI_Ptr_Float_allocate -> "FFI.Ptr.Float.allocate"
+  FFI_Ptr_Int8_get -> "FFI.Ptr.Int8.get"
+  FFI_Ptr_Int16_get -> "FFI.Ptr.Int16.get"
+  FFI_Ptr_Int32_get -> "FFI.Ptr.Int32.get"
+  FFI_Ptr_Int_get -> "FFI.Ptr.Int.get"
+  FFI_Ptr_Nat8_get -> "FFI.Ptr.Nat8.get"
+  FFI_Ptr_Nat16_get -> "FFI.Ptr.Nat16.get"
+  FFI_Ptr_Nat32_get -> "FFI.Ptr.Nat32.get"
+  FFI_Ptr_Nat_get -> "FFI.Ptr.Nat.get"
+  FFI_Ptr_Float32_get -> "FFI.Ptr.Float32.get"
+  FFI_Ptr_Float_get -> "FFI.Ptr.Float.get"
+  FFI_Ptr_Int8_getAt -> "FFI.Ptr.Int8.getAt"
+  FFI_Ptr_Int16_getAt -> "FFI.Ptr.Int16.getAt"
+  FFI_Ptr_Int32_getAt -> "FFI.Ptr.Int32.getAt"
+  FFI_Ptr_Int_getAt -> "FFI.Ptr.Int.getAt"
+  FFI_Ptr_Nat8_getAt -> "FFI.Ptr.Nat8.getAt"
+  FFI_Ptr_Nat16_getAt -> "FFI.Ptr.Nat16.getAt"
+  FFI_Ptr_Nat32_getAt -> "FFI.Ptr.Nat32.getAt"
+  FFI_Ptr_Nat_getAt -> "FFI.Ptr.Nat.getAt"
+  FFI_Ptr_Float32_getAt -> "FFI.Ptr.Float32.getAt"
+  FFI_Ptr_Float_getAt -> "FFI.Ptr.Float.getAt"
+  FFI_Ptr_Int8_set -> "FFI.Ptr.Int8.set"
+  FFI_Ptr_Int16_set -> "FFI.Ptr.Int16.set"
+  FFI_Ptr_Int32_set -> "FFI.Ptr.Int32.set"
+  FFI_Ptr_Int_set -> "FFI.Ptr.Int.set"
+  FFI_Ptr_Nat8_set -> "FFI.Ptr.Nat8.set"
+  FFI_Ptr_Nat16_set -> "FFI.Ptr.Nat16.set"
+  FFI_Ptr_Nat32_set -> "FFI.Ptr.Nat32.set"
+  FFI_Ptr_Nat_set -> "FFI.Ptr.Nat.set"
+  FFI_Ptr_Float32_set -> "FFI.Ptr.Float32.set"
+  FFI_Ptr_Float_set -> "FFI.Ptr.Float.set"
+  FFI_Ptr_Int8_setAt -> "FFI.Ptr.Int8.setAt"
+  FFI_Ptr_Int16_setAt -> "FFI.Ptr.Int16.setAt"
+  FFI_Ptr_Int32_setAt -> "FFI.Ptr.Int32.setAt"
+  FFI_Ptr_Int_setAt -> "FFI.Ptr.Int.setAt"
+  FFI_Ptr_Nat8_setAt -> "FFI.Ptr.Nat8.setAt"
+  FFI_Ptr_Nat16_setAt -> "FFI.Ptr.Nat16.setAt"
+  FFI_Ptr_Nat32_setAt -> "FFI.Ptr.Nat32.setAt"
+  FFI_Ptr_Nat_setAt -> "FFI.Ptr.Nat.setAt"
+  FFI_Ptr_Float32_setAt -> "FFI.Ptr.Float32.setAt"
+  FFI_Ptr_Float_setAt -> "FFI.Ptr.Float.setAt"
+  FFI_Ptr_Ptr_allocate -> "FFI.Ptr.Ptr.allocate"
+  FFI_Ptr_Ptr_get -> "FFI.Ptr.Ptr.get"
+  FFI_Ptr_Ptr_set -> "FFI.Ptr.Ptr.set"
+  FFI_Ptr_Ptr_getAt -> "FFI.Ptr.Ptr.getAt"
+  FFI_Ptr_Ptr_setAt -> "FFI.Ptr.Ptr.setAt"
+  FFI_Ptr_free -> "FFI.Ptr.free"
+  PinnedByteArray_contents -> "PinnedByteArray.contents"

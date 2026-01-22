@@ -89,6 +89,7 @@ import Unison.Runtime.Foreign.Function
     functionReplacements,
     functionUnreplacements,
     pseudoConstructors,
+    writeBack,
   )
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Primops
@@ -494,21 +495,41 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
         copyArgs stk (DLL.cffArgs cf) storage cArgs do
           DLL.callForeign cf cArgs cRet
           case DLL.cffResult cf of
+            DLL.I8 -> Store.peek (castPtr cRet) >>= pokeI stk . fi8
             DLL.I16 -> Store.peek (castPtr cRet) >>= pokeI stk . fi16
             DLL.I32 -> Store.peek (castPtr cRet) >>= pokeI stk . fi32
             DLL.I64 -> Store.peek cRet >>= pokeI stk
+            DLL.U8 -> Store.peek (castPtr cRet) >>= pokeN stk . fu8
             DLL.U16 -> Store.peek (castPtr cRet) >>= pokeN stk . fu16
             DLL.U32 -> Store.peek (castPtr cRet) >>= pokeN stk . fu32
             DLL.U64 -> Store.peek (castPtr cRet) >>= pokeN stk
             DLL.F32 -> Store.peek (castPtr cRet) >>= pokeD stk . ff32
             DLL.D64 -> Store.peek (castPtr cRet) >>= pokeD stk
             DLL.Void -> poke stk unitValue
+            DLL.Ptr ->
+              Store.peek (castPtr cRet) >>= writeBack @(Ptr ()) stk
             DLL.MBArr ->
               die [] $ "unexpected array result from DLL function"
   pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ (KeepAlive i) = do
+  x <- bpeekOff stk i
+  (stk, a) <- saveArgs stk
+  pure (False, henv, stk, Keep x a k)
 exec _ _ !_ !_ !_ _ (SandboxingFailure t) = do
   die [] $ "Attempted to use disallowed builtin in sandboxed environment: " <> DTx.unpack t
 {-# INLINE exec #-}
+
+fi8 :: Int8 -> Int
+fi8 = fromIntegral
+
+ti8 :: Int -> Int8
+ti8 = fromIntegral
+
+fu8 :: Word8 -> Word64
+fu8 = fromIntegral
+
+tu8 :: Word64 -> Word8
+tu8 = fromIntegral
 
 fi16 :: Int16 -> Int
 fi16 = fromIntegral
@@ -565,12 +586,18 @@ copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
       upeekOff stk i >>= Store.poke (castPtr p) . ti16 >> nx
     store DLL.U16 i p nx =
       peekOffN stk i >>= Store.poke (castPtr p) . tu16 >> nx
+    store DLL.I8 i p nx =
+      upeekOff stk i >>= Store.poke (castPtr p) . ti8 >> nx
+    store DLL.U8 i p nx =
+      peekOffN stk i >>= Store.poke (castPtr p) . tu8 >> nx
     store DLL.F32 i p nx =
       peekOffD stk i >>= Store.poke (castPtr p) . tf32 >> nx
     store DLL.MBArr i p nx = do
       mb <- peekOffBi stk i
       withMutableByteArrayContents mb \ptr ->
         Store.poke (castPtr p) ptr >> nx
+    store DLL.Ptr i p nx = do
+      peekOffBi @(Ptr ()) stk i >>= Store.poke (castPtr p) >> nx
     store _ i p nx =
       upeekOff stk i >>= Store.poke p >> nx
     {-# INLINE store #-}
@@ -996,6 +1023,7 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
       go denv sk $ Push n a cix f rsect k
     go !_ (Local {}) !_ = die [] "repush: captured Local frame"
     go !_ (AMark {}) !_ = die [] "repush: captured AMark frame"
+    go !_ (Keep {}) !_ = die [] "repush: captured Keep frame"
     go !_ (CB _) !_ = die [] "repush: impossible"
 {-# INLINE repush #-}
 
@@ -1170,6 +1198,9 @@ yield !yld env henv0 !activeThreads !stk = leap
       stk <- restoreFrame stk 0 asz
       yield yld env henv activeThreads stk k
     leap (CB (Hook f)) = f (unpackXStack stk)
+    leap (Keep _ asz k) = do
+      stk <- restoreFrame stk 0 asz
+      yield yld env henv0 activeThreads stk k
     leap KE = pure ()
 {-# INLINE yield #-}
 
@@ -1381,6 +1412,8 @@ splitCont !denv !stk !k !p =
       die [] "splitCont: Local frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (AMark {}) =
       die [] "splitCont: AMark frame" >> finish denv sz 0 ck KE
+    walk !denv !sz !ck (Keep {}) =
+      die [] "splitCont: Keep frame" >> finish denv sz 0 ck KE
     walk !denv !sz !ck (Mark a ps cs k)
       | EC.member p ps = finish denv' sz a ck k
       | otherwise = walk denv' (sz + a) (Mark a ps cs' ck) k
@@ -1414,6 +1447,7 @@ abortCont !stk !k !r = walk (asize stk) k
       (CB _) -> die [] "abortCont: fell off stack"
       (Local _ a k) -> walk (sz + a) k
       (Push n a _ _ _ k) -> walk (sz + n + a) k
+      (Keep _ a k) -> walk (sz + a) k
       -- dynamic mark cannot match
       (Mark a _ _ k) -> walk (sz + a) k
       (AMark a aenv s k)
@@ -1831,6 +1865,7 @@ reflectValue0 rty rtm = goV0
     goK (CB _) = reflExn "callback continuation"
     goK (Local {}) = reflExn "captured Local frame"
     goK (AMark {}) = reflExn "captured AMark frame"
+    goK (Keep {}) = reflExn "captured Keep frame"
     goK KE = pure ANF.KE
     goK (Mark a ps de k) = do
       ps <- traverse (resolveTy rty) (EC.setToList ps)

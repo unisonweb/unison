@@ -428,6 +428,11 @@ coerceType destType =
     TLetD tag UN (TLit $ I $ fromIntegral $ unboxedTypeTagToInt destType) $
       TPrm CAST [v, tag]
 
+-- Casting a pointer doesn't need to change the representation at all,
+-- so the identity function with type `Ptr a -> Ptr b` is fine.
+cast'ptr :: SuperNormal ref Symbol
+cast'ptr = unop0 0 \[v] -> TVar v
+
 -- This version of unsafeCoerce is the identity function. It works
 -- only if the two types being coerced between are actually the same,
 -- because it keeps the same representation. It is not capable of
@@ -454,6 +459,16 @@ fork'comp =
     $ TPrm FORK [lz]
   where
     (act, unit, lz) = fresh
+
+keep'alive :: SuperNormal Reference Symbol
+keep'alive =
+  Lambda [BX, BX]
+    . TAbss [val, act]
+    . TLetD unit BX (TCon Ty.unitRef 0 [])
+    . TLets Direct [] [] (TPrm KEEP [val])
+    $ TApp (FVar act) [unit]
+  where
+    (val, act, unit) = fresh
 
 try'eval :: SuperNormal Reference Symbol
 try'eval =
@@ -875,7 +890,9 @@ builtinLookup =
         ("Ref.Ticket.read", (Tracked, ref'ticket'read)),
         ("Ref.readForCas", (Tracked, ref'readForCas)),
         ("Scope.ref", (Untracked, ref'new)),
-        ("IO.ref", (Tracked, ref'new))
+        ("IO.ref", (Tracked, ref'new)),
+        ("FFI.Ptr.cast", (Tracked, cast'ptr)),
+        ("IO.keepAlive", (Tracked, keep'alive))
       ]
       ++ foreignWrappers
 
@@ -1411,13 +1428,16 @@ declareForeigns = do
   declareForeignWrap Untracked direct FFI_int64
   declareForeignWrap Untracked direct FFI_int32
   declareForeignWrap Untracked direct FFI_int16
+  declareForeignWrap Untracked direct FFI_int8
   declareForeignWrap Untracked direct FFI_uint64
   declareForeignWrap Untracked direct FFI_uint32
   declareForeignWrap Untracked direct FFI_uint16
+  declareForeignWrap Untracked direct FFI_uint8
   declareForeignWrap Untracked direct FFI_double
   declareForeignWrap Untracked direct FFI_float
   declareForeignWrap Untracked direct FFI_void
   declareForeignWrap Untracked direct FFI_pinnedByteArray
+  declareForeignWrap Untracked direct FFI_ptr
   declareForeign Untracked 2 FFI_base
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr
@@ -1429,6 +1449,70 @@ declareForeigns = do
   declareForeign Untracked 2 Bytes_read32be
   declareForeign Untracked 2 Bytes_read64le
   declareForeign Untracked 2 Bytes_read64be
+
+  declareForeign Tracked 1 FFI_Ptr_Int8_allocate
+  declareForeign Tracked 1 FFI_Ptr_Int16_allocate
+  declareForeign Tracked 1 FFI_Ptr_Int32_allocate
+  declareForeign Tracked 1 FFI_Ptr_Int_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat8_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat16_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat32_allocate
+  declareForeign Tracked 1 FFI_Ptr_Nat_allocate
+  declareForeign Tracked 1 FFI_Ptr_Float32_allocate
+  declareForeign Tracked 1 FFI_Ptr_Float_allocate
+
+  declareForeign Tracked 1 FFI_Ptr_Int8_get
+  declareForeign Tracked 1 FFI_Ptr_Int16_get
+  declareForeign Tracked 1 FFI_Ptr_Int32_get
+  declareForeign Tracked 1 FFI_Ptr_Int_get
+  declareForeign Tracked 1 FFI_Ptr_Nat8_get
+  declareForeign Tracked 1 FFI_Ptr_Nat16_get
+  declareForeign Tracked 1 FFI_Ptr_Nat32_get
+  declareForeign Tracked 1 FFI_Ptr_Nat_get
+  declareForeign Tracked 1 FFI_Ptr_Float32_get
+  declareForeign Tracked 1 FFI_Ptr_Float_get
+
+  declareForeign Tracked 2 FFI_Ptr_Int8_getAt
+  declareForeign Tracked 2 FFI_Ptr_Int16_getAt
+  declareForeign Tracked 2 FFI_Ptr_Int32_getAt
+  declareForeign Tracked 2 FFI_Ptr_Int_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat8_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat16_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat32_getAt
+  declareForeign Tracked 2 FFI_Ptr_Nat_getAt
+  declareForeign Tracked 2 FFI_Ptr_Float32_getAt
+  declareForeign Tracked 2 FFI_Ptr_Float_getAt
+
+  declareForeign Tracked 2 FFI_Ptr_Int8_set
+  declareForeign Tracked 2 FFI_Ptr_Int16_set
+  declareForeign Tracked 2 FFI_Ptr_Int32_set
+  declareForeign Tracked 2 FFI_Ptr_Int_set
+  declareForeign Tracked 2 FFI_Ptr_Nat8_set
+  declareForeign Tracked 2 FFI_Ptr_Nat16_set
+  declareForeign Tracked 2 FFI_Ptr_Nat32_set
+  declareForeign Tracked 2 FFI_Ptr_Nat_set
+  declareForeign Tracked 2 FFI_Ptr_Float32_set
+  declareForeign Tracked 2 FFI_Ptr_Float_set
+
+  declareForeign Tracked 3 FFI_Ptr_Int8_setAt
+  declareForeign Tracked 3 FFI_Ptr_Int16_setAt
+  declareForeign Tracked 3 FFI_Ptr_Int32_setAt
+  declareForeign Tracked 3 FFI_Ptr_Int_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat8_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat16_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat32_setAt
+  declareForeign Tracked 3 FFI_Ptr_Nat_setAt
+  declareForeign Tracked 3 FFI_Ptr_Float32_setAt
+  declareForeign Tracked 3 FFI_Ptr_Float_setAt
+
+  declareForeign Tracked 1 FFI_Ptr_Ptr_allocate
+  declareForeign Tracked 1 FFI_Ptr_Ptr_get
+  declareForeign Tracked 2 FFI_Ptr_Ptr_set
+  declareForeign Tracked 2 FFI_Ptr_Ptr_getAt
+  declareForeign Tracked 3 FFI_Ptr_Ptr_setAt
+
+  declareForeign Tracked 1 FFI_Ptr_free
+  declareForeign Tracked 1 PinnedByteArray_contents
 
 foreignDeclResults ::
   (Map ForeignFunc (Sandbox, SuperNormal Reference Symbol))

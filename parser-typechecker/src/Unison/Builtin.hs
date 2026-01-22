@@ -259,7 +259,15 @@ builtinTypesSrc =
     B' "Natural" CT.Data,
     B' "FFI.Type" CT.Data,
     B' "FFI.Spec" CT.Data,
-    B' "FFI.DLL" CT.Data
+    B' "FFI.DLL" CT.Data,
+    B' "FFI.Ptr" CT.Data,
+    B' "Nat8" CT.Data,
+    B' "Nat16" CT.Data,
+    B' "Nat32" CT.Data,
+    B' "Int8" CT.Data,
+    B' "Int16" CT.Data,
+    B' "Int32" CT.Data,
+    B' "Float32" CT.Data
   ]
 
 -- rename these to "builtin" later, when builtin means intrinsic as opposed to
@@ -815,15 +823,18 @@ builtinsSrc =
     B "Natural.isEven" $ natural --> boolean,
     B "Natural.isOdd" $ natural --> boolean,
     B "FFI.openDLL" $ text --> ioexn dll,
+    B "FFI.int8" $ ffiType int,
     B "FFI.int16" $ ffiType int,
     B "FFI.int32" $ ffiType int,
     B "FFI.int64" $ ffiType int,
     B "FFI.uint64" $ ffiType nat,
     B "FFI.uint32" $ ffiType nat,
     B "FFI.uint16" $ ffiType nat,
+    B "FFI.uint8" $ ffiType nat,
     B "FFI.double" $ ffiType float,
     B "FFI.float" $ ffiType float,
     B "FFI.void" $ ffiType unit,
+    B "FFI.ptr" $ forall1 "a" \a -> ffiType (ptr a),
     B "FFI.pinnedByteArray" $ ffiType (pinnedByteArrayt iot),
     B "FFI.base" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
@@ -832,7 +843,73 @@ builtinsSrc =
     B "FFI.arr" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiSpec b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.getDLLSym" . forall1 "a" $ \a ->
-      dll --> text --> ffiSpec a --> ioexn a
+      dll --> text --> ffiSpec a --> ioexn a,
+    B "FFI.Ptr.Int8.allocate" $ nat --> io (ptr int8),
+    B "FFI.Ptr.Int16.allocate" $ nat --> io (ptr int16),
+    B "FFI.Ptr.Int32.allocate" $ nat --> io (ptr int32),
+    B "FFI.Ptr.Int.allocate" $ nat --> io (ptr int),
+    B "FFI.Ptr.Nat8.allocate" $ nat --> io (ptr nat8),
+    B "FFI.Ptr.Nat16.allocate" $ nat --> io (ptr nat16),
+    B "FFI.Ptr.Nat32.allocate" $ nat --> io (ptr nat32),
+    B "FFI.Ptr.Nat.allocate" $ nat --> io (ptr nat),
+    B "FFI.Ptr.Float32.allocate" $ nat --> io (ptr float32),
+    B "FFI.Ptr.Float.allocate" $ nat --> io (ptr float),
+    B "FFI.Ptr.Int8.get" $ ptr int8 --> io int,
+    B "FFI.Ptr.Int16.get" $ ptr int16 --> io int,
+    B "FFI.Ptr.Int32.get" $ ptr int32 --> io int,
+    B "FFI.Ptr.Int.get" $ ptr int --> io int,
+    B "FFI.Ptr.Nat8.get" $ ptr nat8 --> io nat,
+    B "FFI.Ptr.Nat16.get" $ ptr nat16 --> io nat,
+    B "FFI.Ptr.Nat32.get" $ ptr nat32 --> io nat,
+    B "FFI.Ptr.Nat.get" $ ptr nat --> io nat,
+    B "FFI.Ptr.Float32.get" $ ptr float32 --> io float,
+    B "FFI.Ptr.Float.get" $ ptr float --> io float,
+    B "FFI.Ptr.Int8.getAt" $ ptr int8 --> nat --> io int,
+    B "FFI.Ptr.Int16.getAt" $ ptr int16 --> nat --> io int,
+    B "FFI.Ptr.Int32.getAt" $ ptr int32 --> nat --> io int,
+    B "FFI.Ptr.Int.getAt" $ ptr int --> nat --> io int,
+    B "FFI.Ptr.Nat8.getAt" $ ptr nat8 --> nat --> io nat,
+    B "FFI.Ptr.Nat16.getAt" $ ptr nat16 --> nat --> io nat,
+    B "FFI.Ptr.Nat32.getAt" $ ptr nat32 --> nat --> io nat,
+    B "FFI.Ptr.Nat.getAt" $ ptr nat --> nat --> io nat,
+    B "FFI.Ptr.Float32.getAt" $ ptr float32 --> nat --> io float,
+    B "FFI.Ptr.Float.getAt" $ ptr float --> nat --> io float,
+    B "FFI.Ptr.Int8.set" $ ptr int8 --> int --> io unit,
+    B "FFI.Ptr.Int16.set" $ ptr int16 --> int --> io unit,
+    B "FFI.Ptr.Int32.set" $ ptr int32 --> int --> io unit,
+    B "FFI.Ptr.Int.set" $ ptr int --> int --> io unit,
+    B "FFI.Ptr.Nat8.set" $ ptr nat8 --> nat --> io unit,
+    B "FFI.Ptr.Nat16.set" $ ptr nat16 --> nat --> io unit,
+    B "FFI.Ptr.Nat32.set" $ ptr nat32 --> nat --> io unit,
+    B "FFI.Ptr.Nat.set" $ ptr nat --> nat --> io unit,
+    B "FFI.Ptr.Float32.set" $ ptr float32 --> float --> io unit,
+    B "FFI.Ptr.Float.set" $ ptr float --> float --> io unit,
+    B "FFI.Ptr.Int8.setAt" $ ptr int8 --> nat --> int --> io unit,
+    B "FFI.Ptr.Int16.setAt" $ ptr int16 --> nat --> int --> io unit,
+    B "FFI.Ptr.Int32.setAt" $ ptr int32 --> nat --> int --> io unit,
+    B "FFI.Ptr.Int.setAt" $ ptr int --> nat --> int --> io unit,
+    B "FFI.Ptr.Nat8.setAt" $ ptr nat8 --> nat --> nat --> io unit,
+    B "FFI.Ptr.Nat16.setAt" $ ptr nat16 --> nat --> nat --> io unit,
+    B "FFI.Ptr.Nat32.setAt" $ ptr nat32 --> nat --> nat --> io unit,
+    B "FFI.Ptr.Nat.setAt" $ ptr nat --> nat --> nat --> io unit,
+    B "FFI.Ptr.Float32.setAt" $ ptr float32 --> nat --> float --> io unit,
+    B "FFI.Ptr.Float.setAt" $ ptr float --> nat --> float --> io unit,
+    B "FFI.Ptr.Ptr.allocate" $
+      forall1 "a" \a -> nat --> io (ptr (ptr a)),
+    B "FFI.Ptr.Ptr.get" $
+      forall1 "a" \a -> ptr (ptr a) --> io (ptr a),
+    B "FFI.Ptr.Ptr.set" $
+      forall1 "a" \a -> ptr (ptr a) --> ptr a --> io unit,
+    B "FFI.Ptr.Ptr.getAt" $
+      forall1 "a" \a -> ptr (ptr a) --> nat --> io (ptr a),
+    B "FFI.Ptr.Ptr.setAt" $
+      forall1 "a" \a -> ptr (ptr a) --> nat --> ptr a --> io unit,
+    B "FFI.Ptr.free" $ forall1 "a" \a -> ptr a --> io unit,
+    B "FFI.Ptr.cast" $ forall2 "a" "b" \a b -> ptr a --> ptr b,
+    B "PinnedByteArray.contents" $ forall1 "g" \g ->
+      pinnedByteArrayt g --> ptr nat8,
+    B "IO.keepAlive" $ forall2 "a" "b" \a b ->
+      a --> (unit --> io b) --> io b
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
@@ -1279,6 +1356,19 @@ float = Type.float ()
 char = Type.char ()
 integer = Type.ref () Type.integerRef
 natural = Type.ref () Type.naturalRef
+
+-- Smaller sized types for FFI API
+nat8, nat16, nat32, int8, int16, int32, float32 :: Type
+nat8 = Type.ref () Type.nat8Ref
+nat16 = Type.ref () Type.nat16Ref
+nat32 = Type.ref () Type.nat32Ref
+int8 = Type.ref () Type.int8Ref
+int16 = Type.ref () Type.int16Ref
+int32 = Type.ref () Type.int32Ref
+float32 = Type.ref () Type.float32Ref
+
+ptr :: Type -> Type
+ptr t = Type.ref () Type.ffiPtrRef `app` t
 
 anyt, code, value, termLink :: Type
 anyt = Type.ref () Type.anyRef
