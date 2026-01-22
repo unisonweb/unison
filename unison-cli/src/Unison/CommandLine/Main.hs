@@ -133,7 +133,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
     requote s =
       -- Requote args that have spaces, or were literal numbers to ensure
       -- they're not expanded differently on re-input.
-      if elem ' ' s || all (`elem` "0123456789")
+      if elem ' ' s
         then "\"" <> s <> "\""
         else s
     settings :: Line.Settings IO
