@@ -3,6 +3,7 @@
 module Unison.Runtime.Serialize where
 
 import Control.Monad (replicateM)
+import Unison.Runtime.TypeTags (FieldTag (..))
 import Control.Monad.Primitive
 import Data.Bits (Bits, setBit, shiftL, shiftR, (.|.))
 import Data.ByteString qualified as B
@@ -464,6 +465,9 @@ putConstructorReference (ConstructorReference r i) =
 getConstructorReference :: (PrimBase m) => Get m ConstructorReference
 getConstructorReference =
   ConstructorReference <$> getReference <*> getLength
+
+getFieldTag :: (PrimBase m) => Get m FieldTag
+getFieldTag = FieldTag <$> getText
 
 instance Tag Prim1 where
   tag2word DECI = 0

@@ -159,7 +159,7 @@ instance RuntimeProfiler ProfileComm where
 #endif
 
 
-fieldNameLookup :: Map Unison.Prelude.Text Word64 -> Unison.Prelude.Text -> FieldTag
+fieldNameLookup :: Map Unison.Prelude.Text FieldTag -> Unison.Prelude.Text -> FieldTag
 fieldNameLookup m k
   | Just w <- M.lookup k m = w
   | otherwise =
@@ -184,7 +184,7 @@ data CCache prof = CCache
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
-    fieldNums :: TVar (M.Map Unison.Prelude.Text Word64),
+    fieldNums :: TVar (M.Map Unison.Prelude.Text FieldTag),
     sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
