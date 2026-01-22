@@ -308,7 +308,7 @@ data K
   | -- holds onto a reference to something to avoid garbage collection
     forall a.
     Keep
-      !a   -- retained value
+      !a -- retained value
       !Int -- pending args
       !K
 
