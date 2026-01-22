@@ -119,7 +119,7 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Blank b -> pure (Hashing.TermBlank b)
   Memory.Term.Ref r -> pure (Hashing.TermRef (m2hReference r))
   Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReference r) i)
-  Memory.Term.Record r -> pure (Hashing.TermRecord (m2hReference r))
+  Memory.Term.Record r fields -> pure (Hashing.TermRecord (m2hReference r) fields)
   Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReference r) i)
   Memory.Term.Handle x y -> pure (Hashing.TermHandle x y)
   Memory.Term.App f x -> pure (Hashing.TermApp f x)
@@ -183,7 +183,7 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermRef r -> Memory.Term.Ref (h2mReference r)
   Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
-  Hashing.TermRecord r -> Memory.Term.Record (h2mReference r)
+  Hashing.TermRecord r fields -> Memory.Term.Record (h2mReference r) fields
   Hashing.TermHandle x y -> Memory.Term.Handle x y
   Hashing.TermApp f x -> Memory.Term.App f x
   Hashing.TermAnn e t -> Memory.Term.Ann e (h2mType t)

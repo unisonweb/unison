@@ -315,6 +315,11 @@ putSingleTerm t = putABT putSymbol putUnit putF t
           *> putPattern r
       Term.PText t -> putWord8 12 *> putVarInt t
       Term.PChar c -> putWord8 13 *> putChar c
+      Term.PRecord r fields ->
+        putWord8 14
+          *> putReference r
+          *> putFoldable (\(name, pat) -> putText name *> putPattern pat) fields
+
     putSeqOp :: (MonadPut m) => Term.SeqOp -> m ()
     putSeqOp Term.PCons = putWord8 0
     putSeqOp Term.PSnoc = putWord8 1
@@ -406,6 +411,12 @@ getSingleTerm = getABT getSymbol getUnit getF
                 <*> getPattern
             12 -> Term.PText <$> getVarInt
             13 -> Term.PChar <$> getChar
+            14 ->
+              Term.PRecord
+                <$> getReference
+                <*> getList
+                  ( (,) <$> getText <*> getPattern
+                  )
             x -> unknownTag "Pattern" x
           where
             getSeqOp :: (MonadGet m) => m Term.SeqOp

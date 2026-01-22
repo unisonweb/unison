@@ -2845,6 +2845,7 @@ c2xTerm saveText saveDefn tm tp =
       C.Term.PText t -> C.Term.PText <$> lookupText t
       C.Term.PChar c -> pure $ C.Term.PChar c
       C.Term.PConstructor r i ps -> C.Term.PConstructor <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat ps
+      C.Term.PRecord r fields -> C.Term.PRecord <$> bitraverse lookupText lookupDefn r <*> (traverse . traverse) goPat fields
       C.Term.PAs p -> C.Term.PAs <$> goPat p
       C.Term.PEffectPure p -> C.Term.PEffectPure <$> goPat p
       C.Term.PEffectBind r i bindings k -> C.Term.PEffectBind <$> bitraverse lookupText lookupDefn r <*> pure i <*> traverse goPat bindings <*> goPat k

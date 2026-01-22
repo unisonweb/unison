@@ -776,6 +776,7 @@ patternReferences_ f = \case
     (\newRef newPatterns -> Pattern.Constructor loc newRef newPatterns)
       <$> (ref & someRefCon_ %%~ f)
       <*> (patterns & traversed . patternReferences_ %%~ f)
+  Pattern.Record {} -> error "Impossible: encountered unexpected record patterns in old code"
   (Pattern.As loc pat) -> Pattern.As loc <$> patternReferences_ f pat
   (Pattern.EffectPure loc pat) -> Pattern.EffectPure loc <$> patternReferences_ f pat
   (Pattern.EffectBind loc ref patterns pat) ->

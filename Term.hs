@@ -285,7 +285,7 @@ extraMap vtf atf apf = \case
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
   Constructor x -> Constructor x
-  Record x fields -> Record x fields
+  Record x -> Record x
   Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
@@ -526,8 +526,8 @@ pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branche
 pattern Constructor' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
 
-pattern Record' :: Reference -> [(Text, ABT.Term (F typeVar typeAnn patternAnn) v a)] -> ABT.Term (F typeVar typeAnn patternAnn) v a
-pattern Record' ref fields <- (ABT.out -> ABT.Tm (Record ref fields))
+pattern Record' :: Reference -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern Record' ref <- (ABT.out -> ABT.Tm (Record ref))
 
 pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
@@ -771,9 +771,8 @@ pattern Referent' r <- (unReferent -> Just r)
 unReferent :: Term2 vt at ap v a -> Maybe Referent
 unReferent (Ref' r) = Just $ Referent.Ref r
 unReferent (Constructor' r) = Just $ Referent.Con r CT.Data
+unReferent (Record' r) = Just $ Referent.Ref r
 unReferent (Request' r) = Just $ Referent.Con r CT.Effect
--- Should Records have a case?
-unReferent (Record' r _fields) = Just $ Referent.Ref r
 unReferent _ = Nothing
 
 refId :: (Ord v) => a -> Reference.Id -> Term2 vt at ap v a
@@ -1539,9 +1538,9 @@ toPattern tm = case tm of
     Pattern.EffectBind loc r <$> traverse toPattern args <*> toPattern k
   Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
   Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
-  Apps' (Record' _r _fields) _args -> error "toPattern: TODO: implement record pattern matching"
+  Apps' (Record' _r) _args -> error "toPattern: TODO: implement record pattern matching"
   Constructor' r -> pure $ Pattern.Constructor loc r []
-  Record' _ _fields -> error "toPattern: TODO: implement record pattern matching"
+  Record' _ -> error "toPattern: TODO: implement record pattern matching"
   Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
   Int' i -> pure $ Pattern.Int loc i
   Nat' n -> pure $ Pattern.Nat loc n
@@ -1686,15 +1685,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
           True
           (s "handle " <> shows b <> s " in " <> shows body)
       go _ (Constructor (ConstructorReference r n)) = s "Con" <> shows r <> s "#" <> shows n
-      go _ (Record r fields) =
-        showParen
-          True
-          ( s "{"
-              <> shows r
-              <> s " | "
-              <> shows fields
-              <> s " }"
-          )
+      go _ (Record r fields) = s "{" <> shows r <> s " | " <> shows fields <> s "}"
       go _ (Match scrutinee cases) =
         showParen
           True
