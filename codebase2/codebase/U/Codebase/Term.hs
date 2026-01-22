@@ -108,6 +108,7 @@ data Pattern t r
   | PText !t
   | PChar !Char
   | PConstructor !r !ConstructorId [Pattern t r]
+  | PRecord !r [(Text, Pattern t r)]
   | PAs (Pattern t r)
   | PEffectPure (Pattern t r)
   | PEffectBind !r !ConstructorId [Pattern t r] (Pattern t r)
@@ -223,6 +224,7 @@ rmapPatternM ft fr = go
       PText t -> PText <$> ft t
       PChar c -> pure $ PChar c
       PConstructor r i ps -> PConstructor <$> fr r <*> pure i <*> (traverse go ps)
+      PRecord r fields -> PRecord <$> fr r <*> (traverse (\(fname, fpat) -> (fname,) <$> go fpat) fields)
       PAs p -> PAs <$> go p
       PEffectPure p -> PEffectPure <$> go p
       PEffectBind r i ps p -> PEffectBind <$> fr r <*> pure i <*> traverse go ps <*> go p

@@ -767,7 +767,7 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
               `PP.hang` pats_printed,
           tail_vs
         )
-  Pattern.Record _loc ref fields -> "TODO: Unimplemented: Here's where we'd implement record pattern printing"
+  Pattern.Record _loc _ref _fields -> error "TODO: Unimplemented: Here's where we'd implement record pattern printing"
   Pattern.As _ pat ->
     case vs of
       (v : tail_vs) ->
@@ -1415,6 +1415,9 @@ countPatternUsages n usedTm = Pattern.foldMap' f
         if noImportRefs (r ^. ConstructorReference.reference_)
           then mempty
           else countHQ usedTm $ PrettyPrintEnv.patternName n r
+      Pattern.Record _loc _ref fields ->
+        -- TODO: double-check this
+        foldMap (countPatternUsages n usedTm . snd) fields
 
 countHQ :: (HasCallStack) => Set Name -> HQ.HashQualified Name -> PrintAnnotation
 countHQ used (HQ.NameOnly n)
@@ -1698,6 +1701,9 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
       Pattern.Text _ _ -> True
       Pattern.Char _ _ -> True
       Pattern.Constructor _ _ ps -> any hasLiteral ps
+      Pattern.Record _loc _ref fields ->
+        -- TODO: double-check that this is correct
+        any (hasLiteral . snd) fields
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p
       Pattern.EffectBind _ _ ps pk -> any hasLiteral (pk : ps)

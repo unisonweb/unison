@@ -69,6 +69,7 @@ desugarPattern typ v0 pat k vs = case pat of
         tpatvars = zipWith (\(v, p) t -> (v, p, t)) patvars contyps
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
+  Record _loc _r _fields -> error "desugarPattern: Record patterns not implemented"
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure _ resume -> do
     v <- fresh
