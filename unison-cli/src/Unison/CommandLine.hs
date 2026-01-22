@@ -106,17 +106,17 @@ expandArguments numberedArgs params args = do
               -- Don't expand numbers in quoted args
               Left (InputPattern.QuotedArg quoted _ _) -> Right (RawArg quoted : acc, [])
               Left (InputPattern.UnquotedArg raw) -> Right $ (RawArg raw : acc, [])
-              Left (InputPattern.NumberedArg n) ->
-                case expandNumber numberedArgs n of
-                  -- We parsed a number, but no numbered args were available. Resolve to no arguments.
-                  Nothing -> Right (acc, [])
-                  -- The expansion resulted in no arguments
-                  Just [] -> Right (acc, [])
-                  -- The expansion resulted in one or more arguments,
-                  -- Add the expanded args to the stack and keep folding.
-                  Just (h : t)
-                    | InputPattern.isStructured param -> Right $ (StructuredArg h : acc, Right <$> t)
-                    | otherwise -> Left . UnexpectedStructuredArgument $ h
+              Left (arg@(InputPattern.NumberedArg n))
+                | not (InputPattern.isStructured param) -> Right (RawArg (InputPattern.renderCliArgUnquoted arg) : acc, [])
+                | otherwise ->
+                    case expandNumber numberedArgs n of
+                      -- We parsed a number, but no numbered args were available. Resolve to no arguments.
+                      Nothing -> Right (acc, [])
+                      -- The expansion resulted in no arguments
+                      Just [] -> Right (acc, [])
+                      -- The expansion resulted in one or more arguments,
+                      -- Add the expanded args to the stack and keep folding.
+                      Just (h : t) -> Right $ (StructuredArg h : acc, Right <$> t)
               Right structured
                 | InputPattern.isStructured param -> Right $ ((StructuredArg structured : acc), [])
                 | otherwise ->
