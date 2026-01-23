@@ -51,6 +51,8 @@ data Element r
   | DocDelimiter
   | -- the 'source' in @source{…}, etc
     DocKeyword
+  | RecordFieldName Text
+  | RecordFieldValueColon
   deriving (Eq, Ord, Show, Functor)
 
 syntax :: Element r -> SyntaxText' r -> SyntaxText' r
