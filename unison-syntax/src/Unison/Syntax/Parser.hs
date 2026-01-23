@@ -185,7 +185,13 @@ uniqueBase32Namegen rng =
 uniqueName :: (Monad m, Var v) => Int -> P v m Text
 uniqueName lenInBase32Hex = do
   UniqueName mkName <- asks uniqueNames
-  pos <- L.start <$> P.lookAhead anyToken
+  pos <-
+    asum
+      [ L.start <$> P.lookAhead anyToken,
+        -- if we're at EOF, we still want to be able to generate a unique name. so, just use a dummy pos that's not
+        -- equal to any other pos
+        pure (L.Pos (-1) (-1))
+      ]
   let none = Base32Hex.toText . Base32Hex.fromByteString . encodeUtf8 . Text.pack $ show pos
   pure . fromMaybe none $ mkName pos lenInBase32Hex
 
