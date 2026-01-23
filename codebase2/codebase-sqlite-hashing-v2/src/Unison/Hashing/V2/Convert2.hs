@@ -84,6 +84,7 @@ v2ToH2Type' mkReference = ABT.transform convertF
       V2.Type.Effects a -> H2.TypeEffects a
       V2.Type.Forall a -> H2.TypeForall a
       V2.Type.IntroOuter a -> H2.TypeIntroOuter a
+      V2.Type.Record fields -> H2.TypeRecord fields
 
 convertKind :: V2.Kind -> H2.Kind
 convertKind = \case

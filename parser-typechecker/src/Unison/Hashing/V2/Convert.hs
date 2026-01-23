@@ -282,7 +282,7 @@ m2hType = ABT.transform \case
   Memory.Type.Effects a1s -> Hashing.TypeEffects a1s
   Memory.Type.Forall a1 -> Hashing.TypeForall a1
   Memory.Type.IntroOuter a1 -> Hashing.TypeIntroOuter a1
-  Memory.Type.Record a1 -> Hashing.Record a1
+  Memory.Type.Record a1 -> Hashing.TypeRecord a1
 
 m2hKind :: Memory.Kind.Kind -> Hashing.Kind
 m2hKind = \case
@@ -321,6 +321,7 @@ h2mType = ABT.transform \case
   Hashing.TypeEffects a1s -> Memory.Type.Effects a1s
   Hashing.TypeForall a1 -> Memory.Type.Forall a1
   Hashing.TypeIntroOuter a1 -> Memory.Type.IntroOuter a1
+  Hashing.TypeRecord a1 -> Memory.Type.Record a1
 
 h2mKind :: Hashing.Kind -> Memory.Kind.Kind
 h2mKind = \case

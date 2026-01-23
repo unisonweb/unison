@@ -363,6 +363,7 @@ type2to1' convertRef =
       V2.Type.Effects as -> V1.Type.Effects as
       V2.Type.Forall a -> V1.Type.Forall a
       V2.Type.IntroOuter a -> V1.Type.IntroOuter a
+      V2.Type.Record fields -> V1.Type.Record fields
       where
         convertKind = \case
           V2.Kind.Star -> V1.Kind.Star
@@ -390,6 +391,7 @@ type1to2' convertRef =
       V1.Type.Effects as -> V2.Type.Effects as
       V1.Type.Forall a -> V2.Type.Forall a
       V1.Type.IntroOuter a -> V2.Type.IntroOuter a
+      V1.Type.Record fields -> V2.Type.Record fields
       where
         convertKind = \case
           V1.Kind.Star -> V2.Kind.Star
