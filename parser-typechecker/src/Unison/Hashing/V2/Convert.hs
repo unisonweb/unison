@@ -150,7 +150,7 @@ m2hPattern = \case
   Memory.Pattern.Char loc c -> Hashing.PatternChar loc c
   Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps ->
     Hashing.PatternConstructor loc (m2hReference r) i (fmap m2hPattern ps)
-  Memory.Pattern.Record loc ref fields -> Hashing.PatternRecord loc (m2hReference ref) (fields <&> second m2hPattern)
+  Memory.Pattern.Record loc fields -> Hashing.PatternRecord loc (m2hPattern <$> fields)
   Memory.Pattern.As loc p -> Hashing.PatternAs loc (m2hPattern p)
   Memory.Pattern.EffectPure loc p -> Hashing.PatternEffectPure loc (m2hPattern p)
   Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference r i) ps k ->
@@ -183,7 +183,7 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermRef r -> Memory.Term.Ref (h2mReference r)
   Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
-  Hashing.TermRecord r fields -> Memory.Term.Record (h2mReference r) fields
+  Hashing.TermRecord fields -> Memory.Term.Record fields
   Hashing.TermHandle x y -> Memory.Term.Handle x y
   Hashing.TermApp f x -> Memory.Term.App f x
   Hashing.TermAnn e t -> Memory.Term.Ann e (h2mType t)
@@ -213,7 +213,7 @@ h2mPattern = \case
   Hashing.PatternChar loc c -> Memory.Pattern.Char loc c
   Hashing.PatternConstructor loc r i ps ->
     Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
-  Hashing.PatternRecord loc ref fields -> Memory.Pattern.Record loc (h2mReference ref) (fields <&> second h2mPattern)
+  Hashing.PatternRecord loc fields -> Memory.Pattern.Record loc (h2mPattern <$> fields)
   Hashing.PatternAs loc p -> Memory.Pattern.As loc (h2mPattern p)
   Hashing.PatternEffectPure loc p -> Memory.Pattern.EffectPure loc (h2mPattern p)
   Hashing.PatternEffectBind loc r i ps k ->
