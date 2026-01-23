@@ -102,7 +102,7 @@ term1to2 h =
       V1.Term.Char c -> V2.Term.Char c
       V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
       V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
-      V1.Term.Record r fields -> V2.Term.Record (reference1to2 r) fields
+      V1.Term.Record fields -> V2.Term.Record fields
       V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (reference1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
@@ -132,10 +132,9 @@ term1to2 h =
       V1.Pattern.Float _ d -> V2.Term.PFloat d
       V1.Pattern.Text _ t -> V2.Term.PText t
       V1.Pattern.Char _ c -> V2.Term.PChar c
-
       V1.Pattern.Constructor _ (V1.ConstructorReference r i) ps ->
         V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
-      V1.Pattern.Record  _loc r fields ->
+      V1.Pattern.Record _loc r fields ->
         V2.Term.PRecord (reference1to2 r) (second goPat <$> fields)
       V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
       V1.Pattern.EffectPure _ p -> V2.Term.PEffectPure (goPat p)
@@ -169,7 +168,7 @@ term2to1 h lookupCT =
           V2.Term.Ref r -> pure $ V1.Term.Ref (rreference2to1 h r)
           V2.Term.Constructor r i ->
             pure (V1.Term.Constructor (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
-          V2.Term.Record r fields -> pure $ V1.Term.Record (reference2to1 r) fields
+          V2.Term.Record fields -> pure $ V1.Term.Record fields
           V2.Term.Request r i ->
             pure (V1.Term.Request (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4

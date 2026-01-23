@@ -119,7 +119,7 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Blank b -> pure (Hashing.TermBlank b)
   Memory.Term.Ref r -> pure (Hashing.TermRef (m2hReference r))
   Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReference r) i)
-  Memory.Term.Record r fields -> pure (Hashing.TermRecord (m2hReference r) fields)
+  Memory.Term.Record fields -> pure (Hashing.TermRecord fields)
   Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReference r) i)
   Memory.Term.Handle x y -> pure (Hashing.TermHandle x y)
   Memory.Term.App f x -> pure (Hashing.TermApp f x)
