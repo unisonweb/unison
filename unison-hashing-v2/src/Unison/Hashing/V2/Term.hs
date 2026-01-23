@@ -45,7 +45,7 @@ data TermF typeVar typeAnn patternAnn a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     TermConstructor Reference ConstructorId
-  | TermRecord Reference [(Text, a)]
+  | TermRecord [(Text, a)]
   | TermRequest Reference ConstructorId
   | TermHandle a a
   | TermApp a a
