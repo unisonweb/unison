@@ -668,6 +668,7 @@ termLeaf =
       bytes,
       boolean,
       link,
+      recordLiteral,
       tupleOrParenthesizedTerm,
       keywordBlock,
       list term,
@@ -1289,21 +1290,20 @@ number' i u f = fmap go numeric
 
 -- E.g. { name = "Steve", age = 30 }
 recordLiteral ::
-  forall v.
-  (Ord v) =>
-  _
-recordLiteral pair = do
+  forall v m.
+  (Var v, Ord v, Monad m) =>
+  TermP v m
+recordLiteral = do
   seq' "{" finalize keyValueP
   where
-    keyValueP :: P v m (L.Token v, Term v Ann)
+    keyValueP :: P v m (L.Token Text, Term v Ann)
     keyValueP = do
-      key <- wordyDefinitionName
+      key <- recordFieldName
       _ <- reserved ":"
       value <- term
       pure (key, value)
-    finalize :: Ann -> [(L.Token v, Term v Ann)] -> P v m (Term v Ann)
-    finalize spanAnn kvs = do
-      Term.record spanAnn kvs
+    finalize :: Ann -> [(L.Token Text, Term v Ann)] -> (Term v Ann)
+    finalize spanAnn kvs = Term.record spanAnn (Map.fromList (first L.payload <$> kvs))
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
 tupleOrParenthesizedTerm = label "tuple" $ do
