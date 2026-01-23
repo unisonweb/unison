@@ -201,3 +201,5 @@ defaultColors = \case
   ST.Parenthesis -> Nothing
   ST.DocDelimiter -> Just Green
   ST.DocKeyword -> Just HiCyan
+  ST.RecordFieldName {} -> Just HiGreen
+  ST.RecordFieldValueColon -> Just HiPurple
