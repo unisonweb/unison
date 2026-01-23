@@ -1194,10 +1194,10 @@ ensure stk@(Stack ap fp sp ustk bstk) sze
   | otherwise = do
       bstk' <- newArray (bsz + bext) BlackHole
       copyMutableArray bstk' 0 bstk 0 (sp + 1)
+      usz <- getSizeofMutableByteArray ustk
       ustk' <- resizeMutableByteArray ustk (usz + uext)
       pure $ Stack ap fp sp ustk' bstk'
   where
-    usz = sizeofMutableByteArray ustk
     bsz = sizeofMutableArray bstk
     bext
       | sze > 1280 = sze + 512
@@ -1233,7 +1233,7 @@ duplicate (Stack ap fp sp ustk bstk) = do
   pure $ Stack ap fp sp ustk' bstk'
   where
     dupUStk = do
-      let sz = sizeofMutableByteArray ustk
+      sz <- getSizeofMutableByteArray ustk
       b <- newByteArray sz
       copyMutableByteArray b 0 ustk 0 sz
       pure b

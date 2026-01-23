@@ -287,17 +287,20 @@ foreignCallHelper = \case
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> hPut h (Bytes.toArray bs)
   -- TODO: Use `PA.withMutableByteArrayContents` here once we have Data.Primitive v9.
   IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
-    r <- checkBoundsPrim "IO.fillBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    sizeof <- PA.getSizeofMutableByteArray arr
+    r <- checkBoundsPrim "IO.fillBuf.impl.v1" sizeof n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
       Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hGetBuf h ptr (fromIntegral n))
   IO_putBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
-    r <- checkBoundsPrim "IO.putBuf.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    sizeof <- PA.getSizeofMutableByteArray arr
+    r <- checkBoundsPrim "IO.putBuf.impl.v1" sizeof n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
       Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hPutBuf h ptr (fromIntegral n))
   IO_getBufSome_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
-    r <- checkBoundsPrim "IO.getBufSome.impl.v1" (PA.sizeofMutableByteArray arr) n 0 . pure $ Right ()
+    sizeof <- PA.getSizeofMutableByteArray arr
+    r <- checkBoundsPrim "IO.getBufSome.impl.v1" sizeof n 0 . pure $ Right ()
     case r of
       Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
       Right _ -> PA.withMutableByteArrayContents arr (\ptr -> hGetBufSome h ptr (fromIntegral n))
@@ -388,13 +391,15 @@ foreignCallHelper = \case
       maybe mempty Bytes.fromArray <$> SYS.recv hs n
   IO_socketSendBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
-      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      sizeof <- PA.getSizeofMutableByteArray buf
+      r <- checkBoundsPrim "IO.socketSendBuf.impl.v1" sizeof n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
         Right _ -> PA.withMutableByteArrayContents buf (\ptr -> SYS.sendBuf sk ptr (fromIntegral n))
   IO_socketReceiveBuf_impl_v1 -> mkForeignIOF $
     \(sk, buf, n) -> do
-      r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" (PA.sizeofMutableByteArray buf) n 0 . pure $ Right ()
+      sizeof <- PA.getSizeofMutableByteArray buf
+      r <- checkBoundsPrim "IO.socketReceiveBuf.impl.v1" sizeof n 0 . pure $ Right ()
       case r of
         Left (F.Failure _ err _) -> ioError (userError (Util.Text.unpack err))
         Right _ -> PA.withMutableByteArrayContents buf (\ptr -> SYS.recvBuf sk ptr (fromIntegral n))
@@ -719,9 +724,11 @@ foreignCallHelper = \case
       let name = "MutableByteArray.copyTo!"
        in if l == 0
             then pure (Right ())
-            else
-              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
-                checkBoundsPrim name (PA.sizeofMutableByteArray src) (soff + l) 0 $
+            else do
+              sizeofDst <- PA.getSizeofMutableByteArray dst
+              sizeofSrc <- PA.getSizeofMutableByteArray src
+              checkBoundsPrim name sizeofDst (doff + l) 0 $
+                checkBoundsPrim name sizeofSrc (soff + l) 0 $
                   Right
                     <$> PA.copyMutableByteArray @IO
                       dst
@@ -755,14 +762,15 @@ foreignCallHelper = \case
       pure . fromIntegral @Int @Word64 . PA.sizeofByteArray
   MutableByteArray_size ->
     mkForeign $
-      pure . fromIntegral @Int @Word64 . PA.sizeofMutableByteArray @PA.RealWorld
+      fmap (fromIntegral @Int @Word64) . PA.getSizeofMutableByteArray
   ImmutableByteArray_copyTo_force -> mkForeignExn $
     \(dst, doff, src, soff, l) ->
       let name = "ImmutableByteArray.copyTo!"
        in if l == 0
             then pure (Right ())
-            else
-              checkBoundsPrim name (PA.sizeofMutableByteArray dst) (doff + l) 0 $
+            else do
+              sizeofDst <- PA.getSizeofMutableByteArray dst
+              checkBoundsPrim name sizeofDst (doff + l) 0 $
                 checkBoundsPrim name (PA.sizeofByteArray src) (soff + l) 0 $
                   Right
                     <$> PA.copyByteArray @IO
@@ -876,13 +884,10 @@ foreignCallHelper = \case
     \(src, off, len) ->
       if len == 0
         then fmap Right . PA.unsafeFreezeByteArray =<< PA.newByteArray 0
-        else
-          checkBoundsPrim
-            "MutableByteArray.freeze"
-            (PA.sizeofMutableByteArray src)
-            (off + len)
-            0
-            $ Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
+        else do
+          sizeof <- PA.getSizeofMutableByteArray src
+          checkBoundsPrim "MutableByteArray.freeze" sizeof (off + len) 0 $
+            Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
   MutableArray_freeze -> mkForeignExn $
     \(src :: PA.MutableArray PA.RealWorld Val, off, len) ->
       if len == 0
@@ -895,7 +900,7 @@ foreignCallHelper = \case
             $ Right <$> PA.freezeArray src (fromIntegral off) (fromIntegral len)
   MutableByteArray_length ->
     mkForeign $
-      pure . PA.sizeofMutableByteArray @PA.RealWorld
+      PA.getSizeofMutableByteArray
   ImmutableByteArray_length ->
     mkForeign $
       pure . PA.sizeofByteArray
@@ -1678,8 +1683,9 @@ checkedIndex name (arr, w) =
     (Right <$> PA.indexArrayM arr (fromIntegral w))
 
 checkedRead8 :: Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead8 name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $
+checkedRead8 name (arr, i) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof i 1 $
     Right . fromIntegral <$> PA.readByteArray @Word8 arr j
   where
     j = fromIntegral i
@@ -1707,8 +1713,9 @@ checkedRead16 ::
   Text ->
   (PA.MutableByteArray RW, Word64) -> -- (array, byte offset)
   IO (Either Failure Word64)
-checkedRead16 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+checkedRead16 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 2 $ do
     let !off = fromIntegral iW :: Int
     w <- uncheckedRead16 byteOrder arr off
     pure $ Right (fromIntegral w)
@@ -1718,8 +1725,9 @@ checkedRead24 ::
   Text ->
   (PA.MutableByteArray RW, Word64) ->
   IO (Either Failure Word64)
-checkedRead24 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 3 $ do
+checkedRead24 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 3 $ do
     let !off = fromIntegral iW :: Int
     w16 <- uncheckedRead16 byteOrder arr off
     w8 <- PA.readByteArray @Word8 arr (off + 2)
@@ -1748,15 +1756,17 @@ uncheckedRead32 byteOrder arr off = do
   pure (fixEndianness w)
 
 checkedRead32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead32 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+checkedRead32 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 4 $ do
     let !off = fromIntegral iW :: Int
     w <- uncheckedRead32 byteOrder arr off
     pure $ Right (fromIntegral w)
 
 checkedRead40 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead40 byteOrder name (arr, iW) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 5 $ do
+checkedRead40 byteOrder name (arr, iW) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 5 $ do
     let !off = fromIntegral iW :: Int
     w32 <- uncheckedRead32 byteOrder arr off
     w8 <- PA.readByteArray @Word8 arr (off + 4)
@@ -1767,8 +1777,9 @@ checkedRead40 byteOrder name (arr, iW) =
     pure $ Right result
 
 checkedRead64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64) -> IO (Either Failure Word64)
-checkedRead64 byteOrder name (arr, i) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 8 $ do
+checkedRead64 byteOrder name (arr, i) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof i 8 $ do
     let !off = fromIntegral i :: Int
         fixEndianness :: Word64 -> Word64
         fixEndianness w =
@@ -1783,16 +1794,18 @@ checkedRead64 byteOrder name (arr, i) =
     pure $ Right (fromIntegral (fixEndianness w))
 
 checkedWrite8 :: Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite8 name (arr, i, v) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) i 1 $ do
+checkedWrite8 name (arr, i, v) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof i 1 $ do
     PA.writeByteArray arr j (fromIntegral v :: Word8)
     pure (Right ())
   where
     j = fromIntegral i
 
 checkedWrite16 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite16 byteOrder name (arr, iW, v0) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 2 $ do
+checkedWrite16 byteOrder name (arr, iW, v0) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 2 $ do
     let !off = fromIntegral iW :: Int
         !vBE =
           if targetByteOrder == byteOrder
@@ -1809,8 +1822,9 @@ checkedWrite16 byteOrder name (arr, iW, v0) =
     pure (Right ())
 
 checkedWrite32 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite32 byteOrder name (arr, iW, v0) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 4 $ do
+checkedWrite32 byteOrder name (arr, iW, v0) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 4 $ do
     let !off = fromIntegral iW :: Int
         !vBE =
           if targetByteOrder == byteOrder
@@ -1827,8 +1841,9 @@ checkedWrite32 byteOrder name (arr, iW, v0) =
     pure (Right ())
 
 checkedWrite64 :: ByteOrder -> Text -> (PA.MutableByteArray RW, Word64, Word64) -> IO (Either Failure ())
-checkedWrite64 byteOrder name (arr, iW, v0) =
-  checkBoundsPrim name (PA.sizeofMutableByteArray arr) iW 8 $ do
+checkedWrite64 byteOrder name (arr, iW, v0) = do
+  sizeof <- PA.getSizeofMutableByteArray arr
+  checkBoundsPrim name sizeof iW 8 $ do
     let !off = fromIntegral iW :: Int
         !vBE =
           if targetByteOrder == byteOrder
@@ -2167,7 +2182,7 @@ emitJson :: Closure -> IO Text
 emitJson =
   evaluate . Util.Text.fromTextUnchunked . TB.toText . emitJson0
 
-emitJson0 :: Closure -> TB.StrictBuilder
+emitJson0 :: Closure -> TB.StrictTextBuilder
 emitJson0 = \case
   Enum _ t
     | TT.jsonNullTag == t -> TB.fromText "null"

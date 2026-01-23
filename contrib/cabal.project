@@ -72,7 +72,6 @@ program-options
   ghc-options:
     -Wall
     -Werror
-    -Wwarn=deprecations
     -Wwarn=x-partial
     -Wno-missing-pattern-synonym-signatures
     -Wno-name-shadowing
