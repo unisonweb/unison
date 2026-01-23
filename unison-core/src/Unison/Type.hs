@@ -435,6 +435,9 @@ char a = ref a charRef
 integer :: (Ord v) => a -> Type v a
 integer a = ref a integerRef
 
+record :: (Ord v) => a -> Map Text (Type v a) -> Type v a
+record a fields = ABT.tm' a (Record fields)
+
 natural :: (Ord v) => a -> Type v a
 natural a = ref a naturalRef
 
