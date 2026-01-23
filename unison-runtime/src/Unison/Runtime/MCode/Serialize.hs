@@ -20,7 +20,7 @@ import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
-import Unison.Runtime.Serialize
+import Unison.Runtime.Serialize hiding (getFieldTag, putFieldTag)
 import Unison.Runtime.Serialize.Get
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)

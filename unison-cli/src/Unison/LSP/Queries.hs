@@ -150,6 +150,7 @@ refInTerm term =
       Term.Match _a _cases -> Nothing
       Term.TermLink ref -> Just (LD.TermReferent ref)
       Term.TypeLink ref -> Just (LD.TypeReference ref)
+      Term.Record {} -> Nothing
     ABT.Var _v -> Nothing
     ABT.Cycle _r -> Nothing
     ABT.Abs _v _r -> Nothing
@@ -187,6 +188,7 @@ refInPattern = \case
   Pattern.EffectBind _loc conRef _ _ -> Just (LD.ConReference conRef CT.Effect)
   Pattern.SequenceLiteral {} -> Nothing
   Pattern.SequenceOp {} -> Nothing
+  Pattern.Record {} -> Nothing
 
 data SourceNode a
   = TermNode (Term Symbol a)
@@ -261,6 +263,9 @@ findSmallestEnclosingNodeMatching pos pred term
                   <|> altSum (cases <&> \(MatchCase pat grd body) -> ((findSmallestEnclosingPatternMatching pos patPred pat) <|> (altMaybe grd >>= findSmallestEnclosingNodeMatching pos pred) <|> findSmallestEnclosingNodeMatching pos pred body))
               Term.TermLink {} -> guardInFile *> termPred term
               Term.TypeLink {} -> guardInFile *> termPred term
+              Term.Record _ref fields ->
+                  altSum (findSmallestEnclosingNodeMatching pos pred . snd <$> fields)
+
             ABT.Var _v -> guardInFile *> termPred term
             ABT.Cycle r -> findSmallestEnclosingNodeMatching pos pred r
             ABT.Abs _v r -> findSmallestEnclosingNodeMatching pos pred r
@@ -323,6 +328,7 @@ findSmallestEnclosingPatternMatching pos pred pat
             Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats) <|> findSmallestEnclosingPatternMatching pos pred p
             Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
             Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPatternMatching pos pred p1 <|> findSmallestEnclosingPatternMatching pos pred p2
+            Pattern.Record _loc _ref fields -> altSum (findSmallestEnclosingPatternMatching pos pred . snd <$> fields)
       let fallback = if annIsFilePosition (ann pat) then pred pat else empty
       bestChild <|> fallback
   where

@@ -1043,9 +1043,10 @@ buildSCache ::
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
+  Map Text TT.FieldTag ->
   Map Reference (Set Reference) ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc fts sndbx =
   SCache
     cs
     crs
@@ -1057,6 +1058,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sn
     int
     rtm
     (restrictTyR rtysrc)
+    fts
     (restrictTmR sndbx)
   where
     termRefs = Map.keysSet int
@@ -1103,6 +1105,7 @@ standalone cc init =
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
           <*> readTVarIO (refTy cc)
+          <*> readTVarIO (fieldNums cc)
           <*> readTVarIO (sandbox cc)
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
