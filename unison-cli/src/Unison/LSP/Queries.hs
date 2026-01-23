@@ -167,6 +167,7 @@ refInType typ = case ABT.out typ of
     Type.Ann _a _kind -> Nothing
     Type.Effects _es -> Nothing
     Type.IntroOuter _a -> Nothing
+    Type.Record _fields -> Nothing
   ABT.Var _v -> Nothing
   ABT.Cycle _r -> Nothing
   ABT.Abs _v _r -> Nothing
@@ -379,6 +380,7 @@ findSmallestEnclosingTypeMatching pos pred typ
               Type.Ann a _kind -> findSmallestEnclosingTypeMatching pos pred a
               Type.Effects es -> altSum (findSmallestEnclosingTypeMatching pos pred <$> es)
               Type.IntroOuter a -> findSmallestEnclosingTypeMatching pos pred a
+              Type.Record fields -> altSum (findSmallestEnclosingTypeMatching pos pred <$> fields)
             ABT.Var _v -> guardInFile *> pred typ
             ABT.Cycle r -> findSmallestEnclosingTypeMatching pos pred r
             ABT.Abs _v r -> findSmallestEnclosingTypeMatching pos pred r
