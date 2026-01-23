@@ -1591,7 +1591,8 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
-    fieldtm <- error "add fieldNums" <> readTVar (fieldNums cc)
+    -- TODO: Need to populate with new field values
+    fieldtm <-  readTVar (fieldNums cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (fieldNameLookup fieldtm)
