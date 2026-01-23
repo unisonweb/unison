@@ -469,6 +469,9 @@ getConstructorReference =
 getFieldTag :: (PrimBase m) => Get m FieldTag
 getFieldTag = FieldTag <$> getText
 
+putFieldTag :: FieldTag -> Builder
+putFieldTag (FieldTag t) = putText t
+
 instance Tag Prim1 where
   tag2word DECI = 0
   tag2word DECN = 1
