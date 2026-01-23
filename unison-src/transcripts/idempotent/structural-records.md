@@ -22,3 +22,12 @@ We should be able to evaluate and print them.
 ```ucm
 scratch/main> view jon
 ```
+
+Record types can unify with each other:
+
+```unison
+jons =
+  [ { name : "Jon Arbuckle", age : 35 }
+  , { name : "Jon Snow", age : 25 }
+  ]
+```
