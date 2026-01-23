@@ -116,6 +116,7 @@ import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import qualified Data.Semialign as Align
+import Data.These (These(..))
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -348,6 +349,7 @@ data PathElement v loc
   | InMatchGuard
   | InMatchBody
   | InActionRestriction
+  | InRecordLiteral loc -- location of record
   deriving (Show)
 
 type ExpectedArgCount = Int
@@ -495,6 +497,7 @@ data Cause v loc
   | RedundantPattern loc
   | KindInferenceFailure (KindInference.KindError v loc)
   | InaccessiblePattern loc
+  | MissingRecordField (Text {- the missing field name -}) (Type v loc {- the type we expected there -}) (Type v loc {- record literal missing the type -})
   deriving (Show)
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -1353,7 +1356,7 @@ synthesizeWanted e
       pure (existential' l blank v, [])
 
   | Term.Record' fields <- e = do
-    (fieldTypes, wanted ) <- Align.unzip <$> for fields synthesizeWanted
+    (fieldTypes, wanted ) <- Align.unzip <$> for fields synthesize
     pure (Type.record l fieldTypes, (fold wanted {- should be empty -}))
 
   | Term.List' v <- e = do
@@ -2794,6 +2797,15 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
           instantiateR t b v
+    go _ r1@(Type.Record' fields1) r2@(Type.Record' fields2) = do
+    -- TODO: doublecheck this
+      Align.align fields1 fields2
+        & Map.traverseWithKey (\fieldName -> \case
+              This t1 -> failWith $ MissingRecordField fieldName t1 r2
+              That t2 -> failWith $ MissingRecordField fieldName t2 r1
+              These t1 t2 -> subtype t1 t2
+                         )
+        & void
     go _ (Type.Effects' es1) (Type.Effects' es2) =
       void $ subAbilities ((,) Nothing <$> es1) es2
     go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2
