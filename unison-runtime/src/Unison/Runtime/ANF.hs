@@ -131,7 +131,7 @@ import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), 
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
-import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve)
+import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve, record)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)

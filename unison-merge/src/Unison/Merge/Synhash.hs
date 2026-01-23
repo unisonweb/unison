@@ -322,11 +322,10 @@ hashPatternTokens ppe = \case
         Pattern.Concat -> H.Tag 0
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
-  Pattern.Record  _ r ps ->
+  Pattern.Record  _ ps ->
     H.Tag 17
-      : hashReferentToken ppe (Referent.Ref r)
       : hashLengthToken ps
-      : (ps >>= \(txt, p) -> H.Text txt : hashPatternTokens ppe p)
+      : (Map.toList ps >>= \(txt, p) -> H.Text txt : hashPatternTokens ppe p)
 
 hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =
