@@ -755,6 +755,9 @@ wellformedType c t = case t of
   Type.Forall' t' ->
     let (v, ctx2) = extendUniversal c
      in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
+  Type.Record' fields ->
+    -- TODO: Check if this is right
+    all (wellformedType c) fields
   _ -> error $ "Match failure in wellformedType: " ++ show t
   where
     -- Extend this `Context` with a single variable, guaranteed fresh

@@ -100,6 +100,8 @@ convertElement = \case
   SyntaxText.LinkKeyword -> LinkKeyword
   SyntaxText.DocDelimiter -> DocDelimiter
   SyntaxText.DocKeyword -> DocKeyword
+  SyntaxText.RecordFieldName name -> RecordFieldName name
+  SyntaxText.RecordFieldValueColon -> RecordFieldValueColon
 
 type UnisonHash = Text
 
@@ -154,6 +156,8 @@ data Element
   | DocDelimiter
   | -- the 'include' in @[include], etc
     DocKeyword
+  | RecordFieldName Text
+  | RecordFieldValueColon
   deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Element where
@@ -190,6 +194,8 @@ instance ToJSON Element where
     LinkKeyword -> object ["tag" .= String "LinkKeyword"]
     DocDelimiter -> object ["tag" .= String "DocDelimiter"]
     DocKeyword -> object ["tag" .= String "DocKeyword"]
+    RecordFieldName name -> object ["tag" .= String "RecordFieldName", "contents" .= name]
+    RecordFieldValueColon -> object ["tag" .= String "RecordFieldValueColon"]
 
 instance FromJSON Element where
   parseJSON = withObject "Element" $ \obj -> do
@@ -392,3 +398,7 @@ elementToClassName el =
       "doc-delimeter"
     DocKeyword ->
       "doc-keyword"
+    RecordFieldName _name ->
+      "record-field-name"
+    RecordFieldValueColon ->
+      "record-field-value-colon"
