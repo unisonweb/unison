@@ -263,8 +263,8 @@ findSmallestEnclosingNodeMatching pos pred term
                   <|> altSum (cases <&> \(MatchCase pat grd body) -> ((findSmallestEnclosingPatternMatching pos patPred pat) <|> (altMaybe grd >>= findSmallestEnclosingNodeMatching pos pred) <|> findSmallestEnclosingNodeMatching pos pred body))
               Term.TermLink {} -> guardInFile *> termPred term
               Term.TypeLink {} -> guardInFile *> termPred term
-              Term.Record _ref fields ->
-                  altSum (findSmallestEnclosingNodeMatching pos pred . snd <$> fields)
+              Term.Record fields ->
+                  altSum (findSmallestEnclosingNodeMatching pos pred <$> fields)
 
             ABT.Var _v -> guardInFile *> termPred term
             ABT.Cycle r -> findSmallestEnclosingNodeMatching pos pred r
@@ -328,7 +328,7 @@ findSmallestEnclosingPatternMatching pos pred pat
             Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats) <|> findSmallestEnclosingPatternMatching pos pred p
             Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
             Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPatternMatching pos pred p1 <|> findSmallestEnclosingPatternMatching pos pred p2
-            Pattern.Record _loc _ref fields -> altSum (findSmallestEnclosingPatternMatching pos pred . snd <$> fields)
+            Pattern.Record _loc fields -> altSum (findSmallestEnclosingPatternMatching pos pred <$> fields)
       let fallback = if annIsFilePosition (ann pat) then pred pat else empty
       bestChild <|> fallback
   where
