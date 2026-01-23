@@ -5,11 +5,13 @@ module Unison.Type where
 import Control.Lens (Prism')
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
+import Data.List qualified as List
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Monoid (Any (..))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.HashQualified qualified as HQ
 import Unison.Kind qualified as K
@@ -48,6 +50,7 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | Record (Map Text a)
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -144,6 +147,9 @@ pattern Pure' t <- (unPure -> Just t)
 
 pattern Request' :: [Type v a] -> Type v a -> Type v a
 pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
+
+pattern Record' :: Map Text (ABT.Term F v a) -> ABT.Term F v a
+pattern Record' fields <- ABT.Tm' (Record fields)
 
 pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
 pattern Effects' es <- ABT.Tm' (Effects es)
@@ -918,5 +924,10 @@ instance (Show a) => Show (F a) where
       go p (IntroOuter body) = case p of
         0 -> showsPrec p body
         _ -> showParen True $ s "outer " <> shows body
+      go p (Record fields) =
+        showParen (p > 0) $
+          foldl' (<>) (s "{") (List.intersperse (s ", ") (showField <$> Map.toList fields)) <> s "}"
+        where
+          showField (l, t) = s (Text.unpack l) <> s ": " <> shows t
       (<>) = (.)
       s = showString
