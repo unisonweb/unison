@@ -115,6 +115,7 @@ import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import qualified Data.Semialign as Align
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -1219,8 +1220,6 @@ synthesizeWanted trm@(Term.Var' v) = do
         pure (discardCovariant vars (Set.fromList vs) t, [])
 synthesizeWanted (Term.Ref' h) =
   compilerCrash $ UnannotatedReference h
-synthesizeWanted (Term.Record' _fields) = do
-  error "Record synthesis not implemented"
 synthesizeWanted (Term.Ann' (Term.Ref' _) t)
   -- innermost Ref annotation assumed to be correctly provided by
   -- `synthesizeClosed`
@@ -1349,6 +1348,11 @@ synthesizeWanted e
       v <- freshenVar freshType
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
+
+  | Term.Record' fields <- e = do
+    (fieldTypes, wanted ) <- Align.unzip <$> for fields synthesizeWanted
+    pure (Type.record l fieldTypes, (fold wanted {- should be empty -}))
+
   | Term.List' v <- e = do
       ft <- vectorConstructorOfArity l (Foldable.length v)
       case Foldable.toList v of
