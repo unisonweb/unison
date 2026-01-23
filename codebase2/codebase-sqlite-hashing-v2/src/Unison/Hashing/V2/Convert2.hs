@@ -179,7 +179,7 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.Char c -> H2.TermChar c
       V2.Term.Ref r -> H2.TermRef (v2ToH2Reference r)
       V2.Term.Constructor r cid -> H2.TermConstructor (v2ToH2Reference r) cid
-      V2.Term.Record r fields -> H2.TermRecord (v2ToH2Reference r) fields
+      V2.Term.Record fields -> H2.TermRecord fields
       V2.Term.Request r cid -> H2.TermRequest (v2ToH2Reference r) cid
       V2.Term.Handle a b -> H2.TermHandle a b
       V2.Term.App a b -> H2.TermApp a b
@@ -210,7 +210,7 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.PText t -> H2.PatternText () t
       V2.Term.PChar c -> H2.PatternChar () c
       V2.Term.PConstructor r cid ps -> H2.PatternConstructor () (v2ToH2Reference r) cid (convertPattern <$> ps)
-      V2.Term.PRecord r fieldPats -> H2.PatternRecord () (v2ToH2Reference r) (fieldPats <&> second convertPattern)
+      V2.Term.PRecord fieldPats -> H2.PatternRecord () (convertPattern <$> fieldPats)
       V2.Term.PAs pat -> H2.PatternAs () (convertPattern pat)
       V2.Term.PEffectPure pat -> H2.PatternEffectPure () (convertPattern pat)
       V2.Term.PEffectBind r conId pats pat -> H2.PatternEffectBind () (v2ToH2Reference r) conId (convertPattern <$> pats) (convertPattern pat)

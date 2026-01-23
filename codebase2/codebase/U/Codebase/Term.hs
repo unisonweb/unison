@@ -64,7 +64,7 @@ data F' text termRef typeRef termLink typeLink vt a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     Constructor typeRef ConstructorId
-  | Record [(Text {- field name -}, a {- field value -})]
+  | Record (Map Text {- field name -} a {- field value -})
   | Request typeRef ConstructorId
   | Handle a a
   | App a a
@@ -108,7 +108,7 @@ data Pattern t r
   | PText !t
   | PChar !Char
   | PConstructor !r !ConstructorId [Pattern t r]
-  | PRecord !r [(Text, Pattern t r)]
+  | PRecord (Map Text (Pattern t r))
   | PAs (Pattern t r)
   | PEffectPure (Pattern t r)
   | PEffectBind !r !ConstructorId [Pattern t r] (Pattern t r)
@@ -189,7 +189,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Char c -> pure $ Char c
       Ref r -> Ref <$> ftermRef r
       Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
-      Record fields -> Record <$> (traverse (\(fname, fval) -> (fname,) <$> pure fval) fields)
+      Record fields -> pure $ Record fields
       Request r cid -> Request <$> ftypeRef r <*> pure cid
       Handle e h -> pure $ Handle e h
       App f a -> pure $ App f a
@@ -224,7 +224,7 @@ rmapPatternM ft fr = go
       PText t -> PText <$> ft t
       PChar c -> pure $ PChar c
       PConstructor r i ps -> PConstructor <$> fr r <*> pure i <*> (traverse go ps)
-      PRecord r fields -> PRecord <$> fr r <*> (traverse (\(fname, fpat) -> (fname,) <$> go fpat) fields)
+      PRecord fields -> PRecord <$> (traverse go fields)
       PAs p -> PAs <$> go p
       PEffectPure p -> PEffectPure <$> go p
       PEffectBind r i ps p -> PEffectBind <$> fr r <*> pure i <*> traverse go ps <*> go p

@@ -1219,7 +1219,7 @@ synthesizeWanted trm@(Term.Var' v) = do
         pure (discardCovariant vars (Set.fromList vs) t, [])
 synthesizeWanted (Term.Ref' h) =
   compilerCrash $ UnannotatedReference h
-synthesizeWanted (Term.Record' _ref _fields) = do
+synthesizeWanted (Term.Record' _fields) = do
   error "Record synthesis not implemented"
 synthesizeWanted (Term.Ann' (Term.Ref' _) t)
   -- innermost Ref annotation assumed to be correctly provided by

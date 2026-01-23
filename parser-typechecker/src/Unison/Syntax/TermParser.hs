@@ -1287,6 +1287,24 @@ number' i u f = fmap go numeric
       | take 1 p == "-" = i (read <$> num)
       | otherwise = u (read <$> num)
 
+-- E.g. { name = "Steve", age = 30 }
+recordLiteral ::
+  forall v.
+  (Ord v) =>
+  _
+recordLiteral pair = do
+  seq' "{" finalize keyValueP
+  where
+    keyValueP :: P v m (L.Token v, Term v Ann)
+    keyValueP = do
+      key <- wordyDefinitionName
+      _ <- reserved ":"
+      value <- term
+      pure (key, value)
+    finalize :: Ann -> [(L.Token v, Term v Ann)] -> P v m (Term v Ann)
+    finalize spanAnn kvs = do
+      Term.record spanAnn kvs
+
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
 tupleOrParenthesizedTerm = label "tuple" $ do
   (spanAnn, tm) <- tupleOrParenthesized term DD.unitTerm pair

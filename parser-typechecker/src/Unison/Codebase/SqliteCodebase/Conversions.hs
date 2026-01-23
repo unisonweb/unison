@@ -134,8 +134,8 @@ term1to2 h =
       V1.Pattern.Char _ c -> V2.Term.PChar c
       V1.Pattern.Constructor _ (V1.ConstructorReference r i) ps ->
         V2.Term.PConstructor (reference1to2 r) i (goPat <$> ps)
-      V1.Pattern.Record _loc r fields ->
-        V2.Term.PRecord (reference1to2 r) (second goPat <$> fields)
+      V1.Pattern.Record _loc fields ->
+        V2.Term.PRecord (goPat <$> fields)
       V1.Pattern.As _ p -> V2.Term.PAs (goPat p)
       V1.Pattern.EffectPure _ p -> V2.Term.PEffectPure (goPat p)
       V1.Pattern.EffectBind _ (V1.ConstructorReference r i) ps k ->
@@ -198,8 +198,8 @@ term2to1 h lookupCT =
           V2.Term.PChar c -> pure $ V1.Pattern.Char a c
           V2.Term.PConstructor r i ps ->
             V1.Pattern.Constructor a (V1.ConstructorReference (reference2to1 r) i) <$> traverse goPat ps
-          V2.Term.PRecord r fields ->
-            V1.Pattern.Record a (reference2to1 r) <$> (traverse . traverse) goPat fields
+          V2.Term.PRecord fields ->
+            V1.Pattern.Record a <$> traverse goPat fields
           V2.Term.PAs p -> V1.Pattern.As a <$> goPat p
           V2.Term.PEffectPure p -> V1.Pattern.EffectPure a <$> goPat p
           V2.Term.PEffectBind r i ps p ->

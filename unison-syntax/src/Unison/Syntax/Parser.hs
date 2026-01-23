@@ -60,6 +60,7 @@ module Unison.Syntax.Parser
     varOrNullaryConstructor,
     wordyDefinitionName,
     wordyPatternName,
+    recordFieldName,
   )
 where
 
@@ -364,6 +365,11 @@ prefixTermName = wordyTermName <|> parenthesize symbolyTermName
 wordyDefinitionName :: (Var v) => P v m (L.Token v)
 wordyDefinitionName = queryToken \case
   L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
+  _ -> Nothing
+
+recordFieldName :: (Var v) => P v m (L.Token Text)
+recordFieldName = queryToken \case
+  L.WordyId (HQ'.NameOnly (Name.segments -> (seg Nel.:| []))) -> Just (NameSegment.toUnescapedText seg)
   _ -> Nothing
 
 -- | Parse a wordyId as a Name, rejecting any hash

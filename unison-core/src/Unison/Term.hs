@@ -100,7 +100,7 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
-  | Record [(Text, a)]
+  | Record (Map Text {- Should this contain an Ann somehow? -} a)
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference
@@ -526,7 +526,7 @@ pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branche
 pattern Constructor' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
 
-pattern Record' :: [(Text, ABT.Term (F typeVar typeAnn patternAnn) v a)] -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern Record' :: Map Text (ABT.Term (F typeVar typeAnn patternAnn) v a) -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Record' fields <- (ABT.out -> ABT.Tm (Record fields))
 
 pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
@@ -830,6 +830,9 @@ constructor a ref = ABT.tm' a (Constructor ref)
 
 request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
+
+record :: (Ord v) => a -> Map Text (Term2 vt at ap v a) -> Term2 vt at ap v a
+record a fields = ABT.tm' a (Record fields)
 
 -- todo: delete and rename app' to app
 app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -1600,7 +1603,7 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
       Pattern.Text loc t -> pure (text loc t)
       Pattern.Char loc c -> pure (char loc c)
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
-      Pattern.Record _loc _r _ps -> error "Pattern.Record: TODO: implement record pattern matching"
+      Pattern.Record _loc _ps -> error "Pattern.Record: TODO: implement record pattern matching"
       Pattern.As loc p -> do
         avs <- State.get
         case avs of
