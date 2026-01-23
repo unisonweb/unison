@@ -316,15 +316,15 @@ hashPatternTokens ppe = \case
       : hashPatternTokens ppe k <> (ps >>= hashPatternTokens ppe)
   Pattern.SequenceLiteral _ ps -> H.Tag 12 : hashLengthToken ps : (ps >>= hashPatternTokens ppe)
   Pattern.SequenceOp _ p op q -> H.Tag 16 : top op : hashPatternTokens ppe p <> hashPatternTokens ppe q
--- Record loc !Reference [(Text, Pattern loc)]
     where
+      -- Record loc !Reference [(Text, Pattern loc)]
+
       top = \case
         Pattern.Concat -> H.Tag 0
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
-  Pattern.Record  _ ps ->
+  Pattern.Record _ ps ->
     H.Tag 17
-      : hashLengthToken ps
       : (Map.toList ps >>= \(txt, p) -> H.Text txt : hashPatternTokens ppe p)
 
 hashReferentToken :: PrettyPrintEnv -> Referent -> Token
@@ -358,7 +358,7 @@ hashTermFTokens ppe = \case
     H.Tag 18 : hashLengthToken cases : (cases >>= hashCaseTokens ppe)
   Term.TermLink rf -> [H.Tag 19, hashReferentToken ppe rf]
   Term.TypeLink r -> [H.Tag 20, hashTypeReferenceToken ppe r]
-  Term.Record {} -> error "Records are not yet supported in synhashing"
+  Term.Record fields -> H.Tag 21 : fieldNameTokens (Map.keys fields)
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go
@@ -382,6 +382,11 @@ hashTypeFTokens ppe = \case
   Type.Effects es -> [H.Tag 5, hashLengthToken es]
   Type.Forall {} -> [H.Tag 6]
   Type.IntroOuter {} -> [H.Tag 7]
+  Type.Record fields -> H.Tag 8 : fieldNameTokens (Map.keys fields)
+
+fieldNameTokens :: [Text] -> [Token]
+fieldNameTokens names =
+  fmap H.Text names
 
 hashTypeReferenceToken :: PrettyPrintEnv -> TypeReference -> Token
 hashTypeReferenceToken ppe =
