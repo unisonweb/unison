@@ -166,6 +166,86 @@ jobs:
           # NB: This uses weeder 2.10.0, because the version is tied to the selected GHC version. See
           #     freckle/weeder-action#146.
           ghc-version: "9.10.3" # This needs to match the resolver in stack.yaml
+          # NB: This set of flags is expanded from ../../scripts/check-weeds.
+          weeder-arguments: |
+            --require-hs-files
+            --no-default-fields
+            --hie-directory
+            ./unison-cli-integration/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-share-projects-api/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/util-term/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/codebase-sqlite/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/core/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/codebase/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/codebase-sync/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/util-serialization/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./codebase2/codebase-sqlite-hashing-v2/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-share-api/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-cli-main/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./parser-typechecker/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-cli/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./yaks/easytest/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-recursion/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-cache/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-prelude/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-bytes/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-file-embed/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-sqlite/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-relation/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-hashing/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-pretty-printer/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-base32hex/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-hash/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-util-rope/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-dynlib/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/orphans/unison-hash-orphans-sqlite/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/orphans/network-uri-orphans-sqlite/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/orphans/uuid-orphans-sqlite/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/orphans/unison-hash-orphans-aeson/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/orphans/unison-core-orphans-sqlite/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./lib/unison-credentials/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-core/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-runtime/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-merge/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-syntax/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
+            --hie-directory
+            ./unison-hashing-v2/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.10.3
 
       - name: verify stack ghci startup
         if: runner.os == 'macOS' && steps.cache-ucm-binaries.outputs.cache-hit != 'true'
