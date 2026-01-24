@@ -328,6 +328,8 @@ analyseNotes codebase fileUri ppe src notes = do
               TypeError.RedundantPattern loc -> singleRange loc
               TypeError.UncoveredPatterns loc _pats -> singleRange loc
               TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
+              -- TODO: Add a nicer missing record field error
+              -- Context.MissingRecordField (Text {- the missing field name -}) (Type v loc {- the type we expected there -}) (Type v loc {- record literal missing the type -})
               -- These type errors don't have custom type error conversions, but some
               -- still have valid diagnostics.
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
@@ -349,6 +351,15 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.RedundantPattern loc -> singleRange loc
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
+                Context.MissingRecordField _fieldName fieldType recordType -> do
+                  r1 <- aToR (ABT.annotation recordType)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2)
+                      ]
+                    )
+
             shouldHaveBeenHandled e = do
               Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
               empty

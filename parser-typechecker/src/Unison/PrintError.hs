@@ -1284,6 +1284,21 @@ renderTypeError e env src = case e of
             "  reference=",
             showTypeRef env rf
           ]
+      C.MissingRecordField fieldName expectedFieldType recordMissingTheField ->
+        mconcat
+          [ "Expected this record: ",
+            renderType'
+              env
+              recordMissingTheField,
+            "\n",
+            "to have the field: \n",
+            Pr.indent "  " $
+              fromString (Text.unpack fieldName)
+                <> " : "
+                <> renderType' env expectedFieldType,
+            "\n",
+            "but it was missing."
+          ]
 
 renderCompilerBug ::
   (Var v, Annotated loc, Ord loc, Show loc) =>
