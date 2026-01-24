@@ -328,10 +328,17 @@ analyseNotes codebase fileUri ppe src notes = do
               TypeError.RedundantPattern loc -> singleRange loc
               TypeError.UncoveredPatterns loc _pats -> singleRange loc
               TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
-              -- TODO: Add a nicer missing record field error
-              -- Context.MissingRecordField (Text {- the missing field name -}) (Type v loc {- the type we expected there -}) (Type v loc {- record literal missing the type -})
-              -- These type errors don't have custom type error conversions, but some
-              -- still have valid diagnostics.
+              TypeError.MissingRecordField _fieldName expectedFieldType actualRecordType expectedRecordType ->
+                do
+                  r1 <- aToR (ABT.annotation actualRecordType)
+                  r2 <- aToR (ABT.annotation expectedFieldType)
+                  r3 <- aToR (ABT.annotation expectedRecordType)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
                 Context.PatternArityMismatch loc _typ _numArgs -> singleRange loc
                 Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
@@ -351,12 +358,14 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.RedundantPattern loc -> singleRange loc
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
-                Context.MissingRecordField _fieldName fieldType recordType -> do
-                  r1 <- aToR (ABT.annotation recordType)
+                Context.MissingRecordField _fieldName fieldType actualRecordType expectedRecordType -> do
+                  r1 <- aToR (ABT.annotation actualRecordType)
                   r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation expectedRecordType)
                   pure
                     ( r1,
-                      [ ("expected field type", r2)
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
                       ]
                     )
 

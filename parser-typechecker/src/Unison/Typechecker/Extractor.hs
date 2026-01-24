@@ -206,6 +206,18 @@ inFunctionCall = asPathExtractor $ \case
     f -> Just (vs, f, ft, e)
   _ -> Nothing
 
+inRecordLiteral ::
+  SubseqExtractor v loc loc
+inRecordLiteral = asPathExtractor $ \case
+  C.InRecordLiteral loc -> Just loc
+  _ -> Nothing
+
+inRecordField ::
+  SubseqExtractor v loc (loc, Text)
+inRecordField = asPathExtractor $ \case
+  C.InRecordField loc t -> Just (loc, t)
+  _ -> Nothing
+
 inAndApp,
   inOrApp,
   inIfCond,
@@ -271,6 +283,13 @@ typeMismatch :: ErrorExtractor v loc (C.Context v loc)
 typeMismatch =
   cause >>= \case
     C.TypeMismatch c -> pure c
+    _ -> mzero
+
+missingRecordField :: ErrorExtractor v loc (Text, C.Type v loc, C.Type v loc, C.Type v loc)
+missingRecordField =
+  cause >>= \case
+    C.MissingRecordField fieldName expectedFieldType actualRecordType expectedRecordType ->
+      pure (fieldName, expectedFieldType, actualRecordType, expectedRecordType)
     _ -> mzero
 
 illFormedType :: ErrorExtractor v loc (C.Context v loc)

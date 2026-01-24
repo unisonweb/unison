@@ -145,6 +145,12 @@ data TypeError v loc
   | UncoveredPatterns loc (NonEmpty (Pattern ()))
   | RedundantPattern loc
   | KindInferenceFailure (KindError v loc)
+  | MissingRecordField
+      { missingFieldName :: Text,
+        expectedFieldType :: C.Type v loc,
+        actualRecordType :: C.Type v loc,
+        expectedRecordType :: C.Type v loc
+      }
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -180,6 +186,7 @@ allErrors =
       ifBody,
       listBody,
       matchBody,
+      recordFieldMismatch,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
@@ -413,6 +420,19 @@ existentialMismatch0 em getExpectedLoc = do
       mismatchSite
       -- todo : save type leaves too
       n
+
+recordFieldMismatch ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+recordFieldMismatch = do
+  (missingFieldName, expectedFieldType, actualRecordType, expectedRecordType) <- Ex.missingRecordField
+  pure $
+    MissingRecordField
+      { missingFieldName,
+        expectedFieldType,
+        actualRecordType,
+        expectedRecordType
+      }
 
 actionRestriction ::
   (Var v, Ord loc) =>
