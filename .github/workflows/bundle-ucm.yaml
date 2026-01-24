@@ -63,8 +63,7 @@ jobs:
           stack build :unison \
                 --ghc-options='-O2' \
                 --local-bin-path ucm-bin \
-                --copy-bins \
-                --flag unison-runtime:optchecks
+                --copy-bins
 
           if [[ ${{runner.os}} = 'Windows' ]]; then
             ucm=$(stack exec where unison)
