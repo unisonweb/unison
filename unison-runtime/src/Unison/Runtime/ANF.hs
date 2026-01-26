@@ -2086,6 +2086,9 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
+anfBlock (Record' as) = fmap (pure . TPrm BLDR) <$> anfArgs tms
+  where
+    tms = toList as
 anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =

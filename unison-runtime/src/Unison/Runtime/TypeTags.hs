@@ -180,7 +180,8 @@ newtype PackedTag = PackedTag Word64
   deriving newtype (EC.EnumKey)
 
 -- | A unique tag used for pulling out record fields.
--- TODO: replace with Word64s
+-- TODO: replace with Word64s, but we need to figure out how to hydrate the
+-- text tags during serialization since the Word64 tags would be unstable.
 newtype FieldTag = FieldTag Text
   deriving stock (Eq, Ord, Show, Read)
 
