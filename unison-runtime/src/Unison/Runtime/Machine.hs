@@ -424,8 +424,8 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (RecPack args) = do
-  clo <- buildRec stk args
+exec _ henv !_activeThreads !stk !k _ (RecPack rs args) = do
+  clo <- buildRec stk rs args
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
@@ -1106,11 +1106,11 @@ buildData !stk !r !t (VArgV i) = do
 {-# INLINE buildData #-}
 
 -- | Pack some number of args into a record data type of the provided ref/tag type.
-buildRec :: Stack -> Args -> IO Closure
-buildRec !stk args = do
+buildRec :: Stack -> ANF.RecordRef -> Args -> IO Closure
+buildRec !stk rr args = do
   -- TODO: Add more cases like buildData for efficiency
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
-  pure $ RecordC seg
+  pure $ RecordC rr seg
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -1593,10 +1593,10 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     -- TODO: Need to populate with new field values
-    fieldtm <- readTVar (fieldNums cc)
+    rrLookup <- updateMap newRecordSchemas (recordRefs cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (fieldNameLookup fieldtm)
+        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
         combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n, emitCombs rns r n g)
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
@@ -1870,7 +1870,7 @@ reflectValue0 rty rtm = goV0
           DataG _ t seg -> do
             r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> goVs seg
-          RecordC _args -> error "reflectValue: Record reflection not yet implemented"
+          RecordC _rr _args -> error "reflectValue: Record reflection not yet implemented"
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
@@ -1937,22 +1937,23 @@ reifyValue cc val = do
     atomically $ do
       combs <- readTVar (combs cc)
       rtm <- readTVar (refTm cc)
+      recRefLookup <- readTVar (recordRefs cc)
       case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
         [] -> do
           newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          pure . Right $ (combs, newTy, rtm)
+          pure . Right $ (combs, newTy, rtm, recRefLookup)
         l -> pure (Left l)
   traverse (\rfs -> reifyValue1 rfs val) erc
 
 reifyValue1 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, M.Map ANF.RecordSchema ANF.RecordRef) ->
   Referenced ANF.Value ->
   IO Val
 reifyValue1 tup (Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0) (WithRefs tys tms v) = do
+reifyValue1 (combs, rty0, rtm0, rrLookup) (WithRefs tys tms v) = do
   let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
       rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
-  reifyValue0Canon combs tys tms rty rtm v
+  reifyValue0Canon combs tys tms rty rtm rrLookup v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
     procTermRefs (i, r) =
@@ -1965,9 +1966,10 @@ reifyValue0Canon ::
   [Reference] ->
   HM.HashMap RefNum Word64 ->
   HM.HashMap RefNum Word64 ->
+  Map ANF.RecordSchema ANF.RecordRef ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon combs tys tms rty rtm = goV
+reifyValue0Canon combs tys tms rty rtm rrLookup = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -2024,6 +2026,12 @@ reifyValue0Canon combs tys tms rty rtm = goV
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
       boxedVal . formDataReplaced rf t <$> goVs vs
+    goV (ANF.Record rs vals) = do
+      rref <- case M.lookup rs rrLookup of
+        Just r -> pure r
+        Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
+      vals' <- goVs vals
+      pure $ boxedVal $ RecordC rref vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2080,10 +2088,10 @@ reifyValue0Canon combs tys tms rty rtm = goV
         goP (x, y) = (,) <$> goV x <*> goV y
 
 reifyValue0 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, M.Map ANF.RecordSchema ANF.RecordRef) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 (combs, rty, rtm) = goV
+reifyValue0 (combs, rty, rtm, rrLookup) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2119,6 +2127,12 @@ reifyValue0 (combs, rty, rtm) = goV
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       boxedVal . formDataReplaced r t <$> goVs vs
+    goV (ANF.Record rs vals) = do
+      rref <- case M.lookup rs rrLookup of
+        Just r -> pure r
+        Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
+      vals' <- goVs vals
+      pure $ boxedVal $ RecordC rref vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs

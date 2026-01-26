@@ -15,7 +15,7 @@ import Data.ByteString.Builder qualified as BU
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
-import Unison.Runtime.ANF (PackedTag (..))
+import Unison.Runtime.ANF (PackedTag (..), RecordRef (..))
 import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
@@ -231,7 +231,7 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
-  (RecPack args) -> putTag RecPackT <> putArgs args
+  (RecPack rr args) -> putTag RecPackT <> putRecordRef rr <> putArgs args
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -281,7 +281,7 @@ getInstr =
     InLocalT -> InLocal <$> gInt
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
-    RecPackT -> RecPack <$> getArgs
+    RecPackT -> RecPack <$> getRecordRef <*> getArgs
 
 data ArgsT
   = ZArgsT
@@ -324,6 +324,12 @@ getArgs =
     ArgRT -> VArgR <$> gInt <*> gInt
     ArgNT -> VArgN <$> getIntArr
     ArgVT -> VArgV <$> gInt
+
+getRecordRef :: (PrimBase m) => Get m RecordRef
+getRecordRef = RecordRef <$> getWord64be
+
+putRecordRef :: RecordRef -> Builder
+putRecordRef (RecordRef r) = BU.word64BE r
 
 data RefT = StkT | EnvT | DynT
 

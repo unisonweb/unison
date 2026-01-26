@@ -67,7 +67,6 @@ import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import GHC.Stack (HasCallStack)
 import Unison.ABT.Normalized (pattern TAbss)
-import Unison.Prelude qualified
 import Unison.Reference (Reference, showShort)
 import Unison.Referent (Referent)
 import Unison.Runtime.ANF
@@ -100,7 +99,6 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
-import Unison.Runtime.TypeTags (FieldTag)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text (Text)
 import Unison.Var (Var)
@@ -556,6 +554,7 @@ data GInstr comb
       !Args -- arguments to pack
   | -- Pack a record type into a closure and place it on the stack.
     RecPack
+      !ANF.RecordRef
       -- values to pack
       !Args
   | -- Which fields to pack each arg into
@@ -684,8 +683,8 @@ data RefNums = RN
     cnum :: Reference -> Word64,
     -- anum maps combinator references to their main arity
     anum :: Reference -> Maybe Int,
-    -- tnum maps field references to their number
-    fnum :: Unison.Prelude.Text -> FieldTag
+    -- Map record schemas into their runtime reference
+    recNum :: ANF.RecordSchema -> ANF.RecordRef
   }
 
 emptyRNs :: RefNums
@@ -1208,6 +1207,12 @@ emitFunction rns _grpr _ _ _ (FCon r t) as =
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
+emitFunction rns _grpr _ _ _ (FRec rs) as =
+  Ins (RecPack recRef as)
+    . Yield
+    $ VArg1 0
+  where
+    recRef = recNum rns rs
 emitFunction rns _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
@@ -1460,7 +1465,6 @@ emitPOp ANF.RRFC = emitP1 RRFC
 emitPOp ANF.TIKR = emitP1 TIKR
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
-emitPOp ANF.BLDR = RecPack
 -- Bools
 emitPOp ANF.NOTB = emitP1 NOTB
 emitPOp ANF.ANDB = emitP2 ANDB

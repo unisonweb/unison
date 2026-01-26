@@ -61,6 +61,8 @@ module Unison.Runtime.ANF
     CTag,
     PackedTag (..),
     Tag (..),
+    RecordRef (..),
+    RecordSchema (..),
     GroupRef (..),
     Code (..),
     ValList,
@@ -130,7 +132,7 @@ import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), 
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
-import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve, record)
+import Unison.Term hiding (Record, Char, Float, List, Ref, Text, arity, float, fresh, record, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
@@ -993,6 +995,8 @@ alignFunc _ (FReq rl tl) (FReq rr tr)
   | rl == rr, tl == tr = Just . pure $ FReq rl tl
 alignFunc _ (FPrim ol) (FPrim or)
   | ol == or = Just . pure $ FPrim ol
+alignFunc _ (FRec rl) (FRec rr)
+  | rl == rr = Just . pure $ FRec rl
 alignFunc _ _ _ = Nothing
 
 alignBranch ::
@@ -1177,6 +1181,13 @@ pattern TCon ::
   [v] ->
   ANormal ref v
 pattern TCon r t args = TApp (FCon r t) args
+
+pattern TRec ::
+  (ABT.Var v) =>
+  RecordSchema ->
+  [v] ->
+  ANormal ref v
+pattern TRec rs args = TApp (FRec rs) args
 
 pattern AKon :: v -> [v] -> ANormalF ref v e
 pattern AKon v args = AApp (FCont v) args
@@ -1445,6 +1456,12 @@ instance Semigroup (BranchAccum v) where
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
 
+newtype RecordRef = RecordRef Word64
+  deriving (Show, Eq, Ord)
+
+newtype RecordSchema = RecordSchema (Set Text)
+  deriving (Show, Eq, Ord)
+
 data Func ref v
   = -- variable
     FVar v
@@ -1458,6 +1475,8 @@ data Func ref v
     FReq !ref !CTag
   | -- prim op
     FPrim (Either POp ForeignFunc)
+  | -- record constructor
+    FRec RecordSchema
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Lit ref
@@ -1584,6 +1603,7 @@ type ValList ref = [Value ref]
 data Value ref
   = Partial (GroupRef ref) (ValList ref)
   | Data ref Word64 (ValList ref)
+  | Record RecordSchema (ValList ref)
   | Cont (ValList ref) (Cont ref)
   | BLit (BLit ref)
   deriving (Show, Eq)
@@ -2082,9 +2102,10 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
-anfBlock (Record' as) = fmap (pure . TPrm BLDR) <$> anfArgs tms
+anfBlock (Record' fields) = fmap (pure . TRec recSchema) <$> anfArgs tms
   where
-    tms = toList as
+    recSchema = RecordSchema (Map.keysSet fields)
+    tms = toList fields
 anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =
@@ -2206,6 +2227,7 @@ valueLinks f = go
     go (Data dr _ vs) = f True dr <> foldMap go vs
     go (Cont vs k) = foldMap go vs <> contLinks f k
     go (BLit l) = blitLinks f l
+    go (Record _rs vs) = foldMap go vs
 {-# INLINE valueLinks #-}
 
 -- Traversals of _all_ references in a `Value`, for e.g.
@@ -2219,12 +2241,14 @@ instance Referential Value where
     Cont vs k ->
       Cont (fmap (overRefs h) vs) (overRefs h k)
     BLit l -> BLit (overRefs h l)
+    Record rs vs -> Record rs (fmap (overRefs h) vs)
 
   foldMapRefs h = \case
     Partial (GR r _) vs -> h False r <> foldMap (foldMapRefs h) vs
     Data r _ vs -> h True r <> foldMap (foldMapRefs h) vs
     Cont vs k -> foldMap (foldMapRefs h) vs <> foldMapRefs h k
     BLit l -> foldMapRefs h l
+    Record _rs vs -> foldMap (foldMapRefs h) vs
 
   traverseRefs h = \case
     Partial gr vs ->
@@ -2240,6 +2264,7 @@ instance Referential Value where
         <$> traverse (traverseRefs h) vs
         <*> traverseRefs h k
     BLit l -> BLit <$> traverseRefs h l
+    Record rs vs -> Record rs <$> traverse (traverseRefs h) vs
 
 contLinks :: (Monoid a) => (Bool -> ref -> a) -> Cont ref -> a
 contLinks f = go
@@ -2462,6 +2487,7 @@ funcLinks f (FReq r t) = flip FReq t <$> f True r
 funcLinks _ (FVar v) = pure $ FVar v
 funcLinks _ (FCont v) = pure $ FCont v
 funcLinks _ (FPrim e) = pure $ FPrim e
+funcLinks _ (FRec rr) = pure $ FRec rr
 
 expandBindings' ::
   (Var v) =>
@@ -2658,6 +2684,8 @@ prettyFunc (FReq r t) =
     . shows t
     . showString ")"
 prettyFunc (FPrim op) = either shows shows op . showString " "
+prettyFunc (FRec r) =
+  showString "REC(" . shows r . showString ") "
 
 showsShort :: Reference -> ShowS
 showsShort =
