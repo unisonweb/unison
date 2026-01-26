@@ -8,6 +8,7 @@ module Unison.MCP.Types
     ProjectCodeToolArguments (..),
     LibInstallToolArguments (..),
     ShareProjectSearchToolArguments (..),
+    ShareProjectInfoToolArguments (..),
     TypecheckCodeToolArguments (..),
     ShareProjectReadmeToolArguments (..),
     ListLibraryDefinitionsToolArguments (..),
@@ -76,6 +77,7 @@ data ToolKind
   | LibInstallTool
   | ShareProjectSearchTool
   | ShareProjectReadmeTool
+  | ShareProjectInfoTool
   | TypecheckCodeTool
   | DocsTool
   | RunTool
@@ -107,6 +109,7 @@ kindNameMapping =
       (LibInstallTool, "lib-install"),
       (ShareProjectSearchTool, "share-project-search"),
       (ShareProjectReadmeTool, "share-project-readme"),
+      (ShareProjectInfoTool, "share-project-info"),
       (TypecheckCodeTool, "typecheck-code"),
       (DocsTool, "docs"),
       (RunTool, "run"),
@@ -707,6 +710,31 @@ instance FromJSON ShareProjectSearchToolArguments where
   parseJSON = withObject "ShareProjectSearchToolArguments" $ \o -> do
     query <- o .: "query"
     pure $ ShareProjectSearchToolArguments {query}
+
+data ShareProjectInfoToolArguments = ShareProjectInfoToolArguments
+  { projectName :: Text
+  }
+  deriving (Eq, Show)
+
+instance HasInputSchema ShareProjectInfoToolArguments where
+  toInputSchema _ =
+    object
+      [ "type" .= ("object" :: Text),
+        "properties"
+          .= object
+            [ "projectName"
+                .= object
+                  [ "type" .= ("string" :: Text),
+                    "description" .= ("The full project name including owner, e.g. `@unison/base` or `@owner/project-name`" :: Text)
+                  ]
+            ],
+        "required" .= ["projectName" :: Text]
+      ]
+
+instance FromJSON ShareProjectInfoToolArguments where
+  parseJSON = withObject "ShareProjectInfoToolArguments" $ \o -> do
+    projectName <- o .: "projectName"
+    pure $ ShareProjectInfoToolArguments {projectName}
 
 data TestToolArguments = TestToolArguments
   { projectContext :: ProjectContext,
