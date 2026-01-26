@@ -10,7 +10,6 @@ module Unison.Runtime.MCode.Serialize
   )
 where
 
-import Unison.Runtime.TypeTags (FieldTag (..))
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.Void (Void)
@@ -22,6 +21,7 @@ import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
 import Unison.Runtime.Serialize hiding (getFieldTag, putFieldTag)
 import Unison.Runtime.Serialize.Get
+import Unison.Runtime.TypeTags (FieldTag (..))
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
 
@@ -231,8 +231,7 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
-  (RecPack r w a fields) ->
-    putTag RecPackT <> putReference r <> putPackedTag w <> putArgs a <> putFoldable putFieldTag fields
+  (RecPack args) -> putTag RecPackT <> putArgs args
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -253,11 +252,11 @@ putInstr = \case
     -- same for DLL calls; those happen exclusively at runtime
     error "putInstr: Unexpected serialized DLLCall"
 
-putFieldTag :: FieldTag -> Builder
-putFieldTag (FieldTag name) = putText name
+_putFieldTag :: FieldTag -> Builder
+_putFieldTag (FieldTag name) = putText name
 
-getFieldTag :: (PrimBase m) => Get m FieldTag
-getFieldTag = FieldTag <$> getText
+_getFieldTag :: (PrimBase m) => Get m FieldTag
+_getFieldTag = FieldTag <$> getText
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =
@@ -282,12 +281,7 @@ getInstr =
     InLocalT -> InLocal <$> gInt
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
-    RecPackT ->
-      RecPack
-        <$> getReference
-        <*> getPackedTag
-        <*> getArgs
-        <*> getList getFieldTag
+    RecPackT -> RecPack <$> getArgs
 
 data ArgsT
   = ZArgsT

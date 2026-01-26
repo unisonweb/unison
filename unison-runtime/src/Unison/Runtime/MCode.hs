@@ -9,6 +9,7 @@
 module Unison.Runtime.MCode
   ( Args' (..),
     Args (..),
+    FieldTags (..),
     RefNums (..),
     MLit (..),
     GInstr (..),
@@ -40,6 +41,7 @@ module Unison.Runtime.MCode
     absurdCombs,
     emptyRNs,
     argsToLists,
+    argsToArgs',
     countArgs,
     combRef,
     combDeps,
@@ -278,6 +280,19 @@ data Args
   | VArgR !Int !Int
   | VArgN {-# UNPACK #-} !(PrimArray Int)
   | VArgV !Int
+  deriving (Show, Eq, Ord)
+
+argsToArgs' :: Args -> Args'
+argsToArgs' = \case
+  ZArgs -> ArgN PA.emptyPrimArray
+  VArg1 i -> Arg1 i
+  VArg2 i j -> Arg2 i j
+  VArgR i l -> ArgR i l
+  VArgN us -> ArgN us
+  VArgV n -> ArgR 0 n
+{-# INLINEABLE argsToArgs' #-}
+
+newtype FieldTags = FieldTags (PrimArray Word64)
   deriving (Show, Eq, Ord)
 
 argsToLists :: Args -> [Int]
@@ -541,13 +556,15 @@ data GInstr comb
       !Args -- arguments to pack
   | -- Pack a record type into a closure and place it on the stack.
     RecPack
-      !Reference -- data type reference
-      !PackedTag -- tag
       -- values to pack
       !Args
-      -- Which fields to pack each arg into
-      ![FieldTag] -- TODO: Array?
-  | -- Push a particular value onto the appropriate stack
+  | -- Which fields to pack each arg into
+    -- TODO: Do we need this? I think we should just generate ANF
+    -- with all fields in order according to key, then we can just assume
+    -- the field values are in alphabetical order according to their key.
+    -- ![FieldTag]
+
+    -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
@@ -1443,6 +1460,7 @@ emitPOp ANF.RRFC = emitP1 RRFC
 emitPOp ANF.TIKR = emitP1 TIKR
 -- non-prim translations
 emitPOp ANF.BLDS = Seq
+emitPOp ANF.BLDR = RecPack
 -- Bools
 emitPOp ANF.NOTB = emitP1 NOTB
 emitPOp ANF.ANDB = emitP2 ANDB

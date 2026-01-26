@@ -424,9 +424,8 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (RecPack r t args _ftags) = do
-  error "TODO: exec: RecPack"
-  clo <- buildRec stk r t args
+exec _ henv !_activeThreads !stk !k _ (RecPack args) = do
+  clo <- buildRec stk args
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
@@ -1107,10 +1106,11 @@ buildData !stk !r !t (VArgV i) = do
 {-# INLINE buildData #-}
 
 -- | Pack some number of args into a record data type of the provided ref/tag type.
-buildRec :: Stack -> Reference -> PackedTag -> Args -> IO Closure
-buildRec stk r t =
-  -- Records are represented the as regular product types.
-  buildData stk r t
+buildRec :: Stack -> Args -> IO Closure
+buildRec !stk args = do
+  -- TODO: Add more cases like buildData for efficiency
+  seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
+  pure $ RecordG seg
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -1389,6 +1389,7 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag NatTag -> "a natural number"
       Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
+      RecordG {} -> "a record"
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
@@ -1592,7 +1593,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     -- TODO: Need to populate with new field values
-    fieldtm <-  readTVar (fieldNums cc)
+    fieldtm <- readTVar (fieldNums cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (fieldNameLookup fieldtm)
@@ -1869,7 +1870,7 @@ reflectValue0 rty rtm = goV0
           DataG _ t seg -> do
             r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> goVs seg
-          DataR _ _t _m -> error "reflectValue: Record reflection not yet implemented"
+          RecordG _args -> error "reflectValue: Record reflection not yet implemented"
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
