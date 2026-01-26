@@ -1361,14 +1361,18 @@ synthesizeWanted e
       appendContext [Var (TypeVar.Existential blank v)]
       pure (existential' l blank v, [])
   | Term.Record' fields <- e = scope (InRecordLiteral (ABT.annotation e)) $ do
-      (fieldTypes, wanted) <-
+      (fieldTypes, wantedSets) <-
         fields
           & Map.traverseWithKey
             ( \fieldName v -> do
-                scope (InRecordField (ABT.annotation v) fieldName) $ synthesize v
+                scope (InRecordField (ABT.annotation v) fieldName) $ do
+                  (t, w) <- synthesize v
+                  pure (t, [w])
             )
           <&> Align.unzip
-      pure (Type.record l fieldTypes, (fold wanted {- should be empty -}))
+      -- Unify ability wants for the whole record
+      wanteds <- foldM coalesceWanted [] (fold wantedSets)
+      pure (Type.record l fieldTypes, wanteds)
   | Term.List' v <- e = do
       ft <- vectorConstructorOfArity l (Foldable.length v)
       case Foldable.toList v of
