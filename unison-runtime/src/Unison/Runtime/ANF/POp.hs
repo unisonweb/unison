@@ -173,8 +173,6 @@ data POp
   | IORB -- or
   -- low level
   | KEEP -- keepAlive
-  | -- Records
-    BLDR -- build record
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
@@ -328,7 +326,6 @@ pOpCode op = case op of
   ANDB -> 146
   IORB -> 147
   KEEP -> 148
-  BLDR -> 149
 
 pOpAssoc :: [(POp, Word16)]
 pOpAssoc = map (\op -> (op, pOpCode op)) [minBound .. maxBound]

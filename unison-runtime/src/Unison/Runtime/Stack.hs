@@ -217,7 +217,7 @@ import Unison.Builtin.Decls as Ty hiding
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
+import Unison.Runtime.ANF (Code, PackedTag, RecordRef, Value, maskTags)
 import Unison.Runtime.Array as PA
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
@@ -417,7 +417,7 @@ data GClosure comb
       !Int
       -- | u/b data stacks
       {-# UNPACK #-} !Seg
-  | GRecord !Seg
+  | GRecord !RecordRef !Seg
   | GForeign !Foreign
   | -- | The type tag for the value in the corresponding unboxed stack slot.
     --
@@ -469,8 +469,8 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern RecordC :: Seg -> Closure
-pattern RecordC seg = Closure (GRecord seg)
+pattern RecordC :: RecordRef -> Seg -> Closure
+pattern RecordC rr seg = Closure (GRecord rr seg)
 
 pattern Captured k a seg = Closure (GCaptured k a seg)
 

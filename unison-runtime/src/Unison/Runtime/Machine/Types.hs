@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+
 module Unison.Runtime.Machine.Types where
 
 import Control.Concurrent (ThreadId)
@@ -32,6 +33,7 @@ import Unison.Runtime.ANF
     foldGroupLinks,
     valueLinks,
   )
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
@@ -80,6 +82,12 @@ refLookup s m r
   | Just w <- M.lookup r m = w
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
+
+recordRefLookup :: M.Map ANF.RecordSchema ANF.RecordRef -> ANF.RecordSchema -> ANF.RecordRef
+recordRefLookup m r
+  | Just rr <- M.lookup r m = rr
+  | otherwise =
+      error $ "recordRefLookup: unknown record schema: " ++ show r
 
 -- A class parameterizing profiling. The interpreter loop can be
 -- specialized to a class, which allows the same code to be used for both
@@ -158,13 +166,11 @@ instance RuntimeProfiler ProfileComm where
 
 #endif
 
-
 fieldNameLookup :: Map Unison.Prelude.Text FieldTag -> Unison.Prelude.Text -> FieldTag
 fieldNameLookup m k
   | Just w <- M.lookup k m = w
   | otherwise =
       error $ "fieldNameLookup: unknown field name: " ++ show k
-
 
 -- code caching environment
 data CCache prof = CCache
@@ -184,7 +190,7 @@ data CCache prof = CCache
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
-    fieldNums :: TVar (M.Map Unison.Prelude.Text FieldTag),
+    recordRefs :: TVar (M.Map ANF.RecordSchema ANF.RecordRef),
     sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
@@ -325,20 +331,20 @@ codeValidate ::
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)
   fty <- readTVarIO (freshTy cc)
-  fNums <- readTVarIO (fieldNums cc)
+  recRefs <- readTVarIO (recordRefs cc)
   let f b r
         | b, M.notMember r rty0 = S.singleton r
         | otherwise = mempty
       ntys0 = (foldMap . foldMap) (foldGroupLinks f) tml
       ntys = M.fromList $ zip (S.toList ntys0) [fty ..]
       rty = ntys <> rty0
-      extractFieldNames = error "TODO: extractFieldNames"
-      fNums' = extractFieldNames extractFieldNames <> fNums
+      recordRefsFromCode = error "TODO: recordRefsFromCode"
+      recRefs' = recordRefsFromCode <> recRefs
   ftm <- readTVarIO (freshTm cc)
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (fieldNameLookup fNums')
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (recordRefLookup recRefs')
       combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs _issues perr) ->
