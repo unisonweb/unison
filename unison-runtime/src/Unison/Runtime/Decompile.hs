@@ -111,6 +111,7 @@ decompile backref topTerms = \case
           app () (builtin () "Any.Any") <$> decompile backref topTerms b
     (DataC rf (maskTags -> ct) vs) ->
       apps' (con rf ct) <$> traverse (decompile backref topTerms) vs
+    (RecordC _vals) -> error "TODO: decompilation for records is unimplemented"
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"

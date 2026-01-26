@@ -18,7 +18,7 @@ module Unison.Runtime.Stack
         Data1,
         Data2,
         DataG,
-        RecordG,
+        RecordC,
         Captured,
         Foreign,
         Affine,
@@ -469,8 +469,8 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern RecordG :: Seg -> Closure
-pattern RecordG seg = Closure (GRecord seg)
+pattern RecordC :: Seg -> Closure
+pattern RecordC seg = Closure (GRecord seg)
 
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
@@ -490,13 +490,13 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, RecordG, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, DataG, RecordC, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, RecordG, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordG, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordG, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
@@ -1595,7 +1595,7 @@ closureNum Foreign {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
 closureNum Affine {} = 6
-closureNum RecordG {} = 7
+closureNum RecordC {} = 7
 
 -- | The `Eq` instance for `Val` can’t be derived because you need to
 -- take into account the fact that if a `Val` is boxed, the unboxed side
