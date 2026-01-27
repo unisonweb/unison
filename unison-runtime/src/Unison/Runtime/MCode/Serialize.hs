@@ -325,11 +325,11 @@ getArgs =
     ArgNT -> VArgN <$> getIntArr
     ArgVT -> VArgV <$> gInt
 
-getRecordRef :: (PrimBase m) => Get m RecordRef
-getRecordRef = RecordRef <$> getWord64be
+-- getRecordRef :: (PrimBase m) => Get m RecordRef
+-- getRecordRef = RecordRef <$> getWord64be
 
-putRecordRef :: RecordRef -> Builder
-putRecordRef (RecordRef r) = BU.word64BE r
+-- putRecordRef :: RecordRef -> Builder
+-- putRecordRef (RecordRef r) = BU.word64BE r
 
 data RefT = StkT | EnvT | DynT
 

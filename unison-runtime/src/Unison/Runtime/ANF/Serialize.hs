@@ -378,6 +378,7 @@ putFunc refrep allowFop ctx f = case f of
     | allowFop -> putTag FForeignT <> putFOp f
     | otherwise ->
         exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
+  FRec schema -> putTag FRecT <> putRecordSchema schema
 
 getFunc ::
   (PrimBase m, Var v) => [v] -> GDeserial m (Func Reference v)
@@ -392,6 +393,7 @@ getFunc ctx (_, allowFOp) =
     FForeignT
       | allowFOp -> FPrim . Right <$> getFOp
       | otherwise -> exn [] "getFunc: can't deserialize a foreign func"
+    FRecT -> FRec <$> getRecordSchema
 
 -- Note: this numbering is derived, and so not particularly stable.
 -- However, foreign functions are not serialized for interchange. This
@@ -655,6 +657,10 @@ putValue v (Data r t vs) =
     <> putReference r
     <> BU.word64BE t
     <> putFoldable (putValue v) vs
+putValue v (Record rs vs) =
+  putTag RecordT
+    <> putRecordSchema rs
+    <> putFoldable (putValue v) vs
 putValue v (Cont bs k) =
   putTag ContT
     <> putFoldable (putValue v) bs
@@ -690,6 +696,11 @@ getValue s@(v, _) =
           w <- getWord64be
           vs <- getList (getValue s)
           pure $ Data r w vs
+    -- Record types didn't exist before version 4
+    RecordT -> do
+      rs <- getRecordSchema
+      vs <- getList (getValue s)
+      pure $ Record rs vs
     ContT
       | Transfer vn <- v,
         vn < 4 -> do
