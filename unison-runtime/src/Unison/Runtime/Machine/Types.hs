@@ -187,6 +187,7 @@ data CCache prof = CCache
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
+    freshRecSchema :: TVar Word64,
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
