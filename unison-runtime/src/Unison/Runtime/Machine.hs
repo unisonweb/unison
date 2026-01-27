@@ -1569,15 +1569,17 @@ normalizeCodes = id
 
 cacheAdd0 ::
   (RuntimeProfiler p) =>
+  S.Set ANF.RecordSchema ->
   S.Set Reference ->
   [(Reference, Code Reference)] ->
   [(Reference, Set Reference)] ->
   CCache p ->
   IO ()
-cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
+cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
+    haveRecSchemas <- readTVar (recordRefs cc)
     let new = M.difference toAdd have
     let sz = fromIntegral $ M.size new
     let rs = M.keys new
@@ -1591,9 +1593,12 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
       stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
+    let newRecSchemas = recSchemas `Set.difference` (M.keysSet haveRecSchemas)
+    let numNewRecSchemas = fromIntegral $ Set.size newRecSchemas
+    nrs <- stateTVar (freshRecSchema cc) $ \i -> (i, i + numNewRecSchemas)
+    let newRecSchemaMap = M.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
-    -- TODO: Need to populate with new field values
-    rrLookup <- updateMap newRecordSchemas (recordRefs cc)
+    rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
         rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
@@ -1715,7 +1720,7 @@ cacheAdd l cc = do
       l'' = filter (\(r, _) -> M.notMember r rtm) l
       l' = map (second codeGroup) l''
   if S.null missing
-    then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 _ tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 data ReflectionState = RS

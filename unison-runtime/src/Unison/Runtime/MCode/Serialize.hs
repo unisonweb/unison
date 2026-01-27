@@ -15,7 +15,7 @@ import Data.ByteString.Builder qualified as BU
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
-import Unison.Runtime.ANF (PackedTag (..), RecordRef (..))
+import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)

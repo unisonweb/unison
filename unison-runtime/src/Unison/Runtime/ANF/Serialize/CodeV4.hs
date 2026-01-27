@@ -304,6 +304,7 @@ putFunc ctx f = case f of
   FReq r c -> putTag FReqT <> putRefNum r <> putCTag c
   FPrim (Left p) -> putTag FPrimT <> putPOp p
   FPrim (Right f) -> putTag FForeignT <> putFOp f
+  FRec recSchema -> putTag FRecT <> putRecordSchema recSchema
 
 getFunc :: (PrimBase m, Var v) => [v] -> Get m (Func RefNum v)
 getFunc ctx =
@@ -315,6 +316,7 @@ getFunc ctx =
     FReqT -> FReq <$> getRefNum <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
     FForeignT -> FPrim . Right <$> getFOp
+    FRecT -> FRec <$> getRecordSchema
 {-# INLINEABLE getFunc #-}
 
 -- Note: this numbering is derived, and so not particularly stable.

@@ -1357,6 +1357,21 @@ labeledDependencies =
     (\r i -> LD.effectConstructor (ConstructorReference r i))
     LD.typeRef
 
+-- | Find all record schemas which are referenced in a given term.
+recordSchemas ::
+  (Ord v, Ord vt) =>
+  Term2 vt at ap v a ->
+  Set (Set Text {- record field schemas -})
+recordSchemas tm =
+  ABT.visit_ collectSchema tm
+    & Writer.execWriter
+    & Set.fromList
+  where
+    collectSchema :: (F typeVar typeAnn patternAnn a1) -> Writer.Writer [Set Text] ()
+    collectSchema = \case
+      Record fields -> Writer.tell $ [Map.keysSet fields]
+      _ -> pure ()
+
 updateDependencies ::
   (Ord v) =>
   Map Referent Referent ->
