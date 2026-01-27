@@ -63,7 +63,20 @@ scratch/bob> branch.diff /alice /bob
 You may also provide the hash of a branch:
 
 ``` ucm
-scratch/bob> branch.diff #f3rpn2h4h8 #mu37g170e5
+scratch/bob> reflog
+
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
+
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+
+       Branch        Hash          Description
+  1.   scratch/bob   #mu37g170e5   update
+  2.   scratch/bob   #3dg1j7ulfc   Branch created from scratch/main
+
+scratch/bob> branch.diff #f3rpn2h4h8 1
 
   Changes on #f3rpn2h4h8:
 
@@ -71,7 +84,8 @@ scratch/bob> branch.diff #f3rpn2h4h8 #mu37g170e5
   ~ foo : Nat
   - bar : Nat
 
-  Changes on #mu37g170e5:
+  Changes on
+  #mu37g170e5jao10jncuv0nqho5vq0otuf0tcjoriu5qj7qsa82ajlsj3kn9fljij549i8r7nn0dspo7ja4emsberqkf89p09vj241g8:
 
   ~ bar : Nat
   ~ baz : Nat
