@@ -60,6 +60,25 @@ scratch/bob> branch.diff /alice /bob
   + (added), ~ (modified), - (deleted)
 ```
 
+You may also provide the hash of a branch:
+
+``` ucm
+scratch/bob> branch.diff #f3rpn2h4h8 #mu37g170e5
+
+  Changes on #f3rpn2h4h8:
+
+  + qux : Nat
+  ~ foo : Nat
+  - bar : Nat
+
+  Changes on #mu37g170e5:
+
+  ~ bar : Nat
+  ~ baz : Nat
+
+  + (added), ~ (modified), - (deleted)
+```
+
 ``` ucm :hide
 scratch/main> project.delete scratch
 ```
