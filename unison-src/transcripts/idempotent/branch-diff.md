@@ -5,107 +5,45 @@ deletes, for each branch, since their LCA.
 scratch/main> builtins.mergeio lib.builtin
 ```
 
-``` unison
+``` unison :hide
 foo = 17
 bar = foo + foo
 baz = 18
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + bar : Nat
-  + baz : Nat
-  + foo : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 scratch/main> branch alice
-
-  Done. I've created the alice branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
 
 scratch/main> switch /alice
 
 scratch/alice> delete bar
-
-  I deleted these terms:
-
-    1. bar
-
-  Tip: You can use `undo` or use a hash from `reflog` to undo
-       this change.
 ```
 
-``` unison
+``` unison :hide
 foo = 19
 qux = 20
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + qux : Nat
-  ~ foo : Nat
-
-  + (added), ~ (modified)
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
 
 scratch/alice> switch /main
 
 scratch/main> branch bob
-
-  Done. I've created the bob branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /bob`.
 ```
 
-``` unison
+``` unison :hide
 baz = 21
 bar = foo + foo + foo
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  ~ bar : Nat
-  ~ baz : Nat
-
-  ~ (modified)
-
-  Run `update` to apply these changes to your codebase.
+``` ucm :hide
+scratch/bob> update
 ```
 
 ``` ucm
-scratch/bob> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 scratch/bob> branch.diff /alice /bob
 
   Changes on /alice:
@@ -115,6 +53,39 @@ scratch/bob> branch.diff /alice /bob
   - bar : Nat
 
   Changes on /bob:
+
+  ~ bar : Nat
+  ~ baz : Nat
+
+  + (added), ~ (modified), - (deleted)
+```
+
+You may also provide the hash of a branch:
+
+``` ucm
+scratch/bob> reflog
+
+  Below is a record of recent changes, you can use
+  `reset #abcdef` to reset the current branch to a previous
+  state.
+
+  Tip: Use `diff.namespace 1 7` to compare between points in
+       history.
+
+       Branch        Hash          Description
+  1.   scratch/bob   #mu37g170e5   update
+  2.   scratch/bob   #3dg1j7ulfc   Branch created from scratch/main
+
+scratch/bob> branch.diff #f3rpn2h4h8 1
+
+  Changes on #f3rpn2h4h8:
+
+  + qux : Nat
+  ~ foo : Nat
+  - bar : Nat
+
+  Changes on
+  #mu37g170e5jao10jncuv0nqho5vq0otuf0tcjoriu5qj7qsa82ajlsj3kn9fljij549i8r7nn0dspo7ja4emsberqkf89p09vj241g8:
 
   ~ bar : Nat
   ~ baz : Nat
@@ -132,14 +103,11 @@ If two branches are identical, we just get a textual message (no diff).
 scratch/main> builtins.mergeio lib.builtin
 ```
 
-``` ucm
+``` ucm :hide
 scratch/main> branch alice
+```
 
-  Done. I've created the alice branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
+``` ucm
 scratch/main> branch.diff /main /alice
 
   Those branches are the same.
@@ -155,88 +123,39 @@ scratch/main> project.delete scratch
 scratch/main> builtins.mergeio lib.builtin
 ```
 
-``` unison
+``` unison :hide
 foo = 17
 bar = 18
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + bar : Nat
-  + foo : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/main> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
 
 scratch/main> move.term foo lib.foo.foo
 
-  Done.
-
 scratch/main> move.term bar lib.bar.bar
-
-  Done.
 
 scratch/main> branch alice
 
-  Done. I've created the alice branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /alice`.
-
 scratch/alice> delete.force lib.foo.foo
-
-  I deleted these terms:
-
-    1. lib.foo.foo
-
-  Tip: You can use `undo` or use a hash from `reflog` to undo
-       this change.
 ```
 
-``` unison
+``` unison :hide
 foo = 18
 baz = 19
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + baz : Nat
-  + foo : Nat
-      (also named lib.bar.bar)
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/alice> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
 
 scratch/alice> move.term foo lib.foo.foo
 
-  Done.
-
 scratch/alice> move.term baz lib.baz.baz
 
-  Done.
-
 scratch/alice> delete.namespace lib.bar
+```
 
-  Done.
-
+``` ucm
 scratch/alice> branch.diff /main /alice
 
   Changes on /alice:
@@ -254,53 +173,25 @@ scratch/main> project.delete scratch
 
 If two branches don't share any history, `branch.diff` treats the first argument as the LCA.
 
-``` unison
+``` unison :hide
 main = "main"
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + main : ##Text
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/main> update
 
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 scratch/main> branch.create-empty topic
-
-  Done. I've created an empty branch scratch/topic.
-
-  Tip: Use `merge /somebranch` to initialize this branch.
 ```
 
-``` unison
+``` unison :hide
 topic = "topic"
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + topic : ##Text
-
-  Run `update` to apply these changes to your codebase.
+``` ucm :hide
+scratch/topic> update
 ```
 
 ``` ucm
-scratch/topic> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
-
 scratch/topic> branch.diff /main /topic
 
   Changes on /topic:
@@ -330,68 +221,32 @@ Libdep names are canonicalized, so differences in libdeps often register as prop
 scratch/main> builtins.mergeio lib.builtin
 ```
 
-``` unison
+``` unison :hide
 thing = 17
 foo = thing + thing
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + foo   : Nat
-  + thing : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/main> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
 
 scratch/main> move thing lib.dep_1_0_0.thing
 
-  Done.
-
 scratch/main> branch topic
-
-  Done. I've created the topic branch based off of main.
-
-  Tip: To merge your work back into the main branch, first
-       `switch /main` then `merge /topic`.
 ```
 
-``` unison
+``` unison :hide
 thing = 18
 ```
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + thing : Nat
-
-  Run `update` to apply these changes to your codebase.
-```
-
-``` ucm
+``` ucm :hide
 scratch/topic> update
-
-  Okay, I'm searching the branch for code that needs to be
-  updated...
-
-  Done.
 
 scratch/topic> move thing lib.dep_2_0_0.thing
 
-  Done.
-
 scratch/topic> upgrade dep_1_0_0 dep_2_0_0
+```
 
-  I upgraded dep_1_0_0 to dep_2_0_0.
-
+``` ucm
 scratch/topic> diff.branch /main /topic
 
   Changes on /topic:

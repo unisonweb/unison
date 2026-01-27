@@ -2488,10 +2488,18 @@ diffBranch =
         args -> wrongArgsLength "two arguments" args
     }
   where
-    -- TODO handle causal hash
     handleDiffBranchTargetArg :: I.Argument -> Either (P.Pretty P.ColorText) Input.DiffBranchArg
-    handleDiffBranchTargetArg arg =
-      Input.DiffBranchArg'Branch <$> handleMaybeProjectBranchArg arg
+    handleDiffBranchTargetArg = \case
+      I.RawArg raw ->
+        if take 1 raw == "#"
+          then case Input.parseShortCausalHash raw of
+            Right sch -> Right (Input.DiffBranchArg'Hash sch)
+            Left err -> Left (P.string err)
+          else megaparse (Input.DiffBranchArg'Branch <$> branchWithOptionalProjectParser) (Text.pack raw)
+      I.StructuredArg sa -> case sa of
+        SA.ProjectBranch pb -> Right (Input.DiffBranchArg'Branch pb)
+        SA.Namespace hash -> Right (Input.DiffBranchArg'Hash (SCH.fromFullHash hash))
+        otherArgType -> Left (wrongStructuredArgument "a branch or hash" otherArgType)
 
 diffNamespace :: InputPattern
 diffNamespace =
