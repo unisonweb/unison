@@ -209,7 +209,7 @@ recursiveDeclDeps ::
   CodeLookup Symbol IO () ->
   Decl Symbol () ->
   -- (type deps, term deps)
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
 recursiveDeclDeps cl d = do
   seen0 <- get
   let seen = seen0 <> Set.map RF.typeRef deps
@@ -223,7 +223,7 @@ recursiveDeclDeps cl d = do
             Just d -> recursiveDeclDeps cl d
             Nothing -> pure mempty
         _ -> pure mempty
-  pure $ (deps, mempty) <> rec
+  pure $ (deps, mempty, mempty) <> rec
   where
     deps = declTypeDependencies d
 
@@ -238,7 +238,7 @@ recursiveTermDeps ::
   CodeLookup Symbol IO () ->
   Term Symbol ->
   -- (type deps, term deps)
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
 recursiveTermDeps cl tm = do
   seen0 <- get
   let seen = seen0 <> deps
@@ -250,9 +250,12 @@ recursiveTermDeps cl tm = do
         RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
         RF.TermReference r -> recursiveRefDeps cl r
         _ -> pure mempty
-  pure $ foldMap categorize deps <> rec
+
+  let (tyrs, tmrs) = foldMap categorize deps
+  let (tyrs, tmrs, recSchemas) = (tyrs, tmrs, mempty) <> rec
+  pure (tyrs, tmrs, error "recursiveTermDeps Record Schemas")
   where
-    handleTypeReferenceId :: RF.Id -> StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+    handleTypeReferenceId :: RF.Id -> StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
     handleTypeReferenceId refId =
       lift (getTypeDeclaration cl refId) >>= \case
         Just d -> recursiveDeclDeps cl d
@@ -262,7 +265,7 @@ recursiveTermDeps cl tm = do
 recursiveRefDeps ::
   CodeLookup Symbol IO () ->
   Reference ->
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
 recursiveRefDeps cl (RF.DerivedId i) =
   lift (getTerm cl i) >>= \case
     Just tm -> recursiveTermDeps cl tm
@@ -305,7 +308,7 @@ collectDeps ::
   Term Symbol ->
   IO ([(Reference, Either [Int] [Int])], [Reference])
 collectDeps cl tm = do
-  (tys, tms) <- evalStateT (recursiveTermDeps cl tm) mempty
+  (tys, tms, _rss) <- evalStateT (recursiveTermDeps cl tm) mempty
   (,toList tms) <$> (traverse getDecl (toList tys))
   where
     getDecl ty@(RF.DerivedId i) =
@@ -920,12 +923,12 @@ data StoredCache
       (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
-      (Map Unison.Prelude.Text TT.FieldTag)
+      (Map ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty fts sbs) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty rsLookup sbs) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -936,7 +939,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty fts s
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
     <> putMap putReference putNat rty
-    <> putMap putText putFieldTag fts
+    <> putMap putRecordSchema putRecordRef rsLookup
     <> putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: (PrimBase m) => Get m StoredCache
@@ -952,7 +955,7 @@ getStoredCache =
     <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
-    <*> getMap getText getFieldTag
+    <*> getMap getRecordSchema getRecordRef
     <*> getMap getReference (fromList <$> getList getReference)
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
@@ -1043,10 +1046,10 @@ buildSCache ::
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
-  Map Text TT.FieldTag ->
+  Map ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc fts sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc rsLookup sndbx =
   SCache
     cs
     crs
@@ -1058,7 +1061,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc ft
     int
     rtm
     (restrictTyR rtysrc)
-    fts
+    rsLookup
     (restrictTmR sndbx)
   where
     termRefs = Map.keysSet int
@@ -1105,7 +1108,7 @@ standalone cc init =
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
           <*> readTVarIO (refTy cc)
-          <*> readTVarIO (fieldNums cc)
+          <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
