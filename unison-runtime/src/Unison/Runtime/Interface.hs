@@ -844,9 +844,10 @@ executeMainComb init cc = do
   where
     contextualizeErr re = do
       crs <- readTVarIO (combRefs cc)
+      rsLookup <- recordRefs cc
       let ctx = cacheContext cc
           decom =
-            decompile (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
+            decompile _ (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
               decompTm ctx
       pure $ RuntimeExn (pure (mempty, id, decom)) re
 

@@ -100,6 +100,7 @@ import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
+import Unison.Util.BiMap qualified as BM
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty qualified as P
 import Unison.Util.Text qualified as Util.Text
@@ -1593,10 +1594,10 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
       stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
-    let newRecSchemas = recSchemas `Set.difference` (M.keysSet haveRecSchemas)
+    let newRecSchemas = recSchemas `Set.difference` (BM.keysSetL haveRecSchemas)
     let numNewRecSchemas = fromIntegral $ Set.size newRecSchemas
     nrs <- stateTVar (freshRecSchema cc) $ \i -> (i, i + numNewRecSchemas)
-    let newRecSchemaMap = M.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
+    let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
     -- check for missing references
@@ -1953,7 +1954,7 @@ reifyValue cc val = do
   traverse (\rfs -> reifyValue1 rfs val) erc
 
 reifyValue1 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, M.Map ANF.RecordSchema ANF.RecordRef) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef) ->
   Referenced ANF.Value ->
   IO Val
 reifyValue1 tup (Plain v) = reifyValue0 tup v
@@ -1973,7 +1974,7 @@ reifyValue0Canon ::
   [Reference] ->
   HM.HashMap RefNum Word64 ->
   HM.HashMap RefNum Word64 ->
-  Map ANF.RecordSchema ANF.RecordRef ->
+  BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   ANF.Value RefNum ->
   IO Val
 reifyValue0Canon combs tys tms rty rtm rrLookup = goV
@@ -2034,7 +2035,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup = goV
       rf <- ixTy rn
       boxedVal . formDataReplaced rf t <$> goVs vs
     goV (ANF.Record rs vals) = do
-      rref <- case M.lookup rs rrLookup of
+      rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals
@@ -2095,7 +2096,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup = goV
         goP (x, y) = (,) <$> goV x <*> goV y
 
 reifyValue0 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, M.Map ANF.RecordSchema ANF.RecordRef) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef) ->
   ANF.Value Reference ->
   IO Val
 reifyValue0 (combs, rty, rtm, rrLookup) = goV
@@ -2135,7 +2136,7 @@ reifyValue0 (combs, rty, rtm, rrLookup) = goV
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       boxedVal . formDataReplaced r t <$> goVs vs
     goV (ANF.Record rs vals) = do
-      rref <- case M.lookup rs rrLookup of
+      rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals

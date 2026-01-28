@@ -11,10 +11,13 @@ module Unison.Util.BiMap
     insert,
     deleteL,
     deleteR,
+    keysSetL,
+    keysSetR,
   )
 where
 
 import Data.Map qualified as Map
+import Data.Set (Set)
 import Data.Tuple (swap)
 
 -- | A bidirectional map between keys of type k and values of type v.
@@ -77,6 +80,12 @@ deleteL k bm = case lookupL k bm of
 
 deleteR :: (Ord v, Ord k) => v -> BiMap k v -> BiMap k v
 deleteR v bm = flipped $ deleteL v (flipped bm)
+
+keysSetL :: BiMap k v -> Set k
+keysSetL (BiMap f _) = Map.keysSet f
+
+keysSetR :: BiMap k v -> Set v
+keysSetR (BiMap _ b) = Map.keysSet b
 
 flipped :: BiMap k v -> BiMap v k
 flipped (BiMap f b) = BiMap b f
