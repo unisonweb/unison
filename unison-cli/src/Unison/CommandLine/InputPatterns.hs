@@ -3676,7 +3676,7 @@ squashProjectBranch =
       params = Parameters [("branch-to-squash", projectBranchNameArg suggestionsConfig), ("destination-branch", newBranchNameArg)] $ Optional [] Nothing,
       help =
         P.wrapColumn2
-          [ ("`branch.squash /foo /bar`", "creates (or updates) the branch `/bar` with a snapshot of the code at branch `/foo` without any of its history.")
+          [ ("`branch.squash /foo /bar`", "creates (or updates) the branch `/bar` with a snapshot of the code at branch `/foo` without any history.")
           ],
       parse = \case
         [branchToSquash, newNameString] ->
