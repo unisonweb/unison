@@ -351,6 +351,13 @@ pretty0
             let open = listLink "[" `PP.orElse` listLink "[ "
             let close = listLink "]" `PP.orElse` ("\n" <> listLink "]")
             pure $ PP.group (open <> PP.sep comma pelems <> close)
+          Record' fields -> do
+            renderedFields <- for (Map.toList fields) \(fieldName, v) ->
+              do
+                pretty0 (ac Annotation Normal im doc) v
+                <&> (\v -> fmt (S.RecordFieldName fieldName) (PP.text fieldName) <> fmt S.RecordFieldValueColon ": " <> v)
+                <&> PP.indentNAfterNewline 2
+            pure $ PP.group $ PP.surroundCommas "{" "}" renderedFields
           If' cond t f ->
             do
               pcond <- pretty0 (ac Control Block im doc) cond
@@ -423,7 +430,7 @@ pretty0
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
           Apps' f args -> paren (p >= Application) <$> (PP.hang <$> goNormal (InfixOp Highest) f <*> PP.spacedTraverse (goNormal Application) args)
-          t -> pure $ l "error: " <> l (show t)
+          t -> pure $ l "TermPrinter:pretty0: Unhandled term: " <> l (show t)
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
       specialCases term go = do
