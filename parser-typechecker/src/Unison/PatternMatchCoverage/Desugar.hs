@@ -3,6 +3,9 @@ module Unison.PatternMatchCoverage.Desugar
   )
 where
 
+import Data.Align qualified as Align
+import Data.Map qualified as Map
+import Data.These (These (..))
 import U.Core.ABT qualified as ABT
 import Unison.Pattern
 import Unison.Pattern qualified as Pattern
@@ -10,6 +13,7 @@ import Unison.PatternMatchCoverage.Class
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.PmGrd
 import Unison.PatternMatchCoverage.PmLit qualified as PmLit
+import Unison.Prelude
 import Unison.Term (MatchCase (..), Term', app, var)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -69,7 +73,9 @@ desugarPattern typ v0 pat k vs = case pat of
         tpatvars = zipWith (\(v, p) t -> (v, p, t)) patvars contyps
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
-  RecordLiteral _loc _fields -> error "desugarPattern: Record patterns not implemented"
+  RecordLiteral _loc fields
+    | Type.Record' typeFields <- typ -> handleRecord typeFields v0 k fields vs
+    | otherwise -> error "desugarPattern: RecordLiteral pattern does not correspond to record type"
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure _ resume -> do
     v <- fresh
@@ -88,6 +94,37 @@ desugarPattern typ v0 pat k vs = case pat of
     pure (Grd c rest)
   SequenceLiteral {} -> handleSequence typ v0 pat k vs
   SequenceOp {} -> handleSequence typ v0 pat k vs
+
+handleRecord ::
+  forall v vt loc m.
+  (Pmc vt v loc m) =>
+  (Map Text (Type vt loc)) ->
+  v ->
+  ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
+  Map Text (Pattern loc) ->
+  [v] ->
+  m (GrdTree (PmGrd vt v loc) loc)
+handleRecord typeFields _recordVar k fieldPats vs = do
+  let go ::
+        (Text, These (Type vt loc) (Pattern loc)) ->
+        ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
+        [v] ->
+        m (GrdTree (PmGrd vt v loc) loc)
+      go (fieldName, v) k vs =
+        case v of
+          -- There's a field in the type we didn't match, that's fine, just skip
+          This _fieldTyp -> k vs
+          -- There's a field in the pattern we don't have in the type, that's an error.
+          That _patLoc -> do
+            error $ "TODO: this error should likely happen elsewhere: handleRecord: extra field in pattern. " <> show fieldName
+          These fieldType fieldPat -> do
+            fieldVar <- fresh
+            let grd = PmRecordField fieldName fieldVar fieldType
+            rest <- desugarPattern fieldType fieldVar fieldPat k vs
+            pure (Grd grd rest)
+  Align.align typeFields fieldPats
+    & Map.toList
+    & \fs -> foldr go k fs vs
 
 handleSequence ::
   forall v vt loc m.
