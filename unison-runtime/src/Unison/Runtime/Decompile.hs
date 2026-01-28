@@ -94,7 +94,7 @@ type DecompResult v = (Set DecompError, Term v ())
 decompile ::
   forall v.
   (Var v) =>
-  (ANF.RecordRef -> ANF.RecordSchema) ->
+  (ANF.RecordRef -> Maybe ANF.RecordSchema) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Val ->
@@ -116,8 +116,12 @@ decompile rsLookup backref topTerms = \case
       apps' (con rf ct) <$> traverse (decompile rsLookup backref topTerms) vs
     (RecordC rr vals) -> do
       vs' <- traverse (decompile rsLookup backref topTerms) vals
-      let (ANF.RecordSchema fields) = rsLookup rr
-      pure $ Term.record () (Map.fromList $ zip (Set.toList fields) vs')
+      case rsLookup rr of
+        Just (ANF.RecordSchema fields) ->
+          pure $ Term.record () (Map.fromList $ zip (Set.toList fields) vs')
+        Nothing ->
+          -- Unknown record schema, some error locations just lack the context, we'll do the best we can.
+          pure $ Term.record () (Map.fromList $ zip ([(1 :: Int) ..] <&> \n -> "<unknown field " <> tShow n <> ">") vs')
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"
@@ -153,7 +157,7 @@ substitute = align []
 
 decompileForeign ::
   (Var v) =>
-  (ANF.RecordRef -> ANF.RecordSchema) ->
+  (ANF.RecordRef -> Maybe ANF.RecordSchema) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->

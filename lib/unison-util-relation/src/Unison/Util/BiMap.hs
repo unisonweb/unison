@@ -3,6 +3,7 @@ module Unison.Util.BiMap
     empty,
     singleton,
     fromList,
+    fromMap,
     toList,
     lookupL,
     lookupR,
@@ -47,6 +48,11 @@ fromList kvs =
   let forward = Map.fromList kvs
       backward = Map.fromList (swap <$> Map.toList forward)
    in BiMap {forward, backward}
+
+fromMap :: (Ord k, Ord v) => Map.Map k v -> BiMap k v
+fromMap f =
+  let b = Map.fromList (swap <$> Map.toList f)
+   in BiMap f b
 
 toList :: BiMap k v -> [(k, v)]
 toList (BiMap f _) = Map.toList f
