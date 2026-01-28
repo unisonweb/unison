@@ -16,12 +16,11 @@ import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch qualified as Branch
 import Unison.Codebase.Branch.Names qualified as Branch
 import Unison.Codebase.Editor.Output qualified as Output
-import Unison.DataDeclaration (Decl, DeclOrBuiltin)
+import Unison.DataDeclaration (Decl)
 import Unison.DeclCoherencyCheck qualified as DeclCoherencyCheck
 import Unison.Name (Name)
 import Unison.Names (Names (Names))
 import Unison.Names qualified as Names
-import Unison.OrBuiltin (OrBuiltin (..))
 import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -148,24 +147,6 @@ handleDiffUpdate = do
             )
             updatedTermRefIds
             updatedFileTerms
-
-  -- Get type declarations from the file (including reference IDs)
-  let fileDataDecls :: Map Name (DeclOrBuiltin Symbol Ann)
-      fileDataDecls =
-        Map.fromList
-          [ (Name.unsafeParseVar var, NotBuiltin (Right decl))
-            | (var, (_, decl)) <- Map.toList (UF.dataDeclarationsId' tuf)
-          ]
-
-  let fileEffectDecls :: Map Name (DeclOrBuiltin Symbol Ann)
-      fileEffectDecls =
-        Map.fromList
-          [ (Name.unsafeParseVar var, NotBuiltin (Left decl))
-            | (var, (_, decl)) <- Map.toList (UF.effectDeclarationsId' tuf)
-          ]
-
-  let fileTypeDecls :: Map Name (DeclOrBuiltin Symbol Ann)
-      fileTypeDecls = Map.union fileDataDecls fileEffectDecls
 
   -- File types with their reference IDs (for updated types rendering)
   let fileTypeDeclsWithRefIds :: Map Name (TypeReferenceId, Decl Symbol Ann)
