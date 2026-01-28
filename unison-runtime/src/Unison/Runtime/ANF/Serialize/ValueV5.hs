@@ -93,6 +93,10 @@ putValue = \case
       <> putFoldable putValue bs
       <> putCont k
   BLit l -> putTag BLitT <> putBLit l
+  Record rs vs ->
+    putTag RecordT
+      <> putRecordSchema rs
+      <> putFoldable putValue vs
 
 getValue :: (PrimBase m) => Get m (Value RefNum)
 getValue =
@@ -111,6 +115,10 @@ getValue =
       k <- getCont
       pure $ Cont bs k
     BLitT -> BLit <$> getBLit
+    RecordT -> do
+      rs <- getRecordSchema
+      vs <- getList getValue
+      pure $ Record rs vs
 {-# INLINEABLE getValue #-}
 
 putCont :: Cont RefNum -> Builder
