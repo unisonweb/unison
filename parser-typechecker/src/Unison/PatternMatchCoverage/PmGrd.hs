@@ -1,5 +1,6 @@
 module Unison.PatternMatchCoverage.PmGrd where
 
+import Data.Map (Map)
 import Data.Text (Text)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.PmLit (PmLit, prettyPmLit)
@@ -58,12 +59,12 @@ data
   | -- | @PmLet x expr@ corresponds to a @let x = expr@ guard. This actually
     -- /binds/ @x@.
     PmLet v (Term' vt v loc) (Type vt loc)
-  | PmRecordField
-      -- | field name
-      Text
-      -- | value
+  | PmRecordLiteral
+      -- | record fields
+      (Map Text v)
+      -- | record value
       v
-      -- | element type
+      -- | record type
       (Type vt loc)
   deriving stock (Show)
 
@@ -82,6 +83,6 @@ prettyPmGrd ppe = \case
   PmLit var lit -> sep " " [prettyPmLit lit, "<-", prettyVar var]
   PmBang v -> "!" <> prettyVar v
   PmLet v _expr _ -> sep " " ["let", prettyVar v, "=", "<expr>"]
-  PmRecordField field v _ -> "{" <> sep ", " [string (show field), ": ", prettyVar v] <> "}"
+  PmRecordLiteral field v _ -> "{" <> sep ", " [string (show field), ": ", prettyVar v] <> "}"
   where
     pc = prettyConstructorReference ppe

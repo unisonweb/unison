@@ -4,6 +4,9 @@ module Unison.PatternMatchCoverage.Literal
   )
 where
 
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Text (Text)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.EffectHandler
 import Unison.PatternMatchCoverage.IntervalSet (IntervalSet)
@@ -66,6 +69,13 @@ data Literal vt v loc
     Effectful v
   | -- | Introduce a binding for a term
     Let v (Term' vt v loc) (Type vt loc)
+  | PosRecordLiteral
+      -- | record root
+      v
+      -- | fields
+      (Map Text v)
+      -- | record type
+      (Type vt loc)
   deriving stock (Show)
 
 prettyLiteral :: (Var v) => Literal (TypeVar b v) v loc -> Pretty ColorText
@@ -87,6 +97,9 @@ prettyLiteral = \case
   NegListInterval var x -> sep " " [pv var, "≠", string (show x)]
   Effectful var -> "!" <> pv var
   Let var expr typ -> sep " " ["let", pv var, "=", TermPrinter.pretty PPE.empty (lowerTerm expr), ":", TypePrinter.pretty PPE.empty typ]
+  PosRecordLiteral root fields _ ->
+    let fieldStrs = fmap (\(k, v) -> sep " " [pc k, ":", pv v]) (Map.toList fields)
+     in "{" <> sep " " [sep ", " fieldStrs, "<-", "record", pv root] <> "}"
   where
     pv = string . show
     pc :: forall a. (Show a) => a -> Pretty ColorText
