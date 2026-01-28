@@ -462,7 +462,7 @@ loadDeps cl ppe ctx tyrs tmrs recSchemas = do
   let tyAdd = Set.fromList $ fst <$> tyrs
   (ctx', rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
-  (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
+  (ctx', crgrp) <$ cacheAdd0 recSchemas tyAdd crgrp (expandSandbox sand rgrp) cc
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
@@ -612,8 +612,8 @@ interpCompile ::
   IO (Maybe Error)
 interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
-  (tyrs, tmrs) <- collectRefDeps cl rf
-  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
+  (tyrs, tmrs, recSchemas) <- collectRefDeps cl rf
+  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs recSchemas
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
@@ -921,6 +921,7 @@ data StoredCache
       (EnumMap Word64 Reference)
       Word64
       Word64
+      Word64
       (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
@@ -929,7 +930,7 @@ data StoredCache
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty rsLookup sbs) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -937,6 +938,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty rsLoo
     <> putEnumMap putNat putReference trs
     <> putNat ftm
     <> putNat fty
+    <> putNat frs
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
     <> putMap putReference putNat rty
@@ -953,6 +955,7 @@ getStoredCache =
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
+    <*> getNat
     <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
@@ -966,7 +969,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty fts sbs) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs) = do
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -977,10 +980,11 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
       <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
       <*> newTVarIO fty
+      <*> newTVarIO frs
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
-      <*> newTVarIO fts
+      <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
         srcCombs
@@ -1044,13 +1048,14 @@ buildSCache ::
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
+  Word64 ->
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
   Map ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc rsLookup sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx =
   SCache
     cs
     crs
@@ -1059,6 +1064,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc rs
     trs
     ftm
     fty
+    frs
     int
     rtm
     (restrictTyR rtysrc)
@@ -1106,6 +1112,7 @@ standalone cc init =
           <*> readTVarIO (tagRefs cc)
           <*> readTVarIO (freshTm cc)
           <*> readTVarIO (freshTy cc)
+          <*> readTVarIO (freshRecSchema cc)
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
           <*> readTVarIO (refTy cc)

@@ -218,6 +218,7 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
     <*> newTVarIO fty
+    <*> newTVarIO frs
     <*> newTVarIO mempty
     <*> newTVarIO builtinTermNumbering
     <*> newTVarIO builtinTypeNumbering
@@ -229,6 +230,8 @@ baseCCache sandboxed = do
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
+    -- No builtin record schemas yet
+    frs = 1
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
