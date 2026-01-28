@@ -1000,8 +1000,14 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
   preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
   pure cc
   where
+    recordSchemaLookup :: ANF.RecordRef -> ANF.RecordSchema
+    recordSchemaLookup rr =
+      fromMaybe
+        (error $ "restoreCache: unknown record schema for ref: " ++ show rr)
+        (Map.lookup rr recSchemas)
     decom =
       decompile
+        recordSchemaLookup
         (const Nothing)
         (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
