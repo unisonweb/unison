@@ -44,7 +44,7 @@
   branch.squash (or squash.branch)
   `branch.squash /foo /bar`  creates (or updates) the branch
                              `/bar` with a snapshot of the code
-                             at branch `/foo` without any of its
+                             at branch `/foo` without any
                              history.
 
   branches (or list.branch, ls.branch, branch.list)
