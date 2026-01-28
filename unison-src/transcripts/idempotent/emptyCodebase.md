@@ -21,7 +21,7 @@ Technically, the definitions all exist, but they have no names. `builtins.merge`
 
 > ls lib
 
-  1. builtins. (746 terms, 116 types)
+  1. builtins. (747 terms, 116 types)
 ```
 
 And for a limited time, you can get even more builtin goodies:
@@ -33,8 +33,8 @@ And for a limited time, you can get even more builtin goodies:
 
 > ls lib
 
-  1. builtins.   (746 terms, 116 types)
-  2. builtinsio. (919 terms, 134 types)
+  1. builtins.   (747 terms, 116 types)
+  2. builtinsio. (920 terms, 134 types)
 ```
 
 More typically, you'd start out by pulling `base`.

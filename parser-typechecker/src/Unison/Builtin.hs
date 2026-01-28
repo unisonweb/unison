@@ -909,7 +909,8 @@ builtinsSrc =
     B "PinnedByteArray.contents" $ forall1 "g" \g ->
       pinnedByteArrayt g --> ptr nat8,
     B "IO.keepAlive" $ forall2 "a" "b" \a b ->
-      a --> (unit --> io b) --> io b
+      a --> (unit --> io b) --> io b,
+    B "FFI.Ptr.null" $ forall1 "a" \a -> ptr a
   ]
     ++
     -- avoid name conflicts with Universal == < > <= >=
