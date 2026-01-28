@@ -55,7 +55,7 @@ import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
-import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.Pattern qualified as Syntax.Pattern
 import Unison.Syntax.Precedence (operatorPrecedence)
@@ -304,6 +304,8 @@ parsePattern =
           Parser.seq Syntax.Pattern.SequenceLiteral pRoot,
           -- () or (pat, pat) or (pat, pat, pat) [which is actually parsed as (pat, (pat, pat)]
           pParenOrTuple,
+          -- { a : b, c : d }
+          P.try pRecord,
           -- { pat -> pat } or { pat }
           pEffect
         ]
@@ -392,6 +394,18 @@ parsePattern =
         pEffectPure =
           parsePattern <&> \pat -> Syntax.Pattern.EffectPure (ann pat) pat
 
+    pRecord :: P v m (Syntax.Pattern.Pattern v)
+    pRecord = do
+      start <- openBlockWith "{"
+      let field = do
+            fieldName <- Parser.recordFieldName
+            _ <- reserved ":"
+            fieldPattern <- parsePattern
+            pure (fieldName, fieldPattern)
+      fields <- sepBy (reserved ",") field
+      end <- closeBlock
+      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) fields)
+
     -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
     -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
     -- it's the latter, we might see that it's actually not a nullary constructor but actually a variable in an
@@ -446,6 +460,11 @@ bindConstructorsInPattern =
         )
           <$> bindConstructorsInPattern1 lpat1
           <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.RecordLiteral pos fields ->
+        (traverse . traverse) bindConstructorsInPattern1 fields
+          <&> fmap (first L.payload)
+          <&> Map.fromList
+          <&> Pattern.RecordLiteral pos
       Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
       Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
         Pattern.SequenceOp pos

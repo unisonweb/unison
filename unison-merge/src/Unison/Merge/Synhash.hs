@@ -323,7 +323,7 @@ hashPatternTokens ppe = \case
         Pattern.Concat -> H.Tag 0
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
-  Pattern.Record _ ps ->
+  Pattern.RecordLiteral _ ps ->
     H.Tag 17
       : (Map.toList ps >>= \(txt, p) -> H.Text txt : hashPatternTokens ppe p)
 

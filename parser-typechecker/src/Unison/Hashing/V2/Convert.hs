@@ -150,7 +150,7 @@ m2hPattern = \case
   Memory.Pattern.Char loc c -> Hashing.PatternChar loc c
   Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps ->
     Hashing.PatternConstructor loc (m2hReference r) i (fmap m2hPattern ps)
-  Memory.Pattern.Record loc fields -> Hashing.PatternRecord loc (m2hPattern <$> fields)
+  Memory.Pattern.RecordLiteral loc fields -> Hashing.PatternRecord loc (m2hPattern <$> fields)
   Memory.Pattern.As loc p -> Hashing.PatternAs loc (m2hPattern p)
   Memory.Pattern.EffectPure loc p -> Hashing.PatternEffectPure loc (m2hPattern p)
   Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference r i) ps k ->
@@ -213,7 +213,7 @@ h2mPattern = \case
   Hashing.PatternChar loc c -> Memory.Pattern.Char loc c
   Hashing.PatternConstructor loc r i ps ->
     Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
-  Hashing.PatternRecord loc fields -> Memory.Pattern.Record loc (h2mPattern <$> fields)
+  Hashing.PatternRecord loc fields -> Memory.Pattern.RecordLiteral loc (h2mPattern <$> fields)
   Hashing.PatternAs loc p -> Memory.Pattern.As loc (h2mPattern p)
   Hashing.PatternEffectPure loc p -> Memory.Pattern.EffectPure loc (h2mPattern p)
   Hashing.PatternEffectBind loc r i ps k ->
