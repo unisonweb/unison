@@ -11,6 +11,7 @@ module Unison.Runtime.Stack
     Closure
       ( ..,
         DataC,
+        RecordC,
         PApV,
         CapV,
         PAp,
@@ -18,7 +19,7 @@ module Unison.Runtime.Stack
         Data1,
         Data2,
         DataG,
-        RecordC,
+        RecordG,
         Captured,
         Foreign,
         Affine,
@@ -469,8 +470,8 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern RecordC :: RecordRef -> Seg -> Closure
-pattern RecordC rr seg = Closure (GRecord rr seg)
+pattern RecordG :: RecordRef -> Seg -> Closure
+pattern RecordG rr seg = Closure (GRecord rr seg)
 
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
@@ -623,6 +624,11 @@ pattern DataC rf ct segs <-
   (splitData -> Just (rf, ct, segs))
   where
     DataC rf ct segs = formData rf ct segs
+
+pattern RecordC :: RecordRef -> SegList -> Closure
+pattern RecordC rr segList <- (RecordG rr (segToList -> segList))
+  where
+    RecordC rr seg = RecordG rr (segFromList seg)
 
 matchCharVal :: Val -> Maybe Char
 matchCharVal = \case

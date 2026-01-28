@@ -13,6 +13,7 @@ where
 
 import Data.Map qualified as Map
 import Data.Set (singleton)
+import Data.Set qualified as Set
 import Data.Text qualified as DT
 import Numeric.Natural (Natural)
 import Unison.ABT (substs)
@@ -23,6 +24,7 @@ import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
 import Unison.Referent qualified as Referent
 import Unison.Runtime.ANF (maskTags)
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array (byteArrayToList)
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
 import Unison.Runtime.MCode (CombIx (..))
@@ -92,11 +94,12 @@ type DecompResult v = (Set DecompError, Term v ())
 decompile ::
   forall v.
   (Var v) =>
+  (ANF.RecordRef -> ANF.RecordSchema) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Val ->
   DecompResult v
-decompile backref topTerms = \case
+decompile rsLookup backref topTerms = \case
   CharVal c -> pure (char () c)
   NatVal n -> pure (nat () n)
   IntVal i -> pure (int () (fromIntegral i))
@@ -108,21 +111,24 @@ decompile backref topTerms = \case
       | rf == booleanRef -> tag2bool ct
     (DataC rf _ [b])
       | rf == anyRef ->
-          app () (builtin () "Any.Any") <$> decompile backref topTerms b
+          app () (builtin () "Any.Any") <$> decompile rsLookup backref topTerms b
     (DataC rf (maskTags -> ct) vs) ->
-      apps' (con rf ct) <$> traverse (decompile backref topTerms) vs
-    (RecordC _rr _vals) -> error "TODO: decompilation for records is unimplemented"
+      apps' (con rf ct) <$> traverse (decompile rsLookup backref topTerms) vs
+    (RecordC rr vals) -> do
+      vs' <- traverse (decompile rsLookup backref topTerms) vals
+      let (ANF.RecordSchema fields) = rsLookup rr
+      pure $ Term.record () (Map.fromList $ zip (Set.toList fields) vs')
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"
       | Just t <- topTerms rt k ->
           Term.etaReduceEtaVars . substitute t
-            <$> traverse (decompile backref topTerms) vs
+            <$> traverse (decompile rsLookup backref topTerms) vs
       | k > 0,
         Just _ <- topTerms rt 0 ->
           err (UnkLocal rf k) $ bug "<Unknown>"
       | Builtin nm <- rf ->
-          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
+          apps' (builtin () nm) <$> traverse (decompile rsLookup backref topTerms) vs
       | otherwise -> err (UnkComb rf) $ ref () rf
     (PAp (CIx rf _ _) _ _) ->
       err (BadPAp rf) $ bug "<Unknown>"
@@ -130,7 +136,7 @@ decompile backref topTerms = \case
     (Captured {}) -> err Cont $ bug "<Continuation>"
     (Affine {}) -> err Aff $ bug "<Affine>"
     (Foreign f) ->
-      decompileForeign backref topTerms f
+      decompileForeign rsLookup backref topTerms f
 
 tag2bool :: (Var v) => Word64 -> DecompResult v
 tag2bool 0 = pure (boolean () False)
@@ -147,11 +153,12 @@ substitute = align []
 
 decompileForeign ::
   (Var v) =>
+  (ANF.RecordRef -> ANF.RecordSchema) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
   DecompResult v
-decompileForeign backref topTerms = \case
+decompileForeign rsLookup backref topTerms = \case
   WrapText t -> pure $ text () (Text.toText t)
   WrapBytes b -> pure $ decompileBytes b
   WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
@@ -162,7 +169,7 @@ decompileForeign backref topTerms = \case
   WrapReference l -> pure $ typeLink () l
   WrapArray a ->
     app () (ref () iarrayFromListRef) . list ()
-      <$> traverse (decompile backref topTerms) (toList a)
+      <$> traverse (decompile rsLookup backref topTerms) (toList a)
   WrapByteArray a ->
     pure $
       app
@@ -170,9 +177,9 @@ decompileForeign backref topTerms = \case
         (ref () ibarrayFromBytesRef)
         (decompileBytes . By.fromWord8s $ byteArrayToList a)
   WrapSeq s ->
-    list' () <$> traverse (decompile backref topTerms) s
+    list' () <$> traverse (decompile rsLookup backref topTerms) s
   WrapMap m -> do
-    let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
+    let decompileEntry k v = pair <$> decompile rsLookup backref topTerms k <*> decompile rsLookup backref topTerms v
     kvs <- traverse (uncurry decompileEntry) (Map.toList m)
     pure $ app () map_fromList (list () kvs)
   WrapNatural n ->

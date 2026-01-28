@@ -1110,7 +1110,7 @@ buildRec :: Stack -> ANF.RecordRef -> Args -> IO Closure
 buildRec !stk rr args = do
   -- TODO: Add more cases like buildData for efficiency
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
-  pure $ RecordC rr seg
+  pure $ RecordG rr seg
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -1719,8 +1719,10 @@ cacheAdd l cc = do
         getConst $ (foldMap . foldMap . foldGroup) (foldGroupLinks f) l
       l'' = filter (\(r, _) -> M.notMember r rtm) l
       l' = map (second codeGroup) l''
+  -- TODO: also collect record schemas
+  let recordSchemas = mempty
   if S.null missing
-    then [] <$ cacheAdd0 (error "TODO: cacheAdd: add record schemas") tys l'' (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 recordSchemas tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 data ReflectionState = RS
@@ -2036,7 +2038,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup = goV
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals
-      pure $ boxedVal $ RecordC rref vals'
+      pure $ boxedVal $ RecordG rref vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2137,7 +2139,7 @@ reifyValue0 (combs, rty, rtm, rrLookup) = goV
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
       vals' <- goVs vals
-      pure $ boxedVal $ RecordC rref vals'
+      pure $ boxedVal $ RecordG rref vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
