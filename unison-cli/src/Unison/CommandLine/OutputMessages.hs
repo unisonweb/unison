@@ -2696,7 +2696,6 @@ notifyUser dir issueFn = \case
             ]
   ShowUpdateDiff ppedNew ppedOld newDefns updatedDefns dependents -> do
     let ppe = PPED.suffixifiedPPE ppedNew
-    let colorAdd = P.green . ("+ " <>)
 
     -- Render new types with "+ " prefix on each line
     -- Similar to renderTerms, we render multiline text for full type definitions
