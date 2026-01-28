@@ -126,6 +126,7 @@ import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
+import Unison.Util.BiMap qualified as BM
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
@@ -496,8 +497,9 @@ checkCacheability cl ctx (r, sg) =
       t -> or t
 
 decompileCtx ::
-  EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
-decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
+  BM.BiMap RecordSchema RecordRef -> EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
+decompileCtx rsLookup crs ctx val = do
+  decompile (flip BM.lookupR rsLookup) ib (backReferenceTm crs fr ir dt) val
   where
     ib = intermedToBase ctx
     fr = floatRemap ctx
@@ -802,8 +804,9 @@ evalInContext ::
 evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
+  rsLookup <- readTVarIO $ recordRefs $ ccache ctx
   let hook = watchHook r
-      decom = decompileCtx crs ctx
+      decom = decompileCtx rsLookup crs ctx
       mkResponse errs =
         if Set.null errs
           then EmptyResponse
@@ -844,10 +847,10 @@ executeMainComb init cc = do
   where
     contextualizeErr re = do
       crs <- readTVarIO (combRefs cc)
-      rsLookup <- recordRefs cc
+      rsLookup <- readTVarIO $ recordRefs cc
       let ctx = cacheContext cc
           decom =
-            decompile _ (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
+            decompile (flip BM.lookupR rsLookup) (intermedToBase ctx) . backReferenceTm crs (floatRemap ctx) (intermedRemap ctx) $
               decompTm ctx
       pure $ RuntimeExn (pure (mempty, id, decom)) re
 
@@ -926,7 +929,7 @@ data StoredCache
       (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
-      (Map ANF.RecordSchema ANF.RecordRef)
+      (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
   deriving (Show, Eq)
 
@@ -943,7 +946,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
     <> putMap putReference putNat rty
-    <> putMap putRecordSchema putRecordRef rsLookup
+    <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
 
 getStoredCache :: (PrimBase m) => Get m StoredCache
@@ -960,7 +963,7 @@ getStoredCache =
     <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
-    <*> getMap getRecordSchema getRecordRef
+    <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
@@ -1001,14 +1004,9 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
   preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
   pure cc
   where
-    recordSchemaLookup :: ANF.RecordRef -> ANF.RecordSchema
-    recordSchemaLookup rr =
-      fromMaybe
-        (error $ "restoreCache: unknown record schema for ref: " ++ show rr)
-        (Map.lookup rr recSchemas)
     decom =
       decompile
-        recordSchemaLookup
+        (\rr -> BM.lookupR rr recSchemas)
         (const Nothing)
         (backReferenceTm crs mempty mempty mempty)
     debugText fancy c = case decom c of
@@ -1059,7 +1057,7 @@ buildSCache ::
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
-  Map ANF.RecordSchema ANF.RecordRef ->
+  BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   StoredCache
 buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx =
@@ -1272,20 +1270,21 @@ prettyRuntimeExn' ppe backmap decom issueFn = \case
                   | otherwise = ""
                 name = P.syntaxToColor . prettyHashQualified . PPE.termName ppe $ RF.Ref rf
 
-prettyRuntimeExn :: (Applicative f) => (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
-prettyRuntimeExn = prettyRuntimeExn' mempty id (decompile pure \_ _ -> Nothing)
+prettyRuntimeExn :: (Applicative f) => (RecordRef -> Maybe RecordSchema) -> (Word -> f (Pretty P.ColorText)) -> RuntimeExn -> f (Pretty P.ColorText)
+prettyRuntimeExn rsLookup = prettyRuntimeExn' mempty id (decompile rsLookup pure \_ _ -> Nothing)
 
 -- |
 --
 --  __NB__: The only reason this is in the unison-runtime package is because it’s used in the tests. Otherwise it should move to unison-cli.
 prettyError ::
   (Applicative f) =>
+  (RecordRef -> Maybe RecordSchema) ->
   -- | A function for displaying unisonweb/unison issue numbers (for example,
   --   `Unison.CommandLine.OutputMessages.showIssueUrl`).
   (Word -> f (Pretty P.ColorText)) ->
   Error ->
   f (Pretty P.ColorText)
-prettyError issueFn = \case
+prettyError rsLookup issueFn = \case
   UnstructuredError text -> pure $ P.text text
   CompileExn (CE _ issues err) -> do
     issueMessage <- formatIssues issueFn issues
@@ -1298,7 +1297,7 @@ prettyError issueFn = \case
           issueMessage
         ]
   RuntimeExn ctx re ->
-    maybe prettyRuntimeExn (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
+    maybe (prettyRuntimeExn rsLookup) (\(ppe, backmapRef, decom) -> prettyRuntimeExn' ppe backmapRef decom) ctx issueFn re
   RuntimePanic ppe decom (Panic msg mval) ->
     pure . P.callout panicIcon . P.linesNonEmpty $
       [ P.wrap "The program halted with a runtime panic:",
