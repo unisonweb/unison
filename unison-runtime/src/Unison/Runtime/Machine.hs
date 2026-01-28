@@ -1720,7 +1720,7 @@ cacheAdd l cc = do
       l'' = filter (\(r, _) -> M.notMember r rtm) l
       l' = map (second codeGroup) l''
   if S.null missing
-    then [] <$ cacheAdd0 _ tys l'' (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 (error "TODO: cacheAdd: add record schemas") tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 data ReflectionState = RS
