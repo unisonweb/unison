@@ -1732,7 +1732,7 @@ checkPattern ::
 checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern" :: String, tx, ty) False = undefined
 checkPattern scrutineeType p =
   case p of
-    Pattern.Record {} -> error "Record patterns not yet implemented"
+    Pattern.RecordLiteral {} -> error "Record patterns not yet implemented"
     Pattern.Unbound _ -> pure []
     Pattern.Var loc -> do
       v <- getAdvance p

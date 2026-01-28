@@ -1618,7 +1618,7 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
       Pattern.Text loc t -> pure (text loc t)
       Pattern.Char loc c -> pure (char loc c)
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
-      Pattern.Record _loc _ps -> error "Pattern.Record: TODO: implement record pattern matching"
+      Pattern.RecordLiteral _loc _ps -> error "Pattern.Record: TODO: implement record pattern matching"
       Pattern.As loc p -> do
         avs <- State.get
         case avs of

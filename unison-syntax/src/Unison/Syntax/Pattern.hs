@@ -31,6 +31,7 @@ data Pattern v
   | -- There's unfortunately no syntactic difference between nullary constructors and variables,
     -- so we can't commit to one or the other yet.
     VarOrNullaryConstructor Ann !(Token Name)
+  | RecordLiteral Ann [(Token Text, Pattern v)]
   deriving stock (Show)
 
 instance Annotated (Pattern v) where
@@ -51,6 +52,7 @@ instance Annotated (Pattern v) where
     Unbound pos -> pos
     Unit pos -> pos
     VarOrNullaryConstructor pos _ -> pos
+    RecordLiteral pos _ -> pos
 
 setPos :: Ann -> Pattern v -> Pattern v
 setPos pos = \case
@@ -70,6 +72,7 @@ setPos pos = \case
   Unbound _ -> Unbound pos
   Unit _ -> Unit pos
   VarOrNullaryConstructor _ a -> VarOrNullaryConstructor pos a
+  RecordLiteral _ a -> RecordLiteral pos a
 
 data SeqOp
   = Concat
