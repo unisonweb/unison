@@ -73,6 +73,7 @@ import Data.X509.CertificateStore qualified as X
 import Data.X509.Memory qualified as X
 import Data.X509.Validation as X
 import Foreign.Marshal.Alloc qualified as Mem
+import Foreign.Ptr (nullPtr)
 import Foreign.Storable qualified as Mem
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Conc qualified as STM
@@ -1260,6 +1261,7 @@ foreignCallHelper = \case
   FFI_Ptr_Ptr_getAt -> mkForeign $ peekAt @(Ptr ())
   FFI_Ptr_Ptr_setAt -> mkForeign $ pokeAt @(Ptr ())
   FFI_Ptr_free -> mkForeign $ Mem.free @()
+  FFI_Ptr_null -> mkForeign $ \() -> pure (nullPtr @())
   PinnedByteArray_contents ->
     mkForeign $ evaluate . PA.mutableByteArrayContents @PA.RealWorld
   where

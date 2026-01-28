@@ -1512,6 +1512,7 @@ declareForeigns = do
   declareForeign Tracked 3 FFI_Ptr_Ptr_setAt
 
   declareForeign Tracked 1 FFI_Ptr_free
+  declareForeignWrap Tracked direct FFI_Ptr_null
   declareForeign Tracked 1 PinnedByteArray_contents
 
 foreignDeclResults ::

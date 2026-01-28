@@ -450,6 +450,7 @@ data ForeignFunc
   | FFI_Ptr_Ptr_setAt
   | FFI_Ptr_free
   | PinnedByteArray_contents
+  | FFI_Ptr_null
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -896,3 +897,4 @@ foreignFuncBuiltinName = \case
   FFI_Ptr_Ptr_setAt -> "FFI.Ptr.Ptr.setAt"
   FFI_Ptr_free -> "FFI.Ptr.free"
   PinnedByteArray_contents -> "PinnedByteArray.contents"
+  FFI_Ptr_null -> "FFI.Ptr.null"
