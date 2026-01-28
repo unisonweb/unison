@@ -44,6 +44,8 @@ import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags (FieldTag)
 import Unison.Symbol
+import Unison.Util.BiMap (BiMap)
+import Unison.Util.BiMap qualified as BM
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text as UText
 
@@ -83,9 +85,9 @@ refLookup s m r
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
 
-recordRefLookup :: M.Map ANF.RecordSchema ANF.RecordRef -> ANF.RecordSchema -> ANF.RecordRef
+recordRefLookup :: BM.BiMap ANF.RecordSchema ANF.RecordRef -> ANF.RecordSchema -> ANF.RecordRef
 recordRefLookup m r
-  | Just rr <- M.lookup r m = rr
+  | Just rr <- BM.lookupL r m = rr
   | otherwise =
       error $ "recordRefLookup: unknown record schema: " ++ show r
 
@@ -191,7 +193,7 @@ data CCache prof = CCache
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
-    recordRefs :: TVar (M.Map ANF.RecordSchema ANF.RecordRef),
+    recordRefs :: TVar (BiMap ANF.RecordSchema ANF.RecordRef),
     sandbox :: TVar (M.Map Reference (Set Reference))
   }
 
