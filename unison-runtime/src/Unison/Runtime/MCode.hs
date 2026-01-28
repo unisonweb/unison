@@ -1289,6 +1289,8 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
   fmap (Ins . Pack r (packTags rt n) $ emitArgs grpn ctx args)
   where
     rt = toEnum . fromIntegral $ dnum rns r
+emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs) args) =
+  fmap (Ins . RecPack (recNum rns rs) $ emitArgs grpn ctx args)
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)
