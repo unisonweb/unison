@@ -118,6 +118,7 @@ import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Witherable qualified as Wither
+import qualified Unison.Debug as Debug
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -1739,22 +1740,31 @@ checkPattern ::
 checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern" :: String, tx, ty) False = undefined
 checkPattern scrutineeType p =
   case p of
-    Pattern.RecordLiteral _loc fieldPatterns -> do
-      case scrutineeType of
-        Type.Record' fieldTypes -> do
-          vs <-
-            Align.align fieldTypes fieldPatterns
-              & Map.traverseWithKey
-                ( \fieldName -> \case
-                    This _ -> pure $ Nothing
-                    -- We have a pattern, but the expected type does not.
-                    That p -> lift . failWith $ PatternMatchedMissingField fieldName p scrutineeType
-                    These fieldTyp fieldPat -> Just <$> checkPattern fieldTyp fieldPat
-                )
-              <&> Wither.catMaybes
-          pure $ fold vs
-        _ -> do
-          lift . failWith $ RecordPatternMatchOnNonRecordType p scrutineeType
+    Pattern.RecordLiteral recordLoc fieldPatterns -> do
+      Debug.debugM Debug.Temp  "Encountered recordliteral in checkPattern" fieldPatterns
+      inferredFieldTypes <- lift $ for fieldPatterns \pat -> do
+        fieldTypeV <- freshenVar Var.inferOther
+        let vt = existentialp (Pattern.loc pat) fieldTypeV
+        appendContext [existential fieldTypeV]
+        pure vt
+      let patternRecordType = (Type.record recordLoc inferredFieldTypes)
+      lift $ subtype scrutineeType patternRecordType
+      lift $ for_ inferredFieldTypes applyM
+      vs <-
+        Align.align inferredFieldTypes fieldPatterns
+          & Map.traverseWithKey
+            ( \fieldName -> \case
+                This _ -> pure $ Nothing
+                -- We have a pattern, but the expected type does not.
+                That p -> lift . failWith $ PatternMatchedMissingField fieldName p scrutineeType
+                These fieldTyp fieldPat -> do
+                  Debug.debugM Debug.Temp "Checking field pattern" (fieldName, fieldTyp, fieldPat)
+                  Just <$> checkPattern fieldTyp fieldPat
+            )
+          <&> Wither.catMaybes
+
+      Debug.debugM Debug.Temp "Finished recordliteral in checkPattern" vs
+      pure $ fold vs
     Pattern.Unbound _ -> pure []
     Pattern.Var loc -> do
       v <- getAdvance p
