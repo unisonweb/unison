@@ -191,4 +191,4 @@ builtinTypeForPatternLiterals = \case
   Pattern.EffectBind _ _ _ _ -> Nothing
   Pattern.SequenceLiteral _ _ -> Nothing
   Pattern.SequenceOp _ _ _ _ -> Nothing
-  Pattern.Record {} -> Nothing
+  Pattern.RecordLiteral {} -> Nothing

@@ -189,7 +189,7 @@ refInPattern = \case
   Pattern.EffectBind _loc conRef _ _ -> Just (LD.ConReference conRef CT.Effect)
   Pattern.SequenceLiteral {} -> Nothing
   Pattern.SequenceOp {} -> Nothing
-  Pattern.Record {} -> Nothing
+  Pattern.RecordLiteral {} -> Nothing
 
 data SourceNode a
   = TermNode (Term Symbol a)
@@ -329,7 +329,7 @@ findSmallestEnclosingPatternMatching pos pred pat
             Pattern.EffectBind _loc _conRef pats p -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats) <|> findSmallestEnclosingPatternMatching pos pred p
             Pattern.SequenceLiteral _loc pats -> altSum (findSmallestEnclosingPatternMatching pos pred <$> pats)
             Pattern.SequenceOp _loc p1 _op p2 -> findSmallestEnclosingPatternMatching pos pred p1 <|> findSmallestEnclosingPatternMatching pos pred p2
-            Pattern.Record _loc fields -> altSum (findSmallestEnclosingPatternMatching pos pred <$> fields)
+            Pattern.RecordLiteral _loc fields -> altSum (findSmallestEnclosingPatternMatching pos pred <$> fields)
       let fallback = if annIsFilePosition (ann pat) then pred pat else empty
       bestChild <|> fallback
   where
