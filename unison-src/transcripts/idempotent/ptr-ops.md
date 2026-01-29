@@ -121,6 +121,11 @@ baTest = do
       | otherwise -> acc
 
   keepAlive pinned '(read [] 0)
+
+nullTest = do
+  p : Ptr Nat
+  p = Ptr.null
+  ()
 ```
 
 ``` ucm :added-by-ucm
@@ -137,6 +142,7 @@ baTest = do
   + nat32Test   : '{IO} (Boolean, Boolean)
   + nat64Test   : '{IO} (Boolean, Boolean)
   + nat8Test    : '{IO} (Boolean, Boolean)
+  + nullTest    : '()
   + ptrTest     : '{IO} (Boolean, Boolean)
 
   Run `update` to apply these changes to your codebase.
@@ -190,4 +196,8 @@ scratch/ptr> run ptrTest
 scratch/ptr> run baTest
 
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+scratch/ptr> run nullTest
+
+  ()
 ```
