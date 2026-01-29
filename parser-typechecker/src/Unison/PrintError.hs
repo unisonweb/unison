@@ -1329,6 +1329,18 @@ renderTypeError e env src = case e of
               renderType' env expectedRecordType,
             "but it was missing."
           ]
+      C.PatternMatchedMissingField fieldName fieldPat missingFieldTyp ->
+        mconcat
+          [ "This pattern tried to match on the `" <> Pr.text fieldName <> "` field, but it's not part of the type.\n",
+            "  The pattern is here: " <> Pr.lit (renderPattern env fieldPat) <> "\n",
+            "  I inferred the required type here: " <> renderType' env missingFieldTyp <> "\n"
+          ]
+      C.RecordPatternMatchOnNonRecordType recordPat nonRecordTyp ->
+        mconcat
+          [ "This pattern is trying to match a record, but the type is not a record.\n",
+            "  The pattern is here: " <> Pr.lit (renderPattern env recordPat) <> "\n",
+            "  I inferred the type here: " <> renderType' env nonRecordTyp <> "\n"
+          ]
 
 renderCompilerBug ::
   (Var v, Annotated loc, Ord loc, Show loc) =>

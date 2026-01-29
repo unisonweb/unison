@@ -368,6 +368,23 @@ analyseNotes codebase fileUri ppe src notes = do
                         ("expected record type", r3)
                       ]
                     )
+                Context.PatternMatchedMissingField _fieldName fieldPat recordType -> do
+                  r1 <- aToR (Pattern.loc fieldPat)
+                  r2 <- aToR (ABT.annotation recordType)
+                  pure
+                    ( r1,
+                      [ ("record type", r2)
+                      ]
+                    )
+                Context.RecordPatternMatchOnNonRecordType recordPat notRecordType ->
+                  do
+                    r1 <- aToR (Pattern.loc recordPat)
+                    r2 <- aToR (ABT.annotation notRecordType)
+                    pure
+                      ( r1,
+                        [ ("not a record type", r2)
+                        ]
+                      )
 
             shouldHaveBeenHandled e = do
               Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e

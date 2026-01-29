@@ -117,6 +117,7 @@ import Unison.Typechecker.TypeVar qualified as TypeVar
 import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
+import Witherable qualified as Wither
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -503,7 +504,13 @@ data Cause v loc
       (Type v loc {- the type we expected there -})
       (Type v loc {- record literal missing the field -})
       (Type v loc {- record literal which has the type -})
-
+  | PatternMatchedMissingField
+      (Text {- the field name we tried to match, but wasn't in the type -})
+      (Pattern loc {- the place we matched on the missing field -})
+      (Type v loc {- The type of the record which is missing the field -})
+  | RecordPatternMatchOnNonRecordType
+      (Pattern loc {- the place we matched on the non-record -})
+      (Type v loc {- The type which is not a record -})
   deriving (Show)
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -1732,7 +1739,22 @@ checkPattern ::
 checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("checkPattern" :: String, tx, ty) False = undefined
 checkPattern scrutineeType p =
   case p of
-    Pattern.RecordLiteral {} -> error "Record patterns not yet implemented"
+    Pattern.RecordLiteral _loc fieldPatterns -> do
+      case scrutineeType of
+        Type.Record' fieldTypes -> do
+          vs <-
+            Align.align fieldTypes fieldPatterns
+              & Map.traverseWithKey
+                ( \fieldName -> \case
+                    This _ -> pure $ Nothing
+                    -- We have a pattern, but the expected type does not.
+                    That p -> lift . failWith $ PatternMatchedMissingField fieldName p scrutineeType
+                    These fieldTyp fieldPat -> Just <$> checkPattern fieldTyp fieldPat
+                )
+              <&> Wither.catMaybes
+          pure $ fold vs
+        _ -> do
+          lift . failWith $ RecordPatternMatchOnNonRecordType p scrutineeType
     Pattern.Unbound _ -> pure []
     Pattern.Var loc -> do
       v <- getAdvance p
