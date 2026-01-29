@@ -7,14 +7,14 @@ packages:
 - completed:
     name: haskeline
     pantry-tree:
-      sha256: c14fd8b9ad5e9fcf629e50affe26e655d6c4d18c3f77169995b857b5fd32ca44
-      size: 3769
-    sha256: 3997e23bacea83e1e6b94098f74378fa54baf99755a0d834d9008bfe7071ed58
-    size: 74277
-    url: https://github.com/unisonweb/haskeline/archive/9275eea7982dabbf47be2ba078ced669ae7ef3d5.tar.gz
-    version: 0.8.0.0
+      sha256: eacdfbdccd946a26dcb0b42ac598c2c0891cc9096cb25bd7b217af0ceaa57e73
+      size: 3742
+    sha256: aa5a5aebf75a7c8e5238d1a6d9edfbdf208fe4e945e7ff1ceadfb23ea1cbb6e8
+    size: 80734
+    url: https://github.com/unisonweb/haskeline/archive/d7791c203f71e7da93c9570b51519bd31eec47d6.tar.gz
+    version: 0.8.4.1
   original:
-    url: https://github.com/unisonweb/haskeline/archive/9275eea7982dabbf47be2ba078ced669ae7ef3d5.tar.gz
+    url: https://github.com/unisonweb/haskeline/archive/d7791c203f71e7da93c9570b51519bd31eec47d6.tar.gz
 - completed:
     name: hs-mcp
     pantry-tree:
