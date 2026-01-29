@@ -150,6 +150,74 @@ scratch/main> update
   Done.
 ```
 
+## Test diff.update with a new type
+
+Let's test adding a brand new type (not modifying an existing one) to see if diff.update
+shows the full type structure or just the type name:
+
+``` unison
+structural type Person = { name : Text, age : Nat }
+
+unique ability Counter where
+  increment : Nat
+  getCount : Nat
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + ability Counter
+  + structural type Person
+
+  + Person.age         : Person -> Nat
+  + Person.age.modify  : (Nat ->{g} Nat) -> Person ->{g} Person
+  + Person.age.set     : Nat -> Person -> Person
+  + Person.name        : Person -> Text
+  + Person.name.modify : (Text ->{g} Text)
+                         -> Person
+                         ->{g} Person
+  + Person.name.set    : Text -> Person -> Person
+
+  Run `update` to apply these changes to your codebase.
+```
+
+Running `diff.update` should show the new type with its full structure:
+
+``` ucm
+scratch/main> diff.update
+
+  Preview of changes that would be made by `update`:
+
+  New definitions:
+    + ability Counter where
+    +   increment : {Counter} Nat
+    +   getCount : {Counter} Nat
+    + structural type Person = { name : Text, age : Nat }
+    + Person.age : Person -> Nat
+    + Person.age = cases Person _ age -> age
+    + Person.age.modify : (Nat ->{g} Nat) -> Person ->{g} Person
+    + Person.age.modify f = cases Person name age -> Person name (f age)
+    + Person.age.set : Nat -> Person -> Person
+    + Person.age.set age1 = cases Person name _ -> Person name age1
+    + Person.name : Person -> Text
+    + Person.name = cases Person name _ -> name
+    + Person.name.modify : (Text ->{g} Text) -> Person ->{g} Person
+    + Person.name.modify f = cases Person name age -> Person (f name) age
+    + Person.name.set : Text -> Person -> Person
+    + Person.name.set name1 = cases Person _ age -> Person name1 age
+
+  Run `update` to apply these changes.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
 ## Test diff.update with a modified type
 
 Let's add a type to the codebase:

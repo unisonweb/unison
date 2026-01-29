@@ -493,8 +493,8 @@ data Output
       !PPE.PrettyPrintEnvDecl
       -- PPE for old definitions (namespace names without file shadowing)
       !PPE.PrettyPrintEnvDecl
-      -- New definitions (terms with body and type, types with decl)
-      !(Defns (Map Name (Term Symbol Ann, Type Symbol Ann)) (Map Name (DeclOrBuiltin Symbol Ann)))
+      -- New definitions (terms with body and type, types with refId and decl)
+      !(Defns (Map Name (Term Symbol Ann, Type Symbol Ann)) (Map Name (TypeReferenceId, DD.Decl Symbol Ann)))
       -- Updated definitions: ((old term, old type), (new term, new type)) for terms,
       -- ((old refId, old decl), (new refId, new decl)) for types
       !(Defns (Map Name ((Term Symbol Ann, Type Symbol Ann), (Term Symbol Ann, Type Symbol Ann))) (Map Name ((TypeReferenceId, DD.Decl Symbol Ann), (TypeReferenceId, DD.Decl Symbol Ann))))
