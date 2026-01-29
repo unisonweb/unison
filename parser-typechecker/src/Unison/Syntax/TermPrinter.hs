@@ -774,7 +774,26 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
               `PP.hang` pats_printed,
           tail_vs
         )
-  Pattern.RecordLiteral _loc _fields -> error "TODO: Unimplemented: Here's where we'd implement record pattern printing"
+  Pattern.RecordLiteral _loc fields -> do
+    let (renderedFields, vs) =
+          fields
+            & Map.foldMapWithKey
+              ( \fieldName pat ->
+                  let (renderedPat, vs) = prettyPattern n c Bottom vs pat
+                      renderedField =
+                        fmt (S.RecordFieldName fieldName) (PP.text fieldName)
+                          <> fmt S.RecordFieldValueColon ": "
+                          <> renderedPat
+                   in ([renderedField], vs)
+              )
+     in ( PP.group
+            ( PP.surroundCommas
+                (fmt S.DelimiterChar "{")
+                (fmt S.DelimiterChar "}")
+                (map (PP.indentNAfterNewline 2) renderedFields)
+            ),
+          vs
+        )
   Pattern.As _ pat ->
     case vs of
       (v : tail_vs) ->
