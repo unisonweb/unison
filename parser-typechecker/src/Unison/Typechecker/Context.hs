@@ -1742,27 +1742,31 @@ checkPattern scrutineeType p =
   case p of
     Pattern.RecordLiteral recordLoc fieldPatterns -> do
       Debug.debugM Debug.Temp  "Encountered recordliteral in checkPattern" fieldPatterns
+      -- Create unification variables for each field in the pattern
       inferredFieldTypes <- lift $ for fieldPatterns \pat -> do
         fieldTypeV <- freshenVar Var.inferOther
         let vt = existentialp (Pattern.loc pat) fieldTypeV
         appendContext [existential fieldTypeV]
         pure vt
-      let patternRecordType = (Type.record recordLoc inferredFieldTypes)
+      -- Build the type of the pattern, filled with those unification variables
+      let patternRecordType = Type.record recordLoc inferredFieldTypes
       lift $ subtype scrutineeType patternRecordType
       lift $ for_ inferredFieldTypes applyM
+      -- Unify each field pattern against the variable for that field
       vs <-
         Align.align inferredFieldTypes fieldPatterns
           & Map.traverseWithKey
             ( \fieldName -> \case
+                -- The expected type has a field the pattern doesn't, that's fine we can ignore it.
                 This _ -> pure $ Nothing
                 -- We have a pattern, but the expected type does not.
                 That p -> lift . failWith $ PatternMatchedMissingField fieldName p scrutineeType
+                -- Both the type and pattern have a field; typecheck the pattern against the type.
                 These fieldTyp fieldPat -> do
                   Debug.debugM Debug.Temp "Checking field pattern" (fieldName, fieldTyp, fieldPat)
                   Just <$> checkPattern fieldTyp fieldPat
             )
           <&> Wither.catMaybes
-
       Debug.debugM Debug.Temp "Finished recordliteral in checkPattern" vs
       pure $ fold vs
     Pattern.Unbound _ -> pure []
