@@ -8,6 +8,7 @@ module Unison.Syntax.TypeParser
 where
 
 import Control.Monad.Reader (asks)
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
@@ -36,11 +37,11 @@ valueType = forAll type1 <|> type1
 -- Computation
 -- computationType ::= [{effect*}] valueType
 computationType :: (Monad m, Var v) => TypeP v m
-computationType = effect <|> valueType
+computationType = P.try effect <|> valueType
 
 valueTypeLeaf :: (Monad m, Var v) => TypeP v m
 valueTypeLeaf =
-  tupleOrParenthesizedType valueType <|> typeAtom <|> sequenceTyp
+  tupleOrParenthesizedType valueType <|> typeAtom <|> sequenceTyp <|> recordType
 
 -- Examples: Optional, Optional#abc, woot, #abc
 typeAtom :: (Monad m, Var v) => TypeP v m
@@ -63,7 +64,7 @@ type2a = delayed <|> type2
 delayed :: (Monad m, Var v) => TypeP v m
 delayed = do
   q <- reserved "'"
-  t <- effect <|> (pt <$> type2a)
+  t <- P.try effect <|> (pt <$> type2a)
   pure $
     Type.arrow
       (Ann (L.start q) (end $ ann t))
@@ -76,7 +77,7 @@ delayed = do
 type2 :: (Monad m, Var v) => TypeP v m
 type2 = do
   hd <- valueTypeLeaf
-  tl <- many (effectList <|> valueTypeLeaf)
+  tl <- many (P.try effectList <|> valueTypeLeaf)
   pure $ foldl' (\a b -> Type.app (ann a <> ann b) a b) hd tl
 
 -- ex : {State Text, IO} (List Int)
@@ -110,13 +111,27 @@ tupleOrParenthesizedType rec = do
       let a = ann t1 <> ann t2
        in Type.app a (Type.app (ann t1) (DD.pairType a) t1) t2
 
+recordType :: (Monad m, Var v) => TypeP v m
+recordType = do
+  open <- openBlockWith "{"
+  fields <- sepBy (reserved ",") recordField
+  close <- closeBlock
+  let a = ann open <> ann close
+  pure $ Type.record a (Map.fromList fields)
+  where
+    recordField = do
+      nameTok <- recordFieldName
+      _ <- reserved ":"
+      t <- valueType
+      pure (L.payload nameTok, t)
+
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: (Monad m, Var v) => TypeP v m -> TypeP v m
 arrow rec =
-  let eff = mkArr <$> optional effectList
+  let eff = mkArr <$> optional (P.try effectList)
       mkArr Nothing a b = Type.arrow (ann a <> ann b) a b
       mkArr (Just es) a b = Type.arrow (ann a <> ann b) a (Type.effect1 (ann es <> ann b) es b)
-   in chainr1 (effect <|> rec) (reserved "->" *> eff)
+   in chainr1 (P.try effect <|> rec) (reserved "->" *> eff)
 
 -- "forall a b . List a -> List b -> Maybe Text"
 forAll :: (Var v) => TypeP v m -> TypeP v m
