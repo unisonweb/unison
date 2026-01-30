@@ -103,7 +103,7 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
                   branchString,
                   fromString prompt
                 ]
-      line <- Line.getInputLine $ Text.unpack fullPrompt
+      line <- Line.getInputLine $ markNonPrinting (Text.unpack fullPrompt)
       case line of
         Nothing -> pure QuitI
         Just l -> case fromMaybe [] $ IP.parseArgs l of
@@ -144,6 +144,29 @@ getUserInput codebase authHTTPClient pp currentProjectRoot numberedArgs =
           autoAddHistory = False
         }
     tabComplete = haskelineTabComplete IP.patternMap codebase authHTTPClient pp
+
+    -- Haskeline needs non-printing prompt segments wrapped with \SOH/\STX so
+    -- cursor positioning stays correct with ANSI colors.
+    markNonPrinting :: String -> String
+    markNonPrinting = \case
+      [] -> []
+      '\ESC' : rest ->
+        let (seqChars, rest') = takeAnsi rest
+         in '\SOH' : '\ESC' : seqChars ++ "\STX" ++ markNonPrinting rest'
+      c : rest -> c : markNonPrinting rest
+
+    -- Consume a CSI sequence after ESC, if present.
+    takeAnsi :: String -> (String, String)
+    takeAnsi = \case
+      '[' : rest ->
+        let (body, rest') = span (not . isFinalAnsi) rest
+         in case rest' of
+              [] -> ('[' : body, [])
+              f : fs -> ('[' : body ++ [f], fs)
+      rest -> ([], rest)
+
+    isFinalAnsi :: Char -> Bool
+    isFinalAnsi c = c >= '@' && c <= '~'
 
 loopStateProjectPath ::
   Codebase IO Symbol Ann ->

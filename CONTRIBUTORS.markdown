@@ -96,3 +96,4 @@ The format for this list: name, GitHub handle
 * Emil Petersen (@leetemil)
 * Lars Wilhelmsen (@larsw)
 * Nic Luciano (@kn0ll)
+* Maurice Scheffmacher (@MauScheff)
