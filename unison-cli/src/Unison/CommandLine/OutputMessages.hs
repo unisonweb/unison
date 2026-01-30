@@ -1277,13 +1277,13 @@ notifyUser dir issueFn = \case
       runUpdateMessage =
         P.wrap $
           "Run"
-              <> makeExample' IP.update
-              <> if isMergeBranch
-                then
-                  "to apply these changes to your codebase and complete the merge, or"
-                    <> makeExample' IP.cancelInputPattern
-                    <> "to cancel the merge."
-                else "to apply these changes to your codebase."
+            <> makeExample' IP.update
+            <> if isMergeBranch
+              then
+                "to apply these changes to your codebase and complete the merge, or"
+                  <> makeExample' IP.cancelInputPattern
+                  <> "to cancel the merge."
+              else "to apply these changes to your codebase."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
