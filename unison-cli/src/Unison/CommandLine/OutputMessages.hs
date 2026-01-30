@@ -2696,23 +2696,25 @@ notifyUser dir issueFn = \case
             ]
   ShowUpdateDiff ppedNew ppedOld newDefns updatedDefns dependents -> do
     let ppe = PPED.suffixifiedPPE ppedNew
-    let colorAdd = P.green . ("+ " <>)
 
-    let renderTypes :: (Pretty -> Pretty) -> Map Name (DeclOrBuiltin Symbol Ann) -> Pretty
-        renderTypes colored types =
+    -- Render new types with "+ " prefix on each line
+    -- Similar to renderTerms, we render multiline text for full type definitions
+    let renderNewTypes :: Map Name (TypeReferenceId, DD.Decl Symbol Ann) -> Pretty
+        renderNewTypes types =
           types
             & Map.toList
             & sortAlphabeticallyOn (view _1)
             & map
-              ( \(name, decl) ->
-                  colored $
-                    P.syntaxToColor $
-                      DeclPrinter.prettyDeclOrBuiltinHeader
-                        DeclPrinter.RenderUniqueTypeGuids'No
-                        (HQ.fromName name)
-                        decl
+              ( \(name, (refId, decl)) ->
+                  let ref = Reference.fromId refId
+                      typeText =
+                        P.toPlain 80 $
+                          P.syntaxToColor $
+                            DeclPrinter.prettyDecl ppedNew DeclPrinter.RenderUniqueTypeGuids'No ref (HQ.fromName name) decl
+                      typeLines = Text.lines typeText
+                   in P.lines $ map (\line -> P.green $ P.text $ "+ " <> line) typeLines
               )
-            & P.lines
+            & P.sepNonEmpty "\n"
 
     -- Render new terms with "+ " prefix on each line
     -- Note: We use prettyBindingForDiff which renders multiline text with actual newlines
@@ -2813,7 +2815,7 @@ notifyUser dir issueFn = \case
                 then
                   P.linesNonEmpty
                     [ P.wrap "New definitions:",
-                      if Map.null newDefns.types then mempty else P.indentN 2 $ renderTypes colorAdd newDefns.types,
+                      if Map.null newDefns.types then mempty else P.indentN 2 $ renderNewTypes newDefns.types,
                       if Map.null newDefns.terms then mempty else P.indentN 2 $ renderTerms newDefns.terms
                     ]
                 else mempty,

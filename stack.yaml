@@ -56,7 +56,7 @@ extra-deps:
   # Windows terminal.
   # https://github.com/judah/haskeline/pull/126
   - github: unisonweb/haskeline
-    commit: 9275eea7982dabbf47be2ba078ced669ae7ef3d5
+    commit: d7791c203f71e7da93c9570b51519bd31eec47d6 # branch unison-26-01-28
   - github: ChrisPenner/hs-mcp
     commit: d8564c70ca09e333b7ce1717d1ac97a62d62966c
 
