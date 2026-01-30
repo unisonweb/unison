@@ -378,37 +378,24 @@ instance HasInputSchema DiffUpdateToolArguments where
             [ "projectContext" .= toInputSchema (Proxy :: Proxy ProjectContext),
               "code"
                 .= object
-                  [ "description" .= ("The source code to diff against the current codebase. If a string, it is the source code itself. If a file path, it is the path to a file containing the source code." :: Text),
-                    "oneOf"
-                      .= [ object
-                             [ "description" .= ("The file path to the source code." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "filePath"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("An absolute file path to the source code." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["filePath" :: Text],
-                               "additionalProperties" .= False
-                             ],
-                           object
-                             [ "description" .= ("The source code to use." :: Text),
-                               "type" .= ("object" :: Text),
-                               "properties"
-                                 .= object
-                                   [ "text"
-                                       .= object
-                                         [ "type" .= ("string" :: Text),
-                                           "description" .= ("The source code." :: Text)
-                                         ]
-                                   ],
-                               "required" .= ["text" :: Text],
-                               "additionalProperties" .= False
-                             ]
-                         ]
+                  [ "description" .= ("The source code to diff against the current codebase. Either the `sourceCode` key or the `filePath`, but not both." :: Text),
+                    "type" .= ("object" :: Text),
+                    "properties"
+                      .= object
+                        [ "sourceCode"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The source code to diff." :: Text)
+                              ],
+                          "filePath"
+                            .= object
+                              [ "type" .= ("string" :: Text),
+                                "description" .= ("The absolute file path to the source code." :: Text)
+                              ]
+                        ],
+                    "additionalProperties" .= False,
+                    "minProperties" .= (1 :: Int),
+                    "maxProperties" .= (1 :: Int)
                   ]
             ],
         "required" .= ["projectContext", "code" :: Text]
@@ -418,12 +405,21 @@ instance FromJSON DiffUpdateToolArguments where
   parseJSON = withObject "DiffUpdateToolArguments" $ \o -> do
     projectContext <- o .: "projectContext"
     source <- o .: "code"
-    code <-
-      source .:? "filePath" >>= \case
-        Just filePath -> pure $ Left filePath
-        Nothing -> do
-          text <- source .: "text"
-          pure $ Right text
+    mFilePath <- source .:? "filePath"
+    mSourceCode <- source .:? "sourceCode"
+    mText <- source .:? "text"
+    let providedCount =
+          length
+            (filter id [isJust mFilePath, isJust mSourceCode, isJust mText])
+    when (providedCount == 0) $
+      fail "Expected one of: code.filePath, code.sourceCode"
+    when (providedCount > 1) $
+      fail "Expected exactly one of: code.filePath, code.sourceCode"
+    code <- case (mFilePath, mSourceCode, mText) of
+      (Just filePath, _, _) -> pure (Left filePath)
+      (_, Just sourceCode, _) -> pure (Right sourceCode)
+      (_, _, Just text) -> pure (Right text)
+      _ -> fail "Expected one of: code.filePath, code.sourceCode"
     pure $ DiffUpdateToolArguments {projectContext, code}
 
 data ListLibraryDefinitionsToolArguments = ListLibraryDefinitionsToolArguments
