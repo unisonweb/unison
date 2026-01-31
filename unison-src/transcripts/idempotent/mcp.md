@@ -1010,7 +1010,7 @@ BODY:
     "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "create-branch",
+      "name": "create-branch-x",
       "arguments": {
         "projectName": "scratch",
         "newBranchName": "from-main",
@@ -1027,11 +1027,11 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Done. I've created the from-main branch based off of main.\\n\\nTip: To merge your work back into the main branch, first `switch /main` then `merge /from-main`.\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "Tool 'create-branch-x' not found.",
                   "type": "text"
               }
           ],
-          "isError": false
+          "isError": true
       }
   }
 
