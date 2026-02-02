@@ -164,6 +164,8 @@ pattern Effect' es t <- (unEffects1 -> Just (es, t))
 pattern Effect'' :: (Ord v) => [Type v a] -> Type v a -> Type v a
 pattern Effect'' es t <- (unEffect0 -> (es, t))
 
+{-# COMPLETE Effect'' #-}
+
 -- Effect0' may match zero effects
 pattern Effect0' :: (Ord v) => [Type v a] -> Type v a -> Type v a
 pattern Effect0' es t <- (unEffect0 -> (es, t))
@@ -202,7 +204,6 @@ pattern Abs' subst <- ABT.Abs' _ subst
 unPure :: (Ord v) => Type v a -> Maybe (Type v a)
 unPure (Effect'' [] t) = Just t
 unPure (Effect'' _ _) = Nothing
-unPure t = Just t
 
 unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
