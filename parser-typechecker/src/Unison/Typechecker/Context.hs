@@ -4,6 +4,11 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- Typechecker is derived from the paper: "Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism" by
+-- Jana Dunfield and Neelakantan Krishnaswami
+--
+-- https://arxiv.org/abs/1306.6032
+
 module Unison.Typechecker.Context
   ( synthesizeClosed,
     ErrorNote (..),
@@ -88,6 +93,7 @@ import Unison.DataDeclaration
   )
 import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
+import Unison.Debug qualified as Debug
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
 import Unison.Pattern (Pattern)
@@ -118,7 +124,6 @@ import Unison.Typechecker.Variance (Variance (..), defaultVariances)
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 import Witherable qualified as Wither
-import qualified Unison.Debug as Debug
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
@@ -773,7 +778,6 @@ wellformedType c t = case t of
     let (v, ctx2) = extendUniversal c
      in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
   Type.Record' fields ->
-    -- TODO: Check if this is right
     all (wellformedType c) fields
   _ -> error $ "Match failure in wellformedType: " ++ show t
   where
@@ -1096,8 +1100,6 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
       replaceContext (existential a) ctxMid
       synthesizeApp fun (Type.getPolytype soln) argp
     go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
-synthesizeApp _ _ _ =
-  error "unpossible - Type.Effect'' pattern always succeeds"
 
 -- For arity 3, creates the type `∀ a . a -> a -> a -> Sequence a`
 -- For arity 2, creates the type `∀ a . a -> a -> Sequence a`
@@ -1683,7 +1685,6 @@ getEffect ref = do
     Type.Effect'' [et] _ -> pure et
     t@(Type.Effect'' _ _) ->
       compilerCrash $ EffectConstructorHadMultipleEffects t
-    _ -> compilerCrash PatternMatchFailure
 
 requestType ::
   (Var v) => (Ord loc) => [Pattern loc] -> M v loc (Maybe [Type v loc])
@@ -1741,7 +1742,7 @@ checkPattern tx ty | (debugEnabled || debugPatternsEnabled) && traceShow ("check
 checkPattern scrutineeType p =
   case p of
     Pattern.RecordLiteral recordLoc fieldPatterns -> do
-      Debug.debugM Debug.Temp  "Encountered recordliteral in checkPattern" fieldPatterns
+      Debug.debugM Debug.Temp "Encountered recordliteral in checkPattern" fieldPatterns
       -- Create unification variables for each field in the pattern
       inferredFieldTypes <- lift $ for fieldPatterns \pat -> do
         fieldTypeV <- freshenVar Var.inferOther
@@ -2781,7 +2782,8 @@ check m0 t0 = scope (InCheck m0 t0) $ do
           checkWanted Nothing [] m (Type.stripIntroOuters t0)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
--- This may have the effect of altering the context.
+-- This may have the effect of altering the context, since unsolved existentials
+-- will be instantiated as needed.
 subtype :: forall v loc. (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc ()
 subtype tx ty | debugTypes "subtype" tx ty = undefined
 subtype tx ty = scope (InSubtype tx ty) $ do

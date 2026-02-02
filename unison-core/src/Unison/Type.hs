@@ -50,7 +50,8 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  | Record (Map Text a)
+  | -- Record type, mapping field names to types
+    Record (Map Text a)
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -164,8 +165,6 @@ pattern Effect' es t <- (unEffects1 -> Just (es, t))
 pattern Effect'' :: (Ord v) => [Type v a] -> Type v a -> Type v a
 pattern Effect'' es t <- (unEffect0 -> (es, t))
 
-{-# COMPLETE Effect'' #-}
-
 -- Effect0' may match zero effects
 pattern Effect0' :: (Ord v) => [Type v a] -> Type v a -> Type v a
 pattern Effect0' es t <- (unEffect0 -> (es, t))
@@ -200,6 +199,12 @@ pattern Cycle' xs t <- ABT.Cycle' xs t
 
 pattern Abs' :: (Foldable f, Functor f, ABT.Var v) => ABT.Subst f v a -> ABT.Term f v a
 pattern Abs' subst <- ABT.Abs' _ subst
+
+-- Pattern match combinations for Type terms
+-- Effect'' matches ANY type and extracts the underlying type and its effects (if any)
+{-# COMPLETE Effect'' #-}
+
+{-# COMPLETE Ref', Arrow', Ann', App', Effect', Effects', Forall', IntroOuter', Record' #-}
 
 unPure :: (Ord v) => Type v a -> Maybe (Type v a)
 unPure (Effect'' [] t) = Just t
