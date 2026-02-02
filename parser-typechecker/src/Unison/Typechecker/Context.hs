@@ -2939,6 +2939,15 @@ equate0 t (Type.Var' (TypeVar.Existential b v))
       instantiateL b v t
 equate0 (Type.Effects' es1) (Type.Effects' es2) =
   equateAbilities es1 es2
+equate0 r1@(Type.Record' fields1) r2@(Type.Record' fields2) = do
+  Align.align fields1 fields2
+    & Map.traverseWithKey
+      ( \fieldName -> \case
+          This fieldType -> failWith $ MissingRecordField fieldName fieldType r2 r1
+          That fieldType -> failWith $ MissingRecordField fieldName fieldType r1 r2
+          These t1 t2 -> equate t1 t2
+      )
+    & void
 equate0 y1 y2 = do
   subtype y1 y2
   y1 <- applyM y1
@@ -3004,6 +3013,29 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
           [existential y', existential x', s]
         applyM x >>= instantiateL B.Blank x'
         applyM y >>= instantiateL B.Blank y'
+      Type.Record' fields -> do
+        -- Treat a record similarly to a Constructor Application,
+        --
+        -- First generate a new var and existential for each field's type
+        (fieldVars, fieldExistentials) <-
+          for
+            fields
+            ( \tp -> do
+                v' <- freshenVar (nameFrom Var.inferRecordFieldType tp)
+                pure $ (v', existentialp (loc tp) v')
+            )
+            <&> Align.unzip
+        let recordLoc = ABT.annotation t
+        -- We can assert that the result type is equal to the record filled with the existentials
+        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fieldExistentials))
+        -- Now, update the context, replacing the existential of the current var to
+        -- include the new field existentials and the solved type, which depends on them.
+        replaceContext
+          (existential v)
+          ((existential <$> Map.elems fieldVars) <> [solved])
+        -- Finally, instantiate each field type to the corresponding existential
+        for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
+          applyM fieldTyp >>= instantiateL B.Blank fieldVar
       Type.Effect1' es vt -> do
         es' <- freshenVar Var.inferAbility
         vt' <- freshenVar Var.inferOther
