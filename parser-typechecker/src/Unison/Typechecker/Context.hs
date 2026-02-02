@@ -3016,8 +3016,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
         applyM x >>= instantiateL B.Blank x'
         applyM y >>= instantiateL B.Blank y'
       Type.Record' fields -> do
-        -- Treat a record similarly to a Constructor Application,
-        --
+        -- For now, treat record instantiation similarly to a Constructor Application,
+        -- we require that record types match exactly, no record field subsets are allowed yet.
         -- First generate a new var and existential for each field's type
         (fieldVars, fieldExistentials) <-
           for
@@ -3151,6 +3151,34 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
         replaceContext (existential v) [existential y', existential x', s]
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
+      Type.Record' fields -> do
+        -- For now, treat record instantiation similarly to a Constructor Application,
+        -- we require that record types match exactly, no record field subsets are allowed yet.
+        --
+        -- { name : n } <: v' will
+        -- 1. create result', n', add these to the context
+        -- 2. add result' = { name : n' } to the context
+        -- 3. recurse to refine the type of n'
+        (fieldVars, fieldExistentials) <-
+          for
+            fields
+            ( \tp -> do
+                v' <- freshenVar (nameFrom Var.inferRecordFieldType tp)
+                pure $ (v', existentialp (loc tp) v')
+            )
+            <&> Align.unzip
+        let recordLoc = ABT.annotation t
+        -- We can assert that the result type is equal to the record filled with the existentials
+        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fieldExistentials))
+        -- Now, update the context, replacing the existential of the current var to
+        -- include the new field existentials and the solved type, which depends on them.
+        replaceContext
+          (existential v)
+          ((existential <$> Map.elems fieldVars) <> [solved])
+        -- Finally, instantiate each field type to the corresponding existential
+        for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
+          applyM fieldTyp >>= instantiateL B.Blank fieldVar
+
       Type.Effect1' es vt -> do
         es' <- freshenVar (nameFrom Var.inferAbility es)
         vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)
