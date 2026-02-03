@@ -600,8 +600,11 @@ addConstraint con0 nc = do
                     iset' = IntervalSet.delete (0, length posSnoc' - 1) iset
                  in (populateCons r posCons iset', Update (posCons, posSnoc', iset'))
        in modifyListC r updateList nc
-    C.PosRecordLiteral _recordVar _fields -> error "Implement addConstraint for PosRecordLiteral"
-    --- modifyRecordC recordVar updateRecord nc
+    C.PosRecordLiteral _recordVar _fields ->
+      -- TODO: Actually implement record literal constraints,
+      -- for now it just _always_ succeeds
+      --- modifyRecordC recordVar updateRecord nc
+      pure (Just nc)
     C.PosCon var datacon convars ->
       let updateConstructor pos neg
             | Just (datacon1, convars1) <- pos = case datacon == datacon1 of
