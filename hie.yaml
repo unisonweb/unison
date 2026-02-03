@@ -79,6 +79,9 @@ cradle:
     - path: "lib/unison-util-cache/test"
       component: "unison-util-cache:test:util-cache-tests"
 
+    - path: "lib/unison-util-diff3/src"
+      component: "unison-util-diff3:lib"
+
     - path: "lib/unison-util-file-embed/src"
       component: "unison-util-file-embed:lib"
 
