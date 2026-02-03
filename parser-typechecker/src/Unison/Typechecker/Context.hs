@@ -2096,6 +2096,7 @@ ungeneralize' t = pure ([], t)
 -- de-generalized, and replaces simple freshening of the
 -- polymorphic variable.
 tweakEffects ::
+  forall v loc.
   (Var v) =>
   (Ord loc) =>
   TypeVar v loc ->
@@ -2119,6 +2120,9 @@ tweakEffects v0 t0
       appendContext (existential <$> vs)
       pure (vs, ABT.substInheritAnnotation v0 (typ vs) ty)
 
+    rewrite :: Maybe Bool
+                  -> ABT.Term Type.F (TypeVar v loc) a
+                  -> MT v loc (Result v loc) ([v], Type.Type (TypeVar v loc) a)
     rewrite p ty
       | Type.ForallNamed' v t <- ty,
         v0 /= v =
@@ -2143,6 +2147,9 @@ tweakEffects v0 t0
           (vfs, f) <- rewrite p f
           (vxs, x) <- rewrite Nothing x
           pure (vfs ++ vxs, Type.app (loc ty) f x)
+      | Type.Record' fields <- ty = do
+          (vs, fields') <- getCompose $ for fields (Compose . rewrite p)
+          pure (vs, Type.record (loc ty) fields')
       | otherwise = pure ([], ty)
       where
         a = loc ty
@@ -2171,6 +2178,7 @@ isVariant u = walk True
       walk var i && walk var o && all (walk var) es
     walk var (Type.App' f x) = walk var f && walk False x
     walk var (Type.Var' v) = u /= v || var
+    walk var (Type.Record' fields) = all (walk var) fields
     walk _ _ = True
 
 skolemize ::
@@ -2470,6 +2478,9 @@ discardCovariant vars gens ty =
       | Just vs <- checkVarianceWith vars f,
         length vs == length xs =
           keepVarsT pos f <> foldMap (keepVarsV pos) (zip vs xs)
+    keepVarsT pos (Type.Record' fields) =
+      -- TODO: Is this right?
+      foldMap (keepVarsT pos) fields
     keepVarsT _ t = foldMap exi $ Type.freeVars t
 
     exi (TypeVar.Existential _ v) = Set.singleton v
@@ -2578,6 +2589,9 @@ relax' vars nonArrow fv = rebuild True
             Just (Pos : _) -> rebuild False x
             _ -> pure x
           pure $ Type.app loc f x
+      | Type.Record' fields <- t = do
+          fields <- traverse (rebuild False) fields
+          pure $ Type.record loc fields
       | top, nonArrow = ftv loc <&> \tv -> Type.effect loc [tv] t
       | otherwise = pure t
       where
@@ -2604,7 +2618,7 @@ checkWantedScoped exact want m ty =
 -- updated set.
 --
 -- The Maybe argument determines whether an exact ability match is
--- required for function maches. This is to check for suspicious
+-- required for function matches. This is to check for suspicious
 -- ability handler situations like:
 --
 --   foo : '{X, Y} r -> r
@@ -2717,6 +2731,8 @@ checkWanted exact want (Term.List' es) lty
       Foldable.foldlM f want es
   where
     bexact = isJust exact
+-- TODO: Do we need a case for Term.Record'?
+-- I don't think so
 checkWanted _ want e t = do
   (u, wnew) <- synthesize e
   ctx <- getContext
