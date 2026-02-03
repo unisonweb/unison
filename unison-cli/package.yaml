@@ -154,7 +154,6 @@ executables:
       - base
       - bytestring
       - code-page
-      - directory
       - easytest
       - filepath
       - megaparsec
