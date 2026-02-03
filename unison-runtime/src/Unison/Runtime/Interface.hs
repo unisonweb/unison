@@ -653,7 +653,7 @@ intermediateTerms ppe ctx rtms =
       where
         f ref =
           superNormalize
-            . splitPatterns (dspec ctx)
+            . splitPatterns ctx.dspec
             . addDefaultCases tmName
           where
             tmName = HQ.toText . termName ppe $ RF.Ref ref
@@ -733,7 +733,7 @@ intermediateTerm ppe ctx tm =
         tmName = HQ.toText . termName ppe $ RF.Ref ref
         f =
           superNormalize
-            . splitPatterns (dspec ctx)
+            . splitPatterns ctx.dspec
             . addDefaultCases tmName
 
 prepareEvaluation ::

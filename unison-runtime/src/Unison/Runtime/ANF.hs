@@ -63,6 +63,7 @@ module Unison.Runtime.ANF
     Tag (..),
     RecordRef (..),
     RecordSchema (..),
+    FieldName,
     GroupRef (..),
     Code (..),
     ValList,
@@ -1460,8 +1461,10 @@ instance Monoid (BranchAccum e) where
 newtype RecordRef = RecordRef Word64
   deriving (Show, Eq, Ord)
 
-newtype RecordSchema = RecordSchema (Set Text)
+newtype RecordSchema = RecordSchema (Set FieldName)
   deriving (Show, Eq, Ord)
+
+type FieldName = Text
 
 data Func ref v
   = -- variable

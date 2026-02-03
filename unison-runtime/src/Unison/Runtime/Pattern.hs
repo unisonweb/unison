@@ -9,6 +9,7 @@ module Unison.Runtime.Pattern
   ( DataSpec,
     splitPatterns,
     builtinDataSpec,
+    RecordSpec,
   )
 where
 
@@ -36,6 +37,7 @@ import Unison.Pattern
 import Unison.Pattern qualified as P
 import Unison.Prelude hiding (guard)
 import Unison.Reference (Reference, Reference' (Builtin, DerivedId))
+import Unison.Runtime.ANF (RecordSchema (..))
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Term hiding (Term, matchPattern)
 import Unison.Term qualified as Tm
@@ -48,20 +50,32 @@ type Term v = Tm.Term v ()
 -- ability in order of constructors
 type Cons = [Int]
 
+-- | A list of (constructor number, number of fields), e.g. `Cons` but with constructor numberings.
 type NCons = [(Int, Int)]
 
 -- Maps references to the constructor information for abilities (left)
 -- and data types (right)
 type DataSpec = Map Reference (Either Cons Cons)
 
-data PType = PData Reference | PReq (Set Reference) | Unknown
+-- Maps record references to their field counts
+-- TODO: probably don't need this?
+type RecordSpec = Map RecordSchema Int
+
+data PType
+  = PData Reference
+  | PReq (Set Reference)
+  | PRec (RecordSchema {- The actual fields matched here -})
+  | Unknown
 
 instance Semigroup PType where
   Unknown <> r = r
   l <> Unknown = l
   t@(PData l) <> PData r
     | l == r = t
+  -- TODO: Check that schemas are equal
   PReq l <> PReq r = PReq (l <> r)
+  PRec l <> PRec r
+    | l == r = PRec l
   _ <> _ = internalBug [] "inconsistent pattern matching types"
 
 instance Monoid PType where
@@ -162,18 +176,18 @@ extractVars = catMaybes . fmap extractVar
 -- The outer list indicates success of the match. It could be Maybe,
 -- but elsewhere these results are added to a list, so it is more
 -- convenient to yield a list here.
-decomposePattern ::
+decomposeDataPattern ::
   (Var v) =>
   Maybe Reference ->
   Int ->
   Int ->
   P.Pattern v ->
   [[P.Pattern v]]
-decomposePattern (Just rf0) t _ (P.Boolean _ b)
+decomposeDataPattern (Just rf0) t _ (P.Boolean _ b)
   | rf0 == Rf.booleanRef,
     t == if b then 1 else 0 =
       [[]]
-decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference rf u) ps)
+decomposeDataPattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference rf u) ps)
   | t == fromIntegral u,
     rf0 == rf =
       if length ps == nfields
@@ -181,9 +195,9 @@ decomposePattern (Just rf0) t nfields p@(P.Constructor _ (ConstructorReference r
         else internalBug [] err
   where
     err =
-      "decomposePattern: wrong number of constructor fields: "
+      "decomposeDataPattern: wrong number of constructor fields: "
         ++ show (nfields, p)
-decomposePattern (Just rf0) t nfields p@(P.EffectBind _ (ConstructorReference rf u) ps pk)
+decomposeDataPattern (Just rf0) t nfields p@(P.EffectBind _ (ConstructorReference rf u) ps pk)
   | t == fromIntegral u,
     rf0 == rf =
       if length ps + 1 == nfields
@@ -191,17 +205,33 @@ decomposePattern (Just rf0) t nfields p@(P.EffectBind _ (ConstructorReference rf
         else internalBug [] err
   where
     err =
-      "decomposePattern: wrong number of ability fields: "
+      "decomposeDataPattern: wrong number of ability fields: "
         ++ show (nfields, p)
-decomposePattern _ t _ (P.EffectPure _ p)
+decomposeDataPattern _ t _ (P.EffectPure _ p)
   | t == -1 = [[p]]
-decomposePattern _ _ nfields (P.Var _) =
+decomposeDataPattern _ _ nfields (P.Var _) =
   [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ _ nfields (P.Unbound _) =
+decomposeDataPattern _ _ nfields (P.Unbound _) =
   [replicate nfields (P.Unbound (typed Pattern))]
-decomposePattern _ _ _ (P.SequenceLiteral _ _) =
-  internalBug [] "decomposePattern: sequence literal"
-decomposePattern _ _ _ _ = []
+decomposeDataPattern _ _ _ (P.SequenceLiteral _ _) =
+  internalBug [] "decomposeDataPattern: sequence literal"
+decomposeDataPattern _ _ _ _ = []
+
+-- Splits a record type pattern, yielding its subpatterns.
+--
+-- The outer list indicates success of the match. It could be Maybe,
+-- but elsewhere these results are added to a list, so it is more
+-- convenient to yield a list here.
+decomposeRecPattern ::
+  (Var v) =>
+  P.Pattern v ->
+  [[P.Pattern v]]
+decomposeRecPattern (P.RecordLiteral _loc fields) = pure $ Map.elems fields
+decomposeRecPattern (P.Var _) = pure []
+decomposeRecPattern (P.Unbound _) = pure []
+decomposeRecPattern (P.SequenceLiteral _ _) =
+  internalBug [] "decomposeRecPattern: sequence literal"
+decomposeRecPattern _ = empty
 
 matchBuiltin :: P.Pattern a -> Maybe (P.Pattern ())
 matchBuiltin (P.Var _) = Just $ P.Unbound ()
@@ -320,7 +350,7 @@ decomposeSeqP _ _ _ = Overlap
 -- constructor, the subpatterns and resulting row are yielded. A list
 -- is used as the result value to indicate success or failure to match,
 -- because these results are accumulated into a larger list elsewhere.
-splitRow ::
+splitDataRow ::
   (Var v) =>
   v ->
   Maybe Reference ->
@@ -328,10 +358,25 @@ splitRow ::
   Int ->
   PatternRow v ->
   [([P.Pattern v], PatternRow v)]
-splitRow v rf t nfields (PR (break ((== v) . loc) -> (pl, sp : pr)) g b) =
-  decomposePattern rf t nfields sp
+splitDataRow v rf t nfields (PR (break ((== v) . loc) -> (pl, sp : pr)) g b) =
+  decomposeDataPattern rf t nfields sp
     <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
-splitRow _ _ _ _ row = [([], row)]
+splitDataRow _ _ _ _ row = [([], row)]
+
+-- Splits a pattern row with respect to matching a variable against a
+-- record type. If the row would match the record
+-- the subpatterns and resulting row are yielded. A list
+-- is used as the result value to indicate success or failure to match,
+-- because these results are accumulated into a larger list elsewhere.
+splitRecRow ::
+  (Var v) =>
+  v ->
+  PatternRow v ->
+  [([P.Pattern v], PatternRow v)]
+splitRecRow v (PR (break ((== v) . loc) -> (pl, sp : pr)) g b) =
+  decomposeRecPattern sp
+    <&> \subs -> (subs, PR (pl ++ filter refutable subs ++ pr) g b)
+splitRecRow _ row = [([], row)]
 
 -- Splits a row with respect to a variable, expecting that the
 -- variable will be matched against a builtin pattern (non-data type,
@@ -478,17 +523,27 @@ splitMatrixSeq avoid v (PM rs) =
 -- Splits a matrix at a given variable with respect to a data type or
 -- ability match. Yields a new matrix for each constructor, with
 -- variables introduced and their types for each case.
-splitMatrix ::
+splitMatrixOnData ::
   (Var v) =>
   v ->
   Maybe Reference ->
   NCons ->
   PatternMatrix v ->
   [(Int, [(v, PType)], PatternMatrix v)]
-splitMatrix v rf cons (PM rs) =
+splitMatrixOnData v rf cons (PM rs) =
   fmap (\(a, (b, c)) -> (a, b, c)) . (fmap . fmap) buildMatrix $ mmap
   where
-    mmap = fmap (\(t, fs) -> (t, splitRow v rf t fs =<< rs)) cons
+    mmap = fmap (\(t, fs) -> (t, splitDataRow v rf t fs =<< rs)) cons
+
+splitMatrixOnRec ::
+  (Var v) =>
+  v ->
+  PatternMatrix v ->
+  [(Int, [(v, PType)], PatternMatrix v)]
+splitMatrixOnRec v (PM rows) =
+  fmap (\(a, (b, c)) -> (a, b, c)) . (fmap . fmap) buildMatrix $ mmap
+  where
+    mmap = [(0, splitRecRow v =<< rows)]
 
 -- Eliminates a variable from a matrix, keeping the rows that are
 -- _not_ specific matches on that variable (so, would potentially
@@ -545,6 +600,8 @@ normalizeSeqP (P.SequenceOp a p0 op q0) =
     (Concat, p, P.SequenceLiteral _ qs) ->
       foldl (\r q -> P.SequenceOp a r Snoc q) p qs
     (op, p, q) -> P.SequenceOp a p op q
+normalizeSeqP (P.RecordLiteral a fields) =
+  P.RecordLiteral a (normalizeSeqP <$> fields)
 normalizeSeqP p = p
 
 -- Prepares a pattern for compilation, like `preparePattern`. This
@@ -557,6 +614,8 @@ prepareAs (P.As _ p) u = (useVar >>= renameTo u) *> prepareAs p u
 prepareAs (P.Var _) u = P.Var u <$ (renameTo u =<< useVar)
 prepareAs (P.Constructor _ r ps) u = do
   P.Constructor u r <$> traverse preparePattern ps
+prepareAs (P.RecordLiteral _ fields) u = do
+  P.RecordLiteral u <$> traverse preparePattern fields
 prepareAs (P.EffectPure _ p) u = do
   P.EffectPure u <$> preparePattern p
 prepareAs (P.EffectBind _ r ps k) u = do
@@ -579,8 +638,8 @@ prepareAs p u = pure $ u <$ p
 preparePattern :: (Var v) => P.Pattern a -> PPM v (P.Pattern v)
 preparePattern p = prepareAs p =<< freshVar
 
-buildPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()
-buildPattern effect r vs nfields
+buildDataPattern :: Bool -> ConstructorReference -> [v] -> Int -> P.Pattern ()
+buildDataPattern effect r vs nfields
   | effect, [] <- vps = internalBug [] "too few patterns for effect bind"
   | effect = P.EffectBind () r (init vps) (last vps)
   | otherwise = P.Constructor () r vps
@@ -590,6 +649,18 @@ buildPattern effect r vs nfields
           replicate nfields $ P.Unbound ()
       | otherwise =
           P.Var () <$ vs
+
+buildRecPattern :: RecordSchema -> [v] -> P.Pattern ()
+buildRecPattern (RecordSchema matchedFields) vs
+  | Set.size matchedFields /= length vps =
+      internalBug [] "wrong number of patterns for record literal"
+  | otherwise =
+      let recFields =
+            zip (Set.toList matchedFields) vps
+              & Map.fromList
+       in P.RecordLiteral () recFields
+  where
+    vps = P.Var () <$ vs
 
 numberCons :: Cons -> NCons
 numberCons = zip [0 ..]
@@ -612,42 +683,47 @@ compile :: (Var v) => DataSpec -> Ctx v -> PatternMatrix v -> Term v
 compile _ _ (PM []) = apps' bu [text () "pattern match failure"]
   where
     bu = ref () (Builtin "bug")
-compile spec ctx m@(PM (r : rs))
+compile dataspec ctx m@(PM (r : rs))
   | noMatches r =
       case guard r of
         Nothing -> body r
-        Just g -> iff mempty g (body r) $ compile spec ctx (PM rs)
+        Just g -> iff mempty g (body r) $ compile dataspec ctx (PM rs)
   | PData rf <- ty,
     rf == Rf.listRef =
       match () (var () v) $
-        buildCaseBuiltin spec ctx
+        buildCaseBuiltin dataspec ctx
           <$> splitMatrixSeq (Map.keysSet ctx <> usedVars m) v m
   | PData rf <- ty,
     rf `member` builtinCase =
       match () (var () v) $
-        buildCaseBuiltin spec ctx
+        buildCaseBuiltin dataspec ctx
           <$> splitMatrixBuiltin v m
   | PData rf <- ty =
-      case lookupData rf spec of
+      case lookupData rf dataspec of
         Right cons ->
           match () (var () v) $
-            ( buildCase spec rf False cons ctx
-                <$> splitMatrix v (Just rf) ncons m
+            ( buildDataCase dataspec rf False cons ctx
+                <$> splitMatrixOnData v (Just rf) ncons m
             )
-              ++ buildDefaultCase spec False needDefault ctx dm
+              ++ buildDefaultCase dataspec False needDefault ctx dm
           where
             needDefault = length ncons < length cons
         Left err -> internalBug [] err
   | PReq rfs <- ty =
       match () (var () v) $
-        [ buildCasePure spec ctx tup
-        | tup <- splitMatrix v Nothing [(-1, 1)] m
+        [ buildCasePure dataspec ctx tup
+          | tup <- splitMatrixOnData v Nothing [(-1, 1)] m
         ]
-          ++ [ buildCase spec rf True cons ctx tup
-             | rf <- Set.toList rfs,
-               Right cons <- [lookupAbil rf spec],
-               tup <- splitMatrix v (Just rf) (numberCons cons) m
+          ++ [ buildDataCase dataspec rf True cons ctx tup
+               | rf <- Set.toList rfs,
+                 Right cons <- [lookupAbil rf dataspec],
+                 tup <- splitMatrixOnData v (Just rf) (numberCons cons) m
              ]
+  | PRec recSchema <- ty =
+      match () (var () v) $
+        ( buildRecCase dataspec recSchema ctx
+            <$> splitMatrixOnRec v m
+        )
   | Unknown <- ty =
       internalBug [] "unknown pattern compilation type"
   where
@@ -682,8 +758,8 @@ buildCaseBuiltin ::
   Ctx v ->
   (P.Pattern (), [(v, PType)], PatternMatrix v) ->
   MatchCase () (Term v)
-buildCaseBuiltin spec ctx0 (p, vrs, m) =
-  MatchCase p Nothing . absChain' vs $ compile spec ctx m
+buildCaseBuiltin dataspec ctx0 (p, vrs, m) =
+  MatchCase p Nothing . absChain' vs $ compile dataspec ctx m
   where
     vs = ((),) . fst <$> vrs
     ctx = Map.fromList vrs <> ctx0
@@ -694,8 +770,8 @@ buildCasePure ::
   Ctx v ->
   (Int, [(v, PType)], PatternMatrix v) ->
   MatchCase () (Term v)
-buildCasePure spec ctx0 (_, vts, m) =
-  MatchCase pat Nothing . absChain' vs $ compile spec ctx m
+buildCasePure dataspec ctx0 (_, vts, m) =
+  MatchCase pat Nothing . absChain' vs $ compile dataspec ctx m
   where
     vp
       | [] <- vts = P.Unbound ()
@@ -704,7 +780,7 @@ buildCasePure spec ctx0 (_, vts, m) =
     vs = ((),) . fst <$> vts
     ctx = Map.fromList vts <> ctx0
 
-buildCase ::
+buildDataCase ::
   (Var v) =>
   DataSpec ->
   Reference ->
@@ -713,10 +789,24 @@ buildCase ::
   Ctx v ->
   (Int, [(v, PType)], PatternMatrix v) ->
   MatchCase () (Term v)
-buildCase spec r eff cons ctx0 (t, vts, m) =
-  MatchCase pat Nothing . absChain' vs $ compile spec ctx m
+buildDataCase dataspec r eff cons ctx0 (t, vts, m) =
+  MatchCase pat Nothing . absChain' vs $ compile dataspec ctx m
   where
-    pat = buildPattern eff (ConstructorReference r (fromIntegral t)) vs $ cons !! t
+    pat = buildDataPattern eff (ConstructorReference r (fromIntegral t)) vs $ cons !! t
+    vs = ((),) . fst <$> vts
+    ctx = Map.fromList vts <> ctx0
+
+buildRecCase ::
+  (Var v) =>
+  DataSpec ->
+  RecordSchema ->
+  Ctx v ->
+  (Int, [(v, PType)], PatternMatrix v) ->
+  MatchCase () (Term v)
+buildRecCase dataspec rs ctx0 (_t, vts, m) =
+  MatchCase pat Nothing . absChain' vs $ compile dataspec ctx m
+  where
+    pat = buildRecPattern rs vs
     vs = ((),) . fst <$> vts
     ctx = Map.fromList vts <> ctx0
 
@@ -728,8 +818,8 @@ buildDefaultCase ::
   Ctx v ->
   PatternMatrix v ->
   [MatchCase () (Term v)]
-buildDefaultCase spec _eff needed ctx pm
-  | needed = [MatchCase (Unbound ()) Nothing $ compile spec ctx pm]
+buildDefaultCase dataspec _eff needed ctx pm
+  | needed = [MatchCase (Unbound ()) Nothing $ compile dataspec ctx pm]
   | otherwise = []
 
 mkRow ::
@@ -778,18 +868,22 @@ grabId :: State Word64 Word64
 grabId = state $ \n -> (n, n + 1)
 
 splitPatterns :: (Var v) => DataSpec -> Term v -> Term v
-splitPatterns spec0 tm = evalState (splitPatterns0 spec tm) 0
+splitPatterns dataspec0 tm = evalState (splitPatterns0 dataspec tm) 0
   where
-    spec = Map.insert Rf.booleanRef (Right [0, 0]) spec0
+    dataspec = Map.insert Rf.booleanRef (Right [0, 0]) dataspec0
 
-splitPatterns0 :: (Var v) => DataSpec -> Term v -> State Word64 (Term v)
-splitPatterns0 spec = visit $ \case
+splitPatterns0 ::
+  (Var v) =>
+  DataSpec ->
+  Term v ->
+  State Word64 (Term v)
+splitPatterns0 dataspec = visit $ \case
   Match' sc0 cs0
     | ty <- determineType $ p <$> cs0 -> Just $ do
-        sc <- splitPatterns0 spec sc0
-        cs <- (traverse . traverse) (splitPatterns0 spec) cs0
+        sc <- splitPatterns0 dataspec sc0
+        cs <- (traverse . traverse) (splitPatterns0 dataspec) cs0
         (lv, scrut, pm) <- initialize ty sc cs
-        let body = compile spec (uncurry Map.singleton scrut) pm
+        let body = compile dataspec (uncurry Map.singleton scrut) pm
         pure $ case lv of
           Just v -> let1 False [(((), v), sc)] body
           _ -> body
@@ -822,4 +916,5 @@ determineType = foldMap f
     f (P.Constructor _ r _) = PData (r ^. ConstructorReference.reference_)
     f (P.EffectBind _ r _ _) = PReq $ Set.singleton (r ^. ConstructorReference.reference_)
     f P.EffectPure {} = PReq mempty
+    f (P.RecordLiteral _ fields) = PRec (RecordSchema $ Map.keysSet fields)
     f _ = Unknown
