@@ -1248,6 +1248,7 @@ matchCallingError cc b = "(" ++ show cc ++ "," ++ brs ++ ")"
       | MatchRequest _ _ <- b = "MatchRequest"
       | MatchSum _ <- b = "MatchSum"
       | MatchText _ _ <- b = "MatchText"
+      | MatchRec _ _ <- b = "MatchRec"
 
 emitSectionVErr :: (Var v, HasCallStack) => v -> a
 emitSectionVErr v =

@@ -134,7 +134,7 @@ import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), 
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
-import Unison.Term hiding (Record, Char, Float, List, Ref, Text, arity, float, fresh, record, resolve)
+import Unison.Term hiding (Char, Float, List, Record, Ref, Text, arity, float, fresh, record, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
@@ -1362,6 +1362,7 @@ data Branched ref e
   | MatchRequest [(ref, (EnumMap CTag ([Mem], e)))] e
   | MatchEmpty
   | MatchData ref (EnumMap CTag ([Mem], e)) (Maybe e)
+  | MatchRec RecordSchema e
   | MatchSum (EnumMap Word64 ([Mem], e))
   | MatchNumeric ref (EnumMap Word64 e) (Maybe e)
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -1389,6 +1390,7 @@ data BranchAccum v
       Reference
       (Maybe (ANormal Reference v))
       (EnumMap CTag ([Mem], ANormal Reference v))
+  | AccumRec RecordSchema (ANormal Reference v)
   | AccumSeqEmpty (ANormal Reference v)
   | AccumSeqView
       SeqEnd
@@ -1996,6 +1998,8 @@ anfBlock (Match' scrut cas) = do
       pure (sctx <> cx, pure $ TMatch v $ MatchNumeric r cs df)
     AccumData r df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchData r cs df)
+    AccumRec rs bd -> do
+      pure (sctx <> cx, pure $ TMatch v $ MatchRec rs bd)
     AccumSeqEmpty _ ->
       internalBug [] "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
@@ -2169,6 +2173,11 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
         <*> anfBody bd
         <&> \(us, bd) ->
           AccumData r Nothing . EC.mapSingleton (fromIntegral t) . (BX <$ us,) $ ABTN.TAbss us bd
+  | P.RecordLiteral _ fields <- p = do
+      (,)
+        <$> expandBindings (Map.elems fields) vs
+        <*> anfBody bd
+        <&> \(us, bd) -> AccumRec (RecordSchema $ Map.keysSet fields) $ ABTN.TAbss us bd
   | P.EffectPure _ q <- p =
       (,)
         <$> expandBindings [q] vs
@@ -2485,6 +2494,8 @@ branchLinks f g (MatchNumeric r m e) =
   MatchNumeric <$> f r <*> traverse g m <*> traverse g e
 branchLinks _ g (MatchSum m) =
   MatchSum <$> (traverse . traverse) g m
+branchLinks _ g (MatchRec rs e) =
+  MatchRec rs <$> g e
 branchLinks _ _ MatchEmpty = pure MatchEmpty
 
 funcLinks ::
@@ -2718,6 +2729,11 @@ prettyBranches ind bs = case bs of
         (uncurry $ prettyCase ind . prettyTag r)
         id
         (mapToList $ snd <$> bs)
+  MatchRec (RecordSchema rs) bd ->
+    let fields = Set.toList rs
+                & Text.intercalate ", "
+                & Text.unpack
+     in prettyCase ind (showString "REC{" . showString fields . showString "}") bd id
   MatchRequest bs df ->
     foldr
       ( \(r, m) s ->
