@@ -299,7 +299,7 @@ handleDiffBranch aliceArg bobArg = do
                   }
               where
                 slugs =
-                  mangleDiffBranchArg <$> maybeSwap originalArgs
+                  mangleDiffBranchArg <$> originalArgs
 
         let difftool =
               difftool0
@@ -326,19 +326,20 @@ handleDiffBranch aliceArg bobArg = do
                             diffblob.defns.lca
                             builtins
                             hydratedDefns
-                        _ -> aliceAndBobFiles.alice
+                        _ -> if swapped then aliceAndBobFiles.bob else aliceAndBobFiles.alice
                     )
                     aliceAndBobFiles
                   where
                     aliceAndBobFiles :: Merge.TwoWay Text
                     aliceAndBobFiles =
-                      renderUnisonFile
-                        <$> Merge.ThreeWay.gforgetLca diffblob.declNameLookups
-                        <*> Merge.TwoOrThreeWay.forgetLca namespaces
-                        <*> Merge.ThreeWay.forgetLca libdepsDiffs
-                        <*> Merge.ThreeWay.forgetLca diffblob.defns
-                        <*> Merge.TwoOrThreeWay.forgetLca changedBuiltinDefns
-                        <*> pure hydratedDefns
+                      maybeSwap $
+                        renderUnisonFile
+                          <$> Merge.ThreeWay.gforgetLca diffblob.declNameLookups
+                          <*> Merge.TwoOrThreeWay.forgetLca namespaces
+                          <*> Merge.ThreeWay.forgetLca libdepsDiffs
+                          <*> Merge.ThreeWay.forgetLca diffblob.defns
+                          <*> Merge.TwoOrThreeWay.forgetLca changedBuiltinDefns
+                          <*> pure hydratedDefns
 
             for_ ((,) <$> filenames <*> renderedUnisonFiles) \(name, contents) ->
               env.writeSource name contents True
