@@ -7,12 +7,25 @@ library:
   when:
     - condition: false
       other-modules: Paths_unison_prelude
+  dependencies:
+    - Diff
+    - base
 
-dependencies:
-  - Diff
-  - base
-  - unison-prelude
-
+tests:
+  util-diff3-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_diff3
+    dependencies:
+      - base
+      - containers
+      - directory
+      - filepath
+      - text
+      - unison-prelude
+      - unison-util-diff3
+    main: Main.hs
+    source-dirs: test
 
 ghc-options:
   -Wall

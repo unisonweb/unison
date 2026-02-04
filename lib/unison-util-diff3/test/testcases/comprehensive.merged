@@ -1,0 +1,35 @@
+<<<<<<<
+bar : Nat ->{IO} Nat
+bar x =
+=======
+foo : Nat ->{IO} Nat
+foo x =
+=======
+foo : Nat -> Nat ->{IO} Nat
+foo x y =
+>>>>>>>
+  -- begin doing stuff
+  -- new comment
+  log x
+  -- compute y
+  y = x + 2
+  -- i do like turtles
+<<<<<<<
+=======
+  z = -1
+=======
+  -- compute z
+  z = 0;
+>>>>>>>
+  -- output stuff
+<<<<<<<
+  log y
+=======
+  print y
+  print old
+=======
+  display y
+  print z
+>>>>>>>
+  -- done!
+  y + 1
