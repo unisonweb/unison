@@ -1039,6 +1039,8 @@ alignBranch f (MatchData rfl bl dl) (MatchData rfr br dr)
     all (\t -> fst (bl ! t) == fst (br ! t)) (keys bl),
     Just ds <- alignMaybe f dl dr =
       Just $ MatchData rfl <$> interverse (alignCCs f) bl br <*> ds
+alignBranch f (MatchRec rsl bdl) (MatchRec rsr bdr)
+  | rsl == rsr = Just $ MatchRec rsl <$> f bdl bdr
 alignBranch f (MatchSum bl) (MatchSum br)
   | keysSet bl == keysSet br,
     all (\w -> fst (bl ! w) == fst (br ! w)) (keys bl) =

@@ -230,7 +230,7 @@ putNormal fops ctx tm = case tm of
       <> putCCs ccs
       <> putNormal fops ctx l
       <> putNormal fops (pushCtx us ctx) e
-  v -> exn [] $ "putNormal: malformed term\n" ++ show v
+  v -> exn [] $ "CodeV4: putNormal: malformed term\n" ++ show v
 
 getNormal ::
   (PrimBase m) =>
@@ -438,6 +438,10 @@ getBranches ctx frsh0 =
         <$> getRefNum
         <*> getEnumMap getWord64be (getNormal ctx frsh0)
         <*> getMaybe (getNormal ctx frsh0)
+    MRecT ->
+      MatchRec
+        <$> getRecordSchema
+        <*> getNormal ctx frsh0
 {-# INLINEABLE getBranches #-}
 
 putCase ::

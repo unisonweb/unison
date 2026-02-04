@@ -361,6 +361,10 @@ hash64AddBranches rs ctx = \case
     hash64AddInt 7
       `combine` hash64AddEMap (hash64AddNAssoc rs ctx) bs
       `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
+  MatchRec (RecordSchema recSchema) bd ->
+    hash64AddInt 8
+      `combine` hash64AddFoldable (hash64AddText) recSchema
+      `combine` hash64AddNormal rs ctx bd
 
 hash64AddNAssoc ::
   (Show r) =>

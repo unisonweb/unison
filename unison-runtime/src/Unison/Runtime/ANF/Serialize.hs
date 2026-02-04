@@ -549,6 +549,11 @@ putBranches refrep fops ctx bs = case bs of
       <> putReference r
       <> putEnumMap putCTag (putCase refrep fops ctx) m
       <> putMaybe df (putNormal refrep fops ctx)
+  MatchRec rs (TAbss us e) ->
+    putTag MRecT
+      <> putRecordSchema rs
+      <> putVarInt (length us)
+      <> putNormal refrep fops (pushCtx us ctx) e
   MatchSum m ->
     putTag MSumT
       <> putEnumMap BU.word64BE (putCase refrep fops ctx) m
@@ -593,6 +598,12 @@ getBranches ctx frsh0 s =
         <$> getReference
         <*> getEnumMap getWord64be (getNormal ctx frsh0 s)
         <*> getMaybe (getNormal ctx frsh0 s)
+    MRecT -> do
+      rs <- getRecordSchema
+      uSize <- getVarInt
+      let frsh = frsh0 + fromIntegral uSize
+      let us = getFresh <$> take uSize [frsh0 ..]
+      MatchRec rs . TAbss us <$> getNormal (pushCtx us ctx) frsh s
 
 putCase ::
   (Var v) =>
