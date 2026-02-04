@@ -557,6 +557,12 @@ data GInstr comb
       !ANF.RecordRef
       -- values to pack
       !Args
+  | -- Unpack a set of fields from a record on the boxed stack.
+    -- It may be a subset of the fields, so the RecordRef may not match
+    -- that of the record in the closure.
+    RecUnpack
+      !ANF.RecordRef {- fields to unpack -}
+      !Int {- index of record on boxed stack -}
   | -- Which fields to pack each arg into
     -- TODO: Do we need this? I think we should just generate ANF
     -- with all fields in order according to key, then we can just assume
@@ -1092,6 +1098,12 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
     MatchData r cs df <- bs =
       DMatch (Just r) i
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
+  | Just (i, BX) <- ctxResolve ctx v,
+    MatchRec rs (TAbss vs bd) <- bs = do
+      let recordRef = recNum rns rs
+      let instr = RecUnpack recordRef i
+      let newCtx = pushCtx (zip vs (repeat BX {- these are ignored -})) ctx
+      Ins instr <$> emitSection rns grpr grpn rec newCtx bd
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
     hs <- mapFromList $ first (dnum rns) <$> hs0 =
